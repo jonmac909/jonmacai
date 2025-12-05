@@ -77,7 +77,7 @@ const Index = () => {
         </div>
 
         <footer className="text-center mt-16 text-gray-500 text-sm">
-          © {new Date().getFullYear()} Jon Mac AI. Powered by WaveSpeed.
+          © {new Date().getFullYear()} Jon Mac AI.
         </footer>
       </div>
     </div>
