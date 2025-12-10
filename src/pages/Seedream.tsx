@@ -363,7 +363,7 @@ const Seedream = () => {
                     <input
                       type="range"
                       min="512"
-                      max="2048"
+                      max="3840"
                       step="64"
                       value={width}
                       onChange={(e) => setWidth(parseInt(e.target.value))}
@@ -381,7 +381,7 @@ const Seedream = () => {
                     <input
                       type="range"
                       min="512"
-                      max="2048"
+                      max="3840"
                       step="64"
                       value={height}
                       onChange={(e) => setHeight(parseInt(e.target.value))}
