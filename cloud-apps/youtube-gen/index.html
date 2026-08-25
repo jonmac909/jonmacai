@@ -228,6 +228,7 @@
         var openButton = document.getElementById("openSettings");
         var dialog = document.getElementById("settingsDialog");
         var input = document.getElementById("settingsKieKey");
+        var form = document.getElementById("settingsForm");
         function currentKey() {
           return localStorage.getItem(KEY) || localStorage.getItem(LEGACY) || "";
         }
@@ -236,28 +237,42 @@
           openButton.dataset.ready = ready ? "true" : "false";
           openButton.textContent = ready ? "Settings · key saved" : "Settings";
         }
+        function persist(value) {
+          var key = String(value || "").trim();
+          if (key) {
+            localStorage.setItem(KEY, key);
+            localStorage.setItem(LEGACY, key);
+          } else {
+            localStorage.removeItem(KEY);
+            localStorage.removeItem(LEGACY);
+          }
+          syncButton();
+        }
         openButton.addEventListener("click", function () {
           input.value = currentKey();
           dialog.showModal();
           input.focus();
           input.select();
         });
-        dialog.addEventListener("close", function () {
-          var action = dialog.returnValue;
-          if (action === "clear") {
-            localStorage.removeItem(KEY);
-            localStorage.removeItem(LEGACY);
-          } else if (action === "save") {
-            var value = String(input.value || "").trim();
-            if (value) {
-              localStorage.setItem(KEY, value);
-              localStorage.setItem(LEGACY, value);
-            } else {
-              localStorage.removeItem(KEY);
-              localStorage.removeItem(LEGACY);
-            }
-          }
-          syncButton();
+        dialog.querySelector("[value='save']").addEventListener("click", function (event) {
+          event.preventDefault();
+          persist(input.value);
+          dialog.close("save");
+        });
+        dialog.querySelector("[value='clear']").addEventListener("click", function (event) {
+          event.preventDefault();
+          persist("");
+          input.value = "";
+          dialog.close("clear");
+        });
+        dialog.querySelector("[value='cancel']").addEventListener("click", function (event) {
+          event.preventDefault();
+          dialog.close("cancel");
+        });
+        form.addEventListener("submit", function (event) {
+          event.preventDefault();
+          persist(input.value);
+          dialog.close("save");
         });
         syncButton();
       })();
