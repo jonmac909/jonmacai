@@ -1,0 +1,7 @@
+name = "ytgen-kie-assets"
+main = "worker.js"
+compatibility_date = "2026-06-01"
+
+[[r2_buckets]]
+binding = "UPLOADS"
+bucket_name = "ytgen-uploads"
