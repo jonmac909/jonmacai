@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta http-equiv="Cache-Control" content="no-store" />
+    <base href="./" />
+    <title>YouTube Gen</title>
+    <script>
+      if (window.location.protocol === "file:") {
+        window.location.replace("http://localhost:4128/apps/youtube-gen");
+      }
+    </script>
+    <script src="../base-path.js"></script>
+    <link rel="stylesheet" href="./styles.css?v=82" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" role="img">
+            <path d="M5 16.2 10.7 10l3.2 3.1L20 6.7" />
+            <path d="M14.2 6.7H20v5.8" />
+          </svg>
+        </div>
+        <h1>YouTube Gen</h1>
+      </div>
+
+      <label class="search" for="searchInput">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <circle cx="11" cy="11" r="7" />
+          <path d="m16.3 16.3 4.2 4.2" />
+        </svg>
+        <input id="searchInput" type="search" placeholder="@channel or niche topic..." />
+      </label>
+
+      <div class="sort-control">
+        <span>Sort by:</span>
+        <select id="sortSelect">
+          <option value="viewAll">View All</option>
+          <option value="uploaded">Uploaded</option>
+          <option value="viewsMultiple">Views Multiple</option>
+          <option value="velocityMultiple">Velocity Multiple</option>
+          <option value="combinedScore">Combined Score</option>
+          <option value="views">Views</option>
+          <option value="velocity">Views/day</option>
+          <option value="keywordVideos">Keyword video count</option>
+        </select>
+      </div>
+    </header>
+
+    <main>
+      <section class="filters" aria-label="Filters">
+        <label>
+          <span>Date:</span>
+          <select id="dateFilter">
+            <option value="all">All time</option>
+            <option value="1">Last 1 day</option>
+            <option value="3">Last 3 days</option>
+            <option value="7">Last 7 days</option>
+            <option value="30">Last 30 days</option>
+            <option value="90">Last 90 days</option>
+          </select>
+        </label>
+
+        <label>
+          <span>Duration:</span>
+          <select id="durationFilter">
+            <option value="all">Any duration</option>
+            <option value="short">Under 15 min</option>
+            <option value="medium">15-30 min</option>
+            <option value="long">30+ min</option>
+          </select>
+        </label>
+
+        <label>
+          <span>Min views:</span>
+          <select id="viewsFilter">
+            <option value="0">Any</option>
+            <option value="10000">10K+</option>
+            <option value="50000">50K+</option>
+            <option value="100000">100K+</option>
+            <option value="250000">250K+</option>
+          </select>
+        </label>
+
+        <label class="checkbox">
+          <input id="onlyOutliers" type="checkbox" />
+          <span>Only outliers (3x+)</span>
+        </label>
+
+        <label>
+          <span>Metric:</span>
+          <select id="metricSelect">
+            <option value="views">Views multiple</option>
+            <option value="velocity">Velocity multiple</option>
+            <option value="combined">Combined score</option>
+          </select>
+        </label>
+      </section>
+
+      <section class="modebar">
+        <button class="secondary active path-button" id="outliersPathButton" type="button">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M5 16.2 10.7 10l3.2 3.1L20 6.7" />
+            <path d="M14.2 6.7H20v5.8" />
+          </svg>
+          Outliers
+        </button>
+        <button class="secondary path-button" id="projectsPathButton" type="button">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M4 7.5A2.5 2.5 0 0 1 6.5 5H10l2 2h5.5A2.5 2.5 0 0 1 20 9.5v7A2.5 2.5 0 0 1 17.5 19h-11A2.5 2.5 0 0 1 4 16.5Z" />
+          </svg>
+          Projects
+        </button>
+        <button class="secondary path-button" id="factoryPathButton" type="button">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M9 18h6" />
+            <path d="M10 22h4" />
+            <path d="M12 2a7 7 0 0 0-4 12.7c.7.5 1 1.2 1 2.1V17h6v-.2c0-.9.4-1.6 1-2.1A7 7 0 0 0 12 2Z" />
+          </svg>
+          Factory
+        </button>
+        <form class="channel-add" id="channelAddForm">
+          <input id="channelInput" type="text" placeholder="Add channel URL or @handle..." autocomplete="off" />
+          <button class="primary" id="analyzeButton" type="submit">Analyze Channel</button>
+          <button class="secondary refresh-all" id="refreshChannelsButton" type="button">Refresh Videos</button>
+          <span class="load-status" id="channelStatus" hidden></span>
+        </form>
+        <form class="keyword-add" id="keywordAddForm">
+          <input id="keywordInput" type="text" placeholder="Add keyword..." autocomplete="off" />
+          <button class="secondary" type="submit">Add</button>
+        </form>
+      </section>
+
+      <section class="saved">
+        <h2>Saved Channels</h2>
+        <div id="channelChips" class="chips" aria-label="Saved channels"></div>
+      </section>
+
+      <section class="results-head">
+        <div>
+          <h2 id="resultTitle">Outliers</h2>
+          <p id="resultMeta">Loading videos...</p>
+        </div>
+        <div class="result-actions">
+          <button id="toggleChannelsButton" class="clear hide-channels-toggle" type="button">Hide Channels</button>
+          <button id="generateIdeasButton" class="clear" type="button" hidden>Generate Ideas</button>
+          <span id="resultActionStatus" class="action-status" hidden></span>
+          <button id="clearButton" class="clear" type="button">Clear</button>
+        </div>
+      </section>
+
+      <section id="grid" class="grid" aria-live="polite"></section>
+    </main>
+
+    <script src="./rows_data.js?v=20260622-mrpaidsocial"></script>
+    <script src="./trends_data.js?v=1"></script>
+    <script src="./keyword_volumes.js?v=2"></script>
+    <script src="./recovered_factory_data.js?v=20260516-avatar"></script>
+    <script src="./app.js?v=190"></script>
+  </body>
+</html>
