@@ -6,6 +6,9 @@ const JON_REFS = [
   "https://jonmac.ai/yt/cloud-apps/youtube-gen/reference/jon-mac-profile.png",
   "https://jonmac.ai/yt/cloud-apps/youtube-gen/reference/jon-mac-reaction.png",
 ];
+const BROWSER_UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
+const PROXY_HOSTS = new Set(["jonmac.ai", "www.jonmac.ai", "i.ytimg.com", "img.youtube.com"]);
+
 
 function text(value, fallback = "") {
   return String(value || fallback).replace(/\s+/g, " ").trim();
@@ -93,9 +96,61 @@ function enqueue(controller, event) {
 function sourceThumb(packageData) {
   const source = packageData.sourceVideos?.[0];
   if (source?.thumbnail?.startsWith("http")) return source.thumbnail;
-  if (source?.id) return `https://img.youtube.com/vi/${encodeURIComponent(source.id)}/maxresdefault.jpg`;
+  if (source?.id) return `https://i.ytimg.com/vi/${encodeURIComponent(source.id)}/hqdefault.jpg`;
   return "";
 }
+
+function proxyUrl(request, src) {
+  const url = new URL("/yt/api/cloud/youtube-gen/kie-assets/proxy", request.url);
+  url.searchParams.set("src", src);
+  return url.toString();
+}
+
+function allowedMediaUrl(raw) {
+  try {
+    const url = new URL(raw);
+    return ["http:", "https:"].includes(url.protocol) && PROXY_HOSTS.has(url.hostname);
+  } catch {
+    return false;
+  }
+}
+
+async function proxyImage(src) {
+  if (!allowedMediaUrl(src)) {
+    return Response.json({ ok: false, error: "Unsupported media URL." }, { status: 400 });
+  }
+  const response = await fetch(src, {
+    headers: { "user-agent": BROWSER_UA, accept: "image/avif,image/webp,image/apng,image/*,*/*;q=0.8" },
+    redirect: "follow",
+  });
+  if (!response.ok) {
+    return new Response("Media unavailable.", { status: response.status });
+  }
+  return new Response(response.body, {
+    headers: {
+      "content-type": response.headers.get("content-type") || "image/png",
+      "cache-control": "public, max-age=3600",
+    },
+  });
+}
+
+async function usableSourceUrl(packageData) {
+  const source = packageData.sourceVideos?.[0] || {};
+  const candidates = [
+    source.thumbnail,
+    source.id ? `https://i.ytimg.com/vi/${encodeURIComponent(source.id)}/maxresdefault.jpg` : "",
+    source.id ? `https://i.ytimg.com/vi/${encodeURIComponent(source.id)}/hqdefault.jpg` : "",
+    source.id ? `https://img.youtube.com/vi/${encodeURIComponent(source.id)}/hqdefault.jpg` : "",
+  ].filter((value) => String(value || "").startsWith("http"));
+  for (const candidate of candidates) {
+    try {
+      const response = await fetch(candidate, { method: "GET", headers: { "user-agent": BROWSER_UA } });
+      if (response.ok) return candidate;
+    } catch {}
+  }
+  return candidates[0] || "";
+}
+
 
 function defaultPrompt(packageData, index) {
   const source = packageData.sourceVideos?.[0];
@@ -132,10 +187,14 @@ async function kie(path, apiKey, init = {}) {
   return payload;
 }
 
-async function createTask(apiKey, prompt, sourceImageUrl) {
+async function createTask(request, apiKey, prompt, sourceImageUrl) {
   const source = firstHttpUrl(sourceImageUrl);
   if (!source) throw new Error("Kie needs a public source thumbnail URL before it can generate this thumbnail.");
-  const imageInput = [JON_REFS[0], source, ...JON_REFS.slice(1)];
+  const imageInput = [
+    proxyUrl(request, JON_REFS[0]),
+    proxyUrl(request, source),
+    ...JON_REFS.slice(1).map((url) => proxyUrl(request, url)),
+  ];
   const payload = await kie("/api/v1/jobs/createTask", apiKey, {
     method: "POST",
     body: JSON.stringify({
@@ -211,7 +270,8 @@ async function persistImages(env, request, urls, taskId, index) {
 async function generateOne(env, request, apiKey, packageData, index, overrides, onProgress) {
   const prompt = buildPrompt(packageData, index, overrides);
   onProgress({ status: "progress", percent: 4, step: "Submitting to Nano Banana Pro", detail: `Thumbnail ${index} queued.` });
-  const taskId = await createTask(apiKey, prompt, sourceThumb(packageData));
+  const sourceUrl = await usableSourceUrl(packageData) || sourceThumb(packageData);
+  const taskId = await createTask(request, apiKey, prompt, sourceUrl);
   onProgress({ status: "progress", percent: 12, step: "Nano Banana Pro task queued", detail: `Task ${taskId}` });
   const urls = await waitForTask(apiKey, taskId, (percent, detail) => {
     onProgress({ status: "progress", percent, step: "Generating thumbnail", detail });
@@ -232,12 +292,16 @@ async function generateOne(env, request, apiKey, packageData, index, overrides, 
 
 export default {
   async fetch(request, env) {
+    const url = new URL(request.url);
+    if (request.method === "GET" && url.pathname.endsWith("/proxy")) {
+      return proxyImage(url.searchParams.get("src") || "");
+    }
     if (request.method === "OPTIONS") {
       return new Response(null, {
         headers: {
           "Access-Control-Allow-Origin": "*",
           "Access-Control-Allow-Headers": "Content-Type, x-kie-api-key, x-api-key, Authorization",
-          "Access-Control-Allow-Methods": "POST,OPTIONS",
+          "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
         },
       });
     }
