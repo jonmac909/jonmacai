@@ -1,0 +1,17 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "jonmac-youtube-gen-v2",
+  "main": "worker.js",
+  "compatibility_date": "2026-08-31",
+  "workers_dev": true,
+  "assets": {
+    "directory": "./public",
+    "binding": "ASSETS",
+    "run_worker_first": true,
+    "html_handling": "none"
+  },
+  "routes": [
+    { "pattern": "jonmac.ai/yt2", "zone_name": "jonmac.ai" },
+    { "pattern": "jonmac.ai/yt2/*", "zone_name": "jonmac.ai" }
+  ]
+}
