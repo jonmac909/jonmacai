@@ -109,6 +109,12 @@ button:disabled { cursor: not-allowed; opacity: .45; box-shadow: none; }
 .refresh-button { white-space: nowrap; min-width: 128px; }
 .refresh-button.refreshing svg { animation: refresh-spin .8s linear infinite; }
 @keyframes refresh-spin { to { transform: rotate(360deg); } }
+.refresh-message { display: flex; align-items: center; gap: 9px; border-radius: 10px; padding: 9px 12px; margin: -8px 0 12px; font-size: 9px; }
+.refresh-message strong { white-space: nowrap; }
+.refresh-message span { color: inherit; opacity: .85; }
+.refresh-message.working { color: #285da8; background: #edf5ff; border: 1px solid #c9ddfb; }
+.refresh-message.success { color: #087754; background: #effbf6; border: 1px solid #bcebd7; }
+.refresh-message.error { color: #963a2f; background: #fff2ef; border: 1px solid #f2c6bd; }
 .filter-panel {
   background: #fff; border: 1px solid var(--line); border-radius: 14px; padding: 11px 13px;
   display: flex; align-items: flex-end; gap: 13px; margin: -8px 0 12px; overflow-x: auto;

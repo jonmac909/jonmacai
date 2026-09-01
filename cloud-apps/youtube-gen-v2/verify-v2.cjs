@@ -18,6 +18,14 @@ const assert = require("node:assert/strict");
   await page.goto(baseUrl, { waitUntil: "domcontentloaded" });
   await page.evaluate(() => localStorage.removeItem("jonmac_youtube_gen_v2_projects_v1"));
   await page.reload({ waitUntil: "domcontentloaded" });
+  const refreshRows = await page.evaluate(() => window.OUTLIER_ROWS || []);
+  await page.context().route(/\/yt\/api\/channels\/refresh$/, async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ ok: true, generatedAt: new Date().toISOString(), refreshed: [{ name: "Test channel" }], rows: refreshRows }),
+    });
+  });
 
   const cardData = () => page.locator(".video-card").evaluateAll((cards) => cards.map((card) => ({
     age: Number(card.dataset.ageDays),
@@ -92,7 +100,8 @@ const assert = require("node:assert/strict");
   assert.ok(cards.every((card) => card.age <= 90 && card.duration < 900 && card.views >= 10000 && card.metric >= 3), "Combined filters must compose");
 
   await page.locator("[data-refresh]").click();
-  await page.waitForFunction(() => document.querySelector("[data-refresh]")?.textContent.includes("Refresh trends"));
+  await page.waitForFunction(() => document.querySelector("[data-refresh]")?.textContent.includes("Sync live YouTube"));
+  await page.locator(".refresh-message.success").waitFor({ state: "visible" });
   assert.match(await page.locator(".filter-result").textContent(), /refreshed/i, "Refresh should report completion");
 
   await page.locator("#date-filter").selectOption("all");
@@ -121,7 +130,7 @@ const assert = require("node:assert/strict");
     heading: await page.locator("h2").first().textContent(),
     success: await page.locator(".youtube-success strong").textContent(),
     projects: await page.evaluate(() => JSON.parse(localStorage.getItem("jonmac_youtube_gen_v2_projects_v1") || "[]").length),
-    filtersVerified: ["date", "duration", "minimum views", "outliers only", "metric sorting", "combined filters", "refresh"],
+    filtersVerified: ["date", "duration", "minimum views", "outliers only", "metric sorting", "combined filters", "live refresh response"],
     sourceLinksVerified: ["thumbnail new tab", "external button new tab", "matching YouTube video ID"],
     datesVerified: ["calculated from upload_date", "date filters use calculated age", "June 17 example shows 2mo ago"],
     filtersScreenshot: "C:/Users/partn/AppData/Local/Temp/jonmac-yt-v2-filters.png",

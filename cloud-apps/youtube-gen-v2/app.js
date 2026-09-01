@@ -2,8 +2,9 @@
   "use strict";
 
   const STORAGE_KEY = "jonmac_youtube_gen_v2_projects_v1";
+  const TREND_STORAGE_KEY = "jonmac_youtube_gen_v2_live_trends_v1";
   const templates = window.YT_V2_TEMPLATES || [];
-  let allRows = (window.OUTLIER_ROWS || []).filter((row) => row && row.id && row.title);
+  let allRows = loadTrendRows();
   const app = document.getElementById("app");
   const toastRoot = document.getElementById("toast-root");
   const steps = ["plan", "script", "record", "edit", "publish"];
@@ -31,6 +32,8 @@
     templateFilter: "all",
     refreshing: false,
     lastRefreshed: null,
+    refreshError: "",
+    refreshSummary: "",
     drawerSourceId: null,
     drawerTemplateId: null,
     draftAudience: "TikTok Shop brands and affiliates",
@@ -50,6 +53,15 @@
     } catch (_) {
       return [];
     }
+  }
+
+  function loadTrendRows() {
+    const bundled = (window.OUTLIER_ROWS || []).filter((row) => row && row.id && row.title);
+    try {
+      const saved = JSON.parse(localStorage.getItem(TREND_STORAGE_KEY));
+      if (Array.isArray(saved?.rows) && saved.rows.length) return saved.rows.filter((row) => row && row.id && row.title);
+    } catch (_) {}
+    return bundled;
   }
 
   function saveProjects() {
@@ -176,27 +188,42 @@
     return rows.slice(0, 24);
   }
 
-  function refreshDataset() {
+  async function refreshDataset() {
     if (state.refreshing) return;
     state.refreshing = true;
+    state.refreshError = "";
+    state.refreshSummary = "Contacting the live YouTube refresh service…";
     render();
-    const script = document.createElement("script");
-    script.src = `../youtube-gen/rows_data.js?refresh=${Date.now()}`;
-    script.onload = () => {
-      allRows = (window.OUTLIER_ROWS || []).filter((row) => row && row.id && row.title);
+    try {
+      const response = await fetch("/yt/api/channels/refresh", {
+        method: "POST",
+        credentials: "include",
+        headers: { Accept: "application/json" },
+      });
+      const contentType = response.headers.get("content-type") || "";
+      if (response.redirected || !contentType.includes("application/json")) {
+        throw new Error("Your YouTube refresh session has expired. Open /yt, sign in, then return here and retry.");
+      }
+      const payload = await response.json();
+      if (!response.ok || !payload.ok || !Array.isArray(payload.rows)) {
+        throw new Error(payload.error || `Live refresh failed (${response.status})`);
+      }
+      allRows = payload.rows.filter((row) => row && row.id && row.title);
+      const refreshedAt = payload.generatedAt || new Date().toISOString();
+      localStorage.setItem(TREND_STORAGE_KEY, JSON.stringify({ generatedAt: refreshedAt, rows: allRows }));
       state.refreshing = false;
-      state.lastRefreshed = new Date();
-      script.remove();
+      state.lastRefreshed = new Date(refreshedAt);
+      const refreshedChannels = Array.isArray(payload.refreshed) ? payload.refreshed.length : 0;
+      state.refreshSummary = `${refreshedChannels || "All"} channels synced · ${allRows.length} current videos`;
       render();
-      toast(`Trend data refreshed · ${allRows.length} videos loaded`);
-    };
-    script.onerror = () => {
+      toast(`Live YouTube data synced · ${allRows.length} videos loaded`);
+    } catch (error) {
       state.refreshing = false;
-      script.remove();
+      state.refreshError = error.message || "Live YouTube refresh failed.";
+      state.refreshSummary = "No data was changed.";
       render();
-      toast("Refresh failed. Existing trend data is still available.");
-    };
-    document.head.appendChild(script);
+      toast(state.refreshError);
+    }
   }
 
   function activeProject() {
@@ -307,7 +334,8 @@
       <div class="page-head"><div><p class="eyebrow">Trend intelligence → original business content</p><h1>Find the signal. Build the video.</h1><p>Use a proven topic as evidence, then rebuild it through one of six original Jon Mac formats. Ranked by performance relative to each channel—not raw views alone.</p></div><button class="secondary" data-nav="pipeline">View production pipeline</button></div>
       <div class="prototype-banner"><strong>Safe V2 preview:</strong> this route has separate local data and does not change the current YouTube Gen app. External AI, rendering, storage, and YouTube actions are simulated until their APIs are connected.</div>
       <div class="metric-strip"><div class="metric-card"><div class="metric-icon">${icon("video")}</div><div><strong>${rows.length}</strong><span>Qualified trend matches</span></div></div><div class="metric-card"><div class="metric-icon">${icon("chart")}</div><div><strong>${average.toFixed(1)}×</strong><span>Average outlier score</span></div></div><div class="metric-card"><div class="metric-icon">${icon("users")}</div><div><strong>${formatNumber(totalViews)}</strong><span>Combined source views</span></div></div><div class="metric-card"><div class="metric-icon">${icon("pipeline")}</div><div><strong>${state.projects.length}</strong><span>V2 projects created</span></div></div></div>
-      <div class="toolbar"><label class="search-box">${icon("search")}<input id="trend-search" value="${esc(state.search)}" placeholder="Search AI models, TikTok Shop, affiliates, UGC…"></label><button class="secondary refresh-button ${state.refreshing ? "refreshing" : ""}" data-refresh ${state.refreshing ? "disabled" : ""}>${icon("spark")} ${state.refreshing ? "Refreshing…" : "Refresh trends"}</button></div>
+      <div class="toolbar"><label class="search-box">${icon("search")}<input id="trend-search" value="${esc(state.search)}" placeholder="Search AI models, TikTok Shop, affiliates, UGC…"></label><button class="secondary refresh-button ${state.refreshing ? "refreshing" : ""}" data-refresh ${state.refreshing ? "disabled" : ""}>${icon("spark")} ${state.refreshing ? "Syncing YouTube…" : "Sync live YouTube"}</button></div>
+      ${state.refreshError ? `<div class="refresh-message error"><strong>Live refresh failed</strong><span>${esc(state.refreshError)}</span></div>` : state.refreshSummary ? `<div class="refresh-message ${state.refreshing ? "working" : "success"}"><strong>${state.refreshing ? "Refreshing current videos" : "Live data updated"}</strong><span>${esc(state.refreshSummary)}</span></div>` : ""}
       <div class="filter-panel" aria-label="Discovery filters">
         <label><span>Date</span><select id="date-filter"><option value="all">All time</option><option value="1" ${state.date === "1" ? "selected" : ""}>Last 1 day</option><option value="3" ${state.date === "3" ? "selected" : ""}>Last 3 days</option><option value="7" ${state.date === "7" ? "selected" : ""}>Last 7 days</option><option value="30" ${state.date === "30" ? "selected" : ""}>Last 30 days</option><option value="90" ${state.date === "90" ? "selected" : ""}>Last 90 days</option></select></label>
         <label><span>Duration</span><select id="duration-filter"><option value="all">Any duration</option><option value="short" ${state.duration === "short" ? "selected" : ""}>Under 15 min</option><option value="medium" ${state.duration === "medium" ? "selected" : ""}>15–30 min</option><option value="long" ${state.duration === "long" ? "selected" : ""}>30+ min</option></select></label>
