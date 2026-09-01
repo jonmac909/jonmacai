@@ -104,6 +104,29 @@
     return hours ? `${hours}:${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}` : `${mins}:${String(secs).padStart(2, "0")}`;
   }
 
+  function actualAgeDays(row) {
+    const raw = String(row.upload_date || "");
+    if (!/^\d{8}$/.test(raw)) return null;
+    const published = Date.UTC(Number(raw.slice(0, 4)), Number(raw.slice(4, 6)) - 1, Number(raw.slice(6, 8)));
+    const now = new Date();
+    const today = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+    return Math.max(0, Math.floor((today - published) / 86400000));
+  }
+
+  function formatVideoAge(row) {
+    const days = actualAgeDays(row);
+    if (days == null) return "Date unavailable";
+    if (days === 0) return "Today";
+    if (days === 1) return "Yesterday";
+    if (days < 30) return `${days}d ago`;
+    if (days < 365) {
+      const months = Math.max(1, Math.round(days / 30.44));
+      return `${months}mo ago`;
+    }
+    const years = Math.max(1, Math.floor(days / 365.25));
+    return `${years}y ago`;
+  }
+
   function getTemplate(id) {
     return templates.find((item) => item.id === id) || templates[0];
   }
@@ -139,7 +162,10 @@
       const query = state.search.toLowerCase();
       rows = rows.filter((row) => `${row.title} ${row.channel}`.toLowerCase().includes(query));
     }
-    if (state.date !== "all") rows = rows.filter((row) => Number(row.age_days ?? 99999) <= Number(state.date));
+    if (state.date !== "all") rows = rows.filter((row) => {
+      const age = actualAgeDays(row);
+      return age != null && age <= Number(state.date);
+    });
     if (state.duration === "short") rows = rows.filter((row) => Number(row.duration_seconds || 0) < 15 * 60);
     if (state.duration === "medium") rows = rows.filter((row) => Number(row.duration_seconds || 0) >= 15 * 60 && Number(row.duration_seconds || 0) < 30 * 60);
     if (state.duration === "long") rows = rows.filter((row) => Number(row.duration_seconds || 0) >= 30 * 60);
@@ -269,9 +295,9 @@
     const average = rows.length ? rows.reduce((sum, row) => sum + row.outlier_score, 0) / rows.length : 0;
     const cards = rows.map((row) => {
       const template = recommendTemplate(row);
-      return `<article class="video-card" data-video-id="${esc(row.id)}" data-age-days="${Number(row.age_days || 0)}" data-duration-seconds="${Number(row.duration_seconds || 0)}" data-views="${Number(row.views || 0)}" data-metric="${rowMetric(row)}">
+      return `<article class="video-card" data-video-id="${esc(row.id)}" data-upload-date="${esc(row.upload_date || "")}" data-age-days="${actualAgeDays(row) == null ? "" : actualAgeDays(row)}" data-duration-seconds="${Number(row.duration_seconds || 0)}" data-views="${Number(row.views || 0)}" data-metric="${rowMetric(row)}">
         <a class="thumb" data-source-thumbnail href="${esc(row.url)}" target="_blank" rel="noopener noreferrer" aria-label="Watch ${esc(row.title)} on YouTube"><img src="${esc(row.thumbnail)}" alt="" loading="lazy"><b class="multiple">${Number(row.outlier_score || 0).toFixed(1)}× outlier</b><span class="duration">${formatDuration(row.duration_seconds)}</span><span class="thumb-open">${icon("play")} Watch on YouTube</span></a>
-        <div class="video-body"><h3 class="video-title">${esc(row.title)}</h3><div class="channel-line"><span>${esc(row.channel)}</span><span>${row.age_days || "—"}d ago</span></div>
+        <div class="video-body"><h3 class="video-title">${esc(row.title)}</h3><div class="channel-line"><span>${esc(row.channel)}</span><span>${formatVideoAge(row)}</span></div>
         <div class="stats"><div class="stat"><strong>${formatNumber(row.views)}</strong><span>Views</span></div><div class="stat"><strong>${formatNumber(row.views_per_day)}</strong><span>Views/day</span></div><div class="stat"><strong>${rowMetric(row).toFixed(1)}×</strong><span>${metricLabel()}</span></div></div>
         <div class="recommendation" style="--template-color:${template.color}"><i></i>Best fit: ${template.code} ${esc(template.shortName)}</div>
         <div class="card-actions"><button class="primary" data-remake="${esc(row.id)}">Remake with a template</button><a data-source-link href="${esc(row.url)}" target="_blank" rel="noopener noreferrer" title="Watch source video on YouTube" aria-label="Watch source video on YouTube">${icon("external")}</a></div></div>

@@ -21,12 +21,20 @@ const assert = require("node:assert/strict");
 
   const cardData = () => page.locator(".video-card").evaluateAll((cards) => cards.map((card) => ({
     age: Number(card.dataset.ageDays),
+    uploadDate: card.dataset.uploadDate,
     duration: Number(card.dataset.durationSeconds),
     views: Number(card.dataset.views),
     metric: Number(card.dataset.metric),
   })));
   let cards = await cardData();
   assert.ok(cards.length > 0, "Discovery should render qualified videos");
+  const expectedAge = (raw) => {
+    const published = Date.UTC(Number(raw.slice(0, 4)), Number(raw.slice(4, 6)) - 1, Number(raw.slice(6, 8)));
+    const now = new Date();
+    const today = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+    return Math.max(0, Math.floor((today - published) / 86400000));
+  };
+  assert.ok(cards.filter((card) => /^\d{8}$/.test(card.uploadDate)).every((card) => card.age === expectedAge(card.uploadDate)), "Displayed ages must derive from upload_date");
 
   const thumbnail = page.locator("[data-source-thumbnail]").first();
   const sourceButton = page.locator("[data-source-link]").first();
@@ -41,6 +49,12 @@ const assert = require("node:assert/strict");
   await popup.waitForURL(/youtube\.com\/watch/, { timeout: 10000 });
   assert.ok(popup.url().includes(new URL(expectedSourceUrl).searchParams.get("v")), "Thumbnail tab must open the correct video");
   await popup.close();
+
+  await page.locator("#trend-search").fill("Claude Design + Higgsfield");
+  await page.locator('[data-video-id="xwSVLN4qPhk"]').waitFor({ state: "visible" });
+  assert.equal(await page.locator('[data-video-id="xwSVLN4qPhk"] .channel-line span').last().textContent(), "2mo ago", "June 17 video must not use stale 5-day snapshot age");
+  await page.locator("#trend-search").fill("");
+  await page.locator(".video-card").first().waitFor({ state: "visible" });
   popupPromise = page.waitForEvent("popup");
   await sourceButton.click();
   popup = await popupPromise;
@@ -109,6 +123,7 @@ const assert = require("node:assert/strict");
     projects: await page.evaluate(() => JSON.parse(localStorage.getItem("jonmac_youtube_gen_v2_projects_v1") || "[]").length),
     filtersVerified: ["date", "duration", "minimum views", "outliers only", "metric sorting", "combined filters", "refresh"],
     sourceLinksVerified: ["thumbnail new tab", "external button new tab", "matching YouTube video ID"],
+    datesVerified: ["calculated from upload_date", "date filters use calculated age", "June 17 example shows 2mo ago"],
     filtersScreenshot: "C:/Users/partn/AppData/Local/Temp/jonmac-yt-v2-filters.png",
     consoleErrors,
     pageErrors,
