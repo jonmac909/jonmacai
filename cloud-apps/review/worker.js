@@ -14,6 +14,12 @@ export function byteRange(value, size) {
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
+    if (env.REVIEW_WITHDRAWN === "true") {
+      return new Response("This review has been withdrawn. A replacement is being rebuilt.", {
+        status: 410,
+        headers: { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store", "X-Robots-Tag": "noindex, nofollow" },
+      });
+    }
     if (!["GET", "HEAD"].includes(request.method)) {
       return new Response("Method not allowed", { status: 405, headers: { Allow: "GET, HEAD" } });
     }
