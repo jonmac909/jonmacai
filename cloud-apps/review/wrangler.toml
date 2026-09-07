@@ -1,0 +1,21 @@
+name = "jonmac-review"
+main = "worker.js"
+compatibility_date = "2026-09-07"
+workers_dev = false
+routes = [
+  { pattern = "jonmac.ai/review", zone_name = "jonmac.ai" },
+  { pattern = "jonmac.ai/review/*", zone_name = "jonmac.ai" }
+]
+
+[vars]
+VIDEO_KEY = "reviews/jon-main-vsl/final-v3-web.mp4"
+
+[assets]
+directory = "./public"
+binding = "ASSETS"
+run_worker_first = true
+html_handling = "none"
+
+[[r2_buckets]]
+binding = "MEDIA"
+bucket_name = "frame-media"
