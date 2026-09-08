@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Frame</title>
+  <style>
+    :root { color-scheme: dark; --bg:#0b0d10; --panel:#12151a; --line:#232830; --text:#e8eaed; --muted:#8b93a1; --accent:#47a8df; --danger:#f07178; }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); font: 14px/1.45 ui-sans-serif, system-ui, sans-serif; }
+    body { display: flex; flex-direction: column; }
+    header { display: flex; gap: 12px; align-items: center; padding: 12px 16px; border-bottom: 1px solid var(--line); }
+    header strong { font-size: 15px; }
+    header span { color: var(--muted); }
+    input, button, textarea { font: inherit; color: inherit; }
+    input, textarea { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; }
+    button { background: var(--accent); color: #041018; border: 0; border-radius: 8px; padding: 8px 12px; font-weight: 650; cursor: pointer; }
+    button.ghost { background: transparent; color: var(--muted); border: 1px solid var(--line); }
+    button.danger { background: transparent; color: var(--danger); padding: 2px 8px; font-weight: 600; }
+    #app { flex: 1; display: grid; grid-template-columns: 260px 1fr 360px; min-height: 0; }
+    .rail { border-right: 1px solid var(--line); background: var(--panel); display: flex; flex-direction: column; min-height: 0; }
+    .rail h2 { margin: 0; padding: 14px 16px 8px; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); display: flex; justify-content: space-between; align-items: center; }
+    .rail h2 button { padding: 2px 8px; font-size: 12px; }
+    .list { overflow: auto; padding: 0 8px 8px; }
+    .item { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 8px; cursor: pointer; color: var(--muted); }
+    .item:hover { background: #1a1f26; color: var(--text); }
+    .item.on { background: #1a2a36; color: var(--accent); }
+    .item span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .add { display: flex; gap: 6px; padding: 8px; }
+    .add input { flex: 1; min-width: 0; }
+    .stage { display: flex; flex-direction: column; min-width: 0; background: #000; }
+    video, iframe { width: 100%; flex: 1; border: 0; background: #000; }
+    .note { color: var(--muted); padding: 8px 16px; border-top: 1px solid var(--line); display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+    .note label { color: var(--accent); cursor: pointer; }
+    .thumbs { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+    .thumbs a.dl { display: inline-block; }
+    .thumbs img { width: 72px; height: 72px; object-fit: cover; border-radius: 6px; border: 1px solid var(--line); display: block; }
+    aside.comments { border-left: 1px solid var(--line); display: flex; flex-direction: column; background: var(--panel); min-height: 0; }
+    aside.comments h2 { margin: 0; padding: 14px 16px; font-size: 13px; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); border-bottom: 1px solid var(--line); }
+    #comments { flex: 1; overflow: auto; padding: 8px; }
+    .c { padding: 10px 8px; border-bottom: 1px solid var(--line); cursor: pointer; }
+    .c:hover { background: #1a1f26; }
+    .c .top { display: flex; align-items: center; gap: 8px; }
+    .c em { color: var(--accent); font-style: normal; font-variant-numeric: tabular-nums; }
+    .c p { margin: 6px 0 0; white-space: pre-wrap; }
+    .thumbs { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+    .thumbs img { width: 72px; height: 72px; object-fit: cover; border-radius: 6px; border: 1px solid var(--line); }
+    .composer { display: grid; gap: 8px; padding: 12px; border-top: 1px solid var(--line); }
+    .composer textarea { width: 100%; min-height: 72px; resize: vertical; }
+    .composer .row { display: flex; gap: 8px; align-items: center; }
+    #previews img { width: 48px; height: 48px; object-fit: cover; border-radius: 6px; }
+    .chip { display: inline-block; padding: 4px 8px; border: 1px solid var(--line); border-radius: 6px; color: var(--accent); text-decoration: none; font-size: 12px; }
+    #compose-error { color: var(--danger); min-height: 1.2em; }
+    #previews { display: flex; gap: 6px; flex-wrap: wrap; }
+    #previews img { width: 48px; height: 48px; object-fit: cover; border-radius: 6px; }
+    @media (max-width: 1100px) {
+      #app { grid-template-columns: 1fr; grid-template-rows: auto 1fr minmax(240px, 42vh); }
+      .rail { border-right: 0; max-height: 28vh; }
+      aside.comments { display: flex; border-left: 0; border-top: 1px solid var(--line); }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <strong>Frame</strong>
+    <span id="crumb">No video selected</span>
+    <button type="button" class="ghost" id="share" hidden>Copy project link</button>
+  </header>
+  <div id="app">
+    <nav class="rail">
+      <h2>Projects <button type="button" id="new-project">New</button></h2>
+      <div class="list" id="projects"></div>
+      <h2>Videos</h2>
+      <form class="add" id="add-video">
+        <input id="video-url" type="url" placeholder="Paste Drive link" />
+        <button type="submit">Add</button>
+      </form>
+      <div class="list" id="videos"></div>
+    </nav>
+    <section class="stage">
+      <iframe id="gdrive" allow="autoplay; fullscreen" allowfullscreen></iframe>
+      <video id="player" controls playsinline hidden></video>
+      <div class="note">
+        <span id="status">Select a project and video.</span>
+        <label><input id="local" type="file" accept="video/mp4,video/*" hidden />Open local MP4</label>
+      </div>
+    </section>
+    <aside class="comments">
+      <h2>Comments</h2>
+      <div id="comments"></div>
+      <div class="composer">
+        <textarea id="comment-text" placeholder="Comment on this cut…"></textarea>
+        <div id="previews"></div>
+        <div id="compose-error"></div>
+        <div class="row">
+          <label><input id="images" type="file" multiple hidden />Attach file</label>
+          <button type="button" id="send">Add comment</button>
+        </div>
+      </div>
+    </aside>
+  </div>
+  <script>
+    const DEFAULT_ID = "1bfGSKDh4W1sAWUHXY4rgR6qrXKZ8anGH";
+    const $ = (id) => document.getElementById(id);
+    const player = $("player");
+    const driveId = (value) => {
+      const text = String(value || "").trim();
+      const match = text.match(/\/d\/([A-Za-z0-9_-]{10,})/) || text.match(/[?&]id=([A-Za-z0-9_-]{10,})/) || text.match(/^([A-Za-z0-9_-]{25,})$/);
+      return match ? match[1] : null;
+    };
+    let fileId = "";
+    let comments = [];
+    let pendingFiles = [];
+    let blobUrl = "";
+    let projects = [];
+    let projectId = "";
+
+    function fmt(seconds) {
+      const s = Math.max(0, Math.floor(Number(seconds) || 0));
+      const h = Math.floor(s / 3600);
+      const m = Math.floor((s % 3600) / 60);
+      const r = String(s % 60).padStart(2, "0");
+      const mm = String(m).padStart(2, "0");
+      return h ? h + ":" + mm + ":" + r : mm + ":" + r;
+    }
+
+    function currentProject() {
+      return projects.find((p) => p.id === projectId);
+    }
+
+    function shareUrl(pid, fid) {
+      const u = new URL("/frame/", location.origin);
+      if (pid) u.searchParams.set("p", pid);
+      if (fid && !String(fid).startsWith("local-")) u.searchParams.set("file", fid);
+      return u.toString();
+    }
+
+    function setUrl() {
+      const href = shareUrl(projectId, fileId);
+      history.replaceState(null, "", href.slice(location.origin.length) || "/frame/");
+      $("share").hidden = !projectId;
+    }
+
+    async function copyLink(pid) {
+      const href = shareUrl(pid || projectId, fileId);
+      try { await navigator.clipboard.writeText(href); $("status").textContent = "Link copied."; }
+      catch { $("status").textContent = href; }
+    }
+    function renderRail() {
+      $("projects").innerHTML = projects.map((p) =>
+        `<div class="item ${p.id === projectId ? "on" : ""}" data-project="${p.id}"><span></span><button class="ghost" type="button" data-share="${p.id}">Link</button><button class="danger" type="button" data-del-project="${p.id}">Delete</button></div>`
+      ).join("") || `<div class="item"><span>No projects</span></div>`;
+      [...$("projects").querySelectorAll("[data-project]")].forEach((el) => {
+        const p = projects.find((x) => x.id === el.dataset.project);
+        if (p) el.querySelector("span").textContent = p.name;
+        el.addEventListener("click", (e) => {
+          if (e.target.closest("[data-del-project],[data-share]")) return;
+          selectProject(el.dataset.project);
+        });
+      });
+      [...$("projects").querySelectorAll("[data-share]")].forEach((btn) => {
+        btn.addEventListener("click", (e) => { e.stopPropagation(); copyLink(btn.dataset.share); });
+      });
+      [...$("projects").querySelectorAll("[data-del-project]")].forEach((btn) => {
+        btn.addEventListener("click", async (e) => {
+          e.stopPropagation();
+          await fetch("/frame/api/projects?id=" + encodeURIComponent(btn.dataset.delProject), { method: "DELETE" });
+          projects = projects.filter((p) => p.id !== btn.dataset.delProject);
+          if (projectId === btn.dataset.delProject) selectProject(projects[0]?.id || "");
+          else renderRail();
+        });
+      });
+      const items = currentProject()?.items || [];
+      $("videos").innerHTML = items.map((v) =>
+        `<div class="item ${v.fileId === fileId ? "on" : ""}" data-video="${v.fileId}"><span></span><button class="danger" type="button" data-del-video="${v.id}">Delete</button></div>`
+      ).join("") || `<div class="item"><span>No videos</span></div>`;
+      [...$("videos").querySelectorAll("[data-video]")].forEach((el) => {
+        const v = items.find((x) => x.fileId === el.dataset.video);
+        if (v) el.querySelector("span").textContent = v.name;
+        el.addEventListener("click", (e) => {
+          if (e.target.closest("[data-del-video]")) return;
+          if (v) embed(v.fileId, v.name);
+        });
+      });
+      [...$("videos").querySelectorAll("[data-del-video]")].forEach((btn) => {
+        btn.addEventListener("click", async (e) => {
+          e.stopPropagation();
+          const res = await fetch("/frame/api/project-items?project=" + encodeURIComponent(projectId) + "&id=" + encodeURIComponent(btn.dataset.delVideo), { method: "DELETE" });
+          const data = await res.json();
+          if (data.project) {
+            projects = projects.map((p) => p.id === data.project.id ? data.project : p);
+            renderRail();
+          }
+        });
+      });
+    }
+
+    function localClip() {
+      return projectId ? "local-" + projectId : "";
+    }
+
+    function stopMedia() {
+      if (blobUrl) URL.revokeObjectURL(blobUrl);
+      blobUrl = "";
+      try { player.pause(); } catch {}
+      player.removeAttribute("src");
+      player.load();
+      player.hidden = true;
+      $("gdrive").removeAttribute("src");
+      $("gdrive").src = "about:blank";
+      $("gdrive").hidden = true;
+    }
+
+    function clearPlayer() {
+      fileId = localClip();
+      stopMedia();
+      setUrl();
+      $("crumb").textContent = currentProject()?.name || "No project";
+      $("status").textContent = projectId ? "Comments are on this project. Open the MP4 here to play, or add a Drive video." : "Create a project.";
+      return loadComments();
+    }
+
+    function selectProject(id) {
+      projectId = id;
+      renderRail();
+      const first = currentProject()?.items?.[0];
+      if (first) embed(first.fileId, first.name);
+      else clearPlayer();
+    }
+
+    function embed(id, name) {
+      fileId = id;
+      setUrl();
+      $("crumb").textContent = (currentProject()?.name || "Project") + " / " + (name || "Video");
+      loadComments();
+      stopMedia();
+      if (currentProject()?.items?.find((item) => item.fileId === id)?.media === "r2") {
+        player.hidden = false;
+        player.src = "/frame/api/media?file=" + encodeURIComponent(id);
+        $("status").textContent = "Cloud-hosted video. Comments include the playhead time.";
+      } else {
+        $("gdrive").hidden = false;
+        $("gdrive").src = "https://drive.google.com/file/d/" + id + "/preview";
+        $("status").textContent = "Click the video, then use Drive’s speed menu for 2x.";
+      }
+      renderRail();
+    }
+
+    $("local").addEventListener("change", () => {
+      const file = $("local").files[0];
+      if (!file) return;
+      if (!projectId) { $("status").textContent = "Create a project first."; return; }
+      if (!fileId) fileId = "local-" + projectId;
+      if (blobUrl) URL.revokeObjectURL(blobUrl);
+      blobUrl = URL.createObjectURL(file);
+      $("gdrive").hidden = true;
+      player.hidden = false;
+      player.src = blobUrl;
+      $("crumb").textContent = (currentProject()?.name || "Project") + " / " + file.name;
+      $("status").textContent = "Playing local file. Space and 2x won’t buffer.";
+      loadComments();
+    });
+
+    function renderPreviews() {
+      $("previews").innerHTML = pendingFiles.map((item) =>
+        item.type.startsWith("image/") && !item.type.includes("svg")
+          ? `<img src="${item.url}" alt="">`
+          : `<span class="chip">${item.name}</span>`
+      ).join("");
+    }
+
+    async function shrinkImage(file) {
+      let bitmap;
+      try { bitmap = await createImageBitmap(file); } catch { return file; }
+      const max = 1600;
+      const scale = Math.min(1, max / Math.max(bitmap.width, bitmap.height));
+      const w = Math.max(1, Math.round(bitmap.width * scale));
+      const h = Math.max(1, Math.round(bitmap.height * scale));
+      const canvas = document.createElement("canvas");
+      canvas.width = w;
+      canvas.height = h;
+      canvas.getContext("2d").drawImage(bitmap, 0, 0, w, h);
+      const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.85));
+      if (!blob) return file;
+      return blob.size < file.size ? new File([blob], (file.name || "image").replace(/\.[^.]+$/, ".jpg"), { type: "image/jpeg" }) : file;
+    }
+
+    function fileToB64(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result).split(",")[1] || "");
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+    }
+
+    function renderComments() {
+      $("comments").innerHTML = comments.length
+        ? comments.map((c) => {
+            const atts = c.files && c.files.length
+              ? c.files
+              : (c.images || []).map((id) => ({ id, name: "image", type: "image/png" }));
+            const imgs = atts.map((f) => {
+              const href = `/frame/api/image?id=${f.id}&download=1`;
+              const raster = (f.type || "").startsWith("image/") && !(f.type || "").includes("svg");
+              return raster
+                ? `<a class="dl" href="${href}" download="${f.name || "file"}" title="Download" onclick="event.stopPropagation()"><img src="/frame/api/image?id=${f.id}" alt=""></a>`
+                : `<a class="chip" href="${href}" download="${f.name || "file"}" onclick="event.stopPropagation()">${f.name || "file"}</a>`;
+            }).join("");
+            const timed = c.t && Number.isFinite(c.tSec);
+            return `<div class="c" data-id="${c.id}" data-sec="${timed ? c.tSec : ""}"><div class="top">${timed ? `<em>${c.t}</em>` : "<em>note</em>"}<button class="danger" type="button" data-del="${c.id}">Delete</button></div>${c.text ? "<p></p>" : ""}${imgs ? `<div class="thumbs">${imgs}</div>` : ""}</div>`;
+          }).join("")
+        : `<div class="c"><p>No comments yet.</p></div>`;
+      [...$("comments").querySelectorAll(".c")].forEach((el) => {
+        const c = comments.find((row) => row.id === el.dataset.id);
+        if (c && c.text) el.querySelector("p").textContent = c.text;
+        el.querySelector("[data-del]")?.addEventListener("click", async (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          await fetch("/frame/api/comments?file=" + encodeURIComponent(fileId) + "&id=" + encodeURIComponent(el.dataset.id), { method: "DELETE" });
+          comments = comments.filter((row) => row.id !== el.dataset.id);
+          renderComments();
+        });
+        el.addEventListener("click", () => {
+          if (player.hidden || el.dataset.sec === "") return;
+          player.currentTime = Number(el.dataset.sec) || 0;
+          player.play().catch(() => {});
+        });
+      });
+    }
+
+    async function loadComments() {
+      if (!fileId) { comments = []; renderComments(); return; }
+      const res = await fetch("/frame/api/comments?file=" + encodeURIComponent(fileId));
+      const data = await res.json();
+      comments = data.comments || [];
+      renderComments();
+    }
+
+    $("new-project").addEventListener("click", async () => {
+      const name = prompt("Project name", "Untitled");
+      if (!name) return;
+      const res = await fetch("/frame/api/projects", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ name }) });
+      const data = await res.json();
+      if (data.project) {
+        projects.push(data.project);
+        selectProject(data.project.id);
+      }
+    });
+
+    $("add-video").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      if (!projectId) { $("status").textContent = "Create a project first."; return; }
+      const url = $("video-url").value;
+      const id = driveId(url);
+      if (!id) { $("status").textContent = "Need a Google Drive file link."; return; }
+      const res = await fetch("/frame/api/project-items", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ projectId, url, name: "Video" }),
+      });
+      const data = await res.json();
+      if (!res.ok) { $("status").textContent = data.error || "Could not add video"; return; }
+      projects = projects.map((p) => p.id === data.project.id ? data.project : p);
+      $("video-url").value = "";
+      embed(data.item.fileId, data.item.name);
+    });
+
+    $("images").addEventListener("change", async () => {
+      $("compose-error").textContent = "";
+      try {
+        for (const file of $("images").files) {
+          const raster = (file.type || "").startsWith("image/") && !(file.type || "").includes("svg");
+          const small = raster ? await shrinkImage(file) : file;
+          const b64 = await fileToB64(small);
+          pendingFiles.push({
+            name: small.name || file.name || "file",
+            type: small.type || file.type || "application/octet-stream",
+            b64,
+            url: raster ? URL.createObjectURL(small) : "",
+          });
+        }
+        pendingFiles = pendingFiles.slice(0, 4);
+        $("images").value = "";
+        renderPreviews();
+      } catch (err) {
+        $("compose-error").textContent = "Could not read file: " + (err.message || err);
+      }
+    });
+
+    $("send").addEventListener("click", async () => {
+      const text = String($("comment-text").value || "").trim();
+      $("compose-error").textContent = "";
+      if (!fileId && blobUrl && projectId) fileId = "local-" + projectId;
+      if (!fileId) { $("compose-error").textContent = "Select a video first."; return; }
+      if (!text && !pendingFiles.length) {
+        $("compose-error").textContent = "Write a comment or attach a file.";
+        return;
+      }
+      const timed = !player.hidden && player.readyState >= 1;
+      const tSec = timed ? player.currentTime || 0 : null;
+      $("send").disabled = true;
+      try {
+        const payload = pendingFiles.map((item) => ({ name: item.name, type: item.type, data: item.b64 }));
+        const res = await fetch("/frame/api/comments", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            file: fileId,
+            text,
+            t: timed ? fmt(tSec) : "",
+            tSec,
+            files: payload,
+            images: payload,
+          }),
+        });
+        const saved = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          $("compose-error").textContent = saved.error || "Comment failed";
+          return;
+        }
+        $("comment-text").value = "";
+        pendingFiles = [];
+        renderPreviews();
+        if (saved.comment) {
+          comments = [...comments.filter((c) => c.id !== saved.comment.id), saved.comment]
+            .sort((a, b) => (a.tSec || 0) - (b.tSec || 0) || (a.at || 0) - (b.at || 0));
+          renderComments();
+        }
+      } catch (err) {
+        $("compose-error").textContent = String(err.message || err);
+      } finally {
+        $("send").disabled = false;
+      }
+    });
+
+    window.addEventListener("keydown", (e) => {
+      if (e.code !== "Space" && e.key !== " ") return;
+      if (e.repeat) return;
+      if (e.target.closest("textarea,input,select,[contenteditable=true]")) return;
+      if (player.hidden) return;
+      e.preventDefault();
+      e.stopPropagation();
+      if (player.paused) player.play(); else player.pause();
+    }, true);
+
+    async function boot() {
+      const params = new URLSearchParams(location.search);
+      const q = driveId(params.get("file") || "");
+      const qp = String(params.get("p") || "");
+      const res = await fetch("/frame/api/projects");
+      const data = await res.json();
+      projects = data.projects || [];
+      const byP = qp && projects.find((p) => p.id === qp);
+      const match = q && projects.find((p) => (p.items || []).some((v) => v.fileId === q));
+      projectId = (byP || match || projects[0])?.id || "";
+      const item = (match?.items || currentProject()?.items || []).find((v) => q && v.fileId === q) || currentProject()?.items?.[0];
+      renderRail();
+      $("share").hidden = !projectId;
+      if (item) embed(item.fileId, item.name);
+      else await clearPlayer();
+    }
+
+    $("share").addEventListener("click", () => copyLink(projectId));
+
+    boot();
+  </script>
+</body>
+</html>

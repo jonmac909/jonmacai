@@ -8,7 +8,8 @@ routes = [
 ]
 
 [vars]
-VIDEO_KEY = "reviews/jon-main-vsl/final-v3-web.mp4"
+VIDEO_KEY = "reviews/jon-main-vsl/native-master-v1-web.mp4"
+REVIEW_WITHDRAWN = "true"
 
 [assets]
 directory = "./public"
