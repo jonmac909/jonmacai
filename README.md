@@ -52,12 +52,11 @@ removed rather than carried forward as native-master facts.
 - Replace `cloud-apps/review/public/poster.jpg` with a frame from the approved web
   MP4. The historical poster is deliberately not referenced by the prepared page.
   Then add `poster="/review/poster.jpg?v=native-master-v1"` to `<video>`.
-- Add visible music attribution on the review page for the track Main actually
-  selects. If using Chris Zabriskie's Cylinder Seven or Cylinder Eight, credit the
-  chosen title and artist, link the [official source](https://chriszabriskie.com/cylinders/)
-  and [CC BY 4.0 license](https://creativecommons.org/licenses/by/4.0/), and disclose:
+- The page credits “Cylinder Seven” by Chris Zabriskie, links the
+  [official source](https://chriszabriskie.com/cylinders/) and
+  [CC BY 4.0 license](https://creativecommons.org/licenses/by/4.0/), and discloses:
   "Edited, crossfaded, level-adjusted and ducked. No endorsement implied."
-  Use the final audio manifest's attribution and hashes; do not guess the selected title.
+  Confirm the final audio manifest still matches this selected track.
 - Keep the R2 key and every video/poster URL version aligned. Do not overwrite a
   released object with different bytes; use a new key and version for later edits.
   Keep source footage, rejected-project archives and large exports outside Git.
@@ -66,8 +65,8 @@ Main can gather release metadata and extract the approved poster in PowerShell
 (set both values to the actual approved file and editorially selected timestamp):
 
 ```powershell
-$ApprovedMp4 = 'C:\path\to\approved\native-master-v1-web.mp4'
-$PosterTime = '00:00:00.000'
+$ApprovedMp4 = Read-Host 'Absolute path to the QA-approved web MP4'
+$PosterTime = Read-Host 'Editorially selected poster timestamp (HH:MM:SS.mmm)'
 ffprobe -v error -count_frames -show_entries "format=duration,size:stream=index,codec_type,codec_name,width,height,r_frame_rate,avg_frame_rate,nb_read_frames,sample_rate,channels,channel_layout" -of json "$ApprovedMp4"
 ffmpeg -n -ss "$PosterTime" -i "$ApprovedMp4" -frames:v 1 "$env:TEMP\native-master-v1-poster.jpg"
 Copy-Item "$env:TEMP\native-master-v1-poster.jpg" cloud-apps/review/public/poster.jpg
@@ -87,8 +86,8 @@ npx --no-install wrangler r2 object put frame-media/reviews/jon-main-vsl/native-
 ```
 
 For larger files, configure a private `r2` rclone remote using securely supplied R2
-S3 credentials scoped to `frame-media` (Object Read & Write). Use the account's
-`https://<account-id>.r2.cloudflarestorage.com` endpoint and `no_check_bucket = true`
+S3 credentials scoped to `frame-media` (Object Read & Write). Use the S3 API endpoint
+shown in the Cloudflare R2 dashboard and `no_check_bucket = true`
 for object-level credentials. Do not put keys in Git, command arguments or logs.
 Wrangler OAuth is not an S3 access-key pair. With that remote available:
 
@@ -120,24 +119,26 @@ node --test cloud-apps/review/worker.test.mjs
 npx --no-install wrangler deploy --dry-run --config cloud-apps/review/wrangler.toml
 ```
 
-Use the existing PR rather than opening another publication route. At preparation,
-[PR #2](https://github.com/jonmac909/jonmacai/pull/2) targets `main` from
-`jonmac909/Feature-VSL-Review`, is conflicting, and has failed Netlify Header rules,
-Pages changed and Redirect rules checks. Preserve other work and resolve the
-upstream merge without dropping the Worker withdrawal guard:
+Use the existing [PR #2](https://github.com/jonmac909/jonmacai/pull/2), targeting
+`main` from `jonmac909/Feature-VSL-Review`. The prepared three-file change was
+committed as `e6607e5`; `origin/main` (`077d2f1`) was integrated in merge commit
+`3110cba`. The four conflicts were confined to this review's README, page, Worker
+and Wrangler configuration. The withdrawal guard and versioned native-master
+target were retained instead of the historical rejected release; unrelated
+upstream content was unchanged.
 
-```powershell
-git add README.md cloud-apps/review
-git commit -m "Prepare approved native VSL master release"
-git fetch origin main
-git merge origin/main
-```
+The [failed Netlify deploy log](https://app.netlify.com/projects/jonmacai/deploys/6a9f367be90dd30008465a7d)
+shows a site-level build configuration mismatch, not invalid header or redirect
+rules: Netlify's UI runs `npm run build` from `/opt/build/repo`, but the repository
+has no root `package.json` (`ENOENT`, exit 254). Its UI publish directory is `dist`.
+Header rules, Pages changed and Redirect rules all report that same failed deploy.
+No existing repository Netlify configuration is available to correct. The site
+owner must reconcile the connected site's build/base/publish settings with the
+intended main-site source before rerunning its checks. Do not add a dummy build,
+publish this Cloudflare-only review directory to Netlify, or bypass failed checks.
 
-If the merge conflicts, resolve the listed conflicts, preserving unrelated
-upstream content and this review release, then stage those resolved files and
-finish with `git commit`. Do not auto-select the historical review from `main`.
-Main must review the resulting diff and failed checks before merging; there is no
-repository GitHub Actions deployment workflow. The existing Netlify checks are
+Main must review the integrated diff and resolve that CI prerequisite before
+merging. There is no repository GitHub Actions deployment workflow; Netlify is
 not the Cloudflare Worker deployment.
 
 ```powershell
