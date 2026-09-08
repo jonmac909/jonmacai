@@ -12,3 +12,10 @@ directory = "./public"
 binding = "ASSETS"
 run_worker_first = true
 html_handling = "none"
+
+[vars]
+VIDEO_KEY = "watch/viralview-2-launch-v1.mp4"
+
+[[r2_buckets]]
+binding = "MEDIA"
+bucket_name = "frame-media"
