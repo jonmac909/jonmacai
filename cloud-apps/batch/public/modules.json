@@ -1,230 +1,991 @@
 {
   "project_id": "365e01c6-0f23-4637-82ed-be6905b2bbcb",
-  "revision": "Typography-2 · 1080p",
+  "catalog_id": "sabri-master-61",
+  "total": 61,
+  "revision": "Sabri master · 61 graphics",
   "modules": [
     {
       "id": "G01",
-      "title": "Roadmap and chapter carousel",
+      "source_id": "MG01",
+      "num": 1,
+      "title": "darken bg effect on whole video when he shows the phone in hand here",
+      "description": "darken bg effect on whole video when he shows the phone in hand here",
+      "timestamp": "00:01",
+      "timeSeconds": 1.058988,
+      "durationSeconds": 3.5,
       "reference": {
-        "title": "MG-01: 5-Step Roadmap Overview",
-        "video_url": "/batch/sabri/01_MG01_Roadmap_5_Step_Overview.mp4"
+        "title": "darken bg effect on whole video when he shows the phone in hand here",
+        "video_url": "/batch/sabri/all_61/MG01_00m01s_darken_bg_effect_on_whole_video_when_he_.mp4",
+        "poster_url": "/batch/sabri/all_61/MG01_00m01s_darken_bg_effect_on_whole_video_when_he_.png"
       },
       "clips": [
         {
-          "label": "Updated type · 1080p · Sound",
-          "video_url": "https://jonmac.ai/frame/api/media?file=sb_fonts_v2_g01_564d380da015e059",
-          "review_url": "https://jonmac.ai/frame/?p=365e01c6-0f23-4637-82ed-be6905b2bbcb&file=sb_fonts_v2_g01_564d380da015e059",
+          "label": "Loom rebuild · Hornsea Regular emboldened · Air only",
+          "video_url": "https://jonmac.ai/frame/api/media?file=g01_loom_single_91c8a22091a875ed",
+          "review_url": "https://jonmac.ai/frame/?p=365e01c6-0f23-4637-82ed-be6905b2bbcb&file=g01_loom_single_91c8a22091a875ed",
           "poster_url": "/batch/posters/G01.jpg"
         }
       ]
     },
     {
       "id": "G02",
-      "title": "Kinetic phrase pops",
+      "source_id": "MG02",
+      "num": 2,
+      "title": "map motion graphic",
+      "description": "map motion graphic",
+      "timestamp": "00:03",
+      "timeSeconds": 3.484104,
+      "durationSeconds": 3.5,
       "reference": {
-        "title": "MG-04: Kinetic Word Pop ('SINGLE')",
-        "video_url": "/batch/sabri/06_MG04_Kinetic_Word_Pop_SINGLE.mp4"
+        "title": "map motion graphic",
+        "video_url": "/batch/sabri/all_61/MG02_00m03s_map_motion_graphic.mp4",
+        "poster_url": "/batch/sabri/all_61/MG02_00m03s_map_motion_graphic.png"
       },
-      "clips": [
-        {
-          "label": "Updated type · 1080p · Sound",
-          "video_url": "https://jonmac.ai/frame/api/media?file=sb_fonts_v2_g02_54dae52ef79d7cd6",
-          "review_url": "https://jonmac.ai/frame/?p=365e01c6-0f23-4637-82ed-be6905b2bbcb&file=sb_fonts_v2_g02_54dae52ef79d7cd6",
-          "poster_url": "/batch/posters/G02.jpg"
-        }
-      ]
+      "clips": []
     },
     {
       "id": "G03",
-      "title": "Foreground depth and generation meter",
+      "source_id": "MG03",
+      "num": 3,
+      "title": "coming up... lower third text",
+      "description": "coming up... lower third text",
+      "timestamp": "00:06",
+      "timeSeconds": 6.090977,
+      "durationSeconds": 3.5,
       "reference": {
-        "title": "MG-03B: Behind-Host HUD Telemetry Capsule",
-        "video_url": "/batch/sabri/05_MG03B_Behind_Host_HUD_Telemetry.mp4"
+        "title": "coming up... lower third text",
+        "video_url": "/batch/sabri/all_61/MG03_00m06s_coming_up_lower_third_text.mp4",
+        "poster_url": "/batch/sabri/all_61/MG03_00m06s_coming_up_lower_third_text.png"
       },
-      "clips": [
-        {
-          "label": "Updated type · 1080p · Sound",
-          "video_url": "https://jonmac.ai/frame/api/media?file=sb_fonts_v2_g03_ef92b6fc56162bf1",
-          "review_url": "https://jonmac.ai/frame/?p=365e01c6-0f23-4637-82ed-be6905b2bbcb&file=sb_fonts_v2_g03_ef92b6fc56162bf1",
-          "poster_url": "/batch/posters/G03.jpg"
-        }
-      ]
+      "clips": []
     },
     {
       "id": "G04",
-      "title": "Profile and DM reenactment",
+      "source_id": "MG04",
+      "num": 4,
+      "title": "text motion graphic",
+      "description": "text motion graphic",
+      "timestamp": "00:08",
+      "timeSeconds": 8.803947,
+      "durationSeconds": 3.5,
       "reference": {
-        "title": "MG-02B: 3D Phone Sandwich with Desaturated Room",
-        "video_url": "/batch/sabri/04_MG02B_3D_Phone_Sandwich_Desat.mp4"
+        "title": "text motion graphic",
+        "video_url": "/batch/sabri/all_61/MG04_00m08s_text_motion_graphic.mp4",
+        "poster_url": "/batch/sabri/all_61/MG04_00m08s_text_motion_graphic.png"
       },
-      "clips": [
-        {
-          "label": "Updated type · 1080p · Sound",
-          "video_url": "https://jonmac.ai/frame/api/media?file=sb_fonts_v2_g04_8b1636ec070d3780",
-          "review_url": "https://jonmac.ai/frame/?p=365e01c6-0f23-4637-82ed-be6905b2bbcb&file=sb_fonts_v2_g04_8b1636ec070d3780",
-          "poster_url": "/batch/posters/G04.jpg"
-        }
-      ]
+      "clips": []
     },
     {
       "id": "G05",
-      "title": "Vertical video and blurred sidefill",
+      "source_id": "MG05",
+      "num": 5,
+      "title": "draw motion graphic text",
+      "description": "draw motion graphic text",
+      "timestamp": "00:10",
+      "timeSeconds": 10.638083,
+      "durationSeconds": 3.5,
       "reference": {
-        "title": "MG-12: Focal Punch-Zoom Pacing Cuts",
-        "video_url": "/batch/sabri/09_MG12_Focal_Punch_Pacing_Jump_Cuts.mp4"
+        "title": "draw motion graphic text",
+        "video_url": "/batch/sabri/all_61/MG05_00m10s_draw_motion_graphic_text.mp4",
+        "poster_url": "/batch/sabri/all_61/MG05_00m10s_draw_motion_graphic_text.png"
       },
-      "clips": [
-        {
-          "label": "Updated type · 1080p · Sound",
-          "video_url": "https://jonmac.ai/frame/api/media?file=sb_fonts_v2_g05_7b43c486763864ba",
-          "review_url": "https://jonmac.ai/frame/?p=365e01c6-0f23-4637-82ed-be6905b2bbcb&file=sb_fonts_v2_g05_7b43c486763864ba",
-          "poster_url": "/batch/posters/G05.jpg"
-        }
-      ]
+      "clips": []
     },
     {
       "id": "G06",
-      "title": "Continuous grid pullback",
+      "source_id": "MG06",
+      "num": 6,
+      "title": "grid MG",
+      "description": "grid MG",
+      "timestamp": "00:12",
+      "timeSeconds": 12.636257,
+      "durationSeconds": 3.5,
       "reference": {
-        "title": "MG-07B: Mosaic Rubbish Rubber Stamp",
-        "video_url": "/batch/sabri/07_MG07B_Mosaic_Rubbish_Stamp.mp4"
+        "title": "grid MG",
+        "video_url": "/batch/sabri/all_61/MG06_00m12s_grid_mg.mp4",
+        "poster_url": "/batch/sabri/all_61/MG06_00m12s_grid_mg.png"
       },
-      "clips": [
-        {
-          "label": "Updated type · 1080p · Sound",
-          "video_url": "https://jonmac.ai/frame/api/media?file=sb_fonts_v2_g06_6f3add67653b5cff",
-          "review_url": "https://jonmac.ai/frame/?p=365e01c6-0f23-4637-82ed-be6905b2bbcb&file=sb_fonts_v2_g06_6f3add67653b5cff",
-          "poster_url": "/batch/posters/G06.jpg"
-        }
-      ]
+      "clips": []
     },
     {
       "id": "G07",
-      "title": "Screen demo and presenter PiP",
+      "source_id": "MG07",
+      "num": 7,
+      "title": "big text on each word MG",
+      "description": "big text on each word MG",
+      "timestamp": "00:13",
+      "timeSeconds": 13.832368,
+      "durationSeconds": 3.7,
       "reference": {
-        "title": "MG-17: 3D Perspective Screencast with Interactive Cursor",
-        "video_url": "/batch/sabri/14_MG17_Interactive_Screencast_Cursor_Demo.mp4"
+        "title": "big text on each word MG",
+        "video_url": "/batch/sabri/all_61/MG07_00m13s_big_text_on_each_word_mg.mp4",
+        "poster_url": "/batch/sabri/all_61/MG07_00m13s_big_text_on_each_word_mg.png"
       },
-      "clips": [
-        {
-          "label": "Updated type · 1080p · Sound",
-          "video_url": "https://jonmac.ai/frame/api/media?file=sb_fonts_v2_g07_9564b2294d26977f",
-          "review_url": "https://jonmac.ai/frame/?p=365e01c6-0f23-4637-82ed-be6905b2bbcb&file=sb_fonts_v2_g07_9564b2294d26977f",
-          "poster_url": "/batch/posters/G07.jpg"
-        }
-      ]
+      "clips": []
     },
     {
       "id": "G08",
-      "title": "Screen focus and highlight",
+      "source_id": "MG08",
+      "num": 8,
+      "title": "bigger text MG each word",
+      "description": "bigger text MG each word",
+      "timestamp": "00:17",
+      "timeSeconds": 17.036003,
+      "durationSeconds": 6.4,
       "reference": {
-        "title": "MG-11: Monumental Text Behind Host ('1,000 INDUSTRIES')",
-        "video_url": "/batch/sabri/08_MG11_Monumental_Text_Behind_Host.mp4"
+        "title": "bigger text MG each word",
+        "video_url": "/batch/sabri/all_61/MG08_00m17s_bigger_text_mg_each_word.mp4",
+        "poster_url": "/batch/sabri/all_61/MG08_00m17s_bigger_text_mg_each_word.png"
       },
-      "clips": [
-        {
-          "label": "Updated type · 1080p · Sound",
-          "video_url": "https://jonmac.ai/frame/api/media?file=sb_fonts_v2_g08_d1e60921cc3bde2d",
-          "review_url": "https://jonmac.ai/frame/?p=365e01c6-0f23-4637-82ed-be6905b2bbcb&file=sb_fonts_v2_g08_d1e60921cc3bde2d",
-          "poster_url": "/batch/posters/G08.jpg"
-        }
-      ]
+      "clips": []
     },
     {
       "id": "G09",
-      "title": "Screen-derived portrait flyout",
+      "source_id": "MG09",
+      "num": 9,
+      "title": "behind text MG",
+      "description": "behind text MG",
+      "timestamp": "00:22",
+      "timeSeconds": 22.932203,
+      "durationSeconds": 3.5,
       "reference": {
-        "title": "MG-13: Curved Hand-Drawn Doodle Arrow",
-        "video_url": "/batch/sabri/10_MG13_Curved_Doodle_Arrow_Callout.mp4"
+        "title": "behind text MG",
+        "video_url": "/batch/sabri/all_61/MG09_00m22s_behind_text_mg.mp4",
+        "poster_url": "/batch/sabri/all_61/MG09_00m22s_behind_text_mg.png"
       },
-      "clips": [
-        {
-          "label": "Updated type · 1080p · Sound",
-          "video_url": "https://jonmac.ai/frame/api/media?file=sb_fonts_v2_g09_e303b577f50181c7",
-          "review_url": "https://jonmac.ai/frame/?p=365e01c6-0f23-4637-82ed-be6905b2bbcb&file=sb_fonts_v2_g09_e303b577f50181c7",
-          "poster_url": "/batch/posters/G09.jpg"
-        }
-      ]
+      "clips": []
     },
     {
       "id": "G10",
-      "title": "Torn-paper comparison",
+      "source_id": "MG10",
+      "num": 10,
+      "title": "map 1 card show MG",
+      "description": "map 1 card show MG",
+      "timestamp": "00:23",
+      "timeSeconds": 23.94255,
+      "durationSeconds": 5.43,
       "reference": {
-        "title": "MG-16: Torn Paper Multi-Asset Proof Collage",
-        "video_url": "/batch/sabri/13_MG16_Torn_Paper_Multi_Asset_Collage.mp4"
+        "title": "map 1 card show MG",
+        "video_url": "/batch/sabri/all_61/MG10_00m23s_map_1_card_show_mg.mp4",
+        "poster_url": "/batch/sabri/all_61/MG10_00m23s_map_1_card_show_mg.png"
       },
-      "clips": [
-        {
-          "label": "Updated type · 1080p · Sound",
-          "video_url": "https://jonmac.ai/frame/api/media?file=sb_fonts_v2_g10_a517a973541c0171",
-          "review_url": "https://jonmac.ai/frame/?p=365e01c6-0f23-4637-82ed-be6905b2bbcb&file=sb_fonts_v2_g10_a517a973541c0171",
-          "poster_url": "/batch/posters/G10.jpg"
-        }
-      ]
+      "clips": []
     },
     {
       "id": "G11",
-      "title": "Prompt card and typing light",
+      "source_id": "MG11",
+      "num": 11,
+      "title": "instagram slideshow MG with blur",
+      "description": "instagram slideshow MG with blur",
+      "timestamp": "00:28",
+      "timeSeconds": 28.86855,
+      "durationSeconds": 3.5,
       "reference": {
-        "title": "MG-14: Quote Dialogue Dark Glass Capsule",
-        "video_url": "/batch/sabri/11_MG14_Quote_Dialogue_Dark_Capsule.mp4"
+        "title": "instagram slideshow MG with blur",
+        "video_url": "/batch/sabri/all_61/MG11_00m28s_instagram_slideshow_mg_with_blur.mp4",
+        "poster_url": "/batch/sabri/all_61/MG11_00m28s_instagram_slideshow_mg_with_blur.png"
       },
-      "clips": [
-        {
-          "label": "Updated type · 1080p · Sound",
-          "video_url": "https://jonmac.ai/frame/api/media?file=sb_fonts_v2_g11_00b6a5a3145c7b63",
-          "review_url": "https://jonmac.ai/frame/?p=365e01c6-0f23-4637-82ed-be6905b2bbcb&file=sb_fonts_v2_g11_00b6a5a3145c7b63",
-          "poster_url": "/batch/posters/G11.jpg"
-        }
-      ]
+      "clips": []
     },
     {
       "id": "G12",
-      "title": "Hook and body combinations",
+      "source_id": "MG12",
+      "num": 12,
+      "title": "zoomed in MG",
+      "description": "zoomed in MG",
+      "timestamp": "00:29",
+      "timeSeconds": 29.764228,
+      "durationSeconds": 3.5,
       "reference": {
-        "title": "MG-15: Two-Tier Authority Lower-Third Badge",
-        "video_url": "/batch/sabri/12_MG15_Two_Tier_Authority_Lower_Third.mp4"
+        "title": "zoomed in MG",
+        "video_url": "/batch/sabri/all_61/MG12_00m29s_zoomed_in_mg.mp4",
+        "poster_url": "/batch/sabri/all_61/MG12_00m29s_zoomed_in_mg.png"
       },
-      "clips": [
-        {
-          "label": "Updated type · 1080p · Sound",
-          "video_url": "https://jonmac.ai/frame/api/media?file=sb_fonts_v2_g12_4a5adb3824ab796e",
-          "review_url": "https://jonmac.ai/frame/?p=365e01c6-0f23-4637-82ed-be6905b2bbcb&file=sb_fonts_v2_g12_4a5adb3824ab796e",
-          "poster_url": "/batch/posters/G12.jpg"
-        }
-      ]
+      "clips": []
     },
     {
       "id": "G13",
-      "title": "Generation progress meter",
+      "source_id": "MG13",
+      "num": 13,
+      "title": "message MG",
+      "description": "message MG",
+      "timestamp": "00:32",
+      "timeSeconds": 32.043102,
+      "durationSeconds": 4.97,
       "reference": {
-        "title": "MG-01B: Roadmap Step Punch Isolation",
-        "video_url": "/batch/sabri/02_MG01B_Roadmap_Step_Punch_Zoom.mp4"
+        "title": "message MG",
+        "video_url": "/batch/sabri/all_61/MG13_00m32s_message_mg.mp4",
+        "poster_url": "/batch/sabri/all_61/MG13_00m32s_message_mg.png"
       },
-      "clips": [
-        {
-          "label": "Updated type · 1080p · Sound",
-          "video_url": "https://jonmac.ai/frame/api/media?file=sb_fonts_v2_g13_1fd5a5b3f2e80883",
-          "review_url": "https://jonmac.ai/frame/?p=365e01c6-0f23-4637-82ed-be6905b2bbcb&file=sb_fonts_v2_g13_1fd5a5b3f2e80883",
-          "poster_url": "/batch/posters/G13.jpg"
-        }
-      ]
+      "clips": []
     },
     {
       "id": "G14",
-      "title": "Flash accent",
+      "source_id": "MG14",
+      "num": 14,
+      "title": "lower third MG",
+      "description": "lower third MG",
+      "timestamp": "00:36",
+      "timeSeconds": 36.510477,
+      "durationSeconds": 7,
       "reference": {
-        "title": "MG-02: Split-Fill Monumental Text Sandwich",
-        "video_url": "/batch/sabri/03_MG02_Split_Fill_Monumental_Text.mp4"
+        "title": "lower third MG",
+        "video_url": "/batch/sabri/all_61/MG14_00m36s_lower_third_mg.mp4",
+        "poster_url": "/batch/sabri/all_61/MG14_00m36s_lower_third_mg.png"
       },
-      "clips": [
-        {
-          "label": "Updated type · 1080p · Sound",
-          "video_url": "https://jonmac.ai/frame/api/media?file=sb_fonts_v2_g14_a3122ed923e80a35",
-          "review_url": "https://jonmac.ai/frame/?p=365e01c6-0f23-4637-82ed-be6905b2bbcb&file=sb_fonts_v2_g14_a3122ed923e80a35",
-          "poster_url": "/batch/posters/G14.jpg"
-        }
-      ]
+      "clips": []
+    },
+    {
+      "id": "G15",
+      "source_id": "MG15",
+      "num": 15,
+      "title": "messenger MG",
+      "description": "messenger MG",
+      "timestamp": "00:45",
+      "timeSeconds": 45.747198,
+      "durationSeconds": 5.4,
+      "reference": {
+        "title": "messenger MG",
+        "video_url": "/batch/sabri/all_61/MG15_00m45s_messenger_mg.mp4",
+        "poster_url": "/batch/sabri/all_61/MG15_00m45s_messenger_mg.png"
+      },
+      "clips": []
+    },
+    {
+      "id": "G16",
+      "source_id": "MG16",
+      "num": 16,
+      "title": "lower third text MG",
+      "description": "lower third text MG",
+      "timestamp": "00:50",
+      "timeSeconds": 50.646807,
+      "durationSeconds": 3.5,
+      "reference": {
+        "title": "lower third text MG",
+        "video_url": "/batch/sabri/all_61/MG16_00m50s_lower_third_text_mg.mp4",
+        "poster_url": "/batch/sabri/all_61/MG16_00m50s_lower_third_text_mg.png"
+      },
+      "clips": []
+    },
+    {
+      "id": "G17",
+      "source_id": "MG17",
+      "num": 17,
+      "title": "text front MG",
+      "description": "text front MG",
+      "timestamp": "00:51",
+      "timeSeconds": 51.470819,
+      "durationSeconds": 3.5,
+      "reference": {
+        "title": "text front MG",
+        "video_url": "/batch/sabri/all_61/MG17_00m51s_text_front_mg.mp4",
+        "poster_url": "/batch/sabri/all_61/MG17_00m51s_text_front_mg.png"
+      },
+      "clips": []
+    },
+    {
+      "id": "G18",
+      "source_id": "MG18",
+      "num": 18,
+      "title": "black white MG with side text",
+      "description": "black white MG with side text",
+      "timestamp": "00:52",
+      "timeSeconds": 52.998367,
+      "durationSeconds": 3.5,
+      "reference": {
+        "title": "black white MG with side text",
+        "video_url": "/batch/sabri/all_61/MG18_00m52s_black_white_mg_with_side_text.mp4",
+        "poster_url": "/batch/sabri/all_61/MG18_00m52s_black_white_mg_with_side_text.png"
+      },
+      "clips": []
+    },
+    {
+      "id": "G19",
+      "source_id": "MG19",
+      "num": 19,
+      "title": "zoom in MG",
+      "description": "zoom in MG",
+      "timestamp": "00:54",
+      "timeSeconds": 54.924341,
+      "durationSeconds": 3.5,
+      "reference": {
+        "title": "zoom in MG",
+        "video_url": "/batch/sabri/all_61/MG19_00m54s_zoom_in_mg.mp4",
+        "poster_url": "/batch/sabri/all_61/MG19_00m54s_zoom_in_mg.png"
+      },
+      "clips": []
+    },
+    {
+      "id": "G20",
+      "source_id": "MG20",
+      "num": 20,
+      "title": "blur MG",
+      "description": "blur MG",
+      "timestamp": "00:56",
+      "timeSeconds": 56.604226,
+      "durationSeconds": 3.67,
+      "reference": {
+        "title": "blur MG",
+        "video_url": "/batch/sabri/all_61/MG20_00m56s_blur_mg.mp4",
+        "poster_url": "/batch/sabri/all_61/MG20_00m56s_blur_mg.png"
+      },
+      "clips": []
+    },
+    {
+      "id": "G21",
+      "source_id": "MG21",
+      "num": 21,
+      "title": "black white MG with high pitch voice changer",
+      "description": "black white MG with high pitch voice changer",
+      "timestamp": "00:59",
+      "timeSeconds": 59.77575,
+      "durationSeconds": 7,
+      "reference": {
+        "title": "black white MG with high pitch voice changer",
+        "video_url": "/batch/sabri/all_61/MG21_00m59s_black_white_mg_with_high_pitch_voice_cha.mp4",
+        "poster_url": "/batch/sabri/all_61/MG21_00m59s_black_white_mg_with_high_pitch_voice_cha.png"
+      },
+      "clips": []
+    },
+    {
+      "id": "G22",
+      "source_id": "MG22",
+      "num": 22,
+      "title": "behind pill shape text effect MG",
+      "description": "behind pill shape text effect MG",
+      "timestamp": "01:10",
+      "timeSeconds": 70.086429,
+      "durationSeconds": 6.07,
+      "reference": {
+        "title": "behind pill shape text effect MG",
+        "video_url": "/batch/sabri/all_61/MG22_01m10s_behind_pill_shape_text_effect_mg.mp4",
+        "poster_url": "/batch/sabri/all_61/MG22_01m10s_behind_pill_shape_text_effect_mg.png"
+      },
+      "clips": []
+    },
+    {
+      "id": "G23",
+      "source_id": "MG23",
+      "num": 23,
+      "title": "upper third text mg",
+      "description": "upper third text mg",
+      "timestamp": "01:15",
+      "timeSeconds": 75.654348,
+      "durationSeconds": 3.5,
+      "reference": {
+        "title": "upper third text mg",
+        "video_url": "/batch/sabri/all_61/MG23_01m15s_upper_third_text_mg.mp4",
+        "poster_url": "/batch/sabri/all_61/MG23_01m15s_upper_third_text_mg.png"
+      },
+      "clips": []
+    },
+    {
+      "id": "G24",
+      "source_id": "MG24",
+      "num": 24,
+      "title": "middle text mg",
+      "description": "middle text mg",
+      "timestamp": "01:17",
+      "timeSeconds": 77.396394,
+      "durationSeconds": 7,
+      "reference": {
+        "title": "middle text mg",
+        "video_url": "/batch/sabri/all_61/MG24_01m17s_middle_text_mg.mp4",
+        "poster_url": "/batch/sabri/all_61/MG24_01m17s_middle_text_mg.png"
+      },
+      "clips": []
+    },
+    {
+      "id": "G25",
+      "source_id": "MG25",
+      "num": 25,
+      "title": "logo appear MG",
+      "description": "logo appear MG",
+      "timestamp": "01:32",
+      "timeSeconds": 92.572255,
+      "durationSeconds": 3.5,
+      "reference": {
+        "title": "logo appear MG",
+        "video_url": "/batch/sabri/all_61/MG25_01m32s_logo_appear_mg.mp4",
+        "poster_url": "/batch/sabri/all_61/MG25_01m32s_logo_appear_mg.png"
+      },
+      "clips": []
+    },
+    {
+      "id": "G26",
+      "source_id": "MG26",
+      "num": 26,
+      "title": "massive bottom text MG fast",
+      "description": "massive bottom text MG fast",
+      "timestamp": "01:35",
+      "timeSeconds": 95.190948,
+      "durationSeconds": 3.5,
+      "reference": {
+        "title": "massive bottom text MG fast",
+        "video_url": "/batch/sabri/all_61/MG26_01m35s_massive_bottom_text_mg_fast.mp4",
+        "poster_url": "/batch/sabri/all_61/MG26_01m35s_massive_bottom_text_mg_fast.png"
+      },
+      "clips": []
+    },
+    {
+      "id": "G27",
+      "source_id": "MG27",
+      "num": 27,
+      "title": "big middle text MG",
+      "description": "big middle text MG",
+      "timestamp": "01:36",
+      "timeSeconds": 96.407496,
+      "durationSeconds": 3.5,
+      "reference": {
+        "title": "big middle text MG",
+        "video_url": "/batch/sabri/all_61/MG27_01m36s_big_middle_text_mg.mp4",
+        "poster_url": "/batch/sabri/all_61/MG27_01m36s_big_middle_text_mg.png"
+      },
+      "clips": []
+    },
+    {
+      "id": "G28",
+      "source_id": "MG28",
+      "num": 28,
+      "title": "logo with bg video MG",
+      "description": "logo with bg video MG",
+      "timestamp": "01:38",
+      "timeSeconds": 98.151558,
+      "durationSeconds": 7,
+      "reference": {
+        "title": "logo with bg video MG",
+        "video_url": "/batch/sabri/all_61/MG28_01m38s_logo_with_bg_video_mg.mp4",
+        "poster_url": "/batch/sabri/all_61/MG28_01m38s_logo_with_bg_video_mg.png"
+      },
+      "clips": []
+    },
+    {
+      "id": "G29",
+      "source_id": "MG29",
+      "num": 29,
+      "title": "website/software show MG",
+      "description": "website/software show MG",
+      "timestamp": "01:52",
+      "timeSeconds": 112.785537,
+      "durationSeconds": 5.05,
+      "reference": {
+        "title": "website/software show MG",
+        "video_url": "/batch/sabri/all_61/MG29_01m52s_website_software_show_mg.mp4",
+        "poster_url": "/batch/sabri/all_61/MG29_01m52s_website_software_show_mg.png"
+      },
+      "clips": []
+    },
+    {
+      "id": "G30",
+      "source_id": "MG30",
+      "num": 30,
+      "title": "software zoom in MG",
+      "description": "software zoom in MG",
+      "timestamp": "01:57",
+      "timeSeconds": 117.333784,
+      "durationSeconds": 7,
+      "reference": {
+        "title": "software zoom in MG",
+        "video_url": "/batch/sabri/all_61/MG30_01m57s_software_zoom_in_mg.mp4",
+        "poster_url": "/batch/sabri/all_61/MG30_01m57s_software_zoom_in_mg.png"
+      },
+      "clips": []
+    },
+    {
+      "id": "G31",
+      "source_id": "MG31",
+      "num": 31,
+      "title": "text appear MG",
+      "description": "text appear MG",
+      "timestamp": "02:05",
+      "timeSeconds": 125.441771,
+      "durationSeconds": 5.3,
+      "reference": {
+        "title": "text appear MG",
+        "video_url": "/batch/sabri/all_61/MG31_02m05s_text_appear_mg.mp4",
+        "poster_url": "/batch/sabri/all_61/MG31_02m05s_text_appear_mg.png"
+      },
+      "clips": []
+    },
+    {
+      "id": "G32",
+      "source_id": "MG32",
+      "num": 32,
+      "title": "loading MG",
+      "description": "loading MG",
+      "timestamp": "02:10",
+      "timeSeconds": 130.238574,
+      "durationSeconds": 3.5,
+      "reference": {
+        "title": "loading MG",
+        "video_url": "/batch/sabri/all_61/MG32_02m10s_loading_mg.mp4",
+        "poster_url": "/batch/sabri/all_61/MG32_02m10s_loading_mg.png"
+      },
+      "clips": []
+    },
+    {
+      "id": "G33",
+      "source_id": "MG33",
+      "num": 33,
+      "title": "transition swipe MG",
+      "description": "transition swipe MG",
+      "timestamp": "02:13",
+      "timeSeconds": 133.215521,
+      "durationSeconds": 7,
+      "reference": {
+        "title": "transition swipe MG",
+        "video_url": "/batch/sabri/all_61/MG33_02m13s_transition_swipe_mg.mp4",
+        "poster_url": "/batch/sabri/all_61/MG33_02m13s_transition_swipe_mg.png"
+      },
+      "clips": []
+    },
+    {
+      "id": "G34",
+      "source_id": "MG34",
+      "num": 34,
+      "title": "PIP lower right circle bubble speaker MG",
+      "description": "PIP lower right circle bubble speaker MG",
+      "timestamp": "02:36",
+      "timeSeconds": 156.189869,
+      "durationSeconds": 7,
+      "reference": {
+        "title": "PIP lower right circle bubble speaker MG",
+        "video_url": "/batch/sabri/all_61/MG34_02m36s_pip_lower_right_circle_bubble_speaker_mg.mp4",
+        "poster_url": "/batch/sabri/all_61/MG34_02m36s_pip_lower_right_circle_bubble_speaker_mg.png"
+      },
+      "clips": []
+    },
+    {
+      "id": "G35",
+      "source_id": "MG35",
+      "num": 35,
+      "title": "paper with text MG",
+      "description": "paper with text MG",
+      "timestamp": "03:24",
+      "timeSeconds": 204.74483,
+      "durationSeconds": 3.5,
+      "reference": {
+        "title": "paper with text MG",
+        "video_url": "/batch/sabri/all_61/MG35_03m24s_paper_with_text_mg.mp4",
+        "poster_url": "/batch/sabri/all_61/MG35_03m24s_paper_with_text_mg.png"
+      },
+      "clips": []
+    },
+    {
+      "id": "G36",
+      "source_id": "MG36",
+      "num": 36,
+      "title": "right side vertical pill bar MG",
+      "description": "right side vertical pill bar MG",
+      "timestamp": "03:27",
+      "timeSeconds": 207.558983,
+      "durationSeconds": 7,
+      "reference": {
+        "title": "right side vertical pill bar MG",
+        "video_url": "/batch/sabri/all_61/MG36_03m27s_right_side_vertical_pill_bar_mg.mp4",
+        "poster_url": "/batch/sabri/all_61/MG36_03m27s_right_side_vertical_pill_bar_mg.png"
+      },
+      "clips": []
+    },
+    {
+      "id": "G37",
+      "source_id": "MG37",
+      "num": 37,
+      "title": "left side text MG",
+      "description": "left side text MG",
+      "timestamp": "03:48",
+      "timeSeconds": 228.321516,
+      "durationSeconds": 4.1,
+      "reference": {
+        "title": "left side text MG",
+        "video_url": "/batch/sabri/all_61/MG37_03m48s_left_side_text_mg.mp4",
+        "poster_url": "/batch/sabri/all_61/MG37_03m48s_left_side_text_mg.png"
+      },
+      "clips": []
+    },
+    {
+      "id": "G38",
+      "source_id": "MG38",
+      "num": 38,
+      "title": "right side of image text MG",
+      "description": "right side of image text MG",
+      "timestamp": "03:51",
+      "timeSeconds": 231.921187,
+      "durationSeconds": 7,
+      "reference": {
+        "title": "right side of image text MG",
+        "video_url": "/batch/sabri/all_61/MG38_03m51s_right_side_of_image_text_mg.mp4",
+        "poster_url": "/batch/sabri/all_61/MG38_03m51s_right_side_of_image_text_mg.png"
+      },
+      "clips": []
+    },
+    {
+      "id": "G39",
+      "source_id": "MG39",
+      "num": 39,
+      "title": "bottom logo appear glow MG",
+      "description": "bottom logo appear glow MG",
+      "timestamp": "04:04",
+      "timeSeconds": 244.097275,
+      "durationSeconds": 7,
+      "reference": {
+        "title": "bottom logo appear glow MG",
+        "video_url": "/batch/sabri/all_61/MG39_04m04s_bottom_logo_appear_glow_mg.mp4",
+        "poster_url": "/batch/sabri/all_61/MG39_04m04s_bottom_logo_appear_glow_mg.png"
+      },
+      "clips": []
+    },
+    {
+      "id": "G40",
+      "source_id": "MG40",
+      "num": 40,
+      "title": "shape glow MG",
+      "description": "shape glow MG",
+      "timestamp": "04:11",
+      "timeSeconds": 251.791325,
+      "durationSeconds": 7,
+      "reference": {
+        "title": "shape glow MG",
+        "video_url": "/batch/sabri/all_61/MG40_04m11s_shape_glow_mg.mp4",
+        "poster_url": "/batch/sabri/all_61/MG40_04m11s_shape_glow_mg.png"
+      },
+      "clips": []
+    },
+    {
+      "id": "G41",
+      "source_id": "MG41",
+      "num": 41,
+      "title": "arrow images MG",
+      "description": "arrow images MG",
+      "timestamp": "04:53",
+      "timeSeconds": 293.794922,
+      "durationSeconds": 5.04,
+      "reference": {
+        "title": "arrow images MG",
+        "video_url": "/batch/sabri/all_61/MG41_04m53s_arrow_images_mg.mp4",
+        "poster_url": "/batch/sabri/all_61/MG41_04m53s_arrow_images_mg.png"
+      },
+      "clips": []
+    },
+    {
+      "id": "G42",
+      "source_id": "MG42",
+      "num": 42,
+      "title": "prompt show MG",
+      "description": "prompt show MG",
+      "timestamp": "04:58",
+      "timeSeconds": 298.338077,
+      "durationSeconds": 7,
+      "reference": {
+        "title": "prompt show MG",
+        "video_url": "/batch/sabri/all_61/MG42_04m58s_prompt_show_mg.mp4",
+        "poster_url": "/batch/sabri/all_61/MG42_04m58s_prompt_show_mg.png"
+      },
+      "clips": []
+    },
+    {
+      "id": "G43",
+      "source_id": "MG43",
+      "num": 43,
+      "title": "map card appear MG",
+      "description": "map card appear MG",
+      "timestamp": "05:36",
+      "timeSeconds": 336.805611,
+      "durationSeconds": 7,
+      "reference": {
+        "title": "map card appear MG",
+        "video_url": "/batch/sabri/all_61/MG43_05m36s_map_card_appear_mg.mp4",
+        "poster_url": "/batch/sabri/all_61/MG43_05m36s_map_card_appear_mg.png"
+      },
+      "clips": []
+    },
+    {
+      "id": "G44",
+      "source_id": "MG44",
+      "num": 44,
+      "title": "logo on each side MG",
+      "description": "logo on each side MG",
+      "timestamp": "05:48",
+      "timeSeconds": 348.177376,
+      "durationSeconds": 3.5,
+      "reference": {
+        "title": "logo on each side MG",
+        "video_url": "/batch/sabri/all_61/MG44_05m48s_logo_on_each_side_mg.mp4",
+        "poster_url": "/batch/sabri/all_61/MG44_05m48s_logo_on_each_side_mg.png"
+      },
+      "clips": []
+    },
+    {
+      "id": "G45",
+      "source_id": "MG45",
+      "num": 45,
+      "title": "message MG",
+      "description": "message MG",
+      "timestamp": "05:50",
+      "timeSeconds": 350.525214,
+      "durationSeconds": 5.72,
+      "reference": {
+        "title": "message MG",
+        "video_url": "/batch/sabri/all_61/MG45_05m50s_message_mg.mp4",
+        "poster_url": "/batch/sabri/all_61/MG45_05m50s_message_mg.png"
+      },
+      "clips": []
+    },
+    {
+      "id": "G46",
+      "source_id": "MG46",
+      "num": 46,
+      "title": "money break MG",
+      "description": "money break MG",
+      "timestamp": "05:55",
+      "timeSeconds": 355.746847,
+      "durationSeconds": 7,
+      "reference": {
+        "title": "money break MG",
+        "video_url": "/batch/sabri/all_61/MG46_05m55s_money_break_mg.mp4",
+        "poster_url": "/batch/sabri/all_61/MG46_05m55s_money_break_mg.png"
+      },
+      "clips": []
+    },
+    {
+      "id": "G47",
+      "source_id": "MG47",
+      "num": 47,
+      "title": "white red text appear MG",
+      "description": "white red text appear MG",
+      "timestamp": "06:12",
+      "timeSeconds": 372.333518,
+      "durationSeconds": 7,
+      "reference": {
+        "title": "white red text appear MG",
+        "video_url": "/batch/sabri/all_61/MG47_06m12s_white_red_text_appear_mg.mp4",
+        "poster_url": "/batch/sabri/all_61/MG47_06m12s_white_red_text_appear_mg.png"
+      },
+      "clips": []
+    },
+    {
+      "id": "G48",
+      "source_id": "MG48",
+      "num": 48,
+      "title": "account appear MG",
+      "description": "account appear MG",
+      "timestamp": "07:12",
+      "timeSeconds": 432.835808,
+      "durationSeconds": 7,
+      "reference": {
+        "title": "account appear MG",
+        "video_url": "/batch/sabri/all_61/MG48_07m12s_account_appear_mg.mp4",
+        "poster_url": "/batch/sabri/all_61/MG48_07m12s_account_appear_mg.png"
+      },
+      "clips": []
+    },
+    {
+      "id": "G49",
+      "source_id": "MG49",
+      "num": 49,
+      "title": "center message MG",
+      "description": "center message MG",
+      "timestamp": "08:48",
+      "timeSeconds": 528.066423,
+      "durationSeconds": 7,
+      "reference": {
+        "title": "center message MG",
+        "video_url": "/batch/sabri/all_61/MG49_08m48s_center_message_mg.mp4",
+        "poster_url": "/batch/sabri/all_61/MG49_08m48s_center_message_mg.png"
+      },
+      "clips": []
+    },
+    {
+      "id": "G50",
+      "source_id": "MG50",
+      "num": 50,
+      "title": "hook body MG",
+      "description": "hook body MG",
+      "timestamp": "09:35",
+      "timeSeconds": 575.702558,
+      "durationSeconds": 7,
+      "reference": {
+        "title": "hook body MG",
+        "video_url": "/batch/sabri/all_61/MG50_09m35s_hook_body_mg.mp4",
+        "poster_url": "/batch/sabri/all_61/MG50_09m35s_hook_body_mg.png"
+      },
+      "clips": []
+    },
+    {
+      "id": "G51",
+      "source_id": "MG51",
+      "num": 51,
+      "title": "center hook body MG",
+      "description": "center hook body MG",
+      "timestamp": "09:46",
+      "timeSeconds": 586.220722,
+      "durationSeconds": 7,
+      "reference": {
+        "title": "center hook body MG",
+        "video_url": "/batch/sabri/all_61/MG51_09m46s_center_hook_body_mg.mp4",
+        "poster_url": "/batch/sabri/all_61/MG51_09m46s_center_hook_body_mg.png"
+      },
+      "clips": []
+    },
+    {
+      "id": "G52",
+      "source_id": "MG52",
+      "num": 52,
+      "title": "bar effect with text MG",
+      "description": "bar effect with text MG",
+      "timestamp": "11:02",
+      "timeSeconds": 662.435619,
+      "durationSeconds": 7,
+      "reference": {
+        "title": "bar effect with text MG",
+        "video_url": "/batch/sabri/all_61/MG52_11m02s_bar_effect_with_text_mg.mp4",
+        "poster_url": "/batch/sabri/all_61/MG52_11m02s_bar_effect_with_text_mg.png"
+      },
+      "clips": []
+    },
+    {
+      "id": "G53",
+      "source_id": "MG53",
+      "num": 53,
+      "title": "text with arrow pointing to video MG",
+      "description": "text with arrow pointing to video MG",
+      "timestamp": "11:47",
+      "timeSeconds": 707.671597,
+      "durationSeconds": 7,
+      "reference": {
+        "title": "text with arrow pointing to video MG",
+        "video_url": "/batch/sabri/all_61/MG53_11m47s_text_with_arrow_pointing_to_video_mg.mp4",
+        "poster_url": "/batch/sabri/all_61/MG53_11m47s_text_with_arrow_pointing_to_video_mg.png"
+      },
+      "clips": []
+    },
+    {
+      "id": "G54",
+      "source_id": "MG54",
+      "num": 54,
+      "title": "icon appear glow effect MG",
+      "description": "icon appear glow effect MG",
+      "timestamp": "12:00",
+      "timeSeconds": 720.503012,
+      "durationSeconds": 7,
+      "reference": {
+        "title": "icon appear glow effect MG",
+        "video_url": "/batch/sabri/all_61/MG54_12m00s_icon_appear_glow_effect_mg.mp4",
+        "poster_url": "/batch/sabri/all_61/MG54_12m00s_icon_appear_glow_effect_mg.png"
+      },
+      "clips": []
+    },
+    {
+      "id": "G55",
+      "source_id": "MG55",
+      "num": 55,
+      "title": "pie percentage circle MG",
+      "description": "pie percentage circle MG",
+      "timestamp": "14:22",
+      "timeSeconds": 862.62547,
+      "durationSeconds": 7,
+      "reference": {
+        "title": "pie percentage circle MG",
+        "video_url": "/batch/sabri/all_61/MG55_14m22s_pie_percentage_circle_mg.mp4",
+        "poster_url": "/batch/sabri/all_61/MG55_14m22s_pie_percentage_circle_mg.png"
+      },
+      "clips": []
+    },
+    {
+      "id": "G56",
+      "source_id": "MG56",
+      "num": 56,
+      "title": "middle text underline appear MG",
+      "description": "middle text underline appear MG",
+      "timestamp": "15:53",
+      "timeSeconds": 953.041306,
+      "durationSeconds": 3.5,
+      "reference": {
+        "title": "middle text underline appear MG",
+        "video_url": "/batch/sabri/all_61/MG56_15m53s_middle_text_underline_appear_mg.mp4",
+        "poster_url": "/batch/sabri/all_61/MG56_15m53s_middle_text_underline_appear_mg.png"
+      },
+      "clips": []
+    },
+    {
+      "id": "G57",
+      "source_id": "MG57",
+      "num": 57,
+      "title": "pill stack MG",
+      "description": "pill stack MG",
+      "timestamp": "15:55",
+      "timeSeconds": 955.001015,
+      "durationSeconds": 7,
+      "reference": {
+        "title": "pill stack MG",
+        "video_url": "/batch/sabri/all_61/MG57_15m55s_pill_stack_mg.mp4",
+        "poster_url": "/batch/sabri/all_61/MG57_15m55s_pill_stack_mg.png"
+      },
+      "clips": []
+    },
+    {
+      "id": "G58",
+      "source_id": "MG58",
+      "num": 58,
+      "title": "box count MG",
+      "description": "box count MG",
+      "timestamp": "16:48",
+      "timeSeconds": 1008.513346,
+      "durationSeconds": 7,
+      "reference": {
+        "title": "box count MG",
+        "video_url": "/batch/sabri/all_61/MG58_16m48s_box_count_mg.mp4",
+        "poster_url": "/batch/sabri/all_61/MG58_16m48s_box_count_mg.png"
+      },
+      "clips": []
+    },
+    {
+      "id": "G59",
+      "source_id": "MG59",
+      "num": 59,
+      "title": "crossed out big text MG",
+      "description": "crossed out big text MG",
+      "timestamp": "17:12",
+      "timeSeconds": 1032.225824,
+      "durationSeconds": 7,
+      "reference": {
+        "title": "crossed out big text MG",
+        "video_url": "/batch/sabri/all_61/MG59_17m12s_crossed_out_big_text_mg.mp4",
+        "poster_url": "/batch/sabri/all_61/MG59_17m12s_crossed_out_big_text_mg.png"
+      },
+      "clips": []
+    },
+    {
+      "id": "G60",
+      "source_id": "MG60",
+      "num": 60,
+      "title": "title text MG",
+      "description": "title text MG",
+      "timestamp": "17:40",
+      "timeSeconds": 1060.114357,
+      "durationSeconds": 3.5,
+      "reference": {
+        "title": "title text MG",
+        "video_url": "/batch/sabri/all_61/MG60_17m40s_title_text_mg.mp4",
+        "poster_url": "/batch/sabri/all_61/MG60_17m40s_title_text_mg.png"
+      },
+      "clips": []
+    },
+    {
+      "id": "G61",
+      "source_id": "MG61",
+      "num": 61,
+      "title": "vertical bar text MG",
+      "description": "vertical bar text MG",
+      "timestamp": "17:41",
+      "timeSeconds": 1061.8706,
+      "durationSeconds": 5,
+      "reference": {
+        "title": "vertical bar text MG",
+        "video_url": "/batch/sabri/all_61/MG61_17m41s_vertical_bar_text_mg.mp4",
+        "poster_url": "/batch/sabri/all_61/MG61_17m41s_vertical_bar_text_mg.png"
+      },
+      "clips": []
     }
   ]
 }

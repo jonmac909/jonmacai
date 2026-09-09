@@ -16,7 +16,7 @@
     .intro { margin: 16px 0 0; max-width: 64ch; color: #b7bbbf; line-height: 1.6; }
     a { color: #f2f2f2; text-underline-offset: 4px; }
     a:hover { color: #c7d4e2; }
-    a:focus-visible, button:focus-visible, select:focus-visible, video:focus-visible, textarea:focus-visible { outline: 3px solid #a9c6e6; outline-offset: 4px; }
+    a:focus-visible, button:focus-visible, video:focus-visible, textarea:focus-visible { outline: 3px solid #a9c6e6; outline-offset: 4px; }
     button, .project { border: 1px solid #50555a; border-radius: 8px; padding: 12px 16px; font: inherit; font-size: .875rem; font-weight: 700; color: #f2f2f2; background: #24272a; }
     button { cursor: pointer; }
     button:hover:not(:disabled) { background: #333a42; }
@@ -37,9 +37,9 @@
     .details, .pair-controls, .note-state { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; margin-top: 14px; font-size: .875rem; }
     .details { justify-content: space-between; }
     label { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; color: #b7bbbf; }
-    select { min-height: 44px; max-width: 100%; padding: 8px 28px 8px 10px; font: inherit; color: #f2f2f2; background: #24272a; border: 1px solid #545a60; border-radius: 6px; }
-    .clip-label, .reference-title { color: #b7bbbf; overflow-wrap: anywhere; }
-    .reference-title { margin: 14px 0 0; font-size: .875rem; line-height: 1.5; }
+    .clip-label, .source-time { color: #b7bbbf; overflow-wrap: anywhere; }
+    .source-time { margin: -6px 0 18px; font-size: .875rem; line-height: 1.5; }
+    .pending { display: grid; place-items: center; min-height: 160px; aspect-ratio: 16 / 9; margin: 0; padding: 24px; border: 1px dashed #545a60; border-radius: 6px; color: #b7bbbf; text-align: center; }
     .media-status, .note-status, #export-status { color: #b7bbbf; font-size: .8125rem; line-height: 1.5; }
     .media-status { margin: 12px 0 0; }
     .pair-controls .media-status, .note-status { margin: 0; }
@@ -63,7 +63,7 @@
       <div>
         <p class="eyebrow">Jon Mac · Creative review</p>
         <h1>Comparison studio</h1>
-        <p class="intro">G01–G14, paired with matching Sabri graphic references. Compare timing, typography and texture. Scrub each clip independently; Play Both starts from each current playhead.</p>
+        <p class="intro">61 Sabri references, in original chronological order. G01 has a JonMac proof; G02–G61 are Pending DaVinci Build. Scrub references independently; Play Both is available when a render exists. This catalog has a separate notes ledger; earlier batch notes remain untouched.</p>
       </div>
       <div class="header-actions">
         <button id="export" type="button" disabled>Export All Notes</button>
@@ -77,7 +77,7 @@
       <textarea id="export-text" readonly></textarea>
     </div>
     <noscript>JavaScript is required to load this batch's video manifest.</noscript>
-    <ol id="modules" aria-label="Video modules G01 through G14" aria-busy="true"></ol>
+    <ol id="modules" aria-label="Sabri references G01 through G61" aria-busy="true"></ol>
   </main>
   <script>
     const status = document.getElementById("status");
@@ -165,11 +165,10 @@
         });
       });
       update();
-      return { pause, update };
     }
 
-    function bindNotes(projectId, moduleId, textarea, message, retry) {
-      const key = `batch-notes:${encodeURIComponent(projectId)}:${moduleId}`;
+    function bindNotes(projectId, catalogId, moduleId, textarea, message, retry) {
+      const key = `batch-notes:${encodeURIComponent(projectId)}:${encodeURIComponent(catalogId)}:${moduleId}`;
       let edited = false;
       function save() {
         try {
@@ -199,12 +198,13 @@
       loadNotes();
     }
 
-    function renderModule(module, projectId) {
+    function renderModule(module, projectId, catalogId) {
       const item = element("li", undefined, "card");
       const heading = element("div", undefined, "card-heading");
       const title = element("h2", module.title);
       title.id = `${module.id}-title`;
       heading.append(element("span", module.id, "number"), title);
+      const sourceTime = element("p", `Source ${module.timestamp} · ${module.timeSeconds} seconds · ${module.durationSeconds}-second reference`, "source-time");
       const players = element("div", undefined, "players");
       function player(label, suffix) {
         const column = element("section", undefined, "player");
@@ -212,7 +212,7 @@
         name.id = `${module.id}-${suffix}`;
         const video = element("video");
         video.controls = true;
-        video.preload = "metadata";
+        video.preload = "none";
         video.playsInline = true;
         video.setAttribute("aria-labelledby", `${title.id} ${name.id}`);
         video.textContent = "Your browser does not support native video playback.";
@@ -225,84 +225,48 @@
         return { column, video, message };
       }
       const reference = player("Sabri Reference", "reference");
-      const render = player("JonMac Render", "render");
-      const referenceTitle = module.reference?.title || "Reference title unavailable";
-      reference.column.append(element("p", referenceTitle, "reference-title"), reference.message);
+      reference.column.append(reference.message);
+      reference.video.poster = sameOriginUrl(module.reference.poster_url);
       const referenceUrl = sameOriginUrl(module.reference?.video_url);
       if (referenceUrl) {
         reference.video.src = referenceUrl;
-        reference.message.textContent = "Loading reference metadata…";
+        reference.message.textContent = "Reference ready. Use the player controls to play or seek.";
       } else {
         reference.message.textContent = "Reference unavailable: no valid same-origin media URL.";
       }
       reference.video.addEventListener("loadedmetadata", () => { reference.message.textContent = "Reference ready to play."; });
       reference.video.addEventListener("error", () => { reference.message.textContent = "Reference could not be loaded. Reload the page to retry."; });
-      const pairControls = element("div", undefined, "pair-controls");
-      const pairButton = element("button", "Play Both");
-      pairButton.type = "button";
-      pairControls.setAttribute("role", "group");
-      pairControls.setAttribute("aria-label", `Paired playback for ${module.id}`);
-      const pairMessage = element("p", "Playheads remain independent. Ended clips restart with Play Both.", "media-status");
-      pairMessage.setAttribute("role", "status");
-      pairControls.append(pairButton, pairMessage);
-      const pair = bindPair([reference.video, render.video], pairButton, pairMessage);
-      const video = render.video;
-      const mediaStatus = render.message;
-      const details = element("div", undefined, "details");
-      const comments = element("a", "Open comments ↗");
-      let unavailableComments = false;
-
-      function selectClip(clip) {
-        pair.pause();
-        pairMessage.textContent = "Both paused. Playheads remain independent; the selected render starts at the beginning.";
-        video.removeAttribute("src");
-        video.removeAttribute("poster");
-        comments.removeAttribute("href");
-        comments.hidden = true;
-        const mediaUrl = sameOriginUrl(clip?.video_url);
-        const reviewUrl = sameOriginUrl(clip?.review_url);
-        const posterUrl = sameOriginUrl(clip?.poster_url);
-        unavailableComments = !reviewUrl;
-        if (reviewUrl) {
-          comments.href = reviewUrl;
-          comments.hidden = false;
-          comments.setAttribute("aria-label", `Open comments for ${module.id}, ${clip.label || "selected render"}`);
-        }
-        if (posterUrl) video.poster = posterUrl;
-        if (mediaUrl) {
-          video.src = mediaUrl;
-          mediaStatus.textContent = "Loading video metadata…";
-        } else {
-          mediaStatus.textContent = "Video unavailable: no valid same-origin media URL." + (unavailableComments ? " Comments are not available." : "");
-        }
-        video.load();
-        pair.update();
-      }
-
-      video.addEventListener("loadedmetadata", () => {
-        mediaStatus.textContent = unavailableComments ? "Comments are not available for this clip." : "Ready to play. Comments open in Frame.";
-      });
-      video.addEventListener("error", () => {
-        mediaStatus.textContent = "Video could not be loaded. Reload the page or open this clip in Frame." + (unavailableComments ? " Comments are not available." : "");
-      });
-
-      if (module.clips.length > 1) {
-        const label = element("label", "Variant");
-        const select = element("select");
-        select.setAttribute("aria-label", `Variant for ${module.id}: ${module.title}`);
-        module.clips.forEach((clip, index) => {
-          const option = element("option", clip?.label || `Variant ${index + 1}`);
-          option.value = String(index);
-          select.append(option);
+      item.append(heading, sourceTime, players);
+      if (module.clips.length) {
+        const clip = module.clips[0];
+        const render = player("JonMac Render", "render");
+        render.video.src = sameOriginUrl(clip.video_url);
+        render.video.poster = sameOriginUrl(clip.poster_url);
+        render.message.textContent = "Ready to play. Comments open in Frame.";
+        render.video.addEventListener("error", () => {
+          render.message.textContent = "Video could not be loaded. Reload the page or open this clip in Frame.";
         });
-        select.addEventListener("change", () => selectClip(module.clips[Number(select.value)]));
-        label.append(select);
-        details.append(label);
+        const details = element("div", undefined, "details");
+        const comments = element("a", "Open comments ↗");
+        comments.href = sameOriginUrl(clip.review_url);
+        comments.setAttribute("aria-label", `Open comments for ${module.id}, ${clip.label}`);
+        details.append(element("span", clip.label, "clip-label"), comments);
+        render.column.append(details, render.message);
+        const pairControls = element("div", undefined, "pair-controls");
+        const pairButton = element("button", "Play Both");
+        pairButton.type = "button";
+        pairControls.setAttribute("role", "group");
+        pairControls.setAttribute("aria-label", `Paired playback for ${module.id}`);
+        const pairMessage = element("p", "Playheads remain independent. Ended clips restart with Play Both.", "media-status");
+        pairMessage.setAttribute("role", "status");
+        pairControls.append(pairButton, pairMessage);
+        bindPair([reference.video, render.video], pairButton, pairMessage);
+        item.append(pairControls);
       } else {
-        details.append(element("span", module.clips[0]?.label || "No published clip", "clip-label"));
+        const pending = element("section", undefined, "player");
+        pending.append(element("h3", "JonMac Render"), element("p", "Pending DaVinci Build", "pending"));
+        players.append(pending);
       }
-      details.append(comments);
-      render.column.append(details, mediaStatus);
       const notes = element("div", undefined, "notes");
       const noteLabel = element("label", `${module.id} notes · timing, typography, texture`);
       const textarea = element("textarea");
@@ -319,10 +283,42 @@
       retry.hidden = true;
       noteState.append(noteMessage, retry);
       notes.append(noteLabel, textarea, noteState);
-      bindNotes(projectId, module.id, textarea, noteMessage, retry);
-      item.append(heading, players, pairControls, notes);
-      selectClip(module.clips[0]);
+      bindNotes(projectId, catalogId, module.id, textarea, noteMessage, retry);
+      item.append(notes);
       return item;
+    }
+
+    function validateManifest(manifest) {
+      const referenceUrl = (value, extension) => typeof value === "string" &&
+        new RegExp(`^/batch/sabri/all_61/[^/?#]+\\.${extension}$`).test(value) && sameOriginUrl(value);
+      if (!manifest || typeof manifest.project_id !== "string" || !manifest.project_id.trim() ||
+          manifest.catalog_id !== "sabri-master-61" || manifest.total !== 61 ||
+          !["string", "number"].includes(typeof manifest.revision) ||
+          !Array.isArray(manifest.modules) || manifest.modules.length !== 61 ||
+          manifest.modules.some((module, index) => {
+            const number = String(index + 1).padStart(2, "0");
+            return !module || module.id !== `G${number}` || module.source_id !== `MG${number}` || module.num !== index + 1 ||
+              typeof module.title !== "string" || !module.title.trim() || module.description !== module.title ||
+              !/^\d{2,}:[0-5]\d$/.test(module.timestamp) ||
+              !Number.isFinite(module.timeSeconds) || module.timeSeconds < 0 ||
+              (index > 0 && module.timeSeconds < manifest.modules[index - 1].timeSeconds) ||
+              !Number.isFinite(module.durationSeconds) || module.durationSeconds <= 0 ||
+              module.reference?.title !== module.title ||
+              !referenceUrl(module.reference?.video_url, "mp4") || !referenceUrl(module.reference?.poster_url, "png") ||
+              !Array.isArray(module.clips) || module.clips.length > 1 || module.clips.some(clip => !clip ||
+                typeof clip.label !== "string" || !clip.label.trim() ||
+                !sameOriginUrl(clip.video_url) || !sameOriginUrl(clip.poster_url) || !sameOriginUrl(clip.review_url));
+          })) {
+        throw new Error("The review manifest is incomplete or invalid. It must contain 61 chronological references, G01–G61, with valid source metadata and media URLs.");
+      }
+      return manifest.modules;
+    }
+
+    function exportNotes(manifest, draft) {
+      return `# Comparison notes\n\nProject: ${manifest.project_id}\n\nCatalog: ${manifest.catalog_id}\n\n` +
+        manifest.modules.map(module =>
+          `## ${module.id} — ${module.description}\n\nSource: ${module.source_id} · ${module.timestamp} · ${module.timeSeconds} seconds · Duration: ${module.durationSeconds} seconds\n\n${draft(module.id)}\n`
+        ).join("\n");
     }
 
     async function load() {
@@ -330,27 +326,17 @@
         const response = await fetch("/batch/modules.json", { cache: "no-store", credentials: "same-origin", redirect: "error" });
         if (!response.ok) throw new Error(response.status === 404 ? "The review manifest has not been published yet." : "The review manifest could not be loaded.");
         const manifest = await response.json();
-        const ids = Array.from({ length: 14 }, (_, index) => `G${String(index + 1).padStart(2, "0")}`);
-        if (!manifest || typeof manifest.project_id !== "string" || !manifest.project_id.trim() ||
-            !["string", "number"].includes(typeof manifest.revision) ||
-            !Array.isArray(manifest.modules) || manifest.modules.length !== 14 ||
-            manifest.modules.some(module => !module || !ids.includes(module.id) || typeof module.title !== "string" || !module.title.trim() || !Array.isArray(module.clips)) ||
-            new Set(manifest.modules.map(module => module.id)).size !== 14) {
-          throw new Error("The review manifest is incomplete or invalid. It must contain G01–G14.");
-        }
+        const ordered = validateManifest(manifest);
         const projectUrl = new URL("/frame/", location.origin);
         projectUrl.searchParams.set("p", manifest.project_id);
         const project = document.getElementById("project");
         project.href = projectUrl.href;
         project.hidden = false;
-        const ordered = ids.map(id => manifest.modules.find(module => module.id === id));
-        modules.replaceChildren(...ordered.map(module => renderModule(module, manifest.project_id)));
+        modules.replaceChildren(...ordered.map(module => renderModule(module, manifest.project_id, manifest.catalog_id)));
         const exportButton = document.getElementById("export");
         exportButton.disabled = false;
         exportButton.addEventListener("click", async () => {
-          const markdown = `# Comparison notes\n\nProject: ${manifest.project_id}\n\n` + ordered.map(module =>
-            `## ${module.id} — ${module.title}\n\nSabri reference: ${module.reference?.title || "Reference title unavailable"}\n\n${document.getElementById(`${module.id}-notes`).value}\n`
-          ).join("\n");
+          const markdown = exportNotes(manifest, id => document.getElementById(`${id}-notes`).value);
           const exportStatus = document.getElementById("export-status");
           const fallback = document.getElementById("export-fallback");
           const text = document.getElementById("export-text");
@@ -360,17 +346,18 @@
           try {
             await navigator.clipboard.writeText(markdown);
             fallback.hidden = true;
-            exportStatus.textContent = "Copied all 14 modules and notes as Markdown.";
+            exportStatus.textContent = "Copied all 61 references and notes as Markdown.";
           } catch {
             fallback.hidden = false;
-            exportStatus.textContent = "Clipboard unavailable. All 14 modules and notes are shown below; select and copy the text manually.";
+            exportStatus.textContent = "Clipboard unavailable. All 61 references and notes are shown below; select and copy the text manually.";
             text.focus();
             text.select();
           } finally {
             exportButton.disabled = false;
           }
         });
-        status.textContent = `14 module comparisons · Revision ${manifest.revision} · Notes are local to this browser, not sent to Frame.`;
+        const ready = ordered.filter(module => module.clips.length).length;
+        status.textContent = `61 references · ${ready} ready · ${61 - ready} Pending DaVinci Build · ${manifest.revision} · Notes are local to this browser, not sent to Frame.`;
       } catch (error) {
         status.textContent = error instanceof SyntaxError ? "The review manifest is not valid JSON. No videos have been loaded." : error.message || "The review could not be loaded. Please reload the page.";
       } finally {
