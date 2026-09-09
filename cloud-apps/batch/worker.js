@@ -1,3 +1,5 @@
+import { byteRange } from "../review/worker.js";
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
@@ -19,6 +21,27 @@ export default {
     headers.set("X-Robots-Tag", "noindex, nofollow");
     headers.set("Referrer-Policy", "same-origin");
     headers.set("Content-Security-Policy", "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; media-src 'self'; img-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'self'");
+    if (url.pathname.startsWith("/sabri/") && url.pathname.endsWith(".mp4") && response.status === 200) {
+      headers.set("Accept-Ranges", "bytes");
+      const ifRange = request.headers.get("If-Range");
+      const rangeHeader = request.method === "GET" && (!ifRange || ifRange === headers.get("ETag")) ? request.headers.get("Range") : null;
+      if (rangeHeader) {
+        // ponytail: buffer these <=4 MiB clips; use R2 ranges if the library grows to large media.
+        const body = await response.arrayBuffer();
+        const size = body.byteLength;
+        let range;
+        try {
+          range = byteRange(rangeHeader, size);
+        } catch {
+          headers.set("Content-Range", `bytes */${size}`);
+          headers.set("Content-Length", "0");
+          return new Response(null, { status: 416, headers });
+        }
+        headers.set("Content-Range", `bytes ${range.offset}-${range.offset + range.length - 1}/${size}`);
+        headers.set("Content-Length", String(range.length));
+        return new Response(new Uint8Array(body, range.offset, range.length), { status: 206, headers });
+      }
+    }
     return new Response(response.body, { status: response.status, headers });
   },
 };
