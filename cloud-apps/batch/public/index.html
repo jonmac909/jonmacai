@@ -204,7 +204,7 @@
       const title = element("h2", module.title);
       title.id = `${module.id}-title`;
       heading.append(element("span", module.id, "number"), title);
-      const sourceTime = element("p", `Source ${module.timestamp} · ${module.timeSeconds} seconds · ${module.durationSeconds}-second reference`, "source-time");
+      const sourceTime = element("p", `Source ${module.timestamp} · ${module.timeSeconds} seconds · Clip start: ${module.startTime} seconds · Clip end: ${module.endTime} seconds · ${module.durationSeconds}-second reference`, "source-time");
       const players = element("div", undefined, "players");
       function player(label, suffix) {
         const column = element("section", undefined, "player");
@@ -303,6 +303,9 @@
               !Number.isFinite(module.timeSeconds) || module.timeSeconds < 0 ||
               (index > 0 && module.timeSeconds < manifest.modules[index - 1].timeSeconds) ||
               !Number.isFinite(module.durationSeconds) || module.durationSeconds <= 0 ||
+              !Number.isFinite(module.startTime) || module.startTime < 0 ||
+              !Number.isFinite(module.endTime) || module.endTime <= module.startTime ||
+              Math.abs(module.endTime - module.startTime - module.durationSeconds) > 0.001 ||
               module.reference?.title !== module.title ||
               !referenceUrl(module.reference?.video_url, "mp4") || !referenceUrl(module.reference?.poster_url, "png") ||
               !Array.isArray(module.clips) || module.clips.length > 1 || module.clips.some(clip => !clip ||
@@ -317,7 +320,7 @@
     function exportNotes(manifest, draft) {
       return `# Comparison notes\n\nProject: ${manifest.project_id}\n\nCatalog: ${manifest.catalog_id}\n\n` +
         manifest.modules.map(module =>
-          `## ${module.id} — ${module.description}\n\nSource: ${module.source_id} · ${module.timestamp} · ${module.timeSeconds} seconds · Duration: ${module.durationSeconds} seconds\n\n${draft(module.id)}\n`
+          `## ${module.id} — ${module.description}\n\nSource: ${module.source_id} · ${module.timestamp} · ${module.timeSeconds} seconds · Clip start: ${module.startTime} seconds · Clip end: ${module.endTime} seconds · Duration: ${module.durationSeconds} seconds\n\n${draft(module.id)}\n`
         ).join("\n");
     }
 

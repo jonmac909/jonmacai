@@ -10,7 +10,9 @@
       "slug": "darken_bg_effect_on_whole_video_when_he_",
       "referenceVideo": "MG01_00m01s_darken_bg_effect_on_whole_video_when_he_.mp4",
       "referencePoster": "MG01_00m01s_darken_bg_effect_on_whole_video_when_he_.png",
-      "durationSeconds": 3.5
+      "startTime": 0.0,
+      "endTime": 2.68,
+      "durationSeconds": 2.68
     },
     {
       "id": "MG02",
@@ -21,7 +23,9 @@
       "slug": "map_motion_graphic",
       "referenceVideo": "MG02_00m03s_map_motion_graphic.mp4",
       "referencePoster": "MG02_00m03s_map_motion_graphic.png",
-      "durationSeconds": 3.5
+      "startTime": 2.68,
+      "endTime": 4.88,
+      "durationSeconds": 2.2
     },
     {
       "id": "MG03",
@@ -32,7 +36,9 @@
       "slug": "coming_up_lower_third_text",
       "referenceVideo": "MG03_00m06s_coming_up_lower_third_text.mp4",
       "referencePoster": "MG03_00m06s_coming_up_lower_third_text.png",
-      "durationSeconds": 3.5
+      "startTime": 4.88,
+      "endTime": 6.96,
+      "durationSeconds": 2.08
     },
     {
       "id": "MG04",
@@ -43,7 +49,9 @@
       "slug": "text_motion_graphic",
       "referenceVideo": "MG04_00m08s_text_motion_graphic.mp4",
       "referencePoster": "MG04_00m08s_text_motion_graphic.png",
-      "durationSeconds": 3.5
+      "startTime": 7.6,
+      "endTime": 9.8,
+      "durationSeconds": 2.2
     },
     {
       "id": "MG05",
@@ -54,7 +62,9 @@
       "slug": "draw_motion_graphic_text",
       "referenceVideo": "MG05_00m10s_draw_motion_graphic_text.mp4",
       "referencePoster": "MG05_00m10s_draw_motion_graphic_text.png",
-      "durationSeconds": 3.5
+      "startTime": 9.8,
+      "endTime": 12.84,
+      "durationSeconds": 3.04
     },
     {
       "id": "MG06",
@@ -65,7 +75,9 @@
       "slug": "grid_mg",
       "referenceVideo": "MG06_00m12s_grid_mg.mp4",
       "referencePoster": "MG06_00m12s_grid_mg.png",
-      "durationSeconds": 3.5
+      "startTime": 10.8,
+      "endTime": 12.84,
+      "durationSeconds": 2.04
     },
     {
       "id": "MG07",
@@ -76,7 +88,9 @@
       "slug": "big_text_on_each_word_mg",
       "referenceVideo": "MG07_00m13s_big_text_on_each_word_mg.mp4",
       "referencePoster": "MG07_00m13s_big_text_on_each_word_mg.png",
-      "durationSeconds": 3.7
+      "startTime": 12.84,
+      "endTime": 15.0,
+      "durationSeconds": 2.16
     },
     {
       "id": "MG08",
@@ -87,7 +101,9 @@
       "slug": "bigger_text_mg_each_word",
       "referenceVideo": "MG08_00m17s_bigger_text_mg_each_word.mp4",
       "referencePoster": "MG08_00m17s_bigger_text_mg_each_word.png",
-      "durationSeconds": 6.4
+      "startTime": 15.5,
+      "endTime": 18.5,
+      "durationSeconds": 3.0
     },
     {
       "id": "MG09",
@@ -98,7 +114,9 @@
       "slug": "behind_text_mg",
       "referenceVideo": "MG09_00m22s_behind_text_mg.mp4",
       "referencePoster": "MG09_00m22s_behind_text_mg.png",
-      "durationSeconds": 3.5
+      "startTime": 20.5,
+      "endTime": 23.08,
+      "durationSeconds": 2.58
     },
     {
       "id": "MG10",
@@ -109,7 +127,9 @@
       "slug": "map_1_card_show_mg",
       "referenceVideo": "MG10_00m23s_map_1_card_show_mg.mp4",
       "referencePoster": "MG10_00m23s_map_1_card_show_mg.png",
-      "durationSeconds": 5.43
+      "startTime": 23.08,
+      "endTime": 25.5,
+      "durationSeconds": 2.42
     },
     {
       "id": "MG11",
@@ -120,7 +140,9 @@
       "slug": "instagram_slideshow_mg_with_blur",
       "referenceVideo": "MG11_00m28s_instagram_slideshow_mg_with_blur.mp4",
       "referencePoster": "MG11_00m28s_instagram_slideshow_mg_with_blur.png",
-      "durationSeconds": 3.5
+      "startTime": 27.0,
+      "endTime": 29.5,
+      "durationSeconds": 2.5
     },
     {
       "id": "MG12",
@@ -131,7 +153,9 @@
       "slug": "zoomed_in_mg",
       "referenceVideo": "MG12_00m29s_zoomed_in_mg.mp4",
       "referencePoster": "MG12_00m29s_zoomed_in_mg.png",
-      "durationSeconds": 3.5
+      "startTime": 29.12,
+      "endTime": 31.5,
+      "durationSeconds": 2.38
     },
     {
       "id": "MG13",
@@ -142,7 +166,9 @@
       "slug": "message_mg",
       "referenceVideo": "MG13_00m32s_message_mg.mp4",
       "referencePoster": "MG13_00m32s_message_mg.png",
-      "durationSeconds": 4.97
+      "startTime": 30.88,
+      "endTime": 33.52,
+      "durationSeconds": 2.64
     },
     {
       "id": "MG14",
@@ -153,7 +179,9 @@
       "slug": "lower_third_mg",
       "referenceVideo": "MG14_00m36s_lower_third_mg.mp4",
       "referencePoster": "MG14_00m36s_lower_third_mg.png",
-      "durationSeconds": 7.0
+      "startTime": 33.52,
+      "endTime": 38.12,
+      "durationSeconds": 4.6
     },
     {
       "id": "MG15",
@@ -164,7 +192,9 @@
       "slug": "messenger_mg",
       "referenceVideo": "MG15_00m45s_messenger_mg.mp4",
       "referencePoster": "MG15_00m45s_messenger_mg.png",
-      "durationSeconds": 5.4
+      "startTime": 44.68,
+      "endTime": 47.4,
+      "durationSeconds": 2.72
     },
     {
       "id": "MG16",
@@ -175,7 +205,9 @@
       "slug": "lower_third_text_mg",
       "referenceVideo": "MG16_00m50s_lower_third_text_mg.mp4",
       "referencePoster": "MG16_00m50s_lower_third_text_mg.png",
-      "durationSeconds": 3.5
+      "startTime": 47.4,
+      "endTime": 50.72,
+      "durationSeconds": 3.32
     },
     {
       "id": "MG17",
@@ -186,7 +218,9 @@
       "slug": "text_front_mg",
       "referenceVideo": "MG17_00m51s_text_front_mg.mp4",
       "referencePoster": "MG17_00m51s_text_front_mg.png",
-      "durationSeconds": 3.5
+      "startTime": 50.0,
+      "endTime": 52.36,
+      "durationSeconds": 2.36
     },
     {
       "id": "MG18",
@@ -197,7 +231,9 @@
       "slug": "black_white_mg_with_side_text",
       "referenceVideo": "MG18_00m52s_black_white_mg_with_side_text.mp4",
       "referencePoster": "MG18_00m52s_black_white_mg_with_side_text.png",
-      "durationSeconds": 3.5
+      "startTime": 52.0,
+      "endTime": 54.16,
+      "durationSeconds": 2.16
     },
     {
       "id": "MG19",
@@ -208,7 +244,9 @@
       "slug": "zoom_in_mg",
       "referenceVideo": "MG19_00m54s_zoom_in_mg.mp4",
       "referencePoster": "MG19_00m54s_zoom_in_mg.png",
-      "durationSeconds": 3.5
+      "startTime": 54.0,
+      "endTime": 56.2,
+      "durationSeconds": 2.2
     },
     {
       "id": "MG20",
@@ -219,7 +257,9 @@
       "slug": "blur_mg",
       "referenceVideo": "MG20_00m56s_blur_mg.mp4",
       "referencePoster": "MG20_00m56s_blur_mg.png",
-      "durationSeconds": 3.67
+      "startTime": 55.72,
+      "endTime": 58.0,
+      "durationSeconds": 2.28
     },
     {
       "id": "MG21",
@@ -230,7 +270,9 @@
       "slug": "black_white_mg_with_high_pitch_voice_cha",
       "referenceVideo": "MG21_00m59s_black_white_mg_with_high_pitch_voice_cha.mp4",
       "referencePoster": "MG21_00m59s_black_white_mg_with_high_pitch_voice_cha.png",
-      "durationSeconds": 7.0
+      "startTime": 57.68,
+      "endTime": 60.76,
+      "durationSeconds": 3.08
     },
     {
       "id": "MG22",
@@ -241,7 +283,9 @@
       "slug": "behind_pill_shape_text_effect_mg",
       "referenceVideo": "MG22_01m10s_behind_pill_shape_text_effect_mg.mp4",
       "referencePoster": "MG22_01m10s_behind_pill_shape_text_effect_mg.png",
-      "durationSeconds": 6.07
+      "startTime": 64.28,
+      "endTime": 71.84,
+      "durationSeconds": 7.56
     },
     {
       "id": "MG23",
@@ -252,7 +296,9 @@
       "slug": "upper_third_text_mg",
       "referenceVideo": "MG23_01m15s_upper_third_text_mg.mp4",
       "referencePoster": "MG23_01m15s_upper_third_text_mg.png",
-      "durationSeconds": 3.5
+      "startTime": 74.0,
+      "endTime": 76.52,
+      "durationSeconds": 2.52
     },
     {
       "id": "MG24",
@@ -263,7 +309,9 @@
       "slug": "middle_text_mg",
       "referenceVideo": "MG24_01m17s_middle_text_mg.mp4",
       "referencePoster": "MG24_01m17s_middle_text_mg.png",
-      "durationSeconds": 7.0
+      "startTime": 76.52,
+      "endTime": 78.8,
+      "durationSeconds": 2.28
     },
     {
       "id": "MG25",
@@ -274,7 +322,9 @@
       "slug": "logo_appear_mg",
       "referenceVideo": "MG25_01m32s_logo_appear_mg.mp4",
       "referencePoster": "MG25_01m32s_logo_appear_mg.png",
-      "durationSeconds": 3.5
+      "startTime": 90.56,
+      "endTime": 93.92,
+      "durationSeconds": 3.36
     },
     {
       "id": "MG26",
@@ -285,7 +335,9 @@
       "slug": "massive_bottom_text_mg_fast",
       "referenceVideo": "MG26_01m35s_massive_bottom_text_mg_fast.mp4",
       "referencePoster": "MG26_01m35s_massive_bottom_text_mg_fast.png",
-      "durationSeconds": 3.5
+      "startTime": 94.0,
+      "endTime": 96.0,
+      "durationSeconds": 2.0
     },
     {
       "id": "MG27",
@@ -296,7 +348,9 @@
       "slug": "big_middle_text_mg",
       "referenceVideo": "MG27_01m36s_big_middle_text_mg.mp4",
       "referencePoster": "MG27_01m36s_big_middle_text_mg.png",
-      "durationSeconds": 3.5
+      "startTime": 95.52,
+      "endTime": 97.8,
+      "durationSeconds": 2.28
     },
     {
       "id": "MG28",
@@ -307,7 +361,9 @@
       "slug": "logo_with_bg_video_mg",
       "referenceVideo": "MG28_01m38s_logo_with_bg_video_mg.mp4",
       "referencePoster": "MG28_01m38s_logo_with_bg_video_mg.png",
-      "durationSeconds": 7.0
+      "startTime": 97.0,
+      "endTime": 99.5,
+      "durationSeconds": 2.5
     },
     {
       "id": "MG29",
@@ -318,7 +374,9 @@
       "slug": "website_software_show_mg",
       "referenceVideo": "MG29_01m52s_website_software_show_mg.mp4",
       "referencePoster": "MG29_01m52s_website_software_show_mg.png",
-      "durationSeconds": 5.05
+      "startTime": 112.16,
+      "endTime": 115.4,
+      "durationSeconds": 3.24
     },
     {
       "id": "MG30",
@@ -329,7 +387,9 @@
       "slug": "software_zoom_in_mg",
       "referenceVideo": "MG30_01m57s_software_zoom_in_mg.mp4",
       "referencePoster": "MG30_01m57s_software_zoom_in_mg.png",
-      "durationSeconds": 7.0
+      "startTime": 115.4,
+      "endTime": 117.8,
+      "durationSeconds": 2.4
     },
     {
       "id": "MG31",
@@ -340,7 +400,9 @@
       "slug": "text_appear_mg",
       "referenceVideo": "MG31_02m05s_text_appear_mg.mp4",
       "referencePoster": "MG31_02m05s_text_appear_mg.png",
-      "durationSeconds": 5.3
+      "startTime": 124.0,
+      "endTime": 126.5,
+      "durationSeconds": 2.5
     },
     {
       "id": "MG32",
@@ -351,7 +413,9 @@
       "slug": "loading_mg",
       "referenceVideo": "MG32_02m10s_loading_mg.mp4",
       "referencePoster": "MG32_02m10s_loading_mg.png",
-      "durationSeconds": 3.5
+      "startTime": 128.84,
+      "endTime": 131.5,
+      "durationSeconds": 2.66
     },
     {
       "id": "MG33",
@@ -362,7 +426,9 @@
       "slug": "transition_swipe_mg",
       "referenceVideo": "MG33_02m13s_transition_swipe_mg.mp4",
       "referencePoster": "MG33_02m13s_transition_swipe_mg.png",
-      "durationSeconds": 7.0
+      "startTime": 131.32,
+      "endTime": 136.0,
+      "durationSeconds": 4.68
     },
     {
       "id": "MG34",
@@ -373,7 +439,9 @@
       "slug": "pip_lower_right_circle_bubble_speaker_mg",
       "referenceVideo": "MG34_02m36s_pip_lower_right_circle_bubble_speaker_mg.mp4",
       "referencePoster": "MG34_02m36s_pip_lower_right_circle_bubble_speaker_mg.png",
-      "durationSeconds": 7.0
+      "startTime": 154.0,
+      "endTime": 160.0,
+      "durationSeconds": 6.0
     },
     {
       "id": "MG35",
@@ -384,7 +452,9 @@
       "slug": "paper_with_text_mg",
       "referenceVideo": "MG35_03m24s_paper_with_text_mg.mp4",
       "referencePoster": "MG35_03m24s_paper_with_text_mg.png",
-      "durationSeconds": 3.5
+      "startTime": 197.32,
+      "endTime": 205.2,
+      "durationSeconds": 7.88
     },
     {
       "id": "MG36",
@@ -395,7 +465,9 @@
       "slug": "right_side_vertical_pill_bar_mg",
       "referenceVideo": "MG36_03m27s_right_side_vertical_pill_bar_mg.mp4",
       "referencePoster": "MG36_03m27s_right_side_vertical_pill_bar_mg.png",
-      "durationSeconds": 7.0
+      "startTime": 205.2,
+      "endTime": 208.5,
+      "durationSeconds": 3.3
     },
     {
       "id": "MG37",
@@ -406,7 +478,9 @@
       "slug": "left_side_text_mg",
       "referenceVideo": "MG37_03m48s_left_side_text_mg.mp4",
       "referencePoster": "MG37_03m48s_left_side_text_mg.png",
-      "durationSeconds": 4.1
+      "startTime": 226.48,
+      "endTime": 230.5,
+      "durationSeconds": 4.02
     },
     {
       "id": "MG38",
@@ -417,7 +491,9 @@
       "slug": "right_side_of_image_text_mg",
       "referenceVideo": "MG38_03m51s_right_side_of_image_text_mg.mp4",
       "referencePoster": "MG38_03m51s_right_side_of_image_text_mg.png",
-      "durationSeconds": 7.0
+      "startTime": 230.0,
+      "endTime": 233.5,
+      "durationSeconds": 3.5
     },
     {
       "id": "MG39",
@@ -428,7 +504,9 @@
       "slug": "bottom_logo_appear_glow_mg",
       "referenceVideo": "MG39_04m04s_bottom_logo_appear_glow_mg.mp4",
       "referencePoster": "MG39_04m04s_bottom_logo_appear_glow_mg.png",
-      "durationSeconds": 7.0
+      "startTime": 238.52,
+      "endTime": 245.16,
+      "durationSeconds": 6.64
     },
     {
       "id": "MG40",
@@ -439,7 +517,9 @@
       "slug": "shape_glow_mg",
       "referenceVideo": "MG40_04m11s_shape_glow_mg.mp4",
       "referencePoster": "MG40_04m11s_shape_glow_mg.png",
-      "durationSeconds": 7.0
+      "startTime": 248.04,
+      "endTime": 252.56,
+      "durationSeconds": 4.52
     },
     {
       "id": "MG41",
@@ -450,7 +530,9 @@
       "slug": "arrow_images_mg",
       "referenceVideo": "MG41_04m53s_arrow_images_mg.mp4",
       "referencePoster": "MG41_04m53s_arrow_images_mg.png",
-      "durationSeconds": 5.04
+      "startTime": 289.72,
+      "endTime": 296.0,
+      "durationSeconds": 6.28
     },
     {
       "id": "MG42",
@@ -461,7 +543,9 @@
       "slug": "prompt_show_mg",
       "referenceVideo": "MG42_04m58s_prompt_show_mg.mp4",
       "referencePoster": "MG42_04m58s_prompt_show_mg.png",
-      "durationSeconds": 7.0
+      "startTime": 296.0,
+      "endTime": 302.0,
+      "durationSeconds": 6.0
     },
     {
       "id": "MG43",
@@ -472,7 +556,9 @@
       "slug": "map_card_appear_mg",
       "referenceVideo": "MG43_05m36s_map_card_appear_mg.mp4",
       "referencePoster": "MG43_05m36s_map_card_appear_mg.png",
-      "durationSeconds": 7.0
+      "startTime": 334.12,
+      "endTime": 339.76,
+      "durationSeconds": 5.64
     },
     {
       "id": "MG44",
@@ -483,7 +569,9 @@
       "slug": "logo_on_each_side_mg",
       "referenceVideo": "MG44_05m48s_logo_on_each_side_mg.mp4",
       "referencePoster": "MG44_05m48s_logo_on_each_side_mg.png",
-      "durationSeconds": 3.5
+      "startTime": 345.04,
+      "endTime": 349.0,
+      "durationSeconds": 3.96
     },
     {
       "id": "MG45",
@@ -494,7 +582,9 @@
       "slug": "message_mg",
       "referenceVideo": "MG45_05m50s_message_mg.mp4",
       "referencePoster": "MG45_05m50s_message_mg.png",
-      "durationSeconds": 5.72
+      "startTime": 349.0,
+      "endTime": 352.76,
+      "durationSeconds": 3.76
     },
     {
       "id": "MG46",
@@ -505,7 +595,9 @@
       "slug": "money_break_mg",
       "referenceVideo": "MG46_05m55s_money_break_mg.mp4",
       "referencePoster": "MG46_05m55s_money_break_mg.png",
-      "durationSeconds": 7.0
+      "startTime": 352.76,
+      "endTime": 357.52,
+      "durationSeconds": 4.76
     },
     {
       "id": "MG47",
@@ -516,7 +608,9 @@
       "slug": "white_red_text_appear_mg",
       "referenceVideo": "MG47_06m12s_white_red_text_appear_mg.mp4",
       "referencePoster": "MG47_06m12s_white_red_text_appear_mg.png",
-      "durationSeconds": 7.0
+      "startTime": 369.64,
+      "endTime": 374.0,
+      "durationSeconds": 4.36
     },
     {
       "id": "MG48",
@@ -527,7 +621,9 @@
       "slug": "account_appear_mg",
       "referenceVideo": "MG48_07m12s_account_appear_mg.mp4",
       "referencePoster": "MG48_07m12s_account_appear_mg.png",
-      "durationSeconds": 7.0
+      "startTime": 429.36,
+      "endTime": 434.0,
+      "durationSeconds": 4.64
     },
     {
       "id": "MG49",
@@ -538,7 +634,9 @@
       "slug": "center_message_mg",
       "referenceVideo": "MG49_08m48s_center_message_mg.mp4",
       "referencePoster": "MG49_08m48s_center_message_mg.png",
-      "durationSeconds": 7.0
+      "startTime": 525.4,
+      "endTime": 531.84,
+      "durationSeconds": 6.44
     },
     {
       "id": "MG50",
@@ -549,7 +647,9 @@
       "slug": "hook_body_mg",
       "referenceVideo": "MG50_09m35s_hook_body_mg.mp4",
       "referencePoster": "MG50_09m35s_hook_body_mg.png",
-      "durationSeconds": 7.0
+      "startTime": 574.0,
+      "endTime": 579.96,
+      "durationSeconds": 5.96
     },
     {
       "id": "MG51",
@@ -560,7 +660,9 @@
       "slug": "center_hook_body_mg",
       "referenceVideo": "MG51_09m46s_center_hook_body_mg.mp4",
       "referencePoster": "MG51_09m46s_center_hook_body_mg.png",
-      "durationSeconds": 7.0
+      "startTime": 584.6,
+      "endTime": 588.92,
+      "durationSeconds": 4.32
     },
     {
       "id": "MG52",
@@ -571,7 +673,9 @@
       "slug": "bar_effect_with_text_mg",
       "referenceVideo": "MG52_11m02s_bar_effect_with_text_mg.mp4",
       "referencePoster": "MG52_11m02s_bar_effect_with_text_mg.png",
-      "durationSeconds": 7.0
+      "startTime": 660.32,
+      "endTime": 664.96,
+      "durationSeconds": 4.64
     },
     {
       "id": "MG53",
@@ -582,7 +686,9 @@
       "slug": "text_with_arrow_pointing_to_video_mg",
       "referenceVideo": "MG53_11m47s_text_with_arrow_pointing_to_video_mg.mp4",
       "referencePoster": "MG53_11m47s_text_with_arrow_pointing_to_video_mg.png",
-      "durationSeconds": 7.0
+      "startTime": 706.6,
+      "endTime": 711.56,
+      "durationSeconds": 4.96
     },
     {
       "id": "MG54",
@@ -593,7 +699,9 @@
       "slug": "icon_appear_glow_effect_mg",
       "referenceVideo": "MG54_12m00s_icon_appear_glow_effect_mg.mp4",
       "referencePoster": "MG54_12m00s_icon_appear_glow_effect_mg.png",
-      "durationSeconds": 7.0
+      "startTime": 715.56,
+      "endTime": 720.76,
+      "durationSeconds": 5.2
     },
     {
       "id": "MG55",
@@ -604,7 +712,9 @@
       "slug": "pie_percentage_circle_mg",
       "referenceVideo": "MG55_14m22s_pie_percentage_circle_mg.mp4",
       "referencePoster": "MG55_14m22s_pie_percentage_circle_mg.png",
-      "durationSeconds": 7.0
+      "startTime": 861.52,
+      "endTime": 865.44,
+      "durationSeconds": 3.92
     },
     {
       "id": "MG56",
@@ -615,7 +725,9 @@
       "slug": "middle_text_underline_appear_mg",
       "referenceVideo": "MG56_15m53s_middle_text_underline_appear_mg.mp4",
       "referencePoster": "MG56_15m53s_middle_text_underline_appear_mg.png",
-      "durationSeconds": 3.5
+      "startTime": 945.76,
+      "endTime": 953.52,
+      "durationSeconds": 7.76
     },
     {
       "id": "MG57",
@@ -626,7 +738,9 @@
       "slug": "pill_stack_mg",
       "referenceVideo": "MG57_15m55s_pill_stack_mg.mp4",
       "referencePoster": "MG57_15m55s_pill_stack_mg.png",
-      "durationSeconds": 7.0
+      "startTime": 954.28,
+      "endTime": 959.56,
+      "durationSeconds": 5.28
     },
     {
       "id": "MG58",
@@ -637,7 +751,9 @@
       "slug": "box_count_mg",
       "referenceVideo": "MG58_16m48s_box_count_mg.mp4",
       "referencePoster": "MG58_16m48s_box_count_mg.png",
-      "durationSeconds": 7.0
+      "startTime": 1007.28,
+      "endTime": 1010.5,
+      "durationSeconds": 3.22
     },
     {
       "id": "MG59",
@@ -648,7 +764,9 @@
       "slug": "crossed_out_big_text_mg",
       "referenceVideo": "MG59_17m12s_crossed_out_big_text_mg.mp4",
       "referencePoster": "MG59_17m12s_crossed_out_big_text_mg.png",
-      "durationSeconds": 7.0
+      "startTime": 1029.48,
+      "endTime": 1033.76,
+      "durationSeconds": 4.28
     },
     {
       "id": "MG60",
@@ -659,7 +777,9 @@
       "slug": "title_text_mg",
       "referenceVideo": "MG60_17m40s_title_text_mg.mp4",
       "referencePoster": "MG60_17m40s_title_text_mg.png",
-      "durationSeconds": 3.5
+      "startTime": 1059.0,
+      "endTime": 1061.8,
+      "durationSeconds": 2.8
     },
     {
       "id": "MG61",
@@ -670,7 +790,9 @@
       "slug": "vertical_bar_text_mg",
       "referenceVideo": "MG61_17m41s_vertical_bar_text_mg.mp4",
       "referencePoster": "MG61_17m41s_vertical_bar_text_mg.png",
-      "durationSeconds": 5.0
+      "startTime": 1061.5,
+      "endTime": 1064.5,
+      "durationSeconds": 3.0
     }
   ]
 }
