@@ -1,0 +1,17 @@
+{
+  "name": "jonmac-batch",
+  "main": "worker.js",
+  "compatibility_date": "2026-09-08",
+  "workers_dev": false,
+  "assets": {
+    "directory": "./public",
+    "binding": "ASSETS",
+    "run_worker_first": true,
+    "html_handling": "none",
+    "not_found_handling": "none"
+  },
+  "routes": [
+    { "pattern": "jonmac.ai/batch", "zone_name": "jonmac.ai" },
+    { "pattern": "jonmac.ai/batch/*", "zone_name": "jonmac.ai" }
+  ]
+}
