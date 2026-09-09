@@ -22,8 +22,8 @@
       "id": "G02",
       "title": "Kinetic phrase pops",
       "reference": {
-        "title": "MG-01B: Roadmap Step Punch Isolation",
-        "video_url": "/batch/sabri/02_MG01B_Roadmap_Step_Punch_Zoom.mp4"
+        "title": "MG-04: Kinetic Word Pop ('SINGLE')",
+        "video_url": "/batch/sabri/06_MG04_Kinetic_Word_Pop_SINGLE.mp4"
       },
       "clips": [
         {
@@ -38,8 +38,8 @@
       "id": "G03",
       "title": "Foreground depth and generation meter",
       "reference": {
-        "title": "MG-02: Split-Fill Monumental Text Sandwich",
-        "video_url": "/batch/sabri/03_MG02_Split_Fill_Monumental_Text.mp4"
+        "title": "MG-03B: Behind-Host HUD Telemetry Capsule",
+        "video_url": "/batch/sabri/05_MG03B_Behind_Host_HUD_Telemetry.mp4"
       },
       "clips": [
         {
@@ -70,8 +70,8 @@
       "id": "G05",
       "title": "Vertical video and blurred sidefill",
       "reference": {
-        "title": "MG-03B: Behind-Host HUD Telemetry Capsule",
-        "video_url": "/batch/sabri/05_MG03B_Behind_Host_HUD_Telemetry.mp4"
+        "title": "MG-12: Focal Punch-Zoom Pacing Cuts",
+        "video_url": "/batch/sabri/09_MG12_Focal_Punch_Pacing_Jump_Cuts.mp4"
       },
       "clips": [
         {
@@ -86,8 +86,8 @@
       "id": "G06",
       "title": "Continuous grid pullback",
       "reference": {
-        "title": "MG-04: Kinetic Word Pop ('SINGLE')",
-        "video_url": "/batch/sabri/06_MG04_Kinetic_Word_Pop_SINGLE.mp4"
+        "title": "MG-07B: Mosaic Rubbish Rubber Stamp",
+        "video_url": "/batch/sabri/07_MG07B_Mosaic_Rubbish_Stamp.mp4"
       },
       "clips": [
         {
@@ -102,8 +102,8 @@
       "id": "G07",
       "title": "Screen demo and presenter PiP",
       "reference": {
-        "title": "MG-07B: Mosaic Rubbish Rubber Stamp",
-        "video_url": "/batch/sabri/07_MG07B_Mosaic_Rubbish_Stamp.mp4"
+        "title": "MG-17: 3D Perspective Screencast with Interactive Cursor",
+        "video_url": "/batch/sabri/14_MG17_Interactive_Screencast_Cursor_Demo.mp4"
       },
       "clips": [
         {
@@ -134,8 +134,8 @@
       "id": "G09",
       "title": "Screen-derived portrait flyout",
       "reference": {
-        "title": "MG-12: Focal Punch-Zoom Pacing Cuts",
-        "video_url": "/batch/sabri/09_MG12_Focal_Punch_Pacing_Jump_Cuts.mp4"
+        "title": "MG-13: Curved Hand-Drawn Doodle Arrow",
+        "video_url": "/batch/sabri/10_MG13_Curved_Doodle_Arrow_Callout.mp4"
       },
       "clips": [
         {
@@ -150,8 +150,8 @@
       "id": "G10",
       "title": "Torn-paper comparison",
       "reference": {
-        "title": "MG-13: Curved Hand-Drawn Doodle Arrow",
-        "video_url": "/batch/sabri/10_MG13_Curved_Doodle_Arrow_Callout.mp4"
+        "title": "MG-16: Torn Paper Multi-Asset Proof Collage",
+        "video_url": "/batch/sabri/13_MG16_Torn_Paper_Multi_Asset_Collage.mp4"
       },
       "clips": [
         {
@@ -198,8 +198,8 @@
       "id": "G13",
       "title": "Generation progress meter",
       "reference": {
-        "title": "MG-16: Torn Paper Multi-Asset Proof Collage",
-        "video_url": "/batch/sabri/13_MG16_Torn_Paper_Multi_Asset_Collage.mp4"
+        "title": "MG-01B: Roadmap Step Punch Isolation",
+        "video_url": "/batch/sabri/02_MG01B_Roadmap_Step_Punch_Zoom.mp4"
       },
       "clips": [
         {
@@ -214,8 +214,8 @@
       "id": "G14",
       "title": "Flash accent",
       "reference": {
-        "title": "MG-17: 3D Perspective Screencast with Interactive Cursor",
-        "video_url": "/batch/sabri/14_MG17_Interactive_Screencast_Cursor_Demo.mp4"
+        "title": "MG-02: Split-Fill Monumental Text Sandwich",
+        "video_url": "/batch/sabri/03_MG02_Split_Fill_Monumental_Text.mp4"
       },
       "clips": [
         {

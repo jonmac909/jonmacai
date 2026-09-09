@@ -5,6 +5,29 @@ import { readFileSync } from "node:fs";
 import vm from "node:vm";
 import worker from "./worker.js";
 
+// Editorially approved pairings are by graphic, never by catalog position.
+const referenceFiles = [
+  "01_MG01_Roadmap_5_Step_Overview.mp4",
+  "06_MG04_Kinetic_Word_Pop_SINGLE.mp4",
+  "05_MG03B_Behind_Host_HUD_Telemetry.mp4",
+  "04_MG02B_3D_Phone_Sandwich_Desat.mp4",
+  "09_MG12_Focal_Punch_Pacing_Jump_Cuts.mp4",
+  "07_MG07B_Mosaic_Rubbish_Stamp.mp4",
+  "14_MG17_Interactive_Screencast_Cursor_Demo.mp4",
+  "08_MG11_Monumental_Text_Behind_Host.mp4",
+  "10_MG13_Curved_Doodle_Arrow_Callout.mp4",
+  "13_MG16_Torn_Paper_Multi_Asset_Collage.mp4",
+  "11_MG14_Quote_Dialogue_Dark_Capsule.mp4",
+  "12_MG15_Two_Tier_Authority_Lower_Third.mp4",
+  "02_MG01B_Roadmap_Step_Punch_Zoom.mp4",
+  "03_MG02_Split_Fill_Monumental_Text.mp4",
+];
+const manifest = JSON.parse(readFileSync(new URL("./public/modules.json", import.meta.url), "utf8"));
+assert.deepEqual(
+  Object.fromEntries(manifest.modules.map(module => [module.id, module.reference.video_url])),
+  Object.fromEntries(referenceFiles.map((file, index) => [`G${String(index + 1).padStart(2, "0")}`, `/batch/sabri/${file}`])),
+);
+
 const source = readFileSync(new URL("./public/index.html", import.meta.url), "utf8").match(/<script>([\s\S]*?)<\/script>/)[1];
 const stored = new Map();
 let failRead = false;
@@ -144,4 +167,4 @@ function notes(project = "project-a") {
   assert.equal(changed.status, 200);
   assert.deepEqual([...new Uint8Array(await changed.arrayBuffer())], [...body]);
 }
-console.log("Studio regression check passed: paired playback, recoverable notes, and static video ranges.");
+console.log("Studio regression check passed: approved reference pairings, paired playback, recoverable notes, and static video ranges.");
