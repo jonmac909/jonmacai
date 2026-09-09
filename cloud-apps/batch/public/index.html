@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Batch review · Jon Mac</title>
+  <style>
+    :root { color-scheme: dark; font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #101112; color: #f2f2f2; }
+    * { box-sizing: border-box; }
+    body { margin: 0; }
+    main { max-width: 1440px; margin: auto; padding: 48px 28px 64px; }
+    header { display: flex; justify-content: space-between; align-items: end; gap: 24px; padding-bottom: 28px; border-bottom: 1px solid #333639; }
+    .eyebrow { margin: 0 0 12px; color: #b7bbbf; font-size: .75rem; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; }
+    h1 { margin: 0; font-size: clamp(2rem, 5vw, 3.5rem); line-height: 1.06; font-weight: 800; letter-spacing: -.045em; }
+    .intro { margin: 16px 0 0; max-width: 52ch; color: #b7bbbf; line-height: 1.6; }
+    a { color: #f2f2f2; text-underline-offset: 4px; }
+    a:hover { color: #c7d4e2; }
+    a:focus-visible, select:focus-visible, video:focus-visible { outline: 3px solid #a9c6e6; outline-offset: 4px; }
+    .project { display: inline-block; border: 1px solid #50555a; border-radius: 8px; padding: 12px 16px; white-space: nowrap; text-decoration: none; font-size: .875rem; font-weight: 700; }
+    [hidden] { display: none !important; }
+    #status { color: #b7bbbf; margin: 22px 0; line-height: 1.5; overflow-wrap: anywhere; }
+    #modules { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; padding: 0; margin: 0; list-style: none; }
+    .card { min-width: 0; padding: 20px; border: 1px solid #34373b; border-radius: 12px; background: #181a1c; }
+    .card-heading { display: flex; gap: 14px; align-items: baseline; margin-bottom: 18px; }
+    .number { color: #a7adb4; font-size: .875rem; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    h2 { margin: 0; font-size: 1.125rem; font-weight: 700; line-height: 1.4; overflow-wrap: anywhere; }
+    video { display: block; width: 100%; aspect-ratio: 16 / 9; background: #090a0b; object-fit: contain; border-radius: 6px; }
+    .details { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px; margin-top: 18px; font-size: .875rem; }
+    label { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; color: #b7bbbf; }
+    select { min-height: 40px; max-width: 100%; padding: 8px 28px 8px 10px; font: inherit; color: #f2f2f2; background: #24272a; border: 1px solid #545a60; border-radius: 6px; }
+    .clip-label { color: #b7bbbf; overflow-wrap: anywhere; }
+    .media-status { margin: 12px 0 0; color: #b7bbbf; font-size: .8125rem; line-height: 1.5; }
+    noscript { display: block; padding: 24px 0; }
+    @media (max-width: 700px) {
+      main { padding: 28px 16px 40px; }
+      header { align-items: start; flex-direction: column; }
+      #modules { grid-template-columns: 1fr; gap: 18px; }
+      .card { padding: 16px; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div>
+        <p class="eyebrow">Jon Mac · Creative review</p>
+        <h1>Batch review</h1>
+        <p class="intro">G01–G14. Play each module here, choose a variant where available, and leave timestamped comments in Frame.</p>
+      </div>
+      <a class="project" id="project" hidden>Open Frame project ↗</a>
+    </header>
+    <p id="status" role="status">Loading review modules…</p>
+    <noscript>JavaScript is required to load this batch's video manifest.</noscript>
+    <ol id="modules" aria-label="Video modules G01 through G14" aria-busy="true"></ol>
+  </main>
+  <script>
+    const status = document.getElementById("status");
+    const modules = document.getElementById("modules");
+
+    function sameOriginUrl(value) {
+      if (typeof value !== "string" || !value.trim()) return null;
+      try {
+        const url = new URL(value, location.href);
+        return url.origin === location.origin && ["http:", "https:"].includes(url.protocol) && !url.username && !url.password ? url.href : null;
+      } catch { return null; }
+    }
+
+    function element(tag, text, className) {
+      const node = document.createElement(tag);
+      if (text !== undefined) node.textContent = text;
+      if (className) node.className = className;
+      return node;
+    }
+
+    function renderModule(module) {
+      const item = element("li", undefined, "card");
+      const heading = element("div", undefined, "card-heading");
+      const title = element("h2", module.title);
+      title.id = `${module.id}-title`;
+      heading.append(element("span", module.id, "number"), title);
+      const video = element("video");
+      video.controls = true;
+      video.preload = "metadata";
+      video.playsInline = true;
+      video.setAttribute("aria-labelledby", title.id);
+      video.textContent = "Your browser does not support native video playback. Open comments to review this clip in Frame.";
+      const details = element("div", undefined, "details");
+      const comments = element("a", "Open comments ↗");
+      const mediaStatus = element("p", undefined, "media-status");
+      mediaStatus.id = `${module.id}-status`;
+      mediaStatus.setAttribute("role", "status");
+      video.setAttribute("aria-describedby", mediaStatus.id);
+      let unavailableComments = false;
+
+      function selectClip(clip) {
+        video.pause();
+        video.removeAttribute("src");
+        video.removeAttribute("poster");
+        comments.removeAttribute("href");
+        comments.hidden = true;
+        const mediaUrl = sameOriginUrl(clip?.video_url);
+        const reviewUrl = sameOriginUrl(clip?.review_url);
+        const posterUrl = sameOriginUrl(clip?.poster_url);
+        unavailableComments = !reviewUrl;
+        if (reviewUrl) {
+          comments.href = reviewUrl;
+          comments.hidden = false;
+          comments.setAttribute("aria-label", `Open comments for ${module.id}, ${clip.label}`);
+        }
+        if (posterUrl) video.poster = posterUrl;
+        if (mediaUrl) {
+          video.src = mediaUrl;
+          mediaStatus.textContent = "Loading video metadata…";
+        } else {
+          mediaStatus.textContent = "Video unavailable: no valid same-origin media URL." + (unavailableComments ? " Comments are not available." : "");
+        }
+        video.load();
+      }
+
+      video.addEventListener("loadedmetadata", () => {
+        mediaStatus.textContent = unavailableComments ? "Comments are not available for this clip." : "Ready to play. Comments open in Frame.";
+      });
+      video.addEventListener("error", () => {
+        mediaStatus.textContent = "Video could not be loaded. Reload the page or open this clip in Frame." + (unavailableComments ? " Comments are not available." : "");
+      });
+
+      if (module.clips.length > 1) {
+        const label = element("label", "Variant");
+        const select = element("select");
+        select.setAttribute("aria-label", `Variant for ${module.id}: ${module.title}`);
+        module.clips.forEach((clip, index) => {
+          const option = element("option", clip?.label || `Variant ${index + 1}`);
+          option.value = String(index);
+          select.append(option);
+        });
+        select.addEventListener("change", () => selectClip(module.clips[Number(select.value)]));
+        label.append(select);
+        details.append(label);
+      } else {
+        details.append(element("span", module.clips[0]?.label || "No published clip", "clip-label"));
+      }
+      details.append(comments);
+      item.append(heading, video, details, mediaStatus);
+      selectClip(module.clips[0]);
+      return item;
+    }
+
+    async function load() {
+      try {
+        const response = await fetch("/batch/modules.json", { cache: "no-store", credentials: "same-origin", redirect: "error" });
+        if (!response.ok) throw new Error(response.status === 404 ? "The review manifest has not been published yet." : "The review manifest could not be loaded.");
+        const manifest = await response.json();
+        const ids = Array.from({ length: 14 }, (_, index) => `G${String(index + 1).padStart(2, "0")}`);
+        if (!manifest || typeof manifest.project_id !== "string" || !manifest.project_id.trim() ||
+            !["string", "number"].includes(typeof manifest.revision) ||
+            !Array.isArray(manifest.modules) || manifest.modules.length !== 14 ||
+            manifest.modules.some(module => !module || !ids.includes(module.id) || typeof module.title !== "string" || !module.title.trim() || !Array.isArray(module.clips)) ||
+            new Set(manifest.modules.map(module => module.id)).size !== 14) {
+          throw new Error("The review manifest is incomplete or invalid. It must contain G01–G14.");
+        }
+        const projectUrl = new URL("/frame/", location.origin);
+        projectUrl.searchParams.set("p", manifest.project_id);
+        const project = document.getElementById("project");
+        project.href = projectUrl.href;
+        project.hidden = false;
+        modules.replaceChildren(...ids.map(id => renderModule(manifest.modules.find(module => module.id === id))));
+        status.textContent = `14 modules · Revision ${manifest.revision}`;
+      } catch (error) {
+        status.textContent = error instanceof SyntaxError ? "The review manifest is not valid JSON. No videos have been loaded." : error.message || "The review could not be loaded. Please reload the page.";
+      } finally {
+        modules.setAttribute("aria-busy", "false");
+      }
+    }
+    load();
+  </script>
+</body>
+</html>

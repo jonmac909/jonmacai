@@ -1,0 +1,174 @@
+{
+  "project_id": "365e01c6-0f23-4637-82ed-be6905b2bbcb",
+  "revision": "1080p-1",
+  "modules": [
+    {
+      "id": "G01",
+      "title": "Roadmap and chapter carousel",
+      "clips": [
+        {
+          "label": "1080p · Play with sound",
+          "video_url": "https://jonmac.ai/frame/api/media?file=sb_batch_g01_a8ef40da66c97587",
+          "review_url": "https://jonmac.ai/frame/?p=365e01c6-0f23-4637-82ed-be6905b2bbcb&file=sb_batch_g01_a8ef40da66c97587",
+          "poster_url": "/batch/posters/G01.jpg"
+        }
+      ]
+    },
+    {
+      "id": "G02",
+      "title": "Kinetic phrase pops",
+      "clips": [
+        {
+          "label": "1080p · Play with sound",
+          "video_url": "https://jonmac.ai/frame/api/media?file=sb_batch_g02_e07c4304220da65c",
+          "review_url": "https://jonmac.ai/frame/?p=365e01c6-0f23-4637-82ed-be6905b2bbcb&file=sb_batch_g02_e07c4304220da65c",
+          "poster_url": "/batch/posters/G02.jpg"
+        }
+      ]
+    },
+    {
+      "id": "G03",
+      "title": "Foreground depth and generation meter",
+      "clips": [
+        {
+          "label": "1080p · Play with sound",
+          "video_url": "https://jonmac.ai/frame/api/media?file=sb_batch_g03_d65277140d033d3d",
+          "review_url": "https://jonmac.ai/frame/?p=365e01c6-0f23-4637-82ed-be6905b2bbcb&file=sb_batch_g03_d65277140d033d3d",
+          "poster_url": "/batch/posters/G03.jpg"
+        }
+      ]
+    },
+    {
+      "id": "G04",
+      "title": "Profile and DM reenactment",
+      "clips": [
+        {
+          "label": "1080p · Play with sound",
+          "video_url": "https://jonmac.ai/frame/api/media?file=sb_batch_g04_5eb4db7e96499b7a",
+          "review_url": "https://jonmac.ai/frame/?p=365e01c6-0f23-4637-82ed-be6905b2bbcb&file=sb_batch_g04_5eb4db7e96499b7a",
+          "poster_url": "/batch/posters/G04.jpg"
+        }
+      ]
+    },
+    {
+      "id": "G05",
+      "title": "Vertical video and blurred sidefill",
+      "clips": [
+        {
+          "label": "1080p · Play with sound",
+          "video_url": "https://jonmac.ai/frame/api/media?file=sb_batch_g05_f2e67a4afe578274",
+          "review_url": "https://jonmac.ai/frame/?p=365e01c6-0f23-4637-82ed-be6905b2bbcb&file=sb_batch_g05_f2e67a4afe578274",
+          "poster_url": "/batch/posters/G05.jpg"
+        }
+      ]
+    },
+    {
+      "id": "G06",
+      "title": "Continuous grid pullback",
+      "clips": [
+        {
+          "label": "1080p · Play with sound",
+          "video_url": "https://jonmac.ai/frame/api/media?file=sb_batch_g06_18fcae333e2a9a1b",
+          "review_url": "https://jonmac.ai/frame/?p=365e01c6-0f23-4637-82ed-be6905b2bbcb&file=sb_batch_g06_18fcae333e2a9a1b",
+          "poster_url": "/batch/posters/G06.jpg"
+        }
+      ]
+    },
+    {
+      "id": "G07",
+      "title": "Screen demo and presenter PiP",
+      "clips": [
+        {
+          "label": "1080p · Play with sound",
+          "video_url": "https://jonmac.ai/frame/api/media?file=sb_batch_g07_a989f13e83403dda",
+          "review_url": "https://jonmac.ai/frame/?p=365e01c6-0f23-4637-82ed-be6905b2bbcb&file=sb_batch_g07_a989f13e83403dda",
+          "poster_url": "/batch/posters/G07.jpg"
+        }
+      ]
+    },
+    {
+      "id": "G08",
+      "title": "Screen focus and highlight",
+      "clips": [
+        {
+          "label": "1080p · Play with sound",
+          "video_url": "https://jonmac.ai/frame/api/media?file=sb_batch_g08_9977ffc96bf35908",
+          "review_url": "https://jonmac.ai/frame/?p=365e01c6-0f23-4637-82ed-be6905b2bbcb&file=sb_batch_g08_9977ffc96bf35908",
+          "poster_url": "/batch/posters/G08.jpg"
+        }
+      ]
+    },
+    {
+      "id": "G09",
+      "title": "Screen-derived portrait flyout",
+      "clips": [
+        {
+          "label": "1080p · Play with sound",
+          "video_url": "https://jonmac.ai/frame/api/media?file=sb_batch_g09_e303b577f50181c7",
+          "review_url": "https://jonmac.ai/frame/?p=365e01c6-0f23-4637-82ed-be6905b2bbcb&file=sb_batch_g09_e303b577f50181c7",
+          "poster_url": "/batch/posters/G09.jpg"
+        }
+      ]
+    },
+    {
+      "id": "G10",
+      "title": "Torn-paper comparison",
+      "clips": [
+        {
+          "label": "1080p · Play with sound",
+          "video_url": "https://jonmac.ai/frame/api/media?file=sb_batch_g10_b0cf101d2d28ae2e",
+          "review_url": "https://jonmac.ai/frame/?p=365e01c6-0f23-4637-82ed-be6905b2bbcb&file=sb_batch_g10_b0cf101d2d28ae2e",
+          "poster_url": "/batch/posters/G10.jpg"
+        }
+      ]
+    },
+    {
+      "id": "G11",
+      "title": "Prompt card and typing light",
+      "clips": [
+        {
+          "label": "1080p · Play with sound",
+          "video_url": "https://jonmac.ai/frame/api/media?file=sb_batch_g11_f6ae3765a9e68421",
+          "review_url": "https://jonmac.ai/frame/?p=365e01c6-0f23-4637-82ed-be6905b2bbcb&file=sb_batch_g11_f6ae3765a9e68421",
+          "poster_url": "/batch/posters/G11.jpg"
+        }
+      ]
+    },
+    {
+      "id": "G12",
+      "title": "Hook and body combinations",
+      "clips": [
+        {
+          "label": "1080p · Play with sound",
+          "video_url": "https://jonmac.ai/frame/api/media?file=sb_batch_g12_36ff8e02581b2fd1",
+          "review_url": "https://jonmac.ai/frame/?p=365e01c6-0f23-4637-82ed-be6905b2bbcb&file=sb_batch_g12_36ff8e02581b2fd1",
+          "poster_url": "/batch/posters/G12.jpg"
+        }
+      ]
+    },
+    {
+      "id": "G13",
+      "title": "Generation progress meter",
+      "clips": [
+        {
+          "label": "1080p · Play with sound",
+          "video_url": "https://jonmac.ai/frame/api/media?file=sb_batch_g13_481faed0efa6e0dc",
+          "review_url": "https://jonmac.ai/frame/?p=365e01c6-0f23-4637-82ed-be6905b2bbcb&file=sb_batch_g13_481faed0efa6e0dc",
+          "poster_url": "/batch/posters/G13.jpg"
+        }
+      ]
+    },
+    {
+      "id": "G14",
+      "title": "Flash accent",
+      "clips": [
+        {
+          "label": "1080p · Play with sound",
+          "video_url": "https://jonmac.ai/frame/api/media?file=sb_batch_g14_cc0259440824de24",
+          "review_url": "https://jonmac.ai/frame/?p=365e01c6-0f23-4637-82ed-be6905b2bbcb&file=sb_batch_g14_cc0259440824de24",
+          "poster_url": "/batch/posters/G14.jpg"
+        }
+      ]
+    }
+  ]
+}
