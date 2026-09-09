@@ -63,7 +63,7 @@
       <div>
         <p class="eyebrow">Jon Mac · Creative review</p>
         <h1>Comparison studio</h1>
-        <p class="intro">G01–G14, paired with Sabri catalog entries 01–14 in order (not MG IDs). Compare timing, typography and texture. Scrub each clip independently; Play Both starts from each current playhead.</p>
+        <p class="intro">G01–G14, paired with matching Sabri graphic references. Compare timing, typography and texture. Scrub each clip independently; Play Both starts from each current playhead.</p>
       </div>
       <div class="header-actions">
         <button id="export" type="button" disabled>Export All Notes</button>
@@ -227,7 +227,7 @@
       const reference = player("Sabri Reference", "reference");
       const render = player("JonMac Render", "render");
       const referenceTitle = module.reference?.title || "Reference title unavailable";
-      reference.column.append(element("p", `Catalog ${module.id.slice(1)} · ${referenceTitle}`, "reference-title"), reference.message);
+      reference.column.append(element("p", referenceTitle, "reference-title"), reference.message);
       const referenceUrl = sameOriginUrl(module.reference?.video_url);
       if (referenceUrl) {
         reference.video.src = referenceUrl;
