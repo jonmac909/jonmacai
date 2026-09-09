@@ -1,15 +1,15 @@
 {
   "project_id": "365e01c6-0f23-4637-82ed-be6905b2bbcb",
-  "revision": "1080p-1",
+  "revision": "Typography-2 · 1080p",
   "modules": [
     {
       "id": "G01",
       "title": "Roadmap and chapter carousel",
       "clips": [
         {
-          "label": "1080p · Play with sound",
-          "video_url": "https://jonmac.ai/frame/api/media?file=sb_batch_g01_a8ef40da66c97587",
-          "review_url": "https://jonmac.ai/frame/?p=365e01c6-0f23-4637-82ed-be6905b2bbcb&file=sb_batch_g01_a8ef40da66c97587",
+          "label": "Updated type · 1080p · Sound",
+          "video_url": "https://jonmac.ai/frame/api/media?file=sb_fonts_v2_g01_564d380da015e059",
+          "review_url": "https://jonmac.ai/frame/?p=365e01c6-0f23-4637-82ed-be6905b2bbcb&file=sb_fonts_v2_g01_564d380da015e059",
           "poster_url": "/batch/posters/G01.jpg"
         }
       ]
@@ -19,9 +19,9 @@
       "title": "Kinetic phrase pops",
       "clips": [
         {
-          "label": "1080p · Play with sound",
-          "video_url": "https://jonmac.ai/frame/api/media?file=sb_batch_g02_e07c4304220da65c",
-          "review_url": "https://jonmac.ai/frame/?p=365e01c6-0f23-4637-82ed-be6905b2bbcb&file=sb_batch_g02_e07c4304220da65c",
+          "label": "Updated type · 1080p · Sound",
+          "video_url": "https://jonmac.ai/frame/api/media?file=sb_fonts_v2_g02_54dae52ef79d7cd6",
+          "review_url": "https://jonmac.ai/frame/?p=365e01c6-0f23-4637-82ed-be6905b2bbcb&file=sb_fonts_v2_g02_54dae52ef79d7cd6",
           "poster_url": "/batch/posters/G02.jpg"
         }
       ]
@@ -31,9 +31,9 @@
       "title": "Foreground depth and generation meter",
       "clips": [
         {
-          "label": "1080p · Play with sound",
-          "video_url": "https://jonmac.ai/frame/api/media?file=sb_batch_g03_d65277140d033d3d",
-          "review_url": "https://jonmac.ai/frame/?p=365e01c6-0f23-4637-82ed-be6905b2bbcb&file=sb_batch_g03_d65277140d033d3d",
+          "label": "Updated type · 1080p · Sound",
+          "video_url": "https://jonmac.ai/frame/api/media?file=sb_fonts_v2_g03_ef92b6fc56162bf1",
+          "review_url": "https://jonmac.ai/frame/?p=365e01c6-0f23-4637-82ed-be6905b2bbcb&file=sb_fonts_v2_g03_ef92b6fc56162bf1",
           "poster_url": "/batch/posters/G03.jpg"
         }
       ]
@@ -43,9 +43,9 @@
       "title": "Profile and DM reenactment",
       "clips": [
         {
-          "label": "1080p · Play with sound",
-          "video_url": "https://jonmac.ai/frame/api/media?file=sb_batch_g04_5eb4db7e96499b7a",
-          "review_url": "https://jonmac.ai/frame/?p=365e01c6-0f23-4637-82ed-be6905b2bbcb&file=sb_batch_g04_5eb4db7e96499b7a",
+          "label": "Updated type · 1080p · Sound",
+          "video_url": "https://jonmac.ai/frame/api/media?file=sb_fonts_v2_g04_8b1636ec070d3780",
+          "review_url": "https://jonmac.ai/frame/?p=365e01c6-0f23-4637-82ed-be6905b2bbcb&file=sb_fonts_v2_g04_8b1636ec070d3780",
           "poster_url": "/batch/posters/G04.jpg"
         }
       ]
@@ -55,9 +55,9 @@
       "title": "Vertical video and blurred sidefill",
       "clips": [
         {
-          "label": "1080p · Play with sound",
-          "video_url": "https://jonmac.ai/frame/api/media?file=sb_batch_g05_f2e67a4afe578274",
-          "review_url": "https://jonmac.ai/frame/?p=365e01c6-0f23-4637-82ed-be6905b2bbcb&file=sb_batch_g05_f2e67a4afe578274",
+          "label": "Updated type · 1080p · Sound",
+          "video_url": "https://jonmac.ai/frame/api/media?file=sb_fonts_v2_g05_7b43c486763864ba",
+          "review_url": "https://jonmac.ai/frame/?p=365e01c6-0f23-4637-82ed-be6905b2bbcb&file=sb_fonts_v2_g05_7b43c486763864ba",
           "poster_url": "/batch/posters/G05.jpg"
         }
       ]
@@ -67,9 +67,9 @@
       "title": "Continuous grid pullback",
       "clips": [
         {
-          "label": "1080p · Play with sound",
-          "video_url": "https://jonmac.ai/frame/api/media?file=sb_batch_g06_18fcae333e2a9a1b",
-          "review_url": "https://jonmac.ai/frame/?p=365e01c6-0f23-4637-82ed-be6905b2bbcb&file=sb_batch_g06_18fcae333e2a9a1b",
+          "label": "Updated type · 1080p · Sound",
+          "video_url": "https://jonmac.ai/frame/api/media?file=sb_fonts_v2_g06_6f3add67653b5cff",
+          "review_url": "https://jonmac.ai/frame/?p=365e01c6-0f23-4637-82ed-be6905b2bbcb&file=sb_fonts_v2_g06_6f3add67653b5cff",
           "poster_url": "/batch/posters/G06.jpg"
         }
       ]
@@ -79,9 +79,9 @@
       "title": "Screen demo and presenter PiP",
       "clips": [
         {
-          "label": "1080p · Play with sound",
-          "video_url": "https://jonmac.ai/frame/api/media?file=sb_batch_g07_a989f13e83403dda",
-          "review_url": "https://jonmac.ai/frame/?p=365e01c6-0f23-4637-82ed-be6905b2bbcb&file=sb_batch_g07_a989f13e83403dda",
+          "label": "Updated type · 1080p · Sound",
+          "video_url": "https://jonmac.ai/frame/api/media?file=sb_fonts_v2_g07_9564b2294d26977f",
+          "review_url": "https://jonmac.ai/frame/?p=365e01c6-0f23-4637-82ed-be6905b2bbcb&file=sb_fonts_v2_g07_9564b2294d26977f",
           "poster_url": "/batch/posters/G07.jpg"
         }
       ]
@@ -91,9 +91,9 @@
       "title": "Screen focus and highlight",
       "clips": [
         {
-          "label": "1080p · Play with sound",
-          "video_url": "https://jonmac.ai/frame/api/media?file=sb_batch_g08_9977ffc96bf35908",
-          "review_url": "https://jonmac.ai/frame/?p=365e01c6-0f23-4637-82ed-be6905b2bbcb&file=sb_batch_g08_9977ffc96bf35908",
+          "label": "Updated type · 1080p · Sound",
+          "video_url": "https://jonmac.ai/frame/api/media?file=sb_fonts_v2_g08_d1e60921cc3bde2d",
+          "review_url": "https://jonmac.ai/frame/?p=365e01c6-0f23-4637-82ed-be6905b2bbcb&file=sb_fonts_v2_g08_d1e60921cc3bde2d",
           "poster_url": "/batch/posters/G08.jpg"
         }
       ]
@@ -103,9 +103,9 @@
       "title": "Screen-derived portrait flyout",
       "clips": [
         {
-          "label": "1080p · Play with sound",
-          "video_url": "https://jonmac.ai/frame/api/media?file=sb_batch_g09_e303b577f50181c7",
-          "review_url": "https://jonmac.ai/frame/?p=365e01c6-0f23-4637-82ed-be6905b2bbcb&file=sb_batch_g09_e303b577f50181c7",
+          "label": "Updated type · 1080p · Sound",
+          "video_url": "https://jonmac.ai/frame/api/media?file=sb_fonts_v2_g09_e303b577f50181c7",
+          "review_url": "https://jonmac.ai/frame/?p=365e01c6-0f23-4637-82ed-be6905b2bbcb&file=sb_fonts_v2_g09_e303b577f50181c7",
           "poster_url": "/batch/posters/G09.jpg"
         }
       ]
@@ -115,9 +115,9 @@
       "title": "Torn-paper comparison",
       "clips": [
         {
-          "label": "1080p · Play with sound",
-          "video_url": "https://jonmac.ai/frame/api/media?file=sb_batch_g10_b0cf101d2d28ae2e",
-          "review_url": "https://jonmac.ai/frame/?p=365e01c6-0f23-4637-82ed-be6905b2bbcb&file=sb_batch_g10_b0cf101d2d28ae2e",
+          "label": "Updated type · 1080p · Sound",
+          "video_url": "https://jonmac.ai/frame/api/media?file=sb_fonts_v2_g10_a517a973541c0171",
+          "review_url": "https://jonmac.ai/frame/?p=365e01c6-0f23-4637-82ed-be6905b2bbcb&file=sb_fonts_v2_g10_a517a973541c0171",
           "poster_url": "/batch/posters/G10.jpg"
         }
       ]
@@ -127,9 +127,9 @@
       "title": "Prompt card and typing light",
       "clips": [
         {
-          "label": "1080p · Play with sound",
-          "video_url": "https://jonmac.ai/frame/api/media?file=sb_batch_g11_f6ae3765a9e68421",
-          "review_url": "https://jonmac.ai/frame/?p=365e01c6-0f23-4637-82ed-be6905b2bbcb&file=sb_batch_g11_f6ae3765a9e68421",
+          "label": "Updated type · 1080p · Sound",
+          "video_url": "https://jonmac.ai/frame/api/media?file=sb_fonts_v2_g11_00b6a5a3145c7b63",
+          "review_url": "https://jonmac.ai/frame/?p=365e01c6-0f23-4637-82ed-be6905b2bbcb&file=sb_fonts_v2_g11_00b6a5a3145c7b63",
           "poster_url": "/batch/posters/G11.jpg"
         }
       ]
@@ -139,9 +139,9 @@
       "title": "Hook and body combinations",
       "clips": [
         {
-          "label": "1080p · Play with sound",
-          "video_url": "https://jonmac.ai/frame/api/media?file=sb_batch_g12_36ff8e02581b2fd1",
-          "review_url": "https://jonmac.ai/frame/?p=365e01c6-0f23-4637-82ed-be6905b2bbcb&file=sb_batch_g12_36ff8e02581b2fd1",
+          "label": "Updated type · 1080p · Sound",
+          "video_url": "https://jonmac.ai/frame/api/media?file=sb_fonts_v2_g12_4a5adb3824ab796e",
+          "review_url": "https://jonmac.ai/frame/?p=365e01c6-0f23-4637-82ed-be6905b2bbcb&file=sb_fonts_v2_g12_4a5adb3824ab796e",
           "poster_url": "/batch/posters/G12.jpg"
         }
       ]
@@ -151,9 +151,9 @@
       "title": "Generation progress meter",
       "clips": [
         {
-          "label": "1080p · Play with sound",
-          "video_url": "https://jonmac.ai/frame/api/media?file=sb_batch_g13_481faed0efa6e0dc",
-          "review_url": "https://jonmac.ai/frame/?p=365e01c6-0f23-4637-82ed-be6905b2bbcb&file=sb_batch_g13_481faed0efa6e0dc",
+          "label": "Updated type · 1080p · Sound",
+          "video_url": "https://jonmac.ai/frame/api/media?file=sb_fonts_v2_g13_1fd5a5b3f2e80883",
+          "review_url": "https://jonmac.ai/frame/?p=365e01c6-0f23-4637-82ed-be6905b2bbcb&file=sb_fonts_v2_g13_1fd5a5b3f2e80883",
           "poster_url": "/batch/posters/G13.jpg"
         }
       ]
@@ -163,9 +163,9 @@
       "title": "Flash accent",
       "clips": [
         {
-          "label": "1080p · Play with sound",
-          "video_url": "https://jonmac.ai/frame/api/media?file=sb_batch_g14_cc0259440824de24",
-          "review_url": "https://jonmac.ai/frame/?p=365e01c6-0f23-4637-82ed-be6905b2bbcb&file=sb_batch_g14_cc0259440824de24",
+          "label": "Updated type · 1080p · Sound",
+          "video_url": "https://jonmac.ai/frame/api/media?file=sb_fonts_v2_g14_a3122ed923e80a35",
+          "review_url": "https://jonmac.ai/frame/?p=365e01c6-0f23-4637-82ed-be6905b2bbcb&file=sb_fonts_v2_g14_a3122ed923e80a35",
           "poster_url": "/batch/posters/G14.jpg"
         }
       ]
