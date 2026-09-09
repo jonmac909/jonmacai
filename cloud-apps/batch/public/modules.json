@@ -5,6 +5,10 @@
     {
       "id": "G01",
       "title": "Roadmap and chapter carousel",
+      "reference": {
+        "title": "MG-01: 5-Step Roadmap Overview",
+        "video_url": "/batch/sabri/01_MG01_Roadmap_5_Step_Overview.mp4"
+      },
       "clips": [
         {
           "label": "Updated type · 1080p · Sound",
@@ -17,6 +21,10 @@
     {
       "id": "G02",
       "title": "Kinetic phrase pops",
+      "reference": {
+        "title": "MG-01B: Roadmap Step Punch Isolation",
+        "video_url": "/batch/sabri/02_MG01B_Roadmap_Step_Punch_Zoom.mp4"
+      },
       "clips": [
         {
           "label": "Updated type · 1080p · Sound",
@@ -29,6 +37,10 @@
     {
       "id": "G03",
       "title": "Foreground depth and generation meter",
+      "reference": {
+        "title": "MG-02: Split-Fill Monumental Text Sandwich",
+        "video_url": "/batch/sabri/03_MG02_Split_Fill_Monumental_Text.mp4"
+      },
       "clips": [
         {
           "label": "Updated type · 1080p · Sound",
@@ -41,6 +53,10 @@
     {
       "id": "G04",
       "title": "Profile and DM reenactment",
+      "reference": {
+        "title": "MG-02B: 3D Phone Sandwich with Desaturated Room",
+        "video_url": "/batch/sabri/04_MG02B_3D_Phone_Sandwich_Desat.mp4"
+      },
       "clips": [
         {
           "label": "Updated type · 1080p · Sound",
@@ -53,6 +69,10 @@
     {
       "id": "G05",
       "title": "Vertical video and blurred sidefill",
+      "reference": {
+        "title": "MG-03B: Behind-Host HUD Telemetry Capsule",
+        "video_url": "/batch/sabri/05_MG03B_Behind_Host_HUD_Telemetry.mp4"
+      },
       "clips": [
         {
           "label": "Updated type · 1080p · Sound",
@@ -65,6 +85,10 @@
     {
       "id": "G06",
       "title": "Continuous grid pullback",
+      "reference": {
+        "title": "MG-04: Kinetic Word Pop ('SINGLE')",
+        "video_url": "/batch/sabri/06_MG04_Kinetic_Word_Pop_SINGLE.mp4"
+      },
       "clips": [
         {
           "label": "Updated type · 1080p · Sound",
@@ -77,6 +101,10 @@
     {
       "id": "G07",
       "title": "Screen demo and presenter PiP",
+      "reference": {
+        "title": "MG-07B: Mosaic Rubbish Rubber Stamp",
+        "video_url": "/batch/sabri/07_MG07B_Mosaic_Rubbish_Stamp.mp4"
+      },
       "clips": [
         {
           "label": "Updated type · 1080p · Sound",
@@ -89,6 +117,10 @@
     {
       "id": "G08",
       "title": "Screen focus and highlight",
+      "reference": {
+        "title": "MG-11: Monumental Text Behind Host ('1,000 INDUSTRIES')",
+        "video_url": "/batch/sabri/08_MG11_Monumental_Text_Behind_Host.mp4"
+      },
       "clips": [
         {
           "label": "Updated type · 1080p · Sound",
@@ -101,6 +133,10 @@
     {
       "id": "G09",
       "title": "Screen-derived portrait flyout",
+      "reference": {
+        "title": "MG-12: Focal Punch-Zoom Pacing Cuts",
+        "video_url": "/batch/sabri/09_MG12_Focal_Punch_Pacing_Jump_Cuts.mp4"
+      },
       "clips": [
         {
           "label": "Updated type · 1080p · Sound",
@@ -113,6 +149,10 @@
     {
       "id": "G10",
       "title": "Torn-paper comparison",
+      "reference": {
+        "title": "MG-13: Curved Hand-Drawn Doodle Arrow",
+        "video_url": "/batch/sabri/10_MG13_Curved_Doodle_Arrow_Callout.mp4"
+      },
       "clips": [
         {
           "label": "Updated type · 1080p · Sound",
@@ -125,6 +165,10 @@
     {
       "id": "G11",
       "title": "Prompt card and typing light",
+      "reference": {
+        "title": "MG-14: Quote Dialogue Dark Glass Capsule",
+        "video_url": "/batch/sabri/11_MG14_Quote_Dialogue_Dark_Capsule.mp4"
+      },
       "clips": [
         {
           "label": "Updated type · 1080p · Sound",
@@ -137,6 +181,10 @@
     {
       "id": "G12",
       "title": "Hook and body combinations",
+      "reference": {
+        "title": "MG-15: Two-Tier Authority Lower-Third Badge",
+        "video_url": "/batch/sabri/12_MG15_Two_Tier_Authority_Lower_Third.mp4"
+      },
       "clips": [
         {
           "label": "Updated type · 1080p · Sound",
@@ -149,6 +197,10 @@
     {
       "id": "G13",
       "title": "Generation progress meter",
+      "reference": {
+        "title": "MG-16: Torn Paper Multi-Asset Proof Collage",
+        "video_url": "/batch/sabri/13_MG16_Torn_Paper_Multi_Asset_Collage.mp4"
+      },
       "clips": [
         {
           "label": "Updated type · 1080p · Sound",
@@ -161,6 +213,10 @@
     {
       "id": "G14",
       "title": "Flash accent",
+      "reference": {
+        "title": "MG-17: 3D Perspective Screencast with Interactive Cursor",
+        "video_url": "/batch/sabri/14_MG17_Interactive_Screencast_Cursor_Demo.mp4"
+      },
       "clips": [
         {
           "label": "Updated type · 1080p · Sound",

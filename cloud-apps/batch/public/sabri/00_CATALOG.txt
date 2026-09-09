@@ -1,0 +1,74 @@
+# SABRI SUBY MOTION GRAPHICS REFERENCE LIBRARY
+Source Video: 'AI UGC Ads - 2026 FREE COURSE For Beginners' (ehRzwCPzZy4)
+Extracted at full native 1080p with original audio design & transitions.
+===========================================================================
+
+01. 01_MG01_Roadmap_5_Step_Overview.mp4
+    Title:       MG-01: 5-Step Roadmap Overview
+    Timestamp:   00:00:20.5 (Duration: 6.0s)
+    Description: Master open-loop milestone anchor with 5 cards and progress connector.
+
+02. 02_MG01B_Roadmap_Step_Punch_Zoom.mp4
+    Title:       MG-01B: Roadmap Step Punch Isolation
+    Timestamp:   05:33.5 (Duration: 6.0s)
+    Description: 1.45x punch zoom into active step card with blurred background cards.
+
+03. 03_MG02_Split_Fill_Monumental_Text.mp4
+    Title:       MG-02: Split-Fill Monumental Text Sandwich
+    Timestamp:   00:00:16.2 (Duration: 4.5s)
+    Description: Massive typography ('THE REAL SECRET') sandwiched behind host cutout with drop shadow.
+
+04. 04_MG02B_3D_Phone_Sandwich_Desat.mp4
+    Title:       MG-02B: 3D Phone Sandwich with Desaturated Room
+    Timestamp:   00:00:20.0 (Duration: 4.5s)
+    Description: Isometric phone mockup entry with room desaturation to 20% to lock focus.
+
+05. 05_MG03B_Behind_Host_HUD_Telemetry.mp4
+    Title:       MG-03B: Behind-Host HUD Telemetry Capsule
+    Timestamp:   00:01:07.0 (Duration: 5.5s)
+    Description: Cyan progress telemetry gauge with rolling numbers behind host shoulder.
+
+06. 06_MG04_Kinetic_Word_Pop_SINGLE.mp4
+    Title:       MG-04: Kinetic Word Pop ('SINGLE')
+    Timestamp:   00:00:10.5 (Duration: 4.0s)
+    Description: Explosive stressed word pop with 180-deg directional blur and instant spring settle.
+
+07. 07_MG07B_Mosaic_Rubbish_Stamp.mp4
+    Title:       MG-07B: Mosaic Rubbish Rubber Stamp
+    Timestamp:   00:00:46.0 (Duration: 5.5s)
+    Description: Mosaic grid slammed with grunge red rubber stamp, camera shake, and sub-bass hit.
+
+08. 08_MG11_Monumental_Text_Behind_Host.mp4
+    Title:       MG-11: Monumental Text Behind Host ('1,000 INDUSTRIES')
+    Timestamp:   00:01:19.0 (Duration: 5.5s)
+    Description: Floor-to-ceiling bold typography behind presenter with subtle forward parallax push.
+
+09. 09_MG12_Focal_Punch_Pacing_Jump_Cuts.mp4
+    Title:       MG-12: Focal Punch-Zoom Pacing Cuts
+    Timestamp:   00:00:12.5 (Duration: 6.0s)
+    Description: 1.0x wide to 1.18x medium punch zooms locked to upper third eye-line.
+
+10. 10_MG13_Curved_Doodle_Arrow_Callout.mp4
+    Title:       MG-13: Curved Hand-Drawn Doodle Arrow
+    Timestamp:   00:00:07.5 (Duration: 4.5s)
+    Description: Hand-drawn chalk arrow write-on pointing to subject with scribble sound.
+
+11. 11_MG14_Quote_Dialogue_Dark_Capsule.mp4
+    Title:       MG-14: Quote Dialogue Dark Glass Capsule
+    Timestamp:   00:00:34.0 (Duration: 5.5s)
+    Description: Dark glass pill quoting customer objection with electric yellow keyword highlight.
+
+12. 12_MG15_Two_Tier_Authority_Lower_Third.mp4
+    Title:       MG-15: Two-Tier Authority Lower-Third Badge
+    Timestamp:   00:00:25.0 (Duration: 4.5s)
+    Description: High-contrast condensed authority badge sliding from red vertical line ($1.3B+).
+
+13. 13_MG16_Torn_Paper_Multi_Asset_Collage.mp4
+    Title:       MG-16: Torn Paper Multi-Asset Proof Collage
+    Timestamp:   00:03:17.0 (Duration: 7.5s)
+    Description: 3-card paper rip proof collage with textured borders and paper tear audio.
+
+14. 14_MG17_Interactive_Screencast_Cursor_Demo.mp4
+    Title:       MG-17: 3D Perspective Screencast with Interactive Cursor
+    Timestamp:   00:05:16.5 (Duration: 8.5s)
+    Description: 4K desktop demo with 15-deg 3D tilt, yellow cursor follow, and click ripples.
