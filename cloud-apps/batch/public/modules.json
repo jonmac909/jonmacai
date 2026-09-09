@@ -1,19 +1,19 @@
 {
   "project_id": "365e01c6-0f23-4637-82ed-be6905b2bbcb",
-  "revision": "Typography-2 · 1080p",
+  "revision": "G01 Loom single-card · 1080p",
   "modules": [
     {
       "id": "G01",
-      "title": "Roadmap and chapter carousel",
+      "title": "Single-card roadmap · STEP NO.1",
       "reference": {
         "title": "MG-01: 5-Step Roadmap Overview",
         "video_url": "/batch/sabri/01_MG01_Roadmap_5_Step_Overview.mp4"
       },
       "clips": [
         {
-          "label": "Updated type · 1080p · Sound",
-          "video_url": "https://jonmac.ai/frame/api/media?file=sb_fonts_v2_g01_564d380da015e059",
-          "review_url": "https://jonmac.ai/frame/?p=365e01c6-0f23-4637-82ed-be6905b2bbcb&file=sb_fonts_v2_g01_564d380da015e059",
+          "label": "Loom rebuild · Hornsea Regular emboldened · Air only",
+          "video_url": "https://jonmac.ai/frame/api/media?file=g01_loom_single_91c8a22091a875ed",
+          "review_url": "https://jonmac.ai/frame/?p=365e01c6-0f23-4637-82ed-be6905b2bbcb&file=g01_loom_single_91c8a22091a875ed",
           "poster_url": "/batch/posters/G01.jpg"
         }
       ]
