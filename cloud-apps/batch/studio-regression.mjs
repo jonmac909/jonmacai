@@ -1,38 +1,46 @@
 // Run: node cloud-apps/batch/studio-regression.mjs
 // Execute the page's actual helpers with controllable media/storage boundaries.
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readFileSync, statSync } from "node:fs";
 import vm from "node:vm";
 import worker from "./worker.js";
 
-// Editorially approved pairings are by graphic, never by catalog position.
-const referenceFiles = [
-  "01_MG01_Roadmap_5_Step_Overview.mp4",
-  "06_MG04_Kinetic_Word_Pop_SINGLE.mp4",
-  "05_MG03B_Behind_Host_HUD_Telemetry.mp4",
-  "04_MG02B_3D_Phone_Sandwich_Desat.mp4",
-  "09_MG12_Focal_Punch_Pacing_Jump_Cuts.mp4",
-  "07_MG07B_Mosaic_Rubbish_Stamp.mp4",
-  "14_MG17_Interactive_Screencast_Cursor_Demo.mp4",
-  "08_MG11_Monumental_Text_Behind_Host.mp4",
-  "10_MG13_Curved_Doodle_Arrow_Callout.mp4",
-  "13_MG16_Torn_Paper_Multi_Asset_Collage.mp4",
-  "11_MG14_Quote_Dialogue_Dark_Capsule.mp4",
-  "12_MG15_Two_Tier_Authority_Lower_Third.mp4",
-  "02_MG01B_Roadmap_Step_Punch_Zoom.mp4",
-  "03_MG02_Split_Fill_Monumental_Text.mp4",
-];
+// The copied user catalog is authoritative: no editorial remapping by old graphic ID.
+const catalog = JSON.parse(readFileSync(new URL("./public/sabri/all_61/catalog_61.json", import.meta.url), "utf8"));
 const manifest = JSON.parse(readFileSync(new URL("./public/modules.json", import.meta.url), "utf8"));
-assert.deepEqual(
-  Object.fromEntries(manifest.modules.map(module => [module.id, module.reference.video_url])),
-  Object.fromEntries(referenceFiles.map((file, index) => [`G${String(index + 1).padStart(2, "0")}`, `/batch/sabri/${file}`])),
-);
+assert.equal(catalog.total, 61);
+assert.equal(manifest.total, catalog.total);
+assert.equal(manifest.project_id, "365e01c6-0f23-4637-82ed-be6905b2bbcb");
+assert.equal(manifest.catalog_id, "sabri-master-61");
+assert.equal(manifest.modules.length, catalog.modules.length);
+for (const [index, original] of catalog.modules.entries()) {
+  const module = manifest.modules[index];
+  assert.deepEqual(
+    [module.id, module.source_id, module.num, module.title, module.description, module.timestamp, module.timeSeconds, module.durationSeconds],
+    [`G${String(index + 1).padStart(2, "0")}`, original.id, original.num, original.title, original.title, original.timestamp, original.timeSeconds, original.durationSeconds],
+  );
+  assert.deepEqual(module.reference, {
+    title: original.title,
+    video_url: `/batch/sabri/all_61/${original.referenceVideo}`,
+    poster_url: `/batch/sabri/all_61/${original.referencePoster}`,
+  });
+  for (const file of [original.referenceVideo, original.referencePoster]) {
+    assert.ok(statSync(new URL(`./public/sabri/all_61/${file}`, import.meta.url)).isFile(), `${module.id}: missing ${file}`);
+  }
+  assert.equal(module.clips.length, index === 0 ? 1 : 0, `${module.id}: incorrect ready/pending state`);
+}
+const proof = manifest.modules[0].clips[0];
+assert.equal(proof.video_url, "https://jonmac.ai/frame/api/media?file=g01_loom_single_91c8a22091a875ed");
+assert.equal(proof.review_url, "https://jonmac.ai/frame/?p=365e01c6-0f23-4637-82ed-be6905b2bbcb&file=g01_loom_single_91c8a22091a875ed");
+assert.equal(proof.poster_url, "/batch/posters/G01.jpg");
 
 const source = readFileSync(new URL("./public/index.html", import.meta.url), "utf8").match(/<script>([\s\S]*?)<\/script>/)[1];
 const stored = new Map();
 let failRead = false;
 let failWrite = false;
 const context = vm.createContext({
+  URL,
+  location: new URL("https://jonmac.ai/batch"),
   document: { getElementById: () => ({}) },
   fetch: () => new Promise(() => {}), // Leave page bootstrap pending; exercise helpers below.
   localStorage: {
@@ -41,6 +49,34 @@ const context = vm.createContext({
   },
 });
 vm.runInContext(source, context);
+
+// Validate the same manifest used by the page, including valid pending entries.
+assert.equal(context.validateManifest(manifest), manifest.modules);
+for (const invalidate of [
+  value => { value.modules.pop(); },
+  value => { value.modules[1].id = "G01"; },
+  value => { value.modules[1].timeSeconds = 0; },
+  value => { value.modules[0].timestamp = "00:99"; },
+  value => { value.modules[0].durationSeconds = 0; },
+  value => { value.modules[0].reference.video_url = "/batch/sabri/old.mp4"; },
+  value => { value.modules[0].reference.poster_url = "https://elsewhere.test/poster.png"; },
+  value => { value.modules[1].clips = [{ label: "Not actually ready" }]; },
+]) {
+  const invalid = structuredClone(manifest);
+  invalidate(invalid);
+  assert.throws(() => context.validateManifest(invalid));
+}
+
+// Export reads current drafts (including unsaved ones), retaining every source description and timestamp.
+const drafts = new Map(manifest.modules.map(module => [module.id, `Unsaved draft for ${module.id}`]));
+const exported = context.exportNotes(manifest, id => drafts.get(id));
+const blocks = exported.split(/^## /m).slice(1);
+assert.deepEqual(blocks.map(block => block.match(/^G\d{2}\b/)?.[0]), manifest.modules.map(module => module.id));
+for (const [index, original] of catalog.modules.entries()) {
+  for (const value of [original.title, original.id, original.timestamp, String(original.timeSeconds), String(original.durationSeconds), drafts.get(manifest.modules[index].id)]) {
+    assert.ok(blocks[index].includes(value), `Export omitted ${value}`);
+  }
+}
 const node = () => Object.assign(new EventTarget(), { value: "", textContent: "", hidden: false });
 const emit = (target, event) => target.dispatchEvent(new Event(event));
 const settle = () => new Promise(resolve => setImmediate(resolve));
@@ -59,8 +95,8 @@ function pair() {
   const videos = [media(), media()];
   const button = node();
   const message = node();
-  const control = context.bindPair(videos, button, message);
-  return { videos, button, message, control };
+  context.bindPair(videos, button, message);
+  return { videos, button, message };
 }
 
 // Late successful starts cannot undo a newer Pause Both.
@@ -87,11 +123,11 @@ function pair() {
   assert.match(message.textContent, /blocked/i);
 }
 
-// An older rejected start cannot cancel a newer play request after a variant reset.
+// An older rejected start cannot cancel a newer play request after Pause Both.
 {
-  const { videos, button, control } = pair();
+  const { videos, button } = pair();
   emit(button, "click");
-  control.pause();
+  emit(button, "click");
   emit(button, "click");
   videos[0].starts[0].reject(new Error("Old source aborted"));
   videos[1].starts[0].resolve();
@@ -112,17 +148,18 @@ function pair() {
   await settle();
 }
 
-function notes(project = "project-a") {
+function notes(project = "project-a", catalogId = "sabri-master-61") {
   const textarea = node();
   const message = node();
   const retry = node();
-  context.bindNotes(project, "G01", textarea, message, retry);
+  context.bindNotes(project, catalogId, "G01", textarea, message, retry);
   return { textarea, message, retry };
 }
 
 // Failed writes retain the draft; retry persists it, and another project cannot read it.
 {
   const { textarea, message, retry } = notes();
+  stored.set("batch-notes:project-a:G01", "Original batch notes");
   textarea.value = "00:03 — soften texture";
   failWrite = true;
   emit(textarea, "input");
@@ -134,6 +171,8 @@ function notes(project = "project-a") {
   assert.match(message.textContent, /^Saved/);
   assert.equal(notes().textarea.value, textarea.value);
   assert.equal(notes("project-b").textarea.value, "");
+  assert.equal(notes("project-a", "another-catalog").textarea.value, "");
+  assert.equal(stored.get("batch-notes:project-a:G01"), "Original batch notes");
   failRead = true;
   const reload = notes();
   assert.match(reload.message.textContent, /could not be loaded/);
@@ -141,6 +180,11 @@ function notes(project = "project-a") {
   emit(reload.retry, "click");
   assert.equal(reload.textarea.value, textarea.value);
 }
+
+// Old renumbered IDs must never populate the new ledger, even on the first visit.
+stored.set("batch-notes:legacy-project:G01", "Old graphic one");
+assert.equal(notes("legacy-project").textarea.value, "");
+assert.equal(stored.get("batch-notes:legacy-project:G01"), "Old graphic one");
 
 // Static assets ignore Range; the Worker must return seekable, exact partial bytes.
 {
@@ -167,4 +211,4 @@ function notes(project = "project-a") {
   assert.equal(changed.status, 200);
   assert.deepEqual([...new Uint8Array(await changed.arrayBuffer())], [...body]);
 }
-console.log("Studio regression check passed: approved reference pairings, paired playback, recoverable notes, and static video ranges.");
+console.log("Studio regression check passed: 61 catalog references/files, ready/pending contract, draft export, paired playback, isolated notes, and static video ranges.");
