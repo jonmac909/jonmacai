@@ -18,14 +18,7 @@
         "video_url": "/batch/sabri/all_61/MG01_00m01s_darken_bg_effect_on_whole_video_when_he_.mp4",
         "poster_url": "/batch/sabri/all_61/MG01_00m01s_darken_bg_effect_on_whole_video_when_he_.png"
       },
-      "clips": [
-        {
-          "label": "Loom rebuild · Hornsea Regular emboldened · Air only",
-          "video_url": "https://jonmac.ai/frame/api/media?file=g01_loom_single_91c8a22091a875ed",
-          "review_url": "https://jonmac.ai/frame/?p=365e01c6-0f23-4637-82ed-be6905b2bbcb&file=g01_loom_single_91c8a22091a875ed",
-          "poster_url": "/batch/posters/G01.jpg"
-        }
-      ],
+      "clips": [],
       "startTime": 0.0,
       "endTime": 2.68
     },
@@ -187,7 +180,14 @@
         "video_url": "/batch/sabri/all_61/MG10_00m23s_map_1_card_show_mg.mp4",
         "poster_url": "/batch/sabri/all_61/MG10_00m23s_map_1_card_show_mg.png"
       },
-      "clips": [],
+      "clips": [
+        {
+          "label": "Loom rebuild · Hornsea Regular emboldened · Air only",
+          "video_url": "https://jonmac.ai/frame/api/media?file=g01_loom_single_91c8a22091a875ed",
+          "review_url": "https://jonmac.ai/frame/?p=365e01c6-0f23-4637-82ed-be6905b2bbcb&file=g01_loom_single_91c8a22091a875ed",
+          "poster_url": "/batch/posters/G01.jpg"
+        }
+      ],
       "startTime": 23.08,
       "endTime": 25.5
     },
