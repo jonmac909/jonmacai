@@ -91,7 +91,7 @@
       "description": "draw motion graphic text",
       "timestamp": "00:10",
       "timeSeconds": 10.638083,
-      "durationSeconds": 3.04,
+      "durationSeconds": 1.2,
       "reference": {
         "title": "draw motion graphic text",
         "video_url": "/batch/sabri/all_61/MG05_00m10s_draw_motion_graphic_text.mp4",
@@ -99,7 +99,7 @@
       },
       "clips": [],
       "startTime": 9.8,
-      "endTime": 12.84
+      "endTime": 11.0
     },
     {
       "id": "G06",
@@ -109,14 +109,14 @@
       "description": "grid MG",
       "timestamp": "00:12",
       "timeSeconds": 12.636257,
-      "durationSeconds": 2.04,
+      "durationSeconds": 1.04,
       "reference": {
         "title": "grid MG",
         "video_url": "/batch/sabri/all_61/MG06_00m12s_grid_mg.mp4",
         "poster_url": "/batch/sabri/all_61/MG06_00m12s_grid_mg.png"
       },
       "clips": [],
-      "startTime": 10.8,
+      "startTime": 11.8,
       "endTime": 12.84
     },
     {
@@ -163,14 +163,14 @@
       "description": "behind text MG",
       "timestamp": "00:22",
       "timeSeconds": 22.932203,
-      "durationSeconds": 2.58,
+      "durationSeconds": 1.08,
       "reference": {
         "title": "behind text MG",
         "video_url": "/batch/sabri/all_61/MG09_00m22s_behind_text_mg.mp4",
         "poster_url": "/batch/sabri/all_61/MG09_00m22s_behind_text_mg.png"
       },
       "clips": [],
-      "startTime": 20.5,
+      "startTime": 22.0,
       "endTime": 23.08
     },
     {
@@ -199,15 +199,15 @@
       "description": "instagram slideshow MG with blur",
       "timestamp": "00:28",
       "timeSeconds": 28.86855,
-      "durationSeconds": 2.5,
+      "durationSeconds": 1.2,
       "reference": {
         "title": "instagram slideshow MG with blur",
         "video_url": "/batch/sabri/all_61/MG11_00m28s_instagram_slideshow_mg_with_blur.mp4",
         "poster_url": "/batch/sabri/all_61/MG11_00m28s_instagram_slideshow_mg_with_blur.png"
       },
       "clips": [],
-      "startTime": 27.0,
-      "endTime": 29.5
+      "startTime": 28.0,
+      "endTime": 29.2
     },
     {
       "id": "G12",
