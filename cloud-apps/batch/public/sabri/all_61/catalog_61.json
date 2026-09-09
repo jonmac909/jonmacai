@@ -63,8 +63,8 @@
       "referenceVideo": "MG05_00m10s_draw_motion_graphic_text.mp4",
       "referencePoster": "MG05_00m10s_draw_motion_graphic_text.png",
       "startTime": 9.8,
-      "endTime": 12.84,
-      "durationSeconds": 3.04
+      "endTime": 11.0,
+      "durationSeconds": 1.2
     },
     {
       "id": "MG06",
@@ -75,9 +75,9 @@
       "slug": "grid_mg",
       "referenceVideo": "MG06_00m12s_grid_mg.mp4",
       "referencePoster": "MG06_00m12s_grid_mg.png",
-      "startTime": 10.8,
+      "startTime": 11.8,
       "endTime": 12.84,
-      "durationSeconds": 2.04
+      "durationSeconds": 1.04
     },
     {
       "id": "MG07",
@@ -114,9 +114,9 @@
       "slug": "behind_text_mg",
       "referenceVideo": "MG09_00m22s_behind_text_mg.mp4",
       "referencePoster": "MG09_00m22s_behind_text_mg.png",
-      "startTime": 20.5,
+      "startTime": 22.0,
       "endTime": 23.08,
-      "durationSeconds": 2.58
+      "durationSeconds": 1.08
     },
     {
       "id": "MG10",
@@ -140,9 +140,9 @@
       "slug": "instagram_slideshow_mg_with_blur",
       "referenceVideo": "MG11_00m28s_instagram_slideshow_mg_with_blur.mp4",
       "referencePoster": "MG11_00m28s_instagram_slideshow_mg_with_blur.png",
-      "startTime": 27.0,
-      "endTime": 29.5,
-      "durationSeconds": 2.5
+      "startTime": 28.0,
+      "endTime": 29.2,
+      "durationSeconds": 1.2
     },
     {
       "id": "MG12",
