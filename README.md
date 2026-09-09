@@ -127,19 +127,9 @@ and Wrangler configuration. The withdrawal guard and versioned native-master
 target were retained instead of the historical rejected release; unrelated
 upstream content was unchanged.
 
-The [failed Netlify deploy log](https://app.netlify.com/projects/jonmacai/deploys/6a9f367be90dd30008465a7d)
-shows a site-level build configuration mismatch, not invalid header or redirect
-rules: Netlify's UI runs `npm run build` from `/opt/build/repo`, but the repository
-has no root `package.json` (`ENOENT`, exit 254). Its UI publish directory is `dist`.
-Header rules, Pages changed and Redirect rules all report that same failed deploy.
-No existing repository Netlify configuration is available to correct. The site
-owner must reconcile the connected site's build/base/publish settings with the
-intended main-site source before rerunning its checks. Do not add a dummy build,
-publish this Cloudflare-only review directory to Netlify, or bypass failed checks.
-
-Main must review the integrated diff and resolve that CI prerequisite before
-merging. There is no repository GitHub Actions deployment workflow; Netlify is
-not the Cloudflare Worker deployment.
+Production hosting is entirely on Cloudflare. Review the integrated diff and
+complete the target Worker's build, deployment and live verification before
+calling a release complete.
 
 ```powershell
 git push origin HEAD:jonmac909/Feature-VSL-Review
@@ -166,7 +156,7 @@ that guarded version; do not roll back to a historical unguarded edit.
 - Cached Wrangler 4.129.1 is available, authenticated by stored OAuth; account,
   Worker/route write permissions and R2 bucket read access are available.
 - GitHub CLI access works with repository ADMIN permission. `main` has no branch
-  protection; that does not waive Main's QA or failed-check review gate.
+  protection; that does not waive Main's QA or Cloudflare release verification.
 - `rclone` is installed. No rclone configuration, AWS credentials file, or
   Cloudflare/AWS/R2 credential environment variables were found in this process.
   A multipart upload still needs a securely provisioned R2 S3 access-key pair.
