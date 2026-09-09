@@ -26,7 +26,7 @@ export default {
       const ifRange = request.headers.get("If-Range");
       const rangeHeader = request.method === "GET" && (!ifRange || ifRange === headers.get("ETag")) ? request.headers.get("Range") : null;
       if (rangeHeader) {
-        // ponytail: buffer these <=4 MiB clips; use R2 ranges if the library grows to large media.
+        // ponytail: buffer these <=5 MiB clips; use R2 ranges if the library grows to large media.
         const body = await response.arrayBuffer();
         const size = body.byteLength;
         let range;

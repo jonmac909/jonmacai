@@ -16,8 +16,8 @@ assert.equal(manifest.modules.length, catalog.modules.length);
 for (const [index, original] of catalog.modules.entries()) {
   const module = manifest.modules[index];
   assert.deepEqual(
-    [module.id, module.source_id, module.num, module.title, module.description, module.timestamp, module.timeSeconds, module.durationSeconds],
-    [`G${String(index + 1).padStart(2, "0")}`, original.id, original.num, original.title, original.title, original.timestamp, original.timeSeconds, original.durationSeconds],
+    [module.id, module.source_id, module.num, module.title, module.description, module.timestamp, module.timeSeconds, module.startTime, module.endTime, module.durationSeconds],
+    [`G${String(index + 1).padStart(2, "0")}`, original.id, original.num, original.title, original.title, original.timestamp, original.timeSeconds, original.startTime, original.endTime, original.durationSeconds],
   );
   assert.deepEqual(module.reference, {
     title: original.title,
@@ -52,12 +52,21 @@ vm.runInContext(source, context);
 
 // Validate the same manifest used by the page, including valid pending entries.
 assert.equal(context.validateManifest(manifest), manifest.modules);
+const overlapping = structuredClone(manifest);
+Object.assign(overlapping.modules[0], { startTime: 0, endTime: 2, durationSeconds: 2.0009 });
+Object.assign(overlapping.modules[1], { startTime: 1, endTime: 3, durationSeconds: 2 });
+assert.equal(context.validateManifest(overlapping), overlapping.modules);
 for (const invalidate of [
   value => { value.modules.pop(); },
   value => { value.modules[1].id = "G01"; },
   value => { value.modules[1].timeSeconds = 0; },
   value => { value.modules[0].timestamp = "00:99"; },
   value => { value.modules[0].durationSeconds = 0; },
+  value => { value.modules[0].startTime = String(value.modules[0].startTime); },
+  value => { Object.assign(value.modules[0], { startTime: -1, endTime: 1, durationSeconds: 2 }); },
+  value => { value.modules[0].endTime = String(value.modules[0].endTime); },
+  value => { Object.assign(value.modules[0], { startTime: 0, endTime: 0, durationSeconds: 0.0005 }); },
+  value => { value.modules[0].durationSeconds += 0.0011; },
   value => { value.modules[0].reference.video_url = "/batch/sabri/old.mp4"; },
   value => { value.modules[0].reference.poster_url = "https://elsewhere.test/poster.png"; },
   value => { value.modules[1].clips = [{ label: "Not actually ready" }]; },
@@ -73,7 +82,7 @@ const exported = context.exportNotes(manifest, id => drafts.get(id));
 const blocks = exported.split(/^## /m).slice(1);
 assert.deepEqual(blocks.map(block => block.match(/^G\d{2}\b/)?.[0]), manifest.modules.map(module => module.id));
 for (const [index, original] of catalog.modules.entries()) {
-  for (const value of [original.title, original.id, original.timestamp, String(original.timeSeconds), String(original.durationSeconds), drafts.get(manifest.modules[index].id)]) {
+  for (const value of [original.title, original.id, original.timestamp, String(original.timeSeconds), String(original.startTime), String(original.endTime), String(original.durationSeconds), drafts.get(manifest.modules[index].id)]) {
     assert.ok(blocks[index].includes(value), `Export omitted ${value}`);
   }
 }
