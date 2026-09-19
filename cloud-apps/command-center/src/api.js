@@ -6,9 +6,11 @@ import {
 import {
   loginStore, insertAction, actionByIdem, actionById, claimQueued, completeAction,
   upsertChecklist, upsertHabit, upsertSnapshot, listSnapshots, upsertDealStage, listDealStages, listIdeas, upsertIdea,
+  upsertPost, listPosts,
 } from './db.js';
 import { mergeSnapshot } from './snapshot.js';
 import { boardStageFor, mapColumn } from './sponsors.js';
+import { normalizePost } from './content.js';
 
 const PREFIX = '/dashboard/api';
 const json = (data, status = 200, headers = {}) =>
@@ -153,7 +155,7 @@ export async function handleApi(request, env) {
     const base = filterSnapshot(url.searchParams.get('pages'));
     if (!env.DB) return json(base);
     const overrides = await listDealStages(env.DB);
-    return json(mergeSnapshot(base, await listSnapshots(env.DB), Date.now(), overrides, await listIdeas(env.DB)));
+    return json(mergeSnapshot(base, await listSnapshots(env.DB), Date.now(), overrides, await listIdeas(env.DB), await listPosts(env.DB)));
   }
 
   if (rest === '/ingest' && method === 'POST') {
@@ -168,6 +170,16 @@ export async function handleApi(request, env) {
       return json({ error: 'Unauthorized' }, 401);
     }
     const data = body.data && typeof body.data === 'object' ? body.data : {};
+    if (source === 'post') {
+      const items = Array.isArray(data) ? data : Array.isArray(data.posts) ? data.posts : [data];
+      if (env.DB) {
+        for (const item of items) {
+          const row = normalizePost(item, 'agent', collectedAt);
+          if (row.platform && (row.first_line || row.url)) await upsertPost(env.DB, row);
+        }
+      }
+      return json({ ok: true });
+    }
     if (env.DB) await upsertSnapshot(env.DB, source, JSON.stringify(data), collectedAt, new Date().toISOString());
     return json({ ok: true });
   }
@@ -236,6 +248,13 @@ export async function handleApi(request, env) {
     const b = await request.json().catch(() => ({}));
     await upsertIdea(env.DB, { id: idea[1], ...b });
     return json({ ok: true });
+  }
+  if (rest === '/posts' && method === 'POST') {
+    const b = await request.json().catch(() => ({}));
+    const row = normalizePost(b, 'manual');
+    if (!row.platform || !row.first_line) return json({ error: 'Need a platform and the first line' }, 400);
+    if (env.DB) await upsertPost(env.DB, row);
+    return json({ ok: true, id: row.id });
   }
   return json({ error: 'Not found' }, 404);
 }

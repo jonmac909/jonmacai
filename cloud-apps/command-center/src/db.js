@@ -108,3 +108,15 @@ export async function upsertIdea(db, row) {
     now,
   ).run();
 }
+
+export async function upsertPost(db, row) {
+  await db.prepare(
+    'INSERT OR REPLACE INTO posts (id, platform, posted_at, url, first_line, source) VALUES (?, ?, ?, ?, ?, ?)',
+  ).bind(row.id, row.platform, row.posted_at, row.url || '', row.first_line || '', row.source || 'agent').run();
+}
+
+export async function listPosts(db) {
+  if (!db) return [];
+  const { results } = await db.prepare('SELECT id, platform, posted_at, url, first_line, source FROM posts ORDER BY posted_at').all();
+  return results || [];
+}

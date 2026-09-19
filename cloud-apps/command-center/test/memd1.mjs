@@ -3,11 +3,13 @@ export function memD1() {
   const actions = [];
   const deals = new Map();
   const ideas = new Map();
+  const posts = new Map();
   return {
     snapshots,
     actions,
     deals,
     ideas,
+    posts,
     prepare(sql) {
       const s = String(sql);
       const stmt = {
@@ -22,6 +24,7 @@ export function memD1() {
           if (/FROM actions WHERE idem_key/.test(s)) return actions.find((x) => x.idem_key === a[0]) || null;
           if (/FROM actions WHERE id/.test(s)) return actions.find((x) => x.id === a[0]) || null;
           if (/FROM ideas WHERE id/.test(s)) return ideas.get(a[0]) || null;
+          if (/FROM posts WHERE id/.test(s)) return posts.get(a[0]) || null;
           return null;
         },
         async all() {
@@ -31,6 +34,7 @@ export function memD1() {
             return { results: [...deals.entries()].map(([deal_id, row]) => ({ deal_id, stage: row.stage || row })) };
           }
           if (/FROM ideas/.test(s)) return { results: [...ideas.values()] };
+          if (/FROM posts/.test(s)) return { results: [...posts.values()] };
           if (/FROM actions WHERE target/.test(s)) {
             return {
               results: actions
@@ -49,6 +53,10 @@ export function memD1() {
             ideas.set(a[0], {
               id: a[0], title: a[1], body: a[2], area: a[3], verdict: a[4],
               status: a[5], created_at: a[6], updated_at: a[7],
+            });
+          } else if (/INSERT OR REPLACE INTO posts/.test(s)) {
+            posts.set(a[0], {
+              id: a[0], platform: a[1], posted_at: a[2], url: a[3], first_line: a[4], source: a[5],
             });
           } else if (/INSERT INTO actions/.test(s)) {
             actions.push({

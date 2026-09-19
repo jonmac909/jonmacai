@@ -1,5 +1,6 @@
 import { buildSponsorsPage, applyHomeSponsors } from './sponsors.js';
 import { overlaySupport } from './support.js';
+import { overlayContent } from './content.js';
 
 export const COLLECTOR_INTERVAL_MS = 5 * 60 * 1000;
 
@@ -11,6 +12,7 @@ export const INTERVALS = {
   sponsors: COLLECTOR_INTERVAL_MS,
   mastermind: COLLECTOR_INTERVAL_MS,
   support: COLLECTOR_INTERVAL_MS,
+  content_queue: COLLECTOR_INTERVAL_MS,
 };
 
 const MACHINES = [
@@ -168,7 +170,7 @@ function overlayMastermind(page, data, ideas, nowMs) {
   };
 }
 
-export function mergeSnapshot(fixture, rows, nowMs = Date.now(), overrides = {}, ideas = []) {
+export function mergeSnapshot(fixture, rows, nowMs = Date.now(), overrides = {}, ideas = [], posts = []) {
   if (Array.isArray(overrides)) {
     ideas = overrides;
     overrides = {};
@@ -225,6 +227,19 @@ export function mergeSnapshot(fixture, rows, nowMs = Date.now(), overrides = {},
       page.sub = `From your collections tracker · ${f.label}`;
       if (out.pages.sponsors) out.pages.sponsors = page;
       applyHomeSponsors(out, page);
+    }
+  }
+  if (out.pages.content) {
+    const qRow = by.content_queue;
+    const vRow = by.viralview;
+    overlayContent(out.pages.content, {
+      posts,
+      queue: qRow ? parseData(qRow.data) : null,
+      viral: vRow ? parseData(vRow.data) : null,
+      nowMs,
+    });
+    if (out.nav?.badges && out.pages.content.queueCount != null) {
+      out.nav.badges.content = out.pages.content.queueCount;
     }
   }
   return out;
