@@ -56,6 +56,9 @@ def handle_action(kind, payload, machine):
     if kind == 'mastermind.send_to_planner':
         from planner_task import send_to_planner
         return send_to_planner(payload or {})
+    if str(kind).startswith('video.'):
+        from video_edit import handle as video_handle
+        return video_handle(kind, payload or {})
     if kind == 'agent.restart':
         from agents_collect import restart_agent
         return restart_agent(payload or {})
