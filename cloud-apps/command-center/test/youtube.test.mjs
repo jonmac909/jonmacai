@@ -205,7 +205,7 @@ test('mergeSnapshot wires youtube projects, outliers and the video queue', () =>
       collected_at: '2026-09-18T17:40:00Z',
       data: JSON.stringify({ cards: [{ id: 'inv1', sponsor: 'InVideo', stage: 'production', latestDate: '2026-09-24' }] }),
     },
-  ], now, {}, [], projects);
+  ], now, {}, [], [], projects);
   assert.equal(out.pages.youtube.pipeline.rows.some((r) => r.video === 'Video 3 of the week'), true);
   assert.equal(out.pages.youtube.remake.jobs[0].area, 'Joshua Mayo');
   assert.equal(out.pages.video.editing.rows[0].title, 'Video 2 of the week');

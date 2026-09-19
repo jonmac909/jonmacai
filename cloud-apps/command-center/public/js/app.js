@@ -196,6 +196,26 @@ document.addEventListener('click', (e) => {
 
   const href = e.target.closest('[data-href]');
   if (href) { window.open(href.dataset.href, '_blank', 'noopener'); return; }
+  const logBtn = e.target.closest('[data-log-post]');
+  if (logBtn) {
+    const platform = prompt('Platform (X, Instagram, Facebook, LinkedIn)', 'X');
+    if (platform == null) return;
+    const first = prompt('First line of the post');
+    if (first == null || !String(first).trim()) return;
+    const url = prompt('Link (optional)', '') ?? '';
+    fetch(`${PREFIX}/api/posts`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CC': '1' },
+      body: JSON.stringify({ platform, first_line: String(first).trim(), url }),
+    }).then(async (res) => {
+      const j = await res.json().catch(() => ({}));
+      say(res.ok ? 'Post logged' : (j.error || 'Could not log post'));
+      if (!res.ok) return;
+      const snap = await fetch(`${PREFIX}/api/snapshot`);
+      if (snap.ok) { data = await snap.json(); go(hashPage()); }
+    });
+    return;
+  }
   const actBtn = e.target.closest('[data-kind]');
   if (actBtn) {
     let payload = {};
@@ -211,7 +231,7 @@ document.addEventListener('click', (e) => {
         const r = actBtn.closest('.r, .job');
         if (r) r.classList.add('done');
       }
-      if (kind.startsWith('mastermind.') || kind.startsWith('support.') || kind.startsWith('video.') || kind === 'agent.restart' || kind === 'ping') {
+      if (kind.startsWith('mastermind.') || kind.startsWith('support.') || kind.startsWith('video.') || kind.startsWith('content.') || kind === 'agent.restart' || kind === 'ping') {
         const snap = await fetch(`${PREFIX}/api/snapshot`);
         if (snap.ok) {
           data = await snap.json();
