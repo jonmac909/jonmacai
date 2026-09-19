@@ -3,13 +3,15 @@ const HIDDEN = '$ • • • • • •';
 const SMALL = { VOO: 'S&P 500', QQQ: 'Nasdaq 100', DIA: 'Dow', XAU: 'Gold', XAG: 'Silver', IBIT: 'Bitcoin fund' };
 const ACTION = 'https://moneyclaw.jonmac.ai/api/internal/dashboard-action';
 
-export function usd(n, digits) {
+export function usd(n, digits, currency = 'USD') {
   const x = Number(n) || 0;
   const d = digits == null ? (Math.abs(x - Math.round(x)) < 1e-9 ? 0 : 2) : digits;
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency', currency: 'USD', minimumFractionDigits: d, maximumFractionDigits: d,
+  const locale = currency === 'CAD' ? 'en-CA' : 'en-US';
+  return new Intl.NumberFormat(locale, {
+    style: 'currency', currency, minimumFractionDigits: d, maximumFractionDigits: d,
   }).format(x);
 }
+function cad(n, digits) { return usd(n, digits, 'CAD'); }
 
 function dollars(period) {
   if (!period) return 0;
@@ -64,10 +66,10 @@ function vsLast(month, last, nowMs) {
 
 function stages(group) {
   return [
-    { label: 'Yesterday', value: usd(dollars(group?.yesterday)) },
-    { label: 'This week', value: usd(dollars(group?.week)) },
-    { label: 'This month', value: usd(dollars(group?.month)) },
-    { label: 'Last month', value: usd(dollars(group?.lastMonth)) },
+    { label: 'Yesterday', value: cad(dollars(group?.yesterday)) },
+    { label: 'This week', value: cad(dollars(group?.week)) },
+    { label: 'This month', value: cad(dollars(group?.month)) },
+    { label: 'Last month', value: cad(dollars(group?.lastMonth)) },
   ];
 }
 
@@ -79,7 +81,7 @@ function block(title, group, nowMs) {
     meta: '',
     stages: stages(group),
     ...vsLast(month, dollars(group?.lastMonth), nowMs),
-    note: pending > 0 ? `${usd(pending)} of this month is still pending.` : 'Nothing pending this month.',
+    note: pending > 0 ? `${cad(pending)} of this month is still pending.` : 'Nothing pending this month.',
   };
 }
 
@@ -146,7 +148,7 @@ function categoryRows(list) {
     const misc = /misc|uncategorized/i.test(r.name) && share >= 0.4;
     return {
       label: `${r.name}${count}`,
-      value: share >= 0.1 ? `${usd(r.total, 2)} · ${Math.round(share * 100)}%` : usd(r.total, 2),
+      value: share >= 0.1 ? `${cad(r.total, 2)} · ${Math.round(share * 100)}%` : cad(r.total, 2),
       pct,
       pg: misc ? 'crit' : '',
       min: pct < 1 ? '3px' : undefined,
@@ -164,7 +166,7 @@ function chargeRows(list) {
       card: r.accountLabel || '',
       filed: adsMisc ? `${r.category} · should be ads` : (r.category || ''),
       filedCls: adsMisc ? 'crit' : '',
-      amount: usd(r.amount, 2),
+      amount: cad(r.amount, 2),
     };
   });
 }
@@ -181,7 +183,7 @@ export function overlayMoney(page, data, nowMs, ageLabel) {
   page.business = block('Business', data.expenses.business, nowMs);
   page.categories = {
     title: 'Business · this month by category',
-    meta: `${usd(monthTotal, 2)} total`,
+    meta: `${cad(monthTotal, 2)} total`,
     note: 'Bars are sized against the biggest category. Click a category to see its charges, the same as in MoneyClaw.',
     rows: categoryRows(data.expenses.businessCategories),
   };
@@ -190,7 +192,7 @@ export function overlayMoney(page, data, nowMs, ageLabel) {
     title: 'Net worth',
     meta: '90 days',
     hidden: HIDDEN,
-    shown: usd(data.netWorth?.value),
+    shown: cad(data.netWorth?.value),
     spark: sparkPath(data.netWorth?.series),
   };
   page.charges = { title: 'Latest business charges', rows: chargeRows(data.expenses.latestBusinessCharges) };
@@ -239,7 +241,7 @@ export function overlayMarkets(page, data, nowMs, ageLabel) {
   const voo = pulse.voo || {};
   const vixN = Number(vix.price) || 0;
   const newsPending = String(pulse.newsLevel || '') === 'Pending';
-  page.sub = `From MoneyClaw Market · CAD · America/Vancouver · ${ageLabel}`;
+  page.sub = `From MoneyClaw Market · USD · America/Vancouver · ${ageLabel}`;
   page.actions = [{ label: 'Open MoneyClaw', href: 'https://moneyclaw.jonmac.ai', msg: 'Opens moneyclaw.jonmac.ai market page' }];
   page.tiles = [
     { icon: 'trend', label: 'Market mood', value: pulse.mood || '—', sub: newsPending ? 'After hours' : '' },

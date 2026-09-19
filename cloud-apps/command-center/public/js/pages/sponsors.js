@@ -1,4 +1,4 @@
-import { tiles, pg, pill, btn, kanban, pgrow, head } from '../ui.js';
+import { tiles, pg, pill, btn, kanban, pgrow, head, esc } from '../ui.js';
 
 export function render(d) {
   const right = d.actions.map((a) => btn(a.label, { msg: a.msg, cls: 'line', href: a.href, kind: a.kind, payload: a.payload })).join('');
@@ -14,7 +14,7 @@ export function render(d) {
       sendKind: r.sendKind || 'sponsor.send_draft',
       discardKind: r.discardKind || 'sponsor.discard_draft',
     };
-    return `<div class="r"><div><strong>${r.title}</strong><small>${r.sub}</small></div><div class="right">${btn('Edit', { draft: true, payload, cls: 'line' })}${btn('Approve & send', { draft: true, payload, done: true })}</div></div>`;
+    return `<div class="r"><div><strong>${esc(r.title)}</strong><small>${esc(r.sub)}</small></div><div class="right">${btn('Edit', { draft: true, payload, cls: 'line' })}${btn('Approve & send', { draft: true, payload, done: true })}</div></div>`;
   }).join('');
   return `<div class="wrap">
   ${head(d.title, d.sub, right)}

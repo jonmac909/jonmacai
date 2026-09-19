@@ -99,7 +99,12 @@ async function postAction(request, env) {
   try { body = await request.json(); } catch { body = {}; }
   const kind = String(body.kind || 'ui.toast');
   const payload = body.payload && typeof body.payload === 'object' ? body.payload : {};
-  const idem = String(body.idemKey || crypto.randomUUID());
+  const draftId = String(payload.uid || payload.id || '');
+  const sendKind = kind === 'support.send' || kind === 'sponsor.send_draft' || kind === 'support.decide_refund';
+  const allIds = (payload.ids || []).map(String).sort().join(',');
+  let idem = String(body.idemKey || crypto.randomUUID());
+  if (sendKind && draftId) idem = `send:${kind}:${draftId}`;
+  else if (kind === 'support.send_all_safe' && allIds) idem = `send:${kind}:${allIds}`;
   if (env.DB) {
     const existing = await actionByIdem(env.DB, idem);
     if (existing) return json({ id: existing.id, status: existing.status, result: existing.result });
@@ -287,18 +292,12 @@ export async function handleApi(request, env) {
     if (env.UPLOADS) await env.UPLOADS.put(key, buf);
     const now = new Date().toISOString();
     const actionId = crypto.randomUUID();
-    if (env.DB) {
-      const studio = env.LOOP_STUDIO_URL || env.GPU1_VIDEO_URL;
-      if (studio) {
-        await insertAction(env.DB, {
-          id: actionId, kind: 'video.start_edit', target: 'worker',
-          payload: JSON.stringify({ id, title, filename, key, studio }),
-          status: 'done', result: 'Queued on Loop Studio', idem_key: `upload-${id}`, created_at: now, finished_at: now,
-        });
-        return json({ ok: true, id: actionId, result: 'Edit started on Loop Studio', editor: 'gpu1' });
-      }
-    }
-    return json({ ok: true, stored: true, result: 'Uploaded · Loop Studio / GPU1 is not connected', editor: 'disconnected' });
+    // ponytail: no studio POST exists; stay disconnected even if LOOP_STUDIO_URL/GPU1_VIDEO_URL is set
+    return json({
+      ok: true, stored: true, id: actionId, created_at: now,
+      result: 'Uploaded · Loop Studio / GPU1 is not connected',
+      editor: 'disconnected',
+    });
   }
   if (up && method === 'GET') {
     const who = machineOf(request, env);

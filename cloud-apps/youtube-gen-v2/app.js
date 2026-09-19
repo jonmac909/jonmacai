@@ -78,7 +78,7 @@
       const res = await fetch("/yt2/api/projects", { headers: { "X-YT2": "1" } });
       if (!res.ok) return;
       const remote = await res.json();
-      if (!Array.isArray(remote)) return;
+      if (!Array.isArray(remote) || !remote.length) return;
       state.projects = remote;
       localStorage.setItem(STORAGE_KEY, JSON.stringify(remote));
       render();

@@ -297,6 +297,7 @@ export function overlaySponsors(page, data, nowMs = Date.now(), overrides = {}) 
     page.actions = actions;
     page.unverified = true;
     page.sourceNote = 'Collections origin not connected';
+    page.tiles = (page.tiles || []).map((t) => ({ ...t, value: '—', sub: 'Not connected', pct: 0, goal: '' }));
     return page;
   }
   const built = buildSponsorsPage(data, nowMs, overrides);

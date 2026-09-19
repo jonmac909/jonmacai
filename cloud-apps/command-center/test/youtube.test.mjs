@@ -178,7 +178,8 @@ test('merge overlays the GPU2 editor queue onto Video', () => {
   assert.equal(page.editing.rows[1].pill, 'Queued');
   assert.equal(page.ready.rows[0].title, 'Sponsor C · 90-second cut');
   assert.equal(page.finished.rows[0].video, 'Video 1 of the week');
-  assert.match(page.sub, /1 editing now/);
+  assert.match(page.sub, /not connected/i);
+  assert.equal(page.unverified, true);
 });
 
 test('youtube production tile is live zeros without projects', () => {

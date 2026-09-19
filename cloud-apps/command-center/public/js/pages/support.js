@@ -16,7 +16,7 @@ function draftBtns(r) {
   const payload = {
     ...(r.payload || {}),
     to: r.to, subject: r.subject, body: r.body,
-    saveKind: r.saveKind || 'support.save',
+    saveKind: r.saveKind || 'support.save_draft',
     sendKind: r.sendKind || r.kind || 'support.send',
     discardKind: r.discardKind || 'support.discard_draft',
   };
@@ -34,7 +34,7 @@ function moneyBtns(r) {
 }
 
 export function render(d) {
-  const right = d.actions.map((a) => btn(a.label, { msg: a.msg, kind: a.kind, payload: a.payload })).join('');
+  const right = (d.actions || []).map((a) => btn(a.label, { msg: a.msg, kind: a.kind, payload: a.payload })).join('');
   const drafts = d.drafts.rows.map((r) => `<div class="r"><div><strong>${esc(r.title)}</strong><small>${esc(r.sub)}</small><div class="quote">${esc(r.quote)}</div></div><div class="right">${draftBtns(r)}</div></div>`).join('');
   const money = moneyRows(d).map((r) => `<div class="r"><div><strong>${esc(r.title)}</strong><small>${esc(r.sub)}</small></div><div class="right">${moneyBtns(r)}</div></div>`).join('');
   return `<div class="wrap">

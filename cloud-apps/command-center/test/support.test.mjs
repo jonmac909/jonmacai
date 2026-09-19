@@ -123,8 +123,7 @@ test('merge overlays live drafts, waits, money and refunds onto Support', () => 
   assert.equal(p.money.rows[0].kind, 'support.decide_refund');
   assert.equal(p.money.pill, '1 open');
   assert.equal(out.nav.badges.support, 4);
-  assert.equal(p.actions[0].kind, 'support.send_all_safe');
-  assert.deepEqual(p.actions[0].payload.ids, ['1', '2', '3']);
+  assert.ok(!(p.actions || []).some((a) => a.kind === 'support.send_all_safe'));
 });
 
 test('answered-today bar stays within 0–100 when caught up past inbound', () => {

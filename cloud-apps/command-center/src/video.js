@@ -6,7 +6,7 @@ export function overlayVideo(page, data = {}) {
   const ready = queue.filter((q) => q.status === 'ready');
   const finished = queue.filter((q) => q.status === 'done');
   const nEdit = queue.filter((q) => q.status === 'editing').length;
-  const connected = data.editor === 'gpu1' || data.loopStudio || queue.length > 0;
+  const connected = data.editor === 'gpu1' || Boolean(data.loopStudio);
   page.sub = connected
     ? `${nEdit} editing now · ${ready.length} ready for you to watch`
     : 'Loop Studio / GPU1 is not connected · uploads store here, no editor job starts';

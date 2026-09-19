@@ -2,6 +2,28 @@ function json(data, status = 200) {
   return new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json' } });
 }
 
+function yt2Id(id) {
+  const s = String(id);
+  return s.startsWith('yt2:') ? s : `yt2:${s}`;
+}
+
+function isYt2Project(p) {
+  return Boolean(p) && (p.origin === 'yt2' || String(p.id || '').startsWith('yt2:'));
+}
+
+function asYt2(p) {
+  const id = yt2Id(p.id);
+  return { ...p, id, origin: 'yt2' };
+}
+
+function refreshRows(body) {
+  if (Array.isArray(body?.rows)) return { rows: body.rows, listed: true };
+  if (Array.isArray(body?.videos)) return { rows: body.videos, listed: true };
+  if (Array.isArray(body?.items)) return { rows: body.items, listed: true };
+  if (Array.isArray(body?.data)) return { rows: body.data, listed: true };
+  if (Array.isArray(body?.data?.rows)) return { rows: body.data.rows, listed: true };
+  return { rows: [], listed: false };
+}
 export function isAiUgc(title) {
   const t = String(title || '');
   if (!t) return false;
@@ -43,7 +65,7 @@ export async function handleYt2Api(request, env) {
       const { results } = await env.DB.prepare('SELECT data FROM video_projects ORDER BY updated_at DESC').all();
       const list = (results || []).map((r) => {
         try { return JSON.parse(r.data); } catch { return null; }
-      }).filter(Boolean);
+      }).filter(isYt2Project);
       return json(list);
     }
     if (request.method === 'PUT') {
@@ -52,16 +74,18 @@ export async function handleYt2Api(request, env) {
       try { list = await request.json(); } catch { list = []; }
       if (!Array.isArray(list)) return json({ error: 'Bad projects' }, 400);
       const now = new Date().toISOString();
-      await env.DB.prepare('DELETE FROM video_projects').run();
+      // ponytail: upsert yt2 rows only; never DELETE FROM video_projects
       for (const p of list) {
         if (!p || !p.id) continue;
-        await env.DB.prepare('INSERT INTO video_projects (id, data, updated_at) VALUES (?, ?, ?)')
-          .bind(String(p.id), JSON.stringify(p), now).run();
+        const row = asYt2(p);
+        await env.DB.prepare('INSERT OR REPLACE INTO video_projects (id, data, updated_at) VALUES (?, ?, ?)')
+          .bind(row.id, JSON.stringify(row), now).run();
       }
       return json({ ok: true, n: list.length });
     }
   }
   if (path.endsWith('/api/refresh') && request.method === 'POST') {
+    // Cookie Path=/ is required so /yt login cookies are sent to /yt2/api/refresh
     const cookie = request.headers.get('cookie') || '';
     const res = await fetch(new URL('/yt/api/channels/refresh', request.url), {
       method: 'POST',
@@ -73,16 +97,25 @@ export async function handleYt2Api(request, env) {
       return json({ ok: false, needLogin: true, login: '/yt/login?next=/yt2/' }, 401);
     }
     const body = await res.json().catch(() => ({}));
-    return json({ ok: res.ok, ...body }, res.ok ? 200 : res.status);
+    const mapped = refreshRows(body);
+    const ok = Boolean(res.ok && mapped.listed);
+    return json({
+      ok,
+      rows: mapped.rows,
+      generatedAt: body.generatedAt,
+      refreshed: body.refreshed,
+      error: ok ? undefined : (body.error || 'No video rows'),
+    }, ok ? 200 : (res.ok ? 200 : res.status));
   }
   if (path.endsWith('/api/remake') && request.method === 'POST') {
     if (request.headers.get('X-YT2') !== '1') return json({ error: 'Missing header' }, 403);
     let body = {};
     try { body = await request.json(); } catch { body = {}; }
     if (!env.DB) return json({ error: 'No database' }, 500);
-    const id = String(body.id || `remake_${Date.now()}`);
+    const id = yt2Id(body.id || `remake_${Date.now()}`);
     const project = {
       id,
+      origin: 'yt2',
       createdAt: new Date().toISOString(),
       stage: 'script',
       templateId: body.templateId || 'trend_to_revenue',

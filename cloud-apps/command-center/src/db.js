@@ -135,11 +135,12 @@ export async function listVideoProjects(db) {
 }
 
 export async function replaceVideoProjects(db, list, now) {
-  await db.prepare('DELETE FROM video_projects').run();
   for (const p of list || []) {
     if (!p || !p.id) continue;
-    await db.prepare('INSERT INTO video_projects (id, data, updated_at) VALUES (?, ?, ?)')
-      .bind(String(p.id), JSON.stringify(p), now).run();
+    const id = String(p.id);
+    if (id.startsWith('yt2:')) continue;
+    await db.prepare('INSERT OR REPLACE INTO video_projects (id, data, updated_at) VALUES (?, ?, ?)')
+      .bind(id, JSON.stringify(p), now).run();
   }
 }
 

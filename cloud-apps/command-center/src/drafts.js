@@ -65,20 +65,25 @@ export async function persistQueueDrafts(db, data, collectedAt, nowMs = Date.now
   }).format(new Date(Date.parse(collectedAt) || nowMs));
   const existing = await listDrafts(db, day);
   const used = new Set(existing.map((r) => `${r.platform}|${r.first_line}`));
+  const ids = new Set(existing.map((r) => r.id));
   const slots = {};
   for (const r of existing) slots[r.platform] = Math.max(slots[r.platform] || 0, Number(r.slot) || 0);
   for (const item of queued) {
     const platform = platformOf(item.platform);
     const first = String(item.firstLine || item.first_line || item.body || '').trim();
     if (!first) continue;
+    const id = String(item.id || '');
+    if (id && ids.has(id)) continue;
     const key = `${platform}|${first}`;
     if (used.has(key)) continue;
     const slot = (slots[platform] || 0) + 1;
     if (slot > 3) continue;
     slots[platform] = slot;
     used.add(key);
+    const rowId = id || crypto.randomUUID();
+    ids.add(rowId);
     await upsertDraft(db, {
-      id: String(item.id || crypto.randomUUID()),
+      id: rowId,
       day,
       platform,
       slot,

@@ -1,4 +1,7 @@
+import { esc } from './ui.js';
+
 const PREFIX = '/dashboard';
+let sending = false;
 
 function ymdNow() {
   return new Intl.DateTimeFormat('en-CA', {
@@ -36,7 +39,6 @@ export function bindModals({ say, act, go, getData }) {
     fillMorning(getData());
   });
 
-  let sending = false;
   draft.addEventListener('click', async (e) => {
     const b = e.target.closest('[data-draft-act]');
     if (!b) return;
@@ -59,17 +61,21 @@ export function bindModals({ say, act, go, getData }) {
       await go(location.hash.replace('#', '') || 'home');
     } finally {
       sending = false;
+      if (actn === 'send') b.disabled = false;
     }
   });
 }
 
 export function openDraft(payload = {}) {
+  sending = false;
   const draft = document.getElementById('draftModal');
   if (!draft) return;
   draft.dataset.payload = JSON.stringify(payload);
   draft.querySelector('[name=to]').value = payload.to || '';
   draft.querySelector('[name=subject]').value = payload.subject || '';
   draft.querySelector('[name=body]').value = payload.body || '';
+  const sendBtn = draft.querySelector('[data-draft-act="send"]');
+  if (sendBtn) sendBtn.disabled = false;
   draft.showModal();
 }
 
@@ -78,6 +84,6 @@ function fillMorning(data) {
   if (!box) return;
   const steps = data?.pages?.home?.runThrough?.steps || [];
   box.innerHTML = steps.map((s) => (
-    `<button type="button" class="step" data-item="${s.item}" data-page="${s.page}" aria-pressed="${s.done ? 'true' : 'false'}">${s.label}</button>`
+    `<button type="button" class="step" data-item="${esc(s.item)}" data-page="${esc(s.page)}" aria-pressed="${s.done ? 'true' : 'false'}">${esc(s.label)}</button>`
   )).join('');
 }

@@ -257,10 +257,12 @@ def send_live(payload):
     try:
         uid = str(payload.get('uid') or '')
         ticket = _fetch_uid(box, uid) if uid else dict(payload)
-        if payload.get('body'):
+        if payload.get('body') is not None:
             ticket['body'] = payload['body']
-        if payload.get('to') and not ticket.get('to'):
+        if payload.get('to'):
             ticket['to'] = payload['to']
+        if payload.get('subject'):
+            ticket['subject'] = payload['subject']
         return send_draft(lambda m: _smtp_send(acct, pw, m), box, ticket, payload.get('body'))
     finally:
         try:
@@ -281,6 +283,8 @@ def save_live(payload):
         ticket['body'] = payload.get('body') if payload.get('body') is not None else ticket.get('body')
         if payload.get('subject'):
             ticket['subject'] = payload['subject']
+        if payload.get('to'):
+            ticket['to'] = payload['to']
         raw = build_reply(ticket).as_bytes()
         box.append('"[Gmail]/Drafts"', r'(\Draft \Seen)', imaplib.Time2Internaldate(time.time()), raw)
         box.uid('STORE', uid, '+FLAGS', r'(\Deleted)')

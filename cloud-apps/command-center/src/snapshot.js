@@ -73,7 +73,7 @@ function markUnverified(page, reason) {
   page.sub = page.sub ? `${reason} · ${page.sub}` : reason;
 }
 
-function applyHonesty(out, by, health) {
+function applyHonesty(out, by, health, nowMs) {
   const need = {
     sponsors: 'sponsors', viral: 'viralview', youtube: 'youtube', content: 'content_queue',
     outreach: 'instantly', support: 'support', video: 'video', money: 'moneyclaw',
@@ -84,6 +84,9 @@ function applyHonesty(out, by, health) {
     const err = health?.errors?.[source];
     if (err) markUnverified(out.pages[pageId], `Source error · ${err}`);
     else if (!by[source]) markUnverified(out.pages[pageId], 'Not connected · not live numbers');
+    else if (freshness(by[source].collected_at, nowMs, INTERVALS[source] ?? DEFAULT_INTERVAL_MS).stale) {
+      markUnverified(out.pages[pageId], 'Stale · not live numbers');
+    }
   }
   if (out.pages?.agents && !by.agents_mac && !by.agents_gpu2) {
     markUnverified(out.pages.agents, 'Not connected · not live numbers');
@@ -348,7 +351,7 @@ export function mergeSnapshot(fixture, rows, opts = {}, ideasArg, postsArg, proj
     });
   }
   applyHome(out, by, extra, nowMs);
-  applyHonesty(out, by, health);
+  applyHonesty(out, by, health, nowMs);
   if (out.pages.home) out.pages.home.chip = honestyChip(by, nowMs, fixture.pages?.home?.chip || 'Mockup · numbers are examples');
   return out;
 }

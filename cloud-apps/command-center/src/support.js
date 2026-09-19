@@ -57,15 +57,7 @@ export function overlaySupport(page, data, nowMs, ageLabel = '') {
   const reqN = money.length;
   const checked = ageLabel ? ageLabel.replace(/^updated /, 'checked ') : 'checked just now';
   page.sub = `Email and live chat · ${checked}`;
-  page.actions = [{
-    label: 'Approve all safe replies',
-    kind: 'support.send_all_safe',
-    msg: money.length
-      ? `${drafts.length} safe replies sent · refund left for you`
-      : `${drafts.length} safe replies sent`,
-    payload: { ids: drafts.map((t) => String(t.uid)), refundLeft: money.length > 0 },
-    primary: true,
-  }];
+  page.actions = [];
   page.tiles = [
     { icon: 'chat', label: 'Waiting on you', value: String(tickets.length), sub: tickets.length ? 'All have drafted replies' : 'None waiting' },
     {
@@ -95,7 +87,7 @@ export function overlaySupport(page, data, nowMs, ageLabel = '') {
       subject: t.subject || '',
       body: t.draft || t.body || '',
       kind: 'support.send',
-      saveKind: 'support.save',
+      saveKind: 'support.save_draft',
       sendKind: 'support.send',
       discardKind: 'support.discard_draft',
       payload: payloadOf(t, { msg: 'Reply sent' }),

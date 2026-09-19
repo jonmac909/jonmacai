@@ -104,6 +104,7 @@ def handle(kind, payload):
             return True, payload.get('msg') or 'Moved card'
         if kind == 'sponsor.send_draft':
             _req('POST', '/api/card-drafts/%s/send' % _q(card_id), {
+                'to': payload.get('to') or '',
                 'subject': payload.get('subject') or '',
                 'body': payload.get('body') or '',
             })
@@ -111,6 +112,7 @@ def handle(kind, payload):
         if kind == 'sponsor.save_draft':
             _req('PATCH', '/api/card-drafts/%s' % _q(card_id), {
                 'status': payload.get('status') or 'edited',
+                'to': payload.get('to') or '',
                 'subject': payload.get('subject') or '',
                 'body': payload.get('body') or '',
             })
