@@ -297,6 +297,29 @@ test('fixture bank scan Enter code is gone without a live bank_scan', () => {
   assert.equal(rows.some((r) => r.btn === 'Enter code' || r.pill === 'Needs code'), false);
 });
 
+test('Home greeting follows America/Vancouver hour', () => {
+  const live = [row('agents_mac', { hostname: 'x' })];
+  const evening = mergeSnapshot(snapshot, live, Date.parse('2026-09-18T20:00:00-07:00'));
+  assert.equal(evening.pages.home.greeting, 'Good evening, Jon 👋');
+  const morning = mergeSnapshot(snapshot, live, Date.parse('2026-09-18T08:00:00-07:00'));
+  assert.equal(morning.pages.home.greeting, 'Good morning, Jon 👋');
+  const afternoon = mergeSnapshot(snapshot, live, Date.parse('2026-09-18T14:00:00-07:00'));
+  assert.equal(afternoon.pages.home.greeting, 'Good afternoon, Jon 👋');
+});
+
+test('Home date is America/Vancouver not the worker clock', () => {
+  const out = mergeSnapshot(snapshot, [row('agents_mac', { hostname: 'x' })], Date.parse('2026-09-20T06:30:00Z'));
+  assert.equal(out.pages.home.date, 'Saturday, September 19 · Kelowna');
+});
+
+test('goal ring days left is the rest of this Vancouver month', () => {
+  const live = [row('agents_mac', { hostname: 'x' })];
+  const mid = mergeSnapshot(snapshot, live, Date.parse('2026-09-18T20:00:00-07:00'));
+  assert.equal(mid.goal.sub, '12 days left in September');
+  const late = mergeSnapshot(snapshot, live, Date.parse('2026-09-29T12:00:00-07:00'));
+  assert.equal(late.goal.sub, '1 day left in September');
+});
+
 function lastNow() {
   return '2026-09-18T08:12:00-07:00';
 }

@@ -266,6 +266,7 @@ export function mergeSnapshot(fixture, rows, nowMs = Date.now(), overrides = {},
       posts,
       queue: qRow ? parseData(qRow.data) : null,
       viral: vRow ? parseData(vRow.data) : null,
+      video: by.video ? parseData(by.video.data) : null,
       nowMs,
     });
     if (out.nav?.badges && out.pages.content.queueCount != null) {

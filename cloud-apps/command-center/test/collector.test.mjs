@@ -44,6 +44,37 @@ test('gpu2 heartbeat source name is agents_gpu2', () => {
   assert.equal(lines[1], 'gpu2');
 });
 
+test('gpu2 video source is named video', () => {
+  const r = run(
+    'from sources.video import source\n'
+    + 'print(source("gpu2"))\n',
+    join(root, 'collectors/gpu2'),
+  );
+  assert.equal(r.status, 0, r.stderr);
+  assert.equal(r.stdout.trim(), 'video');
+});
+
+test('collect keeps other sources when one throws', () => {
+  const r = run(
+    'from pathlib import Path\n'
+    + 'import tempfile\n'
+    + 'from cc import collect_payloads\n'
+    + 'd = Path(tempfile.mkdtemp())\n'
+    + '(d / "ok.py").write_text("def source(m):\\n    return \\"ok\\"\\ndef collect(m):\\n    return {\\"n\\": 1}\\n")\n'
+    + '(d / "bad.py").write_text("def source(m):\\n    return \\"bad\\"\\ndef collect(m):\\n    raise RuntimeError(\\"boom\\")\\n")\n'
+    + 'rows = collect_payloads(d, "gpu2")\n'
+    + 'print(len(rows))\n'
+    + 'print(rows[0][0])\n'
+    + 'print(rows[0][1]["n"])\n',
+    join(root, 'collectors/lib'),
+  );
+  assert.equal(r.status, 0, r.stderr);
+  const lines = r.stdout.trim().split(/\r?\n/);
+  assert.equal(lines[0], '1');
+  assert.equal(lines[1], 'ok');
+  assert.equal(lines[2], '1');
+});
+
 test('ping handler returns the machine-up message', () => {
   const r = run(
     'from cc import handle_action\n'

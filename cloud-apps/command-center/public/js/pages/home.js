@@ -1,7 +1,7 @@
 import { tiles, pg, pill, job, btn, dots } from '../ui.js';
 
 export function render(d) {
-  const date = new Date().toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' }) + ' · Kelowna';
+  const date = d.date;
   const steps = d.runThrough.steps.map((s) => `<button class="step" aria-pressed="${s.done}">${s.label}</button>`).join('');
   const jobs = d.needsYou.jobs.map(job).join('');
   const rows = d.glance.rows.map((r) => `<tr data-page="${r.page}"><td>${r.area}</td><td>${r.today}</td><td>${r.goal}</td><td><div class="cellpg">${pg(r.pct, r.pg)}${pill(r.pill, r.pillCls)}</div></td></tr>`).join('');

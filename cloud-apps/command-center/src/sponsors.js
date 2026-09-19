@@ -270,10 +270,6 @@ export function applyHomeSponsors(snap, page) {
     row.pill = `${pct}%`;
     row.pillCls = pct >= 100 ? 'ok' : pct >= 50 ? 'risk' : 'crit';
   }
-  if (snap.goal) {
-    snap.goal.pct = pct;
-    const left = page.tiles[0].sub.match(/Day (\d+) of (\d+)/);
-    if (left) snap.goal.sub = `${Number(left[2]) - Number(left[1])} days left in ${page.tiles[0].label.replace('Collected in ', '')}`;
-  }
+  if (snap.goal) snap.goal.pct = pct;
   if (snap.nav?.badges) snap.nav.badges.sponsors = Number(page.tiles[3].value) || 0;
 }
