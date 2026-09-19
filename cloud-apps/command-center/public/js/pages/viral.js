@@ -1,7 +1,7 @@
 import { tiles, pg, pill, btn, pgrow, head } from '../ui.js';
 
 export function render(d) {
-  const right = d.actions.map((a) => btn(a.label, { msg: a.msg, cls: 'line' })).join('');
+  const right = d.actions.map((a) => btn(a.label, { msg: a.msg, cls: 'line', href: a.href })).join('');
   const ops = d.pieces.ops;
   const eq = d.pieces.parts.map((p, i) => {
     const t = `<div class="t${p.total ? ' total' : ''}${p.zero ? ' zero' : ''}"><b>${p.amount}</b><small>${p.label}</small></div>`;

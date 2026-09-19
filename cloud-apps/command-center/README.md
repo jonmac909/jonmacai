@@ -2,7 +2,7 @@
 
 Live: [https://jonmac.ai/dashboard](https://jonmac.ai/dashboard)
 
-Cloudflare Worker `jonmac-command-center`. Routes `jonmac.ai/dashboard` and `jonmac.ai/dashboard/*`. Pages render from `GET /dashboard/api/snapshot`, which starts from `fixtures/snapshot.json` and overlays live D1 snapshots. Live slices: Agents (`agents_mac`, `agents_gpu2` pinned Orca status), Sponsors (`sponsors` from the Mac collector), Mastermind (`mastermind` digest picks), Support (`support` Gmail drafts from the GPU2 collector), and Content (`posts` table + `content_queue`; best posts from `viralview` once T5 is live). Other pages stay fixture until later tasks.
+Cloudflare Worker `jonmac-command-center`. Routes `jonmac.ai/dashboard` and `jonmac.ai/dashboard/*`. Pages render from `GET /dashboard/api/snapshot`, which starts from `fixtures/snapshot.json` and overlays live D1 snapshots. Live slices: Agents (`agents_mac`, `agents_gpu2` pinned Orca status), Sponsors (`sponsors` from the Mac collector), Mastermind (`mastermind` digest picks), Support (`support` Gmail drafts from the GPU2 collector), Content (`posts` table + `content_queue`; best posts from `viralview`), Finances and Markets (`moneyclaw` cron every 10 min), and Viral View (`viralview` cron every 10 min). Other pages stay fixture until later tasks.
 
 ## Snapshot shape (`fixtures/snapshot.json`)
 

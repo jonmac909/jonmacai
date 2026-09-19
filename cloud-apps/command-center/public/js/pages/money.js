@@ -5,7 +5,7 @@ function stages(list) {
 }
 
 export function render(d) {
-  const right = d.actions.map((a) => btn(a.label, { msg: a.msg, cls: 'line' })).join('');
+  const right = d.actions.map((a) => btn(a.label, { msg: a.msg, cls: 'line', href: a.href, kind: a.kind, payload: a.payload })).join('');
   const scan = d.bankScan.rows.map((r) => `<div class="r"><div><strong>${r.title}</strong><small>${r.sub}</small></div><div class="right">${pill(r.pill, r.pillCls)}${r.btn ? btn(r.btn, { msg: r.msg, sm: true, done: true }) : ''}</div></div>`).join('');
   const charges = d.charges.rows.map((r) => `<tr><td>${r.date}</td><td>${r.charge}</td><td>${r.card}</td><td>${pill(r.filed, r.filedCls || '')}</td><td class="num">${r.amount}</td></tr>`).join('');
   return `<div class="wrap">
@@ -35,7 +35,7 @@ export function render(d) {
         <div class="cardhead" style="margin-bottom:.8rem"><h2><svg class="ic"><use href="#i-bulb"/></svg>Worth fixing</h2></div>
         <hr><span class="pill crit">${d.fix.pill}</span>
         <h3>${d.fix.heading}</h3><p>${d.fix.body}</p>
-        <div class="box"><p>${d.fix.box}</p>${btn(d.fix.btn, { msg: d.fix.msg, cls: 'wide' })}</div>
+        <div class="box"><p>${d.fix.box}</p>${d.fix.btn ? btn(d.fix.btn, { msg: d.fix.msg, cls: 'wide', kind: d.fix.kind, payload: d.fix.payload }) : ''}</div>
       </div>
       <div class="card pad">
         <div class="cardhead"><h2>${d.bankScan.title}</h2><span class="meta">${d.bankScan.meta}</span></div>
@@ -45,7 +45,7 @@ export function render(d) {
       <div class="card pad">
         <div class="cardhead"><h2>${d.netWorth.title}</h2><span class="meta">${d.netWorth.meta}</span></div>
         <div style="display:flex;align-items:baseline;gap:.7rem;flex-wrap:wrap"><span class="bignum" id="nw">${d.netWorth.hidden}</span><button class="link" id="nwbtn" type="button">Show</button></div>
-        <svg class="spark" viewBox="0 0 300 60" preserveAspectRatio="none" aria-label="Net worth trend, example shape"><path d="${d.netWorth.spark} L300,60 0,60Z" fill="var(--accent)" opacity=".1"/><path d="${d.netWorth.spark}" fill="none" stroke="var(--accent)" stroke-width="2" vector-effect="non-scaling-stroke"/></svg>
+        <svg class="spark" viewBox="0 0 300 60" preserveAspectRatio="none" aria-label="Net worth trend"><path d="${d.netWorth.spark} L300,60 0,60Z" fill="var(--accent)" opacity=".1"/><path d="${d.netWorth.spark}" fill="none" stroke="var(--accent)" stroke-width="2" vector-effect="non-scaling-stroke"/></svg>
       </div>
     </div>
   </div>
