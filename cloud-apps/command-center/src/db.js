@@ -85,3 +85,26 @@ export async function listDealStages(db) {
   return out;
 }
 
+export async function listIdeas(db) {
+  if (!db) return [];
+  const { results } = await db.prepare('SELECT id, title, body, area, verdict, status, created_at, updated_at FROM ideas').all();
+  return results || [];
+}
+
+export async function upsertIdea(db, row) {
+  const now = row.updated_at || new Date().toISOString();
+  const existing = await db.prepare('SELECT * FROM ideas WHERE id = ?').bind(row.id).first();
+  const created = existing?.created_at || row.created_at || now;
+  await db.prepare(
+    'INSERT OR REPLACE INTO ideas (id, title, body, area, verdict, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+  ).bind(
+    row.id,
+    row.title ?? existing?.title ?? '',
+    row.body ?? existing?.body ?? '',
+    row.area ?? existing?.area ?? '',
+    row.verdict ?? existing?.verdict ?? '',
+    row.status ?? existing?.status ?? 'new',
+    created,
+    now,
+  ).run();
+}

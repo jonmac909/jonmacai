@@ -180,11 +180,20 @@ document.addEventListener('click', (e) => {
       if (body == null) return;
       payload = { ...payload, body, status: 'edited' };
     }
-    act(actBtn.dataset.kind, payload);
-    if (actBtn.hasAttribute('data-done')) {
-      const r = actBtn.closest('.r, .job');
-      if (r) r.classList.add('done');
-    }
+    const kind = actBtn.dataset.kind;
+    act(kind, payload).then(async () => {
+      if (actBtn.hasAttribute('data-done')) {
+        const r = actBtn.closest('.r, .job');
+        if (r) r.classList.add('done');
+      }
+      if (kind.startsWith('mastermind.') || kind === 'agent.restart' || kind === 'ping') {
+        const snap = await fetch(`${PREFIX}/api/snapshot`);
+        if (snap.ok) {
+          data = await snap.json();
+          go(hashPage());
+        }
+      }
+    });
     return;
   }
   const nav = e.target.closest('[data-page]');

@@ -8,6 +8,7 @@ export const INTERVALS = {
   agents_mac: COLLECTOR_INTERVAL_MS,
   agents_gpu2: COLLECTOR_INTERVAL_MS,
   sponsors: COLLECTOR_INTERVAL_MS,
+  mastermind: COLLECTOR_INTERVAL_MS,
 };
 
 const MACHINES = [
@@ -39,7 +40,137 @@ function parseData(raw) {
   try { return JSON.parse(raw || '{}'); } catch { return {}; }
 }
 
-export function mergeSnapshot(fixture, rows, nowMs = Date.now(), overrides = {}) {
+function names(list) {
+  return list.filter(Boolean).join(' · ');
+}
+
+function overlayAgents(page, by) {
+  const agents = [];
+  for (const m of MACHINES) {
+    const row = by[m.source];
+    if (!row) continue;
+    for (const a of parseData(row.data).agents || []) {
+      agents.push({ ...a, runs: a.runs || m.label, machine: a.machine || m.id });
+    }
+  }
+  if (!agents.length) return;
+  const need = agents.filter((a) => a.status === 'needs_you');
+  const work = agents.filter((a) => a.status === 'working');
+  const quiet = agents.filter((a) => a.status === 'quiet');
+  const daily = agents.filter((a) => a.job === 'Done');
+  const dailyN = agents.filter((a) => a.restart || a.job === 'Done' || a.status === 'quiet').length || daily.length;
+  page.sub = `${agents.length} pinned in Orca · across the Mac mini and GPU2`;
+  page.tiles = [
+    { icon: 'clock', label: 'Need you', value: String(need.length), sub: names(need.map((a) => a.name)) || 'None' },
+    { icon: 'bot', label: 'Working now', value: String(work.length), sub: names(work.map((a) => a.name)) || 'None' },
+    { icon: 'check', label: 'Daily jobs done today', value: String(daily.length), goal: dailyN ? `/ ${dailyN}` : '', pct: dailyN ? Math.round(daily.length / dailyN * 100) : 0, pg: 'ok', sub: '' },
+    { icon: 'fire', label: 'Gone quiet', value: String(quiet.length), sub: quiet[0] ? `${quiet[0].name}` : 'None' },
+  ];
+  page.waiting = {
+    title: 'Waiting on you',
+    jobs: need.map((a) => ({
+      area: a.name,
+      pill: (a.waiting && a.waiting.waitLabel) || 'Needs you',
+      pillCls: 'risk',
+      title: (a.waiting && a.waiting.title) || a.now,
+      lines: (a.waiting && a.waiting.lines) || [a.now],
+      page: a.page || undefined,
+      btn: a.page ? 'Open' : '',
+    })),
+  };
+  page.all = {
+    title: 'All agents',
+    rows: agents.map((a) => ({
+      agent: a.name,
+      runs: a.runs,
+      now: a.now,
+      job: a.job,
+      pct: a.pct,
+      pg: a.pg || '',
+      pill: a.pill,
+      pillCls: a.pillCls || '',
+      page: a.page || undefined,
+      machine: a.machine,
+      restart: a.restart || '',
+      restartMsg: a.restartMsg || '',
+    })),
+  };
+}
+
+function monthOf(iso, nowMs) {
+  const tz = 'America/Vancouver';
+  const d = new Date(Number.isFinite(Date.parse(iso)) ? iso : nowMs);
+  const n = new Date(nowMs);
+  return d.toLocaleString('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit' })
+    === n.toLocaleString('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit' });
+}
+
+function overlayMastermind(page, data, ideas, nowMs) {
+  const decided = new Set((ideas || []).filter((i) => i.status && i.status !== 'new').map((i) => i.id));
+  const picks = (data.picks || []).filter((p) => !decided.has(p.id));
+  const scanned = Number(data.scanned || 0);
+  const kept = picks.length;
+  const parked = (ideas || []).filter((i) => i.status === 'parked');
+  const building = (ideas || []).filter((i) => i.status === 'sent' || i.status === 'building' || i.status === 'built');
+  const sentMonth = (ideas || []).filter((i) => ['sent', 'building', 'built'].includes(i.status) && monthOf(i.created_at, nowMs));
+  const builtMonth = (ideas || []).filter((i) => i.status === 'built' && monthOf(i.created_at, nowMs));
+  page.sub = `AI Advanced group on Telegram · last 24 hours${data.scannedAt ? ` · scanned ${data.scannedAt.slice(11, 16)}` : ''}`;
+  page.actions = [{ label: 'Scan now', kind: 'mastermind.scan', msg: 'Scanning the group now' }];
+  page.tiles = [
+    { icon: 'chat', label: 'Messages read for you', value: String(scanned), sub: `${kept} kept · ${Math.max(0, scanned - kept)} skipped` },
+    { icon: 'bulb', label: 'Picks waiting on you', value: String(kept), sub: `${picks.filter((p) => p.verdict === 'implement').length} worth doing · ${picks.filter((p) => p.verdict !== 'implement').length} maybe` },
+    { icon: 'send', label: 'Sent to Planner this month', value: String(sentMonth.length), sub: `${builtMonth.length} already built` },
+    { icon: 'check', label: 'Ideas built · September', value: String(builtMonth.length), goal: '/ 5', pct: Math.round(builtMonth.length / 5 * 100), sub: `${building.filter((i) => i.status !== 'built').length} in progress` },
+  ];
+  page.picks = {
+    title: "Today's picks",
+    jobs: picks.map((p) => ({
+      id: p.id,
+      area: p.area || 'Mastermind',
+      pill: p.verdict === 'implement' ? 'Worth doing' : 'Maybe',
+      pillCls: p.verdict === 'implement' ? 'ok' : 'risk',
+      title: p.title,
+      lines: p.lines || [p.text].filter(Boolean),
+      lineBtn: 'Park',
+      lineKind: 'mastermind.park',
+      linePayload: { id: p.id, title: p.title, body: p.text, area: p.area, msg: 'Parked for later' },
+      btn: 'Send to Planner',
+      kind: 'mastermind.send_to_planner',
+      payload: { id: p.id, title: p.title, body: p.text, area: p.area, verdict: p.verdict, msg: 'Sent to Planner as a task' },
+      done: true,
+    })),
+  };
+  page.building = {
+    title: 'Being built',
+    meta: 'Ideas you sent to Planner',
+    rows: building.map((i) => ({
+      title: i.title,
+      sub: i.area || '',
+      pct: i.status === 'built' ? 100 : i.status === 'building' ? 75 : 25,
+      pg: i.status === 'built' ? 'ok' : '',
+      pill: i.status === 'built' ? 'Built' : 'Building',
+      pillCls: i.status === 'built' ? 'ok' : 'blue',
+    })),
+  };
+  page.parked = {
+    title: 'Parked',
+    meta: parked.length ? `${parked.length} saved for later` : 'None saved',
+    rows: parked.map((i) => ({
+      title: i.title,
+      sub: i.area || '',
+      id: i.id,
+      body: i.body,
+      area: i.area,
+    })),
+    more: { title: '', sub: '', btn: '', msg: '' },
+  };
+}
+
+export function mergeSnapshot(fixture, rows, nowMs = Date.now(), overrides = {}, ideas = []) {
+  if (Array.isArray(overrides)) {
+    ideas = overrides;
+    overrides = {};
+  }
   const out = JSON.parse(JSON.stringify(fixture));
   const by = {};
   const staleSources = [];
@@ -68,6 +199,15 @@ export function mergeSnapshot(fixture, rows, nowMs = Date.now(), overrides = {})
       };
     });
     out.pages.agents.staleSources = staleSources;
+    overlayAgents(out.pages.agents, by);
+    if (out.nav?.badges) {
+      const need = (out.pages.agents.waiting?.jobs || []).length;
+      out.nav.badges.agents = need;
+    }
+  }
+  if (out.pages.mastermind && by.mastermind) {
+    overlayMastermind(out.pages.mastermind, parseData(by.mastermind.data), ideas, nowMs);
+    if (out.nav?.badges) out.nav.badges.mastermind = (out.pages.mastermind.picks?.jobs || []).length;
   }
   const sponsors = by.sponsors;
   if (sponsors) {

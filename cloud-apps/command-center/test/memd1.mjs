@@ -2,10 +2,12 @@ export function memD1() {
   const snapshots = new Map();
   const actions = [];
   const deals = new Map();
+  const ideas = new Map();
   return {
     snapshots,
     actions,
     deals,
+    ideas,
     prepare(sql) {
       const s = String(sql);
       const stmt = {
@@ -19,6 +21,7 @@ export function memD1() {
           if (/FROM snapshots WHERE source/.test(s)) return snapshots.get(a[0]) || null;
           if (/FROM actions WHERE idem_key/.test(s)) return actions.find((x) => x.idem_key === a[0]) || null;
           if (/FROM actions WHERE id/.test(s)) return actions.find((x) => x.id === a[0]) || null;
+          if (/FROM ideas WHERE id/.test(s)) return ideas.get(a[0]) || null;
           return null;
         },
         async all() {
@@ -27,6 +30,7 @@ export function memD1() {
           if (/FROM deal_stage_overrides/.test(s)) {
             return { results: [...deals.entries()].map(([deal_id, row]) => ({ deal_id, stage: row.stage || row })) };
           }
+          if (/FROM ideas/.test(s)) return { results: [...ideas.values()] };
           if (/FROM actions WHERE target/.test(s)) {
             return {
               results: actions
@@ -41,6 +45,11 @@ export function memD1() {
           const a = stmt._args;
           if (/INSERT OR REPLACE INTO snapshots/.test(s)) {
             snapshots.set(a[0], { source: a[0], data: a[1], collected_at: a[2], received_at: a[3] });
+          } else if (/INSERT OR REPLACE INTO ideas/.test(s)) {
+            ideas.set(a[0], {
+              id: a[0], title: a[1], body: a[2], area: a[3], verdict: a[4],
+              status: a[5], created_at: a[6], updated_at: a[7],
+            });
           } else if (/INSERT INTO actions/.test(s)) {
             actions.push({
               id: a[0], kind: a[1], target: a[2], payload: a[3], status: a[4],
