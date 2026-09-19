@@ -86,7 +86,7 @@ test('merge overlays the posting grid from logged posts', () => {
   assert.equal(p.tiles[0].goal, '/ 12');
   assert.equal(p.tiles[1].value, '4');
   assert.equal(p.tiles[1].goal, '/ 84');
-  assert.equal(p.tiles[2].value, '1');
+  assert.equal(p.tiles[2].value, '0');
   assert.equal(p.todayPlatforms.rows[0].label, 'X');
   assert.equal(p.todayPlatforms.rows[0].value, '2 of 3');
   assert.equal(p.todayPlatforms.rows[3].label, 'LinkedIn');
@@ -207,4 +207,27 @@ test('python approve handler writes a file the Content Marketing agent can read'
   const rec = JSON.parse(readFileSync(join(dir, 'content-approvals.jsonl'), 'utf8').trim().split(/\n/).at(-1));
   assert.equal(rec.kind, 'content.approve');
   assert.equal(rec.payload.id, 'q1');
+});
+
+test('live posts do not keep fixture queue copy', () => {
+  const out = mergeSnapshot(fixture, [], now, {}, [], livePosts);
+  const p = out.pages.content;
+  assert.equal(p.tiles[0].value, '3');
+  assert.doesNotMatch(p.tiles[0].sub, /this afternoon|queued for/i);
+  assert.equal(p.queue.rows.length, 0);
+  assert.match(p.queue.meta, /none queued|0 left/i);
+  assert.equal(p.tiles[2].value, '0');
+  assert.doesNotMatch(p.tiles[2].sub || '', /70% edited|editing/i);
+  assert.equal((p.ytWeek.rows || []).length, 0);
+  assert.equal((p.bestPosts.rows || []).some((r) => /example/i.test(r.post)), false);
+});
+
+test('content empty state replaces fixture copy when there are no posts', () => {
+  const out = mergeSnapshot(fixture, [], now, {}, [], []);
+  const p = out.pages.content;
+  assert.equal(p.tiles[0].value, '0');
+  assert.equal(p.tiles[1].value, '0');
+  assert.doesNotMatch(p.tiles[0].sub, /this afternoon/i);
+  assert.equal(p.queue.rows.length, 0);
+  assert.equal(p.heat.rows.find((r) => r.p === 'X').cells[4].n, 0);
 });

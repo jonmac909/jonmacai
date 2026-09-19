@@ -65,10 +65,25 @@ def load_sources(folder):
             continue
         spec = importlib.util.spec_from_file_location(p.stem, p)
         mod = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(mod)
+        try:
+            spec.loader.exec_module(mod)
+        except Exception as e:
+            sys.stderr.write('skip %s: %s\n' % (p.name, type(e).__name__))
+            continue
         if hasattr(mod, 'source') and hasattr(mod, 'collect'):
             mods.append(mod)
     return mods
+
+
+def collect_payloads(folder, machine):
+    payloads = []
+    for mod in load_sources(folder):
+        name = Path(getattr(mod, '__file__', '') or '?').stem
+        try:
+            payloads.append((mod.source(machine), mod.collect(machine)))
+        except Exception as e:
+            sys.stderr.write('collect %s: %s\n' % (name, type(e).__name__))
+    return payloads
 
 
 def handle_action(kind, payload, machine):
@@ -141,15 +156,16 @@ def cfg(machine):
 def main_collect(machine):
     base, token = cfg(machine)
     here = Path(sys.argv[0]).resolve().parent / 'sources'
-    payloads = []
-    for mod in load_sources(here):
-        payloads.append((mod.source(machine), mod.collect(machine)))
+    payloads = collect_payloads(here, machine)
     if '--dry-run' in sys.argv:
         print(json.dumps([{'source': s, 'data': d} for s, d in payloads]))
         return
     for source, data in payloads:
-        ingest(base, token, source, data)
-        print('ingested %s' % source)
+        try:
+            ingest(base, token, source, data)
+            print('ingested %s' % source)
+        except Exception as e:
+            sys.stderr.write('ingest %s: %s\n' % (source, type(e).__name__))
 
 def main_run(machine):
     acquire_run_lock(machine)

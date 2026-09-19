@@ -126,9 +126,9 @@ function overlayGrid(page, posts, nowMs, queuedN) {
   const streak = streakFrom(dayList, todayKey);
   const best = bestStreak(dayList);
   page.tiles = [
-    { icon: 'pen', label: 'Posts today', value: String(todayN), goal: `/ ${GOAL_TODAY}`, ...todayPg, sub: queuedN ? `${queuedN} queued for this afternoon` : `${Math.max(0, GOAL_TODAY - todayN)} to go` },
+    { icon: 'pen', label: 'Posts today', value: String(todayN), goal: `/ ${GOAL_TODAY}`, ...todayPg, sub: queuedN ? `${queuedN} in the queue` : `${Math.max(0, GOAL_TODAY - todayN)} to go` },
     { icon: 'chart', label: 'Posts this week', value: String(weekN), goal: `/ ${GOAL_WEEK}`, ...weekPg, sub: `Should be at ${(week.idx + 1) * GOAL_TODAY} by ${week.idx >= 4 ? 'Friday' : DAY[week.idx]}` },
-    page.tiles[2],
+    page.tiles[2] || { icon: 'film', label: 'YouTube this week', value: '0', goal: '/ 3', pct: 0, sub: 'None in the editor' },
     { icon: 'fire', label: 'Days in a row with a post', value: String(streak), sub: `Best ever: ${best}` },
   ];
   page.todayPlatforms = {
@@ -155,7 +155,7 @@ function overlayGrid(page, posts, nowMs, queuedN) {
 }
 
 function overlayQueue(page, data) {
-  const queued = Array.isArray(data.queued) ? data.queued : [];
+  const queued = Array.isArray(data?.queued) ? data.queued : [];
   const rows = queued.map((item) => {
     const platform = platformOf(item.platform);
     const when = clock(item.at || item.postedAt || '');
@@ -174,7 +174,7 @@ function overlayQueue(page, data) {
   for (const r of rest) counts[r.payload.platform] = (counts[r.payload.platform] || 0) + 1;
   page.queue = {
     title: "Today's queue",
-    meta: `${queued.length} left`,
+    meta: queued.length ? `${queued.length} left` : 'None queued',
     approveAll: 'Approve all',
     approveAllKind: 'content.approve_all',
     approveAllMsg: `All ${queued.length} posts approved and scheduled`,
@@ -192,12 +192,32 @@ function overlayQueue(page, data) {
   page.queueCount = queued.length;
 }
 
+function overlayYtWeek(page, video) {
+  const queue = video?.queue || [];
+  const editing = queue.filter((q) => q.status === 'editing' || q.status === 'queued');
+  const ready = queue.filter((q) => q.status === 'ready');
+  const done = queue.filter((q) => q.status === 'done');
+  const n = done.length;
+  const sub = editing.length ? `${editing.length} in the editor now` : ready.length ? `${ready.length} ready to watch` : 'None in the editor';
+  page.tiles[2] = { icon: 'film', label: 'YouTube this week', value: String(n), goal: '/ 3', ...pgOf(n, 3), sub };
+  page.ytWeek = {
+    title: 'YouTube this week',
+    note: page.ytWeek?.note || 'Steps: record · edit · your review · live',
+    rows: [...editing, ...ready, ...done].map((q) => ({
+      title: q.title,
+      sub: q.status === 'editing' ? `Editing · ${q.progress || 0}%` : String(q.status || ''),
+      pct: Number(q.progress) || 0,
+      pill: q.status === 'editing' ? 'Editing' : q.status === 'ready' ? 'Ready' : q.status === 'done' ? 'Done' : '',
+      pillCls: q.status === 'editing' ? 'blue' : q.status === 'ready' ? 'ok' : '',
+    })),
+  };
+}
+
 function overlayBest(page, viral) {
-  const posts = viral.posts || viral.topPosts || [];
-  if (!posts.length) return;
+  const posts = viral?.posts || viral?.topPosts || [];
   page.bestPosts = {
     title: 'Best posts · last 30 days',
-    meta: 'Ranked by clicks to Viral View',
+    meta: posts.length ? 'Ranked by clicks to Viral View' : 'No posts ranked yet',
     btn: 'Remix it',
     msg: 'Remix sent to Content Marketing agent',
     rows: posts.slice(0, 8).map((row) => {
@@ -217,10 +237,11 @@ function overlayBest(page, viral) {
   };
 }
 
-export function overlayContent(page, { posts = [], queue = null, viral = null, nowMs = Date.now() } = {}) {
+export function overlayContent(page, { posts = [], queue = null, viral = null, video = null, nowMs = Date.now() } = {}) {
   page.actions = [{ label: 'Log a post', log: true, msg: 'Post logged' }];
   const queuedN = queue && !queue.missing && Array.isArray(queue.queued) ? queue.queued.length : 0;
-  if (posts.length) overlayGrid(page, posts, nowMs, queuedN);
-  if (queue && !queue.missing) overlayQueue(page, queue);
-  if (viral) overlayBest(page, viral);
+  overlayGrid(page, posts, nowMs, queuedN);
+  overlayYtWeek(page, video);
+  overlayQueue(page, queue && !queue.missing ? queue : { queued: [] });
+  overlayBest(page, viral);
 }

@@ -1,4 +1,4 @@
-import { ymd } from './life.js';
+import { ymd, TZ } from './life.js';
 
 const STEPS = [
   { label: 'Sponsor emails', page: 'sponsors' },
@@ -9,6 +9,29 @@ const STEPS = [
   { label: 'Posts out', page: 'content' },
   { label: 'Workout 11:00', page: 'life' },
 ];
+
+function vancouverHour(ms) {
+  const hour = new Intl.DateTimeFormat('en-US', { timeZone: TZ, hour: 'numeric', hourCycle: 'h23' }).formatToParts(new Date(ms)).find((p) => p.type === 'hour');
+  return Number(hour?.value);
+}
+
+function greetingFor(ms) {
+  const h = vancouverHour(ms);
+  const when = h < 12 ? 'morning' : h < 17 ? 'afternoon' : 'evening';
+  return `Good ${when}, Jon 👋`;
+}
+
+function homeDate(ms) {
+  const d = new Intl.DateTimeFormat('en-US', { timeZone: TZ, weekday: 'long', month: 'long', day: 'numeric' }).format(new Date(ms));
+  return `${d} · Kelowna`;
+}
+
+function daysLeftSub(ms) {
+  const [y, m, d] = ymd(ms).split('-').map(Number);
+  const n = new Date(Date.UTC(y, m, 0)).getUTCDate() - d;
+  const month = new Intl.DateTimeFormat('en-US', { timeZone: TZ, month: 'long' }).format(new Date(ms));
+  return `${n} day${n === 1 ? '' : 's'} left in ${month}`;
+}
 
 function parse(row) {
   try { return JSON.parse(row.data); } catch { return {}; }
@@ -179,6 +202,9 @@ function applyGlance(snap) {
 
 export function applyHome(snap, by = {}, extra = {}, nowMs = Date.now()) {
   if (!snap.pages?.home) return snap;
+  snap.pages.home.greeting = greetingFor(nowMs);
+  snap.pages.home.date = homeDate(nowMs);
+  if (snap.goal) snap.goal.sub = daysLeftSub(nowMs);
   overlayBank(snap, by, nowMs);
   if (snap.pages.home.runThrough) {
     const steps = runSteps(snap, by, extra, nowMs);
