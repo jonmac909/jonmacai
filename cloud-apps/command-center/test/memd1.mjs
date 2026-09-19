@@ -116,6 +116,17 @@ export function memD1() {
           } else if (/SET payload/.test(s)) {
             const row = actions.find((x) => x.id === a[1]);
             if (row) row.payload = a[0];
+          } else if (/SET status = 'queued'/.test(s) && /AND status = 'failed'/.test(s)) {
+            const row = actions.find((x) => x.id === a[1] && x.status === 'failed');
+            if (row) {
+              row.status = 'queued';
+              row.payload = a[0];
+              row.result = null;
+              row.claimed_at = null;
+              row.finished_at = null;
+              return { success: true, meta: { changes: 1 } };
+            }
+            return { success: true, meta: { changes: 0 } };
           } else if (/UPDATE actions SET status/.test(s) && /finished_at/.test(s)) {
             const row = actions.find((x) => x.id === a[3]);
             if (row) {

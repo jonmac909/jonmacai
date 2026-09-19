@@ -81,9 +81,13 @@ export function overlayViral(page, data, nowMs, ageLabel = '') {
   const salesSub = week <= 0 && last
     ? `No payment recorded since ${shortDate(last)}`
     : last ? `Last payment ${shortDate(last)}` : 'No payment recorded';
-  const sync = data.lastSyncAt ? shortDate(data.lastSyncAt) : '';
-  const age = ageLabel ? ` · ${ageLabel}` : '';
-  page.sub = `${sync ? `Subscriptions from your revenue page, synced ${sync}` : 'Subscriptions from your revenue page'} · USD · America/Vancouver${age}`;
+  const commas = data.lastSyncAt
+    ? `Commas last sync ${shortDate(data.lastSyncAt)}`
+    : 'Commas last sync unavailable';
+  const summary = Number.isFinite(parseStamp(data.generatedAt))
+    ? `summary ${shortDate(data.generatedAt)}`
+    : (ageLabel ? `summary ${ageLabel.replace(/^updated /, '')}` : '');
+  page.sub = `${commas}${summary ? ` · ${summary}` : ''} · USD · America/Vancouver`;
   page.actions = [
     { label: 'Open revenue page', href: 'https://app.viralview.io/admin/mrr', msg: 'Opens app.viralview.io/admin/mrr' },
     { label: 'Open tracker', href: 'https://app.viralview.io/track', msg: 'Opens app.viralview.io/track' },

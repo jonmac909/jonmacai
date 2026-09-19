@@ -114,12 +114,27 @@ def build_reply(ticket, body=None):
 
 
 def send_draft(smtp_send, box, ticket, body=None):
-    smtp_send(build_reply(ticket, body))
-    uid = str(ticket.get('uid') or '')
-    if uid:
-        box.uid('STORE', uid, '+FLAGS', r'(\Deleted)')
-        if hasattr(box, 'expunge'):
-            box.expunge()
+    try:
+        smtp_send(build_reply(ticket, body))
+    except TimeoutError as e:
+        return False, 'unknown:%s' % type(e).__name__
+    except (smtplib.SMTPAuthenticationError, smtplib.SMTPConnectError, smtplib.SMTPHeloError,
+            smtplib.SMTPSenderRefused, smtplib.SMTPRecipientsRefused) as e:
+        return False, 'not_sent:%s' % type(e).__name__
+    except smtplib.SMTPException as e:
+        return False, 'unknown:%s' % type(e).__name__
+    except (ConnectionError, OSError) as e:
+        return False, 'not_sent:%s' % type(e).__name__
+    except Exception as e:
+        return False, 'unknown:%s' % type(e).__name__
+    try:
+        uid = str(ticket.get('uid') or '')
+        if uid:
+            box.uid('STORE', uid, '+FLAGS', r'(\Deleted)')
+            if hasattr(box, 'expunge'):
+                box.expunge()
+    except Exception as e:
+        return False, 'unknown:%s' % type(e).__name__
     return True, 'Reply sent'
 
 
@@ -340,5 +355,5 @@ def handle(kind, payload):
         if kind == 'support.send':
             return send_live(payload)
     except Exception as e:
-        return False, type(e).__name__
+        return False, 'not_sent:%s' % type(e).__name__
     return False, 'unknown action %s' % kind

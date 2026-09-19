@@ -107,6 +107,12 @@ function oneDec(n) {
   return Math.round(n * 10) / 10;
 }
 
+function avgMonthLabel(months) {
+  if (!months.length) return 'Average completed month';
+  if (months.length === 1) return `Average of ${months[0]}`;
+  return `Average of ${months[0]}–${months[months.length - 1]}`;
+}
+
 export function buildSponsorsPage(data, nowMs = Date.now(), overrides = {}) {
   const col = data.collections || {};
   const items = col.items || [];
@@ -115,7 +121,8 @@ export function buildSponsorsPage(data, nowMs = Date.now(), overrides = {}) {
   const collected = Number(col.incomeTotals?.[col.currentIncomeMonth] || 0);
   const owed = items.reduce((s, i) => s + (Number(i.owed) || 0), 0);
   const open = items.filter((i) => Number(i.owed) > 0);
-  const completed = (col.completedIncomeMonths || []).map((m) => Number(col.incomeTotals?.[m] || 0));
+  const completedMonths = col.completedIncomeMonths || [];
+  const completed = completedMonths.map((m) => Number(col.incomeTotals?.[m] || 0));
   const avg = completed.length ? completed.reduce((s, n) => s + n, 0) / completed.length : 0;
   const emails = cards.filter(hasDraft);
   const pace = Math.round(GOAL * cal.day / cal.dim);
@@ -204,7 +211,7 @@ export function buildSponsorsPage(data, nowMs = Date.now(), overrides = {}) {
     tiles: [
       { icon: 'check', label: `Collected in ${cal.monthName}`, value: usd(collected), goal: '/ $10K', pct: Math.round(collected / GOAL * 100), sub: `Day ${cal.day} of ${cal.dim} · pace would be ${usd(pace)}` },
       { icon: 'dollar', label: 'Owed to you', value: usd(owed), sub: `${open.length} sponsor${open.length === 1 ? '' : 's'}` },
-      { icon: 'chart', label: 'Average month since May', value: usd(avg), goal: '/ $10K', pct: Math.min(100, Math.round(avg / GOAL * 100)), pg: avg >= GOAL ? 'ok' : 'risk', sub: avg >= GOAL ? 'Goal hit' : `${usd(short)} a month short of goal` },
+      { icon: 'chart', label: avgMonthLabel(completedMonths), value: usd(avg), goal: '/ $10K', pct: Math.min(100, Math.round(avg / GOAL * 100)), pg: avg >= GOAL ? 'ok' : 'risk', sub: avg >= GOAL ? 'Goal hit' : `${usd(short)} a month short of goal` },
       { icon: 'mail', label: 'Sponsor emails waiting', value: String(emails.length), sub: emails.length === 1 ? '1 reply drafted' : `All ${emails.length} replies drafted` },
     ],
     septemberBar: {

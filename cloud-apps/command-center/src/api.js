@@ -4,7 +4,7 @@ import {
   sessionCookieHeader, checkLockout, recordLoginFailure, clientIp, hmacHex,
 } from './auth.js';
 import {
-  loginStore, insertAction, actionByIdem, actionById, claimQueued, completeAction,
+  loginStore, insertAction, actionByIdem, actionById, claimQueued, completeAction, requeueFailedAction,
   upsertChecklist, deleteChecklist, upsertHabit, upsertSnapshot, listSnapshots, upsertDealStage, listDealStages, listIdeas, upsertIdea, ideaById,
   listVideoProjects, replaceVideoProjects,
   upsertPost, listPosts, listChecklist, listHabits,
@@ -95,6 +95,10 @@ function filterSnapshot(pages) {
   return JSON.parse(JSON.stringify({ pages: out, nav: snapshot.nav, goal: snapshot.goal, sources: snapshot.sources }));
 }
 
+function notSentFailure(result) {
+  return String(result || '').startsWith('not_sent:');
+}
+
 async function postAction(request, env) {
   let body = {};
   try { body = await request.json(); } catch { body = {}; }
@@ -108,7 +112,18 @@ async function postAction(request, env) {
   else if (kind === 'support.send_all_safe' && allIds) idem = `send:${kind}:${allIds}`;
   if (env.DB) {
     const existing = await actionByIdem(env.DB, idem);
-    if (existing) return json({ id: existing.id, status: existing.status, result: existing.result });
+    if (existing) {
+      if (sendKind && existing.status === 'failed' && notSentFailure(existing.result)) {
+        const ok = await requeueFailedAction(env.DB, existing.id, JSON.stringify(payload));
+        const row = await actionById(env.DB, existing.id);
+        if (ok || row?.status === 'queued' || row?.status === 'claimed') {
+          return json({ id: row.id, status: row.status, result: row.status === 'queued' ? null : row.result });
+        }
+        return json({ id: row.id, status: row.status, result: row.result, needReconcile: row.status === 'failed' });
+      }
+      const needReconcile = sendKind && existing.status === 'failed';
+      return json({ id: existing.id, status: existing.status, result: existing.result, ...(needReconcile ? { needReconcile: true } : {}) });
+    }
   }
   const target = targetFor(kind, payload);
   if (!target) return json({ error: 'Bad target' }, 400);

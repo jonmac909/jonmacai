@@ -61,6 +61,10 @@ export async function act(kind, payload = {}) {
     body: JSON.stringify({ kind, payload, idemKey }),
   });
   const row = await res.json().catch(() => ({}));
+  if (row.needReconcile) {
+    say(`Delivery unknown — reconcile before retrying${row.result ? `: ${formatResult(kind, row.result)}` : ''}`);
+    return row;
+  }
   if (row.result) { say(formatResult(kind, row.result)); return row; }
   for (let i = 0; i < polls; i++) {
     await new Promise((r) => setTimeout(r, 400));

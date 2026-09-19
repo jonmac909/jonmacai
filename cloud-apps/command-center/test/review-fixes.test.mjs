@@ -12,7 +12,7 @@ import { overlayVideo } from '../src/video.js';
 import { overlayMoney, overlayMarkets, usd } from '../src/money.js';
 import { persistQueueDrafts, listDrafts, upsertDraft } from '../src/drafts.js';
 import { revalidateSources, DEDUPE_MS } from '../src/revalidate.js';
-import { upsertSnapshot } from '../src/db.js';
+import { upsertSnapshot, completeAction } from '../src/db.js';
 import { bindModals, openDraft } from '../public/js/modals.js';
 import { render as renderHome } from '../public/js/pages/home.js';
 import { render as renderSupport } from '../public/js/pages/support.js';
@@ -266,17 +266,30 @@ test('GPU1 env URL does not mark upload done or start a fake job', async () => {
   assert.ok(store.size > 0);
 });
 
-test('currency: expenses CAD, market quotes USD', () => {
+test('expenses omit CAD unless payload currency is present; markets keep USD quotes', () => {
   const money = overlayMoney(structuredClone(snapshot.pages.money), {
     expenses: { businessCategories: [{ name: 'Ads', total: 12.5, count: 1 }], business: {}, personal: {} },
     netWorth: { value: 10, series: [] },
   }, now, 'updated just now');
-  assert.match(money.sub, /CAD/);
+  assert.match(money.sub, /currency unspecified/);
+  assert.doesNotMatch(money.sub, /\bCAD\b/);
+  assert.doesNotMatch(money.sub, /bank reconcil/i);
+  const cadMoney = overlayMoney(structuredClone(snapshot.pages.money), {
+    currency: 'CAD',
+    expenses: { businessCategories: [{ name: 'Ads', total: 12.5, count: 1 }], business: {}, personal: {} },
+    netWorth: { value: 10, series: [] },
+  }, now, 'updated just now');
+  assert.match(cadMoney.sub, /\bCAD\b/);
   const markets = overlayMarkets(structuredClone(snapshot.pages.markets), {
     markets: { pulse: { mood: 'Calm', vix: { price: 14.9, changePct: -1 }, voo: { price: 701.89, changePct: 0.1 }, newsLevel: 'Pending' }, core: [{ label: 'VOO', price: 701.89, allTimeHigh: 710, pctOffHigh: 1, todayPct: 0.1 }] },
   }, now, 'updated just now');
   assert.match(markets.sub, /USD/);
   assert.doesNotMatch(markets.sub, /CAD/);
+  assert.match(markets.sub, /quote time unavailable/);
+  assert.doesNotMatch(markets.sub, /updated just now/);
+  assert.doesNotMatch(markets.sub, /prior close/i);
+  assert.equal(markets.tiles[3].value, 'Pending');
+  assert.notEqual(markets.tiles[3].value, 'Quiet');
   assert.equal(usd(12.5, 2, 'CAD'), new Intl.NumberFormat('en-CA', { style: 'currency', currency: 'CAD', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(12.5));
 });
 
@@ -344,4 +357,101 @@ test('draft send is idempotent across tabs; save is not', async () => {
   assert.equal((await post('support.save_draft', 'save-1')).status, 200);
   assert.equal((await post('support.save_draft', 'save-2')).status, 200);
   assert.equal(env.DB.actions.filter((a) => a.kind === 'support.save_draft').length, 2);
+});
+
+test('not_sent send retries with latest body; concurrent retries stay one queued row', async () => {
+  const env = envWith(memD1());
+  const ck = await cookie();
+  const post = (kind, payload) => handleApi(req('/dashboard/api/actions', {
+    method: 'POST', cookie: ck,
+    headers: { 'Content-Type': 'application/json', 'X-CC': '1' },
+    body: JSON.stringify({ kind, payload }),
+  }), env);
+  for (const kind of ['support.send', 'sponsor.send_draft']) {
+    const first = await (await post(kind, { uid: kind, id: kind, to: 'old@x.com', subject: 'Old', body: 'old' })).json();
+    await completeAction(env.DB, first.id, 'failed', 'not_sent:SMTPAuthenticationError', new Date().toISOString());
+    const edited = { uid: kind, id: kind, to: 'new@x.com', subject: 'Edited', body: 'New body' };
+    const [a, b] = await Promise.all([post(kind, edited).then((r) => r.json()), post(kind, edited).then((r) => r.json())]);
+    const rows = env.DB.actions.filter((x) => x.kind === kind);
+    assert.equal(rows.length, 1);
+    assert.equal(a.id, first.id);
+    assert.equal(b.id, first.id);
+    assert.equal(a.status, 'queued');
+    assert.equal(b.status, 'queued');
+    assert.equal(a.result, null);
+    const payload = JSON.parse(rows[0].payload);
+    assert.equal(payload.to, 'new@x.com');
+    assert.equal(payload.subject, 'Edited');
+    assert.equal(payload.body, 'New body');
+    const third = await (await post(kind, { ...edited, body: 'should not replace while queued' })).json();
+    assert.equal(third.id, first.id);
+    assert.equal(third.status, 'queued');
+    assert.equal(JSON.parse(rows[0].payload).body, 'New body');
+  }
+});
+
+test('uncertain delivery does not retry and asks for reconcile', async () => {
+  const env = envWith(memD1());
+  const ck = await cookie();
+  const post = (payload) => handleApi(req('/dashboard/api/actions', {
+    method: 'POST', cookie: ck,
+    headers: { 'Content-Type': 'application/json', 'X-CC': '1' },
+    body: JSON.stringify({ kind: 'support.send', payload }),
+  }), env);
+  const first = await (await post({ uid: 'u1', to: 'a@b.c', subject: 'Hi', body: 'old' })).json();
+  await completeAction(env.DB, first.id, 'failed', 'unknown:SMTPServerDisconnected', new Date().toISOString());
+  const second = await (await post({ uid: 'u1', to: 'a@b.c', subject: 'Hi', body: 'retry' })).json();
+  assert.equal(second.id, first.id);
+  assert.equal(second.status, 'failed');
+  assert.equal(second.needReconcile, true);
+  assert.equal(env.DB.actions.filter((a) => a.kind === 'support.send').length, 1);
+  assert.equal(JSON.parse(env.DB.actions[0].payload).body, 'old');
+});
+
+test('collector marks SMTP auth as not_sent and post-accept IMAP failure as unknown', () => {
+  const r = runPy(
+    'import smtplib\n'
+    + 'import support_mail as sm\n'
+    + 'class Box:\n'
+    + '    def uid(self, *a, **k): raise RuntimeError("imap")\n'
+    + '    def expunge(self): pass\n'
+    + 'ok, msg = sm.send_draft(lambda m: (_ for _ in ()).throw(smtplib.SMTPAuthenticationError(535, b"no")), Box(), {"uid":"1"})\n'
+    + 'print(ok)\n'
+    + 'print(msg)\n'
+    + 'ok2, msg2 = sm.send_draft(lambda m: None, Box(), {"uid":"1"})\n'
+    + 'print(ok2)\n'
+    + 'print(msg2)\n'
+    + 'ok3, msg3 = sm.send_draft(lambda m: (_ for _ in ()).throw(smtplib.SMTPServerDisconnected("gone")), Box(), {"uid":"1"})\n'
+    + 'print(ok3)\n'
+    + 'print(msg3)\n',
+  );
+  assert.equal(r.status, 0, r.stderr);
+  const lines = r.stdout.trim().split(/\r?\n/);
+  assert.equal(lines[0], 'False');
+  assert.equal(lines[1], 'not_sent:SMTPAuthenticationError');
+  assert.equal(lines[2], 'False');
+  assert.equal(lines[3], 'unknown:RuntimeError');
+  assert.equal(lines[4], 'False');
+  assert.equal(lines[5], 'unknown:SMTPServerDisconnected');
+});
+
+test('sponsor send 4xx is not_sent and 5xx is unknown', () => {
+  const r = runPy(
+    'import sponsors, urllib.error\n'
+    + 'from io import BytesIO\n'
+    + 'def boom(code):\n'
+    + '    raise urllib.error.HTTPError("http://x", code, "x", hdrs=None, fp=BytesIO())\n'
+    + 'sponsors._req = lambda *a, **k: boom(404)\n'
+    + 'ok, msg = sponsors.handle("sponsor.send_draft", {"id":"c1","to":"a@b.c","subject":"Hi","body":"Hello"})\n'
+    + 'print(ok); print(msg)\n'
+    + 'sponsors._req = lambda *a, **k: boom(500)\n'
+    + 'ok, msg = sponsors.handle("sponsor.send_draft", {"id":"c1","to":"a@b.c","subject":"Hi","body":"Hello"})\n'
+    + 'print(ok); print(msg)\n',
+  );
+  assert.equal(r.status, 0, r.stderr);
+  const lines = r.stdout.trim().split(/\r?\n/);
+  assert.equal(lines[0], 'False');
+  assert.equal(lines[1], 'not_sent:http 404');
+  assert.equal(lines[2], 'False');
+  assert.equal(lines[3], 'unknown:http 500');
 });

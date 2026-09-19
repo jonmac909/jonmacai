@@ -53,6 +53,13 @@ export async function completeAction(db, id, status, result, now) {
     .bind(status, result, now, id).run();
 }
 
+export async function requeueFailedAction(db, id, payload) {
+  const info = await db.prepare(
+    `UPDATE actions SET status = 'queued', payload = ?, result = NULL, claimed_at = NULL, finished_at = NULL WHERE id = ? AND status = 'failed'`,
+  ).bind(payload, id).run();
+  return info?.meta?.changes === 1;
+}
+
 export async function upsertChecklist(db, day, item, doneAt, how) {
   await db.prepare(
     'INSERT OR REPLACE INTO checklist (day, item, done_at, how) VALUES (?, ?, ?, ?)',

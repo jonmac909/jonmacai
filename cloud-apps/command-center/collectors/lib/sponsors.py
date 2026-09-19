@@ -151,6 +151,7 @@ def handle(kind, payload):
             return True, 'Draft discarded'
         return False, 'unknown action %s' % kind
     except urllib.error.HTTPError as e:
-        return False, 'http %s' % e.code
+        kind = 'not_sent' if 400 <= e.code < 500 else 'unknown'
+        return False, '%s:http %s' % (kind, e.code)
     except Exception as e:
-        return False, str(e) or type(e).__name__
+        return False, 'unknown:%s' % (str(e) or type(e).__name__)

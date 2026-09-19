@@ -11,7 +11,10 @@ export function usd(n, digits, currency = 'USD') {
     style: 'currency', currency, minimumFractionDigits: d, maximumFractionDigits: d,
   }).format(x);
 }
-function cad(n, digits) { return usd(n, digits, 'CAD'); }
+function moneyCode(data) {
+  const c = String(data?.currency || data?.expenses?.currency || '').trim().toUpperCase();
+  return /^[A-Z]{3}$/.test(c) ? c : '';
+}
 
 function dollars(period) {
   if (!period) return 0;
@@ -50,6 +53,21 @@ function shortDate(value) {
   return new Intl.DateTimeFormat('en-US', { timeZone: TZ, month: 'short', day: 'numeric' }).format(new Date(ms));
 }
 
+function periodRange(period) {
+  const start = period?.startDate || period?.start;
+  const end = period?.endDate || period?.end;
+  if (!start && !end) return '';
+  const a = shortDate(start);
+  const b = shortDate(end);
+  if (a && b && a !== b) return `${a}–${b}`;
+  return a || b;
+}
+
+function stageLabel(base, period) {
+  const span = periodRange(period);
+  return span ? `${base} · ${span}` : base;
+}
+
 function vsLast(month, last, nowMs) {
   const monthN = Number(month) || 0;
   const lastN = Number(last) || 0;
@@ -64,24 +82,24 @@ function vsLast(month, last, nowMs) {
   };
 }
 
-function stages(group) {
+function stages(group, fmt) {
   return [
-    { label: 'Yesterday', value: cad(dollars(group?.yesterday)) },
-    { label: 'This week', value: cad(dollars(group?.week)) },
-    { label: 'This month', value: cad(dollars(group?.month)) },
-    { label: 'Last month', value: cad(dollars(group?.lastMonth)) },
+    { label: stageLabel('Yesterday', group?.yesterday), value: fmt(dollars(group?.yesterday)) },
+    { label: stageLabel('This week', group?.week), value: fmt(dollars(group?.week)) },
+    { label: stageLabel('This month', group?.month), value: fmt(dollars(group?.month)) },
+    { label: stageLabel('Last month', group?.lastMonth), value: fmt(dollars(group?.lastMonth)) },
   ];
 }
 
-function block(title, group, nowMs) {
+function block(title, group, nowMs, fmt) {
   const month = dollars(group?.month);
   const pending = pendingOf(group?.month);
   return {
     title,
     meta: '',
-    stages: stages(group),
+    stages: stages(group, fmt),
     ...vsLast(month, dollars(group?.lastMonth), nowMs),
-    note: pending > 0 ? `${cad(pending)} of this month is still pending.` : 'Nothing pending this month.',
+    note: pending > 0 ? `${fmt(pending)} of this month is still pending.` : 'Nothing pending this month.',
   };
 }
 
@@ -137,7 +155,7 @@ function fixCard(data) {
   };
 }
 
-function categoryRows(list) {
+function categoryRows(list, fmt) {
   const rows = [...(list || [])].sort((a, b) => (b.total || 0) - (a.total || 0));
   const max = rows[0]?.total || 1;
   const sum = rows.reduce((s, r) => s + (r.total || 0), 0) || 1;
@@ -148,7 +166,7 @@ function categoryRows(list) {
     const misc = /misc|uncategorized/i.test(r.name) && share >= 0.4;
     return {
       label: `${r.name}${count}`,
-      value: share >= 0.1 ? `${cad(r.total, 2)} · ${Math.round(share * 100)}%` : cad(r.total, 2),
+      value: share >= 0.1 ? `${fmt(r.total, 2)} · ${Math.round(share * 100)}%` : fmt(r.total, 2),
       pct,
       pg: misc ? 'crit' : '',
       min: pct < 1 ? '3px' : undefined,
@@ -157,7 +175,7 @@ function categoryRows(list) {
   });
 }
 
-function chargeRows(list) {
+function chargeRows(list, fmt) {
   return (list || []).slice(0, 20).map((r) => {
     const adsMisc = /x corp advertising/i.test(r.description || '') && /misc/i.test(r.category || '');
     return {
@@ -166,36 +184,48 @@ function chargeRows(list) {
       card: r.accountLabel || '',
       filed: adsMisc ? `${r.category} · should be ads` : (r.category || ''),
       filedCls: adsMisc ? 'crit' : '',
-      amount: cad(r.amount, 2),
+      amount: fmt(r.amount, 2),
     };
   });
 }
 
 export function overlayMoney(page, data, nowMs, ageLabel) {
   if (!page || !data?.expenses) return page;
+  const code = moneyCode(data);
+  const fmt = (n, d) => (code ? usd(n, d, code) : usd(n, d));
   const monthTotal = data.expenses.businessCategories?.reduce((s, r) => s + (r.total || 0), 0) || dollars(data.expenses.business?.month);
-  page.sub = `From MoneyClaw Expenses · CAD · America/Vancouver · week/month windows · ${ageLabel}`;
+  const week = periodRange(data.expenses.personal?.week) || periodRange(data.expenses.business?.week);
+  const month = periodRange(data.expenses.personal?.month) || periodRange(data.expenses.business?.month);
+  const asOf = data.asOf ? `as of ${shortDate(data.asOf)}` : '';
+  page.sub = [
+    'From MoneyClaw Expenses',
+    code || 'currency unspecified',
+    'America/Vancouver',
+    week && `week ${week}`,
+    month && `month ${month}`,
+    asOf,
+  ].filter(Boolean).join(' · ');
   page.actions = [
     { label: 'Open MoneyClaw', href: 'https://moneyclaw.jonmac.ai', msg: 'Opens moneyclaw.jonmac.ai' },
     page.actions?.[1] || { label: 'Scan banks now', msg: 'Bank scan started' },
   ];
-  page.personal = block('Personal', data.expenses.personal, nowMs);
-  page.business = block('Business', data.expenses.business, nowMs);
+  page.personal = block('Personal', data.expenses.personal, nowMs, fmt);
+  page.business = block('Business', data.expenses.business, nowMs, fmt);
   page.categories = {
     title: 'Business · this month by category',
-    meta: `${cad(monthTotal, 2)} total`,
+    meta: `${fmt(monthTotal, 2)} total`,
     note: 'Bars are sized against the biggest category. Click a category to see its charges, the same as in MoneyClaw.',
-    rows: categoryRows(data.expenses.businessCategories),
+    rows: categoryRows(data.expenses.businessCategories, fmt),
   };
   page.fix = fixCard(data);
   page.netWorth = {
     title: 'Net worth',
     meta: '90 days',
     hidden: HIDDEN,
-    shown: cad(data.netWorth?.value),
+    shown: fmt(data.netWorth?.value),
     spark: sparkPath(data.netWorth?.series),
   };
-  page.charges = { title: 'Latest business charges', rows: chargeRows(data.expenses.latestBusinessCharges) };
+  page.charges = { title: 'Latest business charges', rows: chargeRows(data.expenses.latestBusinessCharges, fmt) };
   return page;
 }
 
@@ -234,17 +264,38 @@ function coreRows(core) {
   });
 }
 
+function quoteStamp(data) {
+  const m = data?.markets || {};
+  const p = m.pulse || {};
+  return p.quoteAt || p.quotedAt || p.quoteTime || m.quoteAt || m.quotedAt
+    || p.vix?.quoteAt || p.voo?.quoteAt || p.asOf || m.asOf;
+}
+
+function quoteWhen(value) {
+  const raw = String(value || '');
+  const ms = Date.parse(raw);
+  if (!Number.isFinite(ms)) return raw;
+  const hasTime = /T|\d:\d/.test(raw);
+  return new Intl.DateTimeFormat('en-US', {
+    timeZone: TZ,
+    month: 'short',
+    day: 'numeric',
+    ...(hasTime ? { hour: 'numeric', minute: '2-digit' } : {}),
+  }).format(new Date(ms));
+}
+
 export function overlayMarkets(page, data, nowMs, ageLabel) {
   if (!page || !data?.markets) return page;
   const pulse = data.markets.pulse || {};
   const vix = pulse.vix || {};
   const voo = pulse.voo || {};
   const vixN = Number(vix.price) || 0;
-  const newsPending = String(pulse.newsLevel || '') === 'Pending';
-  page.sub = `From MoneyClaw Market · USD · America/Vancouver · ${ageLabel}`;
+  const stamp = quoteStamp(data);
+  const quote = stamp ? `quoted ${quoteWhen(stamp)}` : 'quote time unavailable';
+  page.sub = `From MoneyClaw Market · USD · ${quote}`;
   page.actions = [{ label: 'Open MoneyClaw', href: 'https://moneyclaw.jonmac.ai', msg: 'Opens moneyclaw.jonmac.ai market page' }];
   page.tiles = [
-    { icon: 'trend', label: 'Market mood', value: pulse.mood || '—', sub: newsPending ? 'After hours' : '' },
+    { icon: 'trend', label: 'Market mood', value: pulse.mood || '—', sub: pulse.session || '' },
     {
       icon: 'chart', label: 'Fear gauge (VIX)', value: vixN ? oneDec(vixN) : '—',
       goal: 'low', pct: Math.min(100, Math.round((vixN / 50) * 100)),
@@ -255,7 +306,7 @@ export function overlayMarkets(page, data, nowMs, ageLabel) {
       icon: 'dollar', label: 'VOO', value: voo.price ? usd(voo.price, 2) : '—',
       subHtml: `<span class="${(voo.changePct || 0) < 0 ? 'down' : 'up'}">${signedPct(voo.changePct)}</span> today`,
     },
-    { icon: 'mail', label: 'News', value: newsPending ? 'Quiet' : (pulse.newsLevel || 'Quiet'), sub: newsPending ? 'No major market news' : '' },
+    { icon: 'mail', label: 'News', value: pulse.newsLevel || '—', sub: '' },
   ];
   const rows = coreRows(data.markets.core);
   page.discount = {
