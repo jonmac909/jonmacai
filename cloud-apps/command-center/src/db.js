@@ -109,6 +109,27 @@ export async function upsertIdea(db, row) {
   ).run();
 }
 
+export async function listVideoProjects(db) {
+  if (!db) return [];
+  try {
+    const { results } = await db.prepare('SELECT id, data, updated_at FROM video_projects').all();
+    return (results || []).map((r) => {
+      try { return JSON.parse(r.data); } catch { return null; }
+    }).filter(Boolean);
+  } catch {
+    return [];
+  }
+}
+
+export async function replaceVideoProjects(db, list, now) {
+  await db.prepare('DELETE FROM video_projects').run();
+  for (const p of list || []) {
+    if (!p || !p.id) continue;
+    await db.prepare('INSERT INTO video_projects (id, data, updated_at) VALUES (?, ?, ?)')
+      .bind(String(p.id), JSON.stringify(p), now).run();
+  }
+}
+
 export async function upsertPost(db, row) {
   await db.prepare(
     'INSERT OR REPLACE INTO posts (id, platform, posted_at, url, first_line, source) VALUES (?, ?, ?, ?, ?, ?)',

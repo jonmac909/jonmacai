@@ -59,6 +59,25 @@ export async function act(kind, payload = {}) {
   return row;
 }
 
+async function uploadFile(file) {
+  say('Uploading…');
+  try {
+    const created = await fetch(`${PREFIX}/api/uploads`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CC': '1' },
+      body: JSON.stringify({ filename: file.name, contentType: file.type || 'video/mp4', title: file.name.replace(/\.[^.]+$/, '') }),
+    });
+    const row = await created.json().catch(() => ({}));
+    if (!row.putUrl) { say(row.error || 'Upload failed'); return; }
+    const put = await fetch(row.putUrl, { method: 'PUT', body: file });
+    const done = await put.json().catch(() => ({}));
+    say(done.result || (put.ok ? 'Edit started' : 'Upload failed'));
+  } catch {
+    say('Upload failed');
+  }
+}
+
+
 function hashPage() {
   const id = (location.hash || '#home').replace(/^#/, '') || 'home';
   return pages[id] ? id : 'home';
@@ -169,6 +188,12 @@ document.addEventListener('click', (e) => {
     recount();
     return;
   }
+  const up = e.target.closest('[data-upload]');
+  if (up && e.target.id !== 'cc-upload') {
+    document.getElementById('cc-upload')?.click();
+    return;
+  }
+
   const href = e.target.closest('[data-href]');
   if (href) { window.open(href.dataset.href, '_blank', 'noopener'); return; }
   const logBtn = e.target.closest('[data-log-post]');
@@ -206,7 +231,7 @@ document.addEventListener('click', (e) => {
         const r = actBtn.closest('.r, .job');
         if (r) r.classList.add('done');
       }
-      if (kind.startsWith('mastermind.') || kind.startsWith('support.') || kind.startsWith('content.') || kind === 'agent.restart' || kind === 'ping') {
+      if (kind.startsWith('mastermind.') || kind.startsWith('support.') || kind.startsWith('video.') || kind.startsWith('content.') || kind === 'agent.restart' || kind === 'ping') {
         const snap = await fetch(`${PREFIX}/api/snapshot`);
         if (snap.ok) {
           data = await snap.json();
@@ -227,6 +252,21 @@ document.addEventListener('click', (e) => {
     }
   }
 });
+
+document.addEventListener('change', (e) => {
+  if (e.target.id === 'cc-upload' && e.target.files?.[0]) uploadFile(e.target.files[0]);
+});
+document.addEventListener('dragover', (e) => {
+  if (e.target.closest('[data-upload]')) e.preventDefault();
+});
+document.addEventListener('drop', (e) => {
+  const z = e.target.closest('[data-upload]');
+  if (!z) return;
+  e.preventDefault();
+  const file = e.dataTransfer.files?.[0];
+  if (file) uploadFile(file);
+});
+
 
 document.getElementById('startMorning').addEventListener('click', () => {
   go('home');

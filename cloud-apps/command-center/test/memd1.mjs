@@ -3,12 +3,14 @@ export function memD1() {
   const actions = [];
   const deals = new Map();
   const ideas = new Map();
+  const projects = new Map();
   const posts = new Map();
   return {
     snapshots,
     actions,
     deals,
     ideas,
+    projects,
     posts,
     prepare(sql) {
       const s = String(sql);
@@ -34,6 +36,7 @@ export function memD1() {
             return { results: [...deals.entries()].map(([deal_id, row]) => ({ deal_id, stage: row.stage || row })) };
           }
           if (/FROM ideas/.test(s)) return { results: [...ideas.values()] };
+          if (/FROM video_projects/.test(s)) return { results: [...projects.values()] };
           if (/FROM posts/.test(s)) return { results: [...posts.values()] };
           if (/FROM actions WHERE target/.test(s)) {
             return {
@@ -63,6 +66,10 @@ export function memD1() {
               id: a[0], kind: a[1], target: a[2], payload: a[3], status: a[4],
               result: a[5], idem_key: a[6], created_at: a[7], finished_at: a[8], claimed_at: null,
             });
+          } else if (/DELETE FROM video_projects/.test(s)) {
+            projects.clear();
+          } else if (/INSERT INTO video_projects/.test(s)) {
+            projects.set(a[0], { id: a[0], data: a[1], updated_at: a[2] });
           } else if (/INSERT OR REPLACE INTO deal_stage_overrides/.test(s)) {
             deals.set(a[0], { deal_id: a[0], stage: a[1], updated_at: a[2] });
           } else if (/status = 'claimed'/.test(s)) {

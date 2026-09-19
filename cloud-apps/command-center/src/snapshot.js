@@ -1,5 +1,7 @@
 import { buildSponsorsPage, applyHomeSponsors } from './sponsors.js';
 import { overlaySupport } from './support.js';
+import { overlayYoutube } from './youtube.js';
+import { overlayVideo } from './video.js';
 import { overlayContent } from './content.js';
 
 export const COLLECTOR_INTERVAL_MS = 5 * 60 * 1000;
@@ -12,6 +14,8 @@ export const INTERVALS = {
   sponsors: COLLECTOR_INTERVAL_MS,
   mastermind: COLLECTOR_INTERVAL_MS,
   support: COLLECTOR_INTERVAL_MS,
+  video: COLLECTOR_INTERVAL_MS,
+  youtube: DEFAULT_INTERVAL_MS,
   content_queue: COLLECTOR_INTERVAL_MS,
 };
 
@@ -170,7 +174,7 @@ function overlayMastermind(page, data, ideas, nowMs) {
   };
 }
 
-export function mergeSnapshot(fixture, rows, nowMs = Date.now(), overrides = {}, ideas = [], posts = []) {
+export function mergeSnapshot(fixture, rows, nowMs = Date.now(), overrides = {}, ideas = [], posts = [], projects = []) {
   if (Array.isArray(overrides)) {
     ideas = overrides;
     overrides = {};
@@ -228,6 +232,20 @@ export function mergeSnapshot(fixture, rows, nowMs = Date.now(), overrides = {},
       if (out.pages.sponsors) out.pages.sponsors = page;
       applyHomeSponsors(out, page);
     }
+  }
+  if (out.pages.youtube) {
+    const yt = by.youtube ? parseData(by.youtube.data) : {};
+    overlayYoutube(out.pages.youtube, {
+      projects,
+      outliers: yt.outliers,
+      channels: yt.channels,
+      ranked: yt.ranked,
+      sponsors: by.sponsors ? parseData(by.sponsors.data) : undefined,
+      nowMs,
+    });
+  }
+  if (out.pages.video && by.video) {
+    overlayVideo(out.pages.video, parseData(by.video.data));
   }
   if (out.pages.content) {
     const qRow = by.content_queue;

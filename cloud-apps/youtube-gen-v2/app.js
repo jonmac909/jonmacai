@@ -66,7 +66,25 @@
 
   function saveProjects() {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state.projects));
+    fetch("/yt2/api/projects", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json", "X-YT2": "1" },
+      body: JSON.stringify(state.projects),
+    }).catch(() => {});
   }
+
+  async function hydrateProjects() {
+    try {
+      const res = await fetch("/yt2/api/projects", { headers: { "X-YT2": "1" } });
+      if (!res.ok) return;
+      const remote = await res.json();
+      if (!Array.isArray(remote)) return;
+      state.projects = remote;
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(remote));
+      render();
+    } catch (_) {}
+  }
+
 
   function esc(value) {
     return String(value == null ? "" : value)
@@ -613,4 +631,5 @@
   }
 
   render();
+  hydrateProjects();
 })();
