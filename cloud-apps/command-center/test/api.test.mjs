@@ -25,7 +25,10 @@ function memDb(rows = []) {
             },
             async all() {
               const [machine] = args;
-              return { results: data.filter((r) => r.target === machine && r.status === 'queued').map((r) => ({ ...r })) };
+              let rows = data.filter((r) => r.target === machine && r.status === 'queued');
+              if (sql.includes("kind = 'bank.submit_code'")) rows = rows.filter((r) => r.kind === 'bank.submit_code');
+              else if (sql.includes("kind != 'bank.submit_code'")) rows = rows.filter((r) => r.kind !== 'bank.submit_code');
+              return { results: rows.map((r) => ({ ...r })) };
             },
             async run() {
               if (sql.includes("status = 'claimed'")) {
@@ -150,7 +153,7 @@ test('claim returns bank code to the runner then wipes storage', async () => {
     id: 'b1', kind: 'bank.submit_code', target: 'mac', status: 'queued',
     payload: JSON.stringify({ code: '123456' }),
   }]);
-  const rows = await claimQueued(db, 'mac', 'now');
+  const rows = await claimQueued(db, 'mac', 'now', { codes: true });
   assert.equal(JSON.parse(rows[0].payload).code, '123456');
   assert.equal(db.data[0].payload, '{}');
 });

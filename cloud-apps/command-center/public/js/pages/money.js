@@ -5,8 +5,8 @@ function stages(list) {
 }
 
 export function render(d) {
-  const right = d.actions.map((a) => btn(a.label, { msg: a.msg, cls: 'line' })).join('');
-  const scan = d.bankScan.rows.map((r) => `<div class="r"><div><strong>${r.title}</strong><small>${r.sub}</small></div><div class="right">${pill(r.pill, r.pillCls)}${r.btn ? btn(r.btn, { msg: r.msg, sm: true, done: true }) : ''}</div></div>`).join('');
+  const right = d.actions.map((a) => btn(a.label, { msg: a.msg, cls: 'line', kind: a.kind || (a.label === 'Scan banks now' ? 'bank.scan_now' : undefined), payload: a.payload })).join('');
+  const scan = d.bankScan.rows.map((r) => `<div class="r"><div><strong>${r.title}</strong><small>${r.sub}</small></div><div class="right">${pill(r.pill, r.pillCls)}${r.btn ? btn(r.btn, { msg: r.msg, sm: true, done: true, kind: r.kind, payload: r.payload }) : ''}</div></div>`).join('');
   const charges = d.charges.rows.map((r) => `<tr><td>${r.date}</td><td>${r.charge}</td><td>${r.card}</td><td>${pill(r.filed, r.filedCls || '')}</td><td class="num">${r.amount}</td></tr>`).join('');
   return `<div class="wrap">
   ${head(d.title, d.sub, right)}

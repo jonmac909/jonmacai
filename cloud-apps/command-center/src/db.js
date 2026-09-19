@@ -28,10 +28,11 @@ export async function actionById(db, id) {
   return db.prepare('SELECT * FROM actions WHERE id = ?').bind(id).first();
 }
 
-export async function claimQueued(db, machine, now) {
-  const { results } = await db.prepare(
-    `SELECT * FROM actions WHERE target = ? AND status = 'queued' ORDER BY created_at LIMIT 10`,
-  ).bind(machine).all();
+export async function claimQueued(db, machine, now, opts = {}) {
+  const sql = opts.codes
+    ? `SELECT * FROM actions WHERE target = ? AND status = 'queued' AND kind = 'bank.submit_code' ORDER BY created_at LIMIT 10`
+    : `SELECT * FROM actions WHERE target = ? AND status = 'queued' AND kind != 'bank.submit_code' ORDER BY created_at LIMIT 10`;
+  const { results } = await db.prepare(sql).bind(machine).all();
   for (const row of results || []) {
     await db.prepare(`UPDATE actions SET status = 'claimed', claimed_at = ? WHERE id = ? AND status = 'queued'`)
       .bind(now, row.id).run();

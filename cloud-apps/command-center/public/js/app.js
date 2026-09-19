@@ -181,17 +181,30 @@ document.addEventListener('click', (e) => {
       payload = { ...payload, body, status: 'edited' };
     }
     const kind = actBtn.dataset.kind;
+    if (kind === 'bank.submit_code' && !payload.code) {
+      const code = prompt('Enter the bank text code');
+      if (!code) return;
+      payload = { account: payload.account, code: code.trim() };
+    }
     act(kind, payload).then(async () => {
       if (actBtn.hasAttribute('data-done')) {
         const r = actBtn.closest('.r, .job');
         if (r) r.classList.add('done');
       }
-      if (kind.startsWith('mastermind.') || kind === 'agent.restart' || kind === 'ping') {
-        const snap = await fetch(`${PREFIX}/api/snapshot`);
-        if (snap.ok) {
-          data = await snap.json();
-          go(hashPage());
-        }
+      if (kind.startsWith('mastermind.') || kind === 'agent.restart' || kind === 'ping' || kind.startsWith('bank.')) {
+        const until = kind === 'bank.scan_now' ? Date.now() + 6 * 60 * 1000 : 0;
+        do {
+          const snap = await fetch(`${PREFIX}/api/snapshot`);
+          if (snap.ok) {
+            data = await snap.json();
+            go(hashPage());
+            const rows = data.pages?.money?.bankScan?.rows || [];
+            if (kind !== 'bank.scan_now' || rows.some((r) => r.kind === 'bank.submit_code' || r.btn === 'Try again')) break;
+            if (rows.length && rows.every((r) => !r.btn)) break;
+          }
+          if (!until || Date.now() >= until) break;
+          await new Promise((r) => setTimeout(r, 3000));
+        } while (until);
       }
     });
     return;
