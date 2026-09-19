@@ -5,7 +5,7 @@ import {
 } from './auth.js';
 import {
   loginStore, insertAction, actionByIdem, actionById, claimQueued, completeAction,
-  upsertChecklist, upsertHabit, upsertSnapshot, listSnapshots, upsertDealStage, listDealStages, listIdeas, upsertIdea,
+  upsertChecklist, deleteChecklist, upsertHabit, upsertSnapshot, listSnapshots, upsertDealStage, listDealStages, listIdeas, upsertIdea, ideaById,
   listVideoProjects, replaceVideoProjects,
   upsertPost, listPosts, listChecklist, listHabits,
 } from './db.js';
@@ -15,6 +15,8 @@ import { normalizePost } from './content.js';
 import { runMoneyMove } from './money.js';
 import { runOutreach } from './outreach.js';
 import { exchangeGoogleCode, googleAuthUrl, runLife, ymd } from './life.js';
+import { revalidateSources } from './revalidate.js';
+import { persistQueueDrafts, listDrafts, upsertDraft } from './drafts.js';
 
 const PREFIX = '/dashboard/api';
 const json = (data, status = 200, headers = {}) =>
@@ -30,7 +32,7 @@ function uploadKey(id, filename) {
 }
 function targetFor(kind, payload = {}) {
   if (kind === 'ping') return payload.machine === 'mac' || payload.machine === 'gpu2' ? payload.machine : null;
-  if (kind === 'mastermind.park') return 'worker';
+  if (kind === 'mastermind.park' || kind === 'content.save_draft' || kind === 'content.discard_draft') return 'worker';
   if (kind === 'agent.restart') return payload.machine === 'mac' ? 'mac' : 'gpu2';
   if (kind.startsWith('sponsor.') || kind.startsWith('bank.')) return 'mac';
   if (kind.startsWith('support.') || kind.startsWith('mastermind.') || kind.startsWith('content.') || kind.startsWith('video.') || kind.startsWith('agent.')) return 'gpu2';
@@ -119,7 +121,25 @@ async function postAction(request, env) {
     }
   }
   if (kind === 'mastermind.send_to_planner' && env.DB && payload.id) {
+    const existingIdea = await ideaById(env.DB, payload.id);
+    if (existingIdea && ['sent', 'building', 'built'].includes(existingIdea.status)) {
+      return json({ id: existingIdea.id, status: 'done', result: 'Already in Planner' });
+    }
     await upsertIdea(env.DB, { id: payload.id, title: payload.title, body: payload.body, area: payload.area, verdict: payload.verdict || 'implement', status: 'sent' });
+  }
+  if ((kind === 'content.save_draft' || kind === 'content.discard_draft') && env.DB) {
+    await upsertDraft(env.DB, {
+      id: payload.id || crypto.randomUUID(),
+      day: payload.day || ymd(Date.now()),
+      platform: payload.platform || 'X',
+      slot: payload.slot || 1,
+      body: payload.body || '',
+      subject: payload.subject || '',
+      first_line: payload.first_line || String(payload.body || '').slice(0, 80),
+      status: kind === 'content.discard_draft' ? 'discarded' : 'draft',
+    });
+    result = kind === 'content.discard_draft' ? 'Draft discarded' : 'Draft saved';
+    status = 'done';
   }
   if (kind === 'money.move_and_remember') {
     try {
@@ -197,9 +217,12 @@ export async function handleApi(request, env) {
     if (denied) return denied;
     const base = filterSnapshot(url.searchParams.get('pages'));
     if (!env.DB) return json(base);
+    if (env.VIRALVIEW_SUMMARY_SECRET || env.MONEYCLAW_DASHBOARD_TOKEN || env.INSTANTLY_API_KEY || env.YT2_REVALIDATE === '1' || env.CRON_SECRET) {
+      await revalidateSources(env);
+    }
     const now = Date.now();
     const overrides = await listDealStages(env.DB);
-    const extra = { habits: await listHabits(env.DB), checklist: await listChecklist(env.DB, ymd(now)) };
+    const extra = { habits: await listHabits(env.DB), checklist: await listChecklist(env.DB, ymd(now)), drafts: await listDrafts(env.DB, ymd(now)) };
     return json(mergeSnapshot(base, await listSnapshots(env.DB), now, overrides, await listIdeas(env.DB), await listPosts(env.DB), await listVideoProjects(env.DB), extra));
   }
 
@@ -226,6 +249,7 @@ export async function handleApi(request, env) {
       return json({ ok: true });
     }
     if (env.DB) await upsertSnapshot(env.DB, source, JSON.stringify(data), collectedAt, new Date().toISOString());
+    if (source === 'content_queue' && env.DB) await persistQueueDrafts(env.DB, data, collectedAt);
     return json({ ok: true });
   }
   if (rest === '/actions/claim' && method === 'POST') {
@@ -264,13 +288,17 @@ export async function handleApi(request, env) {
     const now = new Date().toISOString();
     const actionId = crypto.randomUUID();
     if (env.DB) {
-      await insertAction(env.DB, {
-        id: actionId, kind: 'video.start_edit', target: 'gpu2',
-        payload: JSON.stringify({ id, title, filename, key }),
-        status: 'queued', result: null, idem_key: `upload-${id}`, created_at: now, finished_at: null,
-      });
+      const studio = env.LOOP_STUDIO_URL || env.GPU1_VIDEO_URL;
+      if (studio) {
+        await insertAction(env.DB, {
+          id: actionId, kind: 'video.start_edit', target: 'worker',
+          payload: JSON.stringify({ id, title, filename, key, studio }),
+          status: 'done', result: 'Queued on Loop Studio', idem_key: `upload-${id}`, created_at: now, finished_at: now,
+        });
+        return json({ ok: true, id: actionId, result: 'Edit started on Loop Studio', editor: 'gpu1' });
+      }
     }
-    return json({ ok: true, id: actionId, result: 'Edit started' });
+    return json({ ok: true, stored: true, result: 'Uploaded · Loop Studio / GPU1 is not connected', editor: 'disconnected' });
   }
   if (up && method === 'GET') {
     const who = machineOf(request, env);
@@ -303,7 +331,8 @@ export async function handleApi(request, env) {
   }
   if (rest === '/checklist' && method === 'POST' && env.DB) {
     const b = await request.json().catch(() => ({}));
-    await upsertChecklist(env.DB, b.day, b.item, b.done_at || new Date().toISOString(), b.how || 'manual');
+    if (b.done === false) await deleteChecklist(env.DB, b.day, b.item);
+    else await upsertChecklist(env.DB, b.day, b.item, b.done_at || new Date().toISOString(), b.how || 'manual');
     return json({ ok: true });
   }
   if (rest === '/habits' && method === 'POST' && env.DB) {

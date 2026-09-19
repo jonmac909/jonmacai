@@ -26,6 +26,9 @@
   "triggers": {
     "crons": ["*/10 * * * *"]
   },
+  "vars": {
+    "YT2_REVALIDATE": "1"
+  },
   "routes": [
     { "pattern": "jonmac.ai/dashboard", "zone_name": "jonmac.ai" },
     { "pattern": "jonmac.ai/dashboard/*", "zone_name": "jonmac.ai" }

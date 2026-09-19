@@ -6,7 +6,7 @@ export function render(d) {
     const b = r.btn ? `<td class="num">${btn(r.btn, { page: r.page, msg: r.msg, cls: r.primary ? '' : 'line', sm: true })}</td>` : '<td></td>';
     return `<tr><td>${r.video}</td><td>${r.type}</td><td><div class="cellpg">${pg(r.pct, r.pg)}${pill(r.pill, r.pillCls)}</div></td><td>${r.due}</td><td>${r.next}</td>${b}</tr>`;
   }).join('');
-  const jobs = d.remake.jobs.map((j) => job({ ...j, pillCls: 'ok', btn: d.remake.btn, msg: d.remake.msg })).join('');
+  const jobs = d.remake.jobs.map((j) => job({ ...j, pillCls: 'ok', btn: 'Remake this', href: j.href })).join('');
   return `<div class="wrap">
   ${head(d.title, d.sub, right)}
   ${tiles(d.tiles)}
@@ -15,7 +15,7 @@ export function render(d) {
     <div class="tblwrap"><table><thead><tr><th>Video</th><th>Type</th><th>Progress</th><th>Due</th><th>Next step</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
   </div>
   <div class="sec">
-    <div class="bar"><h2>${d.remake.title}</h2><button class="link" data-msg="${d.remake.seeAllMsg}">${d.remake.seeAll}</button></div>
+    <div class="bar"><h2>${d.remake.title}</h2><button class="link" data-href="${d.remake.seeAllHref || 'https://jonmac.ai/yt2/'}">${d.remake.seeAll}</button></div>
     <div class="todo">${jobs}</div>
   </div>
 </div>`;

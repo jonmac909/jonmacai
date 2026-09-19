@@ -153,13 +153,40 @@ export async function runOutreach(env, kind, payload, fetchFn = globalThis.fetch
   if (kind === 'outreach.launch') return launchCampaign(env, payload, fetchFn);
   if (kind === 'outreach.mark_test') return markTestSent(env);
   if (kind === 'outreach.refresh') {
+    if (!env.INSTANTLY_API_KEY) throw new Error('Instantly is not connected');
     await pullInstantly(env, fetchFn);
     return 'Read your Instantly limits';
   }
-  throw new Error('Unknown action');
+  if (kind === 'outreach.build_list' || kind === 'outreach.draft_them') {
+    if (!env.INSTANTLY_API_KEY) throw new Error('Instantly is not connected');
+    await pullInstantly(env, fetchFn);
+    const prev = (await listSnapshots(env.DB)).find((r) => r.source === 'instantly');
+    const data = prev ? JSON.parse(prev.data) : {};
+    const camp = data.campaign || {};
+    if (kind === 'outreach.build_list') {
+      const n = Number(camp.leads_count) || 0;
+      return n ? `${n} leads on the list` : 'No leads on the campaign yet';
+    }
+    const steps = Number(camp.step_count) || 0;
+    return steps ? `${steps} email steps drafted` : 'Campaign has no drafted steps';
+  }
 }
 
-export function overlayOutreach(page, data = {}) {
+export function overlayOutreach(page, data = {}, opts = {}) {
+  if (!page) return page;
+  if (opts.missing || data == null) {
+    page.unverified = true;
+    page.sourceNote = 'Instantly is not connected';
+    page.sub = page.sourceNote;
+    page.setup.steps = (page.setup.steps || []).map((t, i) => {
+      const s = { n: i + 1, title: t.title, sub: t.sub };
+      if (i === 1) return { ...s, btn: 'Check now', kind: 'outreach.refresh' };
+      if (i === 2) return { ...s, btn: 'Build list', kind: 'outreach.build_list' };
+      if (i === 3) return { ...s, btn: 'Draft them', kind: 'outreach.draft_them' };
+      return s;
+    });
+    return page;
+  }
   const accounts = data.accounts || [];
   const max = data.dailyMax ?? dailyMax(accounts);
   const camp = data.campaign || {};
@@ -189,6 +216,9 @@ export function overlayOutreach(page, data = {}) {
       s.pill = `Waiting on ${first + 1}`;
       return s;
     }
+    if (i === 1) return { ...s, btn: 'Check now', kind: 'outreach.refresh' };
+    if (i === 2) return { ...s, btn: 'Build list', kind: 'outreach.build_list' };
+    if (i === 3) return { ...s, btn: 'Draft them', kind: 'outreach.draft_them' };
     if (i === 4) return { ...s, btn: 'Mark test sent', kind: 'outreach.mark_test' };
     if (i === 5) {
       return {
@@ -199,13 +229,7 @@ export function overlayOutreach(page, data = {}) {
         payload: { campaignId: camp.id, confirmed: true },
       };
     }
-    return {
-      ...s,
-      btn: t.btn,
-      msg: t.msg,
-      btnCls: t.btnCls,
-      kind: i === 1 ? 'outreach.refresh' : t.kind,
-    };
+    return { ...s, btn: t.btn, msg: t.msg, btnCls: t.btnCls, kind: t.kind };
   });
   page.setup.done = `${n} of 6 done`;
   page.setup.pct = Math.round((n / 6) * 100);

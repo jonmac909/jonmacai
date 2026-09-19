@@ -2,9 +2,17 @@ function json(data, status = 200) {
   return new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json' } });
 }
 
+export function isAiUgc(title) {
+  const t = String(title || '');
+  if (!t) return false;
+  if (/\bAI\s*UGC\b/i.test(t)) return true;
+  if (/\bAI[- ]?video[- ]generation\b/i.test(t)) return true;
+  return /\bUGC\b/i.test(t) && /\bAI\b/i.test(t);
+}
+
 export function topOutliers(rows, n = 3) {
   return [...(rows || [])]
-    .filter((r) => r && r.title)
+    .filter((r) => r && r.title && isAiUgc(r.title))
     .sort((a, b) => Number(b.outlier_score || 0) - Number(a.outlier_score || 0))
     .slice(0, n);
 }
@@ -52,6 +60,40 @@ export async function handleYt2Api(request, env) {
       }
       return json({ ok: true, n: list.length });
     }
+  }
+  if (path.endsWith('/api/refresh') && request.method === 'POST') {
+    const cookie = request.headers.get('cookie') || '';
+    const res = await fetch(new URL('/yt/api/channels/refresh', request.url), {
+      method: 'POST',
+      headers: { cookie, accept: 'application/json' },
+      redirect: 'manual',
+    }).catch(() => null);
+    if (!res) return json({ ok: false, error: 'YouTube login service unreachable' }, 502);
+    if (res.status === 307 || res.status === 302 || res.status === 401) {
+      return json({ ok: false, needLogin: true, login: '/yt/login?next=/yt2/' }, 401);
+    }
+    const body = await res.json().catch(() => ({}));
+    return json({ ok: res.ok, ...body }, res.ok ? 200 : res.status);
+  }
+  if (path.endsWith('/api/remake') && request.method === 'POST') {
+    if (request.headers.get('X-YT2') !== '1') return json({ error: 'Missing header' }, 403);
+    let body = {};
+    try { body = await request.json(); } catch { body = {}; }
+    if (!env.DB) return json({ error: 'No database' }, 500);
+    const id = String(body.id || `remake_${Date.now()}`);
+    const project = {
+      id,
+      createdAt: new Date().toISOString(),
+      stage: 'script',
+      templateId: body.templateId || 'trend_to_revenue',
+      source: body.source || { id: body.sourceId, title: body.title || '' },
+      titleOptions: [body.title || 'Remake'],
+      selectedTitleIndex: 0,
+      missing: ['script LLM', 'render worker'],
+    };
+    await env.DB.prepare('INSERT OR REPLACE INTO video_projects (id, data, updated_at) VALUES (?, ?, ?)')
+      .bind(id, JSON.stringify(project), project.createdAt).run();
+    return json({ ok: true, projectId: id, missing: project.missing, note: 'Project and template saved. Script LLM and render worker are not connected.' });
   }
   return json({ error: 'Not found' }, 404);
 }

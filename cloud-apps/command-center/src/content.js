@@ -237,11 +237,28 @@ function overlayBest(page, viral) {
   };
 }
 
-export function overlayContent(page, { posts = [], queue = null, viral = null, video = null, nowMs = Date.now() } = {}) {
+export function overlayContent(page, { posts = [], queue = null, viral = null, video = null, drafts = [], nowMs = Date.now() } = {}) {
   page.actions = [{ label: 'Log a post', log: true, msg: 'Post logged' }];
   const queuedN = queue && !queue.missing && Array.isArray(queue.queued) ? queue.queued.length : 0;
   overlayGrid(page, posts, nowMs, queuedN);
   overlayYtWeek(page, video);
   overlayQueue(page, queue && !queue.missing ? queue : { queued: [] });
   overlayBest(page, viral);
+  const today = dayKey(nowMs);
+  const rows = (drafts || []).filter((d) => d.day === today && d.status !== 'discarded');
+  page.drafts = {
+    title: "Today's drafts",
+    meta: `${rows.length} persisted · 3 per platform`,
+    rows: rows.map((d) => ({
+      id: d.id,
+      platform: d.platform,
+      title: d.first_line || d.body || 'Draft',
+      body: d.body || '',
+      subject: d.subject || '',
+      slot: d.slot,
+      saveKind: 'content.save_draft',
+      sendKind: 'content.approve',
+      discardKind: 'content.discard_draft',
+    })),
+  };
 }

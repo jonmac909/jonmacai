@@ -4,9 +4,10 @@ export function memD1() {
   const deals = new Map();
   const ideas = new Map();
   const projects = new Map();
-  const posts = new Map();
+  const posts = [];
   const habits = new Map();
   const checklist = new Map();
+  const drafts = new Map();
   return {
     snapshots,
     actions,
@@ -16,6 +17,7 @@ export function memD1() {
     posts,
     habits,
     checklist,
+    drafts,
     prepare(sql) {
       const s = String(sql);
       const stmt = {
@@ -30,7 +32,7 @@ export function memD1() {
           if (/FROM actions WHERE idem_key/.test(s)) return actions.find((x) => x.idem_key === a[0]) || null;
           if (/FROM actions WHERE id/.test(s)) return actions.find((x) => x.id === a[0]) || null;
           if (/FROM ideas WHERE id/.test(s)) return ideas.get(a[0]) || null;
-          if (/FROM posts WHERE id/.test(s)) return posts.get(a[0]) || null;
+          if (/FROM posts WHERE id/.test(s)) return posts.find((p) => p.id === a[0]) || null;
           return null;
         },
         async all() {
@@ -41,11 +43,13 @@ export function memD1() {
           }
           if (/FROM ideas/.test(s)) return { results: [...ideas.values()] };
           if (/FROM video_projects/.test(s)) return { results: [...projects.values()] };
-          if (/FROM posts/.test(s)) return { results: [...posts.values()] };
+          if (/FROM posts/.test(s)) return { results: posts };
           if (/FROM checklist/.test(s)) {
             return { results: [...checklist.values()].filter((r) => !a[0] || r.day === a[0]) };
           }
-          if (/FROM habits/.test(s)) return { results: [...habits.values()] };
+          if (/FROM content_drafts/.test(s)) {
+            return { results: [...drafts.values()] };
+          }
           if (/FROM actions WHERE target/.test(s)) {
             return {
               results: actions
@@ -62,6 +66,15 @@ export function memD1() {
             snapshots.set(a[0], { source: a[0], data: a[1], collected_at: a[2], received_at: a[3] });
           } else if (/INSERT OR REPLACE INTO checklist/.test(s)) {
             checklist.set(`${a[0]}|${a[1]}`, { day: a[0], item: a[1], done_at: a[2], how: a[3] });
+          } else if (/DELETE FROM checklist/.test(s)) {
+            checklist.delete(`${a[0]}|${a[1]}`);
+          } else if (/CREATE TABLE/.test(s)) {
+            /* schema no-op */
+          } else if (/INSERT OR REPLACE INTO content_drafts/.test(s)) {
+            drafts.set(a[0], {
+              id: a[0], day: a[1], platform: a[2], slot: a[3],
+              body: a[4], subject: a[5], first_line: a[6], status: a[7], updated_at: a[8],
+            });
           } else if (/INSERT OR REPLACE INTO habits/.test(s)) {
             habits.set(`${a[0]}|${a[1]}`, { day: a[0], kind: a[1], done: a[2], note: a[3] });
           } else if (/INSERT OR REPLACE INTO ideas/.test(s)) {
@@ -70,9 +83,10 @@ export function memD1() {
               status: a[5], created_at: a[6], updated_at: a[7],
             });
           } else if (/INSERT OR REPLACE INTO posts/.test(s)) {
-            posts.set(a[0], {
-              id: a[0], platform: a[1], posted_at: a[2], url: a[3], first_line: a[4], source: a[5],
-            });
+            const row = { id: a[0], platform: a[1], posted_at: a[2], url: a[3], first_line: a[4], source: a[5] };
+            const i = posts.findIndex((p) => p.id === row.id);
+            if (i >= 0) posts[i] = row;
+            else posts.push(row);
           } else if (/INSERT INTO actions/.test(s)) {
             actions.push({
               id: a[0], kind: a[1], target: a[2], payload: a[3], status: a[4],

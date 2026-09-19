@@ -8,7 +8,7 @@ function actionBtn(a) {
 export function render(d) {
   const right = d.actions.map(actionBtn).join('');
   const weeks = d.workouts.weeks.map((w) => `<div class="habit"><div><strong>${w.title}</strong><small>${w.sub}</small></div>${dots(w.dots)}</div>`).join('');
-  const nights = d.dateNight.rows.map((r) => `<div class="r"><div><strong>${r.title}</strong><small>${r.sub}</small></div><div class="right">${r.btn ? btn(r.btn, { msg: r.msg, kind: r.kind, payload: r.payload, confirm: r.confirm, done: true }) : pill(r.pill, r.pillCls)}</div></div>`).join('');
+  const nights = d.dateNight.rows.map((r) => `<div class="r"><div><strong>${r.title}</strong><small>${r.sub}</small></div><div class="right">${r.btn ? btn(r.btn, { href: r.href, msg: r.msg, kind: r.kind, payload: r.payload, confirm: r.confirm, done: true }) : pill(r.pill, r.pillCls)}</div></div>`).join('');
   const today = d.today.rows.map((r) => `<div class="r"><div><strong>${r.title}</strong><small>${r.sub}</small></div><div class="right">${r.btn ? btn(r.btn, { page: r.page, cls: 'line', sm: true }) : pill(r.pill, r.pillCls || '')}</div></div>`).join('');
   return `<div class="wrap">
   ${head(d.title, d.sub, right)}

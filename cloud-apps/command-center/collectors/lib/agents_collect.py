@@ -68,10 +68,16 @@ def collect_agents(machine):
     except Exception:
         return []
     out = []
+    seen = set()
     for w in wts:
-        if not w.get('isPinned'):
-            continue
         name = w.get('displayName') or Path(w.get('path') or '').name or 'Agent'
+        info = meta.get(name) or {}
+        mine = _terms_for(terms, w.get('worktreeId'))
+        connected = any(t.get('connected') for t in mine)
+        spinning = any(any(ch in (t.get('title') or '') for ch in SPIN) for t in mine)
+        if not w.get('isPinned') and not connected and not spinning:
+            continue
+        daily = bool(info.get('daily'))
         info = meta.get(name) or {}
         daily = bool(info.get('daily'))
         mine = _terms_for(terms, w.get('worktreeId'))
@@ -123,6 +129,24 @@ def collect_agents(machine):
             row['restart'] = 'Restart'
             row['restartMsg'] = '%s agent restarted' % name
         out.append(row)
+        seen.add(name)
+    for name, info in meta.items():
+        if name in seen:
+            continue
+        out.append({
+            'name': name,
+            'runs': LABEL.get(machine, machine),
+            'machine': machine,
+            'now': 'Not running',
+            'job': 'Not running',
+            'pct': 0,
+            'pg': '',
+            'status': 'not_running',
+            'pill': 'Not running',
+            'pillCls': 'risk',
+            'page': info.get('page') or '',
+            'pin': True,
+        })
     return out
 
 

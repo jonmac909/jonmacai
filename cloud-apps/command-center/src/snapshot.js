@@ -1,4 +1,4 @@
-import { buildSponsorsPage, applyHomeSponsors } from './sponsors.js';
+import { applyHomeSponsors, overlaySponsors } from './sponsors.js';
 import { overlaySupport } from './support.js';
 import { overlayYoutube } from './youtube.js';
 import { overlayVideo } from './video.js';
@@ -8,6 +8,7 @@ import { overlayViral, applyHomeViral } from './viral.js';
 import { overlayOutreach } from './outreach.js';
 import { overlayLife } from './life.js';
 import { applyHome } from './home.js';
+import { parseStamp } from './time.js';
 
 export const COLLECTOR_INTERVAL_MS = 5 * 60 * 1000;
 
@@ -47,10 +48,46 @@ export function ageLabel(ageMs) {
 }
 
 export function freshness(collectedAt, nowMs, intervalMs) {
-  const t = Date.parse(collectedAt);
+  const t = parseStamp(collectedAt);
   if (!Number.isFinite(t)) return { ageMs: Infinity, stale: true, label: 'updated unknown' };
   const ageMs = Math.max(0, nowMs - t);
   return { ageMs, stale: ageMs > 3 * intervalMs, label: ageLabel(ageMs) };
+}
+
+const SKIP_SOURCES = new Set(['google_oauth', 'telegram_sent', 'health']);
+const IMPORTANT = ['viralview', 'moneyclaw', 'sponsors', 'support', 'youtube', 'instantly', 'calendar', 'mastermind', 'content_queue'];
+
+export function honestyChip(by, nowMs, fixtureChip = 'Mockup · numbers are examples') {
+  const present = Object.keys(by || {}).filter((k) => !SKIP_SOURCES.has(k));
+  if (!present.length) return fixtureChip;
+  const stale = present.filter((k) => freshness(by[k].collected_at, nowMs, INTERVALS[k] ?? DEFAULT_INTERVAL_MS).stale);
+  const missing = IMPORTANT.filter((k) => !by[k]);
+  if (stale.length || missing.length) return 'Partial · some sources missing or stale';
+  return 'Live · numbers from your pages';
+}
+
+function markUnverified(page, reason) {
+  if (!page) return;
+  page.unverified = true;
+  page.sourceNote = reason;
+  page.sub = page.sub ? `${reason} · ${page.sub}` : reason;
+}
+
+function applyHonesty(out, by, health) {
+  const need = {
+    sponsors: 'sponsors', viral: 'viralview', youtube: 'youtube', content: 'content_queue',
+    outreach: 'instantly', support: 'support', video: 'video', money: 'moneyclaw',
+    markets: 'moneyclaw', life: 'calendar', mastermind: 'mastermind',
+  };
+  for (const [pageId, source] of Object.entries(need)) {
+    if (!out.pages?.[pageId]) continue;
+    const err = health?.errors?.[source];
+    if (err) markUnverified(out.pages[pageId], `Source error · ${err}`);
+    else if (!by[source]) markUnverified(out.pages[pageId], 'Not connected · not live numbers');
+  }
+  if (out.pages?.agents && !by.agents_mac && !by.agents_gpu2) {
+    markUnverified(out.pages.agents, 'Not connected · not live numbers');
+  }
 }
 
 function parseData(raw) {
@@ -71,13 +108,13 @@ function overlayAgents(page, by) {
       agents.push({ ...a, runs: a.runs || m.label, machine: a.machine || m.id });
     }
   }
-  if (!agents.length) return;
   const need = agents.filter((a) => a.status === 'needs_you');
   const work = agents.filter((a) => a.status === 'working');
   const quiet = agents.filter((a) => a.status === 'quiet');
   const daily = agents.filter((a) => a.job === 'Done');
+  const notRun = agents.filter((a) => a.status === 'not_running');
   const dailyN = agents.filter((a) => a.restart || a.job === 'Done' || a.status === 'quiet').length || daily.length;
-  page.sub = `${agents.length} pinned in Orca · across the Mac mini and GPU2`;
+  page.sub = `${agents.length} agents · ${work.length + need.length} running · ${notRun.length} not running`;
   page.tiles = [
     { icon: 'clock', label: 'Need you', value: String(need.length), sub: names(need.map((a) => a.name)) || 'None' },
     { icon: 'bot', label: 'Working now', value: String(work.length), sub: names(work.map((a) => a.name)) || 'None' },
@@ -99,14 +136,16 @@ function overlayAgents(page, by) {
   page.all = {
     title: 'All agents',
     rows: agents.map((a) => ({
+      name: a.name,
+      status: a.status === 'not_running' ? 'Not running' : a.status,
       agent: a.name,
       runs: a.runs,
       now: a.now,
       job: a.job,
       pct: a.pct,
       pg: a.pg || '',
-      pill: a.pill,
-      pillCls: a.pillCls || '',
+      pill: a.pill || (a.status === 'not_running' ? 'Not running' : a.status === 'working' ? 'Working' : ''),
+      pillCls: a.pillCls || (a.status === 'not_running' ? 'risk' : ''),
       page: a.page || undefined,
       machine: a.machine,
       restart: a.restart || '',
@@ -148,7 +187,8 @@ function overlayMastermind(page, data, ideas, nowMs) {
       pill: p.verdict === 'implement' ? 'Worth doing' : 'Maybe',
       pillCls: p.verdict === 'implement' ? 'ok' : 'risk',
       title: p.title,
-      lines: p.lines || [p.text].filter(Boolean),
+      href: p.href || p.url || '',
+      lines: [p.ts, p.href || p.url, p.why, p.fit, p.text].filter(Boolean).slice(0, 3),
       lineBtn: 'Park',
       lineKind: 'mastermind.park',
       linePayload: { id: p.id, title: p.title, body: p.text, area: p.area, msg: 'Parked for later' },
@@ -184,10 +224,37 @@ function overlayMastermind(page, data, ideas, nowMs) {
   };
 }
 
-export function mergeSnapshot(fixture, rows, nowMs = Date.now(), overrides = {}, ideas = [], posts = [], projects = [], extra = {}) {
-  if (Array.isArray(overrides)) {
-    ideas = overrides;
+export function mergeSnapshot(fixture, rows, opts = {}, ideasArg, postsArg, projectsArg, extraArg, extraPos) {
+  let nowMs; let overrides; let ideas; let posts; let projects; let extra;
+  if (typeof opts === 'number') {
+    nowMs = opts;
+    if (Array.isArray(ideasArg)) {
+      overrides = {};
+      ideas = ideasArg;
+      posts = postsArg || [];
+      projects = projectsArg || [];
+      extra = extraArg || {};
+    } else {
+      overrides = ideasArg || {};
+      ideas = postsArg || [];
+      posts = projectsArg || [];
+      projects = extraArg || [];
+      extra = extraPos || {};
+    }
+  } else if (Array.isArray(opts)) {
+    nowMs = Date.now();
     overrides = {};
+    ideas = opts;
+    posts = ideasArg || [];
+    projects = postsArg || [];
+    extra = {};
+  } else {
+    nowMs = opts.nowMs ?? Date.now();
+    overrides = opts.overrides || {};
+    ideas = opts.ideas || [];
+    posts = opts.posts || [];
+    projects = opts.projects || [];
+    extra = opts.extra || {};
   }
   extra = extra || {};
   const out = JSON.parse(JSON.stringify(fixture));
@@ -195,7 +262,7 @@ export function mergeSnapshot(fixture, rows, nowMs = Date.now(), overrides = {},
   const staleSources = [];
   for (const row of rows || []) {
     by[row.source] = row;
-    if (row.source === 'google_oauth' || row.source === 'telegram_sent') continue;
+    if (SKIP_SOURCES.has(row.source)) continue;
     const interval = INTERVALS[row.source] ?? DEFAULT_INTERVAL_MS;
     const f = freshness(row.collected_at, nowMs, interval);
     out.sources[row.source] = { updatedAt: row.collected_at, stale: f.stale, ageLabel: f.label };
@@ -204,29 +271,21 @@ export function mergeSnapshot(fixture, rows, nowMs = Date.now(), overrides = {},
       staleSources.push({ source: row.source, label: m ? m.label : row.source, ageLabel: f.label });
     }
   }
+  const health = parseData(by.health?.data);
   if (out.pages.agents) {
     out.pages.agents.machines = MACHINES.map((m) => {
       const row = by[m.source];
       if (!row) return { ...m, hostname: '', ageLabel: 'No heartbeat yet', stale: false };
       const data = parseData(row.data);
       const f = freshness(row.collected_at, nowMs, INTERVALS[m.source]);
-      return {
-        ...m,
-        hostname: data.hostname || m.label,
-        ageLabel: f.label,
-        stale: f.stale,
-        updatedAt: row.collected_at,
-      };
+      return { ...m, hostname: data.hostname || m.label, ageLabel: f.label, stale: f.stale, updatedAt: row.collected_at };
     });
     out.pages.agents.staleSources = staleSources;
     overlayAgents(out.pages.agents, by);
-    if (out.nav?.badges) {
-      const need = (out.pages.agents.waiting?.jobs || []).length;
-      out.nav.badges.agents = need;
-    }
+    if (out.nav?.badges) out.nav.badges.agents = (out.pages.agents.waiting?.jobs || []).length;
   }
-  if (out.pages.mastermind && by.mastermind) {
-    overlayMastermind(out.pages.mastermind, parseData(by.mastermind.data), ideas, nowMs);
+  if (out.pages.mastermind) {
+    overlayMastermind(out.pages.mastermind, by.mastermind ? parseData(by.mastermind.data) : { picks: [], scanned: 0 }, ideas, nowMs);
     if (out.nav?.badges) out.nav.badges.mastermind = (out.pages.mastermind.picks?.jobs || []).length;
   }
   if (out.pages.support && by.support) {
@@ -234,48 +293,34 @@ export function mergeSnapshot(fixture, rows, nowMs = Date.now(), overrides = {},
     overlaySupport(out.pages.support, parseData(by.support.data), nowMs, f.label);
     if (out.nav?.badges) out.nav.badges.support = Number(out.pages.support.tiles?.[0]?.value || 0);
   }
-  const sponsors = by.sponsors;
-  if (sponsors) {
-    const data = parseData(sponsors.data);
-    if (data.collections) {
-      const page = buildSponsorsPage(data, nowMs, overrides);
-      const f = freshness(sponsors.collected_at, nowMs, INTERVALS.sponsors);
-      page.sub = `From your collections tracker · ${f.label}`;
-      if (out.pages.sponsors) out.pages.sponsors = page;
-      applyHomeSponsors(out, page);
+  if (out.pages.sponsors) {
+    overlaySponsors(out.pages.sponsors, by.sponsors ? parseData(by.sponsors.data) : {}, nowMs, overrides);
+    if (by.sponsors && parseData(by.sponsors.data).collections) {
+      const f = freshness(by.sponsors.collected_at, nowMs, INTERVALS.sponsors);
+      out.pages.sponsors.sub = `From your collections tracker · ${f.label}`;
+      applyHomeSponsors(out, out.pages.sponsors);
     }
   }
   if (out.pages.youtube) {
     const yt = by.youtube ? parseData(by.youtube.data) : {};
     overlayYoutube(out.pages.youtube, {
-      projects,
-      outliers: yt.outliers,
-      channels: yt.channels,
-      ranked: yt.ranked,
-      sponsors: by.sponsors ? parseData(by.sponsors.data) : undefined,
-      nowMs,
+      projects, outliers: yt.outliers, channels: yt.channels, ranked: yt.ranked,
+      sponsors: by.sponsors ? parseData(by.sponsors.data) : undefined, nowMs,
     });
   }
-  if (out.pages.video && by.video) {
-    overlayVideo(out.pages.video, {
-      ...parseData(by.video.data),
-      live: Number(out.pages.youtube?.tiles?.[0]?.value) || 0,
-    });
+  if (out.pages.video) {
+    overlayVideo(out.pages.video, { ...(by.video ? parseData(by.video.data) : {}), live: Number(out.pages.youtube?.tiles?.[0]?.value) || 0 });
   }
-
   if (out.pages.content) {
-    const qRow = by.content_queue;
-    const vRow = by.viralview;
     overlayContent(out.pages.content, {
       posts,
-      queue: qRow ? parseData(qRow.data) : null,
-      viral: vRow ? parseData(vRow.data) : null,
+      queue: by.content_queue ? parseData(by.content_queue.data) : null,
+      viral: by.viralview ? parseData(by.viralview.data) : null,
       video: by.video ? parseData(by.video.data) : null,
+      drafts: extra.drafts || [],
       nowMs,
     });
-    if (out.nav?.badges && out.pages.content.queueCount != null) {
-      out.nav.badges.content = out.pages.content.queueCount;
-    }
+    if (out.nav?.badges && out.pages.content.queueCount != null) out.nav.badges.content = out.pages.content.queueCount;
   }
   if (by.moneyclaw) {
     const data = parseData(by.moneyclaw.data);
@@ -291,16 +336,19 @@ export function mergeSnapshot(fixture, rows, nowMs = Date.now(), overrides = {},
     if (out.pages.viral) out.pages.viral = page;
     applyHomeViral(out, page);
   }
-  if (out.pages.outreach && by.instantly) {
-    overlayOutreach(out.pages.outreach, parseData(by.instantly.data));
+  if (out.pages.outreach) {
+    if (by.instantly) overlayOutreach(out.pages.outreach, parseData(by.instantly.data));
+    else overlayOutreach(out.pages.outreach, null, { missing: true });
   }
   if (out.pages.life) {
-    if (by.calendar) {
-      overlayLife(out.pages.life, { ...parseData(by.calendar.data), habits: extra.habits || [], nowMs });
-    } else {
-      out.pages.life.actions = [{ label: 'Connect calendar', href: '/dashboard/api/google/start' }, ...(out.pages.life.actions || [])];
-    }
+    overlayLife(out.pages.life, {
+      ...(by.calendar ? parseData(by.calendar.data) : { connected: false, events: [] }),
+      habits: extra.habits || [],
+      nowMs,
+    });
   }
   applyHome(out, by, extra, nowMs);
+  applyHonesty(out, by, health);
+  if (out.pages.home) out.pages.home.chip = honestyChip(by, nowMs, fixture.pages?.home?.chip || 'Mockup · numbers are examples');
   return out;
 }

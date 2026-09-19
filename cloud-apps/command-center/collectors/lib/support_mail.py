@@ -293,11 +293,34 @@ def save_live(payload):
             pass
 
 
+def discard_live(payload):
+    payload = payload or {}
+    uid = str(payload.get('uid') or '')
+    if not uid:
+        return False, 'missing draft'
+    acct, pw = _acct()
+    box = _box(acct, pw)
+    try:
+        typ, _ = box.select('"[Gmail]/Drafts"')
+        if typ != 'OK':
+            return False, 'Drafts folder not available'
+        box.uid('STORE', uid, '+FLAGS', r'(\Deleted)')
+        box.expunge()
+        return True, 'Draft discarded'
+    finally:
+        try:
+            box.logout()
+        except Exception:
+            pass
+
+
 def handle(kind, payload):
     payload = payload or {}
     try:
         if kind == 'support.save_draft':
             return save_live(payload)
+        if kind == 'support.discard_draft':
+            return discard_live(payload)
         if kind == 'support.send_all_safe':
             n = 0
             for uid in payload.get('ids') or []:

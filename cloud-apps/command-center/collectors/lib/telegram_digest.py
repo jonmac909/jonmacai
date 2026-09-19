@@ -79,6 +79,8 @@ def collect_items():
             if key in seen:
                 continue
             seen.add(key)
+            it['url'] = url
+            it['ts'] = d.isoformat()
             items.append(it)
     return items, scanned
 

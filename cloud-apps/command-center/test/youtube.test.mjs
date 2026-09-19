@@ -92,10 +92,10 @@ const fixture = {
 };
 
 const rows = [
-  { id: 'a', channel: 'Joshua Mayo', title: '4 Side Hustles That No One Is Talking About For 2026', views: 5_000_000, views_per_day: 4562, outlier_score: 133.2 },
-  { id: 'b', channel: 'Quiet Channel', title: 'Ignore me', views: 10, views_per_day: 1, outlier_score: 1.1 },
-  { id: 'c', channel: 'Mr. Paid Social', title: 'How To Make Facebook Ads 100% Using AI In 2026', views: 233_000, views_per_day: 638, outlier_score: 50.6 },
-  { id: 'd', channel: 'Karolis', title: 'Claude Skills That Changed Content Creation Forever', views: 16_000, views_per_day: 3200, outlier_score: 46.2 },
+  { id: 'a', channel: 'Joshua Mayo', title: '4 AI UGC Side Hustles For 2026', views: 5_000_000, views_per_day: 4562, outlier_score: 133.2 },
+  { id: 'b', channel: 'Quiet Channel', title: 'Ignore me talking', views: 10, views_per_day: 1, outlier_score: 1.1 },
+  { id: 'c', channel: 'Mr. Paid Social', title: 'How To Make Facebook AI UGC Ads In 2026', views: 233_000, views_per_day: 638, outlier_score: 50.6 },
+  { id: 'd', channel: 'Karolis', title: 'Best AI video generation tools this year', views: 16_000, views_per_day: 3200, outlier_score: 46.2 },
 ];
 
 test('topOutliers keeps the three highest outlier scores', () => {
@@ -136,7 +136,7 @@ test('merge overlays top outliers onto remake jobs', () => {
   overlayYoutube(page, { outliers: topOutliers(rows), channels: 22, ranked: 516, nowMs: now });
   assert.equal(page.remake.jobs.length, 3);
   assert.equal(page.remake.jobs[0].area, 'Joshua Mayo');
-  assert.equal(page.remake.jobs[0].title, '4 Side Hustles That No One Is Talking About For 2026');
+  assert.equal(page.remake.jobs[0].title, '4 AI UGC Side Hustles For 2026');
   assert.match(page.remake.jobs[0].pill, /133×/);
   assert.match(page.remake.jobs[0].lines[0], /5M views/);
   assert.equal(page.tiles[2].value, '133×');
@@ -303,7 +303,7 @@ test('yt2 project PUT persists in D1 and snapshot shows it', async () => {
   assert.equal(json.pages.youtube.pipeline.rows.some((r) => r.video === 'Persisted project'), true);
 });
 
-test('upload PUT stores the file and queues video.start_edit on GPU2', async () => {
+test('upload PUT stores the file and does not fake a GPU1 Loop Studio job', async () => {
   const db = memD1();
   const store = new Map();
   const env = envWith(db, {
@@ -332,11 +332,9 @@ test('upload PUT stores the file and queues video.start_edit on GPU2', async () 
   assert.equal(put.status, 200, await put.clone().text());
   const done = await put.json();
   assert.equal(done.ok, true);
-  const action = db.actions.find((a) => a.kind === 'video.start_edit');
-  assert.ok(action);
-  assert.equal(action.target, 'gpu2');
-  assert.equal(action.status, 'queued');
-  assert.match(action.payload, /New recording/);
+  assert.match(done.result, /Loop Studio \/ GPU1 is not connected/);
+  assert.equal(done.editor, 'disconnected');
+  assert.equal(db.actions.find((a) => a.kind === 'video.start_edit'), undefined);
   assert.ok([...store.keys()].length > 0);
 });
 

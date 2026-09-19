@@ -172,7 +172,7 @@ function chargeRows(list) {
 export function overlayMoney(page, data, nowMs, ageLabel) {
   if (!page || !data?.expenses) return page;
   const monthTotal = data.expenses.businessCategories?.reduce((s, r) => s + (r.total || 0), 0) || dollars(data.expenses.business?.month);
-  page.sub = `From MoneyClaw Expenses · ${ageLabel}`;
+  page.sub = `From MoneyClaw Expenses · CAD · America/Vancouver · week/month windows · ${ageLabel}`;
   page.actions = [
     { label: 'Open MoneyClaw', href: 'https://moneyclaw.jonmac.ai', msg: 'Opens moneyclaw.jonmac.ai' },
     page.actions?.[1] || { label: 'Scan banks now', msg: 'Bank scan started' },
@@ -239,7 +239,7 @@ export function overlayMarkets(page, data, nowMs, ageLabel) {
   const voo = pulse.voo || {};
   const vixN = Number(vix.price) || 0;
   const newsPending = String(pulse.newsLevel || '') === 'Pending';
-  page.sub = `From MoneyClaw Market · ${ageLabel}`;
+  page.sub = `From MoneyClaw Market · CAD · America/Vancouver · ${ageLabel}`;
   page.actions = [{ label: 'Open MoneyClaw', href: 'https://moneyclaw.jonmac.ai', msg: 'Opens moneyclaw.jonmac.ai market page' }];
   page.tiles = [
     { icon: 'trend', label: 'Market mood', value: pulse.mood || '—', sub: newsPending ? 'After hours' : '' },

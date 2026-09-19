@@ -185,17 +185,17 @@
     return state.metric === "velocity" ? "velocity" : state.metric === "combined" ? "combined" : "views";
   }
 
+  function isAiUgcTitle(title) {
+    const t = String(title || "");
+    if (/\bAI\s*UGC\b/i.test(t)) return true;
+    if (/\bAI[- ]?video[- ]generation\b/i.test(t)) return true;
+    return /\bUGC\b/i.test(t) && /\bAI\b/i.test(t);
+  }
+
   function relevantRows() {
-    const terms = ["ai", "ugc", "ad", "video", "image", "tiktok", "affiliate", "brand", "model", "sora", "kling", "seedance", "veo", "claude", "chatgpt", "viral", "content"];
-    let rows = allRows.filter((row) => terms.some((term) => row.title.toLowerCase().includes(term)));
-    if (state.search.trim()) {
-      const query = state.search.toLowerCase();
-      rows = rows.filter((row) => `${row.title} ${row.channel}`.toLowerCase().includes(query));
-    }
-    if (state.date !== "all") rows = rows.filter((row) => {
-      const age = actualAgeDays(row);
-      return age != null && age <= Number(state.date);
-    });
+    let rows = allRows.filter((row) => isAiUgcTitle(row.title));
+    const q = state.search.trim().toLowerCase();
+    if (q) rows = rows.filter((row) => `${row.title} ${row.channel}`.toLowerCase().includes(q));
     if (state.duration === "short") rows = rows.filter((row) => Number(row.duration_seconds || 0) < 15 * 60);
     if (state.duration === "medium") rows = rows.filter((row) => Number(row.duration_seconds || 0) >= 15 * 60 && Number(row.duration_seconds || 0) < 30 * 60);
     if (state.duration === "long") rows = rows.filter((row) => Number(row.duration_seconds || 0) >= 30 * 60);
@@ -213,7 +213,7 @@
     state.refreshSummary = "Contacting the live YouTube refresh service…";
     render();
     try {
-      const response = await fetch("/yt/api/channels/refresh", {
+      const response = await fetch("/yt2/api/refresh", {
         method: "POST",
         credentials: "include",
         headers: { Accept: "application/json" },
@@ -630,6 +630,21 @@
     document.querySelectorAll("[data-publish-field]").forEach((field) => { project.publish[field.dataset.publishField] = field.value; });
   }
 
+  const bootQ = new URLSearchParams(location.search);
+  if (bootQ.get("remake")) {
+    state.drawerSourceId = bootQ.get("remake");
+    state.drawerTemplateId = bootQ.get("template") || state.drawerTemplateId;
+  }
   render();
-  hydrateProjects();
+  Promise.resolve(hydrateProjects()).then(() => {
+    if (!state.drawerSourceId) return;
+    const existing = state.projects.find((p) => p.source && p.source.id === state.drawerSourceId);
+    if (existing) {
+      state.activeProjectId = existing.id;
+      state.view = "workspace";
+      render();
+      return;
+    }
+    createProject();
+  });
 })();

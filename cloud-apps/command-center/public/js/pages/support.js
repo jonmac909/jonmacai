@@ -13,12 +13,15 @@ function moneyRows(d) {
 }
 
 function draftBtns(r) {
-  if (r.kind) {
-    return btn('Edit', { kind: 'support.save_draft', payload: { uid: r.payload.uid, body: r.payload.body, subject: r.payload.subject }, cls: 'line', edit: true })
-      + btn('Approve & send', { kind: r.kind, payload: r.payload, done: true });
-  }
-  return btn('Edit', { msg: 'Draft opened for editing', cls: 'line' })
-    + btn('Approve & send', { msg: 'Reply sent', done: true });
+  const payload = {
+    ...(r.payload || {}),
+    to: r.to, subject: r.subject, body: r.body,
+    saveKind: r.saveKind || 'support.save',
+    sendKind: r.sendKind || r.kind || 'support.send',
+    discardKind: r.discardKind || 'support.discard_draft',
+  };
+  return btn('Edit', { draft: true, payload, cls: 'line' })
+    + btn('Approve & send', { draft: true, payload, done: true });
 }
 
 function moneyBtns(r) {
@@ -50,7 +53,7 @@ export function render(d) {
       <div class="card pad">
         <div class="cardhead"><h2>${d.topics.title}</h2><span class="meta">${d.topics.meta}</span></div>
         <div class="pgs">${d.topics.rows.map(pgrow).join('')}</div>
-        <div class="box"><p>${esc(d.topics.box)}</p>${btn('Send to Planner', { msg: 'Sent to Planner as a task', cls: 'wide' })}</div>
+        <div class="box"><p>${esc(d.topics.box)}</p>${btn(d.topics.btn || 'Create Planner task', { kind: d.topics.kind, payload: d.topics.payload, cls: 'wide' })}</div>
       </div>
     </div>
   </div>

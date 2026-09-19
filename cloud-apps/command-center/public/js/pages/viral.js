@@ -44,7 +44,7 @@ export function render(d) {
       <div class="cardhead" style="margin-bottom:.8rem"><h2><svg class="ic"><use href="#i-bulb"/></svg>Worth checking</h2></div>
       <hr><span class="pill risk">${d.check.pill}</span>
       <h3>${d.check.heading}</h3><p>${d.check.body}</p>
-      <div class="box"><div class="rows">${cash}</div><p>${d.check.note}</p>${btn('Send to Planner', { msg: 'Sent to Planner as a task', cls: 'wide' })}</div>
+      <div class="box"><div class="rows">${cash}</div><p>${d.check.note}</p>${btn(d.check.btn || 'Create Planner task', { kind: d.check.kind, payload: d.check.payload, cls: 'wide' })}</div>
     </div>
   </div>
   <div class="thirds">

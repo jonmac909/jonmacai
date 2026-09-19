@@ -43,6 +43,8 @@ function payloadOf(t, extra = {}) {
 }
 
 export function overlaySupport(page, data, nowMs, ageLabel = '') {
+  if (!page) return page;
+  data = data || {};
   const tickets = data.tickets || [];
   const drafts = tickets.filter((t) => !t.money);
   const money = tickets.filter((t) => t.money);
@@ -89,7 +91,13 @@ export function overlaySupport(page, data, nowMs, ageLabel = '') {
       title: prettyTitle(t.subject),
       sub: `${t.plan || 'Email'} · ${waitLabel(t.waitedMs)}`,
       quote: quoteOf(t.body),
+      to: t.to || t.from || '',
+      subject: t.subject || '',
+      body: t.draft || t.body || '',
       kind: 'support.send',
+      saveKind: 'support.save',
+      sendKind: 'support.send',
+      discardKind: 'support.discard_draft',
       payload: payloadOf(t, { msg: 'Reply sent' }),
     })),
   };
@@ -124,5 +132,9 @@ export function overlaySupport(page, data, nowMs, ageLabel = '') {
     meta: week ? `This week · ${week} tickets` : 'This week',
     rows: topics.map((t) => ({ label: t.label, value: String(t.n), pct: Math.round((Number(t.n) || 0) / max * 100) })),
     box: top && share >= 30 ? `${top.label} are ${share}% of tickets. Worth a fix.` : 'No one topic is dominating this week.',
+    btn: 'Create Planner task',
+    kind: 'mastermind.send_to_planner',
+    payload: { id: 'support-topics', title: top?.label || 'Support topics', body: top && share >= 30 ? `${top.label} are ${share}% of tickets. Worth a fix.` : 'No one topic is dominating this week.', area: 'Support' },
   };
+  return page;
 }

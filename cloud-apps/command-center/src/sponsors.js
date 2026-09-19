@@ -1,4 +1,5 @@
 const TZ = 'America/Vancouver';
+export const COLLECTIONS_HREF = 'https://collections.viralview.io/collections.html';
 const GOAL = 10000;
 const COLUMNS = [
   'New inquiry', 'Negotiating', 'Waiting on deposit', 'Script approval',
@@ -160,8 +161,16 @@ export function buildSponsorsPage(data, nowMs = Date.now(), overrides = {}) {
     };
     if (draft) {
       k.btn = 'Approve reply';
-      k.kind = 'sponsor.send_draft';
-      k.payload = { id: card.id };
+      k.draft = true;
+      k.payload = {
+        id: card.id,
+        to: card.draftReply?.to || '',
+        subject: card.draftReply?.subject || card.subject || '',
+        body: card.draftReply?.body || '',
+        saveKind: 'sponsor.save_draft',
+        sendKind: 'sponsor.send_draft',
+        discardKind: 'sponsor.discard_draft',
+      };
     } else if (card.stage === 'publishing') {
       k.btn = 'Send invoice';
       k.kind = 'sponsor.send_invoice';
@@ -189,7 +198,7 @@ export function buildSponsorsPage(data, nowMs = Date.now(), overrides = {}) {
     title: 'Sponsors',
     sub: `From your collections tracker · ${data.updatedAt ? 'live' : 'updated'}`,
     actions: [
-      { label: 'Open collections page', href: 'https://collections.viralview.io/collections.html' },
+      { label: 'Open collections page', href: COLLECTIONS_HREF },
       { label: 'Scan inbox now', kind: 'sponsor.scan_inbox', payload: { msg: 'Scanning sponsor inbox now' } },
     ],
     tiles: [
@@ -241,9 +250,13 @@ export function buildSponsorsPage(data, nowMs = Date.now(), overrides = {}) {
         id: c.id,
         title: c.sponsor,
         sub: c.subject || 'Reply drafted',
+        to: c.draftReply.to || '',
         subject: c.draftReply.subject || c.subject || '',
         body: c.draftReply.body || '',
         send: `Reply sent to ${c.sponsor}`,
+        saveKind: 'sponsor.save_draft',
+        sendKind: 'sponsor.send_draft',
+        discardKind: 'sponsor.discard_draft',
       })),
     },
     byMonth: { title: 'Collected by month', meta: 'Against $10K', rows: byMonth },
@@ -272,4 +285,22 @@ export function applyHomeSponsors(snap, page) {
   }
   if (snap.goal) snap.goal.pct = pct;
   if (snap.nav?.badges) snap.nav.badges.sponsors = Number(page.tiles[3].value) || 0;
+}
+
+export function overlaySponsors(page, data, nowMs = Date.now(), overrides = {}) {
+  if (!page) return page;
+  const actions = [
+    { label: 'Open collections page', href: COLLECTIONS_HREF },
+    { label: 'Scan inbox now', kind: 'sponsor.scan_inbox', payload: { msg: 'Scanning sponsor inbox now' } },
+  ];
+  if (!data?.collections) {
+    page.actions = actions;
+    page.unverified = true;
+    page.sourceNote = 'Collections origin not connected';
+    return page;
+  }
+  const built = buildSponsorsPage(data, nowMs, overrides);
+  Object.assign(page, built);
+  page.actions = actions;
+  return page;
 }
