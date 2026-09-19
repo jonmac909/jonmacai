@@ -92,7 +92,9 @@ test('deal board hides archived and old done, keeps money and drafts', () => {
   assert.ok(!names.includes('Nope'));
   assert.ok(!names.includes('Old Deal'));
   assert.ok(!names.includes('Random Cold'));
+  assert.ok(!names.includes('1stcollab'));
   const waiting = page.board.columns.find((c) => c.stage === 'Waiting on deposit');
+  assert.equal(waiting.cards.length, 2);
   assert.equal(waiting.cards.find((k) => k.name === 'Topview AI').amt, 1500);
   assert.equal(waiting.cards.find((k) => k.name === 'Topview AI').pill, '7 days late');
   const script = page.board.columns.find((c) => c.stage === 'Script approval');
