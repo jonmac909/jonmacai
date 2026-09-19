@@ -44,11 +44,13 @@ export function card(inner, cls = 'pad') {
   return `<div class="card ${cls}">${inner}</div>`;
 }
 
-export function btn(label, { page, msg, done, cls = '', sm, kind, payload } = {}) {
+export function btn(label, { page, msg, done, cls = '', sm, kind, payload, href, edit } = {}) {
   const bits = [`class="btn${cls ? ` ${cls}` : ''}${sm ? ' sm' : ''}"`];
   if (page) bits.push(`data-page="${esc(page)}"`);
   if (kind) bits.push(`data-kind="${esc(kind)}"`);
   if (payload) bits.push(`data-payload="${esc(JSON.stringify(payload))}"`);
+  if (href) bits.push(`data-href="${esc(href)}"`);
+  if (edit) bits.push('data-edit="1"');
   if (msg) bits.push(`data-msg="${esc(msg)}"`);
   if (done) bits.push('data-done');
   return `<button ${bits.join(' ')}>${label}</button>`;
@@ -70,11 +72,11 @@ export function table(headers, rows, foot) {
 export function kanban(columns) {
   const cols = columns.map((c) => {
     const cards = (c.cards || []).map((k) => {
-      const b = k.btn ? btn(k.btn, { page: k.page, msg: k.msg, cls: k.btnCls || '', sm: true }) : '';
-      return `<article class="kcard" draggable="true" data-amt="${k.amt || 0}"><div class="ktop"><strong>${esc(k.name)}</strong>${pill(k.pill, k.pillCls || '')}</div><small>${esc(k.detail)}</small>${pg(k.pct, k.pg || '')}<div class="kfoot"><span class="kamt">${esc(k.amtLabel)}</span>${b}</div></article>`;
+      const b = k.btn ? btn(k.btn, { page: k.page, msg: k.msg, cls: k.btnCls || '', sm: true, kind: k.kind, payload: k.payload }) : '';
+      return `<article class="kcard" draggable="true" data-amt="${k.amt || 0}" data-id="${esc(k.id || '')}"><div class="ktop"><strong>${esc(k.name)}</strong>${pill(k.pill, k.pillCls || '')}</div><small>${esc(k.detail)}</small>${pg(k.pct, k.pg || '')}<div class="kfoot"><span class="kamt">${esc(k.amtLabel)}</span>${b}</div></article>`;
     }).join('');
     const empty = c.empty ? `<p class="kempty"${c.cards?.length ? ' hidden' : ''}>${esc(c.empty)}</p>` : '';
-    return `<div class="kcol" data-stage="${esc(c.stage)}"><h3>${esc(c.stage)} <span class="kn"></span></h3>${cards}${empty}</div>`;
+    return `<div class="kcol" data-stage="${esc(c.stage)}" data-board="${esc(c.boardStage || '')}"><h3>${esc(c.stage)} <span class="kn"></span></h3>${cards}${empty}</div>`;
   }).join('');
   return `<div class="kan" id="kan">${cols}</div>`;
 }

@@ -12,3 +12,4 @@ cloud-apps/command-center/screenshots/
 cloud-apps/command-center/tmp-dist/
 **/__pycache__/
 *.pyc
+_sponsor-kanban/

@@ -2,7 +2,7 @@
 
 Live: [https://jonmac.ai/dashboard](https://jonmac.ai/dashboard)
 
-Cloudflare Worker `jonmac-command-center`. Routes `jonmac.ai/dashboard` and `jonmac.ai/dashboard/*`. Pages render from `GET /dashboard/api/snapshot`, which starts from `fixtures/snapshot.json` and overlays live D1 snapshots. T2 live slice: Agents machine heartbeats (`agents_mac`, `agents_gpu2`). Other pages stay fixture until later tasks.
+Cloudflare Worker `jonmac-command-center`. Routes `jonmac.ai/dashboard` and `jonmac.ai/dashboard/*`. Pages render from `GET /dashboard/api/snapshot`, which starts from `fixtures/snapshot.json` and overlays live D1 snapshots. Live slices: Agents heartbeats (`agents_mac`, `agents_gpu2`) and Sponsors (`sponsors` from the Mac collector). Other pages stay fixture until later tasks.
 
 ## Snapshot shape (`fixtures/snapshot.json`)
 
