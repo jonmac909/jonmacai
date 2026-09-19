@@ -11,6 +11,12 @@ foreach ($name in @("index.html", "styles.css", "templates.js", "app.js")) {
 
 Copy-Item -LiteralPath $dataset -Destination (Join-Path $publicDir "rows_data.js") -Force
 
+$jsonPath = Join-Path $publicDir "rows_data.json"
+$jsText = Get-Content -LiteralPath (Join-Path $publicDir "rows_data.js") -Raw
+if ($jsText -match '(?s)window\.OUTLIER_ROWS\s*=\s*(\[.*\])\s*;?\s*$') {
+  Set-Content -LiteralPath $jsonPath -Value $Matches[1] -NoNewline
+}
+
 $publicIndex = Join-Path $publicDir "index.html"
 $indexContent = Get-Content -LiteralPath $publicIndex -Raw
 $indexContent = $indexContent.Replace('../youtube-gen/rows_data.js', './rows_data.js')
@@ -22,3 +28,6 @@ $appContent = $appContent.Replace('../youtube-gen/rows_data.js?refresh=', './row
 Set-Content -LiteralPath $publicApp -Value $appContent -NoNewline
 
 Write-Output "Prepared V2 deployment assets in $publicDir"
+
+npx wrangler deploy
+

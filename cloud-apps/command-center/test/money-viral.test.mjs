@@ -210,8 +210,8 @@ test('cron pulls Viral View and MoneyClaw summaries into snapshots', async () =>
   } finally {
     globalThis.fetch = prev;
   }
-  assert.equal(seen.length, 2);
-  assert.ok(seen.every((s) => s.url.includes('/api/internal/dashboard-summary')));
+  const summaries = seen.filter((s) => s.url.includes('/api/internal/dashboard-summary'));
+  assert.equal(summaries.length, 2);
   assert.ok(db.snapshots.get('viralview')?.data.includes('cashThisWeek'));
   assert.ok(db.snapshots.get('moneyclaw')?.data.includes('expenses'));
 });

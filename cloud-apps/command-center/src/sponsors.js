@@ -84,7 +84,7 @@ function hasDraft(card) {
   const dr = card.draftReply;
   return !!(dr && ['needs-review', 'edited', 'approved'].includes(dr.status) && String(dr.body || '').trim());
 }
-function keepCard(card, nowMs, items) {
+export function keepCard(card, nowMs, items) {
   if (card.stage === 'archived') return false;
   const t = Date.parse(card.latestDate);
   if (card.stage === 'done' && Number.isFinite(t) && ymd(t).slice(0, 7) !== ymd(nowMs).slice(0, 7)) return false;

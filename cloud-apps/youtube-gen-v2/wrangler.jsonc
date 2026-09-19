@@ -10,6 +10,13 @@
     "run_worker_first": true,
     "html_handling": "none"
   },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "command_center",
+      "database_id": "615b0a5a-10b5-42d8-b127-9f4af3198104"
+    }
+  ],
   "routes": [
     { "pattern": "jonmac.ai/yt2", "zone_name": "jonmac.ai" },
     { "pattern": "jonmac.ai/yt2/*", "zone_name": "jonmac.ai" }

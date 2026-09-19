@@ -2,6 +2,7 @@ import { upsertSnapshot } from './db.js';
 
 const VIRAL_URL = 'https://app.viralview.io/api/internal/dashboard-summary';
 const MONEY_URL = 'https://moneyclaw.jonmac.ai/api/internal/dashboard-summary';
+const YT_URL = 'https://jonmac.ai/yt2/api/outliers';
 
 async function pull(env, source, url, headers) {
   const res = await fetch(url, { headers });
@@ -26,5 +27,6 @@ export async function handleCron(env) {
       authorization: `Bearer ${env.MONEYCLAW_DASHBOARD_TOKEN}`,
     }));
   }
+  jobs.push(pull(env, 'youtube', YT_URL, {}));
   await Promise.allSettled(jobs);
 }

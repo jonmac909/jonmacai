@@ -1,3 +1,5 @@
+import { handleYt2Api } from './api.js';
+
 const PREFIX = "/yt2";
 
 export default {
@@ -10,6 +12,7 @@ export default {
     if (url.pathname !== PREFIX && !url.pathname.startsWith(`${PREFIX}/`)) {
       return new Response("Not found", { status: 404 });
     }
+    if (url.pathname.startsWith(`${PREFIX}/api/`)) return handleYt2Api(request, env);
 
     let assetPath = url.pathname.slice(PREFIX.length) || "/";
     if (assetPath === "/") assetPath = "/index.html";
@@ -21,7 +24,7 @@ export default {
 
     const headers = new Headers(response.headers);
     headers.set("X-Robots-Tag", "noindex, nofollow");
-    if (assetPath.endsWith("rows_data.js")) headers.set("Cache-Control", "no-cache");
+    if (assetPath.endsWith("rows_data.js") || assetPath.endsWith("rows_data.json")) headers.set("Cache-Control", "no-cache");
     return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
   },
 };

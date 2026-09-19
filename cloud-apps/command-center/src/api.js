@@ -1,11 +1,12 @@
 import snapshot from '../fixtures/snapshot.json' with { type: 'json' };
 import {
   SESSION_DAYS, timingSafeEqualString, signSession, readSession,
-  sessionCookieHeader, checkLockout, recordLoginFailure, clientIp,
+  sessionCookieHeader, checkLockout, recordLoginFailure, clientIp, hmacHex,
 } from './auth.js';
 import {
   loginStore, insertAction, actionByIdem, actionById, claimQueued, completeAction,
   upsertChecklist, upsertHabit, upsertSnapshot, listSnapshots, upsertDealStage, listDealStages, listIdeas, upsertIdea,
+  listVideoProjects, replaceVideoProjects,
   upsertPost, listPosts,
 } from './db.js';
 import { mergeSnapshot } from './snapshot.js';
@@ -17,6 +18,14 @@ const PREFIX = '/dashboard/api';
 const json = (data, status = 200, headers = {}) =>
   new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json', ...headers } });
 
+
+function safeName(name) {
+  return String(name || 'video.mp4').replace(/[^a-zA-Z0-9._-]+/g, '_').slice(0, 80) || 'video.mp4';
+}
+
+function uploadKey(id, filename) {
+  return `uploads/${id}/${filename}`;
+}
 function targetFor(kind, payload = {}) {
   if (kind === 'ping') return payload.machine === 'mac' || payload.machine === 'gpu2' ? payload.machine : null;
   if (kind === 'mastermind.park') return 'worker';
@@ -165,7 +174,7 @@ export async function handleApi(request, env) {
     const base = filterSnapshot(url.searchParams.get('pages'));
     if (!env.DB) return json(base);
     const overrides = await listDealStages(env.DB);
-    return json(mergeSnapshot(base, await listSnapshots(env.DB), Date.now(), overrides, await listIdeas(env.DB), await listPosts(env.DB)));
+    return json(mergeSnapshot(base, await listSnapshots(env.DB), Date.now(), overrides, await listIdeas(env.DB), await listPosts(env.DB), await listVideoProjects(env.DB)));
   }
 
   if (rest === '/ingest' && method === 'POST') {
@@ -213,6 +222,40 @@ export async function handleApi(request, env) {
     return json({ ok: true });
   }
 
+  const up = rest.match(/^\/uploads\/([^/]+)$/);
+  if (up && method === 'PUT') {
+    const id = up[1];
+    const exp = Number(url.searchParams.get('exp') || 0);
+    const sig = url.searchParams.get('sig') || '';
+    const filename = safeName(url.searchParams.get('filename'));
+    const title = url.searchParams.get('title') || filename;
+    if (!env.SESSION_SECRET || exp < Date.now() / 1000) return json({ error: 'Expired' }, 403);
+    const want = await hmacHex(env.SESSION_SECRET, `${id}.${exp}.${filename}`);
+    if (!timingSafeEqualString(sig, want)) return json({ error: 'Unauthorized' }, 403);
+    const key = uploadKey(id, filename);
+    const buf = await request.arrayBuffer();
+    if (env.UPLOADS) await env.UPLOADS.put(key, buf);
+    const now = new Date().toISOString();
+    const actionId = crypto.randomUUID();
+    if (env.DB) {
+      await insertAction(env.DB, {
+        id: actionId, kind: 'video.start_edit', target: 'gpu2',
+        payload: JSON.stringify({ id, title, filename, key }),
+        status: 'queued', result: null, idem_key: `upload-${id}`, created_at: now, finished_at: null,
+      });
+    }
+    return json({ ok: true, id: actionId, result: 'Edit started' });
+  }
+  if (up && method === 'GET') {
+    const who = machineOf(request, env);
+    if (!who) return json({ error: 'Unauthorized' }, 401);
+    const key = url.searchParams.get('key') || uploadKey(up[1], safeName(url.searchParams.get('filename')));
+    const obj = env.UPLOADS ? await env.UPLOADS.get(key) : null;
+    if (!obj) return json({ error: 'Not found' }, 404);
+    return new Response(obj.body, { headers: { 'Content-Type': 'application/octet-stream' } });
+  }
+
+
   const denied = await needSession(request, env);
   if (denied) return denied;
   if (method !== 'GET') {
@@ -258,6 +301,23 @@ export async function handleApi(request, env) {
     const b = await request.json().catch(() => ({}));
     await upsertIdea(env.DB, { id: idea[1], ...b });
     return json({ ok: true });
+  }
+  if (rest === '/uploads' && method === 'POST') {
+    const b = await request.json().catch(() => ({}));
+    const id = crypto.randomUUID();
+    const exp = Math.floor(Date.now() / 1000) + 3600;
+    const filename = safeName(b.filename);
+    const title = String(b.title || filename.replace(/\.[^.]+$/, '') || 'Recording');
+    const sig = await hmacHex(env.SESSION_SECRET, `${id}.${exp}.${filename}`);
+    const origin = new URL(request.url).origin;
+    const putUrl = `${origin}/dashboard/api/uploads/${id}?exp=${exp}&sig=${sig}&filename=${encodeURIComponent(filename)}&title=${encodeURIComponent(title)}`;
+    return json({ id, putUrl });
+  }
+  if (rest === '/video-projects' && method === 'PUT' && env.DB) {
+    const list = await request.json().catch(() => []);
+    if (!Array.isArray(list)) return json({ error: 'Bad projects' }, 400);
+    await replaceVideoProjects(env.DB, list, new Date().toISOString());
+    return json({ ok: true, n: list.length });
   }
   if (rest === '/posts' && method === 'POST') {
     const b = await request.json().catch(() => ({}));

@@ -16,7 +16,7 @@ export function timingSafeEqualString(a, b) {
   return diff === 0;
 }
 
-async function hmacHex(secret, msg) {
+export async function hmacHex(secret, msg) {
   const key = await crypto.subtle.importKey(
     'raw', enc.encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign'],
   );
