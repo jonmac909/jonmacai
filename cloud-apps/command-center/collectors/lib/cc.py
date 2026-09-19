@@ -55,6 +55,7 @@ def _req(url, token, body):
     req = urllib.request.Request(url, data=data, method='POST')
     req.add_header('Content-Type', 'application/json')
     req.add_header('Authorization', 'Bearer %s' % token)
+    req.add_header('User-Agent', 'CommandCenterCollector/1.0')
     ctx = ssl.create_default_context()
     with urllib.request.urlopen(req, timeout=30, context=ctx) as res:
         return json.loads(res.read().decode('utf-8') or '{}')
@@ -101,10 +102,10 @@ def main_collect(machine):
         ingest(base, token, source, data)
         print('ingested %s' % source)
 
-
 def main_run(machine):
     base, token = cfg(machine)
     once = '--once' in sys.argv
+    print('runner up', flush=True)
     while True:
         try:
             for row in claim(base, token, machine):
