@@ -5,7 +5,7 @@ import {
 } from './auth.js';
 import {
   loginStore, insertAction, actionByIdem, actionById, claimQueued, completeAction,
-  upsertChecklist, upsertHabit, upsertSnapshot, listSnapshots, upsertDealStage, listDealStages,
+  upsertChecklist, upsertHabit, upsertSnapshot, listSnapshots, upsertDealStage, listDealStages, listIdeas, upsertIdea,
 } from './db.js';
 import { mergeSnapshot } from './snapshot.js';
 import { boardStageFor, mapColumn } from './sponsors.js';
@@ -16,6 +16,8 @@ const json = (data, status = 200, headers = {}) =>
 
 function targetFor(kind, payload = {}) {
   if (kind === 'ping') return payload.machine === 'mac' || payload.machine === 'gpu2' ? payload.machine : null;
+  if (kind === 'mastermind.park') return 'worker';
+  if (kind === 'agent.restart') return payload.machine === 'mac' ? 'mac' : 'gpu2';
   if (kind.startsWith('sponsor.') || kind.startsWith('bank.')) return 'mac';
   if (kind.startsWith('support.') || kind.startsWith('mastermind.') || kind.startsWith('content.') || kind.startsWith('video.') || kind.startsWith('agent.')) return 'gpu2';
   return 'worker';
@@ -90,10 +92,20 @@ async function postAction(request, env) {
   if (!target) return json({ error: 'Bad target' }, 400);
   const id = crypto.randomUUID();
   const now = new Date().toISOString();
-  const result = payload.msg || 'Done';
-  const status = target === 'worker' ? 'done' : 'queued';
+  let result = payload.msg || 'Done';
+  let status = target === 'worker' ? 'done' : 'queued';
   if (kind === 'sponsor.move_stage' && env.DB && payload.id && payload.stage) {
     await upsertDealStage(env.DB, String(payload.id), asBoardStage(payload.stage), now);
+  }
+  if (kind === 'mastermind.park') {
+    result = 'Parked for later';
+    status = 'done';
+    if (env.DB && payload.id) {
+      await upsertIdea(env.DB, { id: payload.id, title: payload.title, body: payload.body, area: payload.area, verdict: 'park', status: 'parked' });
+    }
+  }
+  if (kind === 'mastermind.send_to_planner' && env.DB && payload.id) {
+    await upsertIdea(env.DB, { id: payload.id, title: payload.title, body: payload.body, area: payload.area, verdict: payload.verdict || 'implement', status: 'sent' });
   }
   if (env.DB) {
     await insertAction(env.DB, {
@@ -141,7 +153,7 @@ export async function handleApi(request, env) {
     const base = filterSnapshot(url.searchParams.get('pages'));
     if (!env.DB) return json(base);
     const overrides = await listDealStages(env.DB);
-    return json(mergeSnapshot(base, await listSnapshots(env.DB), Date.now(), overrides));
+    return json(mergeSnapshot(base, await listSnapshots(env.DB), Date.now(), overrides, await listIdeas(env.DB)));
   }
 
   if (rest === '/ingest' && method === 'POST') {
@@ -218,6 +230,12 @@ export async function handleApi(request, env) {
       status: 'queued', result: null, idem_key: id, created_at: now, finished_at: null,
     });
     return json({ ok: true, id });
+  }
+  const idea = rest.match(/^\/ideas\/([^/]+)$/);
+  if (idea && method === 'POST' && env.DB) {
+    const b = await request.json().catch(() => ({}));
+    await upsertIdea(env.DB, { id: idea[1], ...b });
+    return json({ ok: true });
   }
   return json({ error: 'Not found' }, 404);
 }

@@ -1,4 +1,4 @@
-import { tiles, pg, pill, btn, job, head } from '../ui.js';
+import { tiles, pg, pill, btn, job, head, esc } from '../ui.js';
 
 function machineCard(m) {
   const status = m.stale ? pill('Stale') : pill(m.ageLabel, m.updatedAt ? 'ok' : '');
@@ -10,9 +10,11 @@ export function render(d) {
   const jobs = d.waiting.jobs.map(job).join('');
   const rows = d.all.rows.map((r) => {
     const action = r.restart
-      ? btn(r.restart, { msg: r.restartMsg, sm: true })
-      : btn('Open', { page: r.page, msg: r.msg, cls: 'line', sm: true });
-    return `<tr><td>${r.agent}</td><td>${r.runs}</td><td>${r.now}</td><td><div class="cellpg">${pg(r.pct, r.pg)}<span>${r.job}</span></div></td><td>${pill(r.pill, r.pillCls || '')}</td><td class="num">${action}</td></tr>`;
+      ? btn(r.restart, { kind: 'agent.restart', payload: { machine: r.machine, name: r.agent, msg: r.restartMsg }, sm: true })
+      : r.page
+        ? btn('Open', { page: r.page, cls: 'line', sm: true })
+        : '';
+    return `<tr><td>${esc(r.agent)}</td><td>${esc(r.runs)}</td><td>${esc(r.now)}</td><td><div class="cellpg">${pg(r.pct, r.pg)}<span>${esc(r.job)}</span></div></td><td>${pill(r.pill, r.pillCls || '')}</td><td class="num">${action}</td></tr>`;
   }).join('');
   const machines = (d.machines || []).map(machineCard).join('');
   const stale = (d.staleSources || []).map((s) => `<li>${s.label || s.source} · ${s.ageLabel}</li>`).join('');

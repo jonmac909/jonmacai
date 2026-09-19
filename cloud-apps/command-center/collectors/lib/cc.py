@@ -50,6 +50,16 @@ def handle_action(kind, payload, machine):
     if str(kind).startswith('sponsor.'):
         from sponsors import handle as sponsor_handle
         return sponsor_handle(kind, payload or {})
+    if kind == 'mastermind.send_to_planner':
+        from planner_task import send_to_planner
+        return send_to_planner(payload or {})
+    if kind == 'agent.restart':
+        from agents_collect import restart_agent
+        return restart_agent(payload or {})
+    if kind == 'mastermind.scan':
+        from telegram_digest import run_digest
+        n = run_digest()
+        return True, 'Scanned %s messages' % n
     return False, 'unknown action %s' % kind
 
 

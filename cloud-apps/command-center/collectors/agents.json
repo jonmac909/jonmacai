@@ -1,0 +1,57 @@
+{
+  "Sponsors": {
+    "daily": true,
+    "page": "sponsors",
+    "prompt": "Scan the sponsor inbox and collections. Record, approve a script, chase pay, or nothing."
+  },
+  "Finances": {
+    "daily": true,
+    "page": "money",
+    "prompt": "Update personal and business bank transactions."
+  },
+  "MoneyClaw": {
+    "daily": true,
+    "page": "markets",
+    "prompt": "Check markets and portfolio. Add cash or not."
+  },
+  "Telegram": {
+    "daily": true,
+    "page": "mastermind",
+    "prompt": "Read last 24 hours of Built With AI Advanced. Do not send messages."
+  },
+  "Planner": {
+    "daily": false,
+    "page": "",
+    "prompt": "Continue the next planned task from Mastermind."
+  },
+  "Meta Ads": {
+    "daily": true,
+    "page": "viral",
+    "prompt": "Last 24 hours of Viral View ads. Kill or scale. Do not spend without Jon."
+  },
+  "Content Marketing": {
+    "daily": true,
+    "page": "content",
+    "prompt": "Three posts today on X, Instagram, TikTok and Facebook."
+  },
+  "Cold Outreach": {
+    "daily": true,
+    "page": "outreach",
+    "prompt": "Is Instantly ready to mail? Do not start."
+  },
+  "Customer Support": {
+    "daily": true,
+    "page": "support",
+    "prompt": "Draft Gmail and live-chat replies. Do not send."
+  },
+  "YouTube": {
+    "daily": true,
+    "page": "youtube",
+    "prompt": "Three AI UGC / AI video script ideas from outliers."
+  },
+  "Video Editor": {
+    "daily": true,
+    "page": "video",
+    "prompt": "Continue the edit queue. Do not publish."
+  }
+}
