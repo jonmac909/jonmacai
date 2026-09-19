@@ -195,6 +195,9 @@ test('Telegram critical list is only bank code or payment more than 7 days late'
   assert.equal(keys.some((k) => k.includes('support') || k.includes('draft')), false);
   const seven = mergeSnapshot(snapshot, [row('sponsors', lateSponsors(7))], NOW);
   assert.equal(criticalAlerts(seven).some((a) => a.key.startsWith('late:')), false);
+  const fixtureOnly = mergeSnapshot(snapshot, [], NOW);
+  assert.equal(criticalAlerts(fixtureOnly).length, 0);
+  assert.equal((fixtureOnly.pages.home.needsYou.all || []).some((j) => /bank text code/i.test(j.title)), false);
 });
 
 test('already-sent critical alerts are not sent again', () => {
