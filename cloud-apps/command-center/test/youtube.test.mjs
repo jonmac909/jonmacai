@@ -198,6 +198,25 @@ test('sponsor pipeline skips unmatched invoice-sent cards and keeps channel rows
   assert.equal(page.pipeline.rows.some((r) => r.type === 'Your channel'), true);
 });
 
+test('sponsor due tile only counts collection deals when items exist', () => {
+  const page = structuredClone(fixture.pages.youtube);
+  overlayYoutube(page, {
+    projects: [],
+    sponsors: {
+      collections: { items: [{ sponsor: 'Viktor', owed: 1000 }] },
+      cards: [
+        { id: 'vik', sponsor: 'Viktor', stage: 'script-approval', latestDate: '2026-09-30', subject: '90-second ad' },
+        { id: 'noise', sponsor: 'Random Lead', stage: 'production', latestDate: '2026-09-20', subject: 'dedicated' },
+      ],
+    },
+    nowMs: now,
+  });
+  const names = page.pipeline.rows.map((r) => r.video);
+  assert.equal(names.some((n) => /Viktor/.test(n)), true);
+  assert.equal(names.some((n) => /Random Lead/.test(n)), false);
+  assert.equal(page.tiles[3].value, '1');
+});
+
 test('mergeSnapshot wires youtube projects, outliers and the video queue', () => {
   const projects = [{
     id: 'p1', createdAt: '2026-09-18T10:00:00Z', stage: 'script',

@@ -285,6 +285,18 @@ test('Telegram push sends only new critical items', async () => {
   assert.equal(sent.some((t) => /support/i.test(t)), false);
 });
 
+test('live sources drop the mockup chip on Home', () => {
+  assert.match(snapshot.pages.home.chip, /Mockup/);
+  const out = mergeSnapshot(snapshot, [row('agents_mac', { hostname: 'x' })], NOW);
+  assert.equal(/Mockup/i.test(out.pages.home.chip || ''), false);
+});
+
+test('fixture bank scan Enter code is gone without a live bank_scan', () => {
+  const out = mergeSnapshot(snapshot, [row('agents_mac', { hostname: 'x' })], NOW);
+  const rows = out.pages.money.bankScan?.rows || [];
+  assert.equal(rows.some((r) => r.btn === 'Enter code' || r.pill === 'Needs code'), false);
+});
+
 function lastNow() {
   return '2026-09-18T08:12:00-07:00';
 }
