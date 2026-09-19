@@ -39,7 +39,6 @@ export async function claimQueued(db, machine, now) {
     row.claimed_at = now;
     if (row.kind === 'bank.submit_code') {
       await db.prepare(`UPDATE actions SET payload = ? WHERE id = ?`).bind('{}', row.id).run();
-      row.payload = '{}';
     }
   }
   return results || [];
