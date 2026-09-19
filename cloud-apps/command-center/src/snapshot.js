@@ -6,6 +6,8 @@ import { overlayContent } from './content.js';
 import { overlayMoney, overlayMarkets } from './money.js';
 import { overlayViral, applyHomeViral } from './viral.js';
 import { overlayOutreach } from './outreach.js';
+import { overlayLife } from './life.js';
+import { applyHome } from './home.js';
 
 export const COLLECTOR_INTERVAL_MS = 5 * 60 * 1000;
 
@@ -23,6 +25,8 @@ export const INTERVALS = {
   viralview: DEFAULT_INTERVAL_MS,
   moneyclaw: DEFAULT_INTERVAL_MS,
   instantly: DEFAULT_INTERVAL_MS,
+  calendar: DEFAULT_INTERVAL_MS,
+  bank_scan: COLLECTOR_INTERVAL_MS,
 };
 
 const MACHINES = [
@@ -180,16 +184,18 @@ function overlayMastermind(page, data, ideas, nowMs) {
   };
 }
 
-export function mergeSnapshot(fixture, rows, nowMs = Date.now(), overrides = {}, ideas = [], posts = [], projects = []) {
+export function mergeSnapshot(fixture, rows, nowMs = Date.now(), overrides = {}, ideas = [], posts = [], projects = [], extra = {}) {
   if (Array.isArray(overrides)) {
     ideas = overrides;
     overrides = {};
   }
+  extra = extra || {};
   const out = JSON.parse(JSON.stringify(fixture));
   const by = {};
   const staleSources = [];
   for (const row of rows || []) {
     by[row.source] = row;
+    if (row.source === 'google_oauth' || row.source === 'telegram_sent') continue;
     const interval = INTERVALS[row.source] ?? DEFAULT_INTERVAL_MS;
     const f = freshness(row.collected_at, nowMs, interval);
     out.sources[row.source] = { updatedAt: row.collected_at, stale: f.stale, ageLabel: f.label };
@@ -283,5 +289,13 @@ export function mergeSnapshot(fixture, rows, nowMs = Date.now(), overrides = {},
   if (out.pages.outreach && by.instantly) {
     overlayOutreach(out.pages.outreach, parseData(by.instantly.data));
   }
+  if (out.pages.life) {
+    if (by.calendar) {
+      overlayLife(out.pages.life, { ...parseData(by.calendar.data), habits: extra.habits || [], nowMs });
+    } else {
+      out.pages.life.actions = [{ label: 'Connect calendar', href: '/dashboard/api/google/start' }, ...(out.pages.life.actions || [])];
+    }
+  }
+  applyHome(out, by, extra, nowMs);
   return out;
 }

@@ -5,6 +5,8 @@ export function memD1() {
   const ideas = new Map();
   const projects = new Map();
   const posts = new Map();
+  const habits = new Map();
+  const checklist = new Map();
   return {
     snapshots,
     actions,
@@ -12,6 +14,8 @@ export function memD1() {
     ideas,
     projects,
     posts,
+    habits,
+    checklist,
     prepare(sql) {
       const s = String(sql);
       const stmt = {
@@ -38,6 +42,10 @@ export function memD1() {
           if (/FROM ideas/.test(s)) return { results: [...ideas.values()] };
           if (/FROM video_projects/.test(s)) return { results: [...projects.values()] };
           if (/FROM posts/.test(s)) return { results: [...posts.values()] };
+          if (/FROM checklist/.test(s)) {
+            return { results: [...checklist.values()].filter((r) => !a[0] || r.day === a[0]) };
+          }
+          if (/FROM habits/.test(s)) return { results: [...habits.values()] };
           if (/FROM actions WHERE target/.test(s)) {
             return {
               results: actions
@@ -52,6 +60,10 @@ export function memD1() {
           const a = stmt._args;
           if (/INSERT OR REPLACE INTO snapshots/.test(s)) {
             snapshots.set(a[0], { source: a[0], data: a[1], collected_at: a[2], received_at: a[3] });
+          } else if (/INSERT OR REPLACE INTO checklist/.test(s)) {
+            checklist.set(`${a[0]}|${a[1]}`, { day: a[0], item: a[1], done_at: a[2], how: a[3] });
+          } else if (/INSERT OR REPLACE INTO habits/.test(s)) {
+            habits.set(`${a[0]}|${a[1]}`, { day: a[0], kind: a[1], done: a[2], note: a[3] });
           } else if (/INSERT OR REPLACE INTO ideas/.test(s)) {
             ideas.set(a[0], {
               id: a[0], title: a[1], body: a[2], area: a[3], verdict: a[4],

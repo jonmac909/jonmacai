@@ -145,3 +145,15 @@ export async function listPosts(db) {
   const { results } = await db.prepare('SELECT id, platform, posted_at, url, first_line, source FROM posts ORDER BY posted_at').all();
   return results || [];
 }
+
+export async function listChecklist(db, day) {
+  if (!db) return [];
+  const { results } = await db.prepare('SELECT day, item, done_at, how FROM checklist WHERE day = ?').bind(day).all();
+  return results || [];
+}
+
+export async function listHabits(db) {
+  if (!db) return [];
+  const { results } = await db.prepare('SELECT day, kind, done, note FROM habits').all();
+  return results || [];
+}
