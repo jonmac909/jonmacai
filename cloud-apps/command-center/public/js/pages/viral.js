@@ -17,8 +17,15 @@ export function render(d) {
   const cohort = d.cohort.rows.map((r) => `<tr><td>${r.joined}</td><td class="num">${r.first}</td>${r.cells.map(([cls, v]) => `<td class="c ${cls}">${v}</td>`).join('')}</tr>`).join('');
   const foot = d.cohort.foot.map(([cls, v]) => `<td class="c ${cls}">${v}</td>`).join('');
   const months = d.monthTable.rows.map((r) => `<tr><td>${r.month}</td><td class="num">${r.rev}</td><td class="num${r.changeCls ? ' ' + r.changeCls : ''}">${r.change}</td><td class="num${r.neuCls ? ' ' + r.neuCls : ''}">${r.neu}</td><td class="num${r.upgCls ? ' ' + r.upgCls : ''}">${r.upg}</td><td class="num${r.canCls ? ' ' + r.canCls : ''}">${r.can}</td><td class="num">${r.cust}</td></tr>`).join('');
-  const traffic = d.traffic.rows.map((r) => `<tr><td>${r.source}</td><td class="num">${r.clicks}</td><td class="num">${r.carts}</td><td class="num">${r.sales}</td><td class="num">${r.rev}</td><td>${r.pill ? pill(r.pill) : `<div class="cellpg">${pg(r.pct)}<span>${r.share}</span></div>`}</td></tr>`).join('');
-  const ads = d.ads.rows.map((r) => `<tr><td>${r.ad}<small>${pill(r.pill, 'crit')}</small></td><td class="num">${r.spent}</td><td class="num">${r.back}</td><td><div class="cellpg">${pg(r.pct, 'crit')}<span>${r.per}</span></div></td><td class="num">${btn('Pause', { msg: r.msg, cls: 'line', sm: true })}</td></tr>`).join('');
+  const traffic = (d.traffic.rows || []).map((r) => `<tr><td>${r.source}</td><td class="num">${r.clicks}</td><td class="num">${r.carts}</td><td class="num">${r.sales}</td><td class="num">${r.rev}</td><td>${r.pill ? pill(r.pill) : `<div class="cellpg">${pg(r.pct)}<span>${r.share}</span></div>`}</td></tr>`).join('');
+  const ads = (d.ads.rows || []).map((r) => `<tr><td>${r.ad}<small>${pill(r.pill, 'crit')}</small></td><td class="num">${r.spent}</td><td class="num">${r.back}</td><td><div class="cellpg">${pg(r.pct, 'crit')}<span>${r.per}</span></div></td><td class="num">${btn('Pause', { msg: r.msg, cls: 'line', sm: true })}</td></tr>`).join('');
+  const trafficBox = d.traffic.rows?.length
+    ? `<div class="tblwrap"><table><thead><tr><th>Source</th><th class="num">Clicks</th><th class="num">Carts</th><th class="num">Sales</th><th class="num">Revenue</th><th>Share of revenue</th></tr></thead><tbody>${traffic}</tbody><tfoot><tr><td>Total</td><td class="num">${d.traffic.foot.clicks}</td><td class="num">${d.traffic.foot.carts}</td><td class="num">${d.traffic.foot.sales}</td><td class="num">${d.traffic.foot.rev}</td><td></td></tr></tfoot></table></div>`
+    : `<div class="empty"><strong>${d.traffic.empty || 'No traffic in the last 30 days.'}</strong></div>`;
+  const adsBox = d.ads.rows?.length
+    ? `<div class="tblwrap"><table><thead><tr><th>Ad</th><th class="num">Spent</th><th class="num">Back</th><th>Back per $1</th><th></th></tr></thead><tbody>${ads}</tbody></table></div>`
+    : `<div class="empty"><strong>${d.ads.empty || 'No Meta ads in the last 30 days.'}</strong></div>`;
+
   return `<div class="wrap">
   ${head(d.title, d.sub, right)}
   ${tiles(d.tiles)}
@@ -70,7 +77,8 @@ export function render(d) {
     <div class="bar"><h2>${d.traffic.title}</h2><span class="kmeta">${d.traffic.meta}</span></div>
     <div class="card pad">
       <div class="cardhead"><h2>${d.traffic.tableTitle}</h2><span class="meta">${d.traffic.tableMeta}</span></div>
-      <div class="tblwrap"><table><thead><tr><th>Source</th><th class="num">Clicks</th><th class="num">Carts</th><th class="num">Sales</th><th class="num">Revenue</th><th>Share of revenue</th></tr></thead><tbody>${traffic}</tbody><tfoot><tr><td>Total</td><td class="num">${d.traffic.foot.clicks}</td><td class="num">${d.traffic.foot.carts}</td><td class="num">${d.traffic.foot.sales}</td><td class="num">${d.traffic.foot.rev}</td><td></td></tr></tfoot></table></div>
+      ${trafficBox}
+
     </div>
   </div>
   <div class="split even">
@@ -81,7 +89,8 @@ export function render(d) {
     </div>
     <div class="card pad">
       <div class="cardhead"><h2>${d.ads.title}</h2><span class="meta">${d.ads.meta}</span></div>
-      <div class="tblwrap"><table><thead><tr><th>Ad</th><th class="num">Spent</th><th class="num">Back</th><th>Back per $1</th><th></th></tr></thead><tbody>${ads}</tbody></table></div>
+      ${adsBox}
+
       <p class="note" style="text-align:left;margin:.7rem 0 0">${d.ads.note}</p>
     </div>
   </div>

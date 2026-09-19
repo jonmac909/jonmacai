@@ -10,6 +10,8 @@ import { signSession, COOKIE } from '../src/auth.js';
 import { mergeSnapshot } from '../src/snapshot.js';
 import { topOutliers, overlayYoutube } from '../src/youtube.js';
 import { overlayVideo } from '../src/video.js';
+import snapshot from '../fixtures/snapshot.json' with { type: 'json' };
+
 import { memD1 } from './memd1.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -179,6 +181,37 @@ test('merge overlays the GPU2 editor queue onto Video', () => {
   assert.match(page.sub, /1 editing now/);
 });
 
+test('youtube production tile is live zeros without projects', () => {
+  const page = structuredClone(fixture.pages.youtube);
+  overlayYoutube(page, { projects: [], nowMs: now });
+  assert.equal(page.tiles[0].value, '0');
+  assert.equal(page.tiles[1].value, '0');
+  assert.equal(page.tiles[1].sub, 'None in production');
+
+});
+
+test('video target follows the live editor queue not fixture 1 of 3', () => {
+  const page = structuredClone(fixture.pages.video);
+  overlayVideo(page, { queue: [] });
+  assert.equal(page.target.rows[0].value, '0 of 3');
+  assert.equal(page.target.rows[1].value, '0 of 3');
+  assert.equal(page.editing.rows.length, 0);
+});
+
+test('home YouTube tile and video target drop fixture examples', () => {
+  const out = mergeSnapshot(snapshot, [
+    { source: 'youtube', collected_at: '2026-09-18T17:50:00Z', data: JSON.stringify({ outliers: [], channels: 22, ranked: 516 }) },
+    { source: 'video', collected_at: '2026-09-18T17:55:00Z', data: JSON.stringify({ queue: [] }) },
+  ], now);
+  assert.equal(out.pages.home.tiles[3].sub, 'None in production');
+  assert.equal(out.pages.youtube.tiles[1].sub, 'None in production');
+  assert.equal(out.pages.video.target.rows[0].value, '0 of 3');
+  assert.equal(out.pages.video.target.rows[1].value, '0 of 3');
+});
+
+
+
+
 test('sponsor pipeline skips unmatched invoice-sent cards and keeps channel rows', () => {
   const page = structuredClone(fixture.pages.youtube);
   overlayYoutube(page, {
@@ -248,6 +281,7 @@ test('mergeSnapshot wires youtube projects, outliers and the video queue', () =>
   assert.equal(out.pages.youtube.remake.jobs[0].area, 'Joshua Mayo');
   assert.equal(out.pages.video.editing.rows[0].title, 'Video 2 of the week');
 });
+
 
 test('yt2 project PUT persists in D1 and snapshot shows it', async () => {
   const db = memD1();

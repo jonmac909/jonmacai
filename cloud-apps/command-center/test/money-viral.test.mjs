@@ -192,7 +192,40 @@ test('merge overlays Viral View and matching home tiles', () => {
   assert.match(ads.today, /\$150 spent/);
   assert.equal(v.traffic.rows[0].source, 'YouTube');
   assert.equal(v.traffic.meta.includes('example'), false);
+  assert.equal(v.actions[1].href, 'https://app.viralview.io/track');
+  assert.equal(v.ads.rows.length, 2);
+  assert.equal(v.ads.rows[0].ad, 'Ad 1 · polished cut');
 });
+
+
+test('Viral traffic and ads keep every live row', () => {
+  const data = {
+    ...viralSummary,
+    traffic: Array.from({ length: 10 }, (_, i) => ({
+      source: `S${i}`, clicks: i + 1, carts: 0, sales: 0, revenueCents: i === 0 ? 3900 : 0,
+    })),
+    ads: Array.from({ length: 9 }, (_, i) => ({
+      name: `Ad ${i}`, spendCents: 100, revenueCents: 0, sales: 0,
+    })),
+  };
+  const v = mergeSnapshot(snapshot, [row('viralview', data)], NOW).pages.viral;
+  assert.equal(v.traffic.rows.length, 10);
+  assert.equal(v.ads.rows.length, 9);
+  assert.equal(v.traffic.rows[9].source, 'S9');
+  assert.equal(v.ads.rows[8].ad, 'Ad 8');
+});
+
+test('empty Viral traffic and ads are a blank list not fixture examples', () => {
+  const out = mergeSnapshot(snapshot, [row('viralview', { ...viralSummary, traffic: [], ads: [] })], NOW);
+  const v = out.pages.viral;
+  assert.equal(v.traffic.rows.length, 0);
+  assert.equal(v.ads.rows.length, 0);
+  assert.match(v.traffic.empty, /No traffic/i);
+  assert.match(v.ads.empty, /No Meta ads/i);
+  assert.equal(JSON.stringify(v.traffic).includes('Instagram'), false);
+  assert.equal(JSON.stringify(v.ads).includes('polished cut'), false);
+});
+
 
 test('cron pulls Viral View and MoneyClaw summaries into snapshots', async () => {
   const db = memD1();

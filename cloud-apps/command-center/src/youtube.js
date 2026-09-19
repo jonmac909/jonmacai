@@ -131,16 +131,19 @@ export function overlayYoutube(page, {
     const sponsor = sponsorRows.length ? sponsorRows : prev.filter((r) => String(r.type || '').startsWith('Sponsor'));
     page.pipeline = { ...page.pipeline, rows: [...channel, ...sponsor] };
   }
-  if ((projects || []).length) {
-    const live = projects.filter((p) => publishedThisWeek(p, nowMs)).length;
-    const prod = projects.filter((p) => p.publish?.status !== 'published').length;
-    const editing = projects.filter((p) => p.stage === 'edit' || p.edit?.status === 'rendering').length;
-    const scripts = projects.filter((p) => p.stage === 'script' || p.stage === 'plan').length;
+  const live = (projects || []).filter((p) => publishedThisWeek(p, nowMs)).length;
+  const prod = (projects || []).filter((p) => p.publish?.status !== 'published').length;
+  const editing = (projects || []).filter((p) => p.stage === 'edit' || p.edit?.status === 'rendering').length;
+  const scripts = (projects || []).filter((p) => p.stage === 'script' || p.stage === 'plan').length;
+  if (page.tiles?.[0]) {
     page.tiles[0].value = String(live);
     page.tiles[0].pct = Math.round(live / WEEK_GOAL * 100);
-    page.tiles[1].value = String(prod);
-    page.tiles[1].sub = [editing && `${editing} editing`, scripts && `${scripts} script ready`].filter(Boolean).join(' · ') || 'In production';
   }
+  if (page.tiles?.[1]) {
+    page.tiles[1].value = String(prod);
+    page.tiles[1].sub = [editing && `${editing} editing`, scripts && `${scripts} script ready`].filter(Boolean).join(' · ') || 'None in production';
+  }
+
   if (sponsorRows.length && page.tiles[3]) {
     page.tiles[3].value = String(sponsorRows.length);
     page.tiles[3].sub = [...new Set(sponsorRows.map((r) => String(r.video).split(' · ')[0]))].join(' · ');

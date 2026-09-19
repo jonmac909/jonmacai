@@ -47,4 +47,16 @@ export function overlayVideo(page, data = {}) {
     })),
   };
   page.upload = { ...page.upload, pick: true };
+  const ytDone = finished.filter((q) => !/sponsor/i.test(q.title || '')).length;
+  const spCuts = [...finished, ...ready].filter((q) => /sponsor/i.test(q.title || '')).length;
+  const live = (Number(data.live) || 0) || ytDone;
+  const sponsor = data.sponsorCuts != null ? data.sponsorCuts : spCuts;
+  page.target = {
+    title: "This week's target",
+    rows: [
+      { label: 'YouTube videos', value: `${live} of 3`, pct: Math.min(100, Math.round(live / 3 * 100)), tall: true },
+      { label: 'Sponsor cuts', value: `${sponsor} of 3`, pct: Math.min(100, Math.round(sponsor / 3 * 100)), tall: true },
+    ],
+  };
 }
+
