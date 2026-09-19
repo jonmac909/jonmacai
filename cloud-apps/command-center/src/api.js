@@ -18,12 +18,18 @@ function targetFor(kind) {
   return 'worker';
 }
 
-function machineOk(request, env, machine) {
+function machineOf(request, env) {
   const auth = request.headers.get('Authorization') || '';
   const token = auth.startsWith('Bearer ') ? auth.slice(7) : '';
-  if (machine === 'mac') return token && env.MACHINE_TOKEN_MAC && timingSafeEqualString(token, env.MACHINE_TOKEN_MAC);
-  if (machine === 'gpu2') return token && env.MACHINE_TOKEN_GPU2 && timingSafeEqualString(token, env.MACHINE_TOKEN_GPU2);
-  return false;
+  const mac = token && env.MACHINE_TOKEN_MAC && timingSafeEqualString(token, env.MACHINE_TOKEN_MAC);
+  const gpu = token && env.MACHINE_TOKEN_GPU2 && timingSafeEqualString(token, env.MACHINE_TOKEN_GPU2);
+  if (mac && !gpu) return 'mac';
+  if (gpu && !mac) return 'gpu2';
+  return null;
+}
+
+function machineOk(request, env, machine) {
+  return machine === 'mac' || machine === 'gpu2' ? machineOf(request, env) === machine : false;
 }
 
 async function needSession(request, env) {
@@ -51,7 +57,7 @@ async function login(request, env) {
   if (locked) return json({ error: locked === 'global' ? 'Sign-in is paused for an hour.' : 'Too many tries. Wait 15 minutes.' }, 429);
   let password = '';
   try { password = String((await request.json()).password || ''); } catch { password = ''; }
-  if (!timingSafeEqualString(password, env.DASHBOARD_PASSWORD || '')) {
+  if (!env.DASHBOARD_PASSWORD || !env.SESSION_SECRET || !timingSafeEqualString(password, env.DASHBOARD_PASSWORD)) {
     const r = await recordLoginFailure(store, ip, Date.now());
     if (r.alert) await telegramAlert(env, 'Command center: too many failed sign-ins. Locked for an hour.');
     if (r.globalLocked) return json({ error: 'Sign-in is paused for an hour.' }, 429);
@@ -104,8 +110,14 @@ export async function handleApi(request, env) {
   const rest = path.slice(PREFIX.length) || '/';
   const method = request.method;
 
-  if (rest === '/login' && method === 'POST') return login(request, env);
+  if (rest === '/login' && method === 'POST') {
+    const cc = needCc(request);
+    if (cc) return cc;
+    return login(request, env);
+  }
   if (rest === '/logout' && method === 'POST') {
+    const cc = needCc(request);
+    if (cc) return cc;
     return json({ ok: true }, 200, { 'Set-Cookie': sessionCookieHeader('', 0) });
   }
   if (rest === '/snapshot' && method === 'GET') {
@@ -116,7 +128,7 @@ export async function handleApi(request, env) {
 
   if (rest === '/ingest' && method === 'POST') {
     const machine = (await request.json().catch(() => ({}))).machine;
-    if (!machineOk(request, env, machine === 'gpu2' ? 'gpu2' : 'mac')) return json({ error: 'Unauthorized' }, 401);
+    if (!machineOk(request, env, machine)) return json({ error: 'Unauthorized' }, 401);
     return json({ ok: true });
   }
   if (rest === '/actions/claim' && method === 'POST') {
@@ -128,13 +140,12 @@ export async function handleApi(request, env) {
 
   const complete = rest.match(/^\/actions\/([^/]+)\/complete$/);
   if (complete && method === 'POST') {
-    const auth = request.headers.get('Authorization') || '';
-    const token = auth.startsWith('Bearer ') ? auth.slice(7) : '';
-    const okMac = env.MACHINE_TOKEN_MAC && timingSafeEqualString(token, env.MACHINE_TOKEN_MAC);
-    const okGpu = env.MACHINE_TOKEN_GPU2 && timingSafeEqualString(token, env.MACHINE_TOKEN_GPU2);
-    if (!okMac && !okGpu) return json({ error: 'Unauthorized' }, 401);
+    const machine = machineOf(request, env);
+    if (!machine) return json({ error: 'Unauthorized' }, 401);
+    const row = env.DB ? await actionById(env.DB, complete[1]) : null;
+    if (!row || row.target !== machine) return json({ error: 'Unauthorized' }, 401);
     const body = await request.json().catch(() => ({}));
-    if (env.DB) await completeAction(env.DB, complete[1], body.ok ? 'done' : 'failed', JSON.stringify(body.result || {}), new Date().toISOString());
+    await completeAction(env.DB, complete[1], body.ok ? 'done' : 'failed', JSON.stringify(body.result || {}), new Date().toISOString());
     return json({ ok: true });
   }
 

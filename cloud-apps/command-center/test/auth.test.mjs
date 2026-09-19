@@ -49,9 +49,9 @@ test('session cookie is HttpOnly Secure SameSite=Strict', () => {
 });
 
 test('password compare is length-safe', () => {
-  assert.equal(timingSafeEqualString('909090', '909090'), true);
-  assert.equal(timingSafeEqualString('909090', '909091'), false);
-  assert.equal(timingSafeEqualString('909090', 'short'), false);
+  assert.equal(timingSafeEqualString('alpha', 'alpha'), true);
+  assert.equal(timingSafeEqualString('alpha', 'alphb'), false);
+  assert.equal(timingSafeEqualString('alpha', 'short'), false);
 });
 
 test('10 wrong tries in 15 minutes locks that IP for 15 minutes', async () => {
