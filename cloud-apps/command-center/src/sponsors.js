@@ -29,7 +29,7 @@ const COL_PCT = {
   'New inquiry': 12, Negotiating: 25, 'Waiting on deposit': 37, 'Script approval': 50,
   'With editor': 62, 'Video approval': 75, 'Live · send invoice': 87, 'Paid in September': 100,
 };
-const ACTIVE = new Set(['invoice-sent', 'deposit-paid', 'script-approval', 'production', 'video-approval', 'publishing', 'paid']);
+const ACTIVE = new Set(['deposit-paid', 'script-approval', 'production', 'video-approval', 'publishing', 'paid']);
 
 export function mapColumn(stage) {
   return STAGE_TO_COLUMN[stage] || 'New inquiry';
@@ -77,7 +77,7 @@ function needles(item) {
   return n === 'viktor' ? ['viktor', 'schalumov'] : [n];
 }
 export function matchItem(card, items) {
-  const blob = norm(card.sponsor) + norm(card.contact) + norm(card.subject);
+  const blob = norm(card.sponsor) + norm(card.contact);
   return (items || []).find((item) => needles(item).some((a) => a && blob.includes(a))) || null;
 }
 function hasDraft(card) {
