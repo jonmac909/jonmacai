@@ -1,3 +1,5 @@
+import { keepCard } from './sponsors.js';
+
 const TZ = 'America/Vancouver';
 const WEEK_GOAL = 3;
 
@@ -117,9 +119,15 @@ export function overlayYoutube(page, {
 } = {}) {
   if (page.actions?.[0]) page.actions[0].href = 'https://jonmac.ai/yt2';
   const channelRows = (projects || []).map(channelRow);
-  const sponsorRows = (sponsors?.cards || []).map(sponsorRow).filter(Boolean);
+  const items = sponsors?.collections?.items;
+  const rawCards = sponsors?.cards || [];
+  const cards = items ? rawCards.filter((c) => keepCard(c, nowMs, items)) : rawCards;
+  const sponsorRows = cards.map(sponsorRow).filter(Boolean);
   if (channelRows.length || sponsorRows.length) {
-    page.pipeline = { ...page.pipeline, rows: [...channelRows, ...sponsorRows] };
+    const prev = page.pipeline?.rows || [];
+    const channel = channelRows.length ? channelRows : prev.filter((r) => r.type === 'Your channel');
+    const sponsor = sponsorRows.length ? sponsorRows : prev.filter((r) => String(r.type || '').startsWith('Sponsor'));
+    page.pipeline = { ...page.pipeline, rows: [...channel, ...sponsor] };
   }
   if ((projects || []).length) {
     const live = projects.filter((p) => publishedThisWeek(p, nowMs)).length;
