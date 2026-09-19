@@ -47,6 +47,9 @@ def load_sources(folder):
 def handle_action(kind, payload, machine):
     if kind == 'ping':
         return True, '%s is up' % LABEL.get(machine, machine)
+    if str(kind).startswith('sponsor.'):
+        from sponsors import handle as sponsor_handle
+        return sponsor_handle(kind, payload or {})
     return False, 'unknown action %s' % kind
 
 

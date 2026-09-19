@@ -72,3 +72,16 @@ export async function listSnapshots(db) {
   return results || [];
 }
 
+export async function upsertDealStage(db, dealId, stage, now) {
+  await db.prepare(
+    'INSERT OR REPLACE INTO deal_stage_overrides (deal_id, stage, updated_at) VALUES (?, ?, ?)',
+  ).bind(dealId, stage, now).run();
+}
+
+export async function listDealStages(db) {
+  const { results } = await db.prepare('SELECT deal_id, stage FROM deal_stage_overrides').all();
+  const out = {};
+  for (const row of results || []) out[row.deal_id] = row.stage;
+  return out;
+}
+

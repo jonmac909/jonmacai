@@ -1,9 +1,13 @@
+import { buildSponsorsPage, applyHomeSponsors } from './sponsors.js';
+
 export const COLLECTOR_INTERVAL_MS = 5 * 60 * 1000;
+
 export const DEFAULT_INTERVAL_MS = 10 * 60 * 1000;
 
 export const INTERVALS = {
   agents_mac: COLLECTOR_INTERVAL_MS,
   agents_gpu2: COLLECTOR_INTERVAL_MS,
+  sponsors: COLLECTOR_INTERVAL_MS,
 };
 
 const MACHINES = [
@@ -35,7 +39,7 @@ function parseData(raw) {
   try { return JSON.parse(raw || '{}'); } catch { return {}; }
 }
 
-export function mergeSnapshot(fixture, rows, nowMs = Date.now()) {
+export function mergeSnapshot(fixture, rows, nowMs = Date.now(), overrides = {}) {
   const out = JSON.parse(JSON.stringify(fixture));
   const by = {};
   const staleSources = [];
@@ -64,6 +68,17 @@ export function mergeSnapshot(fixture, rows, nowMs = Date.now()) {
       };
     });
     out.pages.agents.staleSources = staleSources;
+  }
+  const sponsors = by.sponsors;
+  if (sponsors) {
+    const data = parseData(sponsors.data);
+    if (data.collections) {
+      const page = buildSponsorsPage(data, nowMs, overrides);
+      const f = freshness(sponsors.collected_at, nowMs, INTERVALS.sponsors);
+      page.sub = `From your collections tracker · ${f.label}`;
+      if (out.pages.sponsors) out.pages.sponsors = page;
+      applyHomeSponsors(out, page);
+    }
   }
   return out;
 }

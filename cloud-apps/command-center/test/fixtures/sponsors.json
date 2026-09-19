@@ -1,0 +1,167 @@
+{
+  "updatedAt": "2026-09-18T17:04:33.939Z",
+  "collections": {
+    "items": [
+      {
+        "sponsor": "TopView",
+        "total": 1500,
+        "paid": 0,
+        "owed": 1500,
+        "month": "September",
+        "bucket": "collect-now",
+        "bucketLabel": "Collect now",
+        "blocker": "Dorothy said the $750 deposit was processed on September 11, but it is not in the bank. September deposits are Creatify $750, Soro/DIGIMERI $750, Viktor/Schalumov $1,000, and Poppy $2,500. No TopView wire.",
+        "lastEmail": "September 11, 2026",
+        "action": "Email Dorothy for the wire receipt and SWIFT trace. Do not start production until the $750 deposit lands. Collect the final $750 after posting."
+      },
+      {
+        "sponsor": "InVideo",
+        "total": 4200,
+        "paid": 0,
+        "owed": 4200,
+        "month": "September",
+        "bucket": "lock-deal",
+        "bucketLabel": "Lock deal",
+        "blocker": "Jon accepted $4,200 for two dedicated videos with a 50% deposit, go-live dates September 24 and 29. Waiting on company name and address to invoice. $200 of the total is the on-time September bonus.",
+        "lastEmail": "September 16, 2026",
+        "action": "Wait for Nehal's billing details, then invoice the $2,100 deposit. Do not start until the deposit lands."
+      },
+      {
+        "sponsor": "Viktor",
+        "total": 2000,
+        "paid": 1000,
+        "owed": 1000,
+        "month": "September",
+        "bucket": "delivery-balance",
+        "bucketLabel": "Owed after posting",
+        "blocker": "The $1,000 Schalumov deposit landed September 8. Script was sent September 10. Josef has not replied with approval. Remaining $1,000 is due after posting.",
+        "lastEmail": "September 10, 2026",
+        "action": "Nudge Josef for script approval, lock the September publish date, then invoice the final $1,000 when the video is live."
+      }
+    ],
+    "incomeTotals": {
+      "May": 5600,
+      "June": 10400,
+      "July": 8606,
+      "August": 7401,
+      "September": 5000
+    },
+    "incomeLabels": {
+      "May": "May Income",
+      "June": "June Income",
+      "July": "July Collected",
+      "August": "August Collected",
+      "September": "September Collected"
+    },
+    "completedIncomeMonths": ["June", "July", "August"],
+    "currentIncomeMonth": "September"
+  },
+  "cards": [
+    {
+      "id": "gmail-thread-topview",
+      "sponsor": "Topview AI",
+      "contact": "Dorothy Shi",
+      "stage": "invoice-sent",
+      "amount": null,
+      "status": "Needs review",
+      "latestDate": "Wed, 16 Sep 2026 18:46:50 -0700",
+      "to": "Dorothy Shi <dorothy@topview.ai>",
+      "threadId": "1a0594ff0d1bbd7c",
+      "subject": "Potential Collaboration with Topview AI"
+    },
+    {
+      "id": "gmail-thread-invideo",
+      "sponsor": "Invideo",
+      "contact": "Nehal Sharma",
+      "stage": "invoice-sent",
+      "amount": null,
+      "status": "Waiting on sponsor",
+      "latestDate": "Wed, 16 Sep 2026 12:15:56 -0700",
+      "to": "Nehal Sharma <nehal@invideo.io>",
+      "threadId": "1a086c64c5fa1ba0",
+      "subject": "Paid Collaboration with invideo AI"
+    },
+    {
+      "id": "gmail-thread-viktor",
+      "sponsor": "Norton Neo",
+      "contact": "Josef Schalumov via PandaDoc",
+      "stage": "script-approval",
+      "amount": null,
+      "status": "Waiting on sponsor",
+      "latestDate": "Wed, 10 Sep 2026 11:00:00 -0700",
+      "to": "Josef Schalumov <josef@example.com>",
+      "threadId": "19c13b4e81438d0e",
+      "subject": "Josef Schalumov sent you Norton Neo"
+    },
+    {
+      "id": "gmail-thread-flova",
+      "sponsor": "Flova AI",
+      "contact": "maria.tang",
+      "stage": "negotiating",
+      "status": "Draft ready",
+      "latestDate": "Wed, 17 Sep 2026 05:47:37 +0800",
+      "to": "maria.tang@offer.tec-do.com",
+      "threadId": "1a07c5c1f9cca928",
+      "subject": "Paid Collaboration Opportunity with Flova AI",
+      "draftReply": {
+        "status": "needs-review",
+        "subject": "Re: Paid Collaboration Opportunity with Flova AI",
+        "body": "Hi Maria,\n\nRates below.\n\nBest,\nJon Mac"
+      }
+    },
+    {
+      "id": "gmail-thread-cold",
+      "sponsor": "Random Cold",
+      "contact": "Pat",
+      "stage": "negotiating",
+      "status": "Waiting on sponsor",
+      "latestDate": "Mon, 1 Jun 2026 12:00:00 -0700",
+      "to": "pat@example.com",
+      "threadId": "cold-1",
+      "subject": "Collab?"
+    },
+    {
+      "id": "gmail-thread-archived",
+      "sponsor": "Nope",
+      "contact": "X",
+      "stage": "archived",
+      "latestDate": "Fri, 18 Sep 2026 12:00:00 -0700",
+      "to": "x@example.com",
+      "threadId": "arch-1",
+      "subject": "No"
+    },
+    {
+      "id": "gmail-thread-old-done",
+      "sponsor": "Old Deal",
+      "contact": "Y",
+      "stage": "done",
+      "latestDate": "Fri, 1 May 2026 12:00:00 -0700",
+      "to": "y@example.com",
+      "threadId": "done-old",
+      "subject": "Closed"
+    },
+    {
+      "id": "gmail-thread-poppy",
+      "sponsor": "Poppy",
+      "contact": "Lance",
+      "stage": "paid",
+      "amount": 2500,
+      "status": "Email sent",
+      "latestDate": "Tue, 8 Sep 2026 12:00:00 -0700",
+      "to": "lance@getpoppy.ai",
+      "threadId": "poppy-1",
+      "subject": "Deposit"
+    },
+    {
+      "id": "gmail-thread-live",
+      "sponsor": "LiveCo",
+      "contact": "Sam",
+      "stage": "publishing",
+      "status": "Waiting on sponsor",
+      "latestDate": "Thu, 17 Sep 2026 12:00:00 -0700",
+      "to": "sam@live.co",
+      "threadId": "live-1",
+      "subject": "It's up"
+    }
+  ]
+}

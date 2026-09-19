@@ -5,9 +5,10 @@ import {
 } from './auth.js';
 import {
   loginStore, insertAction, actionByIdem, actionById, claimQueued, completeAction,
-  upsertChecklist, upsertHabit, upsertSnapshot, listSnapshots,
+  upsertChecklist, upsertHabit, upsertSnapshot, listSnapshots, upsertDealStage, listDealStages,
 } from './db.js';
 import { mergeSnapshot } from './snapshot.js';
+import { boardStageFor, mapColumn } from './sponsors.js';
 
 const PREFIX = '/dashboard/api';
 const json = (data, status = 200, headers = {}) =>
@@ -91,6 +92,9 @@ async function postAction(request, env) {
   const now = new Date().toISOString();
   const result = payload.msg || 'Done';
   const status = target === 'worker' ? 'done' : 'queued';
+  if (kind === 'sponsor.move_stage' && env.DB && payload.id && payload.stage) {
+    await upsertDealStage(env.DB, String(payload.id), asBoardStage(payload.stage), now);
+  }
   if (env.DB) {
     await insertAction(env.DB, {
       id, kind, target, payload: JSON.stringify(payload), status,
@@ -99,6 +103,11 @@ async function postAction(request, env) {
     });
   }
   return json({ id, status, result: status === 'done' ? result : null });
+}
+
+function asBoardStage(stage) {
+  const s = String(stage || '');
+  return mapColumn(s) !== 'New inquiry' || s === 'drafts' || s === 'new-lead' ? s : boardStageFor(s);
 }
 
 function resultText(value) {
@@ -131,7 +140,8 @@ export async function handleApi(request, env) {
     if (denied) return denied;
     const base = filterSnapshot(url.searchParams.get('pages'));
     if (!env.DB) return json(base);
-    return json(mergeSnapshot(base, await listSnapshots(env.DB)));
+    const overrides = await listDealStages(env.DB);
+    return json(mergeSnapshot(base, await listSnapshots(env.DB), Date.now(), overrides));
   }
 
   if (rest === '/ingest' && method === 'POST') {
@@ -190,6 +200,21 @@ export async function handleApi(request, env) {
     const b = await request.json().catch(() => ({}));
     await upsertHabit(env.DB, b.day, b.kind, b.done ? 1 : 0, b.note || '');
     return json({ ok: true });
+  }
+  const deal = rest.match(/^\/deals\/([^/]+)\/stage$/);
+  if (deal && method === 'POST' && env.DB) {
+    const b = await request.json().catch(() => ({}));
+    const stage = asBoardStage(b.stage);
+    const now = new Date().toISOString();
+    const dealId = decodeURIComponent(deal[1]);
+    await upsertDealStage(env.DB, dealId, stage, now);
+    const id = crypto.randomUUID();
+    await insertAction(env.DB, {
+      id, kind: 'sponsor.move_stage', target: 'mac',
+      payload: JSON.stringify({ id: dealId, stage }),
+      status: 'queued', result: null, idem_key: id, created_at: now, finished_at: null,
+    });
+    return json({ ok: true, id });
   }
   return json({ error: 'Not found' }, 404);
 }

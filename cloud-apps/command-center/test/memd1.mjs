@@ -1,9 +1,11 @@
 export function memD1() {
   const snapshots = new Map();
   const actions = [];
+  const deals = new Map();
   return {
     snapshots,
     actions,
+    deals,
     prepare(sql) {
       const s = String(sql);
       const stmt = {
@@ -22,6 +24,9 @@ export function memD1() {
         async all() {
           const a = stmt._args;
           if (/FROM snapshots/.test(s)) return { results: [...snapshots.values()] };
+          if (/FROM deal_stage_overrides/.test(s)) {
+            return { results: [...deals.entries()].map(([deal_id, row]) => ({ deal_id, stage: row.stage || row })) };
+          }
           if (/FROM actions WHERE target/.test(s)) {
             return {
               results: actions
@@ -41,6 +46,8 @@ export function memD1() {
               id: a[0], kind: a[1], target: a[2], payload: a[3], status: a[4],
               result: a[5], idem_key: a[6], created_at: a[7], finished_at: a[8], claimed_at: null,
             });
+          } else if (/INSERT OR REPLACE INTO deal_stage_overrides/.test(s)) {
+            deals.set(a[0], { deal_id: a[0], stage: a[1], updated_at: a[2] });
           } else if (/status = 'claimed'/.test(s)) {
             const row = actions.find((x) => x.id === a[1] && x.status === 'queued');
             if (row) {

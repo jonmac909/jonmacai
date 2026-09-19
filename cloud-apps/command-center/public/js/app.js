@@ -118,7 +118,11 @@ function bindKanban() {
     c.classList.remove('over');
     ktotals();
     const name = dragging.querySelector('strong')?.textContent || 'card';
-    act('sponsor.move_stage', { msg: `Moved ${name} to ${c.dataset.stage}`, deal: name, stage: c.dataset.stage });
+    act('sponsor.move_stage', {
+      id: dragging.dataset.id,
+      stage: c.dataset.board || c.dataset.stage,
+      msg: `Moved ${name} to ${c.dataset.stage}`,
+    });
   });
   ktotals();
 }
@@ -165,11 +169,22 @@ document.addEventListener('click', (e) => {
     recount();
     return;
   }
+  const href = e.target.closest('[data-href]');
+  if (href) { window.open(href.dataset.href, '_blank', 'noopener'); return; }
   const actBtn = e.target.closest('[data-kind]');
   if (actBtn) {
     let payload = {};
     try { payload = JSON.parse(actBtn.dataset.payload || '{}'); } catch { payload = {}; }
+    if (actBtn.dataset.edit) {
+      const body = prompt('Edit draft', payload.body || '');
+      if (body == null) return;
+      payload = { ...payload, body, status: 'edited' };
+    }
     act(actBtn.dataset.kind, payload);
+    if (actBtn.hasAttribute('data-done')) {
+      const r = actBtn.closest('.r, .job');
+      if (r) r.classList.add('done');
+    }
     return;
   }
   const nav = e.target.closest('[data-page]');
