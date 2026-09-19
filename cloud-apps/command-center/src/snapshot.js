@@ -5,6 +5,7 @@ import { overlayVideo } from './video.js';
 import { overlayContent } from './content.js';
 import { overlayMoney, overlayMarkets } from './money.js';
 import { overlayViral, applyHomeViral } from './viral.js';
+import { overlayOutreach } from './outreach.js';
 
 export const COLLECTOR_INTERVAL_MS = 5 * 60 * 1000;
 
@@ -21,6 +22,7 @@ export const INTERVALS = {
   content_queue: COLLECTOR_INTERVAL_MS,
   viralview: DEFAULT_INTERVAL_MS,
   moneyclaw: DEFAULT_INTERVAL_MS,
+  instantly: DEFAULT_INTERVAL_MS,
 };
 
 const MACHINES = [
@@ -277,6 +279,9 @@ export function mergeSnapshot(fixture, rows, nowMs = Date.now(), overrides = {},
     overlayViral(page, data, nowMs, f.label);
     if (out.pages.viral) out.pages.viral = page;
     applyHomeViral(out, page);
+  }
+  if (out.pages.outreach && by.instantly) {
+    overlayOutreach(out.pages.outreach, parseData(by.instantly.data));
   }
   return out;
 }
