@@ -67,6 +67,15 @@ Worker cron (every 10 min) pulls Instantly API v2 with `INSTANTLY_API_KEY` as `A
 
 Daily max = sum of `daily_limit` on accounts with `status === 1`. Setup steps tick from that snapshot. Test-sent is manual.
 
+## Runners
+
+Each machine runs exactly one action runner. A lock makes a second copy exit at once. `claimQueued` only returns rows its own `UPDATE` changed, so two pollers cannot both execute the same action.
+
+- GPU2: Startup `CommandCenterRun.cmd` at logon; `run.cmd` restarts on failure; Task Scheduler `\CommandCenterCollect` kickstarts it every 5 min.
+- Mac mini: launchd `com.jonmac.cc.run` with KeepAlive.
+
+Restart a runner only through that service. Do not start `run.py` by hand.
+
 ## Tests
 
 ```

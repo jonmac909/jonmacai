@@ -32,16 +32,20 @@ export async function claimQueued(db, machine, now) {
   const { results } = await db.prepare(
     `SELECT * FROM actions WHERE target = ? AND status = 'queued' ORDER BY created_at LIMIT 10`,
   ).bind(machine).all();
+  const claimed = [];
   for (const row of results || []) {
-    await db.prepare(`UPDATE actions SET status = 'claimed', claimed_at = ? WHERE id = ? AND status = 'queued'`)
-      .bind(now, row.id).run();
+    const info = await db.prepare(
+      `UPDATE actions SET status = 'claimed', claimed_at = ? WHERE id = ? AND status = 'queued'`,
+    ).bind(now, row.id).run();
+    if (!info?.meta?.changes) continue;
     row.status = 'claimed';
     row.claimed_at = now;
     if (row.kind === 'bank.submit_code') {
       await db.prepare(`UPDATE actions SET payload = ? WHERE id = ?`).bind('{}', row.id).run();
     }
+    claimed.push(row);
   }
-  return results || [];
+  return claimed;
 }
 
 export async function completeAction(db, id, status, result, now) {
