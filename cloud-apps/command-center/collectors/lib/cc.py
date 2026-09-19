@@ -50,6 +50,9 @@ def handle_action(kind, payload, machine):
     if str(kind).startswith('sponsor.'):
         from sponsors import handle as sponsor_handle
         return sponsor_handle(kind, payload or {})
+    if str(kind).startswith('support.'):
+        from support_mail import handle as support_handle
+        return support_handle(kind, payload or {})
     if kind == 'mastermind.send_to_planner':
         from planner_task import send_to_planner
         return send_to_planner(payload or {})

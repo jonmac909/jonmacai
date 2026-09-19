@@ -1,4 +1,5 @@
 import { buildSponsorsPage, applyHomeSponsors } from './sponsors.js';
+import { overlaySupport } from './support.js';
 
 export const COLLECTOR_INTERVAL_MS = 5 * 60 * 1000;
 
@@ -9,6 +10,7 @@ export const INTERVALS = {
   agents_gpu2: COLLECTOR_INTERVAL_MS,
   sponsors: COLLECTOR_INTERVAL_MS,
   mastermind: COLLECTOR_INTERVAL_MS,
+  support: COLLECTOR_INTERVAL_MS,
 };
 
 const MACHINES = [
@@ -208,6 +210,11 @@ export function mergeSnapshot(fixture, rows, nowMs = Date.now(), overrides = {},
   if (out.pages.mastermind && by.mastermind) {
     overlayMastermind(out.pages.mastermind, parseData(by.mastermind.data), ideas, nowMs);
     if (out.nav?.badges) out.nav.badges.mastermind = (out.pages.mastermind.picks?.jobs || []).length;
+  }
+  if (out.pages.support && by.support) {
+    const f = freshness(by.support.collected_at, nowMs, INTERVALS.support);
+    overlaySupport(out.pages.support, parseData(by.support.data), nowMs, f.label);
+    if (out.nav?.badges) out.nav.badges.support = Number(out.pages.support.tiles?.[0]?.value || 0);
   }
   const sponsors = by.sponsors;
   if (sponsors) {

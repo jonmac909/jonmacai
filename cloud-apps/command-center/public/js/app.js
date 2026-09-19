@@ -186,7 +186,7 @@ document.addEventListener('click', (e) => {
         const r = actBtn.closest('.r, .job');
         if (r) r.classList.add('done');
       }
-      if (kind.startsWith('mastermind.') || kind === 'agent.restart' || kind === 'ping') {
+      if (kind.startsWith('mastermind.') || kind.startsWith('support.') || kind === 'agent.restart' || kind === 'ping') {
         const snap = await fetch(`${PREFIX}/api/snapshot`);
         if (snap.ok) {
           data = await snap.json();
