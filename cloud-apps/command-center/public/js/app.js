@@ -170,6 +170,14 @@ function go(id) {
   try { localStorage.setItem('cc-page', id); } catch {}
   bindKanban();
   recount();
+  if (id === 'markets') {
+    const day = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Vancouver' });
+    fetch(`${PREFIX}/api/checklist`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CC': '1' },
+      body: JSON.stringify({ day, item: 'market_check', how: 'auto' }),
+    }).catch(() => {});
+  }
 }
 
 document.addEventListener('click', (e) => {
@@ -182,6 +190,16 @@ document.addEventListener('click', (e) => {
   }
   const th = e.target.closest('[data-theme-set]');
   if (th) { setTheme(th.dataset.themeSet); return; }
+  const va = e.target.closest('[data-view-all]');
+  if (va) {
+    const ny = data.pages.home.needsYou;
+    if (ny.all) {
+      ny.jobs = ny.all;
+      ny.viewAll = 'Show top 3';
+      go('home');
+    }
+    return;
+  }
   const st = e.target.closest('.step');
   if (st) {
     st.setAttribute('aria-pressed', st.getAttribute('aria-pressed') === 'true' ? 'false' : 'true');
@@ -232,7 +250,7 @@ document.addEventListener('click', (e) => {
         const r = actBtn.closest('.r, .job');
         if (r) r.classList.add('done');
       }
-      if (kind.startsWith('mastermind.') || kind.startsWith('support.') || kind.startsWith('video.') || kind.startsWith('content.') || kind.startsWith('money.') || kind.startsWith('outreach.') || kind === 'agent.restart' || kind === 'ping') {
+      if (kind.startsWith('mastermind.') || kind.startsWith('support.') || kind.startsWith('video.') || kind.startsWith('content.') || kind.startsWith('money.') || kind.startsWith('outreach.') || kind.startsWith('life.') || kind === 'agent.restart' || kind === 'ping') {
         const snap = await fetch(`${PREFIX}/api/snapshot`);
         if (snap.ok) {
           data = await snap.json();
@@ -270,8 +288,14 @@ document.addEventListener('drop', (e) => {
 
 
 document.getElementById('startMorning').addEventListener('click', () => {
-  go('home');
-  act('ui.toast', { msg: data.nav.startMorningMsg });
+  const step = (data.pages.home.runThrough.steps || []).find((s) => !s.done);
+  if (!step) {
+    go('home');
+    act('ui.toast', { msg: 'Morning run-through is done' });
+    return;
+  }
+  go(step.page || 'home');
+  act('ui.toast', { msg: step.label });
 });
 
 window.addEventListener('hashchange', () => go(hashPage()));

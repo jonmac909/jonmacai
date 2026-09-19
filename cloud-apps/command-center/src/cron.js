@@ -1,5 +1,9 @@
-import { upsertSnapshot } from './db.js';
+import snapshot from '../fixtures/snapshot.json' with { type: 'json' };
+import { listSnapshots, upsertSnapshot } from './db.js';
 import { pullInstantly } from './outreach.js';
+import { pullCalendar } from './life.js';
+import { mergeSnapshot } from './snapshot.js';
+import { pushCriticalTelegram } from './home.js';
 
 const VIRAL_URL = 'https://app.viralview.io/api/internal/dashboard-summary';
 const MONEY_URL = 'https://moneyclaw.jonmac.ai/api/internal/dashboard-summary';
@@ -30,5 +34,9 @@ export async function handleCron(env) {
   }
   jobs.push(pull(env, 'youtube', YT_URL, {}));
   if (env.INSTANTLY_API_KEY) jobs.push(pullInstantly(env));
+  jobs.push(pullCalendar(env));
   await Promise.allSettled(jobs);
+  const nowMs = Date.now();
+  const snap = mergeSnapshot(snapshot, await listSnapshots(env.DB), nowMs);
+  await pushCriticalTelegram(env, snap);
 }

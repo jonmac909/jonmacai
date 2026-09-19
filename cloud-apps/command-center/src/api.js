@@ -7,13 +7,14 @@ import {
   loginStore, insertAction, actionByIdem, actionById, claimQueued, completeAction,
   upsertChecklist, upsertHabit, upsertSnapshot, listSnapshots, upsertDealStage, listDealStages, listIdeas, upsertIdea,
   listVideoProjects, replaceVideoProjects,
-  upsertPost, listPosts,
+  upsertPost, listPosts, listChecklist, listHabits,
 } from './db.js';
 import { mergeSnapshot } from './snapshot.js';
 import { boardStageFor, mapColumn } from './sponsors.js';
 import { normalizePost } from './content.js';
 import { runMoneyMove } from './money.js';
 import { runOutreach } from './outreach.js';
+import { exchangeGoogleCode, googleAuthUrl, runLife, ymd } from './life.js';
 
 const PREFIX = '/dashboard/api';
 const json = (data, status = 200, headers = {}) =>
@@ -138,6 +139,15 @@ async function postAction(request, env) {
       status = 'failed';
     }
   }
+  if (kind.startsWith('life.')) {
+    try {
+      result = await runLife(env, kind, payload);
+      status = 'done';
+    } catch (err) {
+      result = err.message || 'Failed';
+      status = 'failed';
+    }
+  }
   if (env.DB) {
     await insertAction(env.DB, {
       id, kind, target, payload: JSON.stringify(payload), status,
@@ -178,13 +188,19 @@ export async function handleApi(request, env) {
     if (cc) return cc;
     return json({ ok: true }, 200, { 'Set-Cookie': sessionCookieHeader('', 0) });
   }
+  if (rest === '/google/callback' && method === 'GET') {
+    const ok = await exchangeGoogleCode(env, url.origin, url.searchParams.get('code'), url.searchParams.get('state'));
+    return Response.redirect(`${url.origin}/dashboard/#life${ok ? '' : '?cal=err'}`, 302);
+  }
   if (rest === '/snapshot' && method === 'GET') {
     const denied = await needSession(request, env);
     if (denied) return denied;
     const base = filterSnapshot(url.searchParams.get('pages'));
     if (!env.DB) return json(base);
+    const now = Date.now();
     const overrides = await listDealStages(env.DB);
-    return json(mergeSnapshot(base, await listSnapshots(env.DB), Date.now(), overrides, await listIdeas(env.DB), await listPosts(env.DB), await listVideoProjects(env.DB)));
+    const extra = { habits: await listHabits(env.DB), checklist: await listChecklist(env.DB, ymd(now)) };
+    return json(mergeSnapshot(base, await listSnapshots(env.DB), now, overrides, await listIdeas(env.DB), await listPosts(env.DB), await listVideoProjects(env.DB), extra));
   }
 
   if (rest === '/ingest' && method === 'POST') {
@@ -271,6 +287,10 @@ export async function handleApi(request, env) {
   if (method !== 'GET') {
     const cc = needCc(request);
     if (cc) return cc;
+  }
+  if (rest === '/google/start' && method === 'GET') {
+    if (!env.GOOGLE_CLIENT_ID || !env.SESSION_SECRET) return json({ error: 'Google Calendar is not connected yet' }, 501);
+    return Response.redirect(await googleAuthUrl(env, url.origin), 302);
   }
 
   if (rest === '/actions' && method === 'POST') return postAction(request, env);

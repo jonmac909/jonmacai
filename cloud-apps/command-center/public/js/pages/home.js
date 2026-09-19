@@ -15,7 +15,7 @@ export function render(d) {
     <div class="steps">${steps}</div>
   </div>
   <div class="sec">
-    <div class="bar"><h2>${d.needsYou.title}</h2><button class="link" data-msg="${d.needsYou.viewAllMsg}">${d.needsYou.viewAll}</button></div>
+    <div class="bar"><h2>${d.needsYou.title}</h2><button class="link" data-view-all="1">${d.needsYou.viewAll}</button></div>
     <div class="todo">${jobs}</div>
   </div>
   <div class="split three">
@@ -28,7 +28,7 @@ export function render(d) {
       <hr><span class="pill ok">${d.mastermindPick.pill}</span>
       <h3>${d.mastermindPick.heading}</h3>
       <p>${d.mastermindPick.body}</p>
-      <div class="box"><h4>${d.mastermindPick.fitTitle}</h4><p>${d.mastermindPick.fit}</p><p><b>Effort:</b> ${d.mastermindPick.effort}</p>${btn(d.mastermindPick.btn, { msg: d.mastermindPick.msg, cls: 'wide' })}</div>
+      <div class="box"><h4>${d.mastermindPick.fitTitle}</h4><p>${d.mastermindPick.fit}</p><p><b>Effort:</b> ${d.mastermindPick.effort}</p>${btn(d.mastermindPick.btn, { msg: d.mastermindPick.msg, cls: 'wide', kind: d.mastermindPick.kind, payload: d.mastermindPick.payload })}</div>
       <div class="pager"><span>${d.mastermindPick.pager}</span><button class="link" data-page="mastermind">See all</button></div>
     </div>
     <div class="card pad life">
@@ -36,7 +36,7 @@ export function render(d) {
       <div class="habit"><div><strong>${L.workout.title}</strong><small>${L.workout.sub}</small></div>${dots(L.workout.dots)}</div>
       ${pg(L.workout.pct, 'ok')}
       <hr class="divider">
-      <div class="habit"><div><strong>${L.dateNight.title}</strong><small>${L.dateNight.sub}</small></div>${btn(L.dateNight.btn, { msg: L.dateNight.msg, cls: 'line' })}</div>
+      <div class="habit"><div><strong>${L.dateNight.title}</strong><small>${L.dateNight.sub}</small></div>${btn(L.dateNight.btn, { msg: L.dateNight.msg, cls: 'line', kind: L.dateNight.kind, payload: L.dateNight.payload, confirm: L.dateNight.confirm })}</div>
       <hr class="divider">
       <div class="habit"><div><strong>${L.agents.title}</strong><small>${L.agents.sub}</small></div><button class="link" data-page="agents">Open</button></div>
     </div>
