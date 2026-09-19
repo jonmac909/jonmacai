@@ -1,9 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
+import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { existsSync } from 'node:fs';
+import { existsSync, unlinkSync } from 'node:fs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const py = process.platform === 'win32' ? 'python' : 'python3';
@@ -55,4 +56,34 @@ test('ping handler returns the machine-up message', () => {
   const lines = r.stdout.trim().split(/\r?\n/);
   assert.equal(lines[0], 'True');
   assert.equal(lines[1], 'Mac mini is up');
+});
+
+test('second runner exits at once when the lock is held', () => {
+  const lock = join(tmpdir(), `cc-run-lock-${process.pid}`);
+  const lib = join(root, 'collectors/lib');
+  const env = { ...process.env, CC_RUN_LOCK: lock };
+  const holder = spawn(py, ['-c',
+    'from cc import acquire_run_lock\n'
+    + 'acquire_run_lock("gpu2")\n'
+    + 'import time; time.sleep(20)\n'],
+    { cwd: lib, env, stdio: 'ignore' },
+  );
+  try {
+    const start = Date.now();
+    while (Date.now() - start < 4000) {
+      if (existsSync(lock)) break;
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 50);
+    }
+    const r = spawnSync(py, ['-c',
+      'from cc import acquire_run_lock\n'
+      + 'acquire_run_lock("gpu2")\n'
+      + 'print("got lock")\n'],
+      { cwd: lib, env, encoding: 'utf8', timeout: 8000 },
+    );
+    assert.notEqual(r.status, 0, r.stdout + r.stderr);
+    assert.match(`${r.stdout}${r.stderr}`, /already running/i);
+  } finally {
+    holder.kill();
+    try { unlinkSync(lock); } catch {}
+  }
 });

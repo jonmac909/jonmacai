@@ -29,8 +29,11 @@ function memDb(rows = []) {
             },
             async run() {
               if (sql.includes("status = 'claimed'")) {
-                const row = data.find((r) => r.id === args[1]);
-                if (row) { row.status = 'claimed'; row.claimed_at = args[0]; }
+                const row = data.find((r) => r.id === args[1] && r.status === 'queued');
+                if (!row) return { success: true, meta: { changes: 0 } };
+                row.status = 'claimed';
+                row.claimed_at = args[0];
+                return { success: true, meta: { changes: 1 } };
               }
               if (sql.includes('payload = ?')) {
                 const row = data.find((r) => r.id === args[1]);
@@ -40,7 +43,7 @@ function memDb(rows = []) {
                 const row = data.find((r) => r.id === args[3]);
                 if (row) { row.status = args[0]; row.result = args[1]; row.finished_at = args[2]; }
               }
-              return { success: true };
+              return { success: true, meta: { changes: 1 } };
             },
           };
         },

@@ -10,6 +10,33 @@ from pathlib import Path
 
 LABEL = {'mac': 'Mac mini', 'gpu2': 'GPU2'}
 
+_run_lock = None
+
+
+def acquire_run_lock(machine):
+    global _run_lock
+    path = Path(os.environ.get('CC_RUN_LOCK') or (Path.home() / '.command-center' / ('run-%s.lock' % machine)))
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fh = open(path, 'a+b')
+    try:
+        if os.name == 'nt':
+            import msvcrt
+            fh.seek(0, 2)
+            if fh.tell() == 0:
+                fh.write(b'0')
+                fh.flush()
+            fh.seek(0)
+            msvcrt.locking(fh.fileno(), msvcrt.LK_NBLCK, 1)
+        else:
+            import fcntl
+            fcntl.flock(fh.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError:
+        fh.close()
+        sys.stderr.write('runner already running\n')
+        raise SystemExit(2)
+    _run_lock = fh
+    return fh
+
 
 def utc_now():
     return datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
@@ -125,6 +152,7 @@ def main_collect(machine):
         print('ingested %s' % source)
 
 def main_run(machine):
+    acquire_run_lock(machine)
     base, token = cfg(machine)
     once = '--once' in sys.argv
     print('runner up', flush=True)

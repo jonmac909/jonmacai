@@ -77,7 +77,9 @@ export function memD1() {
             if (row) {
               row.status = 'claimed';
               row.claimed_at = a[0];
+              return { success: true, meta: { changes: 1 } };
             }
+            return { success: true, meta: { changes: 0 } };
           } else if (/SET payload/.test(s)) {
             const row = actions.find((x) => x.id === a[1]);
             if (row) row.payload = a[0];
@@ -89,7 +91,7 @@ export function memD1() {
               row.finished_at = a[2];
             }
           }
-          return { success: true };
+          return { success: true, meta: { changes: 1 } };
         },
       };
       return stmt;
