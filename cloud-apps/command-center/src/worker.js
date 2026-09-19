@@ -17,6 +17,7 @@ async function asset(request, env, assetPath) {
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
+    if (url.hostname.endsWith('.workers.dev')) return new Response('Not found', { status: 404 });
     if (url.pathname === PREFIX) {
       url.pathname = `${PREFIX}/`;
       return Response.redirect(url.toString(), 308);
