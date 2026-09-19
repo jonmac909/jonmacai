@@ -1,0 +1,58 @@
+:root{
+  --bg:#f3f4f7; --side:#f7f8fa; --card:#ffffff; --soft:#f5f6f8; --line:#e5e7ec; --hover:#eceef2;
+  --ink:#0e1526; --ink-2:#4a5263; --muted:#7c8494;
+  --accent:#0a3fd6; --accent-soft:#e6ecfd; --on-accent:#ffffff;
+  --ok-bg:#e5f6ea; --ok-ink:#17703a; --ok-line:#b9e4c6; --ok-fill:#22a355;
+  --risk-bg:#fdf3d9; --risk-ink:#8a5d00; --risk-line:#f2dc9d; --risk-fill:#e3a008;
+  --crit-bg:#fde9e8; --crit-ink:#b3261e; --crit-line:#f5c4c1; --crit-fill:#d9433a;
+  --idle-bg:#eff0f3; --idle-ink:#565e6e; --idle-line:#dcdfe5;
+  --shadow:0 1px 2px rgba(14,21,38,.04);
+  --page-bg:#f3f4f7; --card-bg:#ffffff; --kcol-bg:#eceef2; --cell-hi:#0a3fd6;
+  --btn-bg:#0a3fd6; --btn-glow:none;
+  --bar:#0a3fd6; --bar-ok:#22a355; --bar-risk:#e3a008; --bar-crit:#d9433a; --bar-glow:none;
+  --col-bar:#0a3fd6; --col-glow:none;
+  --ico-bg:#e6ecfd; --ico-line:transparent; --ico-glow:0 0 0 transparent;
+  --nav-on-bg:#eceef2; --nav-on-line:transparent;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#070a15; --side:#090c1a; --card:#11152b; --soft:#171c36; --line:rgba(150,160,255,.12); --hover:rgba(124,131,255,.10);
+    --ink:#eef0ff; --ink-2:#aab1d4; --muted:#747ca3;
+    --accent:#8b8cff; --accent-soft:rgba(124,131,255,.16); --on-accent:#ffffff;
+    --ok-bg:rgba(52,211,153,.12); --ok-ink:#5fe3ad; --ok-line:rgba(52,211,153,.30); --ok-fill:#34d399;
+    --risk-bg:rgba(251,191,36,.12); --risk-ink:#fcd34d; --risk-line:rgba(251,191,36,.30); --risk-fill:#fbbf24;
+    --crit-bg:rgba(248,113,113,.13); --crit-ink:#fca5a5; --crit-line:rgba(248,113,113,.32); --crit-fill:#f87171;
+    --idle-bg:rgba(150,160,255,.07); --idle-ink:#aab1d4; --idle-line:rgba(150,160,255,.18);
+    --shadow:inset 0 1px 0 rgba(255,255,255,.05), 0 18px 40px -24px rgba(0,0,0,.9);
+    --page-bg:radial-gradient(1100px 620px at 8% -8%, rgba(112,92,255,.22), transparent 62%), radial-gradient(900px 560px at 100% 105%, rgba(56,140,255,.13), transparent 60%), #070a15;
+    --card-bg:linear-gradient(180deg, rgba(26,31,64,.78), rgba(15,19,40,.78));
+    --kcol-bg:rgba(150,160,255,.05); --cell-hi:#6a5cff;
+    --btn-bg:linear-gradient(135deg,#4c6fff,#7b5cff);
+    --btn-glow:inset 0 0 0 1px rgba(170,160,255,.35), 0 8px 24px -8px rgba(112,92,255,.8);
+    --bar:linear-gradient(90deg,#8b5cf6,#5b7cff 55%,#22d3ee); --bar-glow:0 0 12px rgba(124,92,255,.55);
+    --bar-ok:linear-gradient(90deg,#10b981,#5eead4); --bar-risk:linear-gradient(90deg,#f59e0b,#fcd34d); --bar-crit:linear-gradient(90deg,#ef4444,#fb923c);
+    --col-bar:linear-gradient(180deg,#c4b5fd,#7c5cff 45%,#3b6cf6); --col-glow:0 0 16px rgba(124,92,255,.55);
+    --ico-bg:radial-gradient(circle at 30% 25%, rgba(150,140,255,.55), rgba(79,70,229,.14) 72%); --ico-line:rgba(150,140,255,.45); --ico-glow:0 0 20px rgba(112,92,255,.35);
+    --nav-on-bg:linear-gradient(90deg, rgba(112,92,255,.28), rgba(112,92,255,.06)); --nav-on-line:rgba(150,140,255,.38);
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#070a15; --side:#090c1a; --card:#11152b; --soft:#171c36; --line:rgba(150,160,255,.12); --hover:rgba(124,131,255,.10);
+  --ink:#eef0ff; --ink-2:#aab1d4; --muted:#747ca3;
+  --accent:#8b8cff; --accent-soft:rgba(124,131,255,.16); --on-accent:#ffffff;
+  --ok-bg:rgba(52,211,153,.12); --ok-ink:#5fe3ad; --ok-line:rgba(52,211,153,.30); --ok-fill:#34d399;
+  --risk-bg:rgba(251,191,36,.12); --risk-ink:#fcd34d; --risk-line:rgba(251,191,36,.30); --risk-fill:#fbbf24;
+  --crit-bg:rgba(248,113,113,.13); --crit-ink:#fca5a5; --crit-line:rgba(248,113,113,.32); --crit-fill:#f87171;
+  --idle-bg:rgba(150,160,255,.07); --idle-ink:#aab1d4; --idle-line:rgba(150,160,255,.18);
+  --shadow:inset 0 1px 0 rgba(255,255,255,.05), 0 18px 40px -24px rgba(0,0,0,.9);
+  --page-bg:radial-gradient(1100px 620px at 8% -8%, rgba(112,92,255,.22), transparent 62%), radial-gradient(900px 560px at 100% 105%, rgba(56,140,255,.13), transparent 60%), #070a15;
+  --card-bg:linear-gradient(180deg, rgba(26,31,64,.78), rgba(15,19,40,.78));
+  --kcol-bg:rgba(150,160,255,.05); --cell-hi:#6a5cff;
+  --btn-bg:linear-gradient(135deg,#4c6fff,#7b5cff);
+  --btn-glow:inset 0 0 0 1px rgba(170,160,255,.35), 0 8px 24px -8px rgba(112,92,255,.8);
+  --bar:linear-gradient(90deg,#8b5cf6,#5b7cff 55%,#22d3ee); --bar-glow:0 0 12px rgba(124,92,255,.55);
+  --bar-ok:linear-gradient(90deg,#10b981,#5eead4); --bar-risk:linear-gradient(90deg,#f59e0b,#fcd34d); --bar-crit:linear-gradient(90deg,#ef4444,#fb923c);
+  --col-bar:linear-gradient(180deg,#c4b5fd,#7c5cff 45%,#3b6cf6); --col-glow:0 0 16px rgba(124,92,255,.55);
+  --ico-bg:radial-gradient(circle at 30% 25%, rgba(150,140,255,.55), rgba(79,70,229,.14) 72%); --ico-line:rgba(150,140,255,.45); --ico-glow:0 0 20px rgba(112,92,255,.35);
+  --nav-on-bg:linear-gradient(90deg, rgba(112,92,255,.28), rgba(112,92,255,.06)); --nav-on-line:rgba(150,140,255,.38);
+}
