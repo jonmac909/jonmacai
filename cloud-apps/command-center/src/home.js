@@ -80,7 +80,7 @@ function overlayBank(snap, by, nowMs) {
 
 function runSteps(snap, by, extra, nowMs) {
   const today = ymd(nowMs);
-  const checked = new Set((extra.checklist || []).filter((c) => c.day === today && c.item).map((c) => c.item));
+  const checked = new Set((extra.checklist || []).filter((c) => c.day === today && c.item && c.how !== 'auto').map((c) => c.item));
   return STEPS.map((s) => ({
     ...s,
     done: checked.has(s.item),

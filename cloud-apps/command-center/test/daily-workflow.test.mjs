@@ -79,6 +79,28 @@ test('checklist persists one item and resets the next Vancouver day', async () =
   assert.equal(next.pages.home.runThrough.done, 0);
 });
 
+test('legacy how=auto checklist does not count as morning done', () => {
+  const now = Date.parse('2026-09-19T17:00:00Z');
+  const snap = mergeSnapshot(structuredClone(fixture), [], {
+    nowMs: now,
+    extra: { checklist: [
+      { day: '2026-09-19', item: 'market_check', done_at: '2026-09-19T19:45:55.853Z', how: 'auto' },
+      { day: '2026-09-19', item: 'bank_scan', done_at: '2026-09-19T19:45:55.853Z', how: 'manual' },
+    ] },
+  });
+  const items = Object.fromEntries(snap.pages.home.runThrough.steps.map((s) => [s.item, s.done]));
+  assert.equal(items.market_check, false);
+  assert.equal(items.bank_scan, true);
+  assert.equal(snap.pages.home.runThrough.done, 1);
+  const next = mergeSnapshot(structuredClone(fixture), [], {
+    nowMs: Date.parse('2026-09-20T17:00:00Z'),
+    extra: { checklist: [
+      { day: '2026-09-19', item: 'bank_scan', done_at: '2026-09-19T19:45:55.853Z', how: 'manual' },
+    ] },
+  });
+  assert.equal(next.pages.home.runThrough.done, 0);
+});
+
 test('Start my morning first undone step stays on checklist not auto-nav', () => {
   const now = Date.parse('2026-09-19T17:00:00Z');
   const snap = mergeSnapshot(structuredClone(fixture), [], { nowMs: now, extra: { checklist: [] } });
