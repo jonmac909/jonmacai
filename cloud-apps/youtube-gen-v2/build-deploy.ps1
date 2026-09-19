@@ -28,3 +28,6 @@ $appContent = $appContent.Replace('../youtube-gen/rows_data.js?refresh=', './row
 Set-Content -LiteralPath $publicApp -Value $appContent -NoNewline
 
 Write-Output "Prepared V2 deployment assets in $publicDir"
+
+npx wrangler deploy
+

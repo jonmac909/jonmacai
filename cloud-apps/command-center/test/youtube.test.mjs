@@ -179,6 +179,25 @@ test('merge overlays the GPU2 editor queue onto Video', () => {
   assert.match(page.sub, /1 editing now/);
 });
 
+test('sponsor pipeline skips unmatched invoice-sent cards and keeps channel rows', () => {
+  const page = structuredClone(fixture.pages.youtube);
+  overlayYoutube(page, {
+    projects: [],
+    sponsors: {
+      collections: { items: [] },
+      cards: [
+        { id: 'spam', sponsor: 'Random Lead', stage: 'invoice-sent', latestDate: '2026-10-06' },
+        { id: 'vik', sponsor: 'Viktor', stage: 'script-approval', latestDate: '2026-09-30', subject: '90-second ad' },
+      ],
+    },
+    nowMs: now,
+  });
+  const names = page.pipeline.rows.map((r) => r.video);
+  assert.equal(names.some((n) => /Random Lead/.test(n)), false);
+  assert.equal(names.some((n) => /Viktor/.test(n)), true);
+  assert.equal(page.pipeline.rows.some((r) => r.type === 'Your channel'), true);
+});
+
 test('mergeSnapshot wires youtube projects, outliers and the video queue', () => {
   const projects = [{
     id: 'p1', createdAt: '2026-09-18T10:00:00Z', stage: 'script',
