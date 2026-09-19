@@ -3,6 +3,8 @@ import { overlaySupport } from './support.js';
 import { overlayYoutube } from './youtube.js';
 import { overlayVideo } from './video.js';
 import { overlayContent } from './content.js';
+import { overlayMoney, overlayMarkets } from './money.js';
+import { overlayViral, applyHomeViral } from './viral.js';
 
 export const COLLECTOR_INTERVAL_MS = 5 * 60 * 1000;
 
@@ -17,6 +19,8 @@ export const INTERVALS = {
   video: COLLECTOR_INTERVAL_MS,
   youtube: DEFAULT_INTERVAL_MS,
   content_queue: COLLECTOR_INTERVAL_MS,
+  viralview: DEFAULT_INTERVAL_MS,
+  moneyclaw: DEFAULT_INTERVAL_MS,
 };
 
 const MACHINES = [
@@ -259,6 +263,20 @@ export function mergeSnapshot(fixture, rows, nowMs = Date.now(), overrides = {},
     if (out.nav?.badges && out.pages.content.queueCount != null) {
       out.nav.badges.content = out.pages.content.queueCount;
     }
+  }
+  if (by.moneyclaw) {
+    const data = parseData(by.moneyclaw.data);
+    const f = freshness(by.moneyclaw.collected_at, nowMs, INTERVALS.moneyclaw);
+    if (out.pages.money) overlayMoney(out.pages.money, data, nowMs, f.label);
+    if (out.pages.markets) overlayMarkets(out.pages.markets, data, nowMs, f.label);
+  }
+  if (by.viralview) {
+    const data = parseData(by.viralview.data);
+    const f = freshness(by.viralview.collected_at, nowMs, INTERVALS.viralview);
+    const page = out.pages.viral || { tiles: [], ads: { rows: [] } };
+    overlayViral(page, data, nowMs, f.label);
+    if (out.pages.viral) out.pages.viral = page;
+    applyHomeViral(out, page);
   }
   return out;
 }

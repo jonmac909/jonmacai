@@ -1,7 +1,7 @@
 import { tiles, pg, pill, btn, pgrow, head } from '../ui.js';
 
 export function render(d) {
-  const right = d.actions.map((a) => btn(a.label, { msg: a.msg, cls: 'line' })).join('');
+  const right = d.actions.map((a) => btn(a.label, { msg: a.msg, cls: 'line', href: a.href })).join('');
   const rows = d.discount.rows.map((r) => `<tr><td>${r.fund}<small>${r.small}</small></td><td class="num">${r.price}</td><td class="num">${r.ath}</td><td class="num ${r.todayCls}">${r.today}</td><td><div class="cellpg">${pg(r.pct, r.pg)}<span>${r.off}</span></div></td><td class="num">${r.rise}</td><td>${pill(r.read, r.readCls || '')}</td></tr>`).join('');
   return `<div class="wrap">
   ${head(d.title, d.sub, right)}

@@ -12,6 +12,7 @@ import {
 import { mergeSnapshot } from './snapshot.js';
 import { boardStageFor, mapColumn } from './sponsors.js';
 import { normalizePost } from './content.js';
+import { runMoneyMove } from './money.js';
 
 const PREFIX = '/dashboard/api';
 const json = (data, status = 200, headers = {}) =>
@@ -118,14 +119,23 @@ async function postAction(request, env) {
   if (kind === 'mastermind.send_to_planner' && env.DB && payload.id) {
     await upsertIdea(env.DB, { id: payload.id, title: payload.title, body: payload.body, area: payload.area, verdict: payload.verdict || 'implement', status: 'sent' });
   }
+  if (kind === 'money.move_and_remember') {
+    try {
+      result = await runMoneyMove(env, payload);
+      status = 'done';
+    } catch (err) {
+      result = err.message || 'Failed';
+      status = 'failed';
+    }
+  }
   if (env.DB) {
     await insertAction(env.DB, {
       id, kind, target, payload: JSON.stringify(payload), status,
-      result: status === 'done' ? result : null, idem_key: idem, created_at: now,
-      finished_at: status === 'done' ? now : null,
+      result: status === 'queued' ? null : result, idem_key: idem, created_at: now,
+      finished_at: status === 'queued' ? null : now,
     });
   }
-  return json({ id, status, result: status === 'done' ? result : null });
+  return json({ id, status, result: status === 'queued' ? null : result });
 }
 
 function asBoardStage(stage) {
