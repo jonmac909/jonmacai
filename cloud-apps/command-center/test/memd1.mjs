@@ -32,12 +32,10 @@ export function memD1() {
           }
           if (/FROM ideas/.test(s)) return { results: [...ideas.values()] };
           if (/FROM actions WHERE target/.test(s)) {
-            return {
-              results: actions
-                .filter((x) => x.target === a[0] && x.status === 'queued')
-                .slice(0, 10)
-                .map((x) => ({ ...x })),
-            };
+            let rows = actions.filter((x) => x.target === a[0] && x.status === 'queued');
+            if (/kind = 'bank.submit_code'/.test(s)) rows = rows.filter((x) => x.kind === 'bank.submit_code');
+            else if (/kind != 'bank.submit_code'/.test(s)) rows = rows.filter((x) => x.kind !== 'bank.submit_code');
+            return { results: rows.slice(0, 10).map((x) => ({ ...x })) };
           }
           return { results: [] };
         },

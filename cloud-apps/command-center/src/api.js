@@ -8,6 +8,7 @@ import {
   upsertChecklist, upsertHabit, upsertSnapshot, listSnapshots, upsertDealStage, listDealStages, listIdeas, upsertIdea,
 } from './db.js';
 import { mergeSnapshot } from './snapshot.js';
+import { scrubBankScan } from './bank-scan.js';
 import { boardStageFor, mapColumn } from './sponsors.js';
 
 const PREFIX = '/dashboard/api';
@@ -167,7 +168,8 @@ export async function handleApi(request, env) {
     if ((source === 'agents_mac' && who !== 'mac') || (source === 'agents_gpu2' && who !== 'gpu2')) {
       return json({ error: 'Unauthorized' }, 401);
     }
-    const data = body.data && typeof body.data === 'object' ? body.data : {};
+    let data = body.data && typeof body.data === 'object' ? body.data : {};
+    if (source === 'bank_scan') data = scrubBankScan(data);
     if (env.DB) await upsertSnapshot(env.DB, source, JSON.stringify(data), collectedAt, new Date().toISOString());
     return json({ ok: true });
   }
@@ -175,7 +177,7 @@ export async function handleApi(request, env) {
     const who = machineOf(request, env);
     const body = await request.json().catch(() => ({}));
     if (!who || who !== body.machine) return json({ error: 'Unauthorized' }, 401);
-    const rows = env.DB ? await claimQueued(env.DB, who, new Date().toISOString()) : [];
+    const rows = env.DB ? await claimQueued(env.DB, who, new Date().toISOString(), { codes: !!body.codes }) : [];
     return json({ actions: rows });
   }
 

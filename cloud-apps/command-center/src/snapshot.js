@@ -1,4 +1,5 @@
 import { buildSponsorsPage, applyHomeSponsors } from './sponsors.js';
+import { overlayBankScan } from './bank-scan.js';
 
 export const COLLECTOR_INTERVAL_MS = 5 * 60 * 1000;
 
@@ -9,6 +10,7 @@ export const INTERVALS = {
   agents_gpu2: COLLECTOR_INTERVAL_MS,
   sponsors: COLLECTOR_INTERVAL_MS,
   mastermind: COLLECTOR_INTERVAL_MS,
+  bank_scan: 24 * 60 * 60 * 1000,
 };
 
 const MACHINES = [
@@ -219,6 +221,9 @@ export function mergeSnapshot(fixture, rows, nowMs = Date.now(), overrides = {},
       if (out.pages.sponsors) out.pages.sponsors = page;
       applyHomeSponsors(out, page);
     }
+  }
+  if (out.pages.money && by.bank_scan) {
+    overlayBankScan(out.pages.money, parseData(by.bank_scan.data), by.bank_scan.collected_at, nowMs);
   }
   return out;
 }
