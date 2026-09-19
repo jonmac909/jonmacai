@@ -24,11 +24,18 @@ def _orca():
     return 'orca'
 
 
+def _run(args, timeout=12):
+    r = subprocess.run([_orca(), *args], capture_output=True, timeout=timeout)
+    out = (r.stdout or b'').decode('utf-8', 'replace')
+    err = (r.stderr or b'').decode('utf-8', 'replace')
+    return r.returncode, out, err
+
+
 def _json(args, timeout=12):
-    r = subprocess.run([_orca(), *args, '--json'], capture_output=True, text=True, encoding='utf-8', errors='replace', timeout=timeout)
-    if r.returncode != 0:
-        raise RuntimeError(r.stderr or r.stdout or 'orca failed')
-    data = json.loads(r.stdout or '{}')
+    code, out, err = _run([*args, '--json'], timeout)
+    if code != 0:
+        raise RuntimeError(err or out or 'orca failed')
+    data = json.loads(out or '{}')
     return data.get('result', data)
 
 
@@ -132,8 +139,5 @@ def restart_agent(payload):
                 break
     if not handle:
         return False, 'No live terminal for %s' % name
-    subprocess.run(
-        [_orca(), 'terminal', 'send', '--terminal', handle, '--text', prompt, '--enter', '--json'],
-        capture_output=True, text=True, encoding='utf-8', errors='replace', timeout=20,
-    )
+    _run(['terminal', 'send', '--terminal', handle, '--text', prompt, '--enter', '--json'], 20)
     return True, '%s agent restarted' % name

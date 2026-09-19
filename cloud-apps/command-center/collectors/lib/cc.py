@@ -50,6 +50,9 @@ def handle_action(kind, payload, machine):
     if str(kind).startswith('sponsor.'):
         from sponsors import handle as sponsor_handle
         return sponsor_handle(kind, payload or {})
+    if str(kind).startswith('support.'):
+        from support_mail import handle as support_handle
+        return support_handle(kind, payload or {})
     if kind == 'mastermind.send_to_planner':
         from planner_task import send_to_planner
         return send_to_planner(payload or {})
@@ -128,8 +131,11 @@ def main_run(machine):
                         payload = json.loads(payload)
                     except Exception:
                         payload = {}
-                ok, result = handle_action(row.get('kind'), payload, machine)
-                complete(base, token, row['id'], ok, result)
+                try:
+                    ok, result = handle_action(row.get('kind'), payload, machine)
+                except Exception as e:
+                    ok, result = False, '%s: %s' % (type(e).__name__, e)
+                complete(base, token, row['id'], ok, str(result)[:500])
         except urllib.error.HTTPError as e:
             sys.stderr.write('runner http %s\n' % e.code)
         except Exception as e:

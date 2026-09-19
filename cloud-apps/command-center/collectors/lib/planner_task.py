@@ -1,7 +1,5 @@
 import json
-import subprocess
-
-from agents_collect import _json, _orca
+from agents_collect import _json, _run
 
 
 def send_to_planner(payload):
@@ -20,11 +18,11 @@ def send_to_planner(payload):
         args.extend(['--parent-worktree', 'name:Planner'])
     else:
         args.append('--no-parent')
-    r = subprocess.run([_orca(), *args, '--json'], capture_output=True, text=True, encoding='utf-8', errors='replace', timeout=60)
-    if r.returncode != 0:
-        return False, (r.stderr or r.stdout or 'Planner task failed')[-200:]
+    code, out, err = _run([*args, '--json'], 60)
+    if code != 0:
+        return False, (err or out or 'Planner task failed')[-200:]
     try:
-        data = json.loads(r.stdout or '{}')
+        data = json.loads(out or '{}')
     except Exception:
         data = {}
     if data.get('ok') is False:
