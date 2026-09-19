@@ -5,3 +5,8 @@ Thumbs.db
 cloud-apps/youtube-gen-v2/public/
 .wrangler/
 **/.wrangler/
+**/.dev.vars
+.env
+.env.*
+cloud-apps/command-center/screenshots/
+cloud-apps/command-center/tmp-dist/

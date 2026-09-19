@@ -1,0 +1,27 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "jonmac-command-center",
+  "main": "src/worker.js",
+  "compatibility_date": "2026-08-31",
+  "workers_dev": true,
+  "assets": {
+    "directory": "./public",
+    "binding": "ASSETS",
+    "run_worker_first": true,
+    "html_handling": "none"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "command_center",
+      "database_id": "615b0a5a-10b5-42d8-b127-9f4af3198104"
+    }
+  ],
+  "triggers": {
+    "crons": ["*/10 * * * *"]
+  },
+  "routes": [
+    { "pattern": "jonmac.ai/dashboard", "zone_name": "jonmac.ai" },
+    { "pattern": "jonmac.ai/dashboard/*", "zone_name": "jonmac.ai" }
+  ]
+}
