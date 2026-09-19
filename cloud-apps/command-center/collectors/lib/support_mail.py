@@ -255,11 +255,12 @@ def send_live(payload):
     acct, pw = _acct()
     box = _box(acct, pw)
     try:
-        ticket = dict(payload)
-        if not ticket.get('to') or not ticket.get('body'):
-            ticket.update(_fetch_uid(box, ticket.get('uid')))
-        else:
-            box.select('"[Gmail]/Drafts"')
+        uid = str(payload.get('uid') or '')
+        ticket = _fetch_uid(box, uid) if uid else dict(payload)
+        if payload.get('body'):
+            ticket['body'] = payload['body']
+        if payload.get('to') and not ticket.get('to'):
+            ticket['to'] = payload['to']
         return send_draft(lambda m: _smtp_send(acct, pw, m), box, ticket, payload.get('body'))
     finally:
         try:
