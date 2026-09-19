@@ -221,6 +221,29 @@ test('merge overlays mastermind picks from the digest, implement then park', () 
   assert.equal(out.pages.mastermind.parked.rows.length, 0);
 });
 
+test("mastermind overlay restores don't from don'anonymous copy glitch", () => {
+  const rows = [{
+    source: 'mastermind',
+    data: JSON.stringify({
+      scanned: 2,
+      scannedAt: '2026-09-19T22:55:00Z',
+      picks: [{
+        id: 'g1',
+        area: 'Mastermind',
+        title: "Jev's sweet spot",
+        text: "wins; don'anonymous force it into top-level orchestration.",
+        verdict: 'park',
+      }],
+    }),
+    collected_at: '2026-09-19T22:55:00Z',
+  }];
+  const out = mergeSnapshot(fixture, rows, now, []);
+  const job = out.pages.mastermind.picks.jobs[0];
+  const blob = [job.title, ...(job.lines || []), job.payload?.body, job.linePayload?.body].join('\n');
+  assert.match(blob, /don't force/);
+  assert.doesNotMatch(blob, /anonymous/);
+});
+
 test('parked ideas from the dashboard replace the parked list', () => {
   const rows = [{
     source: 'mastermind',
@@ -362,4 +385,18 @@ test('digest parser reads HTML takeaways and comment-split counts', () => {
   );
   assert.equal(r.status, 0, r.stderr);
   assert.match(r.stdout, /1 771 Jev classifiers/);
+});
+
+test("digest parser restores don't from don&#x27;anonymous", () => {
+  const r = runPy(
+    'from telegram_digest import parse_digest\n'
+    + 'html = """<p>12 messages</p><h2>Key Takeaways</h2><ul>'
+    + '<li><span></span><span>wins; don&#x27;anonymous force it.</span></li></ul>"""\n'
+    + 'items, scanned = parse_digest(html)\n'
+    + 'print(items[0]["text"])\n',
+    join(root, 'collectors/lib'),
+  );
+  assert.equal(r.status, 0, r.stderr);
+  assert.match(r.stdout, /don't force/);
+  assert.doesNotMatch(r.stdout, /anonymous/);
 });

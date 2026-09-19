@@ -165,6 +165,11 @@ function monthOf(iso, nowMs) {
     === n.toLocaleString('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit' });
 }
 
+function unmangleCopy(s) {
+  return String(s ?? '').replace(/'anonymous/g, "'t");
+}
+
+
 function overlayMastermind(page, data, ideas, nowMs) {
   const decided = new Set((ideas || []).filter((i) => i.status && i.status !== 'new').map((i) => i.id));
   const picks = (data.picks || []).filter((p) => !decided.has(p.id));
@@ -189,15 +194,15 @@ function overlayMastermind(page, data, ideas, nowMs) {
       area: p.area || 'Mastermind',
       pill: p.verdict === 'implement' ? 'Worth doing' : 'Maybe',
       pillCls: p.verdict === 'implement' ? 'ok' : 'risk',
-      title: p.title,
+      title: unmangleCopy(p.title),
       href: p.href || p.url || '',
-      lines: [p.ts, p.href || p.url, p.why, p.fit, p.text].filter(Boolean).slice(0, 3),
+      lines: [p.ts, p.href || p.url, p.why, p.fit, p.text].filter(Boolean).slice(0, 3).map(unmangleCopy),
       lineBtn: 'Park',
       lineKind: 'mastermind.park',
-      linePayload: { id: p.id, title: p.title, body: p.text, area: p.area, msg: 'Parked for later' },
+      linePayload: { id: p.id, title: unmangleCopy(p.title), body: unmangleCopy(p.text), area: p.area, msg: 'Parked for later' },
       btn: 'Send to Planner',
       kind: 'mastermind.send_to_planner',
-      payload: { id: p.id, title: p.title, body: p.text, area: p.area, verdict: p.verdict, msg: 'Sent to Planner as a task' },
+      payload: { id: p.id, title: unmangleCopy(p.title), body: unmangleCopy(p.text), area: p.area, verdict: p.verdict, msg: 'Sent to Planner as a task' },
       done: true,
     })),
   };
@@ -205,7 +210,7 @@ function overlayMastermind(page, data, ideas, nowMs) {
     title: 'Being built',
     meta: 'Ideas you sent to Planner',
     rows: building.map((i) => ({
-      title: i.title,
+      title: unmangleCopy(i.title),
       sub: i.area || '',
       pct: i.status === 'built' ? 100 : i.status === 'building' ? 75 : 25,
       pg: i.status === 'built' ? 'ok' : '',
@@ -217,10 +222,10 @@ function overlayMastermind(page, data, ideas, nowMs) {
     title: 'Parked',
     meta: parked.length ? `${parked.length} saved for later` : 'None saved',
     rows: parked.map((i) => ({
-      title: i.title,
+      title: unmangleCopy(i.title),
       sub: i.area || '',
       id: i.id,
-      body: i.body,
+      body: unmangleCopy(i.body),
       area: i.area,
     })),
     more: { title: '', sub: '', btn: '', msg: '' },
