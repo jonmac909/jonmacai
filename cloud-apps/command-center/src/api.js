@@ -17,7 +17,7 @@ import { runOutreach } from './outreach.js';
 import { exchangeGoogleCode, googleAuthUrl, runLife, ymd } from './life.js';
 import { revalidateSources } from './revalidate.js';
 import { persistQueueDrafts, listDrafts, upsertDraft } from './drafts.js';
-import { fillFromEnv } from './daily-drafts.js';
+import { fillFromEnv, configuredPlatforms } from './daily-drafts.js';
 
 const PREFIX = '/dashboard/api';
 const json = (data, status = 200, headers = {}) =>
@@ -148,9 +148,14 @@ async function postAction(request, env) {
     status = 'done';
   }
   if (kind === 'content.generate_drafts' && env.DB) {
-    const out = await fillFromEnv(env);
-    result = `Filled ${out.inserted} drafts for ${out.day}`;
-    status = 'done';
+    try {
+      const out = await fillFromEnv(env);
+      result = `Filled ${out.inserted} drafts for ${out.day}`;
+      status = 'done';
+    } catch (err) {
+      result = `Draft storage failed: ${err.message || err}`;
+      status = 'failed';
+    }
   }
   if (kind === 'money.move_and_remember') {
     try {
@@ -233,7 +238,20 @@ export async function handleApi(request, env) {
     }
     const now = Date.now();
     const overrides = await listDealStages(env.DB);
-    const extra = { habits: await listHabits(env.DB), checklist: await listChecklist(env.DB, ymd(now)), drafts: await listDrafts(env.DB, ymd(now)) };
+    let drafts = [];
+    let draftsError = '';
+    try {
+      drafts = await listDrafts(env.DB, ymd(now));
+    } catch (err) {
+      draftsError = String(err?.message || err);
+    }
+    const extra = {
+      habits: await listHabits(env.DB),
+      checklist: await listChecklist(env.DB, ymd(now)),
+      drafts,
+      draftsError,
+      platforms: configuredPlatforms(env),
+    };
     return json(mergeSnapshot(base, await listSnapshots(env.DB), now, overrides, await listIdeas(env.DB), await listPosts(env.DB), await listVideoProjects(env.DB), extra));
   }
 

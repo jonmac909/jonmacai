@@ -35,7 +35,7 @@ export function render(d) {
   ${tiles(d.tiles)}
   <div class="card pad">
     <div class="cardhead"><h2>${d.drafts?.title || "Today's drafts"}</h2><span class="meta">${esc(d.drafts?.meta || '')}</span></div>
-    <div class="rows">${drafts || '<p class="note">No persisted drafts today. Cron or Fill today\'s drafts writes them; snapshot GET does not.</p>'}</div>
+    <div class="rows">${d.drafts?.error ? `<p class="note">${esc(d.drafts.error)}</p>` : (drafts || '<p class="note">No persisted drafts today. Cron or Fill today\'s drafts writes them; snapshot GET does not.</p>')}</div>
   </div>
   <div class="split even">
     <div class="card pad">

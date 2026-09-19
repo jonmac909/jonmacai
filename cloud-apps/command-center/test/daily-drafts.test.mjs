@@ -234,3 +234,41 @@ test('fillFromEnv reads snapshot sources and env platforms', async () => {
   assert.match(row.body, /Facebook · /);
   assert.match(row.body, /4 AI UGC Side Hustles For 2026/);
 });
+
+test('content UI platforms match generator configured list', async () => {
+  const env = envWith(memD1(), { CONTENT_PLATFORMS: 'TikTok,YouTube,X' });
+  const body = await (await snap(env)).json();
+  const labels = body.pages.content.todayPlatforms.rows.map((r) => r.label);
+  assert.deepEqual(labels, configuredPlatforms(env));
+  assert.deepEqual(labels, ['TikTok', 'YouTube', 'X']);
+  assert.equal(body.pages.content.tiles[0].goal, '/ 9');
+  const html = renderContent(body.pages.content);
+  assert.match(html, /TikTok/);
+  assert.doesNotMatch(html, /LinkedIn/);
+});
+
+test('snapshot shows draft storage error instead of an empty queue', async () => {
+  const db = memD1();
+  const orig = db.prepare.bind(db);
+  db.prepare = (sql) => {
+    const stmt = orig(sql);
+    if (/FROM content_drafts/.test(String(sql))) {
+      return {
+        bind(...args) { return stmt.bind(...args); },
+        async all() { throw new Error('D1 content_drafts unavailable'); },
+        async run() { return stmt.run(); },
+        async first() { return stmt.first(); },
+      };
+    }
+    return stmt;
+  };
+  const env = envWith(db);
+  const body = await (await snap(env)).json();
+  assert.equal(body.pages.content.drafts.rows.length, 0);
+  assert.match(body.pages.content.drafts.error, /D1 content_drafts unavailable/);
+  assert.equal(body.pages.content.drafts.meta, 'Storage error');
+  const html = renderContent(body.pages.content);
+  assert.match(html, /D1 content_drafts unavailable/);
+  assert.doesNotMatch(html, /No persisted drafts today/);
+});
+

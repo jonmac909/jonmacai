@@ -321,6 +321,8 @@ export function mergeSnapshot(fixture, rows, opts = {}, ideasArg, postsArg, proj
       viral: by.viralview ? parseData(by.viralview.data) : null,
       video: by.video ? parseData(by.video.data) : null,
       drafts: extra.drafts || [],
+      draftsError: extra.draftsError || '',
+      platforms: extra.platforms,
       nowMs,
     });
     if (out.nav?.badges && out.pages.content.queueCount != null) out.nav.badges.content = out.pages.content.queueCount;

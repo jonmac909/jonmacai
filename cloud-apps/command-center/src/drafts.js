@@ -25,16 +25,12 @@ export async function ensureDrafts(db) {
 
 export async function listDrafts(db, day) {
   if (!db) return [];
-  try {
-    await ensureDrafts(db);
-    const { results } = await db.prepare(
-      'SELECT id, day, platform, slot, body, subject, first_line, status, updated_at FROM content_drafts',
-    ).all();
-    const rows = results || [];
-    return day ? rows.filter((r) => r.day === day && r.status !== 'discarded') : rows;
-  } catch {
-    return [];
-  }
+  await ensureDrafts(db);
+  const { results } = await db.prepare(
+    'SELECT id, day, platform, slot, body, subject, first_line, status, updated_at FROM content_drafts',
+  ).all();
+  const rows = results || [];
+  return day ? rows.filter((r) => r.day === day && r.status !== 'discarded') : rows;
 }
 
 export async function upsertDraft(db, row) {

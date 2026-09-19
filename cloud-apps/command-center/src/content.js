@@ -98,7 +98,10 @@ function tip(p, day, n, today) {
   return n ? `${p} · ${day} · ${n}` : `${p} · ${day} · none`;
 }
 
-function overlayGrid(page, posts, nowMs, queuedN) {
+function overlayGrid(page, posts, nowMs, queuedN, platforms = PLATFORMS) {
+  const list = platforms.length ? platforms : PLATFORMS;
+  const goalToday = list.length * GOAL;
+  const goalWeek = goalToday * 7;
   const week = weekDays(nowMs);
   const todayKey = week.days[week.idx].key;
   const weekKeys = new Set(week.days.map((d) => d.key));
@@ -106,35 +109,35 @@ function overlayGrid(page, posts, nowMs, queuedN) {
   const dayList = [];
   for (const p of posts) {
     const plat = platformOf(p.platform);
-    if (!PLATFORMS.includes(plat)) continue;
+    if (!list.includes(plat)) continue;
     const t = Date.parse(p.posted_at);
     if (!Number.isFinite(t)) continue;
     const key = dayKey(t);
     dayList.push(key);
-    byDay[key] ??= Object.fromEntries(PLATFORMS.map((x) => [x, 0]));
+    byDay[key] ??= Object.fromEntries(list.map((x) => [x, 0]));
     byDay[key][plat] += 1;
   }
-  const todayCounts = byDay[todayKey] || Object.fromEntries(PLATFORMS.map((x) => [x, 0]));
-  const todayN = PLATFORMS.reduce((n, p) => n + todayCounts[p], 0);
+  const todayCounts = byDay[todayKey] || Object.fromEntries(list.map((x) => [x, 0]));
+  const todayN = list.reduce((n, p) => n + todayCounts[p], 0);
   let weekN = 0;
   for (const key of weekKeys) {
     const row = byDay[key];
-    if (row) weekN += PLATFORMS.reduce((n, p) => n + row[p], 0);
+    if (row) weekN += list.reduce((n, p) => n + row[p], 0);
   }
-  const todayPg = pgOf(todayN, GOAL_TODAY);
-  const weekPg = pgOf(weekN, GOAL_WEEK);
+  const todayPg = pgOf(todayN, goalToday);
+  const weekPg = pgOf(weekN, goalWeek);
   const streak = streakFrom(dayList, todayKey);
   const best = bestStreak(dayList);
   page.tiles = [
-    { icon: 'pen', label: 'Posts today', value: String(todayN), goal: `/ ${GOAL_TODAY}`, ...todayPg, sub: queuedN ? `${queuedN} in the queue` : `${Math.max(0, GOAL_TODAY - todayN)} to go` },
-    { icon: 'chart', label: 'Posts this week', value: String(weekN), goal: `/ ${GOAL_WEEK}`, ...weekPg, sub: `Should be at ${(week.idx + 1) * GOAL_TODAY} by ${week.idx >= 4 ? 'Friday' : DAY[week.idx]}` },
+    { icon: 'pen', label: 'Posts today', value: String(todayN), goal: `/ ${goalToday}`, ...todayPg, sub: queuedN ? `${queuedN} in the queue` : `${Math.max(0, goalToday - todayN)} to go` },
+    { icon: 'chart', label: 'Posts this week', value: String(weekN), goal: `/ ${goalWeek}`, ...weekPg, sub: `Should be at ${(week.idx + 1) * goalToday} by ${week.idx >= 4 ? 'Friday' : DAY[week.idx]}` },
     page.tiles[2] || { icon: 'film', label: 'YouTube this week', value: '0', goal: '/ 3', pct: 0, sub: 'None in the editor' },
     { icon: 'fire', label: 'Days in a row with a post', value: String(streak), sub: `Best ever: ${best}` },
   ];
   page.todayPlatforms = {
     title: 'Today by platform',
     meta: `${GOAL} each`,
-    rows: PLATFORMS.map((label) => {
+    rows: list.map((label) => {
       const n = todayCounts[label] || 0;
       return { label, value: `${n} of ${GOAL}`, tall: true, ...pgOf(n, GOAL) };
     }),
@@ -143,7 +146,7 @@ function overlayGrid(page, posts, nowMs, queuedN) {
     title: 'This week',
     meta: 'Number in each box is posts that day',
     days: DAY,
-    rows: PLATFORMS.map((p) => ({
+    rows: list.map((p) => ({
       p,
       cells: week.days.map((d) => {
         if (d.future) return { future: true };
@@ -237,17 +240,31 @@ function overlayBest(page, viral) {
   };
 }
 
-export function overlayContent(page, { posts = [], queue = null, viral = null, video = null, drafts = [], nowMs = Date.now() } = {}) {
+export function overlayContent(page, {
+  posts = [], queue = null, viral = null, video = null, drafts = [], nowMs = Date.now(),
+  platforms = PLATFORMS, draftsError = '',
+} = {}) {
   page.actions = [
     { label: 'Log a post', log: true, msg: 'Post logged' },
     { label: "Fill today's drafts", kind: 'content.generate_drafts', msg: "Filling today's drafts" },
   ];
   const queuedN = queue && !queue.missing && Array.isArray(queue.queued) ? queue.queued.length : 0;
-  overlayGrid(page, posts, nowMs, queuedN);
+  overlayGrid(page, posts, nowMs, queuedN, platforms);
   overlayYtWeek(page, video);
   overlayQueue(page, queue && !queue.missing ? queue : { queued: [] });
   overlayBest(page, viral);
   const today = dayKey(nowMs);
+  if (draftsError) {
+    page.unverified = true;
+    page.sourceNote = 'Draft storage failed · not an empty queue';
+    page.drafts = {
+      title: "Today's drafts",
+      meta: 'Storage error',
+      error: String(draftsError),
+      rows: [],
+    };
+    return;
+  }
   const rows = (drafts || []).filter((d) => d.day === today && d.status !== 'discarded');
   page.drafts = {
     title: "Today's drafts",
