@@ -16,14 +16,6 @@ function asYt2(p) {
   return { ...p, id, origin: 'yt2' };
 }
 
-function refreshRows(body) {
-  if (Array.isArray(body?.rows)) return { rows: body.rows, listed: true };
-  if (Array.isArray(body?.videos)) return { rows: body.videos, listed: true };
-  if (Array.isArray(body?.items)) return { rows: body.items, listed: true };
-  if (Array.isArray(body?.data)) return { rows: body.data, listed: true };
-  if (Array.isArray(body?.data?.rows)) return { rows: body.data.rows, listed: true };
-  return { rows: [], listed: false };
-}
 export function isAiUgc(title) {
   const t = String(title || '');
   if (!t) return false;
@@ -83,29 +75,6 @@ export async function handleYt2Api(request, env) {
       }
       return json({ ok: true, n: list.length });
     }
-  }
-  if (path.endsWith('/api/refresh') && request.method === 'POST') {
-    // Cookie Path=/ is required so /yt login cookies are sent to /yt2/api/refresh
-    const cookie = request.headers.get('cookie') || '';
-    const res = await fetch(new URL('/yt/api/channels/refresh', request.url), {
-      method: 'POST',
-      headers: { cookie, accept: 'application/json' },
-      redirect: 'manual',
-    }).catch(() => null);
-    if (!res) return json({ ok: false, error: 'YouTube login service unreachable' }, 502);
-    if (res.status === 307 || res.status === 302 || res.status === 401) {
-      return json({ ok: false, needLogin: true, login: '/yt/login?next=/yt2/' }, 401);
-    }
-    const body = await res.json().catch(() => ({}));
-    const mapped = refreshRows(body);
-    const ok = Boolean(res.ok && mapped.listed);
-    return json({
-      ok,
-      rows: mapped.rows,
-      generatedAt: body.generatedAt,
-      refreshed: body.refreshed,
-      error: ok ? undefined : (body.error || 'No video rows'),
-    }, ok ? 200 : (res.ok ? 200 : res.status));
   }
   if (path.endsWith('/api/remake') && request.method === 'POST') {
     if (request.headers.get('X-YT2') !== '1') return json({ error: 'Missing header' }, 403);

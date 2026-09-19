@@ -66,35 +66,23 @@ test('yt2 GET does not return command-center pipeline rows', async () => {
   assert.ok(list.some((p) => String(p.id).includes('mine')));
 });
 
-test('yt2 refresh maps upstream payload to {ok, rows} and is not ok without rows', async () => {
-  const orig = globalThis.fetch;
-  globalThis.fetch = async () => new Response(JSON.stringify({
-    ok: true,
-    videos: [{ id: 'v1', title: 'AI UGC ads' }],
-    generatedAt: '2026-09-19T00:00:00Z',
-  }), { status: 200, headers: { 'content-type': 'application/json' } });
-  try {
-    const res = await handleYt2Api(new Request('https://jonmac.ai/yt2/api/refresh', { method: 'POST' }), {});
-    const body = await res.json();
-    assert.equal(body.ok, true);
-    assert.ok(Array.isArray(body.rows));
-    assert.equal(body.rows[0].id, 'v1');
-  } finally {
-    globalThis.fetch = orig;
-  }
+test('yt2 refresh proxy is gone so /yt cookies are not stripped', async () => {
+  const res = await handleYt2Api(new Request('https://jonmac.ai/yt2/api/refresh', { method: 'POST' }), {});
+  assert.equal(res.status, 404);
 });
 
-test('yt2 refresh without a row list is not success', async () => {
-  const orig = globalThis.fetch;
-  globalThis.fetch = async () => new Response(JSON.stringify({ ok: true, status: 'logged-in' }), {
-    status: 200, headers: { 'content-type': 'application/json' },
-  });
-  try {
-    const res = await handleYt2Api(new Request('https://jonmac.ai/yt2/api/refresh', { method: 'POST' }), {});
-    const body = await res.json();
-    assert.equal(body.ok, false);
-    assert.equal(Array.isArray(body.rows) && body.rows.length > 0, false);
-  } finally {
-    globalThis.fetch = orig;
-  }
+test('yt2 remake persists template and reports missing renderer', async () => {
+  const DB = memDb();
+  const res = await handleYt2Api(new Request('https://jonmac.ai/yt2/api/remake', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-YT2': '1' },
+    body: JSON.stringify({ id: 'abc', templateId: 'brand_build', sourceId: 'vid', title: 'AI UGC ads' }),
+  }), { DB });
+  const body = await res.json();
+  assert.equal(res.status, 200);
+  assert.equal(body.ok, true);
+  assert.ok(body.missing.includes('render worker'));
+  const stored = JSON.parse(DB.projects.get('yt2:abc').data);
+  assert.equal(stored.templateId, 'brand_build');
+  assert.equal(stored.source.id, 'vid');
 });
