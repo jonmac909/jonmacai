@@ -257,8 +257,12 @@ export function mergeSnapshot(fixture, rows, nowMs = Date.now(), overrides = {},
     });
   }
   if (out.pages.video && by.video) {
-    overlayVideo(out.pages.video, parseData(by.video.data));
+    overlayVideo(out.pages.video, {
+      ...parseData(by.video.data),
+      live: Number(out.pages.youtube?.tiles?.[0]?.value) || 0,
+    });
   }
+
   if (out.pages.content) {
     const qRow = by.content_queue;
     const vRow = by.viralview;

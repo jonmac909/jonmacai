@@ -84,8 +84,9 @@ export function overlayViral(page, data, nowMs) {
     : 'Subscriptions from your revenue page';
   page.actions = [
     { label: 'Open revenue page', href: 'https://app.viralview.io/admin/mrr', msg: 'Opens app.viralview.io/admin/mrr' },
-    { label: 'Open tracker', msg: 'Opens the tracker' },
+    { label: 'Open tracker', href: 'https://app.viralview.io/track', msg: 'Opens app.viralview.io/track' },
   ];
+
   page.tiles = [
     { icon: 'dollar', label: 'Sales this week', value: usd(week), goal: '/ $1K', pct: weekPct, pg: pgOf(weekPct), sub: salesSub },
     {
@@ -230,6 +231,7 @@ export function overlayViral(page, data, nowMs) {
     meta: 'Last 30 days',
     tableTitle: 'By traffic source',
     tableMeta: "Bar shows each source's share of revenue",
+    empty: traffic.length ? '' : 'No traffic in the last 30 days.',
     rows: traffic.map((r) => ({
       source: r.source,
       clicks: fmtN(r.clicks),
@@ -241,6 +243,7 @@ export function overlayViral(page, data, nowMs) {
     })),
     foot: { clicks: fmtN(tClicks), carts: fmtN(tCarts), sales: fmtN(tSales), rev: usd(traffic.reduce((s, r) => s + (r.revenueCents || 0), 0)) },
   };
+
 
   page.dropoff = {
     title: 'Where people drop off',
@@ -261,6 +264,7 @@ export function overlayViral(page, data, nowMs) {
     title: 'Meta Ads',
     meta: `${usd(spend)} spent · ${usd(back)} back`,
     note: 'Bars run from $0 to $2 back per $1 spent. Halfway is break even.',
+    empty: ads.length ? '' : 'No Meta ads in the last 30 days.',
     rows: ads.map((r, i) => {
       const per = r.spendCents ? (r.revenueCents || 0) / r.spendCents : 0;
       return {
@@ -274,6 +278,7 @@ export function overlayViral(page, data, nowMs) {
       };
     }),
   };
+
   return page;
 }
 
