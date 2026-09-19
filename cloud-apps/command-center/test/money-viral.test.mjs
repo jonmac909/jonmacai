@@ -6,6 +6,8 @@ import { handleCron } from '../src/cron.js';
 import { handleApi } from '../src/api.js';
 import { signSession, COOKIE } from '../src/auth.js';
 import { memD1 } from './memd1.mjs';
+import { overlayMoney, overlayMarkets } from '../src/money.js';
+import { overlayViral } from '../src/viral.js';
 
 const NOW = Date.parse('2026-09-18T20:00:00-07:00');
 const SECRET = 'test-session-secret-32-bytes-ok!';
@@ -282,4 +284,58 @@ test('Move all and remember posts categorize then add_rule to MoneyClaw', async 
   assert.deepEqual(posts[0].body.ids, ['x1', 'x2']);
   assert.equal(posts[1].body.action, 'add_rule');
   assert.equal(posts[1].body.vendor, 'X CORP ADVERTISING');
+});
+
+test('finance sub shows source period dates and does not claim bank reconciliation', () => {
+  const page = overlayMoney(structuredClone(snapshot.pages.money), {
+    asOf: '2026-09-19',
+    expenses: {
+      personal: {
+        yesterday: { ...period(0), startDate: '2026-09-18', endDate: '2026-09-18' },
+        week: { ...period(12), startDate: '2026-09-13', endDate: '2026-09-19' },
+        month: { ...period(42), startDate: '2026-09-01', endDate: '2026-09-19' },
+        lastMonth: { ...period(80), startDate: '2026-08-01', endDate: '2026-08-31' },
+      },
+      business: {
+        yesterday: period(0),
+        week: { ...period(20), startDate: '2026-09-13', endDate: '2026-09-19' },
+        month: { ...period(60), startDate: '2026-09-01', endDate: '2026-09-19' },
+        lastMonth: period(40),
+      },
+      businessCategories: [],
+    },
+    netWorth: { value: 1, series: [] },
+  }, NOW, 'updated just now');
+  assert.match(page.sub, /Sep 13/);
+  assert.match(page.sub, /Sep 19/);
+  assert.match(page.sub, /Sep 1/);
+  assert.doesNotMatch(page.sub, /bank reconcil/i);
+  assert.doesNotMatch(page.sub, /live bank/i);
+  assert.match(page.personal.stages[1].label, /Sep 13/);
+});
+
+test('markets use source quote stamp when present', () => {
+  const page = overlayMarkets(structuredClone(snapshot.pages.markets), {
+    markets: {
+      pulse: {
+        mood: 'Calm',
+        quoteAt: '2026-09-18T20:00:00.000Z',
+        vix: { price: 14.9, changePct: -3.5 },
+        voo: { price: 701.89, changePct: 0.1 },
+        newsLevel: 'Pending',
+      },
+      core: [],
+    },
+  }, NOW, 'updated just now');
+  assert.match(page.sub, /quoted /);
+  assert.doesNotMatch(page.sub, /quote time unavailable/);
+  assert.doesNotMatch(page.sub, /updated just now/);
+  assert.equal(page.tiles[3].value, 'Pending');
+});
+
+test('Viral View sub distinguishes Commas last sync from summary fetch', () => {
+  const page = overlayViral(structuredClone(snapshot.pages.viral), viralSummary, NOW, 'updated just now');
+  assert.match(page.sub, /Commas last sync/i);
+  assert.match(page.sub, /summary /i);
+  assert.doesNotMatch(page.sub, /live bank/i);
 });

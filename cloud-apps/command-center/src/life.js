@@ -2,6 +2,7 @@ import { hmacHex, timingSafeEqualString } from './auth.js';
 import { listSnapshots, upsertHabit, upsertSnapshot } from './db.js';
 
 export const TZ = 'America/Vancouver';
+export const DATE_NIGHT_BOOK_HREF = 'https://www.opentable.com/s?covers=2&term=Kelowna%2C%20British%20Columbia';
 const CAL = 'https://www.googleapis.com/calendar/v3';
 const TOKEN = 'https://oauth2.googleapis.com/token';
 const SCOPE = 'https://www.googleapis.com/auth/calendar';
@@ -43,120 +44,90 @@ function overlaps(a0, a1, b0, b1) {
   return a0 < b1 && b0 < a1;
 }
 
-export function suggestDateNight(events = [], nowMs = Date.now()) {
-  const today = ymd(nowMs);
-  const startMon = weekStartYmd(nowMs);
-  const sunday = addDays(startMon, 6);
-  for (let d = today; d <= sunday; d = addDays(d, 1)) {
-    const slot0 = Date.parse(`${d}T18:00:00-07:00`);
-    const slot1 = Date.parse(`${d}T21:00:00-07:00`);
-    if (nowMs >= slot0) continue;
-    const busy = events.some((e) => {
-      const s = Date.parse(e.start);
-      const t = Date.parse(e.end || e.start);
-      return Number.isFinite(s) && Number.isFinite(t) && overlaps(s, t, slot0, slot1);
+function timeOf(iso) {
+  const t = Date.parse(iso);
+  if (!Number.isFinite(t)) return '';
+  return new Intl.DateTimeFormat('en-US', { timeZone: TZ, hour: 'numeric', minute: '2-digit' }).format(new Date(t));
+}
+
+export function suggestDateNight(events, nowMs) {
+  const startDay = ymd(nowMs);
+  for (let i = 0; i < 14; i++) {
+    const day = addDays(startDay, i);
+    const ms = Date.parse(`${day}T12:00:00-07:00`);
+    const wd = weekday(ms);
+    if (wd !== 'Fri' && wd !== 'Sat') continue;
+    const eve0 = Date.parse(`${day}T18:00:00-07:00`);
+    const eve1 = Date.parse(`${day}T21:00:00-07:00`);
+    if (eve0 < nowMs) continue;
+    const hit = (events || []).some((e) => {
+      const a = Date.parse(e.start);
+      const b = Date.parse(e.end || e.start);
+      return Number.isFinite(a) && overlaps(a, Number.isFinite(b) ? b : a + 3600000, eve0, eve1);
     });
-    if (busy) continue;
-    return { day: weekday(slot0, 'long'), start: `${d}T18:00:00`, end: `${d}T21:00:00` };
+    if (!hit) return { day: weekday(ms, 'long'), ymd: day, start: `${day}T18:00:00`, end: `${day}T21:00:00` };
   }
   return null;
 }
 
-function dotsFor(weekStart, habits, nowMs) {
-  const today = ymd(nowMs);
-  const letters = [['M', 0], ['W', 2], ['F', 4]];
-  const done = new Set(habits.filter((h) => h.kind === 'workout' && Number(h.done)).map((h) => h.day));
-  return letters.map(([ch, off]) => {
-    const day = addDays(weekStart, off);
-    if (done.has(day)) return `on:${ch}`;
-    if (day === today) return `next:${ch}`;
-    if (day < today) return `miss:${ch}`;
-    return `:${ch}`;
-  });
-}
-
-function monthDays(nowMs) {
-  const [y, m] = ymd(nowMs).split('-').map(Number);
-  const last = ymd(nowMs).slice(8);
-  let n = 0;
-  for (let d = 1; d <= Number(last); d++) {
-    const day = `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-    const wd = weekday(Date.parse(`${day}T12:00:00-07:00`));
-    if (wd === 'Mon' || wd === 'Wed' || wd === 'Fri') n++;
-  }
-  return n;
-}
-
 export function overlayLife(page, { connected = false, events = [], habits = [], nowMs = Date.now() } = {}) {
   if (!page) return page;
-  if (!connected && !events.length) return page;
   const today = ymd(nowMs);
-  const week = weekStartYmd(nowMs);
-  const month = today.slice(0, 7);
-  const todays = events.filter((e) => ymd(Date.parse(e.start)) === today)
-    .sort((a, b) => Date.parse(a.start) - Date.parse(b.start));
-  page.today = {
-    title: 'Today',
-    meta: 'From your calendar',
-    rows: todays.map((e, i) => ({
-      title: `${clock(e.start)} · ${e.title}`,
-      sub: e.end ? `Until ${clock(e.end)}` : '',
-      pill: i === 0 ? 'Now' : i === 1 ? 'Next' : '',
-      pillCls: i === 0 ? 'blue' : '',
-    })),
-  };
-  const thisDots = dotsFor(week, habits, nowMs);
-  const lastDots = dotsFor(addDays(week, -7), habits, nowMs);
-  const twoDots = dotsFor(addDays(week, -14), habits, nowMs);
-  const weekN = thisDots.filter((d) => d.startsWith('on:')).length;
-  const monthN = habits.filter((h) => h.kind === 'workout' && Number(h.done) && String(h.day).startsWith(month)).length;
-  const goal = monthDays(nowMs) || 1;
-  const nights = events.filter((e) => isDateNight(e.title) && ymd(Date.parse(e.start)).startsWith(month)).length
-    + habits.filter((h) => h.kind === 'date_night' && Number(h.done) && String(h.day).startsWith(month)).length;
-  page.tiles[0] = { ...page.tiles[0], value: String(weekN), goal: '/ 3', pct: Math.round(weekN / 3 * 100), pg: weekN >= 2 ? 'ok' : 'risk' };
-  page.tiles[1] = { ...page.tiles[1], value: String(monthN), goal: `/ ${goal} so far`, pct: Math.round(monthN / goal * 100) };
-  page.tiles[2] = { ...page.tiles[2], value: String(nights), goal: '/ 4', pct: Math.round(nights / 4 * 100), pg: nights >= 4 ? 'ok' : 'risk' };
-  page.workouts.weeks = [
-    { title: 'This week', sub: `${week}–${addDays(week, 6)}`, dots: thisDots },
-    { title: 'Last week', sub: `${addDays(week, -7)}–${addDays(week, -1)}`, dots: lastDots },
-    { title: 'Two weeks ago', sub: `${addDays(week, -14)}–${addDays(week, -8)}`, dots: twoDots },
-  ];
-  const hasSeries = events.some((e) => isWorkout(e.title));
-  if (hasSeries) {
-    page.workouts.btn = 'Mark today done';
-    page.workouts.kind = 'life.mark_workout';
-    page.workouts.payload = { day: today };
-    page.workouts.msg = `${weekday(nowMs, 'long')} workout marked done`;
-  } else {
-    page.workouts.btn = 'Add Mon/Wed/Fri 11:00';
-    page.workouts.kind = 'life.create_workout';
-    page.workouts.confirm = 'Add a repeating Workout at 11:00 Mon/Wed/Fri?';
-    page.workouts.msg = 'Workout added to your calendar';
+  const start = weekStartYmd(nowMs);
+  const letters = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+  const dots = [];
+  let habitDone = 0;
+  for (let i = 0; i < 7; i++) {
+    const day = addDays(start, i);
+    const letter = letters[i];
+    const habit = (habits || []).some((h) => h.kind === 'workout' && Number(h.done) && h.day === day);
+    if (habit) {
+      dots.push(`on:${letter}`);
+      habitDone += 1;
+    } else if (day === today) dots.push(`next:${letter}`);
   }
-  const thisNight = events.find((e) => isDateNight(e.title) && ymd(Date.parse(e.start)) >= week && ymd(Date.parse(e.start)) <= addDays(week, 6));
-  const idea = suggestDateNight(events, nowMs);
-  if (thisNight) {
-    page.dateNight.pill = 'Booked';
-    page.dateNight.pillCls = 'ok';
-    page.dateNight.rows[0] = { title: 'This week', sub: `${weekday(Date.parse(thisNight.start), 'long')} · ${clock(thisNight.start)}`, pill: 'Done', pillCls: 'ok' };
-  } else if (idea) {
-    page.dateNight.pill = 'Not booked';
-    page.dateNight.pillCls = 'risk';
-    page.dateNight.rows[0] = {
-      title: 'This week',
-      sub: `${idea.day} evening is free`,
-      btn: `Book ${idea.day} 6:00`,
-      kind: 'life.book_date_night',
-      confirm: `Book ${idea.day} 6:00 PM on your calendar?`,
-      payload: { start: idea.start, end: idea.end, title: 'Date night' },
-      msg: `${idea.day} 6:00 PM added to your calendar`,
+  const todayEvents = events.filter((e) => Number.isFinite(Date.parse(e.start)) && ymd(Date.parse(e.start)) === today);
+  if (connected || events.length) {
+    page.today = {
+      title: 'Today',
+      meta: 'From your calendar',
+      rows: todayEvents.map((e) => ({
+        time: timeOf(e.start),
+        title: e.summary || e.title,
+        sub: e.location || 'Calendar',
+        pill: /workout|gym/i.test(e.summary || e.title || '') ? 'Workout' : '',
+      })),
     };
+    page.workouts = {
+      ...page.workouts,
+      weeks: [{ label: 'This week', sub: `${habitDone} of 7 days`, dots }],
+    };
+    if (page.tiles?.[0]) {
+      page.tiles[0].value = String(habitDone);
+      page.tiles[0].pct = Math.round(habitDone / 7 * 100);
+      page.tiles[0].sub = habitDone ? `${habitDone} day${habitDone === 1 ? '' : 's'} this week` : 'Not yet this week';
+    }
+    page.actions = (page.actions || []).filter((a) => a.label !== 'Connect calendar');
+  } else {
+    page.today = { title: 'Today', meta: 'Calendar not connected', rows: [] };
+    page.actions = [{ label: 'Connect calendar', href: '/dashboard/api/google/start' }, ...(page.actions || []).filter((a) => a.label !== 'Connect calendar')];
   }
-  page.actions = (page.actions || []).filter((a) => a.label !== 'Connect calendar');
-  page.sub = 'The things that matter outside work';
+  applyDateNightBooking(page, events, nowMs);
   return page;
 }
 
+function applyDateNightBooking(page, events, nowMs) {
+  if (!page.dateNight) page.dateNight = { title: 'Date night', rows: [{}] };
+  if (!page.dateNight.rows?.length) page.dateNight.rows = [{}];
+  const idea = suggestDateNight(events, nowMs);
+  const row0 = page.dateNight.rows[0] || {};
+  page.dateNight.rows[0] = {
+    title: row0.title || 'This week',
+    sub: idea ? `${idea.day} evening looks free` : (row0.sub || 'OpenTable · Kelowna'),
+    btn: idea ? `Book ${idea.day} in Kelowna` : 'Book a table in Kelowna',
+    href: DATE_NIGHT_BOOK_HREF,
+  };
+}
 async function refreshToken(env) {
   if (env.GOOGLE_REFRESH_TOKEN) return env.GOOGLE_REFRESH_TOKEN;
   if (!env.DB) return '';

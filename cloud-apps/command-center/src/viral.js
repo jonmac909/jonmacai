@@ -1,3 +1,5 @@
+import { parseStamp } from './time.js';
+
 const TZ = 'America/Vancouver';
 const WEEK_GOAL_CENTS = 100000;
 
@@ -15,7 +17,8 @@ function signedUsd(cents) {
   return `${n < 0 ? '−' : '+'}${usd(Math.abs(n))}`;
 }
 
-function shortDate(ms) {
+function shortDate(v) {
+  const ms = parseStamp(v);
   if (!Number.isFinite(ms)) return '';
   return new Intl.DateTimeFormat('en-US', { timeZone: TZ, month: 'short', day: 'numeric' }).format(new Date(ms));
 }
@@ -66,7 +69,7 @@ function fmtN(n) {
   return Math.round(Number(n) || 0).toLocaleString('en-US');
 }
 
-export function overlayViral(page, data, nowMs) {
+export function overlayViral(page, data, nowMs, ageLabel = '') {
   if (!page || !data) return page;
   const sub = data.subscriptions || {};
   const cur = sub.current || {};
@@ -78,10 +81,13 @@ export function overlayViral(page, data, nowMs) {
   const salesSub = week <= 0 && last
     ? `No payment recorded since ${shortDate(last)}`
     : last ? `Last payment ${shortDate(last)}` : 'No payment recorded';
-  const sync = data.lastSyncAt ? shortDate(Date.parse(data.lastSyncAt)) : '';
-  page.sub = sync
-    ? `Subscriptions from your revenue page, synced ${sync}`
-    : 'Subscriptions from your revenue page';
+  const commas = data.lastSyncAt
+    ? `Commas last sync ${shortDate(data.lastSyncAt)}`
+    : 'Commas last sync unavailable';
+  const summary = Number.isFinite(parseStamp(data.generatedAt))
+    ? `summary ${shortDate(data.generatedAt)}`
+    : (ageLabel ? `summary ${ageLabel.replace(/^updated /, '')}` : '');
+  page.sub = `${commas}${summary ? ` · ${summary}` : ''} · USD · America/Vancouver`;
   page.actions = [
     { label: 'Open revenue page', href: 'https://app.viralview.io/admin/mrr', msg: 'Opens app.viralview.io/admin/mrr' },
     { label: 'Open tracker', href: 'https://app.viralview.io/track', msg: 'Opens app.viralview.io/track' },
@@ -149,6 +155,9 @@ export function overlayViral(page, data, nowMs) {
       { label: 'Refunds', amount: usd(cf.refundsCents) },
     ],
     note: week <= 0 ? 'Either the upgraded plans bill later in the month, or payments have stopped reaching the revenue page.' : `Last payment ${shortDate(last) || '—'}.`,
+    btn: 'Create Planner task',
+    kind: 'mastermind.send_to_planner',
+    payload: { id: 'viral-cash', title: `${usd(cur.mrrCents)} a month on paper, ${usd(cf.netCashCents)} collected this month`, body: week <= 0 && last ? `No payment has been recorded since ${shortDate(last)}, even though the subscription sync ran.` : 'Commas payments minus refunds, this month.', area: 'Viral View' },
   };
 
   const planRows = sub.plans || [];

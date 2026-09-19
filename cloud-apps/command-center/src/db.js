@@ -53,10 +53,26 @@ export async function completeAction(db, id, status, result, now) {
     .bind(status, result, now, id).run();
 }
 
+export async function requeueFailedAction(db, id, payload) {
+  const info = await db.prepare(
+    `UPDATE actions SET status = 'queued', payload = ?, result = NULL, claimed_at = NULL, finished_at = NULL WHERE id = ? AND status = 'failed'`,
+  ).bind(payload, id).run();
+  return info?.meta?.changes === 1;
+}
+
 export async function upsertChecklist(db, day, item, doneAt, how) {
   await db.prepare(
     'INSERT OR REPLACE INTO checklist (day, item, done_at, how) VALUES (?, ?, ?, ?)',
   ).bind(day, item, doneAt, how).run();
+}
+
+export async function deleteChecklist(db, day, item) {
+  await db.prepare('DELETE FROM checklist WHERE day = ? AND item = ?').bind(day, item).run();
+}
+
+export async function ideaById(db, id) {
+  if (!db || !id) return null;
+  return db.prepare('SELECT * FROM ideas WHERE id = ?').bind(id).first();
 }
 
 export async function upsertHabit(db, day, kind, done, note) {
@@ -126,11 +142,12 @@ export async function listVideoProjects(db) {
 }
 
 export async function replaceVideoProjects(db, list, now) {
-  await db.prepare('DELETE FROM video_projects').run();
   for (const p of list || []) {
     if (!p || !p.id) continue;
-    await db.prepare('INSERT INTO video_projects (id, data, updated_at) VALUES (?, ?, ?)')
-      .bind(String(p.id), JSON.stringify(p), now).run();
+    const id = String(p.id);
+    if (id.startsWith('yt2:')) continue;
+    await db.prepare('INSERT OR REPLACE INTO video_projects (id, data, updated_at) VALUES (?, ?, ?)')
+      .bind(id, JSON.stringify(p), now).run();
   }
 }
 

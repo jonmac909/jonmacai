@@ -115,31 +115,16 @@ test('date night suggests the first free evening 18:00–21:00', () => {
   assert.equal(suggestion.start.endsWith('T18:00:00'), true);
 });
 
-test('morning run-through ticks itself from live sources', () => {
-  const posts = Array.from({ length: 12 }, (_, i) => ({
-    id: `p${i}`, platform: 'X', posted_at: '2026-09-18T12:00:00-07:00', first_line: 'hi', source: 'agent',
-  }));
+test('morning run-through stays unchecked until checklist is saved', () => {
   const out = mergeSnapshot(snapshot, [
-    row('sponsors', cleanSponsors()),
-    row('bank_scan', { accounts: [
-      { name: 'RBC', status: 'scanned', scannedAt: '2026-09-18T08:12:00-07:00' },
-      { name: 'Personal', status: 'scanned', scannedAt: '2026-09-18T08:12:00-07:00' },
-    ] }),
-    row('mastermind', { picks: [], scanned: 41 }),
-    row('support', { tickets: [], answeredToday: 3, inboundToday: 3 }),
-  ], NOW, {}, [], posts, [], {
-    habits: [{ day: TODAY, kind: 'workout', done: 1 }],
-    checklist: [{ day: TODAY, item: 'market_check', how: 'auto' }],
+    { source: 'sponsors', collected_at: new Date(NOW).toISOString(), data: JSON.stringify({ cards: [] }) },
+    { source: 'support', collected_at: new Date(NOW).toISOString(), data: JSON.stringify({ tickets: [] }) },
+  ], NOW, {}, [], [], [], { checklist: [] });
+  assert.equal(out.pages.home.runThrough.done, 0);
+  const out2 = mergeSnapshot(snapshot, [], NOW, {}, [], [], [], {
+    checklist: [{ day: TODAY, item: 'bank_scan', done_at: new Date(NOW).toISOString(), how: 'manual' }],
   });
-  const steps = Object.fromEntries(out.pages.home.runThrough.steps.map((s) => [s.label, s.done]));
-  assert.equal(steps['Sponsor emails'], true);
-  assert.equal(steps['Bank scan'], true);
-  assert.equal(steps['Market check'], true);
-  assert.equal(steps['Mastermind digest'], true);
-  assert.equal(steps['Support replies'], true);
-  assert.equal(steps['Posts out'], true);
-  assert.equal(steps['Workout 11:00'], true);
-  assert.equal(out.pages.home.runThrough.done, 7);
+  assert.equal(out2.pages.home.runThrough.steps.find((s) => s.item === 'bank_scan').done, true);
 });
 
 test('Needs you ranks overdue money, then blocked, then oldest drafts', () => {

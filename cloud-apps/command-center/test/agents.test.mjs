@@ -101,6 +101,28 @@ test('everything else is Idle', () => {
   assert.equal(status('Landing Page', '', now - 72 * 3600 * 1000, now, false), 'idle');
 });
 
+test('spinner in the preview is Working', () => {
+  assert.equal(status('Feature - Dashboard', '⠸ 2m > Grok 4.6', now, now, false), 'working');
+});
+
+test('orca worktree status working is Working', () => {
+  const r = runPy(
+    'from agent_status import agent_status\n'
+    + `print(agent_status('Feature', 'idle 98ms', ${now}, ${now}, False, 'working', []))\n`,
+  );
+  assert.equal(r.status, 0, r.stderr);
+  assert.equal(r.stdout.trim(), 'working');
+});
+
+test('orca agent state working is Working', () => {
+  const r = runPy(
+    'from agent_status import agent_status\n'
+    + `print(agent_status('Landing-Page', 'PS prompt', ${now}, ${now}, False, 'active', ['working']))\n`,
+  );
+  assert.equal(r.status, 0, r.stderr);
+  assert.equal(r.stdout.trim(), 'working');
+});
+
 test('merge overlays pinned agents from both machines onto the agents page', () => {
   const rows = [{
     source: 'agents_mac',
@@ -194,7 +216,32 @@ test('merge overlays mastermind picks from the digest, implement then park', () 
   assert.equal(out.pages.mastermind.picks.jobs[0].pill, 'Worth doing');
   assert.equal(out.pages.mastermind.picks.jobs[1].pill, 'Maybe');
   assert.equal(out.pages.mastermind.building.rows.length, 0);
+  assert.match(out.pages.mastermind.sub, /BuiltWithAI digest/);
+  assert.doesNotMatch(out.pages.mastermind.sub, /Telegram|AI Advanced group/);
   assert.equal(out.pages.mastermind.parked.rows.length, 0);
+});
+
+test("mastermind overlay restores don't from don'anonymous copy glitch", () => {
+  const rows = [{
+    source: 'mastermind',
+    data: JSON.stringify({
+      scanned: 2,
+      scannedAt: '2026-09-19T22:55:00Z',
+      picks: [{
+        id: 'g1',
+        area: 'Mastermind',
+        title: "Jev's sweet spot",
+        text: "wins; don'anonymous force it into top-level orchestration.",
+        verdict: 'park',
+      }],
+    }),
+    collected_at: '2026-09-19T22:55:00Z',
+  }];
+  const out = mergeSnapshot(fixture, rows, now, []);
+  const job = out.pages.mastermind.picks.jobs[0];
+  const blob = [job.title, ...(job.lines || []), job.payload?.body, job.linePayload?.body].join('\n');
+  assert.match(blob, /don't force/);
+  assert.doesNotMatch(blob, /anonymous/);
 });
 
 test('parked ideas from the dashboard replace the parked list', () => {
@@ -295,7 +342,8 @@ test('gpu2 mastermind source reads implement then park from the filter', () => {
     + 'print(d["scanned"])\n'
     + 'print(d["picks"][0]["verdict"])\n'
     + 'print(d["picks"][1]["verdict"])\n'
-    + 'print(len(d["picks"]))\n',
+    + 'print(len(d["picks"]))\n'
+    + 'print(d["picks"][0]["lines"][0])\n',
     join(root, 'collectors/lib'),
   );
   assert.equal(r.status, 0, r.stderr);
@@ -304,6 +352,7 @@ test('gpu2 mastermind source reads implement then park from the filter', () => {
   assert.equal(lines[1], 'implement');
   assert.equal(lines[2], 'park');
   assert.equal(lines[3], '2');
+  assert.equal(lines[4], 'From BuiltWithAI digest');
 });
 
 test('digest parser keeps takeaways as advanced-chat items', () => {
@@ -336,4 +385,18 @@ test('digest parser reads HTML takeaways and comment-split counts', () => {
   );
   assert.equal(r.status, 0, r.stderr);
   assert.match(r.stdout, /1 771 Jev classifiers/);
+});
+
+test("digest parser restores don't from don&#x27;anonymous", () => {
+  const r = runPy(
+    'from telegram_digest import parse_digest\n'
+    + 'html = """<p>12 messages</p><h2>Key Takeaways</h2><ul>'
+    + '<li><span></span><span>wins; don&#x27;anonymous force it.</span></li></ul>"""\n'
+    + 'items, scanned = parse_digest(html)\n'
+    + 'print(items[0]["text"])\n',
+    join(root, 'collectors/lib'),
+  );
+  assert.equal(r.status, 0, r.stderr);
+  assert.match(r.stdout, /don't force/);
+  assert.doesNotMatch(r.stdout, /anonymous/);
 });

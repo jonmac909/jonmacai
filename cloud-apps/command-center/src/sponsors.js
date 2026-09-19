@@ -1,4 +1,5 @@
 const TZ = 'America/Vancouver';
+export const COLLECTIONS_HREF = 'https://collections.viralview.io/collections.html';
 const GOAL = 10000;
 const COLUMNS = [
   'New inquiry', 'Negotiating', 'Waiting on deposit', 'Script approval',
@@ -106,6 +107,12 @@ function oneDec(n) {
   return Math.round(n * 10) / 10;
 }
 
+function avgMonthLabel(months) {
+  if (!months.length) return 'Average completed month';
+  if (months.length === 1) return `Average of ${months[0]}`;
+  return `Average of ${months[0]}–${months[months.length - 1]}`;
+}
+
 export function buildSponsorsPage(data, nowMs = Date.now(), overrides = {}) {
   const col = data.collections || {};
   const items = col.items || [];
@@ -114,7 +121,8 @@ export function buildSponsorsPage(data, nowMs = Date.now(), overrides = {}) {
   const collected = Number(col.incomeTotals?.[col.currentIncomeMonth] || 0);
   const owed = items.reduce((s, i) => s + (Number(i.owed) || 0), 0);
   const open = items.filter((i) => Number(i.owed) > 0);
-  const completed = (col.completedIncomeMonths || []).map((m) => Number(col.incomeTotals?.[m] || 0));
+  const completedMonths = col.completedIncomeMonths || [];
+  const completed = completedMonths.map((m) => Number(col.incomeTotals?.[m] || 0));
   const avg = completed.length ? completed.reduce((s, n) => s + n, 0) / completed.length : 0;
   const emails = cards.filter(hasDraft);
   const pace = Math.round(GOAL * cal.day / cal.dim);
@@ -160,8 +168,16 @@ export function buildSponsorsPage(data, nowMs = Date.now(), overrides = {}) {
     };
     if (draft) {
       k.btn = 'Approve reply';
-      k.kind = 'sponsor.send_draft';
-      k.payload = { id: card.id };
+      k.draft = true;
+      k.payload = {
+        id: card.id,
+        to: card.draftReply?.to || '',
+        subject: card.draftReply?.subject || card.subject || '',
+        body: card.draftReply?.body || '',
+        saveKind: 'sponsor.save_draft',
+        sendKind: 'sponsor.send_draft',
+        discardKind: 'sponsor.discard_draft',
+      };
     } else if (card.stage === 'publishing') {
       k.btn = 'Send invoice';
       k.kind = 'sponsor.send_invoice';
@@ -189,13 +205,13 @@ export function buildSponsorsPage(data, nowMs = Date.now(), overrides = {}) {
     title: 'Sponsors',
     sub: `From your collections tracker · ${data.updatedAt ? 'live' : 'updated'}`,
     actions: [
-      { label: 'Open collections page', href: 'https://collections.viralview.io/collections.html' },
+      { label: 'Open collections page', href: COLLECTIONS_HREF },
       { label: 'Scan inbox now', kind: 'sponsor.scan_inbox', payload: { msg: 'Scanning sponsor inbox now' } },
     ],
     tiles: [
       { icon: 'check', label: `Collected in ${cal.monthName}`, value: usd(collected), goal: '/ $10K', pct: Math.round(collected / GOAL * 100), sub: `Day ${cal.day} of ${cal.dim} · pace would be ${usd(pace)}` },
       { icon: 'dollar', label: 'Owed to you', value: usd(owed), sub: `${open.length} sponsor${open.length === 1 ? '' : 's'}` },
-      { icon: 'chart', label: 'Average month since May', value: usd(avg), goal: '/ $10K', pct: Math.min(100, Math.round(avg / GOAL * 100)), pg: avg >= GOAL ? 'ok' : 'risk', sub: avg >= GOAL ? 'Goal hit' : `${usd(short)} a month short of goal` },
+      { icon: 'chart', label: avgMonthLabel(completedMonths), value: usd(avg), goal: '/ $10K', pct: Math.min(100, Math.round(avg / GOAL * 100)), pg: avg >= GOAL ? 'ok' : 'risk', sub: avg >= GOAL ? 'Goal hit' : `${usd(short)} a month short of goal` },
       { icon: 'mail', label: 'Sponsor emails waiting', value: String(emails.length), sub: emails.length === 1 ? '1 reply drafted' : `All ${emails.length} replies drafted` },
     ],
     septemberBar: {
@@ -241,9 +257,13 @@ export function buildSponsorsPage(data, nowMs = Date.now(), overrides = {}) {
         id: c.id,
         title: c.sponsor,
         sub: c.subject || 'Reply drafted',
+        to: c.draftReply.to || '',
         subject: c.draftReply.subject || c.subject || '',
         body: c.draftReply.body || '',
         send: `Reply sent to ${c.sponsor}`,
+        saveKind: 'sponsor.save_draft',
+        sendKind: 'sponsor.send_draft',
+        discardKind: 'sponsor.discard_draft',
       })),
     },
     byMonth: { title: 'Collected by month', meta: 'Against $10K', rows: byMonth },
@@ -272,4 +292,23 @@ export function applyHomeSponsors(snap, page) {
   }
   if (snap.goal) snap.goal.pct = pct;
   if (snap.nav?.badges) snap.nav.badges.sponsors = Number(page.tiles[3].value) || 0;
+}
+
+export function overlaySponsors(page, data, nowMs = Date.now(), overrides = {}) {
+  if (!page) return page;
+  const actions = [
+    { label: 'Open collections page', href: COLLECTIONS_HREF },
+    { label: 'Scan inbox now', kind: 'sponsor.scan_inbox', payload: { msg: 'Scanning sponsor inbox now' } },
+  ];
+  if (!data?.collections) {
+    page.actions = actions;
+    page.unverified = true;
+    page.sourceNote = 'Collections origin not connected';
+    page.tiles = (page.tiles || []).map((t) => ({ ...t, value: '—', sub: 'Not connected', pct: 0, goal: '' }));
+    return page;
+  }
+  const built = buildSponsorsPage(data, nowMs, overrides);
+  Object.assign(page, built);
+  page.actions = actions;
+  return page;
 }

@@ -104,6 +104,7 @@ def handle(kind, payload):
             return True, payload.get('msg') or 'Moved card'
         if kind == 'sponsor.send_draft':
             _req('POST', '/api/card-drafts/%s/send' % _q(card_id), {
+                'to': payload.get('to') or '',
                 'subject': payload.get('subject') or '',
                 'body': payload.get('body') or '',
             })
@@ -111,6 +112,7 @@ def handle(kind, payload):
         if kind == 'sponsor.save_draft':
             _req('PATCH', '/api/card-drafts/%s' % _q(card_id), {
                 'status': payload.get('status') or 'edited',
+                'to': payload.get('to') or '',
                 'subject': payload.get('subject') or '',
                 'body': payload.get('body') or '',
             })
@@ -138,9 +140,18 @@ def handle(kind, payload):
             return True, 'Invoice email drafted for approval · nothing sent'
         if kind == 'sponsor.scan_inbox':
             _req('POST', '/api/refresh', {}, timeout=600)
-            return True, 'Inbox scan finished'
+            snap = collect_snapshot()
+            cards = snap.get('cards') or []
+            drafts = sum(1 for c in cards if c.get('draftReply'))
+            return True, json.dumps({'scanned': len(cards), 'drafts': drafts, 'error': None})
+        if kind == 'sponsor.discard_draft':
+            _req('PATCH', '/api/card-drafts/%s' % _q(card_id or payload.get('id') or 'missing'), {
+                'status': 'discarded',
+            })
+            return True, 'Draft discarded'
         return False, 'unknown action %s' % kind
     except urllib.error.HTTPError as e:
-        return False, 'http %s' % e.code
+        kind = 'not_sent' if 400 <= e.code < 500 else 'unknown'
+        return False, '%s:http %s' % (kind, e.code)
     except Exception as e:
-        return False, str(e) or type(e).__name__
+        return False, 'unknown:%s' % (str(e) or type(e).__name__)

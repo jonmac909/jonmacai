@@ -1,8 +1,8 @@
-import { tiles, pg, pill, job, btn, dots } from '../ui.js';
+import { tiles, pg, pill, job, btn, dots, esc } from '../ui.js';
 
 export function render(d) {
   const date = d.date;
-  const steps = d.runThrough.steps.map((s) => `<button class="step" aria-pressed="${s.done}">${s.label}</button>`).join('');
+  const steps = d.runThrough.steps.map((s) => `<button class="step" data-item="${esc(s.item)}" data-page="${esc(s.page)}" aria-pressed="${s.done}">${esc(s.label)}</button>`).join('');
   const jobs = d.needsYou.jobs.map(job).join('');
   const rows = d.glance.rows.map((r) => `<tr data-page="${r.page}"><td>${r.area}</td><td>${r.today}</td><td>${r.goal}</td><td><div class="cellpg">${pg(r.pct, r.pg)}${pill(r.pill, r.pillCls)}</div></td></tr>`).join('');
   const L = d.life;
@@ -36,7 +36,7 @@ export function render(d) {
       <div class="habit"><div><strong>${L.workout.title}</strong><small>${L.workout.sub}</small></div>${dots(L.workout.dots)}</div>
       ${pg(L.workout.pct, 'ok')}
       <hr class="divider">
-      <div class="habit"><div><strong>${L.dateNight.title}</strong><small>${L.dateNight.sub}</small></div>${btn(L.dateNight.btn, { msg: L.dateNight.msg, cls: 'line', kind: L.dateNight.kind, payload: L.dateNight.payload, confirm: L.dateNight.confirm })}</div>
+      <div class="habit"><div><strong>${L.dateNight.title}</strong><small>${L.dateNight.sub}</small></div>${btn(L.dateNight.btn, { href: L.dateNight.href, msg: L.dateNight.msg, cls: 'line', kind: L.dateNight.kind, payload: L.dateNight.payload, confirm: L.dateNight.confirm })}</div>
       <hr class="divider">
       <div class="habit"><div><strong>${L.agents.title}</strong><small>${L.agents.sub}</small></div><button class="link" data-page="agents">Open</button></div>
     </div>

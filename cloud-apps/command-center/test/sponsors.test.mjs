@@ -65,6 +65,7 @@ test('sponsors page money matches collections.viralview.io', () => {
   assert.equal(page.tiles[1].value, '$6,700');
   assert.equal(page.tiles[1].sub, '3 sponsors');
   assert.equal(page.tiles[2].value, '$8,802.33');
+  assert.equal(page.tiles[2].label, 'Average of June–August');
   assert.equal(page.tiles[2].sub, '$1,197.67 a month short of goal');
   assert.equal(page.collect.meta, '3 open items · $6,700');
   assert.equal(page.collect.rows[0].sponsor, 'TopView');

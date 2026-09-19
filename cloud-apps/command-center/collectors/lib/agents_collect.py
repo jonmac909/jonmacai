@@ -68,13 +68,23 @@ def collect_agents(machine):
     except Exception:
         return []
     out = []
+    seen = set()
     for w in wts:
-        if not w.get('isPinned'):
-            continue
         name = w.get('displayName') or Path(w.get('path') or '').name or 'Agent'
         info = meta.get(name) or {}
-        daily = bool(info.get('daily'))
         mine = _terms_for(terms, w.get('worktreeId'))
+        states = [a.get('state') for a in (w.get('agents') or [])]
+        wt_status = w.get('status')
+        connected = any(t.get('connected') for t in mine)
+        spinning = (
+            wt_status == 'working'
+            or 'working' in states
+            or any(ch in (w.get('preview') or '') for ch in SPIN)
+            or any(any(ch in (t.get('title') or '') for ch in SPIN) for t in mine)
+        )
+        if not w.get('isPinned') and not connected and not spinning:
+            continue
+        daily = bool(info.get('daily'))
         title = next((t.get('title') or '' for t in mine if t.get('title')), '')
         preview = (w.get('preview') or '') + ' ' + (w.get('comment') or '')
         last = w.get('lastActivityAt') or 0
@@ -85,7 +95,7 @@ def collect_agents(machine):
                 handle = t['handle']
             if t.get('title') and any(ch in (t.get('title') or '') for ch in SPIN):
                 title = t['title']
-        st = agent_status(title, preview, last or None, now, daily)
+        st = agent_status(title, preview, last or None, now, daily, wt_status, states)
         today = last and datetime.fromtimestamp(last / 1000).date() == datetime.fromtimestamp(now / 1000).date()
         if st == 'working':
             job, pct, pg, pill, pill_cls = 'Working', 50, '', 'Working', 'ok'
@@ -123,6 +133,24 @@ def collect_agents(machine):
             row['restart'] = 'Restart'
             row['restartMsg'] = '%s agent restarted' % name
         out.append(row)
+        seen.add(name)
+    for name, info in meta.items():
+        if name in seen:
+            continue
+        out.append({
+            'name': name,
+            'runs': LABEL.get(machine, machine),
+            'machine': machine,
+            'now': 'Not running',
+            'job': 'Not running',
+            'pct': 0,
+            'pg': '',
+            'status': 'not_running',
+            'pill': 'Not running',
+            'pillCls': 'risk',
+            'page': info.get('page') or '',
+            'pin': True,
+        })
     return out
 
 

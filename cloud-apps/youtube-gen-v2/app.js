@@ -1,3 +1,6 @@
+import { fetchLiveYoutubeRefresh, LOGIN_HREF } from './live-sync.js';
+import { buildRemakeProject, editWithoutRenderer, RENDER_MISSING } from './remake.js';
+
 (function () {
   "use strict";
 
@@ -33,6 +36,7 @@
     refreshing: false,
     lastRefreshed: null,
     refreshError: "",
+    refreshLogin: "",
     refreshSummary: "",
     drawerSourceId: null,
     drawerTemplateId: null,
@@ -78,7 +82,7 @@
       const res = await fetch("/yt2/api/projects", { headers: { "X-YT2": "1" } });
       if (!res.ok) return;
       const remote = await res.json();
-      if (!Array.isArray(remote)) return;
+      if (!Array.isArray(remote) || !remote.length) return;
       state.projects = remote;
       localStorage.setItem(STORAGE_KEY, JSON.stringify(remote));
       render();
@@ -185,17 +189,17 @@
     return state.metric === "velocity" ? "velocity" : state.metric === "combined" ? "combined" : "views";
   }
 
+  function isAiUgcTitle(title) {
+    const t = String(title || "");
+    if (/\bAI\s*UGC\b/i.test(t)) return true;
+    if (/\bAI[- ]?video[- ]generation\b/i.test(t)) return true;
+    return /\bUGC\b/i.test(t) && /\bAI\b/i.test(t);
+  }
+
   function relevantRows() {
-    const terms = ["ai", "ugc", "ad", "video", "image", "tiktok", "affiliate", "brand", "model", "sora", "kling", "seedance", "veo", "claude", "chatgpt", "viral", "content"];
-    let rows = allRows.filter((row) => terms.some((term) => row.title.toLowerCase().includes(term)));
-    if (state.search.trim()) {
-      const query = state.search.toLowerCase();
-      rows = rows.filter((row) => `${row.title} ${row.channel}`.toLowerCase().includes(query));
-    }
-    if (state.date !== "all") rows = rows.filter((row) => {
-      const age = actualAgeDays(row);
-      return age != null && age <= Number(state.date);
-    });
+    let rows = allRows.filter((row) => isAiUgcTitle(row.title));
+    const q = state.search.trim().toLowerCase();
+    if (q) rows = rows.filter((row) => `${row.title} ${row.channel}`.toLowerCase().includes(q));
     if (state.duration === "short") rows = rows.filter((row) => Number(row.duration_seconds || 0) < 15 * 60);
     if (state.duration === "medium") rows = rows.filter((row) => Number(row.duration_seconds || 0) >= 15 * 60 && Number(row.duration_seconds || 0) < 30 * 60);
     if (state.duration === "long") rows = rows.filter((row) => Number(row.duration_seconds || 0) >= 30 * 60);
@@ -210,21 +214,17 @@
     if (state.refreshing) return;
     state.refreshing = true;
     state.refreshError = "";
+    state.refreshLogin = "";
     state.refreshSummary = "Contacting the live YouTube refresh service…";
     render();
     try {
-      const response = await fetch("/yt/api/channels/refresh", {
-        method: "POST",
-        credentials: "include",
-        headers: { Accept: "application/json" },
-      });
-      const contentType = response.headers.get("content-type") || "";
-      if (response.redirected || !contentType.includes("application/json")) {
-        throw new Error("Your YouTube refresh session has expired. Open /yt, sign in, then return here and retry.");
+      const payload = await fetchLiveYoutubeRefresh();
+      if (payload.needLogin) {
+        state.refreshLogin = payload.login || LOGIN_HREF;
+        throw new Error("Your YouTube refresh session has expired. Sign in on /yt, then retry.");
       }
-      const payload = await response.json();
-      if (!response.ok || !payload.ok || !Array.isArray(payload.rows)) {
-        throw new Error(payload.error || `Live refresh failed (${response.status})`);
+      if (!payload.ok || !Array.isArray(payload.rows)) {
+        throw new Error(payload.error || "Live refresh failed");
       }
       allRows = payload.rows.filter((row) => row && row.id && row.title);
       const refreshedAt = payload.generatedAt || new Date().toISOString();
@@ -353,7 +353,7 @@
       <div class="prototype-banner"><strong>Safe V2 preview:</strong> this route has separate local data and does not change the current YouTube Gen app. External AI, rendering, storage, and YouTube actions are simulated until their APIs are connected.</div>
       <div class="metric-strip"><div class="metric-card"><div class="metric-icon">${icon("video")}</div><div><strong>${rows.length}</strong><span>Qualified trend matches</span></div></div><div class="metric-card"><div class="metric-icon">${icon("chart")}</div><div><strong>${average.toFixed(1)}×</strong><span>Average outlier score</span></div></div><div class="metric-card"><div class="metric-icon">${icon("users")}</div><div><strong>${formatNumber(totalViews)}</strong><span>Combined source views</span></div></div><div class="metric-card"><div class="metric-icon">${icon("pipeline")}</div><div><strong>${state.projects.length}</strong><span>V2 projects created</span></div></div></div>
       <div class="toolbar"><label class="search-box">${icon("search")}<input id="trend-search" value="${esc(state.search)}" placeholder="Search AI models, TikTok Shop, affiliates, UGC…"></label><button class="secondary refresh-button ${state.refreshing ? "refreshing" : ""}" data-refresh ${state.refreshing ? "disabled" : ""}>${icon("spark")} ${state.refreshing ? "Syncing YouTube…" : "Sync live YouTube"}</button></div>
-      ${state.refreshError ? `<div class="refresh-message error"><strong>Live refresh failed</strong><span>${esc(state.refreshError)}</span></div>` : state.refreshSummary ? `<div class="refresh-message ${state.refreshing ? "working" : "success"}"><strong>${state.refreshing ? "Refreshing current videos" : "Live data updated"}</strong><span>${esc(state.refreshSummary)}</span></div>` : ""}
+      ${state.refreshError ? `<div class="refresh-message error"><strong>Live refresh failed</strong><span>${esc(state.refreshError)}</span>${state.refreshLogin ? `<a class="button secondary" href="${esc(state.refreshLogin)}">Sign in on /yt</a><button type="button" class="secondary" data-refresh>Retry</button>` : ""}</div>` : state.refreshSummary ? `<div class="refresh-message ${state.refreshing ? "working" : "success"}"><strong>${state.refreshing ? "Refreshing current videos" : "Live data updated"}</strong><span>${esc(state.refreshSummary)}</span></div>` : ""}
       <div class="filter-panel" aria-label="Discovery filters">
         <label><span>Date</span><select id="date-filter"><option value="all">All time</option><option value="1" ${state.date === "1" ? "selected" : ""}>Last 1 day</option><option value="3" ${state.date === "3" ? "selected" : ""}>Last 3 days</option><option value="7" ${state.date === "7" ? "selected" : ""}>Last 7 days</option><option value="30" ${state.date === "30" ? "selected" : ""}>Last 30 days</option><option value="90" ${state.date === "90" ? "selected" : ""}>Last 90 days</option></select></label>
         <label><span>Duration</span><select id="duration-filter"><option value="all">Any duration</option><option value="short" ${state.duration === "short" ? "selected" : ""}>Under 15 min</option><option value="medium" ${state.duration === "medium" ? "selected" : ""}>15–30 min</option><option value="long" ${state.duration === "long" ? "selected" : ""}>30+ min</option></select></label>
@@ -441,7 +441,10 @@
   }
 
   function renderEditStep(project, template) {
-    const edit = project.edit;
+    const edit = project.edit || {};
+    if (edit.status === "unavailable") {
+      return `<div class="panel-head"><div><h2>Render worker is not connected</h2><p>${esc(template.editorPreset)} preset is ready, but no preview was generated.</p></div><span class="status-chip">Unavailable</span></div><div class="panel-body"><div class="prototype-banner"><strong>${esc(RENDER_MISSING)}</strong> Connect the render worker, then retry. This screen will not fake a cut.</div></div><div class="panel-foot"><button class="secondary" data-close-project>Back to pipeline</button></div>`;
+    }
     const complete = edit.status === "review" || edit.status === "approved";
     const progress = complete ? 100 : edit.progress;
     return `<div class="panel-head"><div><h2>${complete ? "Review your first cut" : "Auto editor is building your video"}</h2><p>${esc(template.editorPreset)} preset · transcript-guided cuts · motion graphics from script markers</p></div><span class="status-chip"><i class="status-dot"></i>${complete ? "Render ready" : "Background job"}</span></div><div class="panel-body"><div class="prototype-banner">This preview simulates the job state and review experience. Production needs object storage, transcription, a render worker, and signed preview URLs.</div><div class="edit-stage"><div><div class="video-preview"><img src="${esc(project.source.thumbnail)}"><div class="preview-content"><div class="play">${icon("play")}</div><strong>${complete ? "First cut · 18:42" : "Assembling first cut"}</strong><span>${complete ? "1080p preview · captions and graphics included" : "You can leave this page while it renders"}</span></div></div><div class="timeline"><i style="--w:1.4;--c:#2676ff"></i><i style="--w:.5;--c:#ff6b4a"></i><i style="--w:2;--c:#2676ff"></i><i style="--w:.8;--c:#17b890"></i><i style="--w:1.2;--c:#7758ff"></i></div><div class="edit-progress"><div class="progress-head"><strong>${complete ? "First cut complete" : "Auto-edit progress"}</strong><span>${progress}%</span></div><div class="big-progress"><i style="width:${progress}%"></i></div><div class="job-step">${complete ? '<i style="background:#0bba7a;animation:none"></i>Ready for your approval' : `<i></i>${esc(edit.currentJob || "Preparing footage")}`}</div></div></div><aside class="edit-controls"><h3>Editor recipe</h3><div class="control-row"><label>Jump cuts <span class="switch"></span></label></div><div class="control-row"><label>Captions <span class="switch"></span></label><select><option>Jon Mac Clean</option><option>Bold social</option></select></div><div class="control-row"><label>Motion graphics <span class="switch"></span></label><select><option>Business minimal</option><option>High-energy tech</option></select></div><div class="control-row"><label>Pacing<input type="range" min="1" max="5" value="4"></label></div><div class="control-row"><label>Audio mix <span class="switch"></span></label></div></aside></div></div><div class="panel-foot"><button class="secondary" ${complete ? "" : "disabled"} data-request-revision>Request revision</button><button class="primary" ${complete ? "" : "disabled"} data-approve-edit>Approve final cut</button></div>`;
@@ -487,20 +490,25 @@
 
   function createProject() {
     const row = allRows.find((item) => item.id === state.drawerSourceId);
-    const template = getTemplate(state.drawerTemplateId || recommendTemplate(row).id);
-    if (!row) return;
+    const built = buildRemakeProject({
+      row,
+      templateId: state.drawerTemplateId || (row ? recommendTemplate(row).id : ""),
+      templates,
+      id: `v2_${Date.now()}`,
+    });
+    if (!built.ok) {
+      toast(built.error);
+      return;
+    }
+    const template = getTemplate(built.project.templateId);
     state.draftAudience = document.getElementById("drawer-audience")?.value.trim() || state.draftAudience;
     state.draftProduct = document.getElementById("drawer-product")?.value.trim() || "Featured TikTok Shop product";
     state.draftOffer = document.getElementById("drawer-offer")?.value.trim() || state.draftOffer;
     const project = {
-      id: `v2_${Date.now()}`,
-      createdAt: new Date().toISOString(),
-      source: { id: row.id, title: row.title, thumbnail: row.thumbnail, channel: row.channel, views: row.views, outlier_score: row.outlier_score, url: row.url },
-      templateId: template.id,
+      ...built.project,
       audience: state.draftAudience,
       product: state.draftProduct,
       offer: state.draftOffer,
-      stage: "plan",
       titleOptions: generateTitles(row, template, state.draftProduct),
       selectedTitleIndex: 0,
       thumbnailOptions: ["AI result on the left, surprised Jon on the right, 3-word verdict", "Product centered with before/after outputs and a red comparison arrow", `Large ${template.code} badge, model logo, and one bold commercial result`],
@@ -516,6 +524,23 @@
     state.activeStep = "plan";
     state.drawerSourceId = null;
     saveProjects();
+    fetch("/yt2/api/remake", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-YT2": "1" },
+      body: JSON.stringify({
+        id: project.id,
+        templateId: project.templateId,
+        sourceId: row.id,
+        title: row.title,
+      }),
+    }).then(async (res) => {
+      const payload = await res.json().catch(() => ({}));
+      if (!Array.isArray(payload.missing)) return;
+      const saved = state.projects.find((item) => item.id === project.id);
+      if (!saved) return;
+      saved.missing = payload.missing;
+      saveProjects();
+    }).catch(() => {});
     render();
     toast(`${template.code} project created`);
   }
@@ -529,41 +554,17 @@
   }
 
   function startAutoEdit() {
-    updateProject((project) => { project.stage = "edit"; project.edit = { status: "rendering", progress: 4, currentJob: "Transcribing A-roll" }; });
+    updateProject((project) => {
+      project.stage = "edit";
+      project.edit = editWithoutRenderer();
+    });
     state.activeStep = "edit";
     render();
-    const jobs = [[17, "Removing retakes and dead air"], [34, "Matching B-roll to script markers"], [53, "Building captions and motion graphics"], [72, "Mixing and leveling audio"], [89, "Rendering 1080p preview"], [100, "Ready for review"]];
-    let index = 0;
-    clearInterval(state.renderTimer);
-    state.renderTimer = setInterval(() => {
-      const activeId = state.activeProjectId;
-      const project = state.projects.find((p) => p.id === activeId);
-      if (!project) return clearInterval(state.renderTimer);
-      const [progress, job] = jobs[index++];
-      project.edit.progress = progress;
-      project.edit.currentJob = job;
-      if (progress === 100) { project.edit.status = "review"; clearInterval(state.renderTimer); toast("Your first cut is ready to review"); }
-      saveProjects();
-      if (state.activeProjectId === activeId && state.activeStep === "edit") render();
-    }, 650);
+    toast(RENDER_MISSING);
   }
 
   function startYoutubeUpload() {
-    updateProject((project) => { project.publish.status = "uploading"; project.publish.progress = 5; });
-    clearInterval(state.uploadTimer);
-    state.uploadTimer = setInterval(() => {
-      const project = activeProject();
-      if (!project) return clearInterval(state.uploadTimer);
-      project.publish.progress = Math.min(100, project.publish.progress + 19);
-      if (project.publish.progress >= 100) {
-        project.publish.status = "published";
-        project.publish.url = `https://studio.youtube.com/video/v2-demo-${project.id}/edit`;
-        clearInterval(state.uploadTimer);
-        toast("Private YouTube upload complete");
-      }
-      saveProjects();
-      render();
-    }, 500);
+    toast("YouTube upload is not connected. Nothing was published.");
   }
 
   app.addEventListener("click", (event) => {
@@ -630,6 +631,23 @@
     document.querySelectorAll("[data-publish-field]").forEach((field) => { project.publish[field.dataset.publishField] = field.value; });
   }
 
+  const bootQ = new URLSearchParams(location.search);
+  if (bootQ.get("remake")) {
+    state.drawerSourceId = bootQ.get("remake");
+    state.drawerTemplateId = bootQ.get("template") || state.drawerTemplateId;
+  }
   render();
-  hydrateProjects();
+  Promise.resolve(hydrateProjects()).then(() => {
+    if (!state.drawerSourceId) return;
+    const existing = state.projects.find((p) => p.source && p.source.id === state.drawerSourceId);
+    if (existing) {
+      if (state.drawerTemplateId) existing.templateId = state.drawerTemplateId;
+      state.activeProjectId = existing.id;
+      state.view = "workspace";
+      saveProjects();
+      render();
+      return;
+    }
+    createProject();
+  });
 })();

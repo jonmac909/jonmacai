@@ -44,13 +44,14 @@ export function card(inner, cls = 'pad') {
   return `<div class="card ${cls}">${inner}</div>`;
 }
 
-export function btn(label, { page, msg, done, cls = '', sm, kind, payload, href, edit, confirm } = {}) {
+export function btn(label, { page, msg, done, cls = '', sm, kind, payload, href, edit, confirm, draft } = {}) {
   const bits = [`class="btn${cls ? ` ${cls}` : ''}${sm ? ' sm' : ''}"`];
   if (page) bits.push(`data-page="${esc(page)}"`);
   if (kind) bits.push(`data-kind="${esc(kind)}"`);
   if (payload) bits.push(`data-payload="${esc(JSON.stringify(payload))}"`);
   if (href) bits.push(`data-href="${esc(href)}"`);
   if (edit) bits.push('data-edit="1"');
+  if (draft) bits.push('data-draft="1"');
   if (confirm) bits.push(`data-confirm="${esc(confirm)}"`);
   if (msg) bits.push(`data-msg="${esc(msg)}"`);
   if (done) bits.push('data-done');
@@ -60,10 +61,12 @@ export function btn(label, { page, msg, done, cls = '', sm, kind, payload, href,
 export function job(j) {
   const foot = [
     j.lineBtn ? btn(j.lineBtn, { page: j.linePage, msg: j.lineMsg, kind: j.lineKind, payload: j.linePayload, cls: 'line', done: j.done }) : '',
-    j.btn ? btn(j.btn, { page: j.page, msg: j.msg, kind: j.kind, payload: j.payload, done: j.done, cls: j.btnCls || '' }) : '',
+    j.btn ? btn(j.btn, { page: j.page, msg: j.msg, kind: j.kind, payload: j.payload, done: j.done, cls: j.btnCls || '', href: j.href, draft: j.draft }) : '',
   ].join('');
-  return `<article class="card job"><div class="top"><span class="area">${esc(j.area)}</span>${pill(j.pill, j.pillCls || '')}</div><h3>${esc(j.title)}</h3><ul>${(j.lines || []).map((l) => `<li>${esc(l)}</li>`).join('')}</ul><div class="foot">${foot}</div></article>`;
+  const title = j.href && !j.btn ? `<h3><a data-href="${esc(j.href)}">${esc(j.title)}</a></h3>` : `<h3>${esc(j.title)}</h3>`;
+  return `<article class="card job"><div class="top"><span class="area">${esc(j.area)}</span>${pill(j.pill, j.pillCls || '')}</div>${title}<ul>${(j.lines || []).map((l) => `<li>${esc(l)}</li>`).join('')}</ul><div class="foot">${foot}</div></article>`;
 }
+
 
 export function table(headers, rows, foot) {
   const th = headers.map((h) => (h.num ? `<th class="num">${esc(h.label)}</th>` : `<th>${esc(h.label)}</th>`)).join('');
@@ -73,7 +76,7 @@ export function table(headers, rows, foot) {
 export function kanban(columns) {
   const cols = columns.map((c) => {
     const cards = (c.cards || []).map((k) => {
-      const b = k.btn ? btn(k.btn, { page: k.page, msg: k.msg, cls: k.btnCls || '', sm: true, kind: k.kind, payload: k.payload }) : '';
+      const b = k.btn ? btn(k.btn, { page: k.page, msg: k.msg, cls: k.btnCls || '', sm: true, kind: k.kind, payload: k.payload, draft: k.draft }) : '';
       return `<article class="kcard" draggable="true" data-amt="${k.amt || 0}" data-id="${esc(k.id || '')}"><div class="ktop"><strong>${esc(k.name)}</strong>${pill(k.pill, k.pillCls || '')}</div><small>${esc(k.detail)}</small>${pg(k.pct, k.pg || '')}<div class="kfoot"><span class="kamt">${esc(k.amtLabel)}</span>${b}</div></article>`;
     }).join('');
     const empty = c.empty ? `<p class="kempty"${c.cards?.length ? ' hidden' : ''}>${esc(c.empty)}</p>` : '';

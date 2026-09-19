@@ -21,7 +21,7 @@ def _plain(text: str) -> str:
     t = re.sub(r'(?i)<br\s*/?>', '\n', t)
     t = re.sub(r'(?i)</(?:p|div|h\d|li|section|ul)>', '\n', t)
     t = re.sub(r'<[^>]+>', ' ', t)
-    return html.unescape(re.sub(r'\s+', ' ', t)).strip()
+    return html.unescape(re.sub(r'\s+', ' ', t)).replace("'anonymous", "'t").strip()
 
 
 def parse_digest(text: str):
@@ -79,6 +79,8 @@ def collect_items():
             if key in seen:
                 continue
             seen.add(key)
+            it['url'] = url
+            it['ts'] = d.isoformat()
             items.append(it)
     return items, scanned
 

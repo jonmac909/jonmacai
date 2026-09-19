@@ -676,8 +676,8 @@ snapshot.pages.life = {
 };
 
 snapshot.pages.mastermind = {
-  title: 'Mastermind', sub: 'AI Advanced group on Telegram · last 24 hours · scanned at 7:30',
-  actions: [{ label: 'Scan now', msg: 'Scanning the group now' }],
+  title: 'Mastermind', sub: 'BuiltWithAI digest · last 24 hours · scanned at 7:30',
+  actions: [{ label: 'Scan now', msg: 'Scanning the digest now' }],
   tiles: [
     tile('chat', 'Messages read for you', '41', { sub: '3 kept · 38 skipped' }),
     tile('bulb', 'Picks waiting on you', '3', { sub: '2 worth doing · 1 maybe' }),

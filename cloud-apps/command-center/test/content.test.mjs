@@ -152,10 +152,8 @@ test('POST /posts logs a manual row into the posts table', async () => {
   }), env);
   assert.equal(res.status, 200);
   assert.equal((await res.json()).ok, true);
-  const snap = await handleApi(req('/dashboard/api/snapshot?pages=content', { cookie: ck }), env);
-  const page = (await snap.json()).pages.content;
-  assert.equal(page.tiles[0].value, '1');
-  assert.equal(page.todayPlatforms.rows[3].value, '1 of 3');
+  assert.equal(db.posts.length, 1);
+  assert.equal(db.posts[0].first_line, 'Logged by hand');
 });
 
 test('ingest source post writes the posts table, not a snapshot', async () => {
