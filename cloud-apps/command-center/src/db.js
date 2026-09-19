@@ -60,3 +60,15 @@ export async function upsertHabit(db, day, kind, done, note) {
     'INSERT OR REPLACE INTO habits (day, kind, done, note) VALUES (?, ?, ?, ?)',
   ).bind(day, kind, done, note).run();
 }
+
+export async function upsertSnapshot(db, source, data, collectedAt, receivedAt) {
+  await db.prepare(
+    'INSERT OR REPLACE INTO snapshots (source, data, collected_at, received_at) VALUES (?, ?, ?, ?)',
+  ).bind(source, data, collectedAt, receivedAt).run();
+}
+
+export async function listSnapshots(db) {
+  const { results } = await db.prepare('SELECT source, data, collected_at, received_at FROM snapshots').all();
+  return results || [];
+}
+

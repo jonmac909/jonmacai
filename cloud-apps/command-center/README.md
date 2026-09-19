@@ -2,7 +2,7 @@
 
 Live: [https://jonmac.ai/dashboard](https://jonmac.ai/dashboard)
 
-Cloudflare Worker `jonmac-command-center`. Routes `jonmac.ai/dashboard` and `jonmac.ai/dashboard/*`. Pages render from `GET /dashboard/api/snapshot`, which serves `fixtures/snapshot.json` until T2.
+Cloudflare Worker `jonmac-command-center`. Routes `jonmac.ai/dashboard` and `jonmac.ai/dashboard/*`. Pages render from `GET /dashboard/api/snapshot`, which starts from `fixtures/snapshot.json` and overlays live D1 snapshots. T2 live slice: Agents machine heartbeats (`agents_mac`, `agents_gpu2`). Other pages stay fixture until later tasks.
 
 ## Snapshot shape (`fixtures/snapshot.json`)
 
@@ -42,7 +42,7 @@ Every page object is render-ready copy from the mockup: tiles (`icon, label, val
 | `markets` | `tiles, discount, read, rules` |
 | `life` | `tiles, workouts, dateNight, today` |
 | `mastermind` | `tiles, picks, building, parked` |
-| `agents` | `tiles, waiting, all` |
+| `agents` | `tiles, waiting, all, machines[], staleSources[]` |
 
 `GET /dashboard/api/snapshot?pages=home,sponsors` returns `{ pages, nav, goal, sources }` with only the asked-for page keys.
 
@@ -51,6 +51,8 @@ Regenerate compact JSON: `node scripts/build-snapshot.mjs`
 ## Auth
 
 Cookie `__Host-cc_session` = `{unixExpiry}.{HMAC-SHA256(expiry)}` under `SESSION_SECRET`. HttpOnly, Secure, SameSite=Strict, Path=/, 30 days. Password compared in constant time. 10 failures / IP / 15 min locks that IP 15 min. 51 failures across IPs / hour locks everyone 1 hour.
+
+Machine ingest is `POST /dashboard/api/ingest` with `Authorization: Bearer` (`MACHINE_TOKEN_MAC` / `MACHINE_TOKEN_GPU2`) and `{source, collectedAt, data}`. Runners poll `POST /dashboard/api/actions/claim` every 15s. A source older than 3× its schedule (collectors: 5 min → stale after 15 min) gets a grey Stale pill. Collectors live in `collectors/mac` and `collectors/gpu2`; add a source as one `sources/*.py` module with `source(machine)` and `collect(machine)`.
 
 ## Tests
 
