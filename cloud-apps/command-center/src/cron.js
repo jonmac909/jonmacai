@@ -1,4 +1,5 @@
 import { upsertSnapshot } from './db.js';
+import { pullInstantly } from './outreach.js';
 
 const VIRAL_URL = 'https://app.viralview.io/api/internal/dashboard-summary';
 const MONEY_URL = 'https://moneyclaw.jonmac.ai/api/internal/dashboard-summary';
@@ -28,5 +29,6 @@ export async function handleCron(env) {
     }));
   }
   jobs.push(pull(env, 'youtube', YT_URL, {}));
+  if (env.INSTANTLY_API_KEY) jobs.push(pullInstantly(env));
   await Promise.allSettled(jobs);
 }

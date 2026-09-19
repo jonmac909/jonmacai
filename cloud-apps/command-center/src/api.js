@@ -13,6 +13,7 @@ import { mergeSnapshot } from './snapshot.js';
 import { boardStageFor, mapColumn } from './sponsors.js';
 import { normalizePost } from './content.js';
 import { runMoneyMove } from './money.js';
+import { runOutreach } from './outreach.js';
 
 const PREFIX = '/dashboard/api';
 const json = (data, status = 200, headers = {}) =>
@@ -122,6 +123,15 @@ async function postAction(request, env) {
   if (kind === 'money.move_and_remember') {
     try {
       result = await runMoneyMove(env, payload);
+      status = 'done';
+    } catch (err) {
+      result = err.message || 'Failed';
+      status = 'failed';
+    }
+  }
+  if (kind.startsWith('outreach.')) {
+    try {
+      result = await runOutreach(env, kind, payload);
       status = 'done';
     } catch (err) {
       result = err.message || 'Failed';

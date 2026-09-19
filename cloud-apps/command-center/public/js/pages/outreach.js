@@ -2,7 +2,7 @@ import { pg, pill, btn, pgrow, head } from '../ui.js';
 
 export function render(d) {
   const steps = d.setup.steps.map((s) => {
-    const right = s.pill ? pill(s.pill, s.pillCls || '') : btn(s.btn, { msg: s.msg, cls: s.btnCls || '' });
+    const right = s.pill ? pill(s.pill, s.pillCls || '') : btn(s.btn, { msg: s.msg, cls: s.btnCls || '', kind: s.kind, payload: s.payload, confirm: s.confirm });
     return `<div class="r"><div><strong>${s.n} · ${s.title}</strong><small>${s.sub}</small></div><div class="right">${right}</div></div>`;
   }).join('');
   return `<div class="wrap">

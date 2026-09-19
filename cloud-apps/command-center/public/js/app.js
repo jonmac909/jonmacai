@@ -225,13 +225,14 @@ document.addEventListener('click', (e) => {
       if (body == null) return;
       payload = { ...payload, body, status: 'edited' };
     }
+    if (actBtn.dataset.confirm && !window.confirm(actBtn.dataset.confirm)) return;
     const kind = actBtn.dataset.kind;
     act(kind, payload).then(async () => {
       if (actBtn.hasAttribute('data-done')) {
         const r = actBtn.closest('.r, .job');
         if (r) r.classList.add('done');
       }
-      if (kind.startsWith('mastermind.') || kind.startsWith('support.') || kind.startsWith('video.') || kind.startsWith('content.') || kind.startsWith('money.') || kind === 'agent.restart' || kind === 'ping') {
+      if (kind.startsWith('mastermind.') || kind.startsWith('support.') || kind.startsWith('video.') || kind.startsWith('content.') || kind.startsWith('money.') || kind.startsWith('outreach.') || kind === 'agent.restart' || kind === 'ping') {
         const snap = await fetch(`${PREFIX}/api/snapshot`);
         if (snap.ok) {
           data = await snap.json();
