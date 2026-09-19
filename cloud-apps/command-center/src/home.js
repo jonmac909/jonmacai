@@ -76,7 +76,7 @@ function runSteps(snap, by, extra, nowMs) {
 function needsList(snap, by, nowMs) {
   const jobs = [];
   const collect = snap.pages?.sponsors?.collect?.rows || [];
-  const cards = (snap.pages?.sponsors?.board?.columns || []).flatMap((c) => c.cards || []);
+  const cards = by.sponsors ? (snap.pages?.sponsors?.board?.columns || []).flatMap((c) => c.cards || []) : [];
   for (const card of cards) {
     const days = lateDays(card.pill);
     if (!days) continue;
@@ -89,15 +89,17 @@ function needsList(snap, by, nowMs) {
       btn: 'Review email', page: 'sponsors', id: card.id,
     });
   }
-  for (const r of snap.pages?.money?.bankScan?.rows || []) {
-    if (r.pill !== 'Needs code') continue;
-    jobs.push({
-      rank: 2, days: 0,
-      area: 'Finances', pill: 'Paused', pillCls: 'risk',
-      title: 'Enter bank text code',
-      lines: [r.title, r.sub].filter(Boolean),
-      btn: 'Enter code', msg: 'Code box opened', done: true, keyName: r.title,
-    });
+  if (by.bank_scan) {
+    for (const r of snap.pages?.money?.bankScan?.rows || []) {
+      if (r.pill !== 'Needs code') continue;
+      jobs.push({
+        rank: 2, days: 0,
+        area: 'Finances', pill: 'Paused', pillCls: 'risk',
+        title: 'Enter bank text code',
+        lines: [r.title, r.sub].filter(Boolean),
+        btn: 'Enter code', msg: 'Code box opened', done: true, keyName: r.title,
+      });
+    }
   }
   for (const a of snap.pages?.agents?.waiting?.jobs || []) {
     jobs.push({
@@ -218,13 +220,17 @@ export function nextMorningStep(run) {
 
 export function criticalAlerts(snap) {
   const out = [];
-  for (const r of snap.pages?.money?.bankScan?.rows || []) {
-    if (r.pill === 'Needs code') out.push({ key: `bank_code:${r.title}`, text: `Bank code needed: ${r.title}` });
+  if (snap.sources?.bank_scan) {
+    for (const r of snap.pages?.money?.bankScan?.rows || []) {
+      if (r.pill === 'Needs code') out.push({ key: `bank_code:${r.title}`, text: `Bank code needed: ${r.title}` });
+    }
   }
-  for (const col of snap.pages?.sponsors?.board?.columns || []) {
-    for (const card of col.cards || []) {
-      const days = lateDays(card.pill);
-      if (days > 7) out.push({ key: `late:${card.id || card.name}`, text: `Payment ${days} days late: ${card.name}` });
+  if (snap.sources?.sponsors) {
+    for (const col of snap.pages?.sponsors?.board?.columns || []) {
+      for (const card of col.cards || []) {
+        const days = lateDays(card.pill);
+        if (days > 7) out.push({ key: `late:${card.id || card.name}`, text: `Payment ${days} days late: ${card.name}` });
+      }
     }
   }
   return out;
