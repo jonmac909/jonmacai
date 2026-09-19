@@ -46,7 +46,7 @@ export async function act(kind, payload = {}) {
   });
   const row = await res.json().catch(() => ({}));
   if (row.result) { say(row.result); return row; }
-  for (let i = 0; i < 40; i++) {
+  for (let i = 0; i < 75; i++) {
     await new Promise((r) => setTimeout(r, 400));
     const s = await fetch(`${PREFIX}/api/actions/${row.id}`);
     const j = await s.json().catch(() => ({}));
@@ -163,6 +163,13 @@ document.addEventListener('click', (e) => {
   if (st) {
     st.setAttribute('aria-pressed', st.getAttribute('aria-pressed') === 'true' ? 'false' : 'true');
     recount();
+    return;
+  }
+  const actBtn = e.target.closest('[data-kind]');
+  if (actBtn) {
+    let payload = {};
+    try { payload = JSON.parse(actBtn.dataset.payload || '{}'); } catch { payload = {}; }
+    act(actBtn.dataset.kind, payload);
     return;
   }
   const nav = e.target.closest('[data-page]');

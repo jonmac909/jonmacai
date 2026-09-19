@@ -1,18 +1,20 @@
 import snapshot from '../fixtures/snapshot.json' with { type: 'json' };
 import {
-  COOKIE, SESSION_DAYS, timingSafeEqualString, signSession, readSession,
+  SESSION_DAYS, timingSafeEqualString, signSession, readSession,
   sessionCookieHeader, checkLockout, recordLoginFailure, clientIp,
 } from './auth.js';
 import {
   loginStore, insertAction, actionByIdem, actionById, claimQueued, completeAction,
-  upsertChecklist, upsertHabit,
+  upsertChecklist, upsertHabit, upsertSnapshot, listSnapshots,
 } from './db.js';
+import { mergeSnapshot } from './snapshot.js';
 
 const PREFIX = '/dashboard/api';
 const json = (data, status = 200, headers = {}) =>
   new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json', ...headers } });
 
-function targetFor(kind) {
+function targetFor(kind, payload = {}) {
+  if (kind === 'ping') return payload.machine === 'mac' || payload.machine === 'gpu2' ? payload.machine : null;
   if (kind.startsWith('sponsor.') || kind.startsWith('bank.')) return 'mac';
   if (kind.startsWith('support.') || kind.startsWith('mastermind.') || kind.startsWith('content.') || kind.startsWith('video.') || kind.startsWith('agent.')) return 'gpu2';
   return 'worker';
@@ -28,9 +30,6 @@ function machineOf(request, env) {
   return null;
 }
 
-function machineOk(request, env, machine) {
-  return machine === 'mac' || machine === 'gpu2' ? machineOf(request, env) === machine : false;
-}
 
 async function needSession(request, env) {
   const exp = await readSession(request, env);
@@ -73,7 +72,7 @@ function filterSnapshot(pages) {
   const want = pages ? pages.split(',').map((s) => s.trim()).filter(Boolean) : Object.keys(snapshot.pages);
   const out = {};
   for (const id of want) if (snapshot.pages[id]) out[id] = snapshot.pages[id];
-  return { pages: out, nav: snapshot.nav, goal: snapshot.goal, sources: snapshot.sources };
+  return JSON.parse(JSON.stringify({ pages: out, nav: snapshot.nav, goal: snapshot.goal, sources: snapshot.sources }));
 }
 
 async function postAction(request, env) {
@@ -86,10 +85,11 @@ async function postAction(request, env) {
     const existing = await actionByIdem(env.DB, idem);
     if (existing) return json({ id: existing.id, status: existing.status, result: existing.result });
   }
+  const target = targetFor(kind, payload);
+  if (!target) return json({ error: 'Bad target' }, 400);
   const id = crypto.randomUUID();
   const now = new Date().toISOString();
   const result = payload.msg || 'Done';
-  const target = targetFor(kind);
   const status = target === 'worker' ? 'done' : 'queued';
   if (env.DB) {
     await insertAction(env.DB, {
@@ -99,6 +99,12 @@ async function postAction(request, env) {
     });
   }
   return json({ id, status, result: status === 'done' ? result : null });
+}
+
+function resultText(value) {
+  if (typeof value === 'string') return value;
+  if (value == null) return '';
+  return JSON.stringify(value);
 }
 
 export async function handleApi(request, env) {
@@ -123,29 +129,40 @@ export async function handleApi(request, env) {
   if (rest === '/snapshot' && method === 'GET') {
     const denied = await needSession(request, env);
     if (denied) return denied;
-    return json(filterSnapshot(url.searchParams.get('pages')));
+    const base = filterSnapshot(url.searchParams.get('pages'));
+    if (!env.DB) return json(base);
+    return json(mergeSnapshot(base, await listSnapshots(env.DB)));
   }
 
   if (rest === '/ingest' && method === 'POST') {
-    const machine = (await request.json().catch(() => ({}))).machine;
-    if (!machineOk(request, env, machine)) return json({ error: 'Unauthorized' }, 401);
+    const who = machineOf(request, env);
+    let body = {};
+    try { body = await request.json(); } catch { body = {}; }
+    if (!who || (body.machine && body.machine !== who)) return json({ error: 'Unauthorized' }, 401);
+    const source = String(body.source || '').trim();
+    const collectedAt = String(body.collectedAt || '');
+    if (!source || !Date.parse(collectedAt)) return json({ error: 'Bad ingest' }, 400);
+    const data = body.data && typeof body.data === 'object' ? body.data : {};
+    if (env.DB) await upsertSnapshot(env.DB, source, JSON.stringify(data), collectedAt, new Date().toISOString());
     return json({ ok: true });
   }
   if (rest === '/actions/claim' && method === 'POST') {
+    const who = machineOf(request, env);
     const body = await request.json().catch(() => ({}));
-    if (!machineOk(request, env, body.machine)) return json({ error: 'Unauthorized' }, 401);
-    const rows = env.DB ? await claimQueued(env.DB, body.machine, new Date().toISOString()) : [];
+    if (!who || who !== body.machine) return json({ error: 'Unauthorized' }, 401);
+    const rows = env.DB ? await claimQueued(env.DB, who, new Date().toISOString()) : [];
     return json({ actions: rows });
   }
 
   const complete = rest.match(/^\/actions\/([^/]+)\/complete$/);
   if (complete && method === 'POST') {
-    const machine = machineOf(request, env);
-    if (!machine) return json({ error: 'Unauthorized' }, 401);
-    const row = env.DB ? await actionById(env.DB, complete[1]) : null;
-    if (!row || row.target !== machine) return json({ error: 'Unauthorized' }, 401);
+    const who = machineOf(request, env);
+    if (!who) return json({ error: 'Unauthorized' }, 401);
     const body = await request.json().catch(() => ({}));
-    await completeAction(env.DB, complete[1], body.ok ? 'done' : 'failed', JSON.stringify(body.result || {}), new Date().toISOString());
+    if (!env.DB) return json({ ok: true });
+    const row = await actionById(env.DB, complete[1]);
+    if (!row || row.target !== who) return json({ error: 'Unauthorized' }, 401);
+    await completeAction(env.DB, complete[1], body.ok ? 'done' : 'failed', resultText(body.result), new Date().toISOString());
     return json({ ok: true });
   }
 

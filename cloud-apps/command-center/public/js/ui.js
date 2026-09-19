@@ -44,9 +44,11 @@ export function card(inner, cls = 'pad') {
   return `<div class="card ${cls}">${inner}</div>`;
 }
 
-export function btn(label, { page, msg, done, cls = '', sm } = {}) {
+export function btn(label, { page, msg, done, cls = '', sm, kind, payload } = {}) {
   const bits = [`class="btn${cls ? ` ${cls}` : ''}${sm ? ' sm' : ''}"`];
   if (page) bits.push(`data-page="${esc(page)}"`);
+  if (kind) bits.push(`data-kind="${esc(kind)}"`);
+  if (payload) bits.push(`data-payload="${esc(JSON.stringify(payload))}"`);
   if (msg) bits.push(`data-msg="${esc(msg)}"`);
   if (done) bits.push('data-done');
   return `<button ${bits.join(' ')}>${label}</button>`;

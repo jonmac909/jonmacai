@@ -10,3 +10,5 @@ cloud-apps/youtube-gen-v2/public/
 .env.*
 cloud-apps/command-center/screenshots/
 cloud-apps/command-center/tmp-dist/
+**/__pycache__/
+*.pyc
