@@ -54,6 +54,15 @@ Cookie `__Host-cc_session` = `{unixExpiry}.{HMAC-SHA256(expiry)}` under `SESSION
 
 Machine ingest is `POST /dashboard/api/ingest` with `Authorization: Bearer` (`MACHINE_TOKEN_MAC` / `MACHINE_TOKEN_GPU2`) and `{source, collectedAt, data}`. Source `post` inserts into the `posts` table (one publish at a time). Source `content_queue` is the Content Marketing agent's scheduled posts (`~/.command-center/content-queue.json` on GPU2). Approve writes `~/.command-center/content-approvals.jsonl` and pings that agent's Orca terminal. Log a post is `POST /dashboard/api/posts`. Runners poll `POST /dashboard/api/actions/claim` every 15s. A source older than 3× its schedule (collectors: 5 min → stale after 15 min) gets a grey Stale pill. Collectors live in `collectors/mac` and `collectors/gpu2`; add a source as one `sources/*.py` module with `source(machine)` and `collect(machine)`.
 
+## Runners
+
+Each machine runs exactly one action runner. A lock makes a second copy exit at once. `claimQueued` only returns rows its own `UPDATE` changed, so two pollers cannot both execute the same action.
+
+- GPU2: Startup `CommandCenterRun.cmd` at logon; `run.cmd` restarts on failure; Task Scheduler `\CommandCenterCollect` kickstarts it every 5 min.
+- Mac mini: launchd `com.jonmac.cc.run` with KeepAlive.
+
+Restart a runner only through that service. Do not start `run.py` by hand.
+
 ## Tests
 
 ```
