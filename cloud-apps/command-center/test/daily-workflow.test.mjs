@@ -120,6 +120,33 @@ test('snapshot GET revalidates worker sources once then dedupes', async () => {
   assert.equal(calls.length, 2);
 });
 
+test('youtube revalidate uses YT2 binding and stores AI UGC outliers', async () => {
+  const calls = [];
+  const env = {
+    DB: memD1(),
+    YT2_REVALIDATE: '1',
+    YT2: {
+      fetch: async (req) => {
+        calls.push(String(req.url));
+        return new Response(JSON.stringify({
+          outliers: [{ title: 'Claude + Seedance 2.0 Has Changed AI UGC Forever (Full Tutorial)' }],
+          channels: 22,
+          ranked: 516,
+        }), { status: 200, headers: { 'content-type': 'application/json' } });
+      },
+    },
+  };
+  const out = await revalidateSources(env, {
+    nowMs: 1_000_000,
+    fetchFn: async () => { throw new Error('public fetch must not run when YT2 is bound'); },
+  });
+  assert.ok(out.pulled.includes('youtube'));
+  assert.equal(out.errors.youtube, undefined);
+  assert.equal(calls.length, 1);
+  assert.match(calls[0], /yt2\/api\/outliers/);
+  assert.match(env.DB.snapshots.get('youtube').data, /AI UGC/);
+});
+
 test('snapshot GET does not insert drafts, actions, or jobs', async () => {
   const env = { DB: memD1() };
   const res = await snap(env);

@@ -69,7 +69,7 @@ def picks_from_state(state: Path) -> dict:
             'verdict': 'implement' if action == 'implement' else 'park',
             'href': it.get('url') or it.get('href') or '',
             'ts': it.get('ts') or it.get('at') or filt.get('ran') or '',
-            'lines': ['From the AI Advanced group', text[:180]],
+            'lines': ['From BuiltWithAI digest', text[:180]],
         }
         (impl if row['verdict'] == 'implement' else park).append(row)
     return {

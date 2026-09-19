@@ -29,6 +29,9 @@
   "vars": {
     "YT2_REVALIDATE": "1"
   },
+  "services": [
+    { "binding": "YT2", "service": "jonmac-youtube-gen-v2" }
+  ],
   "routes": [
     { "pattern": "jonmac.ai/dashboard", "zone_name": "jonmac.ai" },
     { "pattern": "jonmac.ai/dashboard/*", "zone_name": "jonmac.ai" }

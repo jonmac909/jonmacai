@@ -174,8 +174,8 @@ function overlayMastermind(page, data, ideas, nowMs) {
   const building = (ideas || []).filter((i) => i.status === 'sent' || i.status === 'building' || i.status === 'built');
   const sentMonth = (ideas || []).filter((i) => ['sent', 'building', 'built'].includes(i.status) && monthOf(i.created_at, nowMs));
   const builtMonth = (ideas || []).filter((i) => i.status === 'built' && monthOf(i.created_at, nowMs));
-  page.sub = `AI Advanced group on Telegram · last 24 hours${data.scannedAt ? ` · scanned ${data.scannedAt.slice(11, 16)}` : ''}`;
-  page.actions = [{ label: 'Scan now', kind: 'mastermind.scan', msg: 'Scanning the group now' }];
+  page.sub = `BuiltWithAI digest · last 24 hours${data.scannedAt ? ` · scanned ${data.scannedAt.slice(11, 16)}` : ''}`;
+  page.actions = [{ label: 'Scan now', kind: 'mastermind.scan', msg: 'Scanning the digest now' }];
   page.tiles = [
     { icon: 'chat', label: 'Messages read for you', value: String(scanned), sub: `${kept} kept · ${Math.max(0, scanned - kept)} skipped` },
     { icon: 'bulb', label: 'Picks waiting on you', value: String(kept), sub: `${picks.filter((p) => p.verdict === 'implement').length} worth doing · ${picks.filter((p) => p.verdict !== 'implement').length} maybe` },

@@ -17,6 +17,10 @@ function timed(fetchFn, timeoutMs) {
   return (url, opts = {}) => fetchFn(url, { ...opts, signal: opts.signal || AbortSignal.timeout(timeoutMs) });
 }
 
+function serviceFetch(binding) {
+  return (url, opts = {}) => binding.fetch(new Request(url, { method: opts.method || 'GET', headers: opts.headers }));
+}
+
 async function touchReceived(env, source, by, nowIso) {
   const row = by[source];
   await upsertSnapshot(env.DB, source, row?.data || '{}', row?.collected_at || '', nowIso);
@@ -78,7 +82,8 @@ export async function revalidateSources(env, { nowMs = Date.now(), fetchFn = glo
   }
   if (env.YT2_REVALIDATE === '1' && due(by.youtube, nowMs)) {
     pulled.push('youtube');
-    jobs.push(pull(env, 'youtube', env.YT2_OUTLIERS_URL || YT_URL, {}, fetchTimed, nowIso, errors, by));
+    const ytFetch = env.YT2 ? serviceFetch(env.YT2) : fetchTimed;
+    jobs.push(pull(env, 'youtube', env.YT2_OUTLIERS_URL || YT_URL, {}, ytFetch, nowIso, errors, by));
   }
   if (env.INSTANTLY_API_KEY && due(by.instantly, nowMs)) {
     pulled.push('instantly');
