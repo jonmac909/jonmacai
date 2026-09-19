@@ -127,6 +127,18 @@ test('merge overlays live drafts, waits, money and refunds onto Support', () => 
   assert.deepEqual(p.actions[0].payload.ids, ['1', '2', '3']);
 });
 
+test('answered-today bar stays within 0–100 when caught up past inbound', () => {
+  const row = liveRow();
+  const data = JSON.parse(row.data);
+  data.answeredToday = 5;
+  data.inboundToday = 2;
+  row.data = JSON.stringify(data);
+  const p = mergeSnapshot(fixture, [row], now).pages.support;
+  assert.equal(p.tiles[2].value, '5');
+  assert.equal(p.tiles[2].goal, '/ 2');
+  assert.ok(p.tiles[2].pct <= 100);
+});
+
 test('support actions queue on GPU2', async () => {
   const db = memD1();
   const env = envWith(db);

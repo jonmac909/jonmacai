@@ -1,4 +1,4 @@
-import { keepCard } from './sponsors.js';
+import { keepCard, matchItem } from './sponsors.js';
 
 const TZ = 'America/Vancouver';
 const WEEK_GOAL = 3;
@@ -121,7 +121,9 @@ export function overlayYoutube(page, {
   const channelRows = (projects || []).map(channelRow);
   const items = sponsors?.collections?.items;
   const rawCards = sponsors?.cards || [];
-  const cards = items ? rawCards.filter((c) => keepCard(c, nowMs, items)) : rawCards;
+  const cards = items?.length
+    ? rawCards.filter((c) => matchItem(c, items))
+    : items ? rawCards.filter((c) => keepCard(c, nowMs, items)) : rawCards;
   const sponsorRows = cards.map(sponsorRow).filter(Boolean);
   if (channelRows.length || sponsorRows.length) {
     const prev = page.pipeline?.rows || [];

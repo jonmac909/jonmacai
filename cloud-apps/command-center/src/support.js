@@ -73,7 +73,7 @@ export function overlaySupport(page, data, nowMs, ageLabel = '') {
     },
     {
       icon: 'check', label: 'Answered today', value: String(answered),
-      goal: inbound ? `/ ${inbound}` : '', pct: inbound ? Math.round(answered / inbound * 100) : 0,
+      goal: inbound ? `/ ${inbound}` : '', pct: inbound ? Math.min(100, Math.round(answered / inbound * 100)) : 0,
       pg: inbound && answered / inbound < 0.5 ? 'risk' : 'ok',
       sub: left ? `${left} left` : 'Caught up',
     },
