@@ -12,7 +12,7 @@ const GPU = 'gpu-token-bbbbbbbbbbbbbbbbbbbbbbbbbbbb';
 function envWith(db) {
   return {
     SESSION_SECRET: SECRET,
-    DASHBOARD_PASSWORD: '909090',
+    DASHBOARD_PASSWORD: 'test-dashboard-password',
     MACHINE_TOKEN_MAC: MAC,
     MACHINE_TOKEN_GPU2: GPU,
     DB: db,

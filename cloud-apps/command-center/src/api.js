@@ -142,6 +142,9 @@ export async function handleApi(request, env) {
     const source = String(body.source || '').trim();
     const collectedAt = String(body.collectedAt || '');
     if (!source || !Date.parse(collectedAt)) return json({ error: 'Bad ingest' }, 400);
+    if ((source === 'agents_mac' && who !== 'mac') || (source === 'agents_gpu2' && who !== 'gpu2')) {
+      return json({ error: 'Unauthorized' }, 401);
+    }
     const data = body.data && typeof body.data === 'object' ? body.data : {};
     if (env.DB) await upsertSnapshot(env.DB, source, JSON.stringify(data), collectedAt, new Date().toISOString());
     return json({ ok: true });

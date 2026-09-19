@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { handleApi } from '../src/api.js';
+import worker from '../src/worker.js';
 import { claimQueued } from '../src/db.js';
 import { signSession, sessionCookieHeader, COOKIE } from '../src/auth.js';
 import snapshot from '../fixtures/snapshot.json' with { type: 'json' };
@@ -152,4 +153,22 @@ test('claim returns bank code to the runner then wipes storage', async () => {
   const rows = await claimQueued(db, 'mac', 'now');
   assert.equal(JSON.parse(rows[0].payload).code, '123456');
   assert.equal(db.data[0].payload, '{}');
+});
+
+test('workers.dev is not a login surface', async () => {
+  const res = await worker.fetch(new Request('https://jonmac-command-center.jon-c95.workers.dev/dashboard/api/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-CC': '1' },
+    body: JSON.stringify({ password: PASS }),
+  }), env);
+  assert.equal(res.status, 404);
+});
+
+test('gpu2 token cannot ingest a mac heartbeat', async () => {
+  const res = await handleApi(req('/dashboard/api/ingest', {
+    method: 'POST',
+    headers: { Authorization: 'Bearer gpu2-token-value', 'Content-Type': 'application/json' },
+    body: JSON.stringify({ source: 'agents_mac', collectedAt: '2026-09-18T18:00:00Z', data: { ok: true } }),
+  }), { ...env, ...TOKENS, DB: memDb() });
+  assert.equal(res.status, 401);
 });
