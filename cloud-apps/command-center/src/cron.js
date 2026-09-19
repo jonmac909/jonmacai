@@ -3,10 +3,12 @@ import { listSnapshots } from './db.js';
 import { mergeSnapshot } from './snapshot.js';
 import { pushCriticalTelegram } from './home.js';
 import { revalidateSources } from './revalidate.js';
+import { fillFromEnv } from './daily-drafts.js';
 
 export async function handleCron(env) {
   if (!env?.DB) return;
   await revalidateSources(env, { nowMs: Date.now() - 60_000 });
+  await fillFromEnv(env);
   const nowMs = Date.now();
   const snap = mergeSnapshot(snapshot, await listSnapshots(env.DB), nowMs);
   await pushCriticalTelegram(env, snap);

@@ -1,5 +1,5 @@
 const TZ = 'America/Vancouver';
-const PLATFORMS = ['X', 'Instagram', 'Facebook', 'LinkedIn'];
+export const PLATFORMS = ['X', 'Instagram', 'Facebook', 'LinkedIn'];
 const DAY = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 const GOAL = 3;
 const GOAL_TODAY = 12;
@@ -238,7 +238,10 @@ function overlayBest(page, viral) {
 }
 
 export function overlayContent(page, { posts = [], queue = null, viral = null, video = null, drafts = [], nowMs = Date.now() } = {}) {
-  page.actions = [{ label: 'Log a post', log: true, msg: 'Post logged' }];
+  page.actions = [
+    { label: 'Log a post', log: true, msg: 'Post logged' },
+    { label: "Fill today's drafts", kind: 'content.generate_drafts', msg: "Filling today's drafts" },
+  ];
   const queuedN = queue && !queue.missing && Array.isArray(queue.queued) ? queue.queued.length : 0;
   overlayGrid(page, posts, nowMs, queuedN);
   overlayYtWeek(page, video);
@@ -256,6 +259,7 @@ export function overlayContent(page, { posts = [], queue = null, viral = null, v
       body: d.body || '',
       subject: d.subject || '',
       slot: d.slot,
+      day: d.day,
       saveKind: 'content.save_draft',
       sendKind: 'content.approve',
       discardKind: 'content.discard_draft',

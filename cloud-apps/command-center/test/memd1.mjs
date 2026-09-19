@@ -70,6 +70,13 @@ export function memD1() {
             checklist.delete(`${a[0]}|${a[1]}`);
           } else if (/CREATE TABLE/.test(s)) {
             /* schema no-op */
+          } else if (/INSERT OR IGNORE INTO content_drafts/.test(s)) {
+            if (!drafts.has(a[0])) {
+              drafts.set(a[0], {
+                id: a[0], day: a[1], platform: a[2], slot: a[3],
+                body: a[4], subject: a[5], first_line: a[6], status: a[7], updated_at: a[8],
+              });
+            }
           } else if (/INSERT OR REPLACE INTO content_drafts/.test(s)) {
             drafts.set(a[0], {
               id: a[0], day: a[1], platform: a[2], slot: a[3],

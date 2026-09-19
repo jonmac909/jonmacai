@@ -17,6 +17,7 @@ import { runOutreach } from './outreach.js';
 import { exchangeGoogleCode, googleAuthUrl, runLife, ymd } from './life.js';
 import { revalidateSources } from './revalidate.js';
 import { persistQueueDrafts, listDrafts, upsertDraft } from './drafts.js';
+import { fillFromEnv } from './daily-drafts.js';
 
 const PREFIX = '/dashboard/api';
 const json = (data, status = 200, headers = {}) =>
@@ -32,7 +33,7 @@ function uploadKey(id, filename) {
 }
 function targetFor(kind, payload = {}) {
   if (kind === 'ping') return payload.machine === 'mac' || payload.machine === 'gpu2' ? payload.machine : null;
-  if (kind === 'mastermind.park' || kind === 'content.save_draft' || kind === 'content.discard_draft') return 'worker';
+  if (kind === 'mastermind.park' || kind === 'content.save_draft' || kind === 'content.discard_draft' || kind === 'content.generate_drafts') return 'worker';
   if (kind === 'agent.restart') return payload.machine === 'mac' ? 'mac' : 'gpu2';
   if (kind.startsWith('sponsor.') || kind.startsWith('bank.')) return 'mac';
   if (kind.startsWith('support.') || kind.startsWith('mastermind.') || kind.startsWith('content.') || kind.startsWith('video.') || kind.startsWith('agent.')) return 'gpu2';
@@ -144,6 +145,11 @@ async function postAction(request, env) {
       status: kind === 'content.discard_draft' ? 'discarded' : 'draft',
     });
     result = kind === 'content.discard_draft' ? 'Draft discarded' : 'Draft saved';
+    status = 'done';
+  }
+  if (kind === 'content.generate_drafts' && env.DB) {
+    const out = await fillFromEnv(env);
+    result = `Filled ${out.inserted} drafts for ${out.day}`;
     status = 'done';
   }
   if (kind === 'money.move_and_remember') {
