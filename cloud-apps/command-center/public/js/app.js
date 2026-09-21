@@ -53,6 +53,7 @@ function formatResult(kind, result) {
 }
 
 export async function act(kind, payload = {}) {
+  if (kind === 'outreach.refresh') say('Checking Instantly…');
   const idemKey = crypto.randomUUID();
   const polls = kind === 'sponsor.scan_inbox' || kind === 'mastermind.scan' ? 180 : 75;
   const res = await fetch(`${PREFIX}/api/actions`, {
@@ -63,6 +64,10 @@ export async function act(kind, payload = {}) {
   const row = await res.json().catch(() => ({}));
   if (row.needReconcile) {
     say(`Delivery unknown — reconcile before retrying${row.result ? `: ${formatResult(kind, row.result)}` : ''}`);
+    return row;
+  }
+  if (row.status === 'failed') {
+    say(`Failed: ${formatResult(kind, row.result)}`);
     return row;
   }
   if (row.result) { say(formatResult(kind, row.result)); return row; }
@@ -290,6 +295,10 @@ document.addEventListener('click', (e) => {
     }
     if (actBtn.dataset.confirm && !window.confirm(actBtn.dataset.confirm)) return;
     const kind = actBtn.dataset.kind;
+    if (kind === 'outreach.refresh') {
+      actBtn.disabled = true;
+      actBtn.textContent = 'Checking…';
+    }
     act(kind, payload).then(async () => {
       if (actBtn.hasAttribute('data-done')) {
         const r = actBtn.closest('.r, .job');

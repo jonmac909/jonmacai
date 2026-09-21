@@ -247,3 +247,84 @@ test('Launch button asks for confirm before the action fires', () => {
   assert.match(html, /data-kind="outreach.launch"/);
   assert.match(html, /data-confirm="Start sending this campaign in Instantly\?"/);
 });
+
+test('missing Instantly snapshot strips fixture numbers and keeps Check now', () => {
+  const out = overlayOutreach(page(), null, { missing: true });
+  assert.equal(out.setup.done, '0 of 6 done');
+  assert.equal(out.setup.pct, 0);
+  assert.equal(out.pill, 'Disconnected');
+  assert.equal(out.setup.steps[1].kind, 'outreach.refresh');
+  assert.equal(out.setup.steps[1].btn, 'Check now');
+  assert.equal(out.setup.steps[0].pill, 'Waiting');
+  assert.equal(out.inboxes.rows.length, 0);
+  assert.equal(out.live.rows[0].value, '—');
+  assert.ok(out.connect);
+  assert.equal(out.unverified, true);
+  assert.doesNotMatch(JSON.stringify(out.inboxes), /98/);
+});
+
+test('Instantly error overlay stays disconnected with Check now', () => {
+  const out = overlayOutreach(page(), { error: 'Instantly /accounts 401' });
+  assert.equal(out.unverified, true);
+  assert.match(out.sourceNote, /401/);
+  assert.equal(out.setup.steps[1].kind, 'outreach.refresh');
+  assert.equal(out.inboxes.rows.length, 0);
+});
+
+test('merge without instantly snapshot does not keep fixture inbox scores', () => {
+  const out = mergeSnapshot(snapshot, [], NOW);
+  assert.equal(out.pages.outreach.setup.done, '0 of 6 done');
+  assert.equal(out.pages.outreach.inboxes.rows.length, 0);
+  assert.equal(out.pages.outreach.live.rows[0].value, '—');
+  assert.equal(out.pages.outreach.setup.steps[1].kind, 'outreach.refresh');
+});
+
+test('Check now without Instantly key fails and writes no snapshot', async () => {
+  const db = memD1();
+  const env = envWith(db);
+  delete env.INSTANTLY_API_KEY;
+  const res = await handleApi(req('/dashboard/api/actions', {
+    method: 'POST',
+    cookie: await cookie(),
+    headers: { 'Content-Type': 'application/json', 'X-CC': '1' },
+    body: JSON.stringify({ kind: 'outreach.refresh', idemKey: 'check-no-key' }),
+  }), env);
+  assert.equal(res.status, 200);
+  const row = await res.json();
+  assert.equal(row.status, 'failed');
+  assert.match(row.result, /not connected/i);
+  assert.equal(db.snapshots.get('instantly'), undefined);
+});
+
+test('Check now with key stores Instantly data and returns inbox counts', async () => {
+  const db = memD1();
+  const prev = globalThis.fetch;
+  globalThis.fetch = async (url) => {
+    const u = String(url);
+    if (u.includes('/api/v2/accounts/warmup-analytics')) {
+      return new Response(JSON.stringify({
+        aggregate_data: { 'a@x.com': { health_score: 98 }, 'b@x.com': { health_score: 81 } },
+      }), { status: 200 });
+    }
+    if (u.includes('/api/v2/accounts')) return new Response(JSON.stringify({ items: accounts }), { status: 200 });
+    if (u.includes('/api/v2/campaigns/analytics/overview')) return new Response(JSON.stringify({ total_interested: 0 }), { status: 200 });
+    if (u.includes('/api/v2/campaigns/analytics')) return new Response(JSON.stringify([]), { status: 200 });
+    if (u.includes('/api/v2/campaigns')) return new Response(JSON.stringify({ items: [campaign] }), { status: 200 });
+    return new Response('{}', { status: 200 });
+  };
+  try {
+    const res = await handleApi(req('/dashboard/api/actions', {
+      method: 'POST',
+      cookie: await cookie(),
+      headers: { 'Content-Type': 'application/json', 'X-CC': '1' },
+      body: JSON.stringify({ kind: 'outreach.refresh', idemKey: 'check-ok' }),
+    }), envWith(db));
+    const row = await res.json();
+    assert.equal(row.status, 'done');
+    assert.match(row.result, /daily max 50/i);
+    const snap = JSON.parse(db.snapshots.get('instantly').data);
+    assert.equal(snap.dailyMax, 50);
+  } finally {
+    globalThis.fetch = prev;
+  }
+});

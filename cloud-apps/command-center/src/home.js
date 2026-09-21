@@ -169,9 +169,16 @@ function applyGlance(snap) {
   const out = snap.pages.outreach;
   const o = row('Cold outreach');
   if (o && out?.setup) {
-    o.today = `Setup ${out.setup.done}`;
-    o.pct = out.setup.pct;
-    o.pill = out.pill || 'Setup';
+    if (out.unverified) {
+      o.today = out.sourceNote || 'Instantly is not connected';
+      o.pct = 0;
+      o.pill = out.pill || 'Disconnected';
+      o.pg = 'idle';
+    } else {
+      o.today = `Setup ${out.setup.done}`;
+      o.pct = out.setup.pct;
+      o.pill = out.pill || 'Setup';
+    }
   }
   const sup = snap.pages.support?.tiles?.[0];
   const s = row('Support');
