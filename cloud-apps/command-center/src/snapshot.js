@@ -68,9 +68,10 @@ export function honestyChip(by, nowMs, fixtureChip = 'Mockup · numbers are exam
 
 function markUnverified(page, reason) {
   if (!page) return;
+  if (page.unverified && !String(reason || '').startsWith('Source error')) return;
   page.unverified = true;
   page.sourceNote = reason;
-  page.sub = page.sub ? `${reason} · ${page.sub}` : reason;
+  page.sub = page.sub && page.sub !== reason ? `${reason} · ${page.sub}` : reason;
 }
 
 function applyHonesty(out, by, health, nowMs) {

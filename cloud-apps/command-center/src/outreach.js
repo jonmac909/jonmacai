@@ -114,7 +114,7 @@ export async function collectInstantly(key, fetchFn = globalThis.fetch, nowMs = 
 
 export async function pullInstantly(env, fetchFn = globalThis.fetch) {
   const key = env.INSTANTLY_API_KEY;
-  if (!key || !env.DB) return;
+  if (!key || !env.DB) throw new Error('Instantly is not connected');
   let testSent = false;
   try {
     const prev = (await listSnapshots(env.DB)).find((r) => r.source === 'instantly');
@@ -124,6 +124,7 @@ export async function pullInstantly(env, fetchFn = globalThis.fetch) {
   data.testSent = testSent;
   const now = new Date().toISOString();
   await upsertSnapshot(env.DB, 'instantly', JSON.stringify(data), now, now);
+  return data;
 }
 
 export async function markTestSent(env) {
@@ -149,19 +150,23 @@ export async function launchCampaign(env, payload = {}, fetchFn = globalThis.fet
   return 'Campaign is live';
 }
 
+function refreshResult(data = {}) {
+  const n = (data.accounts || []).length;
+  const max = Number(data.dailyMax) || 0;
+  if (!n) return 'Instantly connected · no sending accounts yet';
+  return `Instantly connected · ${n} inbox${n === 1 ? '' : 'es'} · daily max ${max}`;
+}
+
 export async function runOutreach(env, kind, payload, fetchFn = globalThis.fetch) {
   if (kind === 'outreach.launch') return launchCampaign(env, payload, fetchFn);
   if (kind === 'outreach.mark_test') return markTestSent(env);
   if (kind === 'outreach.refresh') {
     if (!env.INSTANTLY_API_KEY) throw new Error('Instantly is not connected');
-    await pullInstantly(env, fetchFn);
-    return 'Read your Instantly limits';
+    return refreshResult(await pullInstantly(env, fetchFn));
   }
   if (kind === 'outreach.build_list' || kind === 'outreach.draft_them') {
     if (!env.INSTANTLY_API_KEY) throw new Error('Instantly is not connected');
-    await pullInstantly(env, fetchFn);
-    const prev = (await listSnapshots(env.DB)).find((r) => r.source === 'instantly');
-    const data = prev ? JSON.parse(prev.data) : {};
+    const data = await pullInstantly(env, fetchFn);
     const camp = data.campaign || {};
     if (kind === 'outreach.build_list') {
       const n = Number(camp.leads_count) || 0;
@@ -170,22 +175,50 @@ export async function runOutreach(env, kind, payload, fetchFn = globalThis.fetch
     const steps = Number(camp.step_count) || 0;
     return steps ? `${steps} email steps drafted` : 'Campaign has no drafted steps';
   }
+  throw new Error('Unknown action');
 }
+
+function blankOutreach(page, note) {
+  page.unverified = true;
+  page.sourceNote = note;
+  page.sub = note;
+  page.pill = 'Disconnected';
+  page.setup.done = '0 of 6 done';
+  page.setup.pct = 0;
+  page.setup.steps = (page.setup.steps || []).map((t, i) => {
+    const s = {
+      n: i + 1,
+      title: t.title,
+      sub: i === 1 ? 'Reads accounts, daily max, and campaign stats from Instantly' : 'Needs Instantly connected',
+    };
+    if (i === 1) return { ...s, btn: 'Check now', kind: 'outreach.refresh' };
+    return { ...s, pill: 'Waiting' };
+  });
+  page.inboxes = { title: page.inboxes?.title || 'Inbox health', meta: 'No live Instantly accounts', rows: [] };
+  page.live = {
+    title: page.live?.title || "Once it's live, this page shows",
+    rows: [
+      { label: 'Sent today', value: '—', pct: 0, pg: 'idle' },
+      { label: 'Opened', value: '—', pct: 0, pg: 'idle' },
+      { label: 'Replied', value: '—', pct: 0, pg: 'idle' },
+      { label: 'Signed up for Viral View', value: '—', pct: 0, pg: 'idle' },
+    ],
+    empty: page.live?.empty || 'Replies land here.',
+    emptyRest: page.live?.emptyRest || '',
+  };
+  page.connect = {
+    title: 'Connect Instantly',
+    body: 'Add INSTANTLY_API_KEY on the jonmac-command-center worker, reload, then Check now. Nothing sends from this page until you launch.',
+  };
+  page.campaign = undefined;
+  return page;
+}
+
 
 export function overlayOutreach(page, data = {}, opts = {}) {
   if (!page) return page;
-  if (opts.missing || data == null) {
-    page.unverified = true;
-    page.sourceNote = 'Instantly is not connected';
-    page.sub = page.sourceNote;
-    page.setup.steps = (page.setup.steps || []).map((t, i) => {
-      const s = { n: i + 1, title: t.title, sub: t.sub };
-      if (i === 1) return { ...s, btn: 'Check now', kind: 'outreach.refresh' };
-      if (i === 2) return { ...s, btn: 'Build list', kind: 'outreach.build_list' };
-      if (i === 3) return { ...s, btn: 'Draft them', kind: 'outreach.draft_them' };
-      return s;
-    });
-    return page;
+  if (opts.missing || data == null || data.error) {
+    return blankOutreach(page, data?.error ? `Instantly error · ${data.error}` : 'Instantly is not connected');
   }
   const accounts = data.accounts || [];
   const max = data.dailyMax ?? dailyMax(accounts);
@@ -234,14 +267,20 @@ export function overlayOutreach(page, data = {}, opts = {}) {
   page.setup.done = `${n} of 6 done`;
   page.setup.pct = Math.round((n / 6) * 100);
   page.pill = launched ? 'Live' : 'Setup';
-  page.sub = launched ? 'Sending from Instantly' : (warmed ? 'Not sending yet · inboxes are warmed up in Instantly' : page.sub);
-  if (accounts.length) {
-    page.inboxes.rows = accounts.map((a) => {
-      const score = Number(a.health_score);
-      const has = Number.isFinite(score);
-      return { label: a.email, value: has ? String(Math.round(score)) : '—', pct: has ? score : 0, pg: has ? pgOf(score) : 'idle' };
-    });
-  }
+  page.sub = launched ? 'Sending from Instantly' : (warmed ? 'Not sending yet · inboxes are warmed up in Instantly' : 'Connected to Instantly · not sending yet');
+  page.inboxes.meta = accounts.length ? 'Warm-up score out of 100' : 'No sending accounts in Instantly';
+  page.inboxes.rows = accounts.map((a) => {
+    const score = Number(a.health_score);
+    const has = Number.isFinite(score);
+    return { label: a.email, value: has ? String(Math.round(score)) : '—', pct: has ? score : 0, pg: has ? pgOf(score) : 'idle' };
+  });
+  page.campaign = {
+    title: camp.name || 'No campaign in Instantly',
+    meta: camp.id
+      ? `${Number(camp.leads_count) || 0} leads · ${Number(camp.step_count) || 0} email steps`
+      : 'Create a campaign in Instantly, then Check now',
+  };
+  page.connect = undefined;
   const sent = Number(data.sentToday) || 0;
   page.live.rows = [
     { label: 'Sent today', value: `${sent} of ${max}`, pct: max ? Math.min(100, Math.round(sent / max * 100)) : 0, pg: launched ? '' : 'idle' },
