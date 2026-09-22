@@ -22,6 +22,7 @@ def _row(name, status, activity, host, worktree_id, pane, observed_at):
         'error': ('Error', 'crit', 'Error', 0, 'crit'),
         'exited': ('Exited', '', 'Exited', 0, ''),
         'idle': ('Idle', '', 'Idle', 0, ''),
+        'unverified': ('Unknown', '', 'Unknown', 0, ''),
     }
     pill, pill_cls, job, pct, pg = pills[status]
     return {
@@ -69,7 +70,7 @@ def classify_sessions(worktrees, terminals, now_ms):
             if live_terms:
                 for t in live_terms:
                     name = w.get('displayName') or t.get('agentIdentity') or 'Agent'
-                    out.append(_row(name, 'idle', name, host, wid, t.get('handle'), t.get('lastOutputAt')))
+                    out.append(_row(name, 'unverified', 'No hook status', host, wid, t.get('handle'), t.get('lastOutputAt')))
                 continue
             if closed:
                 for t in closed:
