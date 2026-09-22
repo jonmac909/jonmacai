@@ -166,7 +166,7 @@ function recount() {
 export async function go(id, { refetch = false } = {}) {
   if (!pages[id]) id = 'home';
   if (location.hash !== `#${id}`) history.replaceState(null, '', `${PREFIX}/#${id}`);
-  if (refetch) {
+  if (refetch || id === 'agents') {
     const snap = await fetch(`${PREFIX}/api/snapshot`);
     if (snap.ok) data = await snap.json();
     document.getElementById('navs').innerHTML = navHtml();
