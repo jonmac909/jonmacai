@@ -39,6 +39,22 @@ def _state(job):
 def _save(job, state):
     (Path(job) / 'state.json').write_text(json.dumps(state), encoding='utf-8')
     return state
+def segments_from_words(path):
+    words = json.loads(Path(path).read_text(encoding='utf-8'))
+    groups, cur = [], []
+    for word in words:
+        if cur and float(word['s']) - float(cur[-1]['e']) > 1:
+            groups.append(cur)
+            cur = []
+        cur.append(word)
+    if cur:
+        groups.append(cur)
+    return [{
+        'cs': float(g[0]['s']),
+        'ce': float(g[-1]['e']),
+        'label': ' '.join(w['w'] for w in g).strip(),
+    } for g in groups if g]
+
 
 
 def _cut(job, *args):
@@ -63,6 +79,9 @@ def advance(job, raw=None):
             state['stage'] = 'waiting-for-review'
             state['failure'] = None
             state['validated'] = False
+            words = job / 'work' / 'words.json'
+            state['segments'] = segments_from_words(words) if words.exists() else []
+            state['stage'] = 'waiting-for-review'
             return _save(job, state)
         out = str(job / 'out.mp4')
         state['stage'] = 'finish'
