@@ -1,5 +1,5 @@
 const TZ = 'America/Vancouver';
-const PLATFORMS = ['X', 'Instagram', 'Facebook', 'LinkedIn'];
+export const PLATFORMS = ['X', 'Instagram', 'Facebook', 'LinkedIn'];
 const DAY = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 const GOAL = 3;
 const GOAL_TODAY = 12;
@@ -177,7 +177,7 @@ function overlayQueue(page, data) {
     meta: queued.length ? `${queued.length} left` : 'None queued',
     approveAll: 'Approve all',
     approveAllKind: 'content.approve_all',
-    approveAllMsg: `All ${queued.length} posts approved and scheduled`,
+    approveAllMsg: queued.length ? `All ${queued.length} posts approved and scheduled` : 'Nothing queued',
     approveAllPayload: { ids: queued.map((x) => x.id).filter(Boolean) },
     rows: shown,
   };
@@ -237,11 +237,48 @@ function overlayBest(page, viral) {
   };
 }
 
-export function overlayContent(page, { posts = [], queue = null, viral = null, video = null, nowMs = Date.now() } = {}) {
-  page.actions = [{ label: 'Log a post', log: true, msg: 'Post logged' }];
+function statusLabel(status) {
+  if (status === 'approved') return 'Approved · not published';
+  if (status === 'edited') return 'Edited · not published';
+  if (status === 'failed') return 'Generation failed';
+  return 'Draft · not published';
+}
+
+function overlayDaily(page, drafts, { draftsError = '', unavailable = [], nowMs = Date.now() } = {}) {
+  const day = dayKey(nowMs);
+  const rows = (Array.isArray(drafts) ? drafts : []).filter((r) => !r.day || r.day === day);
+  page.dailyDrafts = {
+    title: "Today's drafts",
+    meta: `${day} · America/Vancouver · approving does not publish`,
+    day,
+    error: draftsError || '',
+    filter: 'all',
+    unavailable: (unavailable || []).map((platform) => ({ platform, reason: 'Not configured' })),
+    rows: rows.map((r) => ({
+      id: r.id,
+      platform: platformOf(r.platform),
+      slot: Number(r.slot) || 1,
+      day: r.day || day,
+      status: r.status || 'draft',
+      statusLabel: statusLabel(r.status),
+      body: String(r.body || ''),
+      error: r.error || '',
+      source: r.source || '',
+      saveKind: 'content.save_draft',
+      approveKind: 'content.approve_draft',
+    })),
+  };
+}
+
+export function overlayContent(page, { posts = [], queue = null, viral = null, video = null, nowMs = Date.now(), drafts = null, draftsError = '', unavailable = [] } = {}) {
+  page.actions = [
+    { label: 'Log a post', log: true, msg: 'Post logged' },
+    { label: "Fill today's drafts", kind: 'content.generate_drafts', msg: "Filling today's drafts" },
+  ];
   const queuedN = queue && !queue.missing && Array.isArray(queue.queued) ? queue.queued.length : 0;
   overlayGrid(page, posts, nowMs, queuedN);
   overlayYtWeek(page, video);
   overlayQueue(page, queue && !queue.missing ? queue : { queued: [] });
   overlayBest(page, viral);
+  overlayDaily(page, drafts, { draftsError, unavailable, nowMs });
 }

@@ -15,6 +15,9 @@ import { normalizePost } from './content.js';
 import { runMoneyMove } from './money.js';
 import { runOutreach } from './outreach.js';
 import { exchangeGoogleCode, googleAuthUrl, runLife, ymd } from './life.js';
+import {
+  approveDraft, configuredPlatforms, fillFromEnv, listDrafts, saveDraft, tenantOf, unavailablePlatforms, vancouverDay,
+} from './daily-drafts.js';
 
 const PREFIX = '/dashboard/api';
 const json = (data, status = 200, headers = {}) =>
@@ -31,6 +34,7 @@ function uploadKey(id, filename) {
 function targetFor(kind, payload = {}) {
   if (kind === 'ping') return payload.machine === 'mac' || payload.machine === 'gpu2' ? payload.machine : null;
   if (kind === 'mastermind.park') return 'worker';
+  if (kind === 'content.save_draft' || kind === 'content.approve_draft' || kind === 'content.generate_drafts') return 'worker';
   if (kind === 'agent.restart') return payload.machine === 'mac' ? 'mac' : 'gpu2';
   if (kind.startsWith('sponsor.') || kind.startsWith('bank.')) return 'mac';
   if (kind.startsWith('support.') || kind.startsWith('mastermind.') || kind.startsWith('content.') || kind.startsWith('video.') || kind.startsWith('agent.')) return 'gpu2';
@@ -148,6 +152,30 @@ async function postAction(request, env) {
       status = 'failed';
     }
   }
+  if (kind === 'content.save_draft' || kind === 'content.approve_draft' || kind === 'content.generate_drafts') {
+    const tenant = tenantOf(env);
+    if (payload.tenant && payload.tenant !== tenant) return json({ error: 'Wrong tenant' }, 403);
+    try {
+      if (kind === 'content.generate_drafts') {
+        const out = await fillFromEnv(env);
+        result = out.failed
+          ? `Filled ${out.inserted} slots for ${out.day}. ${out.failed} failed — no connected product facts. Nothing posted.`
+          : `Filled ${out.inserted} drafts for ${out.day}. Nothing posted.`;
+      } else if (kind === 'content.save_draft') {
+        const saved = await saveDraft(env.DB, tenant, payload);
+        if (!saved) return json({ error: 'Draft not found' }, 404);
+        result = 'Edit saved · not published';
+      } else {
+        const saved = await approveDraft(env.DB, tenant, payload.id);
+        if (!saved) return json({ error: 'Draft not found' }, 404);
+        result = 'Approved · not published';
+      }
+      status = 'done';
+    } catch (err) {
+      result = err.message || 'Failed';
+      status = 'failed';
+    }
+  }
   if (env.DB) {
     await insertAction(env.DB, {
       id, kind, target, payload: JSON.stringify(payload), status,
@@ -200,6 +228,15 @@ export async function handleApi(request, env) {
     const now = Date.now();
     const overrides = await listDealStages(env.DB);
     const extra = { habits: await listHabits(env.DB), checklist: await listChecklist(env.DB, ymd(now)) };
+    const tenant = tenantOf(env);
+    try {
+      extra.drafts = await listDrafts(env.DB, tenant, vancouverDay(now));
+    } catch (err) {
+      extra.drafts = [];
+      extra.draftsError = err.message || 'Drafts unavailable';
+    }
+    extra.platforms = configuredPlatforms(env);
+    extra.unavailable = unavailablePlatforms(env);
     return json(mergeSnapshot(base, await listSnapshots(env.DB), now, overrides, await listIdeas(env.DB), await listPosts(env.DB), await listVideoProjects(env.DB), extra));
   }
 

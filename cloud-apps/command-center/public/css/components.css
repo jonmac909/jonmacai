@@ -149,6 +149,8 @@ tfoot td{font-weight:600;color:var(--ink);border-top:1px solid var(--line)}
 .r .amt{font-weight:600;font-variant-numeric:tabular-nums}
 .r .pg{margin-top:.45rem;max-width:26rem}
 .quote{background:var(--soft);border-radius:.6rem;padding:.55rem .75rem;margin-top:.45rem;font-size:.86rem;color:var(--ink-2);max-width:65ch}
+.draftbody{width:100%;min-height:7.5rem;margin-top:.45rem;font:inherit;color:inherit;background:var(--soft);border:1px solid var(--line);border-radius:.6rem;padding:.55rem .75rem}
+.dfilters{display:flex;gap:.4rem;flex-wrap:wrap;margin:.2rem 0 .6rem}
 
 .stages{display:grid;grid-template-columns:repeat(auto-fit,minmax(8rem,1fr));gap:.6rem}
 .stage{background:var(--soft);border-radius:.8rem;padding:.8rem .9rem}

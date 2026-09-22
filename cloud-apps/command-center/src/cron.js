@@ -4,6 +4,7 @@ import { pullInstantly } from './outreach.js';
 import { pullCalendar } from './life.js';
 import { mergeSnapshot } from './snapshot.js';
 import { pushCriticalTelegram } from './home.js';
+import { fillFromEnv } from './daily-drafts.js';
 
 const VIRAL_URL = 'https://app.viralview.io/api/internal/dashboard-summary';
 const MONEY_URL = 'https://moneyclaw.jonmac.ai/api/internal/dashboard-summary';
@@ -44,6 +45,7 @@ export async function handleCron(env) {
   jobs.push(pullCalendar(env));
   await Promise.allSettled(jobs);
   const nowMs = Date.now();
+  try { await fillFromEnv(env, nowMs); } catch { /* page shows the ensure error */ }
   const snap = mergeSnapshot(snapshot, await listSnapshots(env.DB), nowMs);
   await pushCriticalTelegram(env, snap);
 }

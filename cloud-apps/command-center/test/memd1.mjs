@@ -7,6 +7,7 @@ export function memD1() {
   const posts = new Map();
   const habits = new Map();
   const checklist = new Map();
+  const drafts = new Map();
   return {
     snapshots,
     actions,
@@ -16,6 +17,7 @@ export function memD1() {
     posts,
     habits,
     checklist,
+    drafts,
     prepare(sql) {
       const s = String(sql);
       const stmt = {
@@ -46,6 +48,9 @@ export function memD1() {
             return { results: [...checklist.values()].filter((r) => !a[0] || r.day === a[0]) };
           }
           if (/FROM habits/.test(s)) return { results: [...habits.values()] };
+          if (/FROM content_drafts/.test(s)) {
+            return { results: [...drafts.values()].filter((r) => !a[0] || r.tenant === a[0]) };
+          }
           if (/FROM actions WHERE target/.test(s)) {
             return {
               results: actions
@@ -84,6 +89,31 @@ export function memD1() {
             projects.set(a[0], { id: a[0], data: a[1], updated_at: a[2] });
           } else if (/INSERT OR REPLACE INTO deal_stage_overrides/.test(s)) {
             deals.set(a[0], { deal_id: a[0], stage: a[1], updated_at: a[2] });
+          } else if (/INSERT OR IGNORE INTO content_drafts/.test(s)) {
+            const key = `${a[1]}|${a[2]}|${a[3]}|${a[4]}`;
+            const clash = drafts.has(a[0]) || [...drafts.values()].some((r) => `${r.tenant}|${r.day}|${r.platform}|${r.slot}` === key);
+            if (clash) return { success: true, meta: { changes: 0 } };
+            drafts.set(a[0], {
+              id: a[0], tenant: a[1], day: a[2], platform: a[3], slot: a[4],
+              body: a[5], subject: a[6], first_line: a[7], status: a[8],
+              source: a[9], error: a[10], updated_at: a[11],
+            });
+            return { success: true, meta: { changes: 1 } };
+          } else if (/UPDATE content_drafts SET body/.test(s)) {
+            const row = drafts.get(a[3]);
+            if (!row || row.tenant !== a[4]) return { success: true, meta: { changes: 0 } };
+            row.body = a[0];
+            row.first_line = a[1];
+            row.status = 'edited';
+            row.updated_at = a[2];
+            row.error = '';
+            return { success: true, meta: { changes: 1 } };
+          } else if (/UPDATE content_drafts SET status = 'approved'/.test(s)) {
+            const row = drafts.get(a[1]);
+            if (!row || row.tenant !== a[2]) return { success: true, meta: { changes: 0 } };
+            row.status = 'approved';
+            row.updated_at = a[0];
+            return { success: true, meta: { changes: 1 } };
           } else if (/status = 'claimed'/.test(s)) {
             const row = actions.find((x) => x.id === a[1] && x.status === 'queued');
             if (row) {
