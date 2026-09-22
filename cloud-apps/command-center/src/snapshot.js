@@ -113,33 +113,60 @@ function homeChip(by, nowMs) {
   return `${head} · ${issues.join(' · ')}`;
 }
 
-function overlayAgents(page, by) {
+function redactActivity(value) {
+  return String(value || '')
+    .replace(/\S+@\S+/g, '')
+    .replace(/\bsk-[A-Za-z0-9_-]{6,}\b/gi, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 80);
+}
+
+function overlayAgents(page, by, nowMs) {
   const agents = [];
+  let live = false;
   for (const m of MACHINES) {
     const row = by[m.source];
     if (!row) continue;
-    for (const a of parseData(row.data).agents || []) {
-      agents.push({ ...a, runs: a.runs || m.label, machine: a.machine || m.id });
+    const data = parseData(row.data);
+    if (data.ok === false || data.unreachable) {
+      live = true;
+      continue;
+    }
+    if (!Array.isArray(data.agents)) continue;
+    live = true;
+    const f = freshness(row.collected_at, nowMs, INTERVALS[m.source]);
+    for (const a of data.agents) {
+      const lines = ((a.waiting && a.waiting.lines) || []).map(redactActivity).filter(Boolean);
+      agents.push({
+        ...a,
+        runs: a.runs || m.label,
+        machine: a.machine || m.id,
+        now: redactActivity(a.now),
+        feedStale: f.stale,
+        asOf: row.collected_at,
+        waiting: a.waiting ? { ...a.waiting, title: redactActivity(a.waiting.title), lines } : a.waiting,
+      });
     }
   }
-  if (!agents.length) return;
-  const need = agents.filter((a) => a.status === 'needs_you');
-  const work = agents.filter((a) => a.status === 'working');
-  const quiet = agents.filter((a) => a.status === 'quiet');
-  const daily = agents.filter((a) => a.job === 'Done');
-  const dailyN = agents.filter((a) => a.restart || a.job === 'Done' || a.status === 'quiet').length || daily.length;
-  page.sub = `${agents.length} pinned in Orca · across the Mac mini and GPU2`;
+  if (!live) return;
+  const freshWork = (a) => !(a.feedStale && a.status === 'working');
+  const need = agents.filter((a) => a.status === 'needs_you' || a.status === 'action_required');
+  const work = agents.filter((a) => freshWork(a) && a.status === 'working');
+  const idle = agents.filter((a) => a.status === 'idle');
+  const stopped = agents.filter((a) => a.status === 'error' || a.status === 'exited');
+  page.sub = agents.length ? `${agents.length} live · Mac mini and GPU2` : 'No live agents in this feed';
   page.tiles = [
     { icon: 'clock', label: 'Need you', value: String(need.length), sub: names(need.map((a) => a.name)) || 'None' },
     { icon: 'bot', label: 'Working now', value: String(work.length), sub: names(work.map((a) => a.name)) || 'None' },
-    { icon: 'check', label: 'Daily jobs done today', value: String(daily.length), goal: dailyN ? `/ ${dailyN}` : '', pct: dailyN ? Math.round(daily.length / dailyN * 100) : 0, pg: 'ok', sub: '' },
-    { icon: 'fire', label: 'Gone quiet', value: String(quiet.length), sub: quiet[0] ? `${quiet[0].name}` : 'None' },
+    { icon: 'check', label: 'Idle', value: String(idle.length), sub: names(idle.map((a) => a.name)) || 'None' },
+    { icon: 'fire', label: 'Stopped', value: String(stopped.length), sub: names(stopped.map((a) => a.name)) || 'None' },
   ];
   page.waiting = {
     title: 'Waiting on you',
     jobs: need.map((a) => ({
       area: a.name,
-      pill: (a.waiting && a.waiting.waitLabel) || 'Needs you',
+      pill: (a.waiting && a.waiting.waitLabel) || 'Action required',
       pillCls: 'risk',
       title: (a.waiting && a.waiting.title) || a.now,
       lines: (a.waiting && a.waiting.lines) || [a.now],
@@ -150,14 +177,16 @@ function overlayAgents(page, by) {
   page.all = {
     title: 'All agents',
     rows: agents.map((a) => ({
+      id: a.id,
       agent: a.name,
       runs: a.runs,
       now: a.now,
-      job: a.job,
-      pct: a.pct,
-      pg: a.pg || '',
-      pill: a.pill,
-      pillCls: a.pillCls || '',
+      asOf: a.asOf,
+      job: a.feedStale ? 'Stale' : a.job,
+      pct: a.feedStale ? 0 : a.pct,
+      pg: a.feedStale ? '' : (a.pg || ''),
+      pill: a.feedStale ? 'Stale' : a.pill,
+      pillCls: a.feedStale ? '' : (a.pillCls || ''),
       page: a.page || undefined,
       machine: a.machine,
       restart: a.restart || '',
@@ -293,13 +322,14 @@ export function mergeSnapshot(fixture, rows, nowMs = Date.now(), overrides = {},
       return {
         ...m,
         hostname: data.hostname || m.label,
-        ageLabel: f.label,
+        ageLabel: data.ok === false || data.unreachable ? 'Unreachable' : f.label,
         stale: f.stale,
+        unreachable: data.ok === false || data.unreachable === true,
         updatedAt: row.collected_at,
       };
     });
     out.pages.agents.staleSources = staleSources;
-    overlayAgents(out.pages.agents, by);
+    overlayAgents(out.pages.agents, by, nowMs);
     if (out.nav?.badges) {
       const need = (out.pages.agents.waiting?.jobs || []).length;
       out.nav.badges.agents = need;

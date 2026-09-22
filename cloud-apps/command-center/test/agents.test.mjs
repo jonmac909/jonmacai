@@ -40,13 +40,15 @@ async function cookie() {
   return `${COOKIE}=${await signSession(SECRET, exp)}`;
 }
 
-function status(title, preview, lastMs, nowMs, daily) {
+function classify(worktrees, terminals, nowMs = now) {
+  const payload = JSON.stringify({ worktrees, terminals, nowMs });
   const r = runPy(
-    'from agent_status import agent_status\n'
-    + `print(agent_status(${JSON.stringify(title)}, ${JSON.stringify(preview)}, ${lastMs}, ${nowMs}, ${daily ? 'True' : 'False'}))\n`,
+    'import json\nfrom agent_status import classify_sessions\n'
+    + `p = json.loads(${JSON.stringify(payload)})\n`
+    + 'print(json.dumps(classify_sessions(p["worktrees"], p["terminals"], p["nowMs"])))\n',
   );
   assert.equal(r.status, 0, r.stderr);
-  return r.stdout.trim();
+  return JSON.parse(r.stdout);
 }
 
 const fixture = {
@@ -83,22 +85,115 @@ const fixture = {
   },
 };
 
-test('spinner in the title is Working', () => {
-  assert.equal(status('⠋ Meta Ads', '', now, now, true), 'working');
+test('idle shell is not an agent even with a spinner and a live PTY', () => {
+  const rows = classify(
+    [{ worktreeId: 'wt-shell', hostId: 'local', displayName: 'Scratch', hasAttachedPty: true, agents: [] }],
+    [{ worktreeId: 'wt-shell', handle: 'term-shell', connected: true, title: '⠋ Windows PowerShell', agentIdentity: '' }],
+  );
+  assert.deepEqual(rows, []);
 });
 
-test('waiting on input is Needs you, even with a spinner', () => {
-  assert.equal(status('⠋ Planner', 'Needs the bank\'s text code. Waiting on you.', now, now, true), 'needs_you');
+test('connected agent without a hook is idle, not a spinner', () => {
+  const rows = classify(
+    [{ worktreeId: 'wt-omp', hostId: 'local', displayName: 'Feature - Live agents status', agents: [] }],
+    [{ worktreeId: 'wt-omp', handle: 'term-omp', connected: true, agentIdentity: 'omp', title: '⠋ Feature - Live agents status' }],
+  );
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].status, 'idle');
+  assert.equal(rows[0].name, 'Feature - Live agents status');
+  assert.equal(rows[0].now.includes('⠋'), false);
 });
 
-test('daily job quiet for 48 hours is Quiet too long', () => {
-  const last = now - 48 * 3600 * 1000;
-  assert.equal(status('Content Marketing', 'Last ran 2 days ago', last, now, true), 'quiet');
+test('orphaned but connected done agent is idle, not exited', () => {
+  const rows = classify(
+    [{ worktreeId: 'wt-or', hostId: 'local', displayName: 'Landing-Page', agents: [{ paneKey: 'p', state: 'done', updatedAt: now, taskTitle: 'Landing-Page' }] }],
+    [{ worktreeId: 'wt-or', handle: 't', connected: true, orphaned: true, agentIdentity: 'omp', title: 'Terminal' }],
+  );
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].status, 'idle');
 });
 
-test('everything else is Idle', () => {
-  assert.equal(status('Sponsors', 'Finished inbox scan', now, now, true), 'idle');
-  assert.equal(status('Landing Page', '', now - 72 * 3600 * 1000, now, false), 'idle');
+test('active work uses agent state, not the title spinner', () => {
+  const rows = classify(
+    [{
+      worktreeId: 'wt-live',
+      hostId: 'gpu2',
+      displayName: 'Meta Ads',
+      hasAttachedPty: true,
+      agents: [{
+        paneKey: 'pane-1',
+        state: 'working',
+        updatedAt: now,
+        taskTitle: 'Scale the winning ad',
+        toolName: 'Bash',
+        toolInput: 'sk-live-secret jon@example.com',
+        lastAssistantMessage: 'customer reply with jon@example.com',
+      }],
+    }],
+    [{ worktreeId: 'wt-live', handle: 'term-live', connected: true, agentIdentity: 'omp', title: 'Terminal 1' }],
+  );
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].status, 'working');
+  assert.equal(rows[0].id, 'gpu2:wt-live:pane-1');
+  assert.equal(rows[0].name, 'Scale the winning ad');
+  assert.match(rows[0].now, /Bash/);
+  assert.equal(rows[0].now.includes('sk-'), false);
+  assert.equal(rows[0].now.includes('@'), false);
+  assert.equal(JSON.stringify(rows).includes('jon@example.com'), false);
+});
+
+test('closed terminal is exited even if the hook still says working', () => {
+  const rows = classify(
+    [{
+      worktreeId: 'wt-closed',
+      hostId: 'mac',
+      displayName: 'Sponsors',
+      hasAttachedPty: false,
+      agents: [{ paneKey: 'pane-c', state: 'working', updatedAt: now, taskTitle: 'Scan inbox' }],
+    }],
+    [{ worktreeId: 'wt-closed', handle: 'term-closed', connected: false, agentIdentity: 'codex', title: '⠋ Sponsors' }],
+  );
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].status, 'exited');
+});
+
+test('blocked is action required and unverifiable is error', () => {
+  const rows = classify(
+    [{
+      worktreeId: 'wt-ask',
+      hostId: 'gpu2',
+      displayName: 'Planner',
+      agents: [
+        { paneKey: 'ask', state: 'blocked', updatedAt: now, taskTitle: 'Need a bank code' },
+        { paneKey: 'bad', state: 'unverifiable', updatedAt: now, taskTitle: 'Broken session' },
+      ],
+    }],
+    [{ worktreeId: 'wt-ask', connected: true, agentIdentity: 'omp', handle: 't-ask' }],
+  );
+  assert.deepEqual(rows.map((r) => r.status), ['action_required', 'error']);
+});
+
+test('same task name on two hosts stays two identities', () => {
+  const rows = classify(
+    [{
+      worktreeId: 'wt-mac',
+      hostId: 'mac',
+      displayName: 'Content Marketing',
+      agents: [{ paneKey: 'p', state: 'done', updatedAt: now, taskTitle: 'Content Marketing' }],
+    }, {
+      worktreeId: 'wt-gpu',
+      hostId: 'gpu2',
+      displayName: 'Content Marketing',
+      agents: [{ paneKey: 'p', state: 'working', updatedAt: now, taskTitle: 'Content Marketing', toolName: 'Read' }],
+    }],
+    [
+      { worktreeId: 'wt-mac', connected: true, agentIdentity: 'codex', handle: 't-mac' },
+      { worktreeId: 'wt-gpu', connected: true, agentIdentity: 'omp', handle: 't-gpu' },
+    ],
+  );
+  assert.deepEqual(rows.map((r) => r.id), ['mac:wt-mac:p', 'gpu2:wt-gpu:p']);
+  assert.equal(rows[0].status, 'idle');
+  assert.equal(rows[1].status, 'working');
 });
 
 test('merge overlays pinned agents from both machines onto the agents page', () => {
@@ -173,6 +268,71 @@ test('merge overlays pinned agents from both machines onto the agents page', () 
   const quiet = out.pages.agents.all.rows.find((r) => r.agent === 'Content Marketing');
   assert.equal(quiet.pill, 'Quiet too long');
   assert.equal(quiet.restart, 'Restart');
+});
+
+test('stale feed is not working now and keeps its source time', () => {
+  const rows = [{
+    source: 'agents_gpu2',
+    data: JSON.stringify({
+      machine: 'gpu2',
+      hostname: 'gpu2',
+      ok: true,
+      agents: [{
+        id: 'gpu2:wt:p',
+        name: 'Meta Ads',
+        runs: 'GPU2',
+        now: 'Using Bash',
+        status: 'working',
+        pill: 'Working',
+        pillCls: 'ok',
+        observedAt: Date.parse('2026-09-18T17:40:00Z'),
+      }],
+    }),
+    collected_at: '2026-09-18T17:40:00Z',
+  }];
+  const out = mergeSnapshot(fixture, rows, now);
+  assert.equal(out.pages.agents.tiles[1].value, '0');
+  const row = out.pages.agents.all.rows.find((r) => r.agent === 'Meta Ads');
+  assert.equal(row.pill, 'Stale');
+  assert.equal(row.asOf, '2026-09-18T17:40:00Z');
+  assert.equal(row.now.includes('sk-'), false);
+});
+
+test('unreachable host is not an empty live list', () => {
+  const rows = [{
+    source: 'agents_mac',
+    data: JSON.stringify({ machine: 'mac', hostname: 'mini.local', ok: false, unreachable: true, agents: [] }),
+    collected_at: '2026-09-18T17:58:00Z',
+  }];
+  const out = mergeSnapshot(fixture, rows, now);
+  const mac = out.pages.agents.machines.find((m) => m.id === 'mac');
+  assert.equal(mac.unreachable, true);
+  assert.equal(out.pages.agents.all.rows.some((r) => r.agent === 'Example'), false);
+});
+
+test('two hosts keep the same task name as separate rows', () => {
+  const rows = ['mac', 'gpu2'].map((machine) => ({
+    source: machine === 'mac' ? 'agents_mac' : 'agents_gpu2',
+    data: JSON.stringify({
+      machine,
+      hostname: machine,
+      ok: true,
+      agents: [{
+        id: `${machine}:wt:p`,
+        name: 'Content Marketing',
+        runs: machine,
+        now: 'Idle',
+        status: 'idle',
+        pill: 'Idle',
+        hostId: machine,
+      }],
+    }),
+    collected_at: '2026-09-18T17:58:00Z',
+  }));
+  const out = mergeSnapshot(fixture, rows, now);
+  const found = out.pages.agents.all.rows.filter((r) => r.agent === 'Content Marketing');
+  assert.equal(found.length, 2);
+  assert.deepEqual(found.map((r) => r.id), ['mac:wt:p', 'gpu2:wt:p']);
 });
 
 test('merge overlays mastermind picks from the digest, implement then park', () => {
