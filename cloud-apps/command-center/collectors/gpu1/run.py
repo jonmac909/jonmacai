@@ -23,6 +23,7 @@ def _progress(base, token, action_id, state):
         'failure': state.get('failure'),
         'retry': state.get('retry') or 0,
         'validated': bool(state.get('validated')),
+        'segments': state.get('segments') or [],
         'outputKey': state.get('outputKey'),
     }).encode('utf-8')
     req = urllib.request.Request(

@@ -15,6 +15,7 @@ export function overlayVideo(page, data = {}) {
       const name = STEP_NAME[step] || 'working';
       const eta = Number(q.etaMinutes) || 0;
       const waiting = q.status === 'queued';
+      const review = q.stage === 'waiting-for-review';
       return {
         title: q.title,
         sub: q.host && q.stage
@@ -23,11 +24,11 @@ export function overlayVideo(page, data = {}) {
           ? `Step ${step} of ${steps} · ${name}`
           : `Step ${step} of ${steps} · ${name}${eta ? ` · about ${eta} minutes left` : ''}`,
         pct: Number(q.progress) || 0,
-        pill: waiting ? 'Queued' : 'Editing',
-        pillCls: waiting ? '' : 'blue',
-        btn: waiting ? 'Do this first' : undefined,
-        kind: waiting ? 'video.prioritize' : undefined,
-        payload: waiting ? { id: q.id } : undefined,
+        pill: q.failure ? 'Failed' : review ? 'Review' : waiting ? 'Queued' : 'Editing',
+        pillCls: q.failure ? 'crit' : review ? '' : waiting ? '' : 'blue',
+        btn: review ? 'Review keepers' : waiting ? 'Do this first' : undefined,
+        kind: review ? 'video.resume' : waiting ? 'video.prioritize' : undefined,
+        payload: review ? { actionId: q.actionId, keepers: q.segments || [] } : waiting ? { id: q.id } : undefined,
       };
     }),
   };
