@@ -270,6 +270,13 @@ document.addEventListener('click', (e) => {
     }
     if (actBtn.dataset.confirm && !window.confirm(actBtn.dataset.confirm)) return;
     const kind = actBtn.dataset.kind;
+    if (kind === 'outreach.refresh') {
+      say('Checking Instantly…');
+      if (data?.pages?.outreach) {
+        data.pages.outreach.check = { status: 'pending', label: 'Checking Instantly…' };
+        go('outreach');
+      }
+    }
     act(kind, payload).then(async () => {
       if (actBtn.hasAttribute('data-done')) {
         const r = actBtn.closest('.r, .job');

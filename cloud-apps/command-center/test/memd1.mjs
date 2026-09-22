@@ -51,6 +51,10 @@ export function memD1() {
           if (/FROM content_drafts/.test(s)) {
             return { results: [...drafts.values()].filter((r) => !a[0] || r.tenant === a[0]) };
           }
+          if (/FROM actions WHERE kind/.test(s)) {
+            const rows = actions.filter((x) => x.kind === a[0]).sort((x, y) => String(y.created_at).localeCompare(String(x.created_at)));
+            return { results: rows.slice(0, 1) };
+          }
           if (/FROM actions WHERE target/.test(s)) {
             return {
               results: actions

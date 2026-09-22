@@ -7,8 +7,8 @@ import { handleApi } from '../src/api.js';
 import { signSession, COOKIE } from '../src/auth.js';
 import { dailyMax, overlayOutreach, launchCampaign } from '../src/outreach.js';
 import { btn } from '../public/js/ui.js';
+import { render as renderOutreach } from '../public/js/pages/outreach.js';
 import { memD1 } from './memd1.mjs';
-
 const NOW = Date.parse('2026-09-18T20:00:00-07:00');
 const SECRET = 'test-session-secret-32-bytes-ok!';
 const KEY = 'inst-test-key';
@@ -247,3 +247,157 @@ test('Launch button asks for confirm before the action fires', () => {
   assert.match(html, /data-kind="outreach.launch"/);
   assert.match(html, /data-confirm="Start sending this campaign in Instantly\?"/);
 });
+
+function hold() {
+  let release
+  const gate = new Promise((r) => { release = r })
+  return { gate, release }
+}
+
+function instantlyFetch(gate, seen) {
+  return async (url, opts) => {
+    const u = String(url)
+    seen.push({ u, method: (opts?.method || 'GET').toUpperCase() })
+    if (gate) await gate
+    if (u.includes('/warmup-analytics')) {
+      return new Response(JSON.stringify({ aggregate_data: { 'a@x.com': { health_score: 98 } } }), { status: 200 })
+    }
+    if (u.includes('/api/v2/accounts')) return new Response(JSON.stringify({ items: accounts }), { status: 200 })
+    if (u.includes('/analytics/overview')) return new Response(JSON.stringify({ total_interested: 1 }), { status: 200 })
+    if (u.includes('/campaigns/analytics')) {
+      return new Response(JSON.stringify([{ campaign_id: CAMP, leads_count: 40, emails_sent_count: 3, open_count: 1, reply_count: 0 }]), { status: 200 })
+    }
+    if (u.includes('/api/v2/campaigns')) return new Response(JSON.stringify({ items: [campaign] }), { status: 200 })
+    return new Response('nope', { status: 500 })
+  }
+}
+
+test('Check now without a reading is a job, not fixture stats', () => {
+  const out = mergeSnapshot(snapshot, [], NOW)
+  const page = out.pages.outreach
+  assert.equal(page.setup.done, '0 of 6')
+  assert.equal(page.setup.steps[1].kind, 'outreach.refresh')
+  assert.equal(page.setup.steps[0].pill, 'Waiting')
+  assert.equal(JSON.stringify(page).includes('98'), false)
+  assert.equal(JSON.stringify(page).includes('all inboxes healthy'), false)
+  const html = renderOutreach(page)
+  assert.match(html, /data-kind="outreach\.refresh"/)
+  assert.doesNotMatch(html, />98</)
+})
+
+test('Check now stays pending until the read-only sync stores a source time', async () => {
+  const db = memD1()
+  const seen = []
+  const { gate, release } = hold()
+  const jobs = []
+  const prev = globalThis.fetch
+  globalThis.fetch = instantlyFetch(gate, seen)
+  try {
+    const pending = handleApi(req('/dashboard/api/actions', {
+      method: 'POST',
+      cookie: await cookie(),
+      headers: { 'Content-Type': 'application/json', 'X-CC': '1' },
+      body: JSON.stringify({ kind: 'outreach.refresh', payload: {}, idemKey: 'check-1' }),
+    }), envWith(db), { waitUntil(p) { jobs.push(p) } })
+    const winner = await Promise.race([
+      pending.then((r) => ({ kind: 'res', r })),
+      new Promise((r) => setTimeout(() => r({ kind: 'hung' }), 80)),
+    ])
+    assert.equal(winner.kind, 'res')
+    const row = await winner.r.json()
+    assert.equal(row.status, 'running')
+    assert.equal(row.result, null)
+    assert.equal(db.actions.find((a) => a.kind === 'outreach.refresh').status, 'running')
+    assert.equal(db.snapshots.get('instantly'), undefined)
+    const snap = await handleApi(req('/dashboard/api/snapshot', { cookie: await cookie() }), envWith(db))
+    const body = await snap.json()
+    assert.equal(body.pages.outreach.check.status, 'pending')
+    assert.equal(body.pages.outreach.setup.done, '0 of 6')
+    release()
+    await jobs[0]
+    const done = db.actions.find((a) => a.id === row.id)
+    assert.equal(done.status, 'done')
+    const stored = db.snapshots.get('instantly')
+    assert.ok(stored.collected_at)
+    assert.equal(JSON.parse(stored.data).dailyMax, 50)
+    assert.equal(seen.some((c) => c.u.includes('/activate') || c.u.includes('/leads')), false)
+    assert.equal(seen.every((c) => c.method === 'GET' || c.u.includes('/warmup-analytics')), true)
+    const after = await handleApi(req('/dashboard/api/snapshot', { cookie: await cookie() }), envWith(db))
+    const afterBody = await after.json()
+    assert.equal(afterBody.pages.outreach.check.status, 'success')
+    assert.equal(afterBody.pages.outreach.setup.steps[1].sub.includes('50'), true)
+    assert.equal(afterBody.sources.instantly.updatedAt, stored.collected_at)
+  } finally {
+    release()
+    globalThis.fetch = prev
+  }
+})
+
+test('Check now without a key fails and does not invent stats', async () => {
+  const db = memD1()
+  const seen = []
+  const jobs = []
+  const prev = globalThis.fetch
+  globalThis.fetch = async (url, opts) => {
+    seen.push(String(url))
+    return new Response('{}', { status: 200 })
+  }
+  const env = envWith(db)
+  delete env.INSTANTLY_API_KEY
+  try {
+    const res = await handleApi(req('/dashboard/api/actions', {
+      method: 'POST',
+      cookie: await cookie(),
+      headers: { 'Content-Type': 'application/json', 'X-CC': '1' },
+      body: JSON.stringify({ kind: 'outreach.refresh', payload: {}, idemKey: 'check-missing' }),
+    }), env, { waitUntil(p) { jobs.push(p) } })
+    const row = await res.json()
+    assert.equal(row.status, 'running')
+    assert.equal(row.result, null)
+    await jobs[0]
+    const done = db.actions.find((a) => a.id === row.id)
+    assert.equal(done.status, 'failed')
+    assert.match(done.result, /INSTANTLY_API_KEY/)
+    assert.equal(db.snapshots.get('instantly'), undefined)
+    assert.equal(seen.length, 0)
+    const snap = await handleApi(req('/dashboard/api/snapshot', { cookie: await cookie() }), env)
+    const page = (await snap.json()).pages.outreach
+    assert.equal(page.check.status, 'error')
+    assert.match(page.check.label, /INSTANTLY_API_KEY/)
+    assert.equal(page.setup.done, '0 of 6')
+  } finally {
+    globalThis.fetch = prev
+  }
+})
+
+test('failed Instantly read keeps the last source time', async () => {
+  const db = memD1();
+  const prior = '2026-09-18T18:00:00.000Z';
+  db.snapshots.set('instantly', {
+    source: 'instantly', data: JSON.stringify(instantlySnap()), collected_at: prior, received_at: prior,
+  });
+  const jobs = [];
+  const prev = globalThis.fetch;
+  globalThis.fetch = async () => new Response('no', { status: 401 });
+  try {
+    const res = await handleApi(req('/dashboard/api/actions', {
+      method: 'POST',
+      cookie: await cookie(),
+      headers: { 'Content-Type': 'application/json', 'X-CC': '1' },
+      body: JSON.stringify({ kind: 'outreach.refresh', payload: {}, idemKey: 'check-401' }),
+    }), envWith(db), { waitUntil(p) { jobs.push(p) } });
+    const row = await res.json();
+    assert.equal(row.status, 'running');
+    await jobs[0];
+    assert.equal(db.actions.find((a) => a.id === row.id).status, 'failed');
+    assert.equal(db.snapshots.get('instantly').collected_at, prior);
+    const snap = await handleApi(req('/dashboard/api/snapshot', { cookie: await cookie() }), envWith(db));
+    const body = await snap.json();
+    assert.equal(body.pages.outreach.check.status, 'error');
+    assert.equal(body.sources.instantly.updatedAt, prior);
+    assert.equal(body.pages.outreach.inboxes.rows[0].value, '98');
+  } finally {
+    globalThis.fetch = prev;
+  }
+});
+

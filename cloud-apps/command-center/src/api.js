@@ -4,7 +4,7 @@ import {
   sessionCookieHeader, checkLockout, recordLoginFailure, clientIp, hmacHex,
 } from './auth.js';
 import {
-  loginStore, insertAction, actionByIdem, actionById, claimQueued, completeAction,
+  loginStore, insertAction, actionByIdem, actionById, claimQueued, completeAction, latestAction,
   upsertChecklist, upsertHabit, upsertSnapshot, listSnapshots, upsertDealStage, listDealStages, listIdeas, upsertIdea,
   listVideoProjects, replaceVideoProjects,
   upsertPost, listPosts, listChecklist, listHabits, deleteChecklist,
@@ -13,7 +13,7 @@ import { mergeSnapshot } from './snapshot.js';
 import { boardStageFor, mapColumn } from './sponsors.js';
 import { normalizePost } from './content.js';
 import { runMoneyMove } from './money.js';
-import { runOutreach } from './outreach.js';
+import { applyOutreachStatus, finishOutreachCheck, runOutreach } from './outreach.js';
 import { exchangeGoogleCode, googleAuthUrl, runLife, ymd } from './life.js';
 import {
   approveDraft, configuredPlatforms, fillFromEnv, listDrafts, saveDraft, tenantOf, unavailablePlatforms, vancouverDay,
@@ -97,7 +97,7 @@ function filterSnapshot(pages) {
   return JSON.parse(JSON.stringify({ pages: out, nav: snapshot.nav, goal: snapshot.goal, sources: snapshot.sources }));
 }
 
-async function postAction(request, env) {
+async function postAction(request, env, ctx) {
   let body = {};
   try { body = await request.json(); } catch { body = {}; }
   const kind = String(body.kind || 'ui.toast');
@@ -163,6 +163,20 @@ async function postAction(request, env) {
       status = 'failed';
     }
   }
+  if (kind === 'outreach.refresh') {
+    if (!env.DB) return json({ error: 'Instantly store is not available' }, 500);
+    const id = crypto.randomUUID();
+    await insertAction(env.DB, {
+      id, kind, target: 'worker', payload: '{}', status: 'running',
+      result: null, idem_key: idem, created_at: now, finished_at: null,
+    });
+    const work = finishOutreachCheck(env, id);
+    if (ctx?.waitUntil) ctx.waitUntil(work);
+    else await work;
+    if (ctx?.waitUntil) return json({ id, status: 'running', result: null });
+    const row = await actionById(env.DB, id);
+    return json({ id, status: row?.status || 'failed', result: row?.result ?? null });
+  }
   if (kind.startsWith('outreach.')) {
     try {
       result = await runOutreach(env, kind, payload);
@@ -226,7 +240,7 @@ function resultText(value) {
   return JSON.stringify(value);
 }
 
-export async function handleApi(request, env) {
+export async function handleApi(request, env, ctx) {
   const url = new URL(request.url);
   let path = url.pathname;
   if (path.endsWith('/') && path.length > 1) path = path.slice(0, -1);
@@ -266,7 +280,11 @@ export async function handleApi(request, env) {
     }
     extra.platforms = configuredPlatforms(env);
     extra.unavailable = unavailablePlatforms(env);
-    return json(mergeSnapshot(base, await listSnapshots(env.DB), now, overrides, await listIdeas(env.DB), await listPosts(env.DB), await listVideoProjects(env.DB), extra));
+    const merged = mergeSnapshot(base, await listSnapshots(env.DB), now, overrides, await listIdeas(env.DB), await listPosts(env.DB), await listVideoProjects(env.DB), extra);
+    if (merged.pages.outreach) {
+      applyOutreachStatus(merged.pages.outreach, await latestAction(env.DB, 'outreach.refresh'), merged.sources?.instantly);
+    }
+    return json(merged);
   }
 
   if (rest === '/ingest' && method === 'POST') {
@@ -359,7 +377,7 @@ export async function handleApi(request, env) {
     return Response.redirect(await googleAuthUrl(env, url.origin), 302);
   }
 
-  if (rest === '/actions' && method === 'POST') return postAction(request, env);
+  if (rest === '/actions' && method === 'POST') return postAction(request, env, ctx);
   const one = rest.match(/^\/actions\/([^/]+)$/);
   if (one && method === 'GET') {
     if (!env.DB) return json({ id: one[1], status: 'done', result: 'Done' });

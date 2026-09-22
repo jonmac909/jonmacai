@@ -15,7 +15,7 @@ async function asset(request, env, assetPath) {
 }
 
 export default {
-  async fetch(request, env) {
+  async fetch(request, env, ctx) {
     const url = new URL(request.url);
     if (url.hostname.endsWith('.workers.dev')) return new Response('Not found', { status: 404 });
     if (url.pathname === PREFIX) {
@@ -25,7 +25,7 @@ export default {
     if (url.pathname !== PREFIX && !url.pathname.startsWith(`${PREFIX}/`)) {
       return new Response('Not found', { status: 404 });
     }
-    if (url.pathname.startsWith(`${PREFIX}/api/`)) return handleApi(request, env);
+    if (url.pathname.startsWith(`${PREFIX}/api/`)) return handleApi(request, env, ctx);
 
     let assetPath = url.pathname.slice(PREFIX.length) || '/';
     if (assetPath === '/') assetPath = '/index.html';
