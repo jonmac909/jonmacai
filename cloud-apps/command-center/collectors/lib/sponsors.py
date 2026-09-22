@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 import json
 import urllib.error
 import urllib.parse
@@ -64,17 +65,30 @@ def slim_card(card):
         }
     return out
 
+def source_edited_at(path=None):
+    path = Path(path or COLLECTIONS)
+    try:
+        stamp = path.stat().st_mtime
+    except OSError:
+        return None
+    return datetime.fromtimestamp(stamp, timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
+
+
 
 def collect_snapshot():
     board = _req('GET', '/api/board')
     collections = _req('GET', '/api/collections')
     cards = [slim_card(c) for c in board.get('cards') or [] if c.get('stage') != 'archived']
-    return {
+    out = {
         'ok': True,
         'updatedAt': board.get('updatedAt'),
         'collections': collections,
         'cards': cards,
     }
+    edited = source_edited_at()
+    if edited:
+        out['sourceEditedAt'] = edited
+    return out
 
 
 def _first(value):
@@ -103,14 +117,20 @@ def handle(kind, payload):
             _req('PATCH', '/api/cards/%s/stage' % _q(card_id), {'stage': payload.get('stage')})
             return True, payload.get('msg') or 'Moved card'
         if kind == 'sponsor.send_draft':
+            if str(card_id).startswith('qa-') or payload.get('isolated') is True:
+                return False, 'not_sent:isolated'
             _req('POST', '/api/card-drafts/%s/send' % _q(card_id), {
+                'to': payload.get('to') or '',
                 'subject': payload.get('subject') or '',
                 'body': payload.get('body') or '',
             })
             return True, payload.get('msg') or 'Reply sent'
         if kind == 'sponsor.save_draft':
+            if str(card_id).startswith('qa-') or payload.get('isolated') is True:
+                return True, 'Draft saved'
             _req('PATCH', '/api/card-drafts/%s' % _q(card_id), {
                 'status': payload.get('status') or 'edited',
+                'to': payload.get('to') or '',
                 'subject': payload.get('subject') or '',
                 'body': payload.get('body') or '',
             })
@@ -138,7 +158,15 @@ def handle(kind, payload):
             return True, 'Invoice email drafted for approval · nothing sent'
         if kind == 'sponsor.scan_inbox':
             _req('POST', '/api/refresh', {}, timeout=600)
-            return True, 'Inbox scan finished'
+            snap = collect_snapshot()
+            cards = snap.get('cards') or []
+            drafts = sum(1 for c in cards if (c.get('draftReply') or {}).get('body'))
+            return True, json.dumps({'scanned': len(cards), 'drafts': drafts, 'error': None})
+        if kind == 'sponsor.discard_draft':
+            if str(card_id).startswith('qa-') or payload.get('isolated') is True:
+                return True, 'Draft discarded'
+            _req('PATCH', '/api/card-drafts/%s' % _q(card_id or 'missing'), {'status': 'discarded'})
+            return True, 'Draft discarded'
         return False, 'unknown action %s' % kind
     except urllib.error.HTTPError as e:
         return False, 'http %s' % e.code

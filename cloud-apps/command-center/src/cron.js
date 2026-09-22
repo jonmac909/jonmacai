@@ -4,18 +4,26 @@ import { pullInstantly } from './outreach.js';
 import { pullCalendar } from './life.js';
 import { mergeSnapshot } from './snapshot.js';
 import { pushCriticalTelegram } from './home.js';
+import { fillFromEnv } from './daily-drafts.js';
 
 const VIRAL_URL = 'https://app.viralview.io/api/internal/dashboard-summary';
 const MONEY_URL = 'https://moneyclaw.jonmac.ai/api/internal/dashboard-summary';
 const YT_URL = 'https://jonmac.ai/yt2/api/outliers';
+function sourceCollectedAt(source, data, fetchedAt) {
+  if (source !== 'viralview') return fetchedAt;
+  const raw = data?.lastSyncAt;
+  const ms = typeof raw === 'number' && Number.isFinite(raw) ? raw : Date.parse(raw);
+  return Number.isFinite(ms) ? new Date(ms).toISOString() : fetchedAt;
+}
+
 
 async function pull(env, source, url, headers) {
   const res = await fetch(url, { headers });
   if (!res.ok) return;
   const data = await res.json();
   if (!data || data.success === false) return;
-  const now = new Date().toISOString();
-  await upsertSnapshot(env.DB, source, JSON.stringify(data), now, now);
+  const fetchedAt = new Date().toISOString();
+  await upsertSnapshot(env.DB, source, JSON.stringify(data), sourceCollectedAt(source, data, fetchedAt), fetchedAt);
 }
 
 export async function handleCron(env) {
@@ -37,6 +45,7 @@ export async function handleCron(env) {
   jobs.push(pullCalendar(env));
   await Promise.allSettled(jobs);
   const nowMs = Date.now();
+  try { await fillFromEnv(env, nowMs); } catch { /* page shows the ensure error */ }
   const snap = mergeSnapshot(snapshot, await listSnapshots(env.DB), nowMs);
   await pushCriticalTelegram(env, snap);
 }

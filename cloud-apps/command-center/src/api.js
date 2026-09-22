@@ -4,17 +4,24 @@ import {
   sessionCookieHeader, checkLockout, recordLoginFailure, clientIp, hmacHex,
 } from './auth.js';
 import {
-  loginStore, insertAction, actionByIdem, actionById, claimQueued, completeAction,
+  loginStore, insertAction, actionByIdem, actionById, claimQueued, claimedVideo, completeAction, latestAction,
+  reportAction, requeueAction, listVideoJobs,
   upsertChecklist, upsertHabit, upsertSnapshot, listSnapshots, upsertDealStage, listDealStages, listIdeas, upsertIdea,
   listVideoProjects, replaceVideoProjects,
-  upsertPost, listPosts, listChecklist, listHabits,
+  upsertPost, listPosts, listChecklist, listHabits, deleteChecklist,
 } from './db.js';
 import { mergeSnapshot } from './snapshot.js';
+import { overlayVideo } from './video.js';
 import { boardStageFor, mapColumn } from './sponsors.js';
 import { normalizePost } from './content.js';
 import { runMoneyMove } from './money.js';
-import { runOutreach } from './outreach.js';
+import { finishMastermindScan } from './mastermind-scan.js';
+import { applyOutreachStatus, finishOutreachCheck, runOutreach } from './outreach.js';
 import { exchangeGoogleCode, googleAuthUrl, runLife, ymd } from './life.js';
+import {
+  approveDraft, configuredPlatforms, fillFromEnv, listDrafts, saveDraft, tenantOf, unavailablePlatforms, vancouverDay,
+} from './daily-drafts.js';
+import { REVIEW_SOURCE, draftId, isIsolated, parseReview, plannerDestination, reviewMutate, upsertReview } from './review.js';
 
 const PREFIX = '/dashboard/api';
 const json = (data, status = 200, headers = {}) =>
@@ -28,11 +35,41 @@ function safeName(name) {
 function uploadKey(id, filename) {
   return `uploads/${id}/${filename}`;
 }
+function keepersOk(keepers) {
+  return Array.isArray(keepers) && keepers.length > 0 && keepers.every((k) =>
+    k && Number.isFinite(Number(k.cs)) && Number.isFinite(Number(k.ce)) && Number(k.ce) > Number(k.cs)
+    && typeof k.label === 'string' && k.label.trim());
+}
+function ownedOutputKey(payload) {
+  const id = payload && payload.id;
+  return id && !String(id).includes('/') && !String(id).includes('..') ? `uploads/${id}/out.mp4` : null;
+}
+function videoQueueItem(row) {
+  let payload = {};
+  let result = {};
+  try { payload = JSON.parse(row.payload || '{}'); } catch { payload = {}; }
+  try { result = row.result ? JSON.parse(row.result) : {}; } catch { result = {}; }
+  const stage = row.status === 'queued' && payload.keepers ? 'resume' : (result.stage || row.status);
+  const saved = row.status === 'done' && result.validated && result.outputKey && result.stage !== 'failed' && result.stage !== 'quality-failure';
+  return {
+    id: payload.id || row.id,
+    actionId: row.id,
+    title: payload.title || 'Upload',
+    status: saved ? 'ready' : row.status === 'waiting' ? 'waiting' : 'queued',
+    host: result.host || 'gpu1',
+    stage,
+    failure: result.failure || (row.status === 'done' && !saved ? 'not validated' : ''),
+    segments: result.segments || [],
+    readyPath: saved ? `/dashboard/api/uploads/${payload.id}/output` : '',
+  };
+}
 function targetFor(kind, payload = {}) {
   if (kind === 'ping') return payload.machine === 'mac' || payload.machine === 'gpu2' ? payload.machine : null;
-  if (kind === 'mastermind.park') return 'worker';
+  if (kind === 'mastermind.park' || kind === 'mastermind.scan') return 'worker';
+  if (kind === 'content.save_draft' || kind === 'content.approve_draft' || kind === 'content.generate_drafts') return 'worker';
   if (kind === 'agent.restart') return payload.machine === 'mac' ? 'mac' : 'gpu2';
   if (kind.startsWith('sponsor.') || kind.startsWith('bank.')) return 'mac';
+  if (kind === 'video.start_edit') return 'gpu1';
   if (kind.startsWith('support.') || kind.startsWith('mastermind.') || kind.startsWith('content.') || kind.startsWith('video.') || kind.startsWith('agent.')) return 'gpu2';
   return 'worker';
 }
@@ -40,11 +77,13 @@ function targetFor(kind, payload = {}) {
 function machineOf(request, env) {
   const auth = request.headers.get('Authorization') || '';
   const token = auth.startsWith('Bearer ') ? auth.slice(7) : '';
-  const mac = token && env.MACHINE_TOKEN_MAC && timingSafeEqualString(token, env.MACHINE_TOKEN_MAC);
-  const gpu = token && env.MACHINE_TOKEN_GPU2 && timingSafeEqualString(token, env.MACHINE_TOKEN_GPU2);
-  if (mac && !gpu) return 'mac';
-  if (gpu && !mac) return 'gpu2';
-  return null;
+  if (!token) return null;
+  const hits = [
+    ['mac', env.MACHINE_TOKEN_MAC],
+    ['gpu2', env.MACHINE_TOKEN_GPU2],
+    ['gpu1', env.MACHINE_TOKEN_GPU1],
+  ].filter(([, secret]) => secret && timingSafeEqualString(token, secret));
+  return hits.length === 1 ? hits[0][0] : null;
 }
 
 
@@ -92,7 +131,7 @@ function filterSnapshot(pages) {
   return JSON.parse(JSON.stringify({ pages: out, nav: snapshot.nav, goal: snapshot.goal, sources: snapshot.sources }));
 }
 
-async function postAction(request, env) {
+async function postAction(request, env, ctx) {
   let body = {};
   try { body = await request.json(); } catch { body = {}; }
   const kind = String(body.kind || 'ui.toast');
@@ -102,7 +141,7 @@ async function postAction(request, env) {
     const existing = await actionByIdem(env.DB, idem);
     if (existing) return json({ id: existing.id, status: existing.status, result: existing.result });
   }
-  const target = targetFor(kind, payload);
+  let target = targetFor(kind, payload);
   if (!target) return json({ error: 'Bad target' }, 400);
   const id = crypto.randomUUID();
   const now = new Date().toISOString();
@@ -119,7 +158,35 @@ async function postAction(request, env) {
     }
   }
   if (kind === 'mastermind.send_to_planner' && env.DB && payload.id) {
+    const ideas = await listIdeas(env.DB);
+    const existing = ideas.find((i) => i.id === payload.id);
+    const dest = plannerDestination(payload.title);
+    if (existing && ['sent', 'building', 'built'].includes(existing.status)) {
+      return json({ id: existing.id, status: 'done', result: `Already in Planner. ${dest}` });
+    }
     await upsertIdea(env.DB, { id: payload.id, title: payload.title, body: payload.body, area: payload.area, verdict: payload.verdict || 'implement', status: 'sent' });
+    result = dest;
+  }
+  const mutate = reviewMutate(kind);
+  if (mutate === 'send' && isIsolated(payload)) {
+    return json({ id, status: 'done', result: 'Not sent · isolated draft' });
+  }
+  if ((mutate === 'save' || mutate === 'drop') && env.DB && draftId(payload)) {
+    const stored = (await listSnapshots(env.DB)).find((r) => r.source === REVIEW_SOURCE);
+    const rows = parseReview(stored?.data);
+    const idKey = draftId(payload);
+    const next = mutate === 'drop'
+      ? rows.filter((r) => r.id !== idKey)
+      : upsertReview(rows, {
+        id: idKey, kind, recipient: payload.to || '', subject: payload.subject || '', body: payload.body || '',
+        isolated: isIsolated(payload), updated_at: now,
+      });
+    await upsertSnapshot(env.DB, REVIEW_SOURCE, JSON.stringify(next), now, now);
+    if (isIsolated(payload)) {
+      target = 'worker';
+      status = 'done';
+      result = mutate === 'drop' ? 'Draft discarded' : 'Draft saved';
+    }
   }
   if (kind === 'money.move_and_remember') {
     try {
@@ -129,6 +196,34 @@ async function postAction(request, env) {
       result = err.message || 'Failed';
       status = 'failed';
     }
+  }
+  if (kind === 'mastermind.scan') {
+    if (!env.DB) return json({ error: 'Scan store is not available' }, 500);
+    const id = crypto.randomUUID();
+    await insertAction(env.DB, {
+      id, kind, target: 'worker', payload: '{}', status: 'running',
+      result: null, idem_key: idem, created_at: now, finished_at: null,
+    });
+    const work = finishMastermindScan(env, id);
+    if (ctx?.waitUntil) ctx.waitUntil(work);
+    else await work;
+    if (ctx?.waitUntil) return json({ id, status: 'running', result: null });
+    const row = await actionById(env.DB, id);
+    return json({ id, status: row?.status || 'failed', result: row?.result ?? null });
+  }
+  if (kind === 'outreach.refresh') {
+    if (!env.DB) return json({ error: 'Instantly store is not available' }, 500);
+    const id = crypto.randomUUID();
+    await insertAction(env.DB, {
+      id, kind, target: 'worker', payload: '{}', status: 'running',
+      result: null, idem_key: idem, created_at: now, finished_at: null,
+    });
+    const work = finishOutreachCheck(env, id);
+    if (ctx?.waitUntil) ctx.waitUntil(work);
+    else await work;
+    if (ctx?.waitUntil) return json({ id, status: 'running', result: null });
+    const row = await actionById(env.DB, id);
+    return json({ id, status: row?.status || 'failed', result: row?.result ?? null });
   }
   if (kind.startsWith('outreach.')) {
     try {
@@ -142,6 +237,30 @@ async function postAction(request, env) {
   if (kind.startsWith('life.')) {
     try {
       result = await runLife(env, kind, payload);
+      status = 'done';
+    } catch (err) {
+      result = err.message || 'Failed';
+      status = 'failed';
+    }
+  }
+  if (kind === 'content.save_draft' || kind === 'content.approve_draft' || kind === 'content.generate_drafts') {
+    const tenant = tenantOf(env);
+    if (payload.tenant && payload.tenant !== tenant) return json({ error: 'Wrong tenant' }, 403);
+    try {
+      if (kind === 'content.generate_drafts') {
+        const out = await fillFromEnv(env);
+        result = out.failed
+          ? `Filled ${out.inserted} slots for ${out.day}. ${out.failed} failed — no connected product facts. Nothing posted.`
+          : `Filled ${out.inserted} drafts for ${out.day}. Nothing posted.`;
+      } else if (kind === 'content.save_draft') {
+        const saved = await saveDraft(env.DB, tenant, payload);
+        if (!saved) return json({ error: 'Draft not found' }, 404);
+        result = 'Edit saved · not published';
+      } else {
+        const saved = await approveDraft(env.DB, tenant, payload.id);
+        if (!saved) return json({ error: 'Draft not found' }, 404);
+        result = 'Approved · not published';
+      }
       status = 'done';
     } catch (err) {
       result = err.message || 'Failed';
@@ -169,7 +288,7 @@ function resultText(value) {
   return JSON.stringify(value);
 }
 
-export async function handleApi(request, env) {
+export async function handleApi(request, env, ctx) {
   const url = new URL(request.url);
   let path = url.pathname;
   if (path.endsWith('/') && path.length > 1) path = path.slice(0, -1);
@@ -200,7 +319,28 @@ export async function handleApi(request, env) {
     const now = Date.now();
     const overrides = await listDealStages(env.DB);
     const extra = { habits: await listHabits(env.DB), checklist: await listChecklist(env.DB, ymd(now)) };
-    return json(mergeSnapshot(base, await listSnapshots(env.DB), now, overrides, await listIdeas(env.DB), await listPosts(env.DB), await listVideoProjects(env.DB), extra));
+    const tenant = tenantOf(env);
+    try {
+      extra.drafts = await listDrafts(env.DB, tenant, vancouverDay(now));
+    } catch (err) {
+      extra.drafts = [];
+      extra.draftsError = err.message || 'Drafts unavailable';
+    }
+    extra.platforms = configuredPlatforms(env);
+    extra.unavailable = unavailablePlatforms(env);
+    const merged = mergeSnapshot(base, await listSnapshots(env.DB), now, overrides, await listIdeas(env.DB), await listPosts(env.DB), await listVideoProjects(env.DB), extra);
+    if (merged.pages.outreach) {
+      applyOutreachStatus(merged.pages.outreach, await latestAction(env.DB, 'outreach.refresh'), merged.sources?.instantly);
+    }
+    if (merged.pages.video) {
+      const jobs = await listVideoJobs(env.DB);
+      if (jobs.length) overlayVideo(merged.pages.video, { queue: jobs.map(videoQueueItem) });
+      const beat = merged.sources?.video_gpu1;
+      const runner = !beat || beat.stale ? 'GPU1 disconnected' : 'GPU1 connected';
+      const steps = merged.pages.video.editing.meta || '';
+      merged.pages.video.editing.meta = steps && steps !== 'GPU1 disconnected' ? `${runner} · ${steps}` : runner;
+    }
+    return json(merged);
   }
 
   if (rest === '/ingest' && method === 'POST') {
@@ -232,8 +372,55 @@ export async function handleApi(request, env) {
     const who = machineOf(request, env);
     const body = await request.json().catch(() => ({}));
     if (!who || who !== body.machine) return json({ error: 'Unauthorized' }, 401);
-    const rows = env.DB ? await claimQueued(env.DB, who, new Date().toISOString()) : [];
-    return json({ actions: rows });
+    const fresh = env.DB ? await claimQueued(env.DB, who, new Date().toISOString()) : [];
+    const stuck = env.DB ? await claimedVideo(env.DB, who) : [];
+    const seen = new Set(fresh.map((row) => row.id));
+    return json({ actions: fresh.concat(stuck.filter((row) => !seen.has(row.id))) });
+  }
+
+
+  const progress = rest.match(/^\/actions\/([^/]+)\/progress$/);
+  if (progress && method === 'POST') {
+    const who = machineOf(request, env);
+    if (!who) return json({ error: 'Unauthorized' }, 401);
+    const row = env.DB ? await actionById(env.DB, progress[1]) : null;
+    if (!row || row.target !== who) return json({ error: 'Unauthorized' }, 401);
+    const body = await request.json().catch(() => ({}));
+    const payload = JSON.parse(row.payload || '{}');
+    const result = {
+      host: who,
+      stage: body.stage || 'prep',
+      device: body.device === 'cuda' ? 'cpu' : (body.device || 'cpu'),
+      encoder: body.encoder || 'libx264',
+      failure: body.failure || null,
+      retry: Number(body.retry) || 0,
+      validated: Boolean(body.validated),
+      outputKey: body.validated ? ownedOutputKey(payload) : null,
+      segments: Array.isArray(body.segments) ? body.segments.filter((k) => k && Number.isFinite(Number(k.cs)) && Number.isFinite(Number(k.ce))) : [],
+    };
+    const status = result.stage === 'waiting-for-review' ? 'waiting' : 'claimed';
+    await reportAction(env.DB, row.id, status, JSON.stringify(result));
+    return json({ ok: true, id: row.id, status });
+  }
+
+  const resume = rest.match(/^\/actions\/([^/]+)\/resume$/);
+  if (resume && method === 'POST') {
+    const denied = await needSession(request, env);
+    if (denied) return denied;
+    const cc = needCc(request);
+    if (cc) return cc;
+    const row = env.DB ? await actionById(env.DB, resume[1]) : null;
+    if (!row || row.target !== 'gpu1') return json({ error: 'Not found' }, 404);
+    const body = await request.json().catch(() => ({}));
+    const keepers = Array.isArray(body.keepers) ? body.keepers : [];
+    if (!keepersOk(keepers)) return json({ error: 'Keepers required' }, 400);
+    const payload = JSON.parse(row.payload || '{}');
+    payload.keepers = keepers;
+    if (Array.isArray(body.expectedLines)) payload.expectedLines = body.expectedLines.filter((line) => typeof line === 'string' && line.trim());
+    const prev = row.result ? JSON.parse(row.result) : {};
+    prev.stage = 'resume';
+    await requeueAction(env.DB, row.id, JSON.stringify(payload), JSON.stringify(prev));
+    return json({ ok: true, id: row.id, status: 'queued' });
   }
 
   const complete = rest.match(/^\/actions\/([^/]+)\/complete$/);
@@ -259,26 +446,55 @@ export async function handleApi(request, env) {
     const want = await hmacHex(env.SESSION_SECRET, `${id}.${exp}.${filename}`);
     if (!timingSafeEqualString(sig, want)) return json({ error: 'Unauthorized' }, 403);
     const key = uploadKey(id, filename);
+    const idem = `upload-${id}`;
+    if (env.DB) {
+      const existing = await actionByIdem(env.DB, idem);
+      if (existing) return json({ ok: true, id: existing.id, status: existing.status, host: 'gpu1' });
+    }
     const buf = await request.arrayBuffer();
     if (env.UPLOADS) await env.UPLOADS.put(key, buf);
     const now = new Date().toISOString();
     const actionId = crypto.randomUUID();
     if (env.DB) {
       await insertAction(env.DB, {
-        id: actionId, kind: 'video.start_edit', target: 'gpu2',
+        id: actionId, kind: 'video.start_edit', target: 'gpu1',
         payload: JSON.stringify({ id, title, filename, key }),
-        status: 'queued', result: null, idem_key: `upload-${id}`, created_at: now, finished_at: null,
+        status: 'queued', result: null, idem_key: idem, created_at: now, finished_at: null,
       });
     }
-    return json({ ok: true, id: actionId, result: 'Edit started' });
+    return json({ ok: true, id: actionId, status: 'queued', host: 'gpu1' });
   }
   if (up && method === 'GET') {
     const who = machineOf(request, env);
     if (!who) return json({ error: 'Unauthorized' }, 401);
-    const key = url.searchParams.get('key') || uploadKey(up[1], safeName(url.searchParams.get('filename')));
+    const id = up[1];
+    const key = url.searchParams.get('key') || uploadKey(id, safeName(url.searchParams.get('filename')));
+    if (!key.startsWith(`uploads/${id}/`) || key.includes('..')) return json({ error: 'Bad path' }, 400);
+    const row = env.DB ? await actionByIdem(env.DB, `upload-${id}`) : null;
+    if (!row || row.target !== who) return json({ error: 'Unauthorized' }, 401);
     const obj = env.UPLOADS ? await env.UPLOADS.get(key) : null;
     if (!obj) return json({ error: 'Not found' }, 404);
     return new Response(obj.body, { headers: { 'Content-Type': 'application/octet-stream' } });
+  }
+  const output = rest.match(/^\/uploads\/([^/]+)\/output$/);
+  if (output && method === 'GET') {
+    const denied = await needSession(request, env);
+    if (denied) return denied;
+    const row = env.DB ? await actionByIdem(env.DB, `upload-${output[1]}`) : null;
+    const result = row && row.result ? JSON.parse(row.result) : null;
+    if (!row || !result || !result.validated || !result.outputKey) return json({ error: 'Not ready' }, 404);
+    const obj = env.UPLOADS ? await env.UPLOADS.get(result.outputKey) : null;
+    if (!obj) return json({ error: 'Not found' }, 404);
+    return new Response(obj.body, { headers: { 'Content-Type': 'video/mp4' } });
+  }
+  if (output && method === 'PUT') {
+    const who = machineOf(request, env);
+    if (who !== 'gpu1') return json({ error: 'Unauthorized' }, 401);
+    const row = env.DB ? await actionByIdem(env.DB, `upload-${output[1]}`) : null;
+    if (!row || row.target !== 'gpu1') return json({ error: 'Unauthorized' }, 401);
+    const key = `uploads/${output[1]}/out.mp4`;
+    if (env.UPLOADS) await env.UPLOADS.put(key, await request.arrayBuffer());
+    return json({ ok: true, outputKey: key });
   }
 
 
@@ -293,7 +509,7 @@ export async function handleApi(request, env) {
     return Response.redirect(await googleAuthUrl(env, url.origin), 302);
   }
 
-  if (rest === '/actions' && method === 'POST') return postAction(request, env);
+  if (rest === '/actions' && method === 'POST') return postAction(request, env, ctx);
   const one = rest.match(/^\/actions\/([^/]+)$/);
   if (one && method === 'GET') {
     if (!env.DB) return json({ id: one[1], status: 'done', result: 'Done' });
@@ -303,7 +519,9 @@ export async function handleApi(request, env) {
   }
   if (rest === '/checklist' && method === 'POST' && env.DB) {
     const b = await request.json().catch(() => ({}));
-    await upsertChecklist(env.DB, b.day, b.item, b.done_at || new Date().toISOString(), b.how || 'manual');
+    if (b.done === false) await deleteChecklist(env.DB, b.day, b.item);
+    else if (b.how === 'auto') return json({ ok: true, ignored: true });
+    else await upsertChecklist(env.DB, b.day, b.item, b.done_at || new Date().toISOString(), 'manual');
     return json({ ok: true });
   }
   if (rest === '/habits' && method === 'POST' && env.DB) {

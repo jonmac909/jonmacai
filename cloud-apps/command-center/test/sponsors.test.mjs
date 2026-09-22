@@ -61,7 +61,7 @@ test('sponsors page money matches collections.viralview.io', () => {
   const page = buildSponsorsPage(live, NOW);
   assert.equal(page.tiles[0].value, '$5,000');
   assert.equal(page.tiles[0].pct, 50);
-  assert.equal(page.tiles[0].sub, 'Day 18 of 30 · pace would be $6,000');
+  assert.equal(page.tiles[0].sub, 'Recorded source total · unverified against deposit ledger · day 18 of 30 · pace $6,000');
   assert.equal(page.tiles[1].value, '$6,700');
   assert.equal(page.tiles[1].sub, '3 sponsors');
   assert.equal(page.tiles[2].value, '$8,802.33');
@@ -200,4 +200,85 @@ print(out["incomeTotals"]["September"])
   assert.equal(paid, '1500');
   assert.equal(owed, '0');
   assert.equal(sep, '6500');
+});
+
+test('average label is the completed-month range, not since May', () => {
+  const page = buildSponsorsPage(live, NOW);
+  assert.equal(page.tiles[2].label, 'Average June-August');
+  assert.equal(page.tiles[2].value, '$8,802.33');
+  assert.equal(/May/.test(page.tiles[2].label), false);
+  const withMay = buildSponsorsPage({
+    ...live,
+    collections: { ...live.collections, completedIncomeMonths: ['May', 'June', 'July', 'August'] },
+  }, NOW);
+  assert.equal(withMay.tiles[2].label, 'Average May-August');
+  assert.notEqual(withMay.tiles[2].value, page.tiles[2].value);
+  const gap = buildSponsorsPage({
+    ...live,
+    collections: { ...live.collections, completedIncomeMonths: ['June', 'August'] },
+  }, NOW);
+  assert.equal(gap.tiles[2].label, 'Average June, August');
+});
+
+test('September collected is the recorded source total, not open-item paid', () => {
+  const page = buildSponsorsPage(live, NOW);
+  const paid = live.collections.items.reduce((s, i) => s + Number(i.paid || 0), 0);
+  assert.equal(paid, 1000);
+  assert.equal(page.tiles[0].value, '$5,000');
+  assert.match(page.tiles[0].label, /September/);
+  assert.match(page.tiles[0].sub, /recorded source total/i);
+  assert.match(page.tiles[0].sub, /unverified against deposit ledger/i);
+});
+
+test('copy time is not the source edit time, and a missing edit time stays unknown', () => {
+  const fixture = {
+    pages: { home: { chip: 'Mockup', tiles: [{}] }, sponsors: { tiles: [] } },
+    sources: {},
+  };
+  const board = '2026-09-22T05:13:49.589Z';
+  const copied = '2026-09-22T05:37:26.000Z';
+  const out = mergeSnapshot(fixture, [{
+    source: 'sponsors',
+    data: JSON.stringify({ ...live, updatedAt: board }),
+    collected_at: copied,
+  }], Date.parse('2026-09-22T05:38:26.000Z'));
+  assert.match(out.pages.sponsors.sub, /Source edited unknown/);
+  assert.match(out.pages.sponsors.sub, /copied 1 min ago/);
+  assert.match(out.pages.sponsors.sub, /not reconciled cash/);
+  assert.equal(out.pages.sponsors.sub.includes(board), false);
+  assert.equal(out.pages.sponsors.sub.includes(copied), false);
+  assert.match(out.pages.home.chip, /sponsors source time unavailable/i);
+  const edited = '2026-09-21T09:06:01.000Z';
+  const stamped = mergeSnapshot(fixture, [{
+    source: 'sponsors',
+    data: JSON.stringify({ ...live, updatedAt: board, sourceEditedAt: edited }),
+    collected_at: copied,
+  }], Date.parse('2026-09-22T05:38:26.000Z'));
+  assert.match(stamped.pages.sponsors.sub, new RegExp(edited));
+  assert.match(stamped.pages.sponsors.sub, /copied 1 min ago/);
+  assert.equal(stamped.pages.sponsors.sub.includes(board), false);
+});
+
+test('source edit time is the file mtime or unknown, and the file is not written', () => {
+  const lib = join(root, 'collectors/lib').replace(/\\/g, '/');
+  const r = spawnSync(py, ['-c',
+    `import os, sys, tempfile
+from pathlib import Path
+from datetime import datetime, timezone
+sys.path.insert(0, r"${lib}")
+from sponsors import source_edited_at
+missing = source_edited_at(Path(tempfile.gettempdir()) / "no-such-collections.json")
+print("missing", missing)
+p = Path(tempfile.mkdtemp()) / "collections.json"
+p.write_text("{}", encoding="utf-8")
+os.utime(p, (1700000000, 1700000000))
+want = datetime.fromtimestamp(1700000000, timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+print("match", source_edited_at(p) == want)
+print("unchanged", p.read_text(encoding="utf-8") == "{}")
+`], { encoding: 'utf8' });
+  assert.equal(r.status, 0, r.stderr);
+  const lines = r.stdout.trim().split(/\r?\n/);
+  assert.equal(lines[0], 'missing None');
+  assert.equal(lines[1], 'match True');
+  assert.equal(lines[2], 'unchanged True');
 });

@@ -1,8 +1,8 @@
-import { tiles, pg, pill, job, btn, dots } from '../ui.js';
+import { tiles, pg, pill, job, btn, dots, esc } from '../ui.js';
 
 export function render(d) {
   const date = d.date;
-  const steps = d.runThrough.steps.map((s) => `<button class="step" aria-pressed="${s.done}">${s.label}</button>`).join('');
+  const steps = d.runThrough.steps.map((s) => `<button type="button" class="step" data-item="${esc(s.item || '')}" data-page="${esc(s.page || '')}" aria-pressed="${s.done ? 'true' : 'false'}">${esc(s.label)}</button>`).join('');
   const jobs = d.needsYou.jobs.map(job).join('');
   const rows = d.glance.rows.map((r) => `<tr data-page="${r.page}"><td>${r.area}</td><td>${r.today}</td><td>${r.goal}</td><td><div class="cellpg">${pg(r.pct, r.pg)}${pill(r.pill, r.pillCls)}</div></td></tr>`).join('');
   const L = d.life;
@@ -25,10 +25,10 @@ export function render(d) {
     </div>
     <div class="card pad insight">
       <div class="cardhead" style="margin-bottom:.8rem"><h2><svg class="ic"><use href="#i-bulb"/></svg>Mastermind pick</h2></div>
-      <hr><span class="pill ok">${d.mastermindPick.pill}</span>
-      <h3>${d.mastermindPick.heading}</h3>
-      <p>${d.mastermindPick.body}</p>
-      <div class="box"><h4>${d.mastermindPick.fitTitle}</h4><p>${d.mastermindPick.fit}</p><p><b>Effort:</b> ${d.mastermindPick.effort}</p>${btn(d.mastermindPick.btn, { msg: d.mastermindPick.msg, cls: 'wide', kind: d.mastermindPick.kind, payload: d.mastermindPick.payload })}</div>
+      <hr><span class="pill ok">${esc(d.mastermindPick.pill)}</span>
+      <h3>${esc(d.mastermindPick.heading)}</h3>
+      <p>${esc(d.mastermindPick.body)}</p>
+      <div class="box"><h4>${esc(d.mastermindPick.fitTitle)}</h4><p>${esc(d.mastermindPick.fit)}</p><p><b>Effort:</b> ${esc(d.mastermindPick.effort)}</p>${btn(d.mastermindPick.btn, { msg: d.mastermindPick.msg, cls: 'wide', kind: d.mastermindPick.kind, payload: d.mastermindPick.payload })}</div>
       <div class="pager"><span>${d.mastermindPick.pager}</span><button class="link" data-page="mastermind">See all</button></div>
     </div>
     <div class="card pad life">

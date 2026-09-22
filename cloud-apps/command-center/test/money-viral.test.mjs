@@ -169,11 +169,172 @@ test('merge overlays markets from the same MoneyClaw summary', () => {
   const out = mergeSnapshot(snapshot, [row('moneyclaw', moneySummary)], NOW);
   const m = out.pages.markets;
   assert.equal(m.tiles[0].value, 'Calm');
-  assert.equal(m.tiles[1].value, '14.9');
+  assert.equal(m.tiles[1].value, '14.90');
   assert.equal(m.tiles[2].value, '$701.89');
   assert.equal(m.discount.rows[0].fund, 'VOO');
   assert.equal(m.discount.rows[0].price, '$701.89');
   assert.equal(m.discount.rows[3].fund, 'XAU');
+});
+
+test('money subtitle uses the source window and CAD, not the fetch age', () => {
+  const data = structuredClone(moneySummary);
+  data.expenses.business.week.startDate = '2026-09-15';
+  data.expenses.business.week.endDate = '2026-09-21';
+  data.expenses.business.month.startDate = '2026-09-01';
+  data.expenses.business.month.endDate = '2026-09-21';
+  data.asOf = '2026-09-21';
+  const sub = mergeSnapshot(snapshot, [row('moneyclaw', data, new Date(NOW).toISOString())], NOW).pages.money.sub;
+  assert.match(sub, /CAD/);
+  assert.match(sub, /Sep 15/);
+  assert.match(sub, /Sep 21/);
+  assert.match(sub, /as of Sep 21/i);
+  assert.equal(/updated/i.test(sub), false);
+});
+
+test('markets do not treat a fetch stamp or Pending news as a quote', () => {
+  const out = mergeSnapshot(snapshot, [row('moneyclaw', moneySummary, new Date(NOW).toISOString())], NOW);
+  const m = out.pages.markets;
+  assert.match(m.sub, /USD/);
+  assert.match(m.sub, /quote time unavailable/i);
+  assert.equal(/updated/i.test(m.sub), false);
+  assert.equal(m.tiles[3].value, 'Pending');
+  assert.equal(m.tiles[0].sub, '');
+});
+
+test('VIX keeps two decimals and thresholds use the raw price', () => {
+  const page = (price) => {
+    const data = structuredClone(moneySummary);
+    data.markets.pulse.vix.price = price;
+    return mergeSnapshot(snapshot, [row('moneyclaw', data)], NOW).pages.markets;
+  };
+  assert.equal(page(14.85).tiles[1].value, '14.85');
+  assert.equal(page(14.854).tiles[1].value, '14.85');
+  assert.equal(page(14.855).tiles[1].value, '14.86');
+  assert.equal(page(19.995).tiles[1].value, '20.00');
+  assert.equal(page(19.995).tiles[1].pg, 'ok');
+  assert.equal(page(20).tiles[1].pg, 'risk');
+  assert.equal(page(29.995).tiles[1].pg, 'risk');
+  assert.equal(page(30).tiles[1].pg, 'crit');
+});
+
+test('quote time is the upstream stamp, never fetch time or the expense date', () => {
+  const data = structuredClone(moneySummary);
+  data.asOf = '2026-09-01';
+  data.markets.pulse.quoteAt = '2026-09-21T20:15:00Z';
+  const quoted = mergeSnapshot(snapshot, [row('moneyclaw', data, new Date(NOW).toISOString())], NOW).pages.markets.sub;
+  assert.match(quoted, /quoted/);
+  assert.match(quoted, /1:15/);
+  assert.equal(/Sep 1/.test(quoted), false);
+  assert.equal(/updated/i.test(quoted), false);
+  delete data.markets.pulse.quoteAt;
+  const missing = mergeSnapshot(snapshot, [row('moneyclaw', data, new Date(NOW).toISOString())], NOW).pages.markets.sub;
+  assert.match(missing, /quote time unavailable/i);
+  assert.equal(/as of/i.test(missing), false);
+  assert.equal(/Sep 1/.test(missing), false);
+  assert.equal(/updated/i.test(missing), false);
+});
+
+test('month total stays unverified without a complete charge list', () => {
+  const data = structuredClone(moneySummary);
+  data.expenses.business.month = {
+    ...data.expenses.business.month,
+    startDate: '2026-09-01',
+    endDate: '2026-09-21',
+    postedCount: 99,
+    pendingCount: 12,
+  };
+  const page = mergeSnapshot(snapshot, [row('moneyclaw', data)], NOW).pages.money;
+  assert.match(page.sub, /month total unverified/i);
+  assert.match(page.business.stages[2].label, /unverified/i);
+});
+
+test('month total verifies when settled charges less refunds match posted', () => {
+  const data = structuredClone(moneySummary);
+  data.expenses.business.month = {
+    startDate: '2026-09-01',
+    endDate: '2026-09-21',
+    posted: 40,
+    pending: 0,
+    total: 40,
+    postedCount: 2,
+    pendingCount: 0,
+    charges: [
+      { date: '2026-09-02', amount: 50, pending: false },
+      { date: '2026-09-03', amount: -10, pending: false },
+    ],
+  };
+  const page = mergeSnapshot(snapshot, [row('moneyclaw', data)], NOW).pages.money;
+  assert.equal(/unverified/i.test(page.sub), false);
+  assert.equal(page.business.stages[2].value, '$40');
+});
+function healthyMoney() {
+  const data = structuredClone(moneySummary);
+  data.asOf = '2026-09-18';
+  data.markets.pulse.quoteAt = '2026-09-18T20:00:00-07:00';
+  data.expenses.personal.month = {
+    ...data.expenses.personal.month,
+    startDate: '2026-09-01',
+    endDate: '2026-09-18',
+    posted: 37,
+    postedCount: 1,
+    pendingCount: 0,
+    charges: [{ date: '2026-09-04', amount: 37, pending: false }],
+  };
+  data.expenses.business.month = {
+    ...data.expenses.business.month,
+    startDate: '2026-09-01',
+    endDate: '2026-09-18',
+    posted: 52,
+    postedCount: 2,
+    pendingCount: 0,
+    charges: [
+      { date: '2026-09-02', amount: 60, pending: false },
+      { date: '2026-09-03', amount: -8, pending: false },
+    ],
+  };
+  return data;
+}
+
+test('home chip stays mockup when only an unrelated snapshot exists', () => {
+  const out = mergeSnapshot(snapshot, [row('agents_mac', { hostname: 'x' })], NOW);
+  assert.match(out.pages.home.chip, /Mockup/);
+  assert.equal(/Live/i.test(out.pages.home.chip), false);
+});
+
+test('home chip is unavailable when quote time or the month ledger is missing', () => {
+  const out = mergeSnapshot(snapshot, [row('moneyclaw', moneySummary, new Date(NOW).toISOString())], NOW);
+  assert.equal(/Live/i.test(out.pages.home.chip), false);
+  assert.match(out.pages.home.chip, /quote time unavailable/i);
+  assert.match(out.pages.home.chip, /month totals unverified/i);
+});
+
+test('home chip is stale from the source stamp, not a fresh fetch', () => {
+  const viral = { ...viralSummary, lastSyncAt: Date.parse('2026-09-01T12:00:00Z') };
+  const out = mergeSnapshot(snapshot, [row('viralview', viral, new Date(NOW).toISOString())], NOW);
+  assert.match(out.pages.home.chip, /Stale|Partial/);
+  assert.match(out.pages.home.chip, /Viral View sync stale/i);
+  assert.equal(/Live/i.test(out.pages.home.chip), false);
+});
+
+test('home chip is live only when number sources have valid age and health', () => {
+  const out = mergeSnapshot(snapshot, [
+    row('sponsors', { sourceEditedAt: new Date(NOW).toISOString(), collections: { items: [] } }, new Date(NOW).toISOString()),
+    row('moneyclaw', healthyMoney(), new Date(NOW).toISOString()),
+    row('viralview', { ...viralSummary, lastSyncAt: NOW }, new Date(NOW).toISOString()),
+  ], NOW);
+  assert.equal(out.pages.home.chip, 'Live · numbers from your pages');
+});
+
+test('numeric Viral lastSyncAt is the sync date', () => {
+  const data = { ...viralSummary, lastSyncAt: Date.parse('2026-09-18T19:00:00Z') };
+  const sub = mergeSnapshot(snapshot, [row('viralview', data, new Date(NOW).toISOString())], NOW).pages.viral.sub;
+  assert.match(sub, /synced Sep 18/);
+  assert.equal(/updated/i.test(sub), false);
+});
+
+test('Viral sales week names the Monday start from the source', () => {
+  const sub = mergeSnapshot(snapshot, [row('viralview', viralSummary)], NOW).pages.viral.tiles[0].sub;
+  assert.match(sub, /Sep 14/);
 });
 
 test('merge overlays Viral View and matching home tiles', () => {
@@ -247,6 +408,24 @@ test('cron pulls Viral View and MoneyClaw summaries into snapshots', async () =>
   assert.equal(summaries.length, 2);
   assert.ok(db.snapshots.get('viralview')?.data.includes('cashThisWeek'));
   assert.ok(db.snapshots.get('moneyclaw')?.data.includes('expenses'));
+});
+
+test('cron keeps Viral sync time instead of the fetch time', async () => {
+  const db = memD1();
+  const sync = Date.parse('2026-09-01T12:00:00Z');
+  const prev = globalThis.fetch;
+  globalThis.fetch = async (url) => {
+    if (String(url).includes('viralview')) {
+      return new Response(JSON.stringify({ ...viralSummary, lastSyncAt: sync }), { status: 200 });
+    }
+    return new Response(JSON.stringify(moneySummary), { status: 200 });
+  };
+  try {
+    await handleCron(envWith(db));
+  } finally {
+    globalThis.fetch = prev;
+  }
+  assert.equal(db.snapshots.get('viralview')?.collected_at, new Date(sync).toISOString());
 });
 
 test('Move all and remember posts categorize then add_rule to MoneyClaw', async () => {

@@ -105,6 +105,23 @@ function pillFor(card, item, nowMs) {
 function oneDec(n) {
   return Math.round(n * 10) / 10;
 }
+const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+
+export function averageMonthLabel(months) {
+  const list = (months || []).filter((m) => MONTHS.includes(m));
+  if (!list.length) return 'Average unavailable';
+  const ix = list.map((m) => MONTHS.indexOf(m));
+  const adjacent = ix.every((n, i) => i === 0 || n === ix[i - 1] + 1);
+  const range = adjacent && list.length > 1 ? `${list[0]}-${list[list.length - 1]}` : list.join(', ');
+  return `Average ${range}`;
+}
+
+export function sourceEditedAt(data) {
+  const raw = data?.sourceEditedAt ?? data?.collections?.sourceEditedAt;
+  const t = Date.parse(raw);
+  return Number.isFinite(t) ? new Date(t).toISOString() : null;
+}
+
 
 export function buildSponsorsPage(data, nowMs = Date.now(), overrides = {}) {
   const col = data.collections || {};
@@ -159,9 +176,17 @@ export function buildSponsorsPage(data, nowMs = Date.now(), overrides = {}) {
       pg: pillCls === 'crit' ? 'crit' : (pillCls === 'ok' ? 'ok' : ''),
     };
     if (draft) {
-      k.btn = 'Approve reply';
-      k.kind = 'sponsor.send_draft';
-      k.payload = { id: card.id };
+      k.btn = 'Review';
+      k.draft = true;
+      k.payload = {
+        id: card.id,
+        to: card.draftReply?.to || card.to || card.contact || '',
+        subject: card.draftReply?.subject || card.subject || '',
+        body: card.draftReply?.body || '',
+        saveKind: 'sponsor.save_draft',
+        sendKind: 'sponsor.send_draft',
+        discardKind: 'sponsor.discard_draft',
+      };
     } else if (card.stage === 'publishing') {
       k.btn = 'Send invoice';
       k.kind = 'sponsor.send_invoice';
@@ -187,15 +212,15 @@ export function buildSponsorsPage(data, nowMs = Date.now(), overrides = {}) {
   });
   return {
     title: 'Sponsors',
-    sub: `From your collections tracker · ${data.updatedAt ? 'live' : 'updated'}`,
+    sub: `Source edited ${sourceEditedAt(data) || 'unknown'} · not reconciled cash`,
     actions: [
       { label: 'Open collections page', href: 'https://collections.viralview.io/collections.html' },
       { label: 'Scan inbox now', kind: 'sponsor.scan_inbox', payload: { msg: 'Scanning sponsor inbox now' } },
     ],
     tiles: [
-      { icon: 'check', label: `Collected in ${cal.monthName}`, value: usd(collected), goal: '/ $10K', pct: Math.round(collected / GOAL * 100), sub: `Day ${cal.day} of ${cal.dim} · pace would be ${usd(pace)}` },
+      { icon: 'check', label: `Collected in ${col.currentIncomeMonth || cal.monthName}`, value: usd(collected), goal: '/ $10K', pct: Math.round(collected / GOAL * 100), sub: `Recorded source total · unverified against deposit ledger · day ${cal.day} of ${cal.dim} · pace ${usd(pace)}` },
       { icon: 'dollar', label: 'Owed to you', value: usd(owed), sub: `${open.length} sponsor${open.length === 1 ? '' : 's'}` },
-      { icon: 'chart', label: 'Average month since May', value: usd(avg), goal: '/ $10K', pct: Math.min(100, Math.round(avg / GOAL * 100)), pg: avg >= GOAL ? 'ok' : 'risk', sub: avg >= GOAL ? 'Goal hit' : `${usd(short)} a month short of goal` },
+      { icon: 'chart', label: averageMonthLabel(col.completedIncomeMonths), value: usd(avg), goal: '/ $10K', pct: Math.min(100, Math.round(avg / GOAL * 100)), pg: avg >= GOAL ? 'ok' : 'risk', sub: avg >= GOAL ? 'Goal hit' : `${usd(short)} a month short of goal` },
       { icon: 'mail', label: 'Sponsor emails waiting', value: String(emails.length), sub: emails.length === 1 ? '1 reply drafted' : `All ${emails.length} replies drafted` },
     ],
     septemberBar: {
@@ -241,9 +266,13 @@ export function buildSponsorsPage(data, nowMs = Date.now(), overrides = {}) {
         id: c.id,
         title: c.sponsor,
         sub: c.subject || 'Reply drafted',
+        to: c.draftReply.to || c.to || c.contact || '',
         subject: c.draftReply.subject || c.subject || '',
         body: c.draftReply.body || '',
         send: `Reply sent to ${c.sponsor}`,
+        saveKind: 'sponsor.save_draft',
+        sendKind: 'sponsor.send_draft',
+        discardKind: 'sponsor.discard_draft',
       })),
     },
     byMonth: { title: 'Collected by month', meta: 'Against $10K', rows: byMonth },
@@ -260,7 +289,7 @@ export function applyHomeSponsors(snap, page) {
       ...snap.pages.home.tiles[0],
       value: collected,
       pct,
-      sub: `${owed} more is owed · ${pct >= 100 ? 'goal hit' : 'enough to pass $10K'}`,
+      sub: `${owed} more is owed · recorded source total, unverified against deposit ledger`,
     };
   }
   if (snap.pages?.home?.glance?.rows?.[0]) {

@@ -1,7 +1,13 @@
-import { tiles, pg, pill, btn, job, head, esc } from '../ui.js';
+import { tiles, pill, btn, job, head, esc } from '../ui.js';
+
+function clock(iso) {
+  const t = Date.parse(iso || '');
+  if (!Number.isFinite(t)) return '';
+  return new Date(t).toISOString().slice(11, 16) + 'Z';
+}
 
 function machineCard(m) {
-  const status = m.stale ? pill('Stale') : pill(m.ageLabel, m.updatedAt ? 'ok' : '');
+  const status = m.unreachable ? pill('Unreachable') : m.stale ? pill('Stale') : pill(m.ageLabel, m.updatedAt ? 'ok' : '');
   const ping = btn('Ping', { kind: 'ping', payload: { machine: m.id }, sm: true, cls: 'line' });
   return `<article class="card job"><div class="top"><span class="area">${m.label}</span>${status}</div><h3>${m.hostname || m.label}</h3><ul><li>${m.ageLabel}</li></ul><div class="foot">${ping}</div></article>`;
 }
@@ -14,7 +20,9 @@ export function render(d) {
       : r.page
         ? btn('Open', { page: r.page, cls: 'line', sm: true })
         : '';
-    return `<tr><td>${esc(r.agent)}</td><td>${esc(r.runs)}</td><td>${esc(r.now)}</td><td><div class="cellpg">${pg(r.pct, r.pg)}<span>${esc(r.job)}</span></div></td><td>${pill(r.pill, r.pillCls || '')}</td><td class="num">${action}</td></tr>`;
+    const when = clock(r.asOf);
+    const doing = when ? `${r.now} · ${when}` : r.now;
+    return `<tr><td>${esc(r.agent)}</td><td>${esc(r.runs)}</td><td>${esc(doing)}</td><td>${pill(r.pill, r.pillCls || '')}</td><td class="num">${action}</td></tr>`;
   }).join('');
   const machines = (d.machines || []).map(machineCard).join('');
   const stale = (d.staleSources || []).map((s) => `<li>${s.label || s.source} · ${s.ageLabel}</li>`).join('');
@@ -28,8 +36,8 @@ export function render(d) {
     <div class="todo">${jobs}</div>
   </div>
   <div class="card pad">
-    <div class="cardhead"><h2>${d.all.title}</h2><div class="key"><span style="--c:var(--risk-fill)">Needs you</span><span style="--c:var(--ok-fill)">Working</span><span style="--c:var(--crit-fill)">Quiet too long</span></div></div>
-    <div class="tblwrap"><table><thead><tr><th>Agent</th><th>Runs on</th><th>Doing now</th><th>Today's job</th><th>Status</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
+    <div class="cardhead"><h2>${d.all.title}</h2><div class="key"><span style="--c:var(--risk-fill)">Action required</span><span style="--c:var(--ok-fill)">Working</span><span style="--c:var(--crit-fill)">Error</span></div></div>
+    <div class="tblwrap"><table><thead><tr><th>Agent</th><th>Runs on</th><th>Doing now</th><th>Status</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
   </div>
 </div>`;
 }

@@ -7,6 +7,7 @@ export function memD1() {
   const posts = new Map();
   const habits = new Map();
   const checklist = new Map();
+  const drafts = new Map();
   return {
     snapshots,
     actions,
@@ -16,6 +17,7 @@ export function memD1() {
     posts,
     habits,
     checklist,
+    drafts,
     prepare(sql) {
       const s = String(sql);
       const stmt = {
@@ -46,6 +48,18 @@ export function memD1() {
             return { results: [...checklist.values()].filter((r) => !a[0] || r.day === a[0]) };
           }
           if (/FROM habits/.test(s)) return { results: [...habits.values()] };
+          if (/FROM content_drafts/.test(s)) {
+            return { results: [...drafts.values()].filter((r) => !a[0] || r.tenant === a[0]) };
+          }
+          if (/FROM actions WHERE kind/.test(s)) {
+            let rows = actions.filter((x) => x.kind === a[0]);
+            if (/AND target = \?/.test(s)) rows = rows.filter((x) => x.target === a[1]);
+            rows.sort((x, y) => String(y.created_at).localeCompare(String(x.created_at)));
+            return { results: /LIMIT 1/.test(s) ? rows.slice(0, 1) : rows };
+          }
+          if (/FROM actions WHERE target/.test(s) && /status = 'claimed'/.test(s)) {
+            return { results: actions.filter((x) => x.target === a[0] && x.status === 'claimed' && x.kind === 'video.start_edit').slice(0, 5) };
+          }
           if (/FROM actions WHERE target/.test(s)) {
             return {
               results: actions
@@ -62,6 +76,8 @@ export function memD1() {
             snapshots.set(a[0], { source: a[0], data: a[1], collected_at: a[2], received_at: a[3] });
           } else if (/INSERT OR REPLACE INTO checklist/.test(s)) {
             checklist.set(`${a[0]}|${a[1]}`, { day: a[0], item: a[1], done_at: a[2], how: a[3] });
+          } else if (/DELETE FROM checklist/.test(s)) {
+            checklist.delete(`${a[0]}|${a[1]}`);
           } else if (/INSERT OR REPLACE INTO habits/.test(s)) {
             habits.set(`${a[0]}|${a[1]}`, { day: a[0], kind: a[1], done: a[2], note: a[3] });
           } else if (/INSERT OR REPLACE INTO ideas/.test(s)) {
@@ -84,6 +100,31 @@ export function memD1() {
             projects.set(a[0], { id: a[0], data: a[1], updated_at: a[2] });
           } else if (/INSERT OR REPLACE INTO deal_stage_overrides/.test(s)) {
             deals.set(a[0], { deal_id: a[0], stage: a[1], updated_at: a[2] });
+          } else if (/INSERT OR IGNORE INTO content_drafts/.test(s)) {
+            const key = `${a[1]}|${a[2]}|${a[3]}|${a[4]}`;
+            const clash = drafts.has(a[0]) || [...drafts.values()].some((r) => `${r.tenant}|${r.day}|${r.platform}|${r.slot}` === key);
+            if (clash) return { success: true, meta: { changes: 0 } };
+            drafts.set(a[0], {
+              id: a[0], tenant: a[1], day: a[2], platform: a[3], slot: a[4],
+              body: a[5], subject: a[6], first_line: a[7], status: a[8],
+              source: a[9], error: a[10], updated_at: a[11],
+            });
+            return { success: true, meta: { changes: 1 } };
+          } else if (/UPDATE content_drafts SET body/.test(s)) {
+            const row = drafts.get(a[3]);
+            if (!row || row.tenant !== a[4]) return { success: true, meta: { changes: 0 } };
+            row.body = a[0];
+            row.first_line = a[1];
+            row.status = 'edited';
+            row.updated_at = a[2];
+            row.error = '';
+            return { success: true, meta: { changes: 1 } };
+          } else if (/UPDATE content_drafts SET status = 'approved'/.test(s)) {
+            const row = drafts.get(a[1]);
+            if (!row || row.tenant !== a[2]) return { success: true, meta: { changes: 0 } };
+            row.status = 'approved';
+            row.updated_at = a[0];
+            return { success: true, meta: { changes: 1 } };
           } else if (/status = 'claimed'/.test(s)) {
             const row = actions.find((x) => x.id === a[1] && x.status === 'queued');
             if (row) {
@@ -92,6 +133,21 @@ export function memD1() {
               return { success: true, meta: { changes: 1 } };
             }
             return { success: true, meta: { changes: 0 } };
+          } else if (/status = 'queued', payload/.test(s)) {
+            const row = actions.find((x) => x.id === a[2]);
+            if (row) {
+              row.status = 'queued';
+              row.payload = a[0];
+              row.result = a[1];
+              row.finished_at = null;
+            }
+          } else if (/finished_at = NULL/.test(s)) {
+            const row = actions.find((x) => x.id === a[2]);
+            if (row) {
+              row.status = a[0];
+              row.result = a[1];
+              row.finished_at = null;
+            }
           } else if (/SET payload/.test(s)) {
             const row = actions.find((x) => x.id === a[1]);
             if (row) row.payload = a[0];

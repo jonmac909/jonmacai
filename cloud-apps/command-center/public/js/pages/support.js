@@ -1,4 +1,5 @@
 import { tiles, pgrow, btn, head, esc } from '../ui.js';
+import { plannerPayload } from '../planner.js';
 
 function moneyRows(d) {
   if (d.money.rows) return d.money.rows;
@@ -13,12 +14,15 @@ function moneyRows(d) {
 }
 
 function draftBtns(r) {
-  if (r.kind) {
-    return btn('Edit', { kind: 'support.save_draft', payload: { uid: r.payload.uid, body: r.payload.body, subject: r.payload.subject }, cls: 'line', edit: true })
-      + btn('Approve & send', { kind: r.kind, payload: r.payload, done: true });
-  }
-  return btn('Edit', { msg: 'Draft opened for editing', cls: 'line' })
-    + btn('Approve & send', { msg: 'Reply sent', done: true });
+  const payload = {
+    ...(r.payload || {}),
+    to: r.to, subject: r.subject, body: r.body,
+    isolated: r.isolated || String(r.payload?.uid || r.id || '').startsWith('qa-'),
+    saveKind: r.saveKind || 'support.save_draft',
+    sendKind: r.sendKind || r.kind || 'support.send',
+    discardKind: r.discardKind || 'support.discard_draft',
+  };
+  return btn('Review', { draft: true, payload, cls: 'line' });
 }
 
 function moneyBtns(r) {
@@ -50,7 +54,7 @@ export function render(d) {
       <div class="card pad">
         <div class="cardhead"><h2>${d.topics.title}</h2><span class="meta">${d.topics.meta}</span></div>
         <div class="pgs">${d.topics.rows.map(pgrow).join('')}</div>
-        <div class="box"><p>${esc(d.topics.box)}</p>${btn('Send to Planner', { msg: 'Sent to Planner as a task', cls: 'wide' })}</div>
+        <div class="box"><p>${esc(d.topics.box)}</p>${btn('Send to Planner', { kind: 'mastermind.send_to_planner', payload: plannerPayload({ id: 'support-topics', title: 'Support topics', body: d.topics.box, area: 'Support' }), cls: 'wide' })}</div>
       </div>
     </div>
   </div>

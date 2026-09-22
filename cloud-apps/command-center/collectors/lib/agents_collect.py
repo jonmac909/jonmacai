@@ -2,10 +2,11 @@ import json
 import os
 import subprocess
 import time
-from datetime import datetime
+
 from pathlib import Path
 
-from agent_status import SPIN, agent_status
+from agent_status import classify_sessions
+from omp_lifecycle import load_records, overlay
 
 AGENTS_JSON = Path(__file__).resolve().parents[1] / 'agents.json'
 LABEL = {'mac': 'Mac mini', 'gpu2': 'GPU2'}
@@ -48,82 +49,59 @@ def _meta():
         return {}
 
 
-def _strip(title):
-    t = title or ''
-    for ch in SPIN:
-        t = t.replace(ch, '')
-    return ' '.join(t.split()).strip(' -–·')
 
-
-def _terms_for(terms, worktree_id):
-    return [t for t in terms if t.get('worktreeId') == worktree_id]
+def collect_report(machine):
+    now = int(time.time() * 1000)
+    try:
+        ps = _json(['worktree', 'ps'])
+        listed = _json(['terminal', 'list'])
+    except Exception:
+        return {'ok': False, 'unreachable': True, 'agents': [], 'hostScope': {}}
+    terms = listed.get('terminals') or []
+    meta = _meta()
+    out = []
+    for row in overlay(classify_sessions(ps.get('worktrees') or [], terms, now), terms, load_records(), now):
+        info = meta.get(row['name']) or {}
+        item = {
+            'id': row['id'],
+            'name': row['name'],
+            'hostId': row['hostId'],
+            'worktreeId': row['worktreeId'],
+            'runs': LABEL.get(machine, machine),
+            'machine': machine,
+            'now': row['now'],
+            'job': row['job'],
+            'pct': row['pct'],
+            'pg': row['pg'],
+            'status': row['status'],
+            'pill': row['pill'],
+            'pillCls': row['pillCls'],
+            'page': info.get('page') or '',
+            'observedAt': row.get('observedAt'),
+        }
+        if row.get('provenance'):
+            item['provenance'] = row['provenance']
+        for t in terms:
+            if t.get('worktreeId') == row.get('worktreeId') and t.get('connected') and t.get('handle') and t.get('agentIdentity'):
+                item['handle'] = t['handle']
+                break
+        if row['status'] == 'action_required':
+            item['waiting'] = {
+                'title': row['now'],
+                'lines': [row['now']],
+                'waitLabel': 'Action required',
+            }
+        out.append(item)
+    return {
+        'ok': True,
+        'unreachable': False,
+        'agents': out,
+        'hostScope': ps.get('hostScope') or {},
+    }
 
 
 def collect_agents(machine):
-    now = int(time.time() * 1000)
-    meta = _meta()
-    try:
-        wts = _json(['worktree', 'ps']).get('worktrees') or []
-        terms = _json(['terminal', 'list']).get('terminals') or []
-    except Exception:
-        return []
-    out = []
-    for w in wts:
-        if not w.get('isPinned'):
-            continue
-        name = w.get('displayName') or Path(w.get('path') or '').name or 'Agent'
-        info = meta.get(name) or {}
-        daily = bool(info.get('daily'))
-        mine = _terms_for(terms, w.get('worktreeId'))
-        title = next((t.get('title') or '' for t in mine if t.get('title')), '')
-        preview = (w.get('preview') or '') + ' ' + (w.get('comment') or '')
-        last = w.get('lastActivityAt') or 0
-        handle = None
-        for t in mine:
-            last = max(last or 0, t.get('lastOutputAt') or 0)
-            if not handle and t.get('handle') and t.get('connected'):
-                handle = t['handle']
-            if t.get('title') and any(ch in (t.get('title') or '') for ch in SPIN):
-                title = t['title']
-        st = agent_status(title, preview, last or None, now, daily)
-        today = last and datetime.fromtimestamp(last / 1000).date() == datetime.fromtimestamp(now / 1000).date()
-        if st == 'working':
-            job, pct, pg, pill, pill_cls = 'Working', 50, '', 'Working', 'ok'
-        elif st == 'needs_you':
-            job, pct, pg, pill, pill_cls = 'Waiting', 50, 'risk', 'Needs you', 'risk'
-        elif st == 'quiet':
-            job, pct, pg, pill, pill_cls = 'Not run', 0, 'crit', 'Quiet too long', 'crit'
-        elif today:
-            job, pct, pg, pill, pill_cls = 'Done', 100, 'ok', 'Idle', ''
-        else:
-            job, pct, pg, pill, pill_cls = 'Idle', 0, '', 'Idle', ''
-        doing = _strip(title) or (w.get('comment') or preview.strip() or 'Quiet')
-        row = {
-            'name': name,
-            'runs': LABEL.get(machine, machine),
-            'machine': machine,
-            'now': doing[:120],
-            'job': job,
-            'pct': pct,
-            'pg': pg,
-            'status': st,
-            'pill': pill,
-            'pillCls': pill_cls,
-            'page': info.get('page') or '',
-            'handle': handle,
-            'worktreeId': w.get('worktreeId'),
-        }
-        if st == 'needs_you':
-            row['waiting'] = {
-                'title': doing[:120],
-                'lines': [ln.strip() for ln in (w.get('comment') or preview).split('\n') if ln.strip()][:2] or [doing[:120]],
-                'waitLabel': 'Needs you',
-            }
-        if info.get('prompt') and st in ('quiet', 'idle'):
-            row['restart'] = 'Restart'
-            row['restartMsg'] = '%s agent restarted' % name
-        out.append(row)
-    return out
+    return collect_report(machine).get('agents') or []
 
 
 def restart_agent(payload):

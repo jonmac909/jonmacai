@@ -1,0 +1,4 @@
+base=6fa03544a646d676bce7a139668206f2c255f150
+patch=cpu-guard.patch
+patch_sha256=c4a50b40782ae962c183d237af2b1f79c070516b181e8f2477be7a0ccf0641f6
+apply=replace the cuda try/except in skills/loop-studio/core/engine/ls_platform.py transcribe() with the block after --- in cpu-guard.patch

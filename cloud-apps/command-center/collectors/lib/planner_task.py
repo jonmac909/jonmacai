@@ -2,6 +2,12 @@ import json
 from agents_collect import _json, _run
 
 
+def destination(title, worktree_name=None):
+    title = (title or 'Mastermind idea').strip()[:80]
+    name = worktree_name or ('Planner - ' + title[:48])
+    return 'Created "%s" under Planner in Orca. Open that worktree.' % name
+
+
 def send_to_planner(payload):
     title = (payload.get('title') or 'Mastermind idea').strip()[:80]
     body = (payload.get('body') or payload.get('text') or title).strip()
@@ -28,4 +34,4 @@ def send_to_planner(payload):
     if data.get('ok') is False:
         err = (data.get('error') or {}).get('message') or 'Planner task failed'
         return False, err[-200:]
-    return True, 'Sent to Planner as a task'
+    return True, destination(title, name)

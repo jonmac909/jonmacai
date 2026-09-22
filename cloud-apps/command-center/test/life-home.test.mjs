@@ -115,7 +115,7 @@ test('date night suggests the first free evening 18:00–21:00', () => {
   assert.equal(suggestion.start.endsWith('T18:00:00'), true);
 });
 
-test('morning run-through ticks itself from live sources', () => {
+test('morning run-through stays blank until a manual checklist click', () => {
   const posts = Array.from({ length: 12 }, (_, i) => ({
     id: `p${i}`, platform: 'X', posted_at: '2026-09-18T12:00:00-07:00', first_line: 'hi', source: 'agent',
   }));
@@ -132,14 +132,14 @@ test('morning run-through ticks itself from live sources', () => {
     checklist: [{ day: TODAY, item: 'market_check', how: 'auto' }],
   });
   const steps = Object.fromEntries(out.pages.home.runThrough.steps.map((s) => [s.label, s.done]));
-  assert.equal(steps['Sponsor emails'], true);
-  assert.equal(steps['Bank scan'], true);
-  assert.equal(steps['Market check'], true);
-  assert.equal(steps['Mastermind digest'], true);
-  assert.equal(steps['Support replies'], true);
-  assert.equal(steps['Posts out'], true);
-  assert.equal(steps['Workout 11:00'], true);
-  assert.equal(out.pages.home.runThrough.done, 7);
+  assert.equal(steps['Sponsor emails'], false);
+  assert.equal(steps['Bank scan'], false);
+  assert.equal(steps['Market check'], false);
+  assert.equal(steps['Mastermind digest'], false);
+  assert.equal(steps['Support replies'], false);
+  assert.equal(steps['Posts out'], false);
+  assert.equal(steps['Workout 11:00'], false);
+  assert.equal(out.pages.home.runThrough.done, 0);
 });
 
 test('Needs you ranks overdue money, then blocked, then oldest drafts', () => {
@@ -285,10 +285,10 @@ test('Telegram push sends only new critical items', async () => {
   assert.equal(sent.some((t) => /support/i.test(t)), false);
 });
 
-test('live sources drop the mockup chip on Home', () => {
+test('an unrelated snapshot does not clear the mockup chip', () => {
   assert.match(snapshot.pages.home.chip, /Mockup/);
   const out = mergeSnapshot(snapshot, [row('agents_mac', { hostname: 'x' })], NOW);
-  assert.equal(/Mockup/i.test(out.pages.home.chip || ''), false);
+  assert.match(out.pages.home.chip, /Mockup/);
 });
 
 test('fixture bank scan Enter code is gone without a live bank_scan', () => {

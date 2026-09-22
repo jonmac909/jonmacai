@@ -26,6 +26,7 @@ function envWith(db, extra = {}) {
     DASHBOARD_PASSWORD: '909090',
     MACHINE_TOKEN_MAC: 'mac-token-aaaaaaaaaaaaaaaaaaaaaaaaaaaa',
     MACHINE_TOKEN_GPU2: GPU,
+    MACHINE_TOKEN_GPU1: 'gpu1-token-cccccccccccccccccccccccccccc',
     DB: db,
     ...extra,
   };
@@ -307,7 +308,7 @@ test('yt2 project PUT persists in D1 and snapshot shows it', async () => {
   assert.equal(json.pages.youtube.pipeline.rows.some((r) => r.video === 'Persisted project'), true);
 });
 
-test('upload PUT stores the file and queues video.start_edit on GPU2', async () => {
+test('upload PUT queues one GPU1 job and a repeat does not overwrite it', async () => {
   const db = memD1();
   const store = new Map();
   const env = envWith(db, {
@@ -328,23 +329,41 @@ test('upload PUT stores the file and queues video.start_edit on GPU2', async () 
   }), env);
   assert.equal(created.status, 200, await created.clone().text());
   const { id, putUrl } = await created.json();
-  assert.ok(id);
-  assert.match(putUrl, /\/dashboard\/api\/uploads\//);
-  const put = await handleApi(req(new URL(putUrl).pathname + new URL(putUrl).search, {
-    method: 'PUT', body: 'fake-bytes',
-  }), env);
+  const putPath = new URL(putUrl).pathname + new URL(putUrl).search;
+  const put = await handleApi(req(putPath, { method: 'PUT', body: 'fake-bytes' }), env);
   assert.equal(put.status, 200, await put.clone().text());
   const done = await put.json();
   assert.equal(done.ok, true);
+  assert.equal(done.host, 'gpu1');
   const action = db.actions.find((a) => a.kind === 'video.start_edit');
-  assert.ok(action);
-  assert.equal(action.target, 'gpu2');
+  assert.equal(action.target, 'gpu1');
   assert.equal(action.status, 'queued');
-  assert.match(action.payload, /New recording/);
-  assert.ok([...store.keys()].length > 0);
+  assert.equal(action.idem_key, `upload-${id}`);
+  assert.equal(db.actions.filter((a) => a.kind === 'video.start_edit').length, 1);
+  const again = await handleApi(req(putPath, { method: 'PUT', body: 'other-bytes' }), env);
+  assert.equal(again.status, 200);
+  assert.equal((await again.json()).id, action.id);
+  assert.equal(db.actions.filter((a) => a.kind === 'video.start_edit').length, 1);
+  const stored = store.get([...store.keys()][0]);
+  const text = typeof stored === 'string' ? stored : new TextDecoder().decode(stored);
+  assert.equal(text, 'fake-bytes');
+  const gpu2 = await handleApi(req('/dashboard/api/actions/claim', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${GPU}` },
+    body: JSON.stringify({ machine: 'gpu2' }),
+  }), env);
+  assert.equal((await gpu2.json()).actions.length, 0);
+  const gpu1 = await handleApi(req('/dashboard/api/actions/claim', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: 'Bearer gpu1-token-cccccccccccccccccccccccccccc' },
+    body: JSON.stringify({ machine: 'gpu1' }),
+  }), env);
+  const claimed = await gpu1.json();
+  assert.equal(claimed.actions.length, 1);
+  assert.equal(claimed.actions[0].id, action.id);
 });
 
-test('video.start_edit action queues on GPU2 from the dashboard button', async () => {
+test('video.start_edit from the dashboard button targets GPU1', async () => {
   const db = memD1();
   const env = envWith(db);
   const ck = await cookie();
@@ -355,8 +374,197 @@ test('video.start_edit action queues on GPU2 from the dashboard button', async (
   }), env);
   assert.equal(res.status, 200);
   assert.equal((await res.json()).status, 'queued');
-  assert.equal(db.actions.at(-1).target, 'gpu2');
+  assert.equal(db.actions.at(-1).target, 'gpu1');
 });
+
+test('GPU1 reports waiting-for-review on the same job and resume does not duplicate it', async () => {
+  const db = memD1();
+  const env = envWith(db);
+  const ck = await cookie();
+  db.actions.push({
+    id: 'job1', kind: 'video.start_edit', target: 'gpu1', status: 'claimed',
+    payload: JSON.stringify({ id: 'up1', title: 'QA', filename: 'qa.mp4', key: 'uploads/up1/qa.mp4' }),
+    result: null, idem_key: 'upload-up1', created_at: '2026-09-22T00:00:00Z', finished_at: null,
+  });
+  const progress = await handleApi(req('/dashboard/api/actions/job1/progress', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: 'Bearer gpu1-token-cccccccccccccccccccccccccccc' },
+    body: JSON.stringify({
+      host: 'gpu1', stage: 'waiting-for-review', device: 'cpu', encoder: 'libx264',
+      failure: null, retry: 0, validated: false,
+    }),
+  }), env);
+  assert.equal(progress.status, 200, await progress.clone().text());
+  assert.equal(db.actions[0].status, 'waiting');
+  assert.equal(db.actions[0].finished_at, null);
+  const reported = JSON.parse(db.actions[0].result);
+  assert.equal(reported.host, 'gpu1');
+  assert.equal(reported.stage, 'waiting-for-review');
+  assert.equal(reported.device, 'cpu');
+  const empty = await handleApi(req('/dashboard/api/actions/job1/resume', {
+    method: 'POST', cookie: ck,
+    headers: { 'Content-Type': 'application/json', 'X-CC': '1' },
+    body: JSON.stringify({ keepers: [] }),
+  }), env);
+  assert.equal(empty.status, 400);
+  const before = await handleApi(req('/dashboard/api/snapshot?pages=video', { cookie: ck }), env);
+  const review = (await before.json()).pages.video.editing.rows[0];
+  assert.equal(review.kind, 'video.resume');
+  assert.equal(review.payload.actionId, 'job1');
+  const resume = await handleApi(req('/dashboard/api/actions/job1/resume', {
+    method: 'POST', cookie: ck,
+    headers: { 'Content-Type': 'application/json', 'X-CC': '1' },
+    body: JSON.stringify({ keepers: [{ cs: 1.2, ce: 3.4, label: 'line' }] }),
+  }), env);
+  assert.equal(resume.status, 200, await resume.clone().text());
+  assert.equal(db.actions.length, 1);
+  assert.equal(db.actions[0].id, 'job1');
+  assert.equal(JSON.parse(db.actions[0].payload).keepers.length, 1);
+  const snap = await handleApi(req('/dashboard/api/snapshot?pages=video', { cookie: ck }), env);
+  const page = (await snap.json()).pages.video;
+  assert.match(page.editing.rows[0].sub, /gpu1/);
+  assert.match(page.editing.rows[0].sub, /waiting-for-review|resume/);
+});
+
+test('GPU2 cannot claim, report, or take a GPU1 result', async () => {
+  const db = memD1();
+  const store = new Map();
+  const env = envWith(db, {
+    UPLOADS: { async put(key, value) { store.set(key, value); }, async get(key) { return store.has(key) ? { body: store.get(key) } : null; } },
+  });
+  db.actions.push({
+    id: 'job1', kind: 'video.start_edit', target: 'gpu1', status: 'claimed',
+    payload: JSON.stringify({ id: 'up1', title: 'QA', filename: 'qa.mp4', key: 'uploads/up1/qa.mp4' }),
+    result: null, idem_key: 'upload-up1', created_at: '2026-09-22T00:00:00Z', finished_at: null,
+  });
+  const wrongMachine = await handleApi(req('/dashboard/api/actions/claim', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: 'Bearer gpu1-token-cccccccccccccccccccccccccccc' },
+    body: JSON.stringify({ machine: 'gpu2' }),
+  }), env);
+  assert.equal(wrongMachine.status, 401);
+  const gpu2Progress = await handleApi(req('/dashboard/api/actions/job1/progress', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${GPU}` },
+    body: JSON.stringify({ stage: 'done', validated: true, outputKey: 'uploads/other/out.mp4' }),
+  }), env);
+  assert.equal(gpu2Progress.status, 401);
+  const stolen = await handleApi(req('/dashboard/api/actions/job1/progress', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: 'Bearer gpu1-token-cccccccccccccccccccccccccccc' },
+    body: JSON.stringify({ stage: 'done', validated: true, outputKey: 'uploads/other/out.mp4' }),
+  }), env);
+  assert.equal(stolen.status, 200);
+  assert.equal(JSON.parse(db.actions[0].result).outputKey, 'uploads/up1/out.mp4');
+  const gpu2Put = await handleApi(req('/dashboard/api/uploads/up1/output', {
+    method: 'PUT',
+    headers: { Authorization: `Bearer ${GPU}` },
+    body: 'nope',
+  }), env);
+  assert.equal(gpu2Put.status, 401);
+  const foreign = await handleApi(req('/dashboard/api/uploads/up1?key=uploads/other/secret.mp4', {
+    headers: { Authorization: 'Bearer gpu1-token-cccccccccccccccccccccccccccc' },
+  }), env);
+  assert.equal(foreign.status, 400);
+});
+
+test('duplicate resume stays one job and bad keepers are rejected', async () => {
+  const db = memD1();
+  const env = envWith(db);
+  const ck = await cookie();
+  db.actions.push({
+    id: 'job1', kind: 'video.start_edit', target: 'gpu1', status: 'waiting',
+    payload: JSON.stringify({ id: 'up1', title: 'QA' }),
+    result: JSON.stringify({ host: 'gpu1', stage: 'waiting-for-review' }),
+    idem_key: 'upload-up1', created_at: '2026-09-22T00:00:00Z', finished_at: null,
+  });
+  const bad = await handleApi(req('/dashboard/api/actions/job1/resume', {
+    method: 'POST', cookie: ck,
+    headers: { 'Content-Type': 'application/json', 'X-CC': '1' },
+    body: JSON.stringify({ keepers: [{ label: 'no times' }] }),
+  }), env);
+  assert.equal(bad.status, 400);
+  const body = JSON.stringify({ keepers: [{ cs: 1, ce: 2, label: 'line' }], expectedLines: ['The red box sits on the table.', 'We leave it there today.'] });
+  const first = await handleApi(req('/dashboard/api/actions/job1/resume', {
+    method: 'POST', cookie: ck, headers: { 'Content-Type': 'application/json', 'X-CC': '1' }, body,
+  }), env);
+  const second = await handleApi(req('/dashboard/api/actions/job1/resume', {
+    method: 'POST', cookie: ck, headers: { 'Content-Type': 'application/json', 'X-CC': '1' }, body,
+  }), env);
+  assert.equal(first.status, 200);
+  assert.equal(second.status, 200);
+  assert.equal(db.actions.length, 1);
+  assert.equal(db.actions[0].id, 'job1');
+  assert.deepEqual(JSON.parse(db.actions[0].payload).expectedLines, ['The red box sits on the table.', 'We leave it there today.']);
+});
+
+test('video page says GPU1 disconnected until a fresh claimer heartbeat', async () => {
+  const db = memD1();
+  const env = envWith(db);
+  const ck = await cookie();
+  db.actions.push({
+    id: 'job1', kind: 'video.start_edit', target: 'gpu1', status: 'queued',
+    payload: JSON.stringify({ id: 'up1', title: 'QA' }),
+    result: JSON.stringify({ host: 'gpu1', stage: 'queued' }),
+    idem_key: 'upload-up1', created_at: '2026-09-22T00:00:00Z', finished_at: null,
+  });
+  const quiet = await handleApi(req('/dashboard/api/snapshot?pages=video', { cookie: ck }), env);
+  assert.match((await quiet.json()).pages.video.editing.meta, /GPU1 disconnected/);
+  db.snapshots.set('video_gpu1', {
+    source: 'video_gpu1', data: '{"ok":true,"device":"cpu"}',
+    collected_at: new Date().toISOString(), received_at: new Date().toISOString(),
+  });
+  const live = await handleApi(req('/dashboard/api/snapshot?pages=video', { cookie: ck }), env);
+  assert.doesNotMatch((await live.json()).pages.video.editing.meta || '', /disconnected/);
+});
+
+test('a saved cut stays ready when GPU1 is disconnected, and a failed job does not', async () => {
+  const db = memD1();
+  const env = envWith(db);
+  const ck = await cookie();
+  db.actions.push({
+    id: 'saved', kind: 'video.start_edit', target: 'gpu1', status: 'done',
+    payload: JSON.stringify({ id: 'up-saved', title: 'Saved cut' }),
+    result: JSON.stringify({ host: 'gpu1', stage: 'done', validated: true, outputKey: 'uploads/up-saved/out.mp4' }),
+    idem_key: 'upload-up-saved', created_at: '2026-09-22T00:00:00Z', finished_at: '2026-09-22T00:10:00Z',
+  }, {
+    id: 'bad', kind: 'video.start_edit', target: 'gpu1', status: 'done',
+    payload: JSON.stringify({ id: 'up-bad', title: 'Bad cut' }),
+    result: JSON.stringify({ host: 'gpu1', stage: 'quality-failure', validated: false, failure: 'missing unique lines' }),
+    idem_key: 'upload-up-bad', created_at: '2026-09-22T00:00:00Z', finished_at: '2026-09-22T00:10:00Z',
+  });
+  const res = await handleApi(req('/dashboard/api/snapshot?pages=video', { cookie: ck }), env);
+  const page = (await res.json()).pages.video;
+  assert.match(page.editing.meta, /GPU1 disconnected/);
+  assert.equal(page.ready.rows.length, 1);
+  assert.equal(page.ready.rows[0].title, 'Saved cut');
+  assert.equal(page.editing.rows.some((row) => row.title === 'Bad cut' && row.pill === 'Failed'), true);
+});
+
+test('GPU1 claim returns its own stuck job and GPU2 does not', async () => {
+  const db = memD1();
+  const env = envWith(db);
+  db.actions.push({
+    id: 'stuck', kind: 'video.start_edit', target: 'gpu1', status: 'claimed',
+    payload: JSON.stringify({ id: 'up1' }), result: null, idem_key: 'upload-up1',
+    created_at: '2026-09-22T00:00:00Z', finished_at: null,
+  });
+  const gpu1 = await handleApi(req('/dashboard/api/actions/claim', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: 'Bearer gpu1-token-cccccccccccccccccccccccccccc' },
+    body: JSON.stringify({ machine: 'gpu1' }),
+  }), env);
+  assert.equal((await gpu1.json()).actions[0].id, 'stuck');
+  const gpu2 = await handleApi(req('/dashboard/api/actions/claim', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${GPU}` },
+    body: JSON.stringify({ machine: 'gpu2' }),
+  }), env);
+  assert.equal((await gpu2.json()).actions.length, 0);
+});
+
+
+
 
 test('python collector reads queue-status.json', () => {
   const dir = mkdtempSync(join(tmpdir(), 'cc-video-'));
@@ -376,26 +584,39 @@ test('python collector reads queue-status.json', () => {
   assert.equal(data.queue[0].status, 'editing');
 });
 
-test('python start_edit writes the inbound file and queue-status.json', () => {
-  const dir = mkdtempSync(join(tmpdir(), 'cc-video-'));
-  mkdirSync(join(dir, 'out'), { recursive: true });
-  mkdirSync(join(dir, 'in'), { recursive: true });
-  const src = join(dir, 'take.mp4');
-  writeFileSync(src, 'abc123');
+test('GPU1 cutter job records real stages and does not write a fake queue file', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'cc-loop-'));
+  const cut = join(dir, 'cut.py');
+  writeFileSync(cut, [
+    'import sys, pathlib',
+    'cmd, work = sys.argv[1], sys.argv[3]',
+    'out = sys.argv[4] if len(sys.argv) > 4 else ""',
+    'root = pathlib.Path(work)',
+    'root.mkdir(parents=True, exist_ok=True)',
+    'if cmd == "prep":',
+    '    (root / "words.json").write_text("[]", encoding="utf-8")',
+    'elif cmd == "finish":',
+    '    pathlib.Path(out).write_bytes(b"mp4")',
+    'elif cmd == "verify":',
+    '    print("verify-ok")',
+    'else:',
+    '    raise SystemExit(2)',
+  ].join('\n'));
+  const root = dir.replace(/\\/g, '/');
   const r = runPy(
-    'from video_edit import handle\n'
+    'from loop_studio import open_job, advance\n'
     + 'import json, os\n'
-    + `ok, msg = handle('video.start_edit', {'id': 'u1', 'title': 'New recording', 'filename': 'take.mp4', 'path': r'${src.replace(/\\/g, '/')}'})\n`
-    + 'print(ok)\n'
-    + 'print(msg)\n'
-    + 'print(open(os.path.join(os.environ["CC_VIDEO_ROOT"], "out", "queue-status.json"), encoding="utf-8").read())\n',
-    { CC_VIDEO_ROOT: dir },
+    + `job = open_job(r'''${root}''', "up1", "QA clip")\n`
+    + 'print(json.dumps(advance(job)))\n'
+    + 'print("queue", os.path.exists(os.path.join(job, "queue-status.json")))\n',
+    { LS_CUTTER: cut, LS_DEVICE: 'cpu', LS_ENCODER: 'libx264' },
   );
   assert.equal(r.status, 0, r.stderr);
   const lines = r.stdout.trim().split(/\r?\n/);
-  assert.equal(lines[0], 'True');
-  const queue = JSON.parse(lines.slice(2).join('\n'));
-  assert.equal(queue[0].title, 'New recording');
-  assert.ok(queue[0].status === 'queued' || queue[0].status === 'editing');
-  assert.equal(readFileSync(join(dir, 'in', 'u1-take.mp4'), 'utf8'), 'abc123');
+  const state = JSON.parse(lines[0]);
+  assert.equal(state.host, 'gpu1');
+  assert.equal(state.stage, 'waiting-for-review');
+  assert.equal(state.device, 'cpu');
+  assert.equal(state.encoder, 'libx264');
+  assert.equal(lines[1], 'queue False');
 });
