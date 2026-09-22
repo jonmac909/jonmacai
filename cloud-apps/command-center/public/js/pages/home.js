@@ -1,8 +1,8 @@
-import { tiles, pg, pill, job, btn, dots } from '../ui.js';
+import { tiles, pg, pill, job, btn, dots, esc } from '../ui.js';
 
 export function render(d) {
   const date = d.date;
-  const steps = d.runThrough.steps.map((s) => `<button class="step" aria-pressed="${s.done}">${s.label}</button>`).join('');
+  const steps = d.runThrough.steps.map((s) => `<button type="button" class="step" data-item="${esc(s.item || '')}" data-page="${esc(s.page || '')}" aria-pressed="${s.done ? 'true' : 'false'}">${esc(s.label)}</button>`).join('');
   const jobs = d.needsYou.jobs.map(job).join('');
   const rows = d.glance.rows.map((r) => `<tr data-page="${r.page}"><td>${r.area}</td><td>${r.today}</td><td>${r.goal}</td><td><div class="cellpg">${pg(r.pct, r.pg)}${pill(r.pill, r.pillCls)}</div></td></tr>`).join('');
   const L = d.life;

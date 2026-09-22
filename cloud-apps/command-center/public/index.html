@@ -40,4 +40,26 @@
 <main class="main"><div class="wrap" id="page"></div></main>
 </div>
 <div id="toast" role="status" aria-live="polite"></div>
+<dialog id="morningModal" class="modal">
+  <form method="dialog" class="modal-card">
+    <h2>Start my morning</h2>
+    <p class="note">Checks stay on this Kelowna day only. Nothing auto-ticks from empty queues.</p>
+    <div id="morningSteps" class="steps"></div>
+    <menu><button value="close" class="btn line">Close</button></menu>
+  </form>
+</dialog>
+<dialog id="draftModal" class="modal">
+  <form method="dialog" class="modal-card">
+    <h2>Review draft</h2>
+    <label>To <input name="to" type="email"></label>
+    <label>Subject <input name="subject"></label>
+    <label>Body <textarea name="body" rows="10"></textarea></label>
+    <menu>
+      <button type="button" class="btn line" data-draft-act="discard">Discard</button>
+      <button type="button" class="btn line" data-draft-act="save">Save</button>
+      <button type="button" class="btn" data-draft-act="send">Send</button>
+      <button value="close" class="btn line">Close</button>
+    </menu>
+  </form>
+</dialog>
 <script type="module" src="js/app.js"></script>
