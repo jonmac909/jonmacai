@@ -62,7 +62,7 @@ export function btn(label, { page, msg, done, cls = '', sm, kind, payload, href,
 export function job(j) {
   const foot = [
     j.lineBtn ? btn(j.lineBtn, { page: j.linePage, msg: j.lineMsg, kind: j.lineKind, payload: j.linePayload, cls: 'line', done: j.done }) : '',
-    j.btn ? btn(j.btn, { page: j.page, msg: j.msg, kind: j.kind, payload: j.payload, done: j.done, cls: j.btnCls || '' }) : '',
+    j.btn ? btn(j.btn, { page: j.page, msg: j.msg, kind: j.kind, payload: j.payload, done: j.done, cls: j.btnCls || '', href: j.href }) : '',
   ].join('');
   return `<article class="card job"><div class="top"><span class="area">${esc(j.area)}</span>${pill(j.pill, j.pillCls || '')}</div><h3>${esc(j.title)}</h3><ul>${(j.lines || []).map((l) => `<li>${esc(l)}</li>`).join('')}</ul><div class="foot">${foot}</div></article>`;
 }

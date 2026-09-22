@@ -5,7 +5,7 @@ $dataset = Join-Path (Split-Path $sourceDir -Parent) "youtube-gen\rows_data.js"
 
 New-Item -ItemType Directory -Path $publicDir -Force | Out-Null
 
-foreach ($name in @("index.html", "styles.css", "templates.js", "app.js")) {
+foreach ($name in @("index.html", "styles.css", "templates.js", "app.js", "live-sync.js", "remake.js")) {
   Copy-Item -LiteralPath (Join-Path $sourceDir $name) -Destination (Join-Path $publicDir $name) -Force
 }
 
