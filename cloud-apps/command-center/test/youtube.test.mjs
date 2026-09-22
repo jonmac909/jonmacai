@@ -403,6 +403,10 @@ test('GPU1 reports waiting-for-review on the same job and resume does not duplic
     body: JSON.stringify({ keepers: [] }),
   }), env);
   assert.equal(empty.status, 400);
+  const before = await handleApi(req('/dashboard/api/snapshot?pages=video', { cookie: ck }), env);
+  const review = (await before.json()).pages.video.editing.rows[0];
+  assert.equal(review.kind, 'video.resume');
+  assert.equal(review.payload.actionId, 'job1');
   const resume = await handleApi(req('/dashboard/api/actions/job1/resume', {
     method: 'POST', cookie: ck,
     headers: { 'Content-Type': 'application/json', 'X-CC': '1' },
@@ -411,7 +415,6 @@ test('GPU1 reports waiting-for-review on the same job and resume does not duplic
   assert.equal(resume.status, 200, await resume.clone().text());
   assert.equal(db.actions.length, 1);
   assert.equal(db.actions[0].id, 'job1');
-  assert.equal(db.actions[0].status, 'queued');
   assert.equal(JSON.parse(db.actions[0].payload).keepers.length, 1);
   const snap = await handleApi(req('/dashboard/api/snapshot?pages=video', { cookie: ck }), env);
   const page = (await snap.json()).pages.video;

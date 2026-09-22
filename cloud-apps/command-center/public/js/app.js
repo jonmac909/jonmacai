@@ -40,7 +40,16 @@ export function say(m) {
 
 export async function act(kind, payload = {}) {
   const idemKey = crypto.randomUUID();
-  if (kind === 'mastermind.scan') say('Scanning the group now');
+  if (kind === 'video.resume') {
+    const res = await fetch(`${PREFIX}/api/actions/${payload.actionId}/resume`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CC': '1' },
+      body: JSON.stringify({ keepers: payload.keepers || [], expectedLines: payload.expectedLines || [] }),
+    });
+    const row = await res.json().catch(() => ({}));
+    say(res.ok ? 'Keepers sent' : (row.error || 'Resume failed'));
+    return row;
+  }
   const scan = kind === 'sponsor.scan_inbox' || kind === 'mastermind.scan';
   const polls = scan ? 300 : 75; // ponytail: 10 min matches collector refresh timeout
   const wait = scan ? 2000 : 400;

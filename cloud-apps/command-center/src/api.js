@@ -52,11 +52,13 @@ function videoQueueItem(row) {
   const stage = row.status === 'queued' && payload.keepers ? 'resume' : (result.stage || row.status);
   return {
     id: payload.id || row.id,
+    actionId: row.id,
     title: payload.title || 'Upload',
     status: row.status === 'done' ? 'ready' : row.status === 'waiting' ? 'waiting' : 'queued',
     host: result.host || 'gpu1',
     stage,
     failure: result.failure || '',
+    segments: result.segments || [],
     readyPath: result.outputKey ? `/dashboard/api/uploads/${payload.id}/output` : '',
   };
 }
@@ -389,6 +391,7 @@ export async function handleApi(request, env, ctx) {
       retry: Number(body.retry) || 0,
       validated: Boolean(body.validated),
       outputKey: body.validated ? ownedOutputKey(payload) : null,
+      segments: Array.isArray(body.segments) ? body.segments.filter((k) => k && Number.isFinite(Number(k.cs)) && Number.isFinite(Number(k.ce))) : [],
     };
     const status = result.stage === 'waiting-for-review' ? 'waiting' : 'claimed';
     await reportAction(env.DB, row.id, status, JSON.stringify(result));
