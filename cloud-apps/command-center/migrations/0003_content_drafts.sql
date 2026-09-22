@@ -13,3 +13,4 @@ CREATE TABLE IF NOT EXISTS content_drafts (
   updated_at TEXT NOT NULL,
   UNIQUE (tenant, day, platform, slot)
 );
+CREATE UNIQUE INDEX IF NOT EXISTS content_drafts_slot ON content_drafts (tenant, day, platform, slot);
