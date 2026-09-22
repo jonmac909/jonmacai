@@ -179,8 +179,9 @@ test('merge overlays mastermind picks from the digest, implement then park', () 
   const rows = [{
     source: 'mastermind',
     data: JSON.stringify({
+      origin: 'telegram-group',
+      access: 'ok',
       scanned: 41,
-      scannedAt: '2026-09-18T14:30:00Z',
       picks: [
         { id: 'a1', area: 'Outreach', title: 'Pause Instantly on 4% bounce', text: 'one-click Instantly pause', verdict: 'implement', lines: ['From the group', 'Why it fits: Instantly'] },
         { id: 'a2', area: 'Content', title: 'Higgsfield UI clone', text: 'Fun to look at', verdict: 'park', lines: ['From the group'] },
@@ -278,32 +279,28 @@ test('agent.restart on a Mac agent queues on Mac', async () => {
   assert.equal(db.actions[0].target, 'mac');
 });
 
-test('gpu2 mastermind source reads implement then park from the filter', () => {
+test('gpu2 mastermind source does not treat the webpage filter as group history', () => {
   const r = runPy(
-    'import json, os, tempfile\n'
+    'import json, tempfile\n'
     + 'from pathlib import Path\n'
     + 'import mastermind_picks as m\n'
     + 'td = Path(tempfile.mkdtemp())\n'
     + 'filt = {"count": 3, "ran": "2026-09-18T14:30:00Z", "items": [\n'
     + '  {"text": "Pause Instantly", "source": "advanced-chat", "action": "implement"},\n'
-    + '  {"text": "Fun clone", "source": "advanced-chat", "action": "ignore"},\n'
-    + '  {"text": "Mail the list", "source": "advanced-chat", "action": "park"},\n'
     + ']}\n'
     + '(td / "morning-filter.json").write_text(json.dumps(filt), encoding="utf-8")\n'
     + '(td / "telegram-digest.json").write_text(json.dumps([{"text": "a"},{"text": "b"},{"text": "c"}]), encoding="utf-8")\n'
     + 'd = m.picks_from_state(td)\n'
+    + 'print(d["access"])\n'
     + 'print(d["scanned"])\n'
-    + 'print(d["picks"][0]["verdict"])\n'
-    + 'print(d["picks"][1]["verdict"])\n'
     + 'print(len(d["picks"]))\n',
     join(root, 'collectors/lib'),
   );
   assert.equal(r.status, 0, r.stderr);
   const lines = r.stdout.trim().split(/\r?\n/);
-  assert.equal(lines[0], '3');
-  assert.equal(lines[1], 'implement');
-  assert.equal(lines[2], 'park');
-  assert.equal(lines[3], '2');
+  assert.equal(lines[0], 'unavailable');
+  assert.equal(lines[1], '0');
+  assert.equal(lines[2], '0');
 });
 
 test('digest parser keeps takeaways as advanced-chat items', () => {

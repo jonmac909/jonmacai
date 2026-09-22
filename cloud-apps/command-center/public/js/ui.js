@@ -107,10 +107,10 @@ export function formatJobResult(kind, result) {
   try {
     const r = JSON.parse(result);
     if (r && typeof r === 'object') {
-      if (r.error) return `Scan failed: ${r.error}`;
-      if (kind === 'sponsor.scan_inbox' || kind === 'mastermind.scan') {
-        return `Scanned ${r.scanned ?? 0} · ${r.drafts ?? r.picks ?? 0} drafts`;
-      }
+      if (r.access === 'unavailable' || r.error) return `Scan failed: ${r.error || r.connector || 'source unavailable'}`;
+      if (r.empty) return `No messages in the last 24 hours${r.scannedAt ? ` · ${r.scannedAt}` : ''}`;
+      if (kind === 'mastermind.scan') return `Scanned ${r.scanned ?? 0} · ${r.picks ?? 0} ideas`;
+      if (kind === 'sponsor.scan_inbox') return `Scanned ${r.scanned ?? 0} · ${r.drafts ?? r.picks ?? 0} drafts`;
     }
   } catch { /* plain text */ }
   return String(result);

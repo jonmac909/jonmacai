@@ -40,6 +40,7 @@ export function say(m) {
 
 export async function act(kind, payload = {}) {
   const idemKey = crypto.randomUUID();
+  if (kind === 'mastermind.scan') say('Scanning the group now');
   const scan = kind === 'sponsor.scan_inbox' || kind === 'mastermind.scan';
   const polls = scan ? 300 : 75; // ponytail: 10 min matches collector refresh timeout
   const wait = scan ? 2000 : 400;
@@ -55,7 +56,8 @@ export async function act(kind, payload = {}) {
     const s = await fetch(`${PREFIX}/api/actions/${row.id}`);
     const j = await s.json().catch(() => ({}));
     if (j.status === 'done' || j.status === 'failed') {
-      say(j.status === 'done' ? formatJobResult(kind, j.result) : `Failed: ${j.result || 'unknown'}`);
+      const text = formatJobResult(kind, j.result);
+      say(j.status === 'failed' && !String(text).startsWith('Scan failed') && !String(text).startsWith('Failed') ? `Failed: ${text}` : text);
       return j;
     }
   }

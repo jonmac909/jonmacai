@@ -2,6 +2,7 @@ import { tiles, pg, pill, btn, job, head, esc } from '../ui.js';
 
 export function render(d) {
   const right = (d.actions || []).map((a) => btn(a.label, { msg: a.msg, kind: a.kind, payload: a.payload, cls: 'line' })).join('');
+  const note = d.picks?.note ? `<p>${esc(d.picks.note)}</p>` : '';
   const jobs = (d.picks?.jobs || []).map((j) => job(j)).join('');
   const building = (d.building?.rows || []).map((r) => `<div class="r"><div><strong>${esc(r.title)}</strong><small>${esc(r.sub)}</small>${pg(r.pct, r.pg || '')}</div><div class="right">${pill(r.pill, r.pillCls)}</div></div>`).join('');
   const parked = (d.parked?.rows || []).map((r) => `<div class="r"><div><strong>${esc(r.title)}</strong><small>${esc(r.sub)}</small></div><div class="right">${btn('Send to Planner', { kind: 'mastermind.send_to_planner', payload: { id: r.id, title: r.title, body: r.body, area: r.area, msg: 'Created under Planner in Orca. Open that worktree.' }, cls: 'line', sm: true, done: true })}</div></div>`).join('');
@@ -12,7 +13,8 @@ export function render(d) {
   ${head(d.title, d.sub, right)}
   ${tiles(d.tiles)}
   <div class="sec">
-    <div class="bar"><h2>${d.picks.title}</h2></div>
+    <div class="bar"><h2>${esc(d.picks?.title || '')}</h2></div>
+    ${note}
     <div class="todo">${jobs}</div>
   </div>
   <div class="split even">

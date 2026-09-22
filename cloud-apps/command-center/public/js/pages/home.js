@@ -25,10 +25,10 @@ export function render(d) {
     </div>
     <div class="card pad insight">
       <div class="cardhead" style="margin-bottom:.8rem"><h2><svg class="ic"><use href="#i-bulb"/></svg>Mastermind pick</h2></div>
-      <hr><span class="pill ok">${d.mastermindPick.pill}</span>
-      <h3>${d.mastermindPick.heading}</h3>
-      <p>${d.mastermindPick.body}</p>
-      <div class="box"><h4>${d.mastermindPick.fitTitle}</h4><p>${d.mastermindPick.fit}</p><p><b>Effort:</b> ${d.mastermindPick.effort}</p>${btn(d.mastermindPick.btn, { msg: d.mastermindPick.msg, cls: 'wide', kind: d.mastermindPick.kind, payload: d.mastermindPick.payload })}</div>
+      <hr><span class="pill ok">${esc(d.mastermindPick.pill)}</span>
+      <h3>${esc(d.mastermindPick.heading)}</h3>
+      <p>${esc(d.mastermindPick.body)}</p>
+      <div class="box"><h4>${esc(d.mastermindPick.fitTitle)}</h4><p>${esc(d.mastermindPick.fit)}</p><p><b>Effort:</b> ${esc(d.mastermindPick.effort)}</p>${btn(d.mastermindPick.btn, { msg: d.mastermindPick.msg, cls: 'wide', kind: d.mastermindPick.kind, payload: d.mastermindPick.payload })}</div>
       <div class="pager"><span>${d.mastermindPick.pager}</span><button class="link" data-page="mastermind">See all</button></div>
     </div>
     <div class="card pad life">
