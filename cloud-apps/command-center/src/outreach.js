@@ -182,10 +182,7 @@ export async function launchCampaign(env, payload = {}, fetchFn = globalThis.fet
 export async function runOutreach(env, kind, payload, fetchFn = globalThis.fetch) {
   if (kind === 'outreach.launch') return launchCampaign(env, payload, fetchFn);
   if (kind === 'outreach.mark_test') return markTestSent(env);
-  if (kind === 'outreach.refresh') {
-    await pullInstantly(env, fetchFn);
-    return 'Read your Instantly limits';
-  }
+
   throw new Error('Unknown action');
 }
 const CAMP_STATUS = { 0: 'Draft', 1: 'Active', 2: 'Paused', 3: 'Completed', 4: 'Running subsequences' };
