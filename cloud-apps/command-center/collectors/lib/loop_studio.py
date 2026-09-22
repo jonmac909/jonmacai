@@ -6,6 +6,10 @@ import sys
 from pathlib import Path
 
 HOST = 'gpu1'
+def missing_lines(text, expected):
+    heard = (text or '').lower()
+    return [line for line in expected or [] if line.lower() not in heard]
+
 
 
 def open_job(root, upload_id, title):

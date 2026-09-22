@@ -35,6 +35,15 @@ function safeName(name) {
 function uploadKey(id, filename) {
   return `uploads/${id}/${filename}`;
 }
+function keepersOk(keepers) {
+  return Array.isArray(keepers) && keepers.length > 0 && keepers.every((k) =>
+    k && Number.isFinite(Number(k.cs)) && Number.isFinite(Number(k.ce)) && Number(k.ce) > Number(k.cs)
+    && typeof k.label === 'string' && k.label.trim());
+}
+function ownedOutputKey(payload) {
+  const id = payload && payload.id;
+  return id && !String(id).includes('/') && !String(id).includes('..') ? `uploads/${id}/out.mp4` : null;
+}
 function videoQueueItem(row) {
   let payload = {};
   let result = {};
@@ -323,6 +332,8 @@ export async function handleApi(request, env, ctx) {
     if (merged.pages.video) {
       const jobs = await listVideoJobs(env.DB);
       if (jobs.length) overlayVideo(merged.pages.video, { queue: jobs.map(videoQueueItem) });
+      const beat = merged.sources?.video_gpu1;
+      if (!beat || beat.stale) merged.pages.video.editing.meta = 'GPU1 disconnected';
     }
     return json(merged);
   }
@@ -368,15 +379,16 @@ export async function handleApi(request, env, ctx) {
     const row = env.DB ? await actionById(env.DB, progress[1]) : null;
     if (!row || row.target !== who) return json({ error: 'Unauthorized' }, 401);
     const body = await request.json().catch(() => ({}));
+    const payload = JSON.parse(row.payload || '{}');
     const result = {
-      host: body.host || who,
+      host: who,
       stage: body.stage || 'prep',
-      device: body.device || 'cpu',
+      device: body.device === 'cuda' ? 'cpu' : (body.device || 'cpu'),
       encoder: body.encoder || 'libx264',
       failure: body.failure || null,
       retry: Number(body.retry) || 0,
       validated: Boolean(body.validated),
-      outputKey: body.outputKey || null,
+      outputKey: body.validated ? ownedOutputKey(payload) : null,
     };
     const status = result.stage === 'waiting-for-review' ? 'waiting' : 'claimed';
     await reportAction(env.DB, row.id, status, JSON.stringify(result));
@@ -393,7 +405,7 @@ export async function handleApi(request, env, ctx) {
     if (!row || row.target !== 'gpu1') return json({ error: 'Not found' }, 404);
     const body = await request.json().catch(() => ({}));
     const keepers = Array.isArray(body.keepers) ? body.keepers : [];
-    if (!keepers.length) return json({ error: 'Keepers required' }, 400);
+    if (!keepersOk(keepers)) return json({ error: 'Keepers required' }, 400);
     const payload = JSON.parse(row.payload || '{}');
     payload.keepers = keepers;
     const prev = row.result ? JSON.parse(row.result) : {};
@@ -446,7 +458,11 @@ export async function handleApi(request, env, ctx) {
   if (up && method === 'GET') {
     const who = machineOf(request, env);
     if (!who) return json({ error: 'Unauthorized' }, 401);
-    const key = url.searchParams.get('key') || uploadKey(up[1], safeName(url.searchParams.get('filename')));
+    const id = up[1];
+    const key = url.searchParams.get('key') || uploadKey(id, safeName(url.searchParams.get('filename')));
+    if (!key.startsWith(`uploads/${id}/`) || key.includes('..')) return json({ error: 'Bad path' }, 400);
+    const row = env.DB ? await actionByIdem(env.DB, `upload-${id}`) : null;
+    if (!row || row.target !== who) return json({ error: 'Unauthorized' }, 401);
     const obj = env.UPLOADS ? await env.UPLOADS.get(key) : null;
     if (!obj) return json({ error: 'Not found' }, 404);
     return new Response(obj.body, { headers: { 'Content-Type': 'application/octet-stream' } });
