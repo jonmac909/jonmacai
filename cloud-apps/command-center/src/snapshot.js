@@ -1,5 +1,5 @@
 import { CONNECTOR, ORIGIN } from './mastermind-source.js';
-import { buildSponsorsPage, applyHomeSponsors } from './sponsors.js';
+import { buildSponsorsPage, applyHomeSponsors, sourceEditedAt } from './sponsors.js';
 import { overlaySupport } from './support.js';
 import { applyReviewDrafts, plannerDestination } from './review.js';
 import { overlayYoutube } from './youtube.js';
@@ -86,7 +86,7 @@ function homeChip(by, nowMs) {
   const sponsors = by.sponsors ? parseData(by.sponsors.data) : null;
   if (!sponsors) issues.push('sponsors missing');
   else {
-    const ms = stampMs(sponsors.updatedAt || sponsors.asOf || sponsors.generatedAt);
+    const ms = stampMs(sponsors.sourceEditedAt || sponsors.collections?.sourceEditedAt);
     if (!Number.isFinite(ms)) issues.push('sponsors source time unavailable');
     else if (nowMs - ms > 3 * INTERVALS.sponsors) issues.push('sponsors source stale');
   }
@@ -328,8 +328,9 @@ export function mergeSnapshot(fixture, rows, nowMs = Date.now(), overrides = {},
     const data = parseData(sponsors.data);
     if (data.collections) {
       const page = buildSponsorsPage(data, nowMs, overrides);
-      const f = freshness(sponsors.collected_at, nowMs, INTERVALS.sponsors);
-      page.sub = `From your collections tracker · ${f.label}`;
+      const copiedMs = Date.parse(sponsors.collected_at);
+      const copied = Number.isFinite(copiedMs) ? ageLabel(Math.max(0, nowMs - copiedMs)).replace(/^updated /, '') : 'unknown';
+      page.sub = `Source edited ${sourceEditedAt(data) || 'unknown'} · copied ${copied} · not reconciled cash`;
       if (out.pages.sponsors) out.pages.sponsors = page;
       applyHomeSponsors(out, page);
     }

@@ -318,7 +318,7 @@ test('home chip is stale from the source stamp, not a fresh fetch', () => {
 
 test('home chip is live only when number sources have valid age and health', () => {
   const out = mergeSnapshot(snapshot, [
-    row('sponsors', { updatedAt: new Date(NOW).toISOString(), collections: { items: [] } }, new Date(NOW).toISOString()),
+    row('sponsors', { sourceEditedAt: new Date(NOW).toISOString(), collections: { items: [] } }, new Date(NOW).toISOString()),
     row('moneyclaw', healthyMoney(), new Date(NOW).toISOString()),
     row('viralview', { ...viralSummary, lastSyncAt: NOW }, new Date(NOW).toISOString()),
   ], NOW);
