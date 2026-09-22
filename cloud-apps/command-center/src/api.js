@@ -408,6 +408,7 @@ export async function handleApi(request, env, ctx) {
     if (!keepersOk(keepers)) return json({ error: 'Keepers required' }, 400);
     const payload = JSON.parse(row.payload || '{}');
     payload.keepers = keepers;
+    if (Array.isArray(body.expectedLines)) payload.expectedLines = body.expectedLines.filter((line) => typeof line === 'string' && line.trim());
     const prev = row.result ? JSON.parse(row.result) : {};
     prev.stage = 'resume';
     await requeueAction(env.DB, row.id, JSON.stringify(payload), JSON.stringify(prev));

@@ -477,7 +477,7 @@ test('duplicate resume stays one job and bad keepers are rejected', async () => 
     body: JSON.stringify({ keepers: [{ label: 'no times' }] }),
   }), env);
   assert.equal(bad.status, 400);
-  const body = JSON.stringify({ keepers: [{ cs: 1, ce: 2, label: 'line' }] });
+  const body = JSON.stringify({ keepers: [{ cs: 1, ce: 2, label: 'line' }], expectedLines: ['The red box sits on the table.', 'We leave it there today.'] });
   const first = await handleApi(req('/dashboard/api/actions/job1/resume', {
     method: 'POST', cookie: ck, headers: { 'Content-Type': 'application/json', 'X-CC': '1' }, body,
   }), env);
@@ -488,6 +488,7 @@ test('duplicate resume stays one job and bad keepers are rejected', async () => 
   assert.equal(second.status, 200);
   assert.equal(db.actions.length, 1);
   assert.equal(db.actions[0].id, 'job1');
+  assert.deepEqual(JSON.parse(db.actions[0].payload).expectedLines, ['The red box sits on the table.', 'We leave it there today.']);
 });
 
 test('video page says GPU1 disconnected until a fresh claimer heartbeat', async () => {

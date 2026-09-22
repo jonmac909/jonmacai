@@ -72,6 +72,9 @@ def run_once():
             (job / 'keepers.json').write_text(json.dumps(keepers), encoding='utf-8')
         state = advance(str(job), str(raw))
         expected = payload.get('expectedLines') or []
+        exp_path = job / 'expected.json'
+        if not expected and exp_path.exists():
+            expected = json.loads(exp_path.read_text(encoding='utf-8'))
         if state.get('stage') == 'done' and expected:
             import ls_platform
             heard = ls_platform.transcribe(str(job / 'out.mp4')).get('text') or ''
