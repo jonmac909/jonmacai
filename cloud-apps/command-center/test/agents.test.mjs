@@ -93,13 +93,15 @@ test('idle shell is not an agent even with a spinner and a live PTY', () => {
   assert.deepEqual(rows, []);
 });
 
-test('connected agent without a hook is idle, not a spinner', () => {
+test('connected agent without a hook is unknown, not idle', () => {
   const rows = classify(
     [{ worktreeId: 'wt-omp', hostId: 'local', displayName: 'Feature - Live agents status', agents: [] }],
     [{ worktreeId: 'wt-omp', handle: 'term-omp', connected: true, agentIdentity: 'omp', title: '⠋ Feature - Live agents status' }],
   );
   assert.equal(rows.length, 1);
-  assert.equal(rows[0].status, 'idle');
+  assert.equal(rows[0].status, 'unverified');
+  assert.notEqual(rows[0].status, 'idle');
+  assert.equal(rows[0].pill, 'Unknown');
   assert.equal(rows[0].name, 'Feature - Live agents status');
   assert.equal(rows[0].now.includes('⠋'), false);
 });
