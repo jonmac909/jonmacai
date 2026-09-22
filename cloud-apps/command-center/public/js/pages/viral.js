@@ -1,4 +1,5 @@
 import { tiles, pg, pill, btn, pgrow, head } from '../ui.js';
+import { plannerPayload } from '../planner.js';
 
 export function render(d) {
   const right = d.actions.map((a) => btn(a.label, { msg: a.msg, cls: 'line', href: a.href })).join('');
@@ -44,7 +45,7 @@ export function render(d) {
       <div class="cardhead" style="margin-bottom:.8rem"><h2><svg class="ic"><use href="#i-bulb"/></svg>Worth checking</h2></div>
       <hr><span class="pill risk">${d.check.pill}</span>
       <h3>${d.check.heading}</h3><p>${d.check.body}</p>
-      <div class="box"><div class="rows">${cash}</div><p>${d.check.note}</p>${btn('Send to Planner', { msg: 'Sent to Planner as a task', cls: 'wide' })}</div>
+      <div class="box"><div class="rows">${cash}</div><p>${d.check.note}</p>${btn('Send to Planner', { kind: 'mastermind.send_to_planner', payload: plannerPayload({ id: 'viral-check', title: 'Viral View worth checking', body: `${d.check.heading}\n${d.check.body}`, area: 'Viral View' }), cls: 'wide' })}</div>
     </div>
   </div>
   <div class="thirds">
@@ -85,7 +86,7 @@ export function render(d) {
     <div class="card pad">
       <div class="cardhead"><h2>${d.dropoff.title}</h2><span class="meta">${d.dropoff.meta}</span></div>
       <div class="pgs">${d.dropoff.bars.map((b) => pgrow({ label: b.label, value: b.value, pct: b.pct, min: b.min, tall: true })).join('')}</div>
-      <div class="box"><h4>${d.dropoff.leakTitle}</h4><p>${d.dropoff.leak}</p>${btn('Send to Planner', { msg: 'Sent to Planner as a task', cls: 'wide' })}</div>
+      <div class="box"><h4>${d.dropoff.leakTitle}</h4><p>${d.dropoff.leak}</p>${btn('Send to Planner', { kind: 'mastermind.send_to_planner', payload: plannerPayload({ id: 'viral-dropoff', title: 'Viral View cart leak', body: d.dropoff.leak, area: 'Viral View' }), cls: 'wide' })}</div>
     </div>
     <div class="card pad">
       <div class="cardhead"><h2>${d.ads.title}</h2><span class="meta">${d.ads.meta}</span></div>
