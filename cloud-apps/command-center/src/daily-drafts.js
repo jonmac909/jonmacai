@@ -98,10 +98,7 @@ function firstLine(body) {
   return String(body).split('\n').map((s) => s.trim()).find(Boolean)?.slice(0, 80) || '';
 }
 
-export async function ensureDrafts(db) {
-  if (!db) return;
-  await db.prepare(DDL).run();
-}
+
 
 export async function listDrafts(db, tenant, day) {
   if (!db) return [];
@@ -123,6 +120,23 @@ async function insertIgnore(db, row) {
     row.first_line, row.status, row.source || '', row.error || '', row.updated_at,
   ).run();
   return Number(res?.meta?.changes) || 0;
+}
+
+export async function ensureDrafts(db) {
+  if (!db) return;
+  await db.prepare(DDL).run();
+  for (const sql of [
+    `ALTER TABLE content_drafts ADD COLUMN tenant TEXT NOT NULL DEFAULT 'jon'`,
+    `ALTER TABLE content_drafts ADD COLUMN source TEXT DEFAULT ''`,
+    `ALTER TABLE content_drafts ADD COLUMN error TEXT DEFAULT ''`,
+  ]) {
+    try { await db.prepare(sql).run(); } catch { /* column already present */ }
+  }
+  try {
+    await db.prepare(
+      'CREATE UNIQUE INDEX IF NOT EXISTS content_drafts_slot ON content_drafts (tenant, day, platform, slot)',
+    ).run();
+  } catch { /* duplicate slots already stored; insert still ignores the id */ }
 }
 
 export async function saveDraft(db, tenant, payload = {}) {
