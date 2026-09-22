@@ -1,0 +1,15 @@
+        try:
+            _fw_model = WhisperModel(os.environ.get("LS_WHISPER_MODEL", "large-v3"), device="cuda", compute_type="float16")
+        except Exception:
+            _fw_model = WhisperModel(os.environ.get("LS_WHISPER_MODEL", "large-v3"), device="cpu", compute_type="int8")
+
+---
+        model = os.environ.get("LS_WHISPER_MODEL", "large-v3")
+        force_cpu = os.environ.get("LS_WHISPER_DEVICE", "").lower() == "cpu" or os.environ.get("CUDA_VISIBLE_DEVICES") == ""
+        if force_cpu:
+            _fw_model = WhisperModel(model, device="cpu", compute_type="int8")
+        else:
+            try:
+                _fw_model = WhisperModel(model, device="cuda", compute_type="float16")
+            except Exception:
+                _fw_model = WhisperModel(model, device="cpu", compute_type="int8")

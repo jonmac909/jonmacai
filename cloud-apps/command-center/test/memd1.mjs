@@ -52,8 +52,10 @@ export function memD1() {
             return { results: [...drafts.values()].filter((r) => !a[0] || r.tenant === a[0]) };
           }
           if (/FROM actions WHERE kind/.test(s)) {
-            const rows = actions.filter((x) => x.kind === a[0]).sort((x, y) => String(y.created_at).localeCompare(String(x.created_at)));
-            return { results: rows.slice(0, 1) };
+            let rows = actions.filter((x) => x.kind === a[0]);
+            if (/AND target = \?/.test(s)) rows = rows.filter((x) => x.target === a[1]);
+            rows.sort((x, y) => String(y.created_at).localeCompare(String(x.created_at)));
+            return { results: /LIMIT 1/.test(s) ? rows.slice(0, 1) : rows };
           }
           if (/FROM actions WHERE target/.test(s)) {
             return {
@@ -128,6 +130,21 @@ export function memD1() {
               return { success: true, meta: { changes: 1 } };
             }
             return { success: true, meta: { changes: 0 } };
+          } else if (/status = 'queued', payload/.test(s)) {
+            const row = actions.find((x) => x.id === a[2]);
+            if (row) {
+              row.status = 'queued';
+              row.payload = a[0];
+              row.result = a[1];
+              row.finished_at = null;
+            }
+          } else if (/finished_at = NULL/.test(s)) {
+            const row = actions.find((x) => x.id === a[2]);
+            if (row) {
+              row.status = a[0];
+              row.result = a[1];
+              row.finished_at = null;
+            }
           } else if (/SET payload/.test(s)) {
             const row = actions.find((x) => x.id === a[1]);
             if (row) row.payload = a[0];

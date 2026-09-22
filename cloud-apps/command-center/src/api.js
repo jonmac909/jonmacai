@@ -5,11 +5,13 @@ import {
 } from './auth.js';
 import {
   loginStore, insertAction, actionByIdem, actionById, claimQueued, completeAction, latestAction,
+  reportAction, requeueAction, listVideoJobs,
   upsertChecklist, upsertHabit, upsertSnapshot, listSnapshots, upsertDealStage, listDealStages, listIdeas, upsertIdea,
   listVideoProjects, replaceVideoProjects,
   upsertPost, listPosts, listChecklist, listHabits, deleteChecklist,
 } from './db.js';
 import { mergeSnapshot } from './snapshot.js';
+import { overlayVideo } from './video.js';
 import { boardStageFor, mapColumn } from './sponsors.js';
 import { normalizePost } from './content.js';
 import { runMoneyMove } from './money.js';
@@ -33,12 +35,38 @@ function safeName(name) {
 function uploadKey(id, filename) {
   return `uploads/${id}/${filename}`;
 }
+function keepersOk(keepers) {
+  return Array.isArray(keepers) && keepers.length > 0 && keepers.every((k) =>
+    k && Number.isFinite(Number(k.cs)) && Number.isFinite(Number(k.ce)) && Number(k.ce) > Number(k.cs)
+    && typeof k.label === 'string' && k.label.trim());
+}
+function ownedOutputKey(payload) {
+  const id = payload && payload.id;
+  return id && !String(id).includes('/') && !String(id).includes('..') ? `uploads/${id}/out.mp4` : null;
+}
+function videoQueueItem(row) {
+  let payload = {};
+  let result = {};
+  try { payload = JSON.parse(row.payload || '{}'); } catch { payload = {}; }
+  try { result = row.result ? JSON.parse(row.result) : {}; } catch { result = {}; }
+  const stage = row.status === 'queued' && payload.keepers ? 'resume' : (result.stage || row.status);
+  return {
+    id: payload.id || row.id,
+    title: payload.title || 'Upload',
+    status: row.status === 'done' ? 'ready' : row.status === 'waiting' ? 'waiting' : 'queued',
+    host: result.host || 'gpu1',
+    stage,
+    failure: result.failure || '',
+    readyPath: result.outputKey ? `/dashboard/api/uploads/${payload.id}/output` : '',
+  };
+}
 function targetFor(kind, payload = {}) {
   if (kind === 'ping') return payload.machine === 'mac' || payload.machine === 'gpu2' ? payload.machine : null;
   if (kind === 'mastermind.park' || kind === 'mastermind.scan') return 'worker';
   if (kind === 'content.save_draft' || kind === 'content.approve_draft' || kind === 'content.generate_drafts') return 'worker';
   if (kind === 'agent.restart') return payload.machine === 'mac' ? 'mac' : 'gpu2';
   if (kind.startsWith('sponsor.') || kind.startsWith('bank.')) return 'mac';
+  if (kind === 'video.start_edit') return 'gpu1';
   if (kind.startsWith('support.') || kind.startsWith('mastermind.') || kind.startsWith('content.') || kind.startsWith('video.') || kind.startsWith('agent.')) return 'gpu2';
   return 'worker';
 }
@@ -46,11 +74,13 @@ function targetFor(kind, payload = {}) {
 function machineOf(request, env) {
   const auth = request.headers.get('Authorization') || '';
   const token = auth.startsWith('Bearer ') ? auth.slice(7) : '';
-  const mac = token && env.MACHINE_TOKEN_MAC && timingSafeEqualString(token, env.MACHINE_TOKEN_MAC);
-  const gpu = token && env.MACHINE_TOKEN_GPU2 && timingSafeEqualString(token, env.MACHINE_TOKEN_GPU2);
-  if (mac && !gpu) return 'mac';
-  if (gpu && !mac) return 'gpu2';
-  return null;
+  if (!token) return null;
+  const hits = [
+    ['mac', env.MACHINE_TOKEN_MAC],
+    ['gpu2', env.MACHINE_TOKEN_GPU2],
+    ['gpu1', env.MACHINE_TOKEN_GPU1],
+  ].filter(([, secret]) => secret && timingSafeEqualString(token, secret));
+  return hits.length === 1 ? hits[0][0] : null;
 }
 
 
@@ -299,6 +329,12 @@ export async function handleApi(request, env, ctx) {
     if (merged.pages.outreach) {
       applyOutreachStatus(merged.pages.outreach, await latestAction(env.DB, 'outreach.refresh'), merged.sources?.instantly);
     }
+    if (merged.pages.video) {
+      const jobs = await listVideoJobs(env.DB);
+      if (jobs.length) overlayVideo(merged.pages.video, { queue: jobs.map(videoQueueItem) });
+      const beat = merged.sources?.video_gpu1;
+      if (!beat || beat.stale) merged.pages.video.editing.meta = 'GPU1 disconnected';
+    }
     return json(merged);
   }
 
@@ -335,6 +371,49 @@ export async function handleApi(request, env, ctx) {
     return json({ actions: rows });
   }
 
+
+  const progress = rest.match(/^\/actions\/([^/]+)\/progress$/);
+  if (progress && method === 'POST') {
+    const who = machineOf(request, env);
+    if (!who) return json({ error: 'Unauthorized' }, 401);
+    const row = env.DB ? await actionById(env.DB, progress[1]) : null;
+    if (!row || row.target !== who) return json({ error: 'Unauthorized' }, 401);
+    const body = await request.json().catch(() => ({}));
+    const payload = JSON.parse(row.payload || '{}');
+    const result = {
+      host: who,
+      stage: body.stage || 'prep',
+      device: body.device === 'cuda' ? 'cpu' : (body.device || 'cpu'),
+      encoder: body.encoder || 'libx264',
+      failure: body.failure || null,
+      retry: Number(body.retry) || 0,
+      validated: Boolean(body.validated),
+      outputKey: body.validated ? ownedOutputKey(payload) : null,
+    };
+    const status = result.stage === 'waiting-for-review' ? 'waiting' : 'claimed';
+    await reportAction(env.DB, row.id, status, JSON.stringify(result));
+    return json({ ok: true, id: row.id, status });
+  }
+
+  const resume = rest.match(/^\/actions\/([^/]+)\/resume$/);
+  if (resume && method === 'POST') {
+    const denied = await needSession(request, env);
+    if (denied) return denied;
+    const cc = needCc(request);
+    if (cc) return cc;
+    const row = env.DB ? await actionById(env.DB, resume[1]) : null;
+    if (!row || row.target !== 'gpu1') return json({ error: 'Not found' }, 404);
+    const body = await request.json().catch(() => ({}));
+    const keepers = Array.isArray(body.keepers) ? body.keepers : [];
+    if (!keepersOk(keepers)) return json({ error: 'Keepers required' }, 400);
+    const payload = JSON.parse(row.payload || '{}');
+    payload.keepers = keepers;
+    const prev = row.result ? JSON.parse(row.result) : {};
+    prev.stage = 'resume';
+    await requeueAction(env.DB, row.id, JSON.stringify(payload), JSON.stringify(prev));
+    return json({ ok: true, id: row.id, status: 'queued' });
+  }
+
   const complete = rest.match(/^\/actions\/([^/]+)\/complete$/);
   if (complete && method === 'POST') {
     const who = machineOf(request, env);
@@ -358,26 +437,55 @@ export async function handleApi(request, env, ctx) {
     const want = await hmacHex(env.SESSION_SECRET, `${id}.${exp}.${filename}`);
     if (!timingSafeEqualString(sig, want)) return json({ error: 'Unauthorized' }, 403);
     const key = uploadKey(id, filename);
+    const idem = `upload-${id}`;
+    if (env.DB) {
+      const existing = await actionByIdem(env.DB, idem);
+      if (existing) return json({ ok: true, id: existing.id, status: existing.status, host: 'gpu1' });
+    }
     const buf = await request.arrayBuffer();
     if (env.UPLOADS) await env.UPLOADS.put(key, buf);
     const now = new Date().toISOString();
     const actionId = crypto.randomUUID();
     if (env.DB) {
       await insertAction(env.DB, {
-        id: actionId, kind: 'video.start_edit', target: 'gpu2',
+        id: actionId, kind: 'video.start_edit', target: 'gpu1',
         payload: JSON.stringify({ id, title, filename, key }),
-        status: 'queued', result: null, idem_key: `upload-${id}`, created_at: now, finished_at: null,
+        status: 'queued', result: null, idem_key: idem, created_at: now, finished_at: null,
       });
     }
-    return json({ ok: true, id: actionId, result: 'Edit started' });
+    return json({ ok: true, id: actionId, status: 'queued', host: 'gpu1' });
   }
   if (up && method === 'GET') {
     const who = machineOf(request, env);
     if (!who) return json({ error: 'Unauthorized' }, 401);
-    const key = url.searchParams.get('key') || uploadKey(up[1], safeName(url.searchParams.get('filename')));
+    const id = up[1];
+    const key = url.searchParams.get('key') || uploadKey(id, safeName(url.searchParams.get('filename')));
+    if (!key.startsWith(`uploads/${id}/`) || key.includes('..')) return json({ error: 'Bad path' }, 400);
+    const row = env.DB ? await actionByIdem(env.DB, `upload-${id}`) : null;
+    if (!row || row.target !== who) return json({ error: 'Unauthorized' }, 401);
     const obj = env.UPLOADS ? await env.UPLOADS.get(key) : null;
     if (!obj) return json({ error: 'Not found' }, 404);
     return new Response(obj.body, { headers: { 'Content-Type': 'application/octet-stream' } });
+  }
+  const output = rest.match(/^\/uploads\/([^/]+)\/output$/);
+  if (output && method === 'GET') {
+    const denied = await needSession(request, env);
+    if (denied) return denied;
+    const row = env.DB ? await actionByIdem(env.DB, `upload-${output[1]}`) : null;
+    const result = row && row.result ? JSON.parse(row.result) : null;
+    if (!row || !result || !result.validated || !result.outputKey) return json({ error: 'Not ready' }, 404);
+    const obj = env.UPLOADS ? await env.UPLOADS.get(result.outputKey) : null;
+    if (!obj) return json({ error: 'Not found' }, 404);
+    return new Response(obj.body, { headers: { 'Content-Type': 'video/mp4' } });
+  }
+  if (output && method === 'PUT') {
+    const who = machineOf(request, env);
+    if (who !== 'gpu1') return json({ error: 'Unauthorized' }, 401);
+    const row = env.DB ? await actionByIdem(env.DB, `upload-${output[1]}`) : null;
+    if (!row || row.target !== 'gpu1') return json({ error: 'Unauthorized' }, 401);
+    const key = `uploads/${output[1]}/out.mp4`;
+    if (env.UPLOADS) await env.UPLOADS.put(key, await request.arrayBuffer());
+    return json({ ok: true, outputKey: key });
   }
 
 
