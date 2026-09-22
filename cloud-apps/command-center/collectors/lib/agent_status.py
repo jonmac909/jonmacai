@@ -30,6 +30,7 @@ def _row(name, status, activity, host, worktree_id, pane, observed_at):
         'name': redact(name) or 'Agent',
         'hostId': host or '',
         'worktreeId': worktree_id or '',
+        'pane': pane or '',
         'status': status,
         'now': redact(activity) or pill,
         'job': job,
@@ -39,6 +40,12 @@ def _row(name, status, activity, host, worktree_id, pane, observed_at):
         'pillCls': pill_cls,
         'observedAt': observed_at,
     }
+
+
+def paint(row, status, activity, observed_at, provenance):
+    nxt = _row(row.get('name'), status, activity, row.get('hostId'), row.get('worktreeId'), row.get('pane'), observed_at)
+    nxt['provenance'] = provenance
+    return nxt
 
 
 def _status(agent, live, now_ms):
