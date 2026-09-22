@@ -60,6 +60,23 @@ export async function completeAction(db, id, status, result, now) {
     .bind(status, result, now, id).run();
 }
 
+export async function reportAction(db, id, status, result) {
+  await db.prepare(`UPDATE actions SET status = ?, result = ?, finished_at = NULL WHERE id = ?`)
+    .bind(status, result, id).run();
+}
+
+export async function requeueAction(db, id, payload, result) {
+  await db.prepare(`UPDATE actions SET status = 'queued', payload = ?, result = ?, finished_at = NULL WHERE id = ?`)
+    .bind(payload, result, id).run();
+}
+
+export async function listVideoJobs(db) {
+  const { results } = await db.prepare(
+    `SELECT id, payload, status, result FROM actions WHERE kind = ? AND target = ? ORDER BY created_at`,
+  ).bind('video.start_edit', 'gpu1').all();
+  return results || [];
+}
+
 export async function upsertChecklist(db, day, item, doneAt, how) {
   await db.prepare(
     'INSERT OR REPLACE INTO checklist (day, item, done_at, how) VALUES (?, ?, ?, ?)',

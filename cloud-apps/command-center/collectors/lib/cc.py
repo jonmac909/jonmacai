@@ -145,10 +145,15 @@ def complete(base, token, action_id, ok, result):
 
 def cfg(machine):
     sec = load_secrets()
-    token = sec.get('MACHINE_TOKEN') or sec.get('MACHINE_TOKEN_MAC' if machine == 'mac' else 'MACHINE_TOKEN_GPU2')
+    if machine == 'gpu1':
+        token = sec.get('MACHINE_TOKEN_GPU1')
+    elif machine == 'mac':
+        token = sec.get('MACHINE_TOKEN') or sec.get('MACHINE_TOKEN_MAC')
+    else:
+        token = sec.get('MACHINE_TOKEN') or sec.get('MACHINE_TOKEN_GPU2')
     base = sec.get('CC_BASE') or 'https://jonmac.ai/dashboard'
     if not token:
-        raise SystemExit('missing MACHINE_TOKEN in secrets.env')
+        raise SystemExit('missing MACHINE_TOKEN for %s' % machine)
     return base, token
 
 

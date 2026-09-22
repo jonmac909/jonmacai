@@ -2,7 +2,7 @@ const STEP_NAME = ['', 'uploaded, waiting its turn', 'rough cut', 'adding graphi
 
 export function overlayVideo(page, data = {}) {
   const queue = data.queue || [];
-  const editing = queue.filter((q) => q.status === 'editing' || q.status === 'queued');
+  const editing = queue.filter((q) => q.status === 'editing' || q.status === 'queued' || q.status === 'waiting');
   const ready = queue.filter((q) => q.status === 'ready');
   const finished = queue.filter((q) => q.status === 'done');
   const nEdit = queue.filter((q) => q.status === 'editing').length;
@@ -17,7 +17,9 @@ export function overlayVideo(page, data = {}) {
       const waiting = q.status === 'queued';
       return {
         title: q.title,
-        sub: waiting
+        sub: q.host && q.stage
+          ? `${q.host} · ${q.stage}${q.failure ? ` · ${q.failure}` : ''}`
+          : waiting
           ? `Step ${step} of ${steps} · ${name}`
           : `Step ${step} of ${steps} · ${name}${eta ? ` · about ${eta} minutes left` : ''}`,
         pct: Number(q.progress) || 0,
