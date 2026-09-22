@@ -105,6 +105,7 @@ test('topOutliers keeps AI UGC and drops higher-scoring side hustles', () => {
   assert.deepEqual(top.map((r) => r.id), ['ugc']);
   assert.equal(isAiUgc('Best AI video generation workflow'), true);
   assert.equal(isAiUgc(rows[0].title), false);
+  assert.equal(isAiUgc('How I got 1000 VIRAL UGC videos (NOT using AI)'), false);
 });
 
 test('merge overlays yt2 projects onto the YouTube pipeline', () => {

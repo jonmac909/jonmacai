@@ -7,6 +7,7 @@ test('yt2 AI UGC filter is word-boundary', () => {
   assert.equal(isAiUgc('Best AI video generation tools'), true);
   assert.equal(isAiUgc('Talking head talking'), false);
   assert.equal(isAiUgc('side hustles with email'), false);
+  assert.equal(isAiUgc('How I got 1000 VIRAL UGC videos for my ECOM brand (NOT using AI)'), false);
 });
 
 test('yt2 outliers drop non-AI-UGC titles', () => {

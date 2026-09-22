@@ -19,6 +19,7 @@ function asYt2(p) {
 export function isAiUgc(title) {
   const t = String(title || '');
   if (!t) return false;
+  if (/\b(?:not using|without|no)\s+ai\b/i.test(t)) return false;
   if (/\bAI\s*UGC\b/i.test(t)) return true;
   if (/\bAI[- ]?video[- ]generation\b/i.test(t)) return true;
   return /\bUGC\b/i.test(t) && /\bAI\b/i.test(t);
