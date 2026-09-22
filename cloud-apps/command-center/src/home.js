@@ -242,7 +242,7 @@ export function applyHome(snap, by = {}, extra = {}, nowMs = Date.now()) {
     const work = snap.pages.agents.tiles[1]?.value || '0';
     snap.pages.home.life.agents.sub = `${need} need you · ${work} working`;
   }
-  if (Object.keys(by).length) snap.pages.home.chip = 'Live · numbers from your pages';
+
   return snap;
 }
 
