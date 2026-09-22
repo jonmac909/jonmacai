@@ -6,6 +6,7 @@ import time
 from pathlib import Path
 
 from agent_status import classify_sessions
+from omp_lifecycle import load_records, overlay
 
 AGENTS_JSON = Path(__file__).resolve().parents[1] / 'agents.json'
 LABEL = {'mac': 'Mac mini', 'gpu2': 'GPU2'}
@@ -59,7 +60,7 @@ def collect_report(machine):
     terms = listed.get('terminals') or []
     meta = _meta()
     out = []
-    for row in classify_sessions(ps.get('worktrees') or [], terms, now):
+    for row in overlay(classify_sessions(ps.get('worktrees') or [], terms, now), terms, load_records(), now):
         info = meta.get(row['name']) or {}
         item = {
             'id': row['id'],
@@ -78,6 +79,8 @@ def collect_report(machine):
             'page': info.get('page') or '',
             'observedAt': row.get('observedAt'),
         }
+        if row.get('provenance'):
+            item['provenance'] = row['provenance']
         for t in terms:
             if t.get('worktreeId') == row.get('worktreeId') and t.get('connected') and t.get('handle') and t.get('agentIdentity'):
                 item['handle'] = t['handle']

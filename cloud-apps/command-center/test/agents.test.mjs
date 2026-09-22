@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { handleApi } from '../src/api.js';
 import { signSession, COOKIE } from '../src/auth.js';
 import { mergeSnapshot } from '../src/snapshot.js';
@@ -495,4 +495,142 @@ test('digest parser reads HTML takeaways and comment-split counts', () => {
   );
   assert.equal(r.status, 0, r.stderr);
   assert.match(r.stdout, /1 771 Jev classifiers/);
+});
+
+function life(records, terminals, rows, nowMs = now) {
+  const payload = JSON.stringify({ records, terminals, rows, nowMs });
+  const r = runPy(
+    'import json\nfrom omp_lifecycle import overlay\n'
+    + `p = json.loads(${JSON.stringify(payload)})\n`
+    + 'print(json.dumps(overlay(p["rows"], p["terminals"], p["records"], p["nowMs"])))\n',
+  );
+  assert.equal(r.status, 0, r.stderr);
+  return JSON.parse(r.stdout);
+}
+
+const ompTerm = { worktreeId: 'wt-omp', handle: 'term-omp', connected: true, agentIdentity: 'omp' };
+const hookless = {
+  id: 'local:wt-omp:term-omp',
+  name: 'Feature - Live agents status',
+  hostId: 'local',
+  worktreeId: 'wt-omp',
+  pane: 'term-omp',
+  status: 'unverified',
+  pill: 'Unknown',
+};
+
+function rec(over) {
+  return {
+    v: 1,
+    host: 'win',
+    sessionId: 'sess-1',
+    incarnation: '9:1',
+    worktreeId: 'wt-omp',
+    terminalHandle: 'term-omp',
+    phase: 'working',
+    lastEvent: 'before_agent_start',
+    lastEventAt: now,
+    tool: 'bash',
+    heartbeatAt: now,
+    closed: false,
+    willContinue: false,
+    ...over,
+  };
+}
+
+test('fresh work event is working and a heartbeat does not promote unknown', () => {
+  const working = life([rec({})], [ompTerm], [hookless]);
+  assert.equal(working[0].status, 'working');
+  assert.equal(working[0].provenance, 'omp-lifecycle');
+  assert.equal(working[0].now, 'Using bash');
+  const parked = life([rec({ phase: 'unknown', lastEvent: 'session_start', tool: '' })], [ompTerm], [hookless]);
+  assert.equal(parked[0].status, 'unverified');
+  assert.notEqual(parked[0].status, 'working');
+});
+
+test('only agent_end is idle; stale heartbeat and a clean shutdown stay distinct', () => {
+  const idle = life([rec({ phase: 'idle', lastEvent: 'agent_end', tool: '' })], [ompTerm], [hookless]);
+  assert.equal(idle[0].status, 'idle');
+  const stale = life([rec({ heartbeatAt: now - 46_000 })], [ompTerm], [hookless]);
+  assert.equal(stale[0].status, 'unverified');
+  assert.notEqual(stale[0].status, 'idle');
+  const cont = life([rec({ phase: 'working', lastEvent: 'agent_end', willContinue: true, tool: 'bash' })], [ompTerm], [hookless]);
+  assert.equal(cont[0].status, 'working');
+  const ask = life([rec({ phase: 'action_required', lastEvent: 'tool_approval_requested', tool: 'bash' })], [ompTerm], [hookless]);
+  assert.equal(ask[0].status, 'action_required');
+  const quit = life([rec({
+    phase: 'exited', lastEvent: 'session_shutdown', closed: true, heartbeatAt: now - 120_000, tool: '',
+  })], [ompTerm], [hookless]);
+  assert.equal(quit[0].status, 'exited');
+});
+test('identity reuse keeps the live incarnation and does not guess across two live ones', () => {
+  const reused = life([
+    rec({ incarnation: '9:1', phase: 'working', lastEvent: 'tool_call', heartbeatAt: now - 90_000 }),
+    rec({ incarnation: '9:2', phase: 'idle', lastEvent: 'agent_end', tool: '', heartbeatAt: now }),
+  ], [ompTerm], [hookless]);
+  assert.equal(reused.length, 1);
+  assert.equal(reused[0].status, 'idle');
+  const ambiguous = life([
+    rec({ incarnation: '9:1', heartbeatAt: now }),
+    rec({ incarnation: '9:2', phase: 'idle', lastEvent: 'agent_end', tool: '', heartbeatAt: now }),
+  ], [ompTerm], [hookless]);
+  assert.equal(ambiguous[0].status, 'unverified');
+  assert.equal(ambiguous[0].provenance, undefined);
+});
+
+test('a leaked prompt record is ignored and a codex row is not overwritten', () => {
+  const leaked = life([rec({ prompt: 'sk-live-secret do not store' })], [ompTerm], [hookless]);
+  assert.equal(leaked[0].status, 'unverified');
+  assert.equal(JSON.stringify(leaked).includes('sk-live-secret'), false);
+  const codex = {
+    id: 'local:wt-codex:pane-c',
+    name: 'Sponsors',
+    hostId: 'local',
+    worktreeId: 'wt-codex',
+    pane: 'pane-c',
+    status: 'idle',
+    pill: 'Idle',
+  };
+  const kept = life([rec({})], [ompTerm, { worktreeId: 'wt-codex', handle: 'term-c', connected: true, agentIdentity: 'codex' }], [hookless, codex]);
+  assert.equal(kept[1].status, 'idle');
+  assert.equal(kept[1].provenance, undefined);
+  assert.equal(kept[1].name, 'Sponsors');
+});
+
+test('lifecycle writer is atomic and drops secrets', async () => {
+  const ext = join(root, 'collectors/omp/cc-omp-lifecycle.ts');
+  const dir = spawnSync(process.execPath, ['-e', 'const fs=require("fs"); const os=require("os"); process.stdout.write(fs.mkdtempSync(os.tmpdir()+"/omp-life-"))'], { encoding: 'utf8' }).stdout.trim();
+  const script = `
+    import { readFileSync, readdirSync } from 'node:fs';
+    import { join } from 'node:path';
+    import { reduce, beat, recordBody, writeRecord } from ${JSON.stringify(pathToFileURL(ext).href)};
+    const dir = ${JSON.stringify(dir)};
+    const id = { host: 'win', sessionId: process.env.WHICH || 'sess-a', sessionFile: 'C:/sess.jsonl', pid: 1, incarnation: '9:1', worktreeId: 'wt-omp', terminalHandle: 'term-omp' };
+    const secret = { prompt: 'sk-live-secret', args: { token: 'bearer secret-token' }, toolName: 'bash' };
+    let state = reduce({}, 'before_agent_start', secret, 1000);
+    state = beat(state, 2000);
+    if (state.phase !== 'working') throw new Error('heartbeat changed phase');
+    writeRecord(dir, recordBody(id, state));
+    const text = readdirSync(dir).filter((name) => name.endsWith('.json')).map((name) => readFileSync(join(dir, name), 'utf8')).join('\\n');
+    if (text.includes('sk-live-secret') || text.includes('secret-token') || text.includes('"prompt"')) throw new Error('secret leaked');
+  `;
+  const run = (which) => new Promise((resolve, reject) => {
+    const child = spawn(process.execPath, ['--experimental-strip-types', '--input-type=module', '-e', script], {
+      env: { ...process.env, WHICH: which },
+    });
+    let err = '';
+    child.stderr.on('data', (chunk) => { err += chunk; });
+    child.on('exit', (code) => code === 0 ? resolve() : reject(new Error(err || String(code))));
+  });
+  await Promise.all([run('sess-a'), run('sess-a'), run('sess-b')]);
+  const check = spawnSync(process.execPath, ['-e', `
+    const fs = require('fs');
+    const path = require('path');
+    const names = fs.readdirSync(${JSON.stringify(dir)}).filter((name) => name.endsWith('.json'));
+    if (names.length !== 2) throw new Error(names.join(','));
+    for (const name of names) JSON.parse(fs.readFileSync(path.join(${JSON.stringify(dir)}, name), 'utf8'));
+    console.log('ok');
+  `], { encoding: 'utf8' });
+  assert.equal(check.status, 0, check.stderr || check.stdout);
+  assert.match(check.stdout, /ok/);
 });
