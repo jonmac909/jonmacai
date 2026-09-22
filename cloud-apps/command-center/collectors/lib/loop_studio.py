@@ -67,10 +67,10 @@ def advance(job, raw=None):
         out = str(job / 'out.mp4')
         state['stage'] = 'finish'
         _save(job, state)
-        _cut(job, 'finish', raw, str(keepers), out)
+        _cut(job, 'render', raw, str(keepers), out)
         state['stage'] = 'verify'
         _save(job, state)
-        _cut(job, 'verify', out, work, '')
+        _cut(job, 'verify', out)
         state['stage'] = 'done'
         state['validated'] = True
         state['output'] = out
