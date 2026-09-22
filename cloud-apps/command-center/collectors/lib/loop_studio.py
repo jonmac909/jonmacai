@@ -39,21 +39,30 @@ def _state(job):
 def _save(job, state):
     (Path(job) / 'state.json').write_text(json.dumps(state), encoding='utf-8')
     return state
+def _word(word):
+    start = float(word.get('start', word.get('s')))
+    end = float(word.get('end', word.get('e')))
+    if end - start > 1.5:
+        end = start + 0.5
+    return start, end, str(word.get('word', word.get('w', ''))).strip()
+
 def segments_from_words(path):
     words = json.loads(Path(path).read_text(encoding='utf-8'))
     groups, cur = [], []
     for word in words:
-        if cur and float(word['s']) - float(cur[-1]['e']) > 1:
+        start, end, text = _word(word)
+        if cur and start - cur[-1][1] > 1:
             groups.append(cur)
             cur = []
-        cur.append(word)
+        cur.append((start, end, text))
     if cur:
         groups.append(cur)
     return [{
-        'cs': float(g[0]['s']),
-        'ce': float(g[-1]['e']),
-        'label': ' '.join(w['w'] for w in g).strip(),
+        'cs': g[0][0],
+        'ce': g[-1][1],
+        'label': ' '.join(part[2] for part in g).strip(),
     } for g in groups if g]
+
 
 
 
