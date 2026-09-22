@@ -1,3 +1,4 @@
+import { CONNECTOR, ORIGIN } from './mastermind-source.js';
 import { buildSponsorsPage, applyHomeSponsors } from './sponsors.js';
 import { overlaySupport } from './support.js';
 import { applyReviewDrafts, plannerDestination } from './review.js';
@@ -172,6 +173,30 @@ function monthOf(iso, nowMs) {
   return d.toLocaleString('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit' })
     === n.toLocaleString('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit' });
 }
+function groupScan(by) {
+  for (const key of ['mastermind_group', 'mastermind']) {
+    const row = by[key];
+    if (!row) continue;
+    const data = parseData(row.data);
+    if (data?.origin === ORIGIN) return { row, data };
+  }
+  return null;
+}
+
+function missingGroup() {
+  return { origin: ORIGIN, access: 'unavailable', connector: CONNECTOR, scanned: 0, picks: [], empty: false };
+}
+
+function clockLabel(iso, verb) {
+  const t = Date.parse(iso);
+  if (!Number.isFinite(t)) return '';
+  const clock = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Vancouver', year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
+  }).format(new Date(t));
+  return ` · ${verb} ${clock} PT`;
+}
+
 
 function overlayMastermind(page, data, ideas, nowMs) {
   const decided = new Set((ideas || []).filter((i) => i.status && i.status !== 'new').map((i) => i.id));
@@ -182,17 +207,22 @@ function overlayMastermind(page, data, ideas, nowMs) {
   const building = (ideas || []).filter((i) => i.status === 'sent' || i.status === 'building' || i.status === 'built');
   const sentMonth = (ideas || []).filter((i) => ['sent', 'building', 'built'].includes(i.status) && monthOf(i.created_at, nowMs));
   const builtMonth = (ideas || []).filter((i) => i.status === 'built' && monthOf(i.created_at, nowMs));
-  page.sub = `AI Advanced group on Telegram · last 24 hours${data.scannedAt ? ` · scanned ${data.scannedAt.slice(11, 16)}` : ''}`;
   page.actions = [{ label: 'Scan now', kind: 'mastermind.scan', msg: 'Scanning the group now' }];
+  const unavailable = data.access !== 'ok';
+  page.access = unavailable ? 'unavailable' : 'ok';
+  page.sub = unavailable
+    ? `Built With AI - Advanced · group history unavailable${clockLabel(data.scannedAt, 'checked')}`
+    : `Built With AI - Advanced · messages this bot received in the last 24 hours${clockLabel(data.scannedAt, 'scanned')}${data.empty ? ' · none in that window' : ''}`;
   page.tiles = [
-    { icon: 'chat', label: 'Messages read for you', value: String(scanned), sub: `${kept} kept · ${Math.max(0, scanned - kept)} skipped` },
-    { icon: 'bulb', label: 'Picks waiting on you', value: String(kept), sub: `${picks.filter((p) => p.verdict === 'implement').length} worth doing · ${picks.filter((p) => p.verdict !== 'implement').length} maybe` },
+    { icon: 'chat', label: 'Messages read for you', value: unavailable ? '—' : String(scanned), sub: unavailable ? 'Not connected' : data.empty ? 'No messages in the last 24 hours' : `${kept} kept · ${Math.max(0, scanned - kept)} skipped` },
+    { icon: 'bulb', label: 'Picks waiting on you', value: unavailable ? '—' : String(kept), sub: unavailable ? 'No group history' : `${picks.filter((p) => p.verdict === 'implement').length} worth doing · ${picks.filter((p) => p.verdict !== 'implement').length} maybe` },
     { icon: 'send', label: 'Sent to Planner this month', value: String(sentMonth.length), sub: `${builtMonth.length} already built` },
     { icon: 'check', label: 'Ideas built · September', value: String(builtMonth.length), goal: '/ 5', pct: Math.round(builtMonth.length / 5 * 100), sub: `${building.filter((i) => i.status !== 'built').length} in progress` },
   ];
   page.picks = {
     title: "Today's picks",
-    jobs: picks.map((p) => ({
+    note: unavailable ? (data.connector || data.error || CONNECTOR) : data.empty ? 'No messages in the last 24 hours.' : '',
+    jobs: (unavailable ? [] : picks).map((p) => ({
       id: p.id,
       area: p.area || 'Mastermind',
       pill: p.verdict === 'implement' ? 'Worth doing' : 'Maybe',
@@ -245,7 +275,7 @@ export function mergeSnapshot(fixture, rows, nowMs = Date.now(), overrides = {},
   const staleSources = [];
   for (const row of rows || []) {
     by[row.source] = row;
-    if (row.source === 'google_oauth' || row.source === 'telegram_sent') continue;
+    if (row.source === 'google_oauth' || row.source === 'telegram_sent' || row.source === 'mastermind_group') continue;
     const interval = INTERVALS[row.source] ?? DEFAULT_INTERVAL_MS;
     const f = freshness(row.collected_at, nowMs, interval);
     out.sources[row.source] = { updatedAt: row.collected_at, stale: f.stale, ageLabel: f.label };
@@ -275,8 +305,17 @@ export function mergeSnapshot(fixture, rows, nowMs = Date.now(), overrides = {},
       out.nav.badges.agents = need;
     }
   }
-  if (out.pages.mastermind && by.mastermind) {
-    overlayMastermind(out.pages.mastermind, parseData(by.mastermind.data), ideas, nowMs);
+  const group = groupScan(by);
+  if (out.sources) {
+    if (group) {
+      const f = freshness(group.row.collected_at, nowMs, INTERVALS.mastermind);
+      out.sources.mastermind = { updatedAt: group.row.collected_at, stale: f.stale, ageLabel: f.label };
+    } else {
+      out.sources.mastermind = { updatedAt: null, stale: true, ageLabel: 'Group history unavailable' };
+    }
+  }
+  if (out.pages.mastermind) {
+    overlayMastermind(out.pages.mastermind, group?.data || missingGroup(), ideas, nowMs);
     if (out.nav?.badges) out.nav.badges.mastermind = (out.pages.mastermind.picks?.jobs || []).length;
   }
   if (out.pages.support && by.support) {
@@ -356,6 +395,21 @@ export function mergeSnapshot(fixture, rows, nowMs = Date.now(), overrides = {},
     }
   }
   applyHome(out, by, extra, nowMs);
+  const groupOk = groupScan(by)?.data?.access === 'ok';
+  if (out.pages.home?.mastermindPick && !groupOk) {
+    out.pages.home.mastermindPick = {
+      pill: 'Unavailable',
+      heading: 'Group history is not connected',
+      body: 'Scan now checks Built With AI - Advanced. The webpage digest is not group history.',
+      fitTitle: 'Connector',
+      fit: out.pages.mastermind?.picks?.note || CONNECTOR,
+      effort: 'One-time bot setup',
+      btn: 'Scan now',
+      kind: 'mastermind.scan',
+      payload: { msg: 'Scanning the group now' },
+      pager: 'No ideas until the group is connected',
+    };
+  }
   const chip = homeChip(by, nowMs);
   if (chip && out.pages?.home) out.pages.home.chip = chip;
   const review = by.cc_review_drafts ? parseData(by.cc_review_drafts.data) : [];

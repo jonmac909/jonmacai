@@ -108,9 +108,8 @@ def handle_action(kind, payload, machine):
         from content_queue import handle as content_handle
         return content_handle(kind, payload or {})
     if kind == 'mastermind.scan':
-        from telegram_digest import run_digest
-        n = run_digest()
-        return True, 'Scanned %s messages' % n
+        from telegram_digest import scan_unavailable
+        return False, scan_unavailable()
     return False, 'unknown action %s' % kind
 
 

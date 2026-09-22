@@ -13,6 +13,7 @@ import { mergeSnapshot } from './snapshot.js';
 import { boardStageFor, mapColumn } from './sponsors.js';
 import { normalizePost } from './content.js';
 import { runMoneyMove } from './money.js';
+import { finishMastermindScan } from './mastermind-scan.js';
 import { applyOutreachStatus, finishOutreachCheck, runOutreach } from './outreach.js';
 import { exchangeGoogleCode, googleAuthUrl, runLife, ymd } from './life.js';
 import {
@@ -34,7 +35,7 @@ function uploadKey(id, filename) {
 }
 function targetFor(kind, payload = {}) {
   if (kind === 'ping') return payload.machine === 'mac' || payload.machine === 'gpu2' ? payload.machine : null;
-  if (kind === 'mastermind.park') return 'worker';
+  if (kind === 'mastermind.park' || kind === 'mastermind.scan') return 'worker';
   if (kind === 'content.save_draft' || kind === 'content.approve_draft' || kind === 'content.generate_drafts') return 'worker';
   if (kind === 'agent.restart') return payload.machine === 'mac' ? 'mac' : 'gpu2';
   if (kind.startsWith('sponsor.') || kind.startsWith('bank.')) return 'mac';
@@ -162,6 +163,20 @@ async function postAction(request, env, ctx) {
       result = err.message || 'Failed';
       status = 'failed';
     }
+  }
+  if (kind === 'mastermind.scan') {
+    if (!env.DB) return json({ error: 'Scan store is not available' }, 500);
+    const id = crypto.randomUUID();
+    await insertAction(env.DB, {
+      id, kind, target: 'worker', payload: '{}', status: 'running',
+      result: null, idem_key: idem, created_at: now, finished_at: null,
+    });
+    const work = finishMastermindScan(env, id);
+    if (ctx?.waitUntil) ctx.waitUntil(work);
+    else await work;
+    if (ctx?.waitUntil) return json({ id, status: 'running', result: null });
+    const row = await actionById(env.DB, id);
+    return json({ id, status: row?.status || 'failed', result: row?.result ?? null });
   }
   if (kind === 'outreach.refresh') {
     if (!env.DB) return json({ error: 'Instantly store is not available' }, 500);
