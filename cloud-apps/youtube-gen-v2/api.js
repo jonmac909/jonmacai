@@ -31,6 +31,37 @@ export function topOutliers(rows, n = 3) {
     .sort((a, b) => Number(b.outlier_score || 0) - Number(a.outlier_score || 0))
     .slice(0, n);
 }
+export function youtubeSyncRecord(rows, generatedAt, refreshed) {
+  const list = Array.isArray(rows) ? rows : [];
+  const channels = Array.isArray(refreshed)
+    ? refreshed.length
+    : new Set(list.map((r) => r.channel).filter(Boolean)).size;
+  return {
+    outliers: topOutliers(list),
+    channels,
+    ranked: list.length,
+    generatedAt: generatedAt || new Date().toISOString(),
+  };
+}
+
+async function readYoutubeSnapshot(env) {
+  if (!env?.DB) return null;
+  const row = await env.DB.prepare("SELECT data, collected_at FROM snapshots WHERE source = 'youtube'").first();
+  if (!row?.data) return null;
+  try {
+    const data = JSON.parse(row.data);
+    return data?.generatedAt ? data : null;
+  } catch {
+    return null;
+  }
+}
+
+async function writeYoutubeSnapshot(env, record) {
+  await env.DB.prepare(
+    'INSERT OR REPLACE INTO snapshots (source, data, collected_at, received_at) VALUES (?, ?, ?, ?)',
+  ).bind('youtube', JSON.stringify(record), record.generatedAt, new Date().toISOString()).run();
+}
+
 
 async function rowsFromAssets(request, env) {
   const url = new URL('/rows_data.json', request.url);
@@ -48,6 +79,8 @@ export async function handleYt2Api(request, env) {
   const url = new URL(request.url);
   const path = url.pathname.replace(/\/$/, '') || '/';
   if (path.endsWith('/api/outliers') && request.method === 'GET') {
+    const stored = await readYoutubeSnapshot(env);
+    if (stored) return json(stored);
     const rows = await rowsFromAssets(request, env);
     const channels = new Set(rows.map((r) => r.channel).filter(Boolean)).size;
     return json({ outliers: topOutliers(rows), channels, ranked: rows.length });
@@ -97,6 +130,15 @@ export async function handleYt2Api(request, env) {
     await env.DB.prepare('INSERT OR REPLACE INTO video_projects (id, data, updated_at) VALUES (?, ?, ?)')
       .bind(id, JSON.stringify(project), project.createdAt).run();
     return json({ ok: true, projectId: id, missing: project.missing, note: 'Project and template saved. Script LLM and render worker are not connected.' });
+  }
+  if (path.endsWith('/api/sync') && request.method === 'POST') {
+    if (request.headers.get('X-YT2') !== '1') return json({ error: 'Missing header' }, 403);
+    if (!env.DB) return json({ error: 'No database' }, 500);
+    let body = {};
+    try { body = await request.json(); } catch { body = {}; }
+    const record = youtubeSyncRecord(body.rows, body.generatedAt, body.refreshed);
+    await writeYoutubeSnapshot(env, record);
+    return json({ ok: true, channels: record.channels, ranked: record.ranked, generatedAt: record.generatedAt });
   }
   return json({ error: 'Not found' }, 404);
 }

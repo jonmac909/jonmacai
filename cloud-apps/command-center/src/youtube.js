@@ -131,7 +131,7 @@ function sponsorRow(c) {
 }
 
 export function overlayYoutube(page, {
-  projects = [], outliers, sponsors, channels, ranked, nowMs = Date.now(),
+  projects = [], outliers, sponsors, channels, ranked, syncedAt, nowMs = Date.now(),
 } = {}) {
   if (page.actions?.[0]) page.actions[0].href = 'https://jonmac.ai/yt2';
   const channelRows = (projects || []).map(channelRow);
@@ -183,7 +183,7 @@ export function overlayYoutube(page, {
     };
     if (hits[0]) page.tiles[2].value = `${Math.round(Number(hits[0].outlier_score) || 0)}×`;
     if (ranked != null) {
-      page.sub = `From YouTube Gen · ${channels || 0} channels watched · ${ranked} videos ranked`;
+      page.sub = `From YouTube Gen · ${channels || 0} channels watched · ${ranked} videos ranked${syncedAt ? ` · synced ${syncedAt}` : ''}`;
     }
   }
 }

@@ -9,7 +9,10 @@ import { fillFromEnv } from './daily-drafts.js';
 const VIRAL_URL = 'https://app.viralview.io/api/internal/dashboard-summary';
 const MONEY_URL = 'https://moneyclaw.jonmac.ai/api/internal/dashboard-summary';
 const YT_URL = 'https://jonmac.ai/yt2/api/outliers';
-function sourceCollectedAt(source, data, fetchedAt) {
+export function sourceCollectedAt(source, data, fetchedAt) {
+  if (source === 'youtube' && data?.generatedAt && Number.isFinite(Date.parse(data.generatedAt))) {
+    return new Date(Date.parse(data.generatedAt)).toISOString();
+  }
   if (source !== 'viralview') return fetchedAt;
   const raw = data?.lastSyncAt;
   const ms = typeof raw === 'number' && Number.isFinite(raw) ? raw : Date.parse(raw);

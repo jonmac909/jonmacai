@@ -150,6 +150,19 @@ test('merge overlays AI UGC remake jobs with a persistent template link', () => 
   assert.equal(page.remake.seeAllHref, 'https://jonmac.ai/yt2/');
 });
 
+test('sync timestamp is shown with the ranked count', () => {
+  const page = structuredClone(fixture.pages.youtube);
+  overlayYoutube(page, {
+    outliers: rows,
+    channels: 22,
+    ranked: 527,
+    syncedAt: '2026-09-22T23:27:51.354Z',
+    nowMs: now,
+  });
+  assert.match(page.sub, /527 videos/);
+  assert.match(page.sub, /synced 2026-09-22T23:27:51.354Z/);
+});
+
 test('sponsor cards join the YouTube pipeline', () => {
   const page = structuredClone(fixture.pages.youtube);
   overlayYoutube(page, {

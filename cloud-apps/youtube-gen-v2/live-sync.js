@@ -86,3 +86,18 @@ export async function fetchLiveYoutubeRefresh(fetchImpl = globalThis.fetch) {
     return { ok: false, needLogin: false, rows: [], error: err.message || first.error || 'Live refresh failed' };
   }
 }
+
+export async function publishDashboardSync(payload, fetchImpl = globalThis.fetch) {
+  const res = await fetchImpl('/yt2/api/sync', {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: { 'Content-Type': 'application/json', 'X-YT2': '1' },
+    body: JSON.stringify({
+      rows: payload?.rows || [],
+      generatedAt: payload?.generatedAt,
+      refreshed: payload?.refreshed || [],
+    }),
+  });
+  if (!res.ok) return { ok: false };
+  try { return await res.json(); } catch { return { ok: false }; }
+}
