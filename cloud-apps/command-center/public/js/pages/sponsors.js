@@ -1,4 +1,4 @@
-import { tiles, pg, pill, btn, kanban, pgrow, head } from '../ui.js';
+import { tiles, pg, pill, btn, kanban, pgrow, head, esc } from '../ui.js';
 
 export function render(d) {
   const right = d.actions.map((a) => btn(a.label, { msg: a.msg, cls: 'line', href: a.href, kind: a.kind, payload: a.payload })).join('');
@@ -7,7 +7,15 @@ export function render(d) {
   const legend = parts.map((p) => `<span style="--c:${p.fill}">${p.legend} <b class="tn">${p.amount}</b></span>`).join('')
     + `<span style="--c:var(--ink)">${d.septemberBar.line}</span>`;
   const collect = d.collect.rows.map((r) => `<tr><td>${r.sponsor}<small>${pill(r.pill, r.pillCls)}</small></td><td class="num">${r.total}</td><td class="num">${r.owed}</td><td><div class="cellpg">${pg(r.paidPct, r.pg)}<span>${r.paid}</span></div></td><td>${r.block}</td><td>${r.next}</td><td class="num">${btn(r.btn, { kind: r.kind, payload: r.payload, cls: r.btnCls || '', sm: true })}${btn('Mark paid', { kind: r.paidKind, payload: r.paidPayload, cls: 'line', sm: true })}</td></tr>`).join('');
-  const emails = d.emails.rows.map((r) => `<div class="r"><div><strong>${r.title}</strong><small>${r.sub}</small></div><div class="right">${btn('Edit', { kind: 'sponsor.save_draft', payload: { id: r.id, subject: r.subject, body: r.body }, cls: 'line', edit: true })}${btn('Approve & send', { kind: 'sponsor.send_draft', payload: { id: r.id, subject: r.subject, body: r.body, msg: r.send }, done: true })}</div></div>`).join('');
+  const emails = d.emails.rows.map((r) => {
+    const payload = {
+      id: r.id, to: r.to, subject: r.subject, body: r.body, isolated: r.isolated || String(r.id || '').startsWith('qa-'),
+      saveKind: r.saveKind || 'sponsor.save_draft',
+      sendKind: r.sendKind || 'sponsor.send_draft',
+      discardKind: r.discardKind || 'sponsor.discard_draft',
+    };
+    return `<div class="r"><div><strong>${esc(r.title)}</strong><small>${esc(r.sub)}</small></div><div class="right">${btn('Review', { draft: true, payload, cls: 'line' })}</div></div>`;
+  }).join('');
   return `<div class="wrap">
   ${head(d.title, d.sub, right)}
   ${tiles(d.tiles)}

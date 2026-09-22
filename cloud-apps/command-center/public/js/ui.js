@@ -44,7 +44,7 @@ export function card(inner, cls = 'pad') {
   return `<div class="card ${cls}">${inner}</div>`;
 }
 
-export function btn(label, { page, msg, done, cls = '', sm, kind, payload, href, edit, confirm, readDraft } = {}) {
+export function btn(label, { page, msg, done, cls = '', sm, kind, payload, href, edit, confirm, readDraft, draft } = {}) {
   const bits = [`class="btn${cls ? ` ${cls}` : ''}${sm ? ' sm' : ''}"`];
   if (page) bits.push(`data-page="${esc(page)}"`);
   if (kind) bits.push(`data-kind="${esc(kind)}"`);
@@ -52,6 +52,7 @@ export function btn(label, { page, msg, done, cls = '', sm, kind, payload, href,
   if (href) bits.push(`data-href="${esc(href)}"`);
   if (edit) bits.push('data-edit="1"');
   if (readDraft) bits.push('data-read-draft="1"');
+  if (draft) bits.push('data-draft="1"');
   if (confirm) bits.push(`data-confirm="${esc(confirm)}"`);
   if (msg) bits.push(`data-msg="${esc(msg)}"`);
   if (done) bits.push('data-done');
@@ -74,7 +75,7 @@ export function table(headers, rows, foot) {
 export function kanban(columns) {
   const cols = columns.map((c) => {
     const cards = (c.cards || []).map((k) => {
-      const b = k.btn ? btn(k.btn, { page: k.page, msg: k.msg, cls: k.btnCls || '', sm: true, kind: k.kind, payload: k.payload }) : '';
+      const b = k.btn ? btn(k.btn, { page: k.page, msg: k.msg, cls: k.btnCls || '', sm: true, kind: k.draft ? '' : k.kind, payload: k.payload, draft: k.draft }) : '';
       return `<article class="kcard" draggable="true" data-amt="${k.amt || 0}" data-id="${esc(k.id || '')}"><div class="ktop"><strong>${esc(k.name)}</strong>${pill(k.pill, k.pillCls || '')}</div><small>${esc(k.detail)}</small>${pg(k.pct, k.pg || '')}<div class="kfoot"><span class="kamt">${esc(k.amtLabel)}</span>${b}</div></article>`;
     }).join('');
     const empty = c.empty ? `<p class="kempty"${c.cards?.length ? ' hidden' : ''}>${esc(c.empty)}</p>` : '';
@@ -99,4 +100,18 @@ export function cardhead(title, meta, icon) {
     ? `<h2><svg class="ic"><use href="#i-${esc(icon)}"/></svg>${esc(title)}</h2>`
     : `<h2>${title}</h2>`;
   return `<div class="cardhead">${h}${meta || ''}</div>`;
+}
+
+export function formatJobResult(kind, result) {
+  if (!result) return 'Done';
+  try {
+    const r = JSON.parse(result);
+    if (r && typeof r === 'object') {
+      if (r.error) return `Scan failed: ${r.error}`;
+      if (kind === 'sponsor.scan_inbox' || kind === 'mastermind.scan') {
+        return `Scanned ${r.scanned ?? 0} · ${r.drafts ?? r.picks ?? 0} drafts`;
+      }
+    }
+  } catch { /* plain text */ }
+  return String(result);
 }

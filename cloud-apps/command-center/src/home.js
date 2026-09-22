@@ -1,13 +1,13 @@
 import { ymd, TZ } from './life.js';
 
 const STEPS = [
-  { label: 'Sponsor emails', page: 'sponsors' },
-  { label: 'Bank scan', page: 'money' },
-  { label: 'Market check', page: 'markets' },
-  { label: 'Mastermind digest', page: 'mastermind' },
-  { label: 'Support replies', page: 'support' },
-  { label: 'Posts out', page: 'content' },
-  { label: 'Workout 11:00', page: 'life' },
+  { item: 'sponsor_emails', label: 'Sponsor emails', page: 'sponsors' },
+  { item: 'bank_scan', label: 'Bank scan', page: 'money' },
+  { item: 'market_check', label: 'Market check', page: 'markets' },
+  { item: 'mastermind', label: 'Mastermind digest', page: 'mastermind' },
+  { item: 'support_replies', label: 'Support replies', page: 'support' },
+  { item: 'posts_out', label: 'Posts out', page: 'content' },
+  { item: 'workout', label: 'Workout 11:00', page: 'life' },
 ];
 
 function vancouverHour(ms) {
@@ -78,27 +78,12 @@ function overlayBank(snap, by, nowMs) {
   };
 }
 
-function runSteps(snap, by, extra, nowMs) {
+function runSteps(_snap, _by, extra, nowMs) {
   const today = ymd(nowMs);
-  const emails = snap.pages?.sponsors?.emails?.rows || [];
-  const bank = snap.pages?.money?.bankScan?.rows || [];
-  const picks = snap.pages?.mastermind?.picks?.jobs || [];
-  const drafts = snap.pages?.support?.drafts?.rows || [];
-  const money = snap.pages?.support?.money?.rows || [];
-  const posts = Number(snap.pages?.content?.tiles?.[0]?.value) || 0;
-  const market = (extra.checklist || []).some((c) => c.item === 'market_check' && c.day === today);
-  const workout = (extra.habits || []).some((h) => h.kind === 'workout' && Number(h.done) && h.day === today);
-  const bankDone = by.bank_scan && bank.length && bank.every((r) => r.pill === 'Scanned');
-  const flags = [
-    Boolean(by.sponsors && todayOf(by.sponsors, nowMs) && emails.length === 0),
-    Boolean(bankDone),
-    market,
-    Boolean(by.mastermind && picks.length === 0),
-    Boolean(by.support && drafts.length === 0 && money.length === 0),
-    posts >= 12,
-    workout,
-  ];
-  return STEPS.map((s, i) => ({ ...s, done: Boolean(flags[i]) }));
+  const checked = new Set((extra.checklist || [])
+    .filter((c) => c.day === today && c.item && c.how !== 'auto')
+    .map((c) => c.item));
+  return STEPS.map((s) => ({ ...s, done: checked.has(s.item) }));
 }
 
 function needsList(snap, by, nowMs) {

@@ -117,7 +117,7 @@ test('merge overlays live drafts, waits, money and refunds onto Support', () => 
   assert.equal(p.drafts.rows[0].title, '"Export stuck at 90%"');
   assert.match(p.drafts.rows[0].sub, /Paid plan/);
   assert.match(p.drafts.rows[0].sub, /waited 5 hours/);
-  assert.equal(p.drafts.rows[0].kind, 'support.send');
+  assert.equal(p.drafts.rows[0].sendKind, 'support.send');
   assert.equal(p.drafts.rows[0].payload.uid, '1');
   assert.equal(p.money.rows.length, 1);
   assert.equal(p.money.rows[0].kind, 'support.decide_refund');

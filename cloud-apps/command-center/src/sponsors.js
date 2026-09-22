@@ -159,9 +159,17 @@ export function buildSponsorsPage(data, nowMs = Date.now(), overrides = {}) {
       pg: pillCls === 'crit' ? 'crit' : (pillCls === 'ok' ? 'ok' : ''),
     };
     if (draft) {
-      k.btn = 'Approve reply';
-      k.kind = 'sponsor.send_draft';
-      k.payload = { id: card.id };
+      k.btn = 'Review';
+      k.draft = true;
+      k.payload = {
+        id: card.id,
+        to: card.draftReply?.to || card.to || card.contact || '',
+        subject: card.draftReply?.subject || card.subject || '',
+        body: card.draftReply?.body || '',
+        saveKind: 'sponsor.save_draft',
+        sendKind: 'sponsor.send_draft',
+        discardKind: 'sponsor.discard_draft',
+      };
     } else if (card.stage === 'publishing') {
       k.btn = 'Send invoice';
       k.kind = 'sponsor.send_invoice';
@@ -241,9 +249,13 @@ export function buildSponsorsPage(data, nowMs = Date.now(), overrides = {}) {
         id: c.id,
         title: c.sponsor,
         sub: c.subject || 'Reply drafted',
+        to: c.draftReply.to || c.to || c.contact || '',
         subject: c.draftReply.subject || c.subject || '',
         body: c.draftReply.body || '',
         send: `Reply sent to ${c.sponsor}`,
+        saveKind: 'sponsor.save_draft',
+        sendKind: 'sponsor.send_draft',
+        discardKind: 'sponsor.discard_draft',
       })),
     },
     byMonth: { title: 'Collected by month', meta: 'Against $10K', rows: byMonth },

@@ -7,7 +7,7 @@ import {
   loginStore, insertAction, actionByIdem, actionById, claimQueued, completeAction,
   upsertChecklist, upsertHabit, upsertSnapshot, listSnapshots, upsertDealStage, listDealStages, listIdeas, upsertIdea,
   listVideoProjects, replaceVideoProjects,
-  upsertPost, listPosts, listChecklist, listHabits,
+  upsertPost, listPosts, listChecklist, listHabits, deleteChecklist,
 } from './db.js';
 import { mergeSnapshot } from './snapshot.js';
 import { boardStageFor, mapColumn } from './sponsors.js';
@@ -18,6 +18,7 @@ import { exchangeGoogleCode, googleAuthUrl, runLife, ymd } from './life.js';
 import {
   approveDraft, configuredPlatforms, fillFromEnv, listDrafts, saveDraft, tenantOf, unavailablePlatforms, vancouverDay,
 } from './daily-drafts.js';
+import { REVIEW_SOURCE, draftId, isIsolated, parseReview, plannerDestination, reviewMutate, upsertReview } from './review.js';
 
 const PREFIX = '/dashboard/api';
 const json = (data, status = 200, headers = {}) =>
@@ -106,7 +107,7 @@ async function postAction(request, env) {
     const existing = await actionByIdem(env.DB, idem);
     if (existing) return json({ id: existing.id, status: existing.status, result: existing.result });
   }
-  const target = targetFor(kind, payload);
+  let target = targetFor(kind, payload);
   if (!target) return json({ error: 'Bad target' }, 400);
   const id = crypto.randomUUID();
   const now = new Date().toISOString();
@@ -123,7 +124,35 @@ async function postAction(request, env) {
     }
   }
   if (kind === 'mastermind.send_to_planner' && env.DB && payload.id) {
+    const ideas = await listIdeas(env.DB);
+    const existing = ideas.find((i) => i.id === payload.id);
+    const dest = plannerDestination(payload.title);
+    if (existing && ['sent', 'building', 'built'].includes(existing.status)) {
+      return json({ id: existing.id, status: 'done', result: `Already in Planner. ${dest}` });
+    }
     await upsertIdea(env.DB, { id: payload.id, title: payload.title, body: payload.body, area: payload.area, verdict: payload.verdict || 'implement', status: 'sent' });
+    result = dest;
+  }
+  const mutate = reviewMutate(kind);
+  if (mutate === 'send' && isIsolated(payload)) {
+    return json({ id, status: 'done', result: 'Not sent · isolated draft' });
+  }
+  if ((mutate === 'save' || mutate === 'drop') && env.DB && draftId(payload)) {
+    const stored = (await listSnapshots(env.DB)).find((r) => r.source === REVIEW_SOURCE);
+    const rows = parseReview(stored?.data);
+    const idKey = draftId(payload);
+    const next = mutate === 'drop'
+      ? rows.filter((r) => r.id !== idKey)
+      : upsertReview(rows, {
+        id: idKey, kind, recipient: payload.to || '', subject: payload.subject || '', body: payload.body || '',
+        isolated: isIsolated(payload), updated_at: now,
+      });
+    await upsertSnapshot(env.DB, REVIEW_SOURCE, JSON.stringify(next), now, now);
+    if (isIsolated(payload)) {
+      target = 'worker';
+      status = 'done';
+      result = mutate === 'drop' ? 'Draft discarded' : 'Draft saved';
+    }
   }
   if (kind === 'money.move_and_remember') {
     try {
@@ -340,7 +369,9 @@ export async function handleApi(request, env) {
   }
   if (rest === '/checklist' && method === 'POST' && env.DB) {
     const b = await request.json().catch(() => ({}));
-    await upsertChecklist(env.DB, b.day, b.item, b.done_at || new Date().toISOString(), b.how || 'manual');
+    if (b.done === false) await deleteChecklist(env.DB, b.day, b.item);
+    else if (b.how === 'auto') return json({ ok: true, ignored: true });
+    else await upsertChecklist(env.DB, b.day, b.item, b.done_at || new Date().toISOString(), 'manual');
     return json({ ok: true });
   }
   if (rest === '/habits' && method === 'POST' && env.DB) {

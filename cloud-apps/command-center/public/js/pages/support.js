@@ -13,12 +13,15 @@ function moneyRows(d) {
 }
 
 function draftBtns(r) {
-  if (r.kind) {
-    return btn('Edit', { kind: 'support.save_draft', payload: { uid: r.payload.uid, body: r.payload.body, subject: r.payload.subject }, cls: 'line', edit: true })
-      + btn('Approve & send', { kind: r.kind, payload: r.payload, done: true });
-  }
-  return btn('Edit', { msg: 'Draft opened for editing', cls: 'line' })
-    + btn('Approve & send', { msg: 'Reply sent', done: true });
+  const payload = {
+    ...(r.payload || {}),
+    to: r.to, subject: r.subject, body: r.body,
+    isolated: r.isolated || String(r.payload?.uid || r.id || '').startsWith('qa-'),
+    saveKind: r.saveKind || 'support.save_draft',
+    sendKind: r.sendKind || r.kind || 'support.send',
+    discardKind: r.discardKind || 'support.discard_draft',
+  };
+  return btn('Review', { draft: true, payload, cls: 'line' });
 }
 
 function moneyBtns(r) {
