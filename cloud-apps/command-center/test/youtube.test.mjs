@@ -8,7 +8,7 @@ import { tmpdir } from 'node:os';
 import { handleApi } from '../src/api.js';
 import { signSession, COOKIE } from '../src/auth.js';
 import { mergeSnapshot } from '../src/snapshot.js';
-import { topOutliers, overlayYoutube } from '../src/youtube.js';
+import { isAiUgc, topOutliers, overlayYoutube } from '../src/youtube.js';
 import { overlayVideo } from '../src/video.js';
 import snapshot from '../fixtures/snapshot.json' with { type: 'json' };
 
@@ -96,12 +96,14 @@ const rows = [
   { id: 'b', channel: 'Quiet Channel', title: 'Ignore me', views: 10, views_per_day: 1, outlier_score: 1.1 },
   { id: 'c', channel: 'Mr. Paid Social', title: 'How To Make Facebook Ads 100% Using AI In 2026', views: 233_000, views_per_day: 638, outlier_score: 50.6 },
   { id: 'd', channel: 'Karolis', title: 'Claude Skills That Changed Content Creation Forever', views: 16_000, views_per_day: 3200, outlier_score: 46.2 },
+  { id: 'ugc', channel: 'Karolis', title: 'Claude + Seedance 2.0 Has Changed AI UGC Forever', views: 25_000, views_per_day: 962, outlier_score: 14 },
 ];
 
-test('topOutliers keeps the three highest outlier scores', () => {
+test('topOutliers keeps AI UGC and drops higher-scoring side hustles', () => {
   const top = topOutliers(rows);
-  assert.deepEqual(top.map((r) => r.id), ['a', 'c', 'd']);
-  assert.equal(top[0].outlier_score, 133.2);
+  assert.deepEqual(top.map((r) => r.id), ['ugc']);
+  assert.equal(isAiUgc('Best AI video generation workflow'), true);
+  assert.equal(isAiUgc(rows[0].title), false);
 });
 
 test('merge overlays yt2 projects onto the YouTube pipeline', () => {
@@ -131,18 +133,19 @@ test('merge overlays yt2 projects onto the YouTube pipeline', () => {
   assert.equal(page.tiles[1].value, '1');
 });
 
-test('merge overlays top outliers onto remake jobs', () => {
+test('merge overlays AI UGC remake jobs with a persistent template link', () => {
   const page = structuredClone(fixture.pages.youtube);
-  overlayYoutube(page, { outliers: topOutliers(rows), channels: 22, ranked: 516, nowMs: now });
-  assert.equal(page.remake.jobs.length, 3);
-  assert.equal(page.remake.jobs[0].area, 'Joshua Mayo');
-  assert.equal(page.remake.jobs[0].title, '4 Side Hustles That No One Is Talking About For 2026');
-  assert.match(page.remake.jobs[0].pill, /133×/);
-  assert.match(page.remake.jobs[0].lines[0], /5M views/);
-  assert.equal(page.tiles[2].value, '133×');
+  overlayYoutube(page, { outliers: rows, channels: 22, ranked: 516, nowMs: now });
+  assert.equal(page.remake.jobs.length, 1);
+  assert.equal(page.remake.jobs[0].area, 'Karolis');
+  assert.equal(page.remake.jobs[0].title, 'Claude + Seedance 2.0 Has Changed AI UGC Forever');
+  assert.equal(page.remake.jobs[0].href, 'https://jonmac.ai/yt2/?remake=ugc&template=brand_build');
+  assert.equal(page.remake.jobs.some((j) => /Side Hustles/.test(j.title)), false);
+  assert.equal(page.tiles[2].value, '14×');
   assert.match(page.sub, /22 channels/);
   assert.match(page.sub, /516 videos/);
   assert.equal(page.remake.seeAll, 'See all 516');
+  assert.equal(page.remake.seeAllHref, 'https://jonmac.ai/yt2/');
 });
 
 test('sponsor cards join the YouTube pipeline', () => {
@@ -278,7 +281,8 @@ test('mergeSnapshot wires youtube projects, outliers and the video queue', () =>
     },
   ], now, {}, [], [], projects);
   assert.equal(out.pages.youtube.pipeline.rows.some((r) => r.video === 'Video 3 of the week'), true);
-  assert.equal(out.pages.youtube.remake.jobs[0].area, 'Joshua Mayo');
+  assert.equal(out.pages.youtube.remake.jobs[0].area, 'Karolis');
+  assert.match(out.pages.youtube.remake.jobs[0].href, /template=brand_build/);
   assert.equal(out.pages.video.editing.rows[0].title, 'Video 2 of the week');
 });
 

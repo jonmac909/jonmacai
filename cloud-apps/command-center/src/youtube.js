@@ -21,9 +21,24 @@ const SPONSOR_STEP = {
   publishing: { pct: 87, pill: 'Live · send invoice', next: 'Send invoice', pg: 'ok', pillCls: 'ok' },
 };
 
+export function isAiUgc(title) {
+  const t = String(title || '');
+  if (!t) return false;
+  if (/\bAI\s*UGC\b/i.test(t)) return true;
+  if (/\bAI[- ]?video[- ]generation\b/i.test(t)) return true;
+  return /\bUGC\b/i.test(t) && /\bAI\b/i.test(t);
+}
+
+export function templateIdFor(title) {
+  const t = ` ${String(title || '').toLowerCase()} `;
+  if (/ ad |ads|ugc|facebook|campaign|agent/.test(t)) return 'brand_build';
+  if (/ vs |compare|tested/.test(t)) return 'model_battle';
+  return 'trend_to_revenue';
+}
+
 export function topOutliers(rows, n = 3) {
   return [...(rows || [])]
-    .filter((r) => r && r.title)
+    .filter((r) => r && r.title && isAiUgc(r.title))
     .sort((a, b) => Number(b.outlier_score || 0) - Number(a.outlier_score || 0))
     .slice(0, n);
 }
@@ -148,21 +163,24 @@ export function overlayYoutube(page, {
     page.tiles[3].value = String(sponsorRows.length);
     page.tiles[3].sub = [...new Set(sponsorRows.map((r) => String(r.video).split(' · ')[0]))].join(' · ');
   }
-  if (outliers?.length) {
+  const hits = topOutliers(outliers, 3);
+  if (outliers) {
     page.remake = {
       ...page.remake,
       seeAll: ranked != null ? `See all ${ranked}` : page.remake.seeAll,
-      jobs: outliers.map((r) => ({
+      seeAllHref: 'https://jonmac.ai/yt2/',
+      jobs: hits.map((r) => ({
         area: r.channel,
         pill: `${Math.round(Number(r.outlier_score) || 0)}× their normal`,
         title: r.title,
+        href: `https://jonmac.ai/yt2/?remake=${encodeURIComponent(r.id)}&template=${encodeURIComponent(templateIdFor(r.title))}`,
         lines: [
           `${compact(r.views)} views · ${Math.round(Number(r.views_per_day) || 0).toLocaleString('en-US')} a day`,
           `Best fit: ${bestFit(r.title)}`,
         ],
       })),
     };
-    page.tiles[2].value = `${Math.round(Number(outliers[0].outlier_score) || 0)}×`;
+    if (hits[0]) page.tiles[2].value = `${Math.round(Number(hits[0].outlier_score) || 0)}×`;
     if (ranked != null) {
       page.sub = `From YouTube Gen · ${channels || 0} channels watched · ${ranked} videos ranked`;
     }
