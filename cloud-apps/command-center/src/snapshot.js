@@ -5,7 +5,7 @@ import { overlayVideo } from './video.js';
 import { overlayContent } from './content.js';
 import { overlayMoney, overlayMarkets, monthVerified, quoteStamp } from './money.js';
 import { overlayViral, applyHomeViral } from './viral.js';
-import { overlayOutreach } from './outreach.js';
+import { overlayOutreach, blankOutreach } from './outreach.js';
 import { overlayLife } from './life.js';
 import { applyHome } from './home.js';
 
@@ -343,8 +343,9 @@ export function mergeSnapshot(fixture, rows, nowMs = Date.now(), overrides = {},
     if (out.pages.viral) out.pages.viral = page;
     applyHomeViral(out, page);
   }
-  if (out.pages.outreach && by.instantly) {
-    overlayOutreach(out.pages.outreach, parseData(by.instantly.data));
+  if (out.pages.outreach) {
+    if (by.instantly) overlayOutreach(out.pages.outreach, parseData(by.instantly.data));
+    else blankOutreach(out.pages.outreach);
   }
   if (out.pages.life) {
     if (by.calendar) {

@@ -28,6 +28,13 @@ export async function actionById(db, id) {
   return db.prepare('SELECT * FROM actions WHERE id = ?').bind(id).first();
 }
 
+export async function latestAction(db, kind) {
+  const { results } = await db.prepare(
+    'SELECT id, kind, status, result, created_at, finished_at FROM actions WHERE kind = ? ORDER BY created_at DESC LIMIT 1',
+  ).bind(kind).all();
+  return results?.[0] || null;
+}
+
 export async function claimQueued(db, machine, now) {
   const { results } = await db.prepare(
     `SELECT * FROM actions WHERE target = ? AND status = 'queued' ORDER BY created_at LIMIT 10`,
