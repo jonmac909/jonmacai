@@ -41,9 +41,12 @@ def _download(base, token, key, dest):
     url = base.rstrip('/') + '/api/uploads/%s?key=%s' % (key.split('/')[1], urllib.parse.quote(key))
     req = urllib.request.Request(url)
     req.add_header('Authorization', 'Bearer %s' % token)
+    req.add_header('User-Agent', 'CommandCenterCollector/1.0')
     dest.parent.mkdir(parents=True, exist_ok=True)
     with urllib.request.urlopen(req, timeout=120) as res:
         dest.write_bytes(res.read())
+
+
 def _put_output(base, token, upload_id, path):
     req = urllib.request.Request(
         base.rstrip('/') + '/api/uploads/%s/output' % urllib.parse.quote(upload_id),
@@ -51,6 +54,7 @@ def _put_output(base, token, upload_id, path):
         method='PUT',
     )
     req.add_header('Authorization', 'Bearer %s' % token)
+    req.add_header('User-Agent', 'CommandCenterCollector/1.0')
     req.add_header('Content-Type', 'video/mp4')
     with urllib.request.urlopen(req, timeout=120) as res:
         return json.loads(res.read().decode('utf-8') or '{}')

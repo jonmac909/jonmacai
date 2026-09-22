@@ -26,8 +26,8 @@ export function overlayVideo(page, data = {}) {
         pct: Number(q.progress) || 0,
         pill: q.failure ? 'Failed' : review ? 'Review' : waiting ? 'Queued' : 'Editing',
         pillCls: q.failure ? 'crit' : review ? '' : waiting ? '' : 'blue',
-        btn: review ? 'Review keepers' : waiting ? 'Do this first' : undefined,
-        kind: review ? 'video.resume' : waiting ? 'video.prioritize' : undefined,
+        btn: review ? 'Review keepers' : (waiting && !q.failure) ? 'Do this first' : undefined,
+        kind: review ? 'video.resume' : (waiting && !q.failure) ? 'video.prioritize' : undefined,
         payload: review ? { actionId: q.actionId, keepers: q.segments || [] } : waiting ? { id: q.id } : undefined,
       };
     }),
