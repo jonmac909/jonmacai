@@ -1,4 +1,5 @@
 import { tiles, pgrow, btn, head, esc } from '../ui.js';
+import { plannerPayload } from '../planner.js';
 
 function moneyRows(d) {
   if (d.money.rows) return d.money.rows;
@@ -53,7 +54,7 @@ export function render(d) {
       <div class="card pad">
         <div class="cardhead"><h2>${d.topics.title}</h2><span class="meta">${d.topics.meta}</span></div>
         <div class="pgs">${d.topics.rows.map(pgrow).join('')}</div>
-        <div class="box"><p>${esc(d.topics.box)}</p>${btn('Send to Planner', { msg: 'Sent to Planner as a task', cls: 'wide' })}</div>
+        <div class="box"><p>${esc(d.topics.box)}</p>${btn('Send to Planner', { kind: 'mastermind.send_to_planner', payload: plannerPayload({ id: 'support-topics', title: 'Support topics', body: d.topics.box, area: 'Support' }), cls: 'wide' })}</div>
       </div>
     </div>
   </div>
