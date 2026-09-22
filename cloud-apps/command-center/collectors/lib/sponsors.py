@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 import json
 import urllib.error
 import urllib.parse
@@ -64,17 +65,30 @@ def slim_card(card):
         }
     return out
 
+def source_edited_at(path=None):
+    path = Path(path or COLLECTIONS)
+    try:
+        stamp = path.stat().st_mtime
+    except OSError:
+        return None
+    return datetime.fromtimestamp(stamp, timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
+
+
 
 def collect_snapshot():
     board = _req('GET', '/api/board')
     collections = _req('GET', '/api/collections')
     cards = [slim_card(c) for c in board.get('cards') or [] if c.get('stage') != 'archived']
-    return {
+    out = {
         'ok': True,
         'updatedAt': board.get('updatedAt'),
         'collections': collections,
         'cards': cards,
     }
+    edited = source_edited_at()
+    if edited:
+        out['sourceEditedAt'] = edited
+    return out
 
 
 def _first(value):

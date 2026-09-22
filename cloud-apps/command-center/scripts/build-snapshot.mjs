@@ -121,9 +121,9 @@ snapshot.pages.sponsors = {
     { label: 'Scan inbox now', msg: 'Scanning sponsor inbox now' },
   ],
   tiles: [
-    tile('check', 'Collected in September', '$5,000', { goal: '/ $10K', pct: 50, sub: 'Day 18 of 30 · pace would be $6,000' }),
+    tile('check', 'Collected in September', '$5,000', { goal: '/ $10K', pct: 50, sub: 'Recorded source total · unverified against deposit ledger · day 18 of 30 · pace $6,000' }),
     tile('dollar', 'Owed to you', '$6,700', { sub: '3 sponsors' }),
-    tile('chart', 'Average month since May', '$8,802', { goal: '/ $10K', pct: 88, pg: 'risk', sub: '$1,198 a month short of goal' }),
+    tile('chart', 'Average June-August', '$8,802', { goal: '/ $10K', pct: 88, pg: 'risk', sub: '$1,198 a month short of goal' }),
     tile('mail', 'Sponsor emails waiting', '3', { sub: 'All 3 replies drafted' }),
   ],
   septemberBar: {
