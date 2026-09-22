@@ -137,13 +137,18 @@ def _beat(base, token):
 def main():
     acquire_run_lock('gpu1')
     once = '--once' in sys.argv
+    sys.stderr.write('claimer up\n')
+    sys.stderr.flush()
     while True:
         base, token = cfg('gpu1')
         _beat(base, token)
         try:
             run_once()
         except Exception as err:
-            sys.stderr.write('runner %s\n' % type(err).__name__)
+            sys.stderr.write('runner %s %s\n' % (type(err).__name__, getattr(err, 'code', '')))
+            sys.stderr.flush()
+            time.sleep(15)
+            sys.stderr.write('runner continued\n')
             sys.stderr.flush()
         if once:
             return

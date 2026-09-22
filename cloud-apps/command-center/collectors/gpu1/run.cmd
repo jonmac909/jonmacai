@@ -13,6 +13,8 @@ set PYTHONPATH=%USERPROFILE%\loop-studio-cutter\core\engine
 set PATH=C:\Windows\System32;C:\Windows;C:\FFmpeg\bin;%USERPROFILE%\loop-studio-cutter\venv\Scripts
 :loop
 "%USERPROFILE%\loop-studio-cutter\venv\Scripts\python.exe" "%USERPROFILE%\.command-center\collectors\gpu1\run.py" >> "%USERPROFILE%\.command-center\logs\loop-studio.out.log" 2>> "%USERPROFILE%\.command-center\logs\loop-studio.err.log"
-if errorlevel 2 if not errorlevel 3 exit /b 0
-timeout /t 15 /nobreak >nul
+if errorlevel 3 goto wait
+if errorlevel 2 exit /b 0
+:wait
+ping -n 16 127.0.0.1 >nul
 goto loop

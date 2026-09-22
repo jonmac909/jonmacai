@@ -336,7 +336,9 @@ export async function handleApi(request, env, ctx) {
       const jobs = await listVideoJobs(env.DB);
       if (jobs.length) overlayVideo(merged.pages.video, { queue: jobs.map(videoQueueItem) });
       const beat = merged.sources?.video_gpu1;
-      if (!beat || beat.stale) merged.pages.video.editing.meta = 'GPU1 disconnected';
+      const runner = !beat || beat.stale ? 'GPU1 disconnected' : 'GPU1 connected';
+      const steps = merged.pages.video.editing.meta || '';
+      merged.pages.video.editing.meta = steps && steps !== 'GPU1 disconnected' ? `${runner} · ${steps}` : runner;
     }
     return json(merged);
   }
