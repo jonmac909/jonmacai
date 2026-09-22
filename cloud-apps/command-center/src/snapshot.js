@@ -374,6 +374,7 @@ export function mergeSnapshot(fixture, rows, nowMs = Date.now(), overrides = {},
       ranked: yt.ranked,
       sponsors: by.sponsors ? parseData(by.sponsors.data) : undefined,
       nowMs,
+      syncedAt: yt.generatedAt || by.youtube?.collected_at,
     });
   }
   if (out.pages.video && by.video) {

@@ -1,4 +1,4 @@
-import { fetchLiveYoutubeRefresh, LOGIN_HREF } from './live-sync.js';
+import { fetchLiveYoutubeRefresh, publishDashboardSync, LOGIN_HREF } from './live-sync.js';
 import { buildRemakeProject, editWithoutRenderer, pickTemplate, rememberTemplate, RENDER_MISSING } from './remake.js';
 
 (function () {
@@ -260,7 +260,13 @@ import { buildRemakeProject, editWithoutRenderer, pickTemplate, rememberTemplate
       state.refreshing = false;
       state.lastRefreshed = new Date(refreshedAt);
       const refreshedChannels = Array.isArray(payload.refreshed) ? payload.refreshed.length : 0;
+      const dash = await publishDashboardSync({
+        rows: allRows,
+        generatedAt: refreshedAt,
+        refreshed: payload.refreshed,
+      });
       state.refreshSummary = `${refreshedChannels || "All"} channels synced · ${allRows.length} current videos`;
+      if (!dash.ok) state.refreshSummary += " · dashboard source was not updated";
       render();
       toast(`Live YouTube data synced · ${allRows.length} videos loaded`);
     } catch (error) {
