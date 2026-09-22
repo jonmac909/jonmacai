@@ -234,10 +234,20 @@ document.addEventListener('click', (e) => {
     });
     return;
   }
+  const filt = e.target.closest('[data-draft-filter]');
+  if (filt && data?.pages?.content?.dailyDrafts) {
+    data.pages.content.dailyDrafts.filter = filt.dataset.draftFilter || 'all';
+    go('content');
+    return;
+  }
   const actBtn = e.target.closest('[data-kind]');
   if (actBtn) {
     let payload = {};
     try { payload = JSON.parse(actBtn.dataset.payload || '{}'); } catch { payload = {}; }
+    if (actBtn.dataset.readDraft) {
+      const box = actBtn.closest('.r')?.querySelector('[data-draft-body]');
+      if (box) payload = { ...payload, body: box.value };
+    }
     if (actBtn.dataset.edit) {
       const body = prompt('Edit draft', payload.body || '');
       if (body == null) return;

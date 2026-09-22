@@ -12,6 +12,30 @@ function queueRow(r) {
   return `<div class="r"><div><strong>${esc(r.title)}</strong><div class="quote">${esc(r.quote)}</div></div><div class="right">${btn('Edit', { msg: 'Post opened for editing', cls: 'line' })}${approve}</div></div>`;
 }
 
+function draftCard(d) {
+  const daily = d.dailyDrafts;
+  if (!daily) return '';
+  const filter = daily.filter || 'all';
+  const platforms = [...new Set(daily.rows.map((r) => r.platform))];
+  const filters = ['all', ...platforms].map((p) => {
+    const on = filter === p ? ' btn' : ' btn line';
+    return `<button class="${on.trim()}" data-draft-filter="${esc(p)}">${esc(p === 'all' ? 'All' : p)}</button>`;
+  }).join('');
+  const rows = daily.rows.filter((r) => filter === 'all' || r.platform === filter).map((r) => {
+    const approve = r.status === 'approved' ? '' : btn('Approve', {
+      kind: r.approveKind, payload: { id: r.id }, confirm: 'Approve this draft? Nothing will be posted.', cls: 'line', sm: true,
+    });
+    const save = btn('Save edit', {
+      kind: r.saveKind, payload: { id: r.id }, cls: 'line', sm: true, readDraft: true,
+    });
+    const err = r.error ? `<small>${esc(r.error)}</small>` : '';
+    return `<div class="r" data-draft-platform="${esc(r.platform)}"><div><strong>${esc(r.platform)} · slot ${esc(r.slot)}</strong> ${pill(r.statusLabel, r.status === 'failed' ? 'crit' : r.status === 'approved' ? 'ok' : '')}${err}<textarea class="draftbody" data-draft-body>${esc(r.body)}</textarea></div><div class="right">${save}${approve}</div></div>`;
+  }).join('');
+  const missing = (daily.unavailable || []).map((u) => `<div class="r"><div><strong>${esc(u.platform)}</strong><small>Unavailable · ${esc(u.reason)}</small></div></div>`).join('');
+  const empty = rows ? '' : `<p class="note">${esc(daily.error || 'No drafts for this day yet. Fill uses connected product facts and does not post.')}</p>`;
+  return `<div class="card pad"><div class="cardhead"><h2>${esc(daily.title)}</h2><span class="meta">${esc(daily.meta)}</span></div><div class="dfilters">${filters}</div>${daily.error ? `<p class="note">${esc(daily.error)}</p>` : ''}<div class="rows">${rows}${missing}${empty}</div></div>`;
+}
+
 export function render(d) {
   const right = d.actions.map(actionBtn).join('');
   const heatDays = d.heat.days.map((x) => `<span class="h">${esc(x)}</span>`).join('');
@@ -40,6 +64,7 @@ export function render(d) {
       <div class="tblwrap"><div class="heat tn"><span></span>${heatDays}${heatRows}</div></div>
     </div>
   </div>
+  ${draftCard(d)}
   <div class="split">
     <div class="card pad">
       <div class="cardhead"><h2>${d.queue.title}</h2><div class="right" style="display:flex;gap:.5rem"><span class="meta">${esc(d.queue.meta)}</span>${btn(d.queue.approveAll, { msg: d.queue.approveAllMsg, kind: d.queue.approveAllKind, payload: d.queue.approveAllPayload, sm: true })}</div></div>

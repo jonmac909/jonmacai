@@ -54,6 +54,11 @@ Cookie `__Host-cc_session` = `{unixExpiry}.{HMAC-SHA256(expiry)}` under `SESSION
 
 Machine ingest is `POST /dashboard/api/ingest` with `Authorization: Bearer` (`MACHINE_TOKEN_MAC` / `MACHINE_TOKEN_GPU2`) and `{source, collectedAt, data}`. Source `post` inserts into the `posts` table (one publish at a time). Source `content_queue` is the Content Marketing agent's scheduled posts (`~/.command-center/content-queue.json` on GPU2). Approve writes `~/.command-center/content-approvals.jsonl` and pings that agent's Orca terminal. Log a post is `POST /dashboard/api/posts`. Runners poll `POST /dashboard/api/actions/claim` every 15s. A source older than 3× its schedule (collectors: 5 min → stale after 15 min) gets a grey Stale pill. Collectors live in `collectors/mac` and `collectors/gpu2`; add a source as one `sources/*.py` module with `source(machine)` and `collect(machine)`.
 
+## Daily drafts
+
+Three slots per configured platform per America/Vancouver day, stored in `content_drafts` and keyed by tenant (`CONTENT_TENANT`, default `jon`). `CONTENT_PLATFORMS` overrides the grid. Cron and **Fill today's drafts** insert missing slots only. A human edit or approval is never overwritten. No connected product fact means status `failed`, not invented copy. Unconfigured grid platforms show as unavailable. Approve stays on the worker and does not publish.
+
+
 ## Instantly (Cold outreach)
 
 Worker cron (every 10 min) pulls Instantly API v2 with `INSTANTLY_API_KEY` as `Authorization: Bearer`. Endpoints used:

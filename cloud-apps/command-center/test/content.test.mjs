@@ -7,6 +7,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { handleApi } from '../src/api.js';
 import { signSession, COOKIE } from '../src/auth.js';
+import { ymd } from '../src/life.js';
 import { mergeSnapshot } from '../src/snapshot.js';
 import { memD1 } from './memd1.mjs';
 
@@ -148,7 +149,7 @@ test('POST /posts logs a manual row into the posts table', async () => {
     method: 'POST',
     cookie: ck,
     headers: { 'Content-Type': 'application/json', 'X-CC': '1' },
-    body: JSON.stringify({ platform: 'LinkedIn', first_line: 'Logged by hand', url: 'https://lnkd.in/1', posted_at: '2026-09-18T18:00:00Z' }),
+    body: JSON.stringify({ platform: 'LinkedIn', first_line: 'Logged by hand', url: 'https://lnkd.in/1', posted_at: `${ymd(Date.now())}T12:00:00-07:00` }),
   }), env);
   assert.equal(res.status, 200);
   assert.equal((await res.json()).ok, true);
