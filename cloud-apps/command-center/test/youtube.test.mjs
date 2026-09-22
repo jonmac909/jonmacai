@@ -514,6 +514,52 @@ test('video page says GPU1 disconnected until a fresh claimer heartbeat', async 
   assert.doesNotMatch((await live.json()).pages.video.editing.meta || '', /disconnected/);
 });
 
+test('a saved cut stays ready when GPU1 is disconnected, and a failed job does not', async () => {
+  const db = memD1();
+  const env = envWith(db);
+  const ck = await cookie();
+  db.actions.push({
+    id: 'saved', kind: 'video.start_edit', target: 'gpu1', status: 'done',
+    payload: JSON.stringify({ id: 'up-saved', title: 'Saved cut' }),
+    result: JSON.stringify({ host: 'gpu1', stage: 'done', validated: true, outputKey: 'uploads/up-saved/out.mp4' }),
+    idem_key: 'upload-up-saved', created_at: '2026-09-22T00:00:00Z', finished_at: '2026-09-22T00:10:00Z',
+  }, {
+    id: 'bad', kind: 'video.start_edit', target: 'gpu1', status: 'done',
+    payload: JSON.stringify({ id: 'up-bad', title: 'Bad cut' }),
+    result: JSON.stringify({ host: 'gpu1', stage: 'quality-failure', validated: false, failure: 'missing unique lines' }),
+    idem_key: 'upload-up-bad', created_at: '2026-09-22T00:00:00Z', finished_at: '2026-09-22T00:10:00Z',
+  });
+  const res = await handleApi(req('/dashboard/api/snapshot?pages=video', { cookie: ck }), env);
+  const page = (await res.json()).pages.video;
+  assert.match(page.editing.meta, /GPU1 disconnected/);
+  assert.equal(page.ready.rows.length, 1);
+  assert.equal(page.ready.rows[0].title, 'Saved cut');
+  assert.equal(page.editing.rows.some((row) => row.title === 'Bad cut' && row.pill === 'Failed'), true);
+});
+
+test('GPU1 claim returns its own stuck job and GPU2 does not', async () => {
+  const db = memD1();
+  const env = envWith(db);
+  db.actions.push({
+    id: 'stuck', kind: 'video.start_edit', target: 'gpu1', status: 'claimed',
+    payload: JSON.stringify({ id: 'up1' }), result: null, idem_key: 'upload-up1',
+    created_at: '2026-09-22T00:00:00Z', finished_at: null,
+  });
+  const gpu1 = await handleApi(req('/dashboard/api/actions/claim', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: 'Bearer gpu1-token-cccccccccccccccccccccccccccc' },
+    body: JSON.stringify({ machine: 'gpu1' }),
+  }), env);
+  assert.equal((await gpu1.json()).actions[0].id, 'stuck');
+  const gpu2 = await handleApi(req('/dashboard/api/actions/claim', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${GPU}` },
+    body: JSON.stringify({ machine: 'gpu2' }),
+  }), env);
+  assert.equal((await gpu2.json()).actions.length, 0);
+});
+
+
 
 
 test('python collector reads queue-status.json', () => {

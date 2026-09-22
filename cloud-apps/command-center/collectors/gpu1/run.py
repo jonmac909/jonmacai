@@ -13,6 +13,21 @@ from loop_studio import advance, missing_lines, open_job
 
 ROOT = os.environ.get('LS_JOB_ROOT') or str(Path.home() / 'loop-studio-jobs')
 
+import urllib.error
+
+def _net(fn):
+    delay = 1
+    err = None
+    for i in range(3):
+        try:
+            return fn()
+        except (urllib.error.HTTPError, urllib.error.URLError, TimeoutError, OSError) as exc:
+            err = exc
+            if i == 2:
+                break
+            time.sleep(delay)
+            delay *= 2
+    raise err
 
 def _progress(base, token, action_id, state):
     body = json.dumps({
@@ -32,6 +47,7 @@ def _progress(base, token, action_id, state):
         method='POST',
     )
     req.add_header('Authorization', 'Bearer %s' % token)
+    req.add_header('User-Agent', 'CommandCenterCollector/1.0')
     req.add_header('Content-Type', 'application/json')
     with urllib.request.urlopen(req, timeout=30) as res:
         return json.loads(res.read().decode('utf-8') or '{}')
@@ -61,44 +77,55 @@ def _put_output(base, token, upload_id, path):
 
 
 
+def _fail(base, token, action_id, message):
+    state = {
+        'host': 'gpu1', 'stage': 'failed', 'device': 'cpu', 'encoder': 'libx264',
+        'failure': message, 'validated': False, 'retry': 3,
+    }
+    try:
+        _progress(base, token, action_id, state)
+        complete(base, token, action_id, False, state)
+    except Exception as err:
+        sys.stderr.write('fail-report %s\n' % type(err).__name__)
+
 def run_once():
-    import urllib.parse
     base, token = cfg('gpu1')
-    for action in claim(base, token, 'gpu1'):
+    for action in _net(lambda: claim(base, token, 'gpu1')):
         if action.get('kind') != 'video.start_edit':
             continue
         payload = json.loads(action.get('payload') or '{}')
-        job = Path(open_job(ROOT, payload.get('id') or action['id'], payload.get('title') or 'Upload'))
-        raw = job / 'raw.mp4'
-        if not raw.exists() and payload.get('key'):
-            _download(base, token, payload['key'], raw)
-        keepers = payload.get('keepers')
-        if keepers:
-            (job / 'keepers.json').write_text(json.dumps(keepers), encoding='utf-8')
-        state = advance(str(job), str(raw))
-        expected = payload.get('expectedLines') or []
-        exp_path = job / 'expected.json'
-        if not expected and exp_path.exists():
-            expected = json.loads(exp_path.read_text(encoding='utf-8'))
-        if state.get('stage') == 'done' and expected:
-            import ls_platform
-            heard = ls_platform.transcribe(str(job / 'out.mp4')).get('text') or ''
-            missed = missing_lines(heard, expected)
-            if missed:
-                state['stage'] = 'quality-failure'
-                state['validated'] = False
-                state['failure'] = 'missing unique lines: ' + '; '.join(missed)
-        if state.get('stage') == 'done' and state.get('output'):
-            out_key = 'uploads/%s/out.mp4' % (payload.get('id') or action['id'])
-            _put_output(base, token, payload.get('id') or action['id'], Path(state['output']))
-            state['outputKey'] = out_key
-            _progress(base, token, action['id'], state)
-            complete(base, token, action['id'], True, state)
-        else:
-            _progress(base, token, action['id'], state)
-            if state.get('stage') in ('failed', 'quality-failure'):
-                complete(base, token, action['id'], False, state)
-
+        try:
+            job = Path(open_job(ROOT, payload.get('id') or action['id'], payload.get('title') or 'Upload'))
+            raw = job / 'raw.mp4'
+            if not raw.exists() and payload.get('key'):
+                _net(lambda: _download(base, token, payload['key'], raw))
+            keepers = payload.get('keepers')
+            if keepers:
+                (job / 'keepers.json').write_text(json.dumps(keepers), encoding='utf-8')
+            state = advance(str(job), str(raw))
+            expected = payload.get('expectedLines') or []
+            exp_path = job / 'expected.json'
+            if not expected and exp_path.exists():
+                expected = json.loads(exp_path.read_text(encoding='utf-8'))
+            if state.get('stage') == 'done' and expected:
+                import ls_platform
+                heard = ls_platform.transcribe(str(job / 'out.mp4')).get('text') or ''
+                missed = missing_lines(heard, expected)
+                if missed:
+                    state['stage'] = 'quality-failure'
+                    state['validated'] = False
+                    state['failure'] = 'missing unique lines: ' + '; '.join(missed)
+            if state.get('stage') == 'done' and state.get('output'):
+                _net(lambda: _put_output(base, token, payload.get('id') or action['id'], Path(state['output'])))
+                state['outputKey'] = 'uploads/%s/out.mp4' % (payload.get('id') or action['id'])
+                _net(lambda: _progress(base, token, action['id'], state))
+                _net(lambda: complete(base, token, action['id'], True, state))
+            else:
+                _net(lambda: _progress(base, token, action['id'], state))
+                if state.get('stage') in ('failed', 'quality-failure'):
+                    _net(lambda: complete(base, token, action['id'], False, state))
+        except Exception as err:
+            _fail(base, token, action['id'], '%s after 3 tries' % type(err).__name__)
 
 def _beat(base, token):
     try:
@@ -117,6 +144,7 @@ def main():
             run_once()
         except Exception as err:
             sys.stderr.write('runner %s\n' % type(err).__name__)
+            sys.stderr.flush()
         if once:
             return
         time.sleep(15)

@@ -1,4 +1,5 @@
 @echo off
+set PYTHONUNBUFFERED=1
 if not exist "%USERPROFILE%\.command-center\logs" mkdir "%USERPROFILE%\.command-center\logs"
 set CC_SECRETS=%USERPROFILE%\.command-center\gpu1-loop.env
 set LS_CUTTER=%USERPROFILE%\loop-studio-cutter\core\engine\cut\cut.py

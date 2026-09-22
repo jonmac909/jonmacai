@@ -57,6 +57,9 @@ export function memD1() {
             rows.sort((x, y) => String(y.created_at).localeCompare(String(x.created_at)));
             return { results: /LIMIT 1/.test(s) ? rows.slice(0, 1) : rows };
           }
+          if (/FROM actions WHERE target/.test(s) && /status = 'claimed'/.test(s)) {
+            return { results: actions.filter((x) => x.target === a[0] && x.status === 'claimed' && x.kind === 'video.start_edit').slice(0, 5) };
+          }
           if (/FROM actions WHERE target/.test(s)) {
             return {
               results: actions

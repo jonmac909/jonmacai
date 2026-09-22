@@ -4,7 +4,7 @@ import {
   sessionCookieHeader, checkLockout, recordLoginFailure, clientIp, hmacHex,
 } from './auth.js';
 import {
-  loginStore, insertAction, actionByIdem, actionById, claimQueued, completeAction, latestAction,
+  loginStore, insertAction, actionByIdem, actionById, claimQueued, claimedVideo, completeAction, latestAction,
   reportAction, requeueAction, listVideoJobs,
   upsertChecklist, upsertHabit, upsertSnapshot, listSnapshots, upsertDealStage, listDealStages, listIdeas, upsertIdea,
   listVideoProjects, replaceVideoProjects,
@@ -50,16 +50,17 @@ function videoQueueItem(row) {
   try { payload = JSON.parse(row.payload || '{}'); } catch { payload = {}; }
   try { result = row.result ? JSON.parse(row.result) : {}; } catch { result = {}; }
   const stage = row.status === 'queued' && payload.keepers ? 'resume' : (result.stage || row.status);
+  const saved = row.status === 'done' && result.validated && result.outputKey && result.stage !== 'failed' && result.stage !== 'quality-failure';
   return {
     id: payload.id || row.id,
     actionId: row.id,
     title: payload.title || 'Upload',
-    status: row.status === 'done' ? 'ready' : row.status === 'waiting' ? 'waiting' : 'queued',
+    status: saved ? 'ready' : row.status === 'waiting' ? 'waiting' : 'queued',
     host: result.host || 'gpu1',
     stage,
-    failure: result.failure || '',
+    failure: result.failure || (row.status === 'done' && !saved ? 'not validated' : ''),
     segments: result.segments || [],
-    readyPath: result.outputKey ? `/dashboard/api/uploads/${payload.id}/output` : '',
+    readyPath: saved ? `/dashboard/api/uploads/${payload.id}/output` : '',
   };
 }
 function targetFor(kind, payload = {}) {
@@ -369,8 +370,10 @@ export async function handleApi(request, env, ctx) {
     const who = machineOf(request, env);
     const body = await request.json().catch(() => ({}));
     if (!who || who !== body.machine) return json({ error: 'Unauthorized' }, 401);
-    const rows = env.DB ? await claimQueued(env.DB, who, new Date().toISOString()) : [];
-    return json({ actions: rows });
+    const fresh = env.DB ? await claimQueued(env.DB, who, new Date().toISOString()) : [];
+    const stuck = env.DB ? await claimedVideo(env.DB, who) : [];
+    const seen = new Set(fresh.map((row) => row.id));
+    return json({ actions: fresh.concat(stuck.filter((row) => !seen.has(row.id))) });
   }
 
 

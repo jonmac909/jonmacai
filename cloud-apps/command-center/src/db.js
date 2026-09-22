@@ -54,6 +54,13 @@ export async function claimQueued(db, machine, now) {
   }
   return claimed;
 }
+export async function claimedVideo(db, machine) {
+  if (machine !== 'gpu1') return [];
+  const { results } = await db.prepare(
+    `SELECT * FROM actions WHERE target = ? AND kind = 'video.start_edit' AND status = 'claimed' ORDER BY created_at LIMIT 5`,
+  ).bind(machine).all();
+  return results || [];
+}
 
 export async function completeAction(db, id, status, result, now) {
   await db.prepare(`UPDATE actions SET status = ?, result = ?, finished_at = ? WHERE id = ?`)
