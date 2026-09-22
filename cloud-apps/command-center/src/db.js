@@ -66,6 +66,10 @@ export async function upsertChecklist(db, day, item, doneAt, how) {
   ).bind(day, item, doneAt, how).run();
 }
 
+export async function deleteChecklist(db, day, item) {
+  await db.prepare('DELETE FROM checklist WHERE day = ? AND item = ?').bind(day, item).run();
+}
+
 export async function upsertHabit(db, day, kind, done, note) {
   await db.prepare(
     'INSERT OR REPLACE INTO habits (day, kind, done, note) VALUES (?, ?, ?, ?)',

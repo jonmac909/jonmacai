@@ -256,11 +256,15 @@ def send_live(payload):
     box = _box(acct, pw)
     try:
         uid = str(payload.get('uid') or '')
+        if uid.startswith('qa-') or payload.get('isolated') is True:
+            return False, 'not_sent:isolated'
         ticket = _fetch_uid(box, uid) if uid else dict(payload)
-        if payload.get('body'):
+        if payload.get('body') is not None:
             ticket['body'] = payload['body']
-        if payload.get('to') and not ticket.get('to'):
+        if payload.get('to'):
             ticket['to'] = payload['to']
+        if payload.get('subject'):
+            ticket['subject'] = payload['subject']
         return send_draft(lambda m: _smtp_send(acct, pw, m), box, ticket, payload.get('body'))
     finally:
         try:
@@ -281,6 +285,8 @@ def save_live(payload):
         ticket['body'] = payload.get('body') if payload.get('body') is not None else ticket.get('body')
         if payload.get('subject'):
             ticket['subject'] = payload['subject']
+        if payload.get('to'):
+            ticket['to'] = payload['to']
         raw = build_reply(ticket).as_bytes()
         box.append('"[Gmail]/Drafts"', r'(\Draft \Seen)', imaplib.Time2Internaldate(time.time()), raw)
         box.uid('STORE', uid, '+FLAGS', r'(\Deleted)')
@@ -293,11 +299,36 @@ def save_live(payload):
             pass
 
 
+def discard_live(payload):
+    payload = payload or {}
+    uid = str(payload.get('uid') or '')
+    if not uid:
+        return False, 'missing draft'
+    if uid.startswith('qa-') or payload.get('isolated') is True:
+        return True, 'Draft discarded'
+    acct, pw = _acct()
+    box = _box(acct, pw)
+    try:
+        typ, _ = box.select('"[Gmail]/Drafts"')
+        if typ != 'OK':
+            return False, 'Drafts folder not available'
+        box.uid('STORE', uid, '+FLAGS', r'(\Deleted)')
+        box.expunge()
+        return True, 'Draft discarded'
+    finally:
+        try:
+            box.logout()
+        except Exception:
+            pass
+
+
 def handle(kind, payload):
     payload = payload or {}
     try:
         if kind == 'support.save_draft':
             return save_live(payload)
+        if kind == 'support.discard_draft':
+            return discard_live(payload)
         if kind == 'support.send_all_safe':
             n = 0
             for uid in payload.get('ids') or []:
@@ -313,5 +344,5 @@ def handle(kind, payload):
         if kind == 'support.send':
             return send_live(payload)
     except Exception as e:
-        return False, type(e).__name__
+        return False, 'not_sent:%s' % type(e).__name__
     return False, 'unknown action %s' % kind

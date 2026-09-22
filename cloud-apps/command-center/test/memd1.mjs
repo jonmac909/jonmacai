@@ -71,6 +71,8 @@ export function memD1() {
             snapshots.set(a[0], { source: a[0], data: a[1], collected_at: a[2], received_at: a[3] });
           } else if (/INSERT OR REPLACE INTO checklist/.test(s)) {
             checklist.set(`${a[0]}|${a[1]}`, { day: a[0], item: a[1], done_at: a[2], how: a[3] });
+          } else if (/DELETE FROM checklist/.test(s)) {
+            checklist.delete(`${a[0]}|${a[1]}`);
           } else if (/INSERT OR REPLACE INTO habits/.test(s)) {
             habits.set(`${a[0]}|${a[1]}`, { day: a[0], kind: a[1], done: a[2], note: a[3] });
           } else if (/INSERT OR REPLACE INTO ideas/.test(s)) {

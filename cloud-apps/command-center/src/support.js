@@ -89,7 +89,12 @@ export function overlaySupport(page, data, nowMs, ageLabel = '') {
       title: prettyTitle(t.subject),
       sub: `${t.plan || 'Email'} · ${waitLabel(t.waitedMs)}`,
       quote: quoteOf(t.body),
-      kind: 'support.send',
+      to: t.to || '',
+      subject: t.subject || '',
+      body: t.body || '',
+      saveKind: 'support.save_draft',
+      sendKind: 'support.send',
+      discardKind: 'support.discard_draft',
       payload: payloadOf(t, { msg: 'Reply sent' }),
     })),
   };

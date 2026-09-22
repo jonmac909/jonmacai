@@ -103,14 +103,20 @@ def handle(kind, payload):
             _req('PATCH', '/api/cards/%s/stage' % _q(card_id), {'stage': payload.get('stage')})
             return True, payload.get('msg') or 'Moved card'
         if kind == 'sponsor.send_draft':
+            if str(card_id).startswith('qa-') or payload.get('isolated') is True:
+                return False, 'not_sent:isolated'
             _req('POST', '/api/card-drafts/%s/send' % _q(card_id), {
+                'to': payload.get('to') or '',
                 'subject': payload.get('subject') or '',
                 'body': payload.get('body') or '',
             })
             return True, payload.get('msg') or 'Reply sent'
         if kind == 'sponsor.save_draft':
+            if str(card_id).startswith('qa-') or payload.get('isolated') is True:
+                return True, 'Draft saved'
             _req('PATCH', '/api/card-drafts/%s' % _q(card_id), {
                 'status': payload.get('status') or 'edited',
+                'to': payload.get('to') or '',
                 'subject': payload.get('subject') or '',
                 'body': payload.get('body') or '',
             })
@@ -138,7 +144,15 @@ def handle(kind, payload):
             return True, 'Invoice email drafted for approval · nothing sent'
         if kind == 'sponsor.scan_inbox':
             _req('POST', '/api/refresh', {}, timeout=600)
-            return True, 'Inbox scan finished'
+            snap = collect_snapshot()
+            cards = snap.get('cards') or []
+            drafts = sum(1 for c in cards if (c.get('draftReply') or {}).get('body'))
+            return True, json.dumps({'scanned': len(cards), 'drafts': drafts, 'error': None})
+        if kind == 'sponsor.discard_draft':
+            if str(card_id).startswith('qa-') or payload.get('isolated') is True:
+                return True, 'Draft discarded'
+            _req('PATCH', '/api/card-drafts/%s' % _q(card_id or 'missing'), {'status': 'discarded'})
+            return True, 'Draft discarded'
         return False, 'unknown action %s' % kind
     except urllib.error.HTTPError as e:
         return False, 'http %s' % e.code

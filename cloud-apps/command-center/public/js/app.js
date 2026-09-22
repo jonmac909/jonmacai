@@ -11,7 +11,8 @@ import { render as markets } from './pages/markets.js';
 import { render as life } from './pages/life.js';
 import { render as mastermind } from './pages/mastermind.js';
 import { render as agents } from './pages/agents.js';
-
+import { formatJobResult } from './ui.js';
+import { bindModals, openDraft } from './modals.js';
 const PREFIX = '/dashboard';
 const pages = { home, sponsors, viral, youtube, content, outreach, support, video, money, markets, life, mastermind, agents };
 let data = null;
@@ -39,23 +40,26 @@ export function say(m) {
 
 export async function act(kind, payload = {}) {
   const idemKey = crypto.randomUUID();
+  const scan = kind === 'sponsor.scan_inbox' || kind === 'mastermind.scan';
+  const polls = scan ? 300 : 75; // ponytail: 10 min matches collector refresh timeout
+  const wait = scan ? 2000 : 400;
   const res = await fetch(`${PREFIX}/api/actions`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'X-CC': '1' },
     body: JSON.stringify({ kind, payload, idemKey }),
   });
   const row = await res.json().catch(() => ({}));
-  if (row.result) { say(row.result); return row; }
-  for (let i = 0; i < 75; i++) {
-    await new Promise((r) => setTimeout(r, 400));
+  if (row.result) { say(formatJobResult(kind, row.result)); return row; }
+  for (let i = 0; i < polls; i++) {
+    await new Promise((r) => setTimeout(r, wait));
     const s = await fetch(`${PREFIX}/api/actions/${row.id}`);
     const j = await s.json().catch(() => ({}));
     if (j.status === 'done' || j.status === 'failed') {
-      say(j.status === 'done' ? (j.result || 'Done') : `Failed: ${j.result || 'unknown'}`);
+      say(j.status === 'done' ? formatJobResult(kind, j.result) : `Failed: ${j.result || 'unknown'}`);
       return j;
     }
   }
-  say('Still working…');
+  say(scan ? 'Scan has not finished yet. It is still running.' : 'Still working…');
   return row;
 }
 
@@ -157,9 +161,14 @@ function recount() {
   if (bar) bar.style.width = `${Math.round(n / s.length * 100)}%`;
 }
 
-function go(id) {
+export async function go(id, { refetch = false } = {}) {
   if (!pages[id]) id = 'home';
   if (location.hash !== `#${id}`) history.replaceState(null, '', `${PREFIX}/#${id}`);
+  if (refetch) {
+    const snap = await fetch(`${PREFIX}/api/snapshot`);
+    if (snap.ok) data = await snap.json();
+    document.getElementById('navs').innerHTML = navHtml();
+  }
   document.querySelectorAll('.nav').forEach((n) => {
     if (n.dataset.page === id) n.setAttribute('aria-current', 'page');
     else n.removeAttribute('aria-current');
@@ -170,14 +179,6 @@ function go(id) {
   try { localStorage.setItem('cc-page', id); } catch {}
   bindKanban();
   recount();
-  if (id === 'markets') {
-    const day = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Vancouver' });
-    fetch(`${PREFIX}/api/checklist`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-CC': '1' },
-      body: JSON.stringify({ day, item: 'market_check', how: 'auto' }),
-    }).catch(() => {});
-  }
 }
 
 document.addEventListener('click', (e) => {
@@ -201,9 +202,16 @@ document.addEventListener('click', (e) => {
     return;
   }
   const st = e.target.closest('.step');
-  if (st) {
-    st.setAttribute('aria-pressed', st.getAttribute('aria-pressed') === 'true' ? 'false' : 'true');
+  if (st?.dataset.item) {
+    const done = st.getAttribute('aria-pressed') !== 'true';
+    const day = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Vancouver' });
+    st.setAttribute('aria-pressed', String(done));
     recount();
+    fetch(`${PREFIX}/api/checklist`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CC': '1' },
+      body: JSON.stringify({ day, item: st.dataset.item, done, how: 'manual' }),
+    }).then(() => go(hashPage(), { refetch: true })).catch(() => {});
     return;
   }
   const up = e.target.closest('[data-upload]');
@@ -240,6 +248,13 @@ document.addEventListener('click', (e) => {
     go('content');
     return;
   }
+  const draftBtn = e.target.closest('[data-draft]');
+  if (draftBtn) {
+    let payload = {};
+    try { payload = JSON.parse(draftBtn.dataset.payload || '{}'); } catch { payload = {}; }
+    openDraft(payload);
+    return;
+  }
   const actBtn = e.target.closest('[data-kind]');
   if (actBtn) {
     let payload = {};
@@ -267,7 +282,7 @@ document.addEventListener('click', (e) => {
         const r = actBtn.closest('.r, .job');
         if (r) r.classList.add('done');
       }
-      if (kind.startsWith('mastermind.') || kind.startsWith('support.') || kind.startsWith('video.') || kind.startsWith('content.') || kind.startsWith('money.') || kind.startsWith('outreach.') || kind.startsWith('life.') || kind === 'agent.restart' || kind === 'ping') {
+      if (kind.startsWith('mastermind.') || kind.startsWith('support.') || kind.startsWith('sponsor.') || kind.startsWith('video.') || kind.startsWith('content.') || kind.startsWith('money.') || kind.startsWith('outreach.') || kind.startsWith('life.') || kind === 'agent.restart' || kind === 'ping') {
         const snap = await fetch(`${PREFIX}/api/snapshot`);
         if (snap.ok) {
           data = await snap.json();
@@ -304,16 +319,7 @@ document.addEventListener('drop', (e) => {
 });
 
 
-document.getElementById('startMorning').addEventListener('click', () => {
-  const step = (data.pages.home.runThrough.steps || []).find((s) => !s.done);
-  if (!step) {
-    go('home');
-    act('ui.toast', { msg: 'Morning run-through is done' });
-    return;
-  }
-  go(step.page || 'home');
-  act('ui.toast', { msg: step.label });
-});
+bindModals({ say, act, go, getData: () => data });
 
 window.addEventListener('hashchange', () => go(hashPage()));
 

@@ -1,5 +1,6 @@
 import { buildSponsorsPage, applyHomeSponsors } from './sponsors.js';
 import { overlaySupport } from './support.js';
+import { applyReviewDrafts, plannerDestination } from './review.js';
 import { overlayYoutube } from './youtube.js';
 import { overlayVideo } from './video.js';
 import { overlayContent } from './content.js';
@@ -203,7 +204,7 @@ function overlayMastermind(page, data, ideas, nowMs) {
       linePayload: { id: p.id, title: p.title, body: p.text, area: p.area, msg: 'Parked for later' },
       btn: 'Send to Planner',
       kind: 'mastermind.send_to_planner',
-      payload: { id: p.id, title: p.title, body: p.text, area: p.area, verdict: p.verdict, msg: 'Sent to Planner as a task' },
+      payload: { id: p.id, title: p.title, body: p.text, area: p.area, verdict: p.verdict, msg: plannerDestination(p.title) },
       done: true,
     })),
   };
@@ -212,7 +213,7 @@ function overlayMastermind(page, data, ideas, nowMs) {
     meta: 'Ideas you sent to Planner',
     rows: building.map((i) => ({
       title: i.title,
-      sub: i.area || '',
+      sub: `${i.area || 'Planner'} · Orca worktree under Planner`,
       pct: i.status === 'built' ? 100 : i.status === 'building' ? 75 : 25,
       pg: i.status === 'built' ? 'ok' : '',
       pill: i.status === 'built' ? 'Built' : 'Building',
@@ -357,5 +358,7 @@ export function mergeSnapshot(fixture, rows, nowMs = Date.now(), overrides = {},
   applyHome(out, by, extra, nowMs);
   const chip = homeChip(by, nowMs);
   if (chip && out.pages?.home) out.pages.home.chip = chip;
+  const review = by.cc_review_drafts ? parseData(by.cc_review_drafts.data) : [];
+  applyReviewDrafts(out, review);
   return out;
 }
