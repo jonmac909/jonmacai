@@ -3,7 +3,7 @@ import { overlaySupport } from './support.js';
 import { overlayYoutube } from './youtube.js';
 import { overlayVideo } from './video.js';
 import { overlayContent } from './content.js';
-import { overlayMoney, overlayMarkets } from './money.js';
+import { overlayMoney, overlayMarkets, monthVerified, quoteStamp } from './money.js';
 import { overlayViral, applyHomeViral } from './viral.js';
 import { overlayOutreach } from './outreach.js';
 import { overlayLife } from './life.js';
@@ -60,6 +60,55 @@ function parseData(raw) {
 
 function names(list) {
   return list.filter(Boolean).join(' · ');
+}
+
+function vanDate(nowMs) {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Vancouver', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(nowMs));
+}
+
+function dayBefore(iso) {
+  const [y, m, d] = iso.split('-').map(Number);
+  return new Date(Date.UTC(y, m - 1, d - 1)).toISOString().slice(0, 10);
+}
+
+function stampMs(value) {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  const parsed = Date.parse(value);
+  return Number.isFinite(parsed) ? parsed : NaN;
+}
+
+function homeChip(by, nowMs) {
+  const tracked = ['sponsors', 'moneyclaw', 'viralview'];
+  if (!tracked.some((name) => by[name])) return null;
+  const issues = [];
+  const sponsors = by.sponsors ? parseData(by.sponsors.data) : null;
+  if (!sponsors) issues.push('sponsors missing');
+  else {
+    const ms = stampMs(sponsors.updatedAt || sponsors.asOf || sponsors.generatedAt);
+    if (!Number.isFinite(ms)) issues.push('sponsors source time unavailable');
+    else if (nowMs - ms > 3 * INTERVALS.sponsors) issues.push('sponsors source stale');
+  }
+  const money = by.moneyclaw ? parseData(by.moneyclaw.data) : null;
+  if (!money) issues.push('MoneyClaw missing');
+  else {
+    const asOf = String(money.asOf || '');
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(asOf)) issues.push('expense as-of unavailable');
+    else if (asOf < dayBefore(vanDate(nowMs))) issues.push('expenses stale');
+    if (!quoteStamp(money)) issues.push('markets quote time unavailable');
+    if (!monthVerified(money.expenses?.business?.month)) issues.push('month totals unverified');
+  }
+  const viral = by.viralview ? parseData(by.viralview.data) : null;
+  if (!viral) issues.push('Viral View missing');
+  else {
+    const ms = stampMs(viral.lastSyncAt);
+    if (!Number.isFinite(ms)) issues.push('Viral View sync time unavailable');
+    else if (nowMs - ms > 3 * INTERVALS.viralview) issues.push('Viral View sync stale');
+  }
+  if (!issues.length) return 'Live · numbers from your pages';
+  const stale = issues.some((issue) => /stale/i.test(issue));
+  const other = issues.some((issue) => !/stale/i.test(issue));
+  const head = stale && other ? 'Partial' : stale ? 'Stale' : 'Unavailable';
+  return `${head} · ${issues.join(' · ')}`;
 }
 
 function overlayAgents(page, by) {
@@ -302,5 +351,7 @@ export function mergeSnapshot(fixture, rows, nowMs = Date.now(), overrides = {},
     }
   }
   applyHome(out, by, extra, nowMs);
+  const chip = homeChip(by, nowMs);
+  if (chip && out.pages?.home) out.pages.home.chip = chip;
   return out;
 }

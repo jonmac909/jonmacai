@@ -83,12 +83,60 @@ function stages(group) {
   const weekLabel = week?.startDate && week?.endDate
     ? `This week · ${shortDate(week.startDate)}-${shortDate(week.endDate)}`
     : 'This week';
+  const monthLabel = monthVerified(group?.month) ? 'This month' : 'This month · unverified';
   return [
     { label: 'Yesterday', value: usd(dollars(group?.yesterday)) },
     { label: weekLabel, value: usd(dollars(group?.week)) },
-    { label: 'This month', value: usd(dollars(group?.month)) },
+    { label: monthLabel, value: usd(dollars(group?.month)) },
     { label: 'Last month', value: usd(dollars(group?.lastMonth)) },
   ];
+}
+
+export function monthVerified(month) {
+  const charges = month?.charges;
+  if (!Array.isArray(charges) || !month.startDate || !month.endDate) return false;
+  const count = Number(month.postedCount || 0) + Number(month.pendingCount || 0);
+  if (!count || charges.length < count) return false;
+  const settled = charges.filter((c) => !c.pending && c.date >= month.startDate && c.date <= month.endDate);
+  const sum = settled.reduce((s, c) => s + Number(c.amount || 0), 0);
+  const posted = Number(month.posted);
+  return Number.isFinite(posted) && Math.round(sum * 100) === Math.round(posted * 100);
+}
+
+function fixed(n, digits) {
+  const x = Number(n);
+  if (!Number.isFinite(x)) return '';
+  const neg = x < 0;
+  let text = Math.abs(x).toString();
+  if (/e/i.test(text)) text = Math.abs(x).toFixed(digits + 8);
+  const [whole, frac = ''] = text.split('.');
+  const pad = frac.padEnd(digits + 1, '0');
+  if (pad[digits] >= '5') {
+    const next = String(BigInt(whole + pad.slice(0, digits)) + 1n).padStart(whole.length + digits, '0');
+    return `${neg ? '-' : ''}${next.slice(0, next.length - digits) || '0'}.${next.slice(next.length - digits)}`;
+  }
+  return `${neg ? '-' : ''}${whole || '0'}.${pad.slice(0, digits)}`;
+}
+
+export function quoteStamp(data) {
+  const pulse = data?.markets?.pulse || {};
+  const vix = pulse.vix || {};
+  const voo = pulse.voo || {};
+  return pulse.quoteAt || pulse.quotedAt || pulse.refreshedAt || pulse.asOf
+    || data?.markets?.quoteAt || data?.markets?.quotedAt || data?.markets?.refreshedAt || data?.markets?.asOf
+    || vix.quoteAt || vix.asOf || voo.quoteAt || voo.asOf
+    || null;
+}
+
+function quoteWhen(value) {
+  if (value == null || value === '') return '';
+  const raw = String(value);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return shortDate(raw);
+  const ms = typeof value === 'number' && Number.isFinite(value) ? value : Date.parse(raw);
+  if (!Number.isFinite(ms)) return '';
+  return new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/Vancouver', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
+  }).format(new Date(ms));
 }
 
 function block(title, group, nowMs) {
@@ -193,7 +241,8 @@ export function overlayMoney(page, data, nowMs) {
   if (!page || !data?.expenses) return page;
   const monthTotal = data.expenses.businessCategories?.reduce((s, r) => s + (r.total || 0), 0) || dollars(data.expenses.business?.month);
   const asOf = data.asOf ? `as of ${shortDate(data.asOf)}` : 'as-of date unavailable';
-  page.sub = `From MoneyClaw Expenses · ${expenseCurrency(data)} · America/Vancouver · ${windowBit(data.expenses.business)} · ${asOf}`;
+  const ledger = monthVerified(data.expenses.business?.month) ? '' : ' · month total unverified';
+  page.sub = `From MoneyClaw Expenses · ${expenseCurrency(data)} · America/Vancouver · ${windowBit(data.expenses.business)} · ${asOf}${ledger}`;
   page.actions = [
     { label: 'Open MoneyClaw', href: 'https://moneyclaw.jonmac.ai', msg: 'Opens moneyclaw.jonmac.ai' },
     page.actions?.[1] || { label: 'Scan banks now', msg: 'Bank scan started' },
@@ -202,7 +251,7 @@ export function overlayMoney(page, data, nowMs) {
   page.business = block('Business', data.expenses.business, nowMs);
   page.categories = {
     title: 'Business · this month by category',
-    meta: `${usd(monthTotal, 2)} total`,
+    meta: `${usd(monthTotal, 2)} total${monthVerified(data.expenses.business?.month) ? '' : ' · unverified'}`,
     note: 'Bars are sized against the biggest category. Click a category to see its charges, the same as in MoneyClaw.',
     rows: categoryRows(data.expenses.businessCategories),
   };
@@ -260,16 +309,15 @@ export function overlayMarkets(page, data, nowMs) {
   const voo = pulse.voo || {};
   const vixN = Number(vix.price) || 0;
   const newsPending = String(pulse.newsLevel || '') === 'Pending';
-  const quoted = pulse.quoteAt || pulse.asOf || data.markets.quoteAt || data.markets.asOf;
-  const asOf = data.asOf ? ` · as of ${shortDate(data.asOf)}` : '';
+  const quoted = quoteWhen(quoteStamp(data));
   page.sub = quoted
-    ? `From MoneyClaw Market · USD · quoted ${shortDate(quoted)}`
-    : `From MoneyClaw Market · USD · quote time unavailable${asOf}`;
+    ? `From MoneyClaw Market · USD · quoted ${quoted}`
+    : 'From MoneyClaw Market · USD · quote time unavailable';
   page.actions = [{ label: 'Open MoneyClaw', href: 'https://moneyclaw.jonmac.ai', msg: 'Opens moneyclaw.jonmac.ai market page' }];
   page.tiles = [
     { icon: 'trend', label: 'Market mood', value: pulse.mood || '—', sub: '' },
     {
-      icon: 'chart', label: 'Fear gauge (VIX)', value: vixN ? oneDec(vixN) : '—',
+      icon: 'chart', label: 'Fear gauge (VIX)', value: vixN ? fixed(vixN, 2) : '—',
       goal: 'low', pct: Math.min(100, Math.round((vixN / 50) * 100)),
       pg: vixN >= 30 ? 'crit' : vixN >= 20 ? 'risk' : 'ok',
       sub: `${signedPct(vix.changePct)} today · above 30 means panic`,
@@ -302,7 +350,7 @@ export function overlayMarkets(page, data, nowMs) {
     rows: [
       { label: 'Tell me when VOO is 10% off', value: `${vooRow ? vooRow.off.replace('%', '') : '0'} of 10`, pct: Math.min(100, ((Number.parseFloat(vooRow?.off) || 0) / 10) * 100) },
       { label: 'Tell me when QQQ is 10% off', value: `${qqqRow ? qqqRow.off.replace('%', '') : '0'} of 10`, pct: Math.min(100, ((Number.parseFloat(qqqRow?.off) || 0) / 10) * 100) },
-      { label: 'Tell me when the fear gauge passes 30', value: `${vixN ? oneDec(vixN) : '0'} of 30`, pct: Math.min(100, (vixN / 30) * 100) },
+      { label: 'Tell me when the fear gauge passes 30', value: `${vixN ? fixed(vixN, 2) : '0'} of 30`, pct: Math.min(100, (vixN / 30) * 100) },
     ],
     box: 'When a rule fires you get a Telegram message and a card on the home screen.',
   };

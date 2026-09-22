@@ -285,10 +285,10 @@ test('Telegram push sends only new critical items', async () => {
   assert.equal(sent.some((t) => /support/i.test(t)), false);
 });
 
-test('live sources drop the mockup chip on Home', () => {
+test('an unrelated snapshot does not clear the mockup chip', () => {
   assert.match(snapshot.pages.home.chip, /Mockup/);
   const out = mergeSnapshot(snapshot, [row('agents_mac', { hostname: 'x' })], NOW);
-  assert.equal(/Mockup/i.test(out.pages.home.chip || ''), false);
+  assert.match(out.pages.home.chip, /Mockup/);
 });
 
 test('fixture bank scan Enter code is gone without a live bank_scan', () => {
