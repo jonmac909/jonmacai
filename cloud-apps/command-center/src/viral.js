@@ -19,6 +19,13 @@ function shortDate(ms) {
   if (!Number.isFinite(ms)) return '';
   return new Intl.DateTimeFormat('en-US', { timeZone: TZ, month: 'short', day: 'numeric' }).format(new Date(ms));
 }
+function stampMs(value) {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value === 'string' && /^\d{12,}$/.test(value)) return Number(value);
+  const parsed = Date.parse(value);
+  return Number.isFinite(parsed) ? parsed : NaN;
+}
+
 
 function monthKey(ms) {
   return new Intl.DateTimeFormat('en-CA', { timeZone: TZ, year: 'numeric', month: '2-digit' }).format(new Date(ms));
@@ -75,13 +82,19 @@ export function overlayViral(page, data, nowMs) {
   const week = Number(cash.netCents) || 0;
   const weekPct = Math.min(100, Math.round(week / WEEK_GOAL_CENTS * 100));
   const last = cash.lastPaymentAt;
-  const salesSub = week <= 0 && last
-    ? `No payment recorded since ${shortDate(last)}`
-    : last ? `Last payment ${shortDate(last)}` : 'No payment recorded';
-  const sync = data.lastSyncAt ? shortDate(Date.parse(data.lastSyncAt)) : '';
+  const lastMs = stampMs(last);
+  const lastLabel = Number.isFinite(lastMs) ? shortDate(lastMs) : '';
+  const startMs = stampMs(cash.startAt);
+  const weekBit = Number.isFinite(startMs) ? `Monday week from ${shortDate(startMs)}` : 'week window unavailable';
+  const salesSub = [
+    week <= 0 && lastLabel ? `No payment recorded since ${lastLabel}` : lastLabel ? `Last payment ${lastLabel}` : 'No payment recorded',
+    weekBit,
+  ].join(' · ');
+  const syncMs = stampMs(data.lastSyncAt);
+  const sync = Number.isFinite(syncMs) ? shortDate(syncMs) : '';
   page.sub = sync
     ? `Subscriptions from your revenue page, synced ${sync}`
-    : 'Subscriptions from your revenue page';
+    : 'Subscriptions from your revenue page · sync time unavailable';
   page.actions = [
     { label: 'Open revenue page', href: 'https://app.viralview.io/admin/mrr', msg: 'Opens app.viralview.io/admin/mrr' },
     { label: 'Open tracker', href: 'https://app.viralview.io/track', msg: 'Opens app.viralview.io/track' },

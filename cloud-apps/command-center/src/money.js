@@ -62,10 +62,30 @@ function vsLast(month, last, nowMs) {
   };
 }
 
+function expenseCurrency(data) {
+  const raw = String(data?.currency || data?.expenses?.currency || '').toUpperCase();
+  // ponytail: payload omits currency; MoneyClaw totals are cadMinor. Prefer an ISO field if one appears.
+  return /^[A-Z]{3}$/.test(raw) ? raw : 'CAD';
+}
+
+function windowBit(group) {
+  const week = group?.week;
+  const month = group?.month;
+  const bits = [];
+  if (week?.startDate && week?.endDate) bits.push(`week ${shortDate(week.startDate)}-${shortDate(week.endDate)}`);
+  else bits.push('week window unavailable');
+  if (month?.startDate && month?.endDate) bits.push(`month ${shortDate(month.startDate)}-${shortDate(month.endDate)}`);
+  return bits.join(' · ');
+}
+
 function stages(group) {
+  const week = group?.week;
+  const weekLabel = week?.startDate && week?.endDate
+    ? `This week · ${shortDate(week.startDate)}-${shortDate(week.endDate)}`
+    : 'This week';
   return [
     { label: 'Yesterday', value: usd(dollars(group?.yesterday)) },
-    { label: 'This week', value: usd(dollars(group?.week)) },
+    { label: weekLabel, value: usd(dollars(group?.week)) },
     { label: 'This month', value: usd(dollars(group?.month)) },
     { label: 'Last month', value: usd(dollars(group?.lastMonth)) },
   ];
@@ -169,10 +189,11 @@ function chargeRows(list) {
   });
 }
 
-export function overlayMoney(page, data, nowMs, ageLabel) {
+export function overlayMoney(page, data, nowMs) {
   if (!page || !data?.expenses) return page;
   const monthTotal = data.expenses.businessCategories?.reduce((s, r) => s + (r.total || 0), 0) || dollars(data.expenses.business?.month);
-  page.sub = `From MoneyClaw Expenses · ${ageLabel}`;
+  const asOf = data.asOf ? `as of ${shortDate(data.asOf)}` : 'as-of date unavailable';
+  page.sub = `From MoneyClaw Expenses · ${expenseCurrency(data)} · America/Vancouver · ${windowBit(data.expenses.business)} · ${asOf}`;
   page.actions = [
     { label: 'Open MoneyClaw', href: 'https://moneyclaw.jonmac.ai', msg: 'Opens moneyclaw.jonmac.ai' },
     page.actions?.[1] || { label: 'Scan banks now', msg: 'Bank scan started' },
@@ -232,17 +253,21 @@ function coreRows(core) {
   });
 }
 
-export function overlayMarkets(page, data, nowMs, ageLabel) {
+export function overlayMarkets(page, data, nowMs) {
   if (!page || !data?.markets) return page;
   const pulse = data.markets.pulse || {};
   const vix = pulse.vix || {};
   const voo = pulse.voo || {};
   const vixN = Number(vix.price) || 0;
   const newsPending = String(pulse.newsLevel || '') === 'Pending';
-  page.sub = `From MoneyClaw Market · ${ageLabel}`;
+  const quoted = pulse.quoteAt || pulse.asOf || data.markets.quoteAt || data.markets.asOf;
+  const asOf = data.asOf ? ` · as of ${shortDate(data.asOf)}` : '';
+  page.sub = quoted
+    ? `From MoneyClaw Market · USD · quoted ${shortDate(quoted)}`
+    : `From MoneyClaw Market · USD · quote time unavailable${asOf}`;
   page.actions = [{ label: 'Open MoneyClaw', href: 'https://moneyclaw.jonmac.ai', msg: 'Opens moneyclaw.jonmac.ai market page' }];
   page.tiles = [
-    { icon: 'trend', label: 'Market mood', value: pulse.mood || '—', sub: newsPending ? 'After hours' : '' },
+    { icon: 'trend', label: 'Market mood', value: pulse.mood || '—', sub: '' },
     {
       icon: 'chart', label: 'Fear gauge (VIX)', value: vixN ? oneDec(vixN) : '—',
       goal: 'low', pct: Math.min(100, Math.round((vixN / 50) * 100)),
@@ -253,7 +278,7 @@ export function overlayMarkets(page, data, nowMs, ageLabel) {
       icon: 'dollar', label: 'VOO', value: voo.price ? usd(voo.price, 2) : '—',
       subHtml: `<span class="${(voo.changePct || 0) < 0 ? 'down' : 'up'}">${signedPct(voo.changePct)}</span> today`,
     },
-    { icon: 'mail', label: 'News', value: newsPending ? 'Quiet' : (pulse.newsLevel || 'Quiet'), sub: newsPending ? 'No major market news' : '' },
+    { icon: 'mail', label: 'News', value: newsPending ? 'Pending' : (pulse.newsLevel || 'Unavailable'), sub: '' },
   ];
   const rows = coreRows(data.markets.core);
   page.discount = {

@@ -176,6 +176,43 @@ test('merge overlays markets from the same MoneyClaw summary', () => {
   assert.equal(m.discount.rows[3].fund, 'XAU');
 });
 
+test('money subtitle uses the source window and CAD, not the fetch age', () => {
+  const data = structuredClone(moneySummary);
+  data.expenses.business.week.startDate = '2026-09-15';
+  data.expenses.business.week.endDate = '2026-09-21';
+  data.expenses.business.month.startDate = '2026-09-01';
+  data.expenses.business.month.endDate = '2026-09-21';
+  data.asOf = '2026-09-21';
+  const sub = mergeSnapshot(snapshot, [row('moneyclaw', data, new Date(NOW).toISOString())], NOW).pages.money.sub;
+  assert.match(sub, /CAD/);
+  assert.match(sub, /Sep 15/);
+  assert.match(sub, /Sep 21/);
+  assert.match(sub, /as of Sep 21/i);
+  assert.equal(/updated/i.test(sub), false);
+});
+
+test('markets do not treat a fetch stamp or Pending news as a quote', () => {
+  const out = mergeSnapshot(snapshot, [row('moneyclaw', moneySummary, new Date(NOW).toISOString())], NOW);
+  const m = out.pages.markets;
+  assert.match(m.sub, /USD/);
+  assert.match(m.sub, /quote time unavailable/i);
+  assert.equal(/updated/i.test(m.sub), false);
+  assert.equal(m.tiles[3].value, 'Pending');
+  assert.equal(m.tiles[0].sub, '');
+});
+
+test('numeric Viral lastSyncAt is the sync date', () => {
+  const data = { ...viralSummary, lastSyncAt: Date.parse('2026-09-18T19:00:00Z') };
+  const sub = mergeSnapshot(snapshot, [row('viralview', data, new Date(NOW).toISOString())], NOW).pages.viral.sub;
+  assert.match(sub, /synced Sep 18/);
+  assert.equal(/updated/i.test(sub), false);
+});
+
+test('Viral sales week names the Monday start from the source', () => {
+  const sub = mergeSnapshot(snapshot, [row('viralview', viralSummary)], NOW).pages.viral.tiles[0].sub;
+  assert.match(sub, /Sep 14/);
+});
+
 test('merge overlays Viral View and matching home tiles', () => {
   const out = mergeSnapshot(snapshot, [row('viralview', viralSummary)], NOW);
   const v = out.pages.viral;
@@ -247,6 +284,24 @@ test('cron pulls Viral View and MoneyClaw summaries into snapshots', async () =>
   assert.equal(summaries.length, 2);
   assert.ok(db.snapshots.get('viralview')?.data.includes('cashThisWeek'));
   assert.ok(db.snapshots.get('moneyclaw')?.data.includes('expenses'));
+});
+
+test('cron keeps Viral sync time instead of the fetch time', async () => {
+  const db = memD1();
+  const sync = Date.parse('2026-09-01T12:00:00Z');
+  const prev = globalThis.fetch;
+  globalThis.fetch = async (url) => {
+    if (String(url).includes('viralview')) {
+      return new Response(JSON.stringify({ ...viralSummary, lastSyncAt: sync }), { status: 200 });
+    }
+    return new Response(JSON.stringify(moneySummary), { status: 200 });
+  };
+  try {
+    await handleCron(envWith(db));
+  } finally {
+    globalThis.fetch = prev;
+  }
+  assert.equal(db.snapshots.get('viralview')?.collected_at, new Date(sync).toISOString());
 });
 
 test('Move all and remember posts categorize then add_rule to MoneyClaw', async () => {
