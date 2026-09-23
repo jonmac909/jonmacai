@@ -33,7 +33,7 @@ function fakeFetch(pages, calls) {
   return async (url, opts) => {
     calls.push({ url, body: JSON.parse(opts.body) });
     if (url.endsWith('/getChat')) {
-      return { ok: true, status: 200, json: async () => ({ ok: true, result: { title: 'Built With AI - Advanced' } }) };
+      return { ok: true, status: 200, json: async () => ({ ok: true, result: { id: CHAT, type: 'channel', title: 'Built With AI - Advanced' } }) };
     }
     const offset = JSON.parse(opts.body).offset || 0;
     const page = pages.find((p) => p.length && p[0].update_id >= offset) || [];
@@ -216,4 +216,48 @@ test('a connected scan keeps the author timestamp and never sends', async () => 
   assert.equal(second.picks[0].messageAt, new Date(ts).toISOString());
   assert.equal(calls.every((c) => c.url.endsWith('/getChat') || c.url.endsWith('/getUpdates')), true);
   assert.equal(calls.some((c) => /sendMessage|invite|promote|ban/i.test(c.url)), false);
+});
+
+test('a channel post from the allowed chat is kept and every other chat is dropped', async () => {
+  const calls = [];
+  const allowed = -1004370163079;
+  const ts = NOW - 60_000;
+  const mirrorTitle = 'BWAI Advanced MirrorBWAI Advanced MirrorBWAI Advanced Mirror';
+  const idea = 'We should pause the synthetic mirror check and not treat it as source history.';
+  const other = 'We should leak this other chat into the dashboard.';
+  const post = (id, chatId, text) => ({
+    update_id: id,
+    channel_post: {
+      message_id: id,
+      date: Math.floor(ts / 1000),
+      text,
+      chat: { id: chatId, type: 'channel', title: chatId === allowed ? mirrorTitle : 'Built With AI - Advanced' },
+    },
+  });
+  const fetchFn = async (url, opts) => {
+    calls.push({ url, body: JSON.parse(opts.body) });
+    if (url.endsWith('/getChat')) {
+      return { ok: true, status: 200, json: async () => ({ ok: true, result: { id: allowed, type: 'channel', title: mirrorTitle } }) };
+    }
+    return { ok: true, status: 200, json: async () => ({ ok: true, result: [post(1, allowed, idea), post(2, -100999, other)] }) };
+  };
+  const out = await readGroup({
+    TELEGRAM_GROUP_BOT_TOKEN: TOKEN,
+    TELEGRAM_GROUP_CHAT_ID: String(allowed),
+    TELEGRAM_BOT_TOKEN: 'dm-bridge',
+  }, { nowMs: NOW, fetchFn });
+  assert.equal(out.access, 'ok');
+  assert.equal(out.sourceForwarding, false);
+  assert.equal(out.messages.length, 1);
+  assert.equal(out.messages[0].chatId, allowed);
+  assert.equal(out.messages[0].text, idea);
+  const updates = calls.find((c) => c.url.endsWith('/getUpdates'));
+  assert.deepEqual(updates.body.allowed_updates, ['channel_post']);
+  assert.equal(calls.some((c) => /sendMessage|forwardMessage|copyMessage|invite|promote|ban/i.test(c.url)), false);
+  const snap = mergeSnapshot({
+    nav: { badges: {} },
+    sources: {},
+    pages: { mastermind: { picks: { jobs: [] } }, home: { mastermindPick: {} } },
+  }, [{ source: 'mastermind_group', data: JSON.stringify(out), collected_at: out.scannedAt, received_at: out.scannedAt }], NOW);
+  assert.equal(/Built With AI - Advanced · messages this bot received/.test(snap.pages.mastermind.sub), false);
 });
