@@ -38,10 +38,12 @@ export async function readGroup(env, opts = {}) {
   const fetchFn = opts.fetchFn || globalThis.fetch;
   try {
     const chat = await tg(fetchFn, token, 'getChat', { chat_id: chatId });
-    const title = String(chat?.title || '');
-    if (!/built with ai/i.test(title) || !/advanced/i.test(title)) {
-      return unavailable(`Chat is "${title || 'untitled'}", not ${GROUP_NAME}. ${CONNECTOR}`, nowMs);
+    const seen = chat?.id == null ? '' : String(chat.id);
+    if (seen !== String(chatId)) return unavailable(`Chat is not the allowed mirror. ${CONNECTOR}`, nowMs);
+    if (env.TELEGRAM_CHAT_ID && String(chatId) === String(env.TELEGRAM_CHAT_ID)) {
+      return unavailable(`Refusing the personal DM chat. ${CONNECTOR}`, nowMs);
     }
+    const title = String(chat?.title || '');
     let offset = Number(opts.offset) || 0;
     const pages = [];
     // ponytail: next getUpdates confirms the previous page; a crash between pages drops that page. Persist each page first if a missed page matters.
@@ -50,7 +52,7 @@ export async function readGroup(env, opts = {}) {
         offset: offset || undefined,
         limit: PAGE_LIMIT,
         timeout: 0,
-        allowed_updates: ['message'],
+        allowed_updates: ['channel_post'],
       });
       const list = Array.isArray(batch) ? batch : [];
       pages.push(list);
@@ -66,6 +68,7 @@ export async function readGroup(env, opts = {}) {
     return {
       origin: ORIGIN,
       access: 'ok',
+      sourceForwarding: false,
       scanned: messages.length,
       picks: rankIdeas(messages),
       messages,
@@ -91,12 +94,18 @@ function priorOf(rows) {
   }
 }
 
+export async function syncGroup(env, opts = {}) {
+  const prior = priorOf(await listSnapshots(env.DB));
+  const data = await readGroup(env, { ...opts, prior: prior.messages, offset: prior.offset });
+  const now = new Date().toISOString();
+  await upsertSnapshot(env.DB, SOURCE, JSON.stringify(data), data.scannedAt, now);
+  return data;
+}
+
 export async function finishMastermindScan(env, id, opts = {}) {
   const now = new Date().toISOString();
   try {
-    const prior = priorOf(await listSnapshots(env.DB));
-    const data = await readGroup(env, { ...opts, prior: prior.messages, offset: prior.offset });
-    await upsertSnapshot(env.DB, SOURCE, JSON.stringify(data), data.scannedAt, now);
+    const data = await syncGroup(env, opts);
     const status = data.access === 'ok' ? 'done' : 'failed';
     const result = JSON.stringify({
       access: data.access,

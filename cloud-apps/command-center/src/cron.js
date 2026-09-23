@@ -5,6 +5,7 @@ import { pullCalendar } from './life.js';
 import { mergeSnapshot } from './snapshot.js';
 import { pushCriticalTelegram } from './home.js';
 import { fillFromEnv } from './daily-drafts.js';
+import { syncGroup } from './mastermind-scan.js';
 
 const VIRAL_URL = 'https://app.viralview.io/api/internal/dashboard-summary';
 const MONEY_URL = 'https://moneyclaw.jonmac.ai/api/internal/dashboard-summary';
@@ -43,6 +44,9 @@ export async function handleCron(env) {
   jobs.push(pull(env, 'youtube', YT_URL, {}));
   if (env.INSTANTLY_API_KEY) jobs.push(pullInstantly(env));
   jobs.push(pullCalendar(env));
+  if (env.TELEGRAM_GROUP_BOT_TOKEN && env.TELEGRAM_GROUP_CHAT_ID && env.TELEGRAM_GROUP_BOT_TOKEN !== env.TELEGRAM_BOT_TOKEN) {
+    jobs.push(syncGroup(env));
+  }
   await Promise.allSettled(jobs);
   const nowMs = Date.now();
   try { await fillFromEnv(env, nowMs); } catch { /* page shows the ensure error */ }

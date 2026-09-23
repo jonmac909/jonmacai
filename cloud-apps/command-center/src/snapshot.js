@@ -212,7 +212,9 @@ function overlayMastermind(page, data, ideas, nowMs) {
   page.access = unavailable ? 'unavailable' : 'ok';
   page.sub = unavailable
     ? `Built With AI - Advanced · group history unavailable${clockLabel(data.scannedAt, 'checked')}`
-    : `Built With AI - Advanced · messages this bot received in the last 24 hours${clockLabel(data.scannedAt, 'scanned')}${data.empty ? ' · none in that window' : ''}`;
+    : data.sourceForwarding
+      ? `Built With AI - Advanced · messages this bot received in the last 24 hours${clockLabel(data.scannedAt, 'scanned')}${data.empty ? ' · none in that window' : ''}`
+      : `Private mirror · new channel posts only · Advanced source forwarding is not connected${clockLabel(data.scannedAt, 'scanned')}${data.empty ? ' · none in that window' : ''}`;
   page.tiles = [
     { icon: 'chat', label: 'Messages read for you', value: unavailable ? '—' : String(scanned), sub: unavailable ? 'Not connected' : data.empty ? 'No messages in the last 24 hours' : `${kept} kept · ${Math.max(0, scanned - kept)} skipped` },
     { icon: 'bulb', label: 'Picks waiting on you', value: unavailable ? '—' : String(kept), sub: unavailable ? 'No group history' : `${picks.filter((p) => p.verdict === 'implement').length} worth doing · ${picks.filter((p) => p.verdict !== 'implement').length} maybe` },
