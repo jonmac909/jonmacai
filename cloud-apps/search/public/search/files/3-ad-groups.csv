@@ -1,0 +1,15 @@
+Campaign,Ad group,Max CPC,Ad group status
+VV | Search | Brand,Brand,1.50,Enabled
+VV | Search | Competitors,Arcads,3.00,Enabled
+VV | Search | Competitors,Creatify,3.00,Enabled
+VV | Search | Competitors,MakeUGC,3.00,Enabled
+VV | Search | Competitors,HeyGen UGC,3.00,Enabled
+VV | Search | Competitors,Higgsfield,3.00,Enabled
+VV | Search | AI UGC Ads,AI UGC Ad Generator,3.00,Enabled
+VV | Search | AI UGC Ads,AI UGC Video,3.00,Enabled
+VV | Search | AI UGC Ads,UGC Ad Generator,2.50,Enabled
+VV | Search | AI UGC Ads,Ecommerce and TikTok Shop,2.50,Enabled
+VV | Search | Clone Winning Ads,Clone Winning Ads,2.00,Enabled
+VV | Search | Replace UGC Creators,Hire UGC Creators,2.00,Enabled
+VV | Search | Replace UGC Creators,Creator Platforms,2.00,Enabled
+VV | Search | AI Agent,Claude and MCP,2.00,Enabled

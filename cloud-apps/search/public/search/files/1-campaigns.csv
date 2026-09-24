@@ -1,0 +1,7 @@
+Campaign,Campaign Type,Networks,Budget,Budget type,Bid Strategy Type,Maximum CPC bid limit,Languages,Campaign Status,Phase,Why it exists
+VV | Search | Brand,Search,Google search,10.00,Daily,Maximize clicks,2.00,en,Paused,1,Catch people who already know the name before a rival does.
+VV | Search | Competitors,Search,Google search,140.00,Daily,Maximize clicks,4.00,en,Paused,1,Win people already shopping for an AI UGC tool and comparing prices.
+VV | Search | AI UGC Ads,Search,Google search,230.00,Daily,Maximize clicks,4.00,en,Paused,1,The main money keyword set: people who want an AI tool that makes UGC ads.
+VV | Search | Clone Winning Ads,Search,Google search,50.00,Daily,Maximize clicks,3.00,en,Paused,1,"Exactly what the product does. Seven rivals claim it too, so lead with link-paste on every plan."
+VV | Search | Replace UGC Creators,Search,Google search,70.00,Daily,Maximize clicks,3.00,en,Paused,1,"People about to pay a human creator $100 to $650, or shopping creator platforms."
+VV | Search | AI Agent,Search,Google search,20.00,Daily,Maximize clicks,3.00,en,Paused,2,People who want AI UGC ads inside Claude or another agent. Rivals rank here; few bid.
