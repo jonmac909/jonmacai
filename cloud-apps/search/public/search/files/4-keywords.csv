@@ -1,0 +1,113 @@
+Campaign,Ad group,Keyword,Criterion Type,Status
+VV | Search | Brand,Brand,viral view,Exact,Enabled
+VV | Search | Brand,Brand,viralview,Exact,Enabled
+VV | Search | Brand,Brand,viralview.io,Exact,Enabled
+VV | Search | Brand,Brand,viral view ai,Phrase,Enabled
+VV | Search | Brand,Brand,viral view ugc,Phrase,Enabled
+VV | Search | Brand,Brand,viralview app,Phrase,Enabled
+VV | Search | Competitors,Arcads,arcads alternative,Phrase,Enabled
+VV | Search | Competitors,Arcads,alternative to arcads,Phrase,Enabled
+VV | Search | Competitors,Arcads,arcads pricing,Phrase,Enabled
+VV | Search | Competitors,Arcads,arcads vs creatify,Phrase,Enabled
+VV | Search | Competitors,Arcads,arcads reviews,Phrase,Enabled
+VV | Search | Competitors,Arcads,arcads ai review,Phrase,Enabled
+VV | Search | Competitors,Arcads,arcads,Exact,Enabled
+VV | Search | Competitors,Arcads,arcads ai,Exact,Enabled
+VV | Search | Competitors,Creatify,creatify alternative,Phrase,Enabled
+VV | Search | Competitors,Creatify,alternative to creatify,Phrase,Enabled
+VV | Search | Competitors,Creatify,creatify pricing,Phrase,Enabled
+VV | Search | Competitors,Creatify,creatify ai pricing,Phrase,Enabled
+VV | Search | Competitors,Creatify,creatify reviews,Phrase,Enabled
+VV | Search | Competitors,Creatify,creatify vs heygen,Phrase,Enabled
+VV | Search | Competitors,Creatify,creatify,Exact,Enabled
+VV | Search | Competitors,Creatify,creatify ai,Exact,Enabled
+VV | Search | Competitors,MakeUGC,makeugc alternative,Phrase,Enabled
+VV | Search | Competitors,MakeUGC,makeugc pricing,Phrase,Enabled
+VV | Search | Competitors,MakeUGC,makeugc reviews,Phrase,Enabled
+VV | Search | Competitors,MakeUGC,makeugc vs arcads,Phrase,Enabled
+VV | Search | Competitors,MakeUGC,makeugc vs creatify,Phrase,Enabled
+VV | Search | Competitors,MakeUGC,makeugc,Exact,Enabled
+VV | Search | Competitors,MakeUGC,makeugc ai,Exact,Enabled
+VV | Search | Competitors,HeyGen UGC,heygen ugc ads,Phrase,Enabled
+VV | Search | Competitors,HeyGen UGC,heygen ugc ad video,Phrase,Enabled
+VV | Search | Competitors,HeyGen UGC,heygen ai ugc video,Phrase,Enabled
+VV | Search | Competitors,HeyGen UGC,heygen ugc,Phrase,Enabled
+VV | Search | Competitors,Higgsfield,higgsfield alternative,Phrase,Enabled
+VV | Search | Competitors,Higgsfield,alternative to higgsfield,Phrase,Enabled
+VV | Search | Competitors,Higgsfield,higgsfield pricing,Phrase,Enabled
+VV | Search | Competitors,Higgsfield,higgsfield review,Phrase,Enabled
+VV | Search | Competitors,Higgsfield,higgsfield ugc,Phrase,Enabled
+VV | Search | AI UGC Ads,AI UGC Ad Generator,ai ugc ad generator,Exact,Enabled
+VV | Search | AI UGC Ads,AI UGC Ad Generator,ai ugc ad generator,Phrase,Enabled
+VV | Search | AI UGC Ads,AI UGC Ad Generator,ai ugc ads generator,Phrase,Enabled
+VV | Search | AI UGC Ads,AI UGC Ad Generator,ai ugc video ad generator,Phrase,Enabled
+VV | Search | AI UGC Ads,AI UGC Ad Generator,best ai ugc ad generator,Phrase,Enabled
+VV | Search | AI UGC Ads,AI UGC Ad Generator,ai ugc ads creator,Phrase,Enabled
+VV | Search | AI UGC Ads,AI UGC Ad Generator,ai ugc ads,Exact,Enabled
+VV | Search | AI UGC Ads,AI UGC Ad Generator,ai ugc ads tools,Phrase,Enabled
+VV | Search | AI UGC Ads,AI UGC Ad Generator,create ai ugc ads,Phrase,Enabled
+VV | Search | AI UGC Ads,AI UGC Ad Generator,ai to create ugc ads,Phrase,Enabled
+VV | Search | AI UGC Ads,AI UGC Video,ai ugc video generator,Phrase,Enabled
+VV | Search | AI UGC Ads,AI UGC Video,ai ugc video creator,Phrase,Enabled
+VV | Search | AI UGC Ads,AI UGC Video,ai ugc video ads,Phrase,Enabled
+VV | Search | AI UGC Ads,AI UGC Video,best ai ugc video generator,Phrase,Enabled
+VV | Search | AI UGC Ads,AI UGC Video,ai ugc videos,Exact,Enabled
+VV | Search | AI UGC Ads,AI UGC Video,ai ugc maker,Phrase,Enabled
+VV | Search | AI UGC Ads,AI UGC Video,ai ugc tool,Phrase,Enabled
+VV | Search | AI UGC Ads,AI UGC Video,best ai ugc tool,Phrase,Enabled
+VV | Search | AI UGC Ads,AI UGC Video,ai ugc software,Phrase,Enabled
+VV | Search | AI UGC Ads,AI UGC Video,best ai ugc platform,Phrase,Enabled
+VV | Search | AI UGC Ads,AI UGC Video,ai ugc creator,Exact,Enabled
+VV | Search | AI UGC Ads,UGC Ad Generator,ugc ad generator,Phrase,Enabled
+VV | Search | AI UGC Ads,UGC Ad Generator,ugc ads generator,Phrase,Enabled
+VV | Search | AI UGC Ads,UGC Ad Generator,ugc ad maker ai,Phrase,Enabled
+VV | Search | AI UGC Ads,UGC Ad Generator,ugc ads ai,Phrase,Enabled
+VV | Search | AI UGC Ads,UGC Ad Generator,ugc ads ai tool,Phrase,Enabled
+VV | Search | AI UGC Ads,UGC Ad Generator,ugc ads software,Phrase,Enabled
+VV | Search | AI UGC Ads,UGC Ad Generator,ugc video maker ai,Phrase,Enabled
+VV | Search | AI UGC Ads,UGC Ad Generator,ugc ad creator ai,Phrase,Enabled
+VV | Search | AI UGC Ads,Ecommerce and TikTok Shop,ai ugc for ecommerce,Phrase,Enabled
+VV | Search | AI UGC Ads,Ecommerce and TikTok Shop,ai ugc ads creator for e commerce,Phrase,Enabled
+VV | Search | AI UGC Ads,Ecommerce and TikTok Shop,ai ugc tiktok shop,Phrase,Enabled
+VV | Search | AI UGC Ads,Ecommerce and TikTok Shop,ai tiktok shop ads,Phrase,Enabled
+VV | Search | AI UGC Ads,Ecommerce and TikTok Shop,ai ugc tiktok ads,Phrase,Enabled
+VV | Search | AI UGC Ads,Ecommerce and TikTok Shop,ai ugc facebook ads,Phrase,Enabled
+VV | Search | AI UGC Ads,Ecommerce and TikTok Shop,ai video ads for ecommerce,Phrase,Enabled
+VV | Search | AI UGC Ads,Ecommerce and TikTok Shop,ugc ads for dropshipping,Phrase,Enabled
+VV | Search | AI UGC Ads,Ecommerce and TikTok Shop,ai ad generator for shopify,Phrase,Enabled
+VV | Search | AI UGC Ads,Ecommerce and TikTok Shop,ai product video ads generator,Phrase,Enabled
+VV | Search | AI UGC Ads,Ecommerce and TikTok Shop,product video ads ai,Phrase,Enabled
+VV | Search | Clone Winning Ads,Clone Winning Ads,clone winning ads,Phrase,Enabled
+VV | Search | Clone Winning Ads,Clone Winning Ads,copy winning ads,Phrase,Enabled
+VV | Search | Clone Winning Ads,Clone Winning Ads,create winning ads ai,Phrase,Enabled
+VV | Search | Clone Winning Ads,Clone Winning Ads,winning ads ai,Phrase,Enabled
+VV | Search | Clone Winning Ads,Clone Winning Ads,clone competitor ads,Phrase,Enabled
+VV | Search | Clone Winning Ads,Clone Winning Ads,copy competitor ads,Phrase,Enabled
+VV | Search | Clone Winning Ads,Clone Winning Ads,remake competitor ads,Phrase,Enabled
+VV | Search | Clone Winning Ads,Clone Winning Ads,ad clone,Exact,Enabled
+VV | Search | Replace UGC Creators,Hire UGC Creators,hire ugc creators,Phrase,Enabled
+VV | Search | Replace UGC Creators,Hire UGC Creators,ugc creators for hire,Phrase,Enabled
+VV | Search | Replace UGC Creators,Hire UGC Creators,hire ugc creators cheap,Phrase,Enabled
+VV | Search | Replace UGC Creators,Hire UGC Creators,cheap ugc creators,Phrase,Enabled
+VV | Search | Replace UGC Creators,Hire UGC Creators,cheap ugc ads,Phrase,Enabled
+VV | Search | Replace UGC Creators,Hire UGC Creators,cheap ugc videos,Phrase,Enabled
+VV | Search | Replace UGC Creators,Hire UGC Creators,how much do ugc ads cost,Phrase,Enabled
+VV | Search | Replace UGC Creators,Hire UGC Creators,ugc ads cost,Phrase,Enabled
+VV | Search | Replace UGC Creators,Hire UGC Creators,platforms to hire ugc creators,Phrase,Enabled
+VV | Search | Replace UGC Creators,Hire UGC Creators,best place to hire ugc creators,Phrase,Enabled
+VV | Search | Replace UGC Creators,Creator Platforms,billo alternatives,Phrase,Enabled
+VV | Search | Replace UGC Creators,Creator Platforms,billo alternative,Phrase,Enabled
+VV | Search | Replace UGC Creators,Creator Platforms,billo pricing,Phrase,Enabled
+VV | Search | Replace UGC Creators,Creator Platforms,billo vs insense,Phrase,Enabled
+VV | Search | Replace UGC Creators,Creator Platforms,insense alternatives,Phrase,Enabled
+VV | Search | Replace UGC Creators,Creator Platforms,insense ugc pricing,Phrase,Enabled
+VV | Search | Replace UGC Creators,Creator Platforms,insense ugc reviews,Phrase,Enabled
+VV | Search | AI Agent,Claude and MCP,ugc ads claude skill,Phrase,Enabled
+VV | Search | AI Agent,Claude and MCP,ugc ads skill,Phrase,Enabled
+VV | Search | AI Agent,Claude and MCP,arcads claude code skill,Phrase,Enabled
+VV | Search | AI Agent,Claude and MCP,arcads claude skill,Phrase,Enabled
+VV | Search | AI Agent,Claude and MCP,arcads mcp,Phrase,Enabled
+VV | Search | AI Agent,Claude and MCP,creatify claude mcp,Phrase,Enabled
+VV | Search | AI Agent,Claude and MCP,creatify mcp,Phrase,Enabled
+VV | Search | AI Agent,Claude and MCP,ai ugc video api,Phrase,Enabled
+VV | Search | AI Agent,Claude and MCP,ai ugc video generator api,Phrase,Enabled

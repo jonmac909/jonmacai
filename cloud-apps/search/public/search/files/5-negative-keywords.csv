@@ -1,0 +1,358 @@
+Campaign,Keyword,Criterion Type
+VV | Search | Brand,views,Campaign negative phrase
+VV | Search | Brand,buy,Campaign negative phrase
+VV | Search | Brand,followers,Campaign negative phrase
+VV | Search | Brand,likes,Campaign negative phrase
+VV | Search | Brand,youtube,Campaign negative phrase
+VV | Search | Brand,go viral,Campaign negative phrase
+VV | Search | Brand,instagram,Campaign negative phrase
+VV | Search | Competitors,jobs,Campaign negative phrase
+VV | Search | Competitors,job,Campaign negative phrase
+VV | Search | Competitors,salary,Campaign negative phrase
+VV | Search | Competitors,hiring,Campaign negative phrase
+VV | Search | Competitors,career,Campaign negative phrase
+VV | Search | Competitors,careers,Campaign negative phrase
+VV | Search | Competitors,become,Campaign negative phrase
+VV | Search | Competitors,apply,Campaign negative phrase
+VV | Search | Competitors,application,Campaign negative phrase
+VV | Search | Competitors,internship,Campaign negative phrase
+VV | Search | Competitors,for creators,Campaign negative phrase
+VV | Search | Competitors,creator sign up,Campaign negative phrase
+VV | Search | Competitors,portfolio,Campaign negative phrase
+VV | Search | Competitors,rate card,Campaign negative phrase
+VV | Search | Competitors,remote,Campaign negative phrase
+VV | Search | Competitors,course,Campaign negative phrase
+VV | Search | Competitors,courses,Campaign negative phrase
+VV | Search | Competitors,udemy,Campaign negative phrase
+VV | Search | Competitors,skool,Campaign negative phrase
+VV | Search | Competitors,bootcamp,Campaign negative phrase
+VV | Search | Competitors,academy,Campaign negative phrase
+VV | Search | Competitors,certification,Campaign negative phrase
+VV | Search | Competitors,pdf,Campaign negative phrase
+VV | Search | Competitors,meaning,Campaign negative phrase
+VV | Search | Competitors,definition,Campaign negative phrase
+VV | Search | Competitors,what is,Campaign negative phrase
+VV | Search | Competitors,full form,Campaign negative phrase
+VV | Search | Competitors,stands for,Campaign negative phrase
+VV | Search | Competitors,adalah,Campaign negative phrase
+VV | Search | Competitors,kaise,Campaign negative phrase
+VV | Search | Competitors,roblox,Campaign negative phrase
+VV | Search | Competitors,codes,Campaign negative phrase
+VV | Search | Competitors,limiteds,Campaign negative phrase
+VV | Search | Competitors,free fire,Campaign negative phrase
+VV | Search | Competitors,minecraft,Campaign negative phrase
+VV | Search | Competitors,ugc net,Campaign negative phrase
+VV | Search | Competitors,net exam,Campaign negative phrase
+VV | Search | Competitors,university,Campaign negative phrase
+VV | Search | Competitors,commission,Campaign negative phrase
+VV | Search | Competitors,approved,Campaign negative phrase
+VV | Search | Competitors,recognised,Campaign negative phrase
+VV | Search | Competitors,recognized,Campaign negative phrase
+VV | Search | Competitors,college,Campaign negative phrase
+VV | Search | Competitors,incense,Campaign negative phrase
+VV | Search | Competitors,template,Campaign negative phrase
+VV | Search | Competitors,templates,Campaign negative phrase
+VV | Search | Competitors,canva,Campaign negative phrase
+VV | Search | Competitors,chatgpt,Campaign negative phrase
+VV | Search | Competitors,prompt,Campaign negative phrase
+VV | Search | Competitors,prompts,Campaign negative phrase
+VV | Search | Competitors,agency,Campaign negative phrase
+VV | Search | Competitors,service,Campaign negative phrase
+VV | Search | Competitors,services,Campaign negative phrase
+VV | Search | Competitors,fiverr,Campaign negative phrase
+VV | Search | Competitors,upwork,Campaign negative phrase
+VV | Search | Competitors,freelancer,Campaign negative phrase
+VV | Search | Competitors,freelance,Campaign negative phrase
+VV | Search | Competitors,apk,Campaign negative phrase
+VV | Search | Competitors,mod,Campaign negative phrase
+VV | Search | Competitors,download,Campaign negative phrase
+VV | Search | Competitors,crack,Campaign negative phrase
+VV | Search | Competitors,group buy,Campaign negative phrase
+VV | Search | Competitors,open source,Campaign negative phrase
+VV | Search | Competitors,github,Campaign negative phrase
+VV | Search | Competitors,music,Campaign negative phrase
+VV | Search | Competitors,sound effect,Campaign negative phrase
+VV | Search | Competitors,free,Campaign negative phrase
+VV | Search | Competitors,login,Campaign negative phrase
+VV | Search | Competitors,log in,Campaign negative phrase
+VV | Search | Competitors,sign in,Campaign negative phrase
+VV | Search | Competitors,support,Campaign negative phrase
+VV | Search | Competitors,customer service,Campaign negative phrase
+VV | Search | Competitors,contact,Campaign negative phrase
+VV | Search | Competitors,affiliate,Campaign negative phrase
+VV | Search | Competitors,founder,Campaign negative phrase
+VV | Search | Competitors,funding,Campaign negative phrase
+VV | Search | Competitors,ceo,Campaign negative phrase
+VV | Search | Competitors,cancel,Campaign negative phrase
+VV | Search | Competitors,refund,Campaign negative phrase
+VV | Search | Competitors,coupon,Campaign negative phrase
+VV | Search | Competitors,promo code,Campaign negative phrase
+VV | Search | Competitors,black friday,Campaign negative phrase
+VV | Search | Competitors,careers,Campaign negative phrase
+VV | Search | Competitors,api,Campaign negative phrase
+VV | Search | AI UGC Ads,jobs,Campaign negative phrase
+VV | Search | AI UGC Ads,job,Campaign negative phrase
+VV | Search | AI UGC Ads,salary,Campaign negative phrase
+VV | Search | AI UGC Ads,hiring,Campaign negative phrase
+VV | Search | AI UGC Ads,career,Campaign negative phrase
+VV | Search | AI UGC Ads,careers,Campaign negative phrase
+VV | Search | AI UGC Ads,become,Campaign negative phrase
+VV | Search | AI UGC Ads,apply,Campaign negative phrase
+VV | Search | AI UGC Ads,application,Campaign negative phrase
+VV | Search | AI UGC Ads,internship,Campaign negative phrase
+VV | Search | AI UGC Ads,for creators,Campaign negative phrase
+VV | Search | AI UGC Ads,creator sign up,Campaign negative phrase
+VV | Search | AI UGC Ads,portfolio,Campaign negative phrase
+VV | Search | AI UGC Ads,rate card,Campaign negative phrase
+VV | Search | AI UGC Ads,remote,Campaign negative phrase
+VV | Search | AI UGC Ads,course,Campaign negative phrase
+VV | Search | AI UGC Ads,courses,Campaign negative phrase
+VV | Search | AI UGC Ads,udemy,Campaign negative phrase
+VV | Search | AI UGC Ads,skool,Campaign negative phrase
+VV | Search | AI UGC Ads,bootcamp,Campaign negative phrase
+VV | Search | AI UGC Ads,academy,Campaign negative phrase
+VV | Search | AI UGC Ads,certification,Campaign negative phrase
+VV | Search | AI UGC Ads,pdf,Campaign negative phrase
+VV | Search | AI UGC Ads,meaning,Campaign negative phrase
+VV | Search | AI UGC Ads,definition,Campaign negative phrase
+VV | Search | AI UGC Ads,what is,Campaign negative phrase
+VV | Search | AI UGC Ads,full form,Campaign negative phrase
+VV | Search | AI UGC Ads,stands for,Campaign negative phrase
+VV | Search | AI UGC Ads,adalah,Campaign negative phrase
+VV | Search | AI UGC Ads,kaise,Campaign negative phrase
+VV | Search | AI UGC Ads,roblox,Campaign negative phrase
+VV | Search | AI UGC Ads,codes,Campaign negative phrase
+VV | Search | AI UGC Ads,limiteds,Campaign negative phrase
+VV | Search | AI UGC Ads,free fire,Campaign negative phrase
+VV | Search | AI UGC Ads,minecraft,Campaign negative phrase
+VV | Search | AI UGC Ads,ugc net,Campaign negative phrase
+VV | Search | AI UGC Ads,net exam,Campaign negative phrase
+VV | Search | AI UGC Ads,university,Campaign negative phrase
+VV | Search | AI UGC Ads,commission,Campaign negative phrase
+VV | Search | AI UGC Ads,approved,Campaign negative phrase
+VV | Search | AI UGC Ads,recognised,Campaign negative phrase
+VV | Search | AI UGC Ads,recognized,Campaign negative phrase
+VV | Search | AI UGC Ads,college,Campaign negative phrase
+VV | Search | AI UGC Ads,incense,Campaign negative phrase
+VV | Search | AI UGC Ads,template,Campaign negative phrase
+VV | Search | AI UGC Ads,templates,Campaign negative phrase
+VV | Search | AI UGC Ads,canva,Campaign negative phrase
+VV | Search | AI UGC Ads,chatgpt,Campaign negative phrase
+VV | Search | AI UGC Ads,prompt,Campaign negative phrase
+VV | Search | AI UGC Ads,prompts,Campaign negative phrase
+VV | Search | AI UGC Ads,agency,Campaign negative phrase
+VV | Search | AI UGC Ads,service,Campaign negative phrase
+VV | Search | AI UGC Ads,services,Campaign negative phrase
+VV | Search | AI UGC Ads,fiverr,Campaign negative phrase
+VV | Search | AI UGC Ads,upwork,Campaign negative phrase
+VV | Search | AI UGC Ads,freelancer,Campaign negative phrase
+VV | Search | AI UGC Ads,freelance,Campaign negative phrase
+VV | Search | AI UGC Ads,apk,Campaign negative phrase
+VV | Search | AI UGC Ads,mod,Campaign negative phrase
+VV | Search | AI UGC Ads,download,Campaign negative phrase
+VV | Search | AI UGC Ads,crack,Campaign negative phrase
+VV | Search | AI UGC Ads,group buy,Campaign negative phrase
+VV | Search | AI UGC Ads,open source,Campaign negative phrase
+VV | Search | AI UGC Ads,github,Campaign negative phrase
+VV | Search | AI UGC Ads,music,Campaign negative phrase
+VV | Search | AI UGC Ads,sound effect,Campaign negative phrase
+VV | Search | AI UGC Ads,free,Campaign negative phrase
+VV | Search | Clone Winning Ads,jobs,Campaign negative phrase
+VV | Search | Clone Winning Ads,job,Campaign negative phrase
+VV | Search | Clone Winning Ads,salary,Campaign negative phrase
+VV | Search | Clone Winning Ads,hiring,Campaign negative phrase
+VV | Search | Clone Winning Ads,career,Campaign negative phrase
+VV | Search | Clone Winning Ads,careers,Campaign negative phrase
+VV | Search | Clone Winning Ads,become,Campaign negative phrase
+VV | Search | Clone Winning Ads,apply,Campaign negative phrase
+VV | Search | Clone Winning Ads,application,Campaign negative phrase
+VV | Search | Clone Winning Ads,internship,Campaign negative phrase
+VV | Search | Clone Winning Ads,for creators,Campaign negative phrase
+VV | Search | Clone Winning Ads,creator sign up,Campaign negative phrase
+VV | Search | Clone Winning Ads,portfolio,Campaign negative phrase
+VV | Search | Clone Winning Ads,rate card,Campaign negative phrase
+VV | Search | Clone Winning Ads,remote,Campaign negative phrase
+VV | Search | Clone Winning Ads,course,Campaign negative phrase
+VV | Search | Clone Winning Ads,courses,Campaign negative phrase
+VV | Search | Clone Winning Ads,udemy,Campaign negative phrase
+VV | Search | Clone Winning Ads,skool,Campaign negative phrase
+VV | Search | Clone Winning Ads,bootcamp,Campaign negative phrase
+VV | Search | Clone Winning Ads,academy,Campaign negative phrase
+VV | Search | Clone Winning Ads,certification,Campaign negative phrase
+VV | Search | Clone Winning Ads,pdf,Campaign negative phrase
+VV | Search | Clone Winning Ads,meaning,Campaign negative phrase
+VV | Search | Clone Winning Ads,definition,Campaign negative phrase
+VV | Search | Clone Winning Ads,what is,Campaign negative phrase
+VV | Search | Clone Winning Ads,full form,Campaign negative phrase
+VV | Search | Clone Winning Ads,stands for,Campaign negative phrase
+VV | Search | Clone Winning Ads,adalah,Campaign negative phrase
+VV | Search | Clone Winning Ads,kaise,Campaign negative phrase
+VV | Search | Clone Winning Ads,roblox,Campaign negative phrase
+VV | Search | Clone Winning Ads,codes,Campaign negative phrase
+VV | Search | Clone Winning Ads,limiteds,Campaign negative phrase
+VV | Search | Clone Winning Ads,free fire,Campaign negative phrase
+VV | Search | Clone Winning Ads,minecraft,Campaign negative phrase
+VV | Search | Clone Winning Ads,ugc net,Campaign negative phrase
+VV | Search | Clone Winning Ads,net exam,Campaign negative phrase
+VV | Search | Clone Winning Ads,university,Campaign negative phrase
+VV | Search | Clone Winning Ads,commission,Campaign negative phrase
+VV | Search | Clone Winning Ads,approved,Campaign negative phrase
+VV | Search | Clone Winning Ads,recognised,Campaign negative phrase
+VV | Search | Clone Winning Ads,recognized,Campaign negative phrase
+VV | Search | Clone Winning Ads,college,Campaign negative phrase
+VV | Search | Clone Winning Ads,incense,Campaign negative phrase
+VV | Search | Clone Winning Ads,template,Campaign negative phrase
+VV | Search | Clone Winning Ads,templates,Campaign negative phrase
+VV | Search | Clone Winning Ads,canva,Campaign negative phrase
+VV | Search | Clone Winning Ads,chatgpt,Campaign negative phrase
+VV | Search | Clone Winning Ads,prompt,Campaign negative phrase
+VV | Search | Clone Winning Ads,prompts,Campaign negative phrase
+VV | Search | Clone Winning Ads,agency,Campaign negative phrase
+VV | Search | Clone Winning Ads,service,Campaign negative phrase
+VV | Search | Clone Winning Ads,services,Campaign negative phrase
+VV | Search | Clone Winning Ads,fiverr,Campaign negative phrase
+VV | Search | Clone Winning Ads,upwork,Campaign negative phrase
+VV | Search | Clone Winning Ads,freelancer,Campaign negative phrase
+VV | Search | Clone Winning Ads,freelance,Campaign negative phrase
+VV | Search | Clone Winning Ads,apk,Campaign negative phrase
+VV | Search | Clone Winning Ads,mod,Campaign negative phrase
+VV | Search | Clone Winning Ads,download,Campaign negative phrase
+VV | Search | Clone Winning Ads,crack,Campaign negative phrase
+VV | Search | Clone Winning Ads,group buy,Campaign negative phrase
+VV | Search | Clone Winning Ads,open source,Campaign negative phrase
+VV | Search | Clone Winning Ads,github,Campaign negative phrase
+VV | Search | Clone Winning Ads,music,Campaign negative phrase
+VV | Search | Clone Winning Ads,sound effect,Campaign negative phrase
+VV | Search | Clone Winning Ads,free,Campaign negative phrase
+VV | Search | Replace UGC Creators,jobs,Campaign negative phrase
+VV | Search | Replace UGC Creators,job,Campaign negative phrase
+VV | Search | Replace UGC Creators,salary,Campaign negative phrase
+VV | Search | Replace UGC Creators,career,Campaign negative phrase
+VV | Search | Replace UGC Creators,careers,Campaign negative phrase
+VV | Search | Replace UGC Creators,become,Campaign negative phrase
+VV | Search | Replace UGC Creators,apply,Campaign negative phrase
+VV | Search | Replace UGC Creators,application,Campaign negative phrase
+VV | Search | Replace UGC Creators,internship,Campaign negative phrase
+VV | Search | Replace UGC Creators,for creators,Campaign negative phrase
+VV | Search | Replace UGC Creators,creator sign up,Campaign negative phrase
+VV | Search | Replace UGC Creators,portfolio,Campaign negative phrase
+VV | Search | Replace UGC Creators,rate card,Campaign negative phrase
+VV | Search | Replace UGC Creators,remote,Campaign negative phrase
+VV | Search | Replace UGC Creators,course,Campaign negative phrase
+VV | Search | Replace UGC Creators,courses,Campaign negative phrase
+VV | Search | Replace UGC Creators,udemy,Campaign negative phrase
+VV | Search | Replace UGC Creators,skool,Campaign negative phrase
+VV | Search | Replace UGC Creators,bootcamp,Campaign negative phrase
+VV | Search | Replace UGC Creators,academy,Campaign negative phrase
+VV | Search | Replace UGC Creators,certification,Campaign negative phrase
+VV | Search | Replace UGC Creators,pdf,Campaign negative phrase
+VV | Search | Replace UGC Creators,meaning,Campaign negative phrase
+VV | Search | Replace UGC Creators,definition,Campaign negative phrase
+VV | Search | Replace UGC Creators,what is,Campaign negative phrase
+VV | Search | Replace UGC Creators,full form,Campaign negative phrase
+VV | Search | Replace UGC Creators,stands for,Campaign negative phrase
+VV | Search | Replace UGC Creators,adalah,Campaign negative phrase
+VV | Search | Replace UGC Creators,kaise,Campaign negative phrase
+VV | Search | Replace UGC Creators,roblox,Campaign negative phrase
+VV | Search | Replace UGC Creators,codes,Campaign negative phrase
+VV | Search | Replace UGC Creators,limiteds,Campaign negative phrase
+VV | Search | Replace UGC Creators,free fire,Campaign negative phrase
+VV | Search | Replace UGC Creators,minecraft,Campaign negative phrase
+VV | Search | Replace UGC Creators,ugc net,Campaign negative phrase
+VV | Search | Replace UGC Creators,net exam,Campaign negative phrase
+VV | Search | Replace UGC Creators,university,Campaign negative phrase
+VV | Search | Replace UGC Creators,commission,Campaign negative phrase
+VV | Search | Replace UGC Creators,approved,Campaign negative phrase
+VV | Search | Replace UGC Creators,recognised,Campaign negative phrase
+VV | Search | Replace UGC Creators,recognized,Campaign negative phrase
+VV | Search | Replace UGC Creators,college,Campaign negative phrase
+VV | Search | Replace UGC Creators,incense,Campaign negative phrase
+VV | Search | Replace UGC Creators,template,Campaign negative phrase
+VV | Search | Replace UGC Creators,templates,Campaign negative phrase
+VV | Search | Replace UGC Creators,canva,Campaign negative phrase
+VV | Search | Replace UGC Creators,chatgpt,Campaign negative phrase
+VV | Search | Replace UGC Creators,prompt,Campaign negative phrase
+VV | Search | Replace UGC Creators,prompts,Campaign negative phrase
+VV | Search | Replace UGC Creators,agency,Campaign negative phrase
+VV | Search | Replace UGC Creators,service,Campaign negative phrase
+VV | Search | Replace UGC Creators,services,Campaign negative phrase
+VV | Search | Replace UGC Creators,fiverr,Campaign negative phrase
+VV | Search | Replace UGC Creators,upwork,Campaign negative phrase
+VV | Search | Replace UGC Creators,freelancer,Campaign negative phrase
+VV | Search | Replace UGC Creators,freelance,Campaign negative phrase
+VV | Search | Replace UGC Creators,apk,Campaign negative phrase
+VV | Search | Replace UGC Creators,mod,Campaign negative phrase
+VV | Search | Replace UGC Creators,download,Campaign negative phrase
+VV | Search | Replace UGC Creators,crack,Campaign negative phrase
+VV | Search | Replace UGC Creators,group buy,Campaign negative phrase
+VV | Search | Replace UGC Creators,open source,Campaign negative phrase
+VV | Search | Replace UGC Creators,github,Campaign negative phrase
+VV | Search | Replace UGC Creators,music,Campaign negative phrase
+VV | Search | Replace UGC Creators,sound effect,Campaign negative phrase
+VV | Search | Replace UGC Creators,free,Campaign negative phrase
+VV | Search | AI Agent,jobs,Campaign negative phrase
+VV | Search | AI Agent,job,Campaign negative phrase
+VV | Search | AI Agent,salary,Campaign negative phrase
+VV | Search | AI Agent,hiring,Campaign negative phrase
+VV | Search | AI Agent,career,Campaign negative phrase
+VV | Search | AI Agent,careers,Campaign negative phrase
+VV | Search | AI Agent,become,Campaign negative phrase
+VV | Search | AI Agent,apply,Campaign negative phrase
+VV | Search | AI Agent,application,Campaign negative phrase
+VV | Search | AI Agent,internship,Campaign negative phrase
+VV | Search | AI Agent,for creators,Campaign negative phrase
+VV | Search | AI Agent,creator sign up,Campaign negative phrase
+VV | Search | AI Agent,portfolio,Campaign negative phrase
+VV | Search | AI Agent,rate card,Campaign negative phrase
+VV | Search | AI Agent,remote,Campaign negative phrase
+VV | Search | AI Agent,course,Campaign negative phrase
+VV | Search | AI Agent,courses,Campaign negative phrase
+VV | Search | AI Agent,udemy,Campaign negative phrase
+VV | Search | AI Agent,skool,Campaign negative phrase
+VV | Search | AI Agent,bootcamp,Campaign negative phrase
+VV | Search | AI Agent,academy,Campaign negative phrase
+VV | Search | AI Agent,certification,Campaign negative phrase
+VV | Search | AI Agent,pdf,Campaign negative phrase
+VV | Search | AI Agent,meaning,Campaign negative phrase
+VV | Search | AI Agent,definition,Campaign negative phrase
+VV | Search | AI Agent,what is,Campaign negative phrase
+VV | Search | AI Agent,full form,Campaign negative phrase
+VV | Search | AI Agent,stands for,Campaign negative phrase
+VV | Search | AI Agent,adalah,Campaign negative phrase
+VV | Search | AI Agent,kaise,Campaign negative phrase
+VV | Search | AI Agent,roblox,Campaign negative phrase
+VV | Search | AI Agent,codes,Campaign negative phrase
+VV | Search | AI Agent,limiteds,Campaign negative phrase
+VV | Search | AI Agent,free fire,Campaign negative phrase
+VV | Search | AI Agent,minecraft,Campaign negative phrase
+VV | Search | AI Agent,ugc net,Campaign negative phrase
+VV | Search | AI Agent,net exam,Campaign negative phrase
+VV | Search | AI Agent,university,Campaign negative phrase
+VV | Search | AI Agent,commission,Campaign negative phrase
+VV | Search | AI Agent,approved,Campaign negative phrase
+VV | Search | AI Agent,recognised,Campaign negative phrase
+VV | Search | AI Agent,recognized,Campaign negative phrase
+VV | Search | AI Agent,college,Campaign negative phrase
+VV | Search | AI Agent,incense,Campaign negative phrase
+VV | Search | AI Agent,template,Campaign negative phrase
+VV | Search | AI Agent,templates,Campaign negative phrase
+VV | Search | AI Agent,canva,Campaign negative phrase
+VV | Search | AI Agent,chatgpt,Campaign negative phrase
+VV | Search | AI Agent,prompt,Campaign negative phrase
+VV | Search | AI Agent,prompts,Campaign negative phrase
+VV | Search | AI Agent,agency,Campaign negative phrase
+VV | Search | AI Agent,service,Campaign negative phrase
+VV | Search | AI Agent,services,Campaign negative phrase
+VV | Search | AI Agent,fiverr,Campaign negative phrase
+VV | Search | AI Agent,upwork,Campaign negative phrase
+VV | Search | AI Agent,freelancer,Campaign negative phrase
+VV | Search | AI Agent,freelance,Campaign negative phrase
+VV | Search | AI Agent,apk,Campaign negative phrase
+VV | Search | AI Agent,mod,Campaign negative phrase
+VV | Search | AI Agent,download,Campaign negative phrase
+VV | Search | AI Agent,crack,Campaign negative phrase
+VV | Search | AI Agent,group buy,Campaign negative phrase
+VV | Search | AI Agent,open source,Campaign negative phrase
+VV | Search | AI Agent,music,Campaign negative phrase
+VV | Search | AI Agent,sound effect,Campaign negative phrase
+VV | Search | AI Agent,free,Campaign negative phrase

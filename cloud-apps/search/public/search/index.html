@@ -1,0 +1,820 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>Google Ads plan · Viral View</title><style>
+:root{--bg:#f6f6f4;--surface:#fff;--ink:#141414;--muted:#5f5f5f;--line:#dddcd8;--accent:#1f5eff;--code:#efeee9}
+@media (prefers-color-scheme:dark){:root{--bg:#121212;--surface:#1b1b1b;--ink:#ededed;--muted:#a3a3a3;--line:#2e2e2e;--accent:#7aa2ff;--code:#262626}}
+*{box-sizing:border-box}html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.6 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif}
+header{position:sticky;top:0;z-index:2;background:var(--surface);border-bottom:1px solid var(--line)}
+nav{max-width:1100px;margin:0 auto;padding:10px 16px;display:flex;flex-wrap:wrap;gap:6px 18px;align-items:center}
+nav strong{margin-right:auto}nav a{color:var(--muted);text-decoration:none;font-size:15px}nav a[aria-current]{color:var(--ink);font-weight:600}
+main{max-width:1100px;margin:0 auto;padding:24px 16px 64px}
+h1{font-size:clamp(26px,5vw,36px);line-height:1.15;margin:8px 0 12px}h2{font-size:22px;margin:40px 0 10px;padding-top:12px;border-top:1px solid var(--line)}h3{font-size:18px;margin:24px 0 8px}
+a{color:var(--accent)}code{background:var(--code);padding:1px 5px;border-radius:4px;font-size:.88em;overflow-wrap:anywhere}
+.table{overflow-x:auto;margin:12px 0 20px;border:1px solid var(--line);border-radius:10px;background:var(--surface)}
+table{border-collapse:collapse;width:100%;font-size:14.5px}th,td{text-align:left;vertical-align:top;padding:9px 12px;border-bottom:1px solid var(--line)}
+th{font-size:12.5px;text-transform:uppercase;letter-spacing:.03em;color:var(--muted)}tr:last-child td{border-bottom:0}
+@media (max-width:700px){table{min-width:640px}}
+ul,ol{padding-left:22px}li{margin:4px 0}
+.meta{color:var(--muted);font-size:14px;margin:0 0 8px}
+.download{display:inline-flex;align-items:center;min-height:44px;margin:4px 0 16px;padding:10px 18px;border-radius:8px;background:var(--accent);color:#fff;font-weight:600;text-decoration:none}
+.download:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
+.files{display:grid;gap:8px;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));padding:0;list-style:none}
+.files a{display:block;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:var(--surface);text-decoration:none}
+</style></head><body><header><nav><strong>Google Ads plan</strong><a href="./" aria-current="page">Plan</a><a href="customer-language.html">Buyer quotes</a><a href="competitors.html">Competitors</a><a href="files.html">Import files</a></nav></header><main><p class="meta">Updated 23 Sep 2026.</p><a class="download" href="viral-view-google-ads-plan.pdf" download>Download PDF</a><h1>Google Ads launch plan</h1>
+<p>Jon shared a 10-stage Google Ads workflow on 2026-09-23 (x.com/lifemaximised/status/2102802935558103146) and asked for all of it to be done for Viral View. This file is the output of each stage. The import files for Google Ads Editor are in <code>docs/marketing/google-ads/generated/</code>. They are built by <code>docs/marketing/google-ads/build.mjs</code>, which also checks every length limit.</p>
+<p>Every claim in the ads traces to <code>workers/marketing/site/app/_lander/content.ts</code> (the $1.70 and 14-minute demo record, 2,945 library ads, prices, 7-day refund) or to the sourced rates in Stages 1 and 2 (creators at $200+ a video). Nothing here is live. Every campaign imports as Paused.</p>
+<h2>Plan rows</h2>
+<div class="table"><table>
+<thead>
+<tr>
+<th>Row</th>
+<th>Change</th>
+<th>Files</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>GA 0.1</td>
+<td>This plan, the keyword and ad build script, and the Google Ads Editor import files.</td>
+<td><a href="./"><code>docs/marketing/google-ads-plan.md</code></a>, <code>docs/marketing/google-ads/*</code></td>
+</tr>
+<tr>
+<td>GA 0.2</td>
+<td>Fix Google purchase and spend tracking (see &quot;Tracking fixes&quot;). Goes to the implementing agent.</td>
+<td><code>lib/ad-spend.ts</code>, <code>lib/conversions.ts</code></td>
+</tr>
+<tr>
+<td>GA 0.3</td>
+<td>The comparison landing page from Stage 7, for competitor searches.</td>
+<td><code>workers/marketing/site/app/compare/*</code></td>
+</tr>
+</tbody></table></div>
+<h2>Stage 0: Brand profile</h2>
+<ul>
+<li><strong>Who buys:</strong> owners and small teams at online stores who run Meta and TikTok ads and need new video ads every week. Also media buyers and small agencies (Pro gives 5 client workspaces, Agency 25). The library is weighted to beauty and skincare (580 ads), health (522), supplements (494), home (289) and fashion (254).</li>
+<li><strong>Core pain:</strong> ads stop working within weeks and need replacing. A UGC creator costs $400 to $500 a video by Jon&#39;s quote ($150 to $650 in buyers&#39; own posts) and takes 1 to 2 weeks, needs a product sample, and a weak take means a reshoot. Most AI tools start from a blank prompt and a stock avatar.</li>
+<li><strong>Buying triggers:</strong> results drop on the current ads; a creator is late or disappears; a competitor ad has run for months and they want their own version; they run out of credits on another AI tool.</li>
+<li><strong>Objections:</strong> AI ads look fake; two bills (the plan plus the AI provider) feel like hidden cost; setting up a provider account is an extra step; is cloning an ad legal; no reviews or case studies yet; no free trial.</li>
+<li><strong>Top products:</strong> Creator $39 a month or $19 a month yearly ($228); Pro $99 or $49 yearly ($588), flagged most popular; Agency $199 or $99 yearly ($1,188).</li>
+<li><strong>Strongest offers:</strong> clone the structure of a proven ad; a 16-second demo ad cost $1.70 in AI generation and took 14 minutes; no credits and no markup; unlimited projects on every plan; 7-day full refund.</li>
+<li><strong>Gaps in the funnel:</strong> there is no free way to try it; the provider-account step comes before the first result.</li>
+<li><strong>Google opportunities:</strong> people search competitor names with &quot;alternative&quot;, &quot;pricing&quot; and &quot;vs&quot; (55 such suggestions in the keyword pull); &quot;AI UGC ad generator&quot; and its variants; &quot;clone winning ads&quot;, which is exactly what Viral View does (Stage 2 found seven rivals claim it too); people searching for Claude or agent versions of rival tools. Viral View runs no Google ads today; Creatify alone runs 2,000 to 3,000.</li>
+</ul>
+<p><strong>Missing, needed from Jon:</strong> the Google Ads account&#39;s customer ID, billing, and API access (the tag is already live); a target cost per sale; any real customer quotes we may use; which Meta ad hooks did best, so the search headlines can use them.</p>
+<h2>Stage 1: Customer language</h2>
+<p>44 real quotes from Reddit (r/FacebookAds, r/ecommerce, r/shopify, r/dropship, r/AskMarketing, r/AI_UGC_Marketing), Trustpilot reviews of rival tools, and X, almost all from 2025–2026. The full table with links is in <a href="customer-language.html"><code>docs/marketing/google-ads/customer-language.md</code></a>. G2, Capterra and YouTube comments could not be reached. Reviewer names stay out of all ads.</p>
+<p><strong>The best 12</strong></p>
+<div class="table"><table>
+<thead>
+<tr>
+<th>Quote (verbatim)</th>
+<th>Source</th>
+<th>Stage</th>
+<th>Ad angle</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>&quot;Our winning ads die after 7-10 days now.&quot;</td>
+<td>r/FacebookAds, Aug 2026</td>
+<td>Problem</td>
+<td>Your winner died again? Clone it into fresh ones today.</td>
+</tr>
+<tr>
+<td>&quot;brief a UGC creator ($200-300/video), wait 7-10 days for delivery, half the time the take doesn&#39;t match the brief&quot;</td>
+<td>r/FacebookAds, Aug 2026</td>
+<td>Problem</td>
+<td>$200 and 10 days per video, or $1.70 and 14 minutes.</td>
+</tr>
+<tr>
+<td>&quot;we&#39;d have to spend $15k/month just on creative production … when our entire media spend is $25k.&quot;</td>
+<td>r/FacebookAds, Aug 2026</td>
+<td>Problem</td>
+<td>Stop spending half your ad budget on making ads.</td>
+</tr>
+<tr>
+<td>&quot;There&#39;s nothing I&#39;d like more than to NOT have to deal with UGC creators, licensing rights, negotiations, etc..&quot;</td>
+<td>r/FacebookAds, Jul 2026</td>
+<td>Problem</td>
+<td>No creators, no licensing, no negotiating.</td>
+</tr>
+<tr>
+<td>&quot;I can&#39;t afford constant influencer videos. What&#39;s the next best way to create native-looking ad content that still converts?&quot;</td>
+<td>r/FacebookAds, Nov 2025</td>
+<td>Problem</td>
+<td>Clone ads that already convert.</td>
+</tr>
+<tr>
+<td>&quot;I was spending $300 per creator video and testing maybe three to four concepts a month.&quot;</td>
+<td>r/FacebookAds, Jul 2026</td>
+<td>Comparing</td>
+<td>Test 15 ideas for the price of one creator video.</td>
+</tr>
+<tr>
+<td>&quot;I keep hearing about AI video tools but the last time I checked they looked like deepfakes.&quot;</td>
+<td>r/FacebookAds, Aug 2026</td>
+<td>Comparing</td>
+<td>Checked AI ads a year ago? Look again.</td>
+</tr>
+<tr>
+<td>&quot;Product inconsistency is probably the quickest way to make an ecommerce AI ad feel fake.&quot;</td>
+<td>r/FacebookAds, Aug 2026</td>
+<td>Comparing</td>
+<td>Starts from your product page.</td>
+</tr>
+<tr>
+<td>&quot;Every platform sells credits, and a headline price of &quot;$99/mo&quot; tells you absolutely nothing about how many actual videos you can actually generate.&quot;</td>
+<td>r/AskMarketing, Sep 2026</td>
+<td>Ready to buy</td>
+<td>$1.70 for our demo ad, not &quot;100 credits&quot;.</td>
+</tr>
+<tr>
+<td>&quot;I just wanted to clone ad, I click button, it took all my tokens, plus there was a output like a very bad quality AI video and far far away from the video that I cloned from.&quot;</td>
+<td>Trustpilot, a rival tool, Jul 2026</td>
+<td>Ready to buy</td>
+<td>Clone a winning ad: same hook, pacing and scenes.</td>
+</tr>
+<tr>
+<td>&quot;You&#39;re essentially renting the credits...&quot;</td>
+<td>Trustpilot, a rival tool, Sep 2026</td>
+<td>Ready to buy</td>
+<td>Stop renting credits.</td>
+</tr>
+<tr>
+<td>&quot;Is it worth paying for without a free trial to test first?&quot;</td>
+<td>r/FacebookAds, Aug 2026</td>
+<td>Ready to buy</td>
+<td>7-day full refund. Try it on your real product.</td>
+</tr>
+</tbody></table></div>
+<p><strong>Words buyers use most</strong> (sources out of about 45): &quot;looks fake&quot; / &quot;customers can tell&quot; (11); &quot;burns credits&quot; / &quot;took all my tokens&quot; (11); &quot;$X per video&quot; (7); &quot;UGC is expensive&quot; (7); &quot;back and forth&quot; with creators (6); &quot;doesn&#39;t match the brief&quot; (6); &quot;testing velocity&quot; / &quot;test more hooks&quot; (6); &quot;creative fatigue&quot; / &quot;ads die after 7-10 days&quot; (5); &quot;lip sync is off&quot; (5); &quot;usage rights&quot; (5).</p>
+<p><strong>Top objections to AI UGC tools, ranked:</strong> it looks fake and buyers spot it; credits get burned on bad output and you pay again to fix the tool&#39;s mistakes; pricing in credits hides the real cost, and unused credits expire; results look nothing like the demo or the source ad; billing traps (charged after cancelling); the product comes out wrong; only one talking-head format; fixing output takes longer than briefing a creator.</p>
+<p><strong>Buying triggers:</strong> a winning ad dies and they need 10 to 20 new versions a week; making ads starts to cost close to what they spend running them; a creator batch comes back late or off-brief; a winning ad gets rejected; quote shock from an agency; getting burned by another AI tool on credits or quality. The last group is the most ready to buy, and it is exactly who the Competitors campaign targets.</p>
+<p><strong>What this changes:</strong> Viral View already answers three of the top objections (no credits, a 7-day refund, cloning a proven ad), so those lead the rival-search ads. &quot;Looks fake&quot; can only be answered with a real side-by-side video, which is why the landing pages lead with real exports.</p>
+<h2>Stage 2: Competitor map</h2>
+<p>13 rivals checked on 2026-09-23, with Google ad counts from Google&#39;s own ad transparency site. Full detail, sources and the cost math are in <a href="competitors.html"><code>docs/marketing/google-ads/competitors.md</code></a>.</p>
+<div class="table"><table>
+<thead>
+<tr>
+<th>Rival</th>
+<th>Entry price</th>
+<th>What it buys</th>
+<th>Cost per ad</th>
+<th>Refund</th>
+<th>What they don&#39;t say</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Arcads</td>
+<td>about $110/mo (no public page)</td>
+<td>10 videos</td>
+<td>$11.00</td>
+<td>Only if no credits used</td>
+<td>Credits expire monthly; same actor can appear in other brands&#39; ads</td>
+</tr>
+<tr>
+<td>Creatify</td>
+<td>$39/mo</td>
+<td>100 credits</td>
+<td>about $1.95</td>
+<td>None</td>
+<td>Ad Clone only on the $99 plan; every re-run costs credits</td>
+</tr>
+<tr>
+<td>MakeUGC</td>
+<td>$59/mo</td>
+<td>5 videos</td>
+<td>$11.80</td>
+<td>Only if credits barely used</td>
+<td>$1 trial renews at full price; credits expire</td>
+</tr>
+<tr>
+<td>Higgsfield</td>
+<td>$59/mo</td>
+<td>1,200 credits</td>
+<td>$8.77</td>
+<td>Only if no credits used</td>
+<td>15 s cap per generation; credits expire</td>
+</tr>
+<tr>
+<td>HeyGen</td>
+<td>$29/mo</td>
+<td>600 credits</td>
+<td>not published</td>
+<td>—</td>
+<td>&quot;Unlimited videos&quot; on a credit-capped plan; shared avatars</td>
+</tr>
+<tr>
+<td>Topview</td>
+<td>$29/mo</td>
+<td>credits that reset</td>
+<td>about $9.00</td>
+<td>—</td>
+<td>Credit costs can change without notice</td>
+</tr>
+<tr>
+<td>Tagshop</td>
+<td>$29/mo</td>
+<td>5 videos</td>
+<td>$5.80</td>
+<td>None</td>
+<td>Closest feature to ours (clone from a link)</td>
+</tr>
+<tr>
+<td>Billo (human)</td>
+<td>$99/video + $89 edit</td>
+<td>1 video, 7–12 days</td>
+<td>$188</td>
+<td>If no creator matched</td>
+<td>Ship the product first; balance expires</td>
+</tr>
+<tr>
+<td>Insense (human)</td>
+<td>$650 trial month</td>
+<td>creator fees extra</td>
+<td>$250</td>
+<td>Rarely</td>
+<td>Trial renews into $1,500 a quarter</td>
+</tr>
+<tr>
+<td><strong>Viral View</strong></td>
+<td>$39/mo, or $19/mo billed yearly ($228)</td>
+<td>unlimited projects</td>
+<td>$2.65–$5.60 at 10–20 ads a month, incl. $1.70 AI</td>
+<td><strong>Full plan refund in 7 days, used or not</strong> (AI spend is the provider&#39;s)</td>
+<td>Two bills: plan plus the AI provider</td>
+</tr>
+</tbody></table></div>
+<p><strong>Correction to Stage 0:</strong> &quot;clone a winning ad&quot; is not ours alone. Creatify, Tagshop, MakeUGC, Higgsfield, Topview, Pamba and invideo all sell it. Viral View&#39;s edge there is narrow: it clones from a pasted link on every plan (Arcads, MakeUGC and Higgsfield need an upload; Creatify locks it to $99) and makes the whole ad, not a 15-second clip. Viral View is also not the cheapest per ad at low volume, and its 14 minutes is slower than rivals&#39; &quot;2 minutes&quot; claims (theirs is one clip, ours is the finished ad). Never claim &quot;cheapest&quot; or &quot;fastest&quot;.</p>
+<p><strong>Five validated angles</strong> (3+ rivals run them; demand is proven)</p>
+<div class="table"><table>
+<thead>
+<tr>
+<th>Angle</th>
+<th>Stage</th>
+<th>Test first in</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Cheaper than hiring creators</td>
+<td>Problem</td>
+<td>Search: &quot;UGC creator&quot; cost terms; Billo and Insense names</td>
+</tr>
+<tr>
+<td>AI UGC ads without filming</td>
+<td>Problem</td>
+<td>Search: &quot;ai ugc&quot;, &quot;ai ugc ad generator&quot;</td>
+</tr>
+<tr>
+<td>Paste your product link, get the ad</td>
+<td>Comparing</td>
+<td>Search: &quot;product link to video ad&quot;</td>
+</tr>
+<tr>
+<td>Clone winning ads</td>
+<td>Comparing / ready</td>
+<td>Search: &quot;clone winning ads&quot;, &quot;copy competitor ads&quot;</td>
+</tr>
+<tr>
+<td>More creatives for testing (Meta rewards variety)</td>
+<td>Problem / comparing</td>
+<td>Search: headlines in the AI UGC ads</td>
+</tr>
+</tbody></table></div>
+<p><strong>Five white-space angles Viral View can own</strong> (each tied to a gap above)</p>
+<div class="table"><table>
+<thead>
+<tr>
+<th>Angle</th>
+<th>The gap</th>
+<th>Stage</th>
+<th>Test first in</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>No credits: pay the AI provider at cost, no markup</td>
+<td>All 11 AI rivals sell credits, most expire, and they mark up the models</td>
+<td>Comparing</td>
+<td>Search on rival names + &quot;pricing&quot;</td>
+</tr>
+<tr>
+<td>Unlimited projects on every plan</td>
+<td>Rivals cap at 5–10 videos a month; their &quot;unlimited&quot; has conditions</td>
+<td>Comparing</td>
+<td>Search on rival names</td>
+</tr>
+<tr>
+<td>See every scene before you pay; redo one scene alone</td>
+<td>Nobody advertises it; rivals regenerate the whole video and charge again</td>
+<td>Comparing</td>
+<td>Search: &quot;See Every Scene Before You Pay&quot; headline</td>
+</tr>
+<tr>
+<td>Set a spend cap; Auto makes the whole ad inside it</td>
+<td>No rival advertises spend control; many surprise-charge complaints</td>
+<td>Ready</td>
+<td>Search: &quot;Auto Mode With a Spend Cap&quot; headline</td>
+</tr>
+<tr>
+<td>Full plan refund in 7 days, even if you used it</td>
+<td>Arcads, Higgsfield and MakeUGC refund only unused credits; Creatify and Tagshop never</td>
+<td>Ready</td>
+<td>Search on rival &quot;review&quot; now; &quot;refund&quot; and &quot;cancel&quot; in phase 2 (blocked at launch)</td>
+</tr>
+</tbody></table></div>
+<p><strong>Risks to prepare for:</strong> Icon&#39;s affiliates claim &quot;AI UGC is illegal&quot;. It is not; New York requires ads to disclose AI performers. Billo pushes the FTC rule that testimonials must come from real users, and says supplements are highest risk. So our own ads label the AI creator on screen and never pose as a real customer.</p>
+<h2>Stage 3: Keywords</h2>
+<p>Source: 1,943 real search suggestions pulled from Google on 2026-09-23 from 40 starting phrases (<code>google-ads/keyword-seeds.txt</code>; raw results in <a href="files/google-suggestions-2026-09-23.tsv" download><code>generated/google-suggestions-2026-09-23.tsv</code></a>). Google does not publish search counts outside a live account, so the volumes come later from Keyword Planner. What the pull shows:</p>
+<ul>
+<li>19% of buyer searches include &quot;free&quot; (104 of 555). Viral View has no free plan, so &quot;free&quot; is blocked at launch. Testing &quot;free trial&quot; searches against the 7-day refund is a phase 2 test.</li>
+<li>&quot;UGC&quot; collides with two other worlds: Roblox items (&quot;ugc creator codes roblox&quot;) and India&#39;s University Grants Commission (&quot;ugc net&quot;, &quot;ugc approved&quot;). Both are blocked.</li>
+<li>Many &quot;UGC&quot; searches come from creators looking for work (&quot;ugc creator jobs&quot;, &quot;how to become a ugc creator&quot;, &quot;billo for creators&quot;). Blocked.</li>
+<li>Rival tools draw comparison searches: &quot;arcads alternative&quot;, &quot;arcads pricing&quot;, &quot;creatify alternative&quot;, &quot;creatify ai pricing&quot;, &quot;makeugc alternative&quot;, &quot;makeugc vs arcads&quot;.</li>
+<li>Rival tools are also searched with Claude and agent terms: &quot;arcads claude code skill&quot;, &quot;arcads mcp&quot;, &quot;creatify claude mcp&quot;, &quot;ugc ads claude skill&quot;. Viral View has an API and agent instructions at viralview.io/developers. Its MCP guide (<code>workers/mcp-guide</code>, mcp.viralview.io) is built, but the domain does not resolve yet.</li>
+</ul>
+<p>The full keyword list (112 keywords, 14 ad groups) is in <a href="files/4-keywords.csv" download><code>generated/4-keywords.csv</code></a>, with 357 blocked words in <a href="files/5-negative-keywords.csv" download><code>generated/5-negative-keywords.csv</code></a>.</p>
+<p><strong>30-day launch plan</strong></p>
+<div class="table"><table>
+<thead>
+<tr>
+<th>Launch now</th>
+<th>Phase 2 tests (after 14 days of data and working purchase tracking)</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Brand: viral view, viralview</td>
+<td>AI agent: arcads claude code skill, creatify mcp, ugc ads claude skill</td>
+</tr>
+<tr>
+<td>Competitors: arcads / creatify / makeugc / higgsfield alternative, pricing, vs; heygen ugc ads</td>
+<td>&quot;free trial&quot; searches with the 7-day refund offer</td>
+</tr>
+<tr>
+<td>AI UGC: ai ugc ad generator, ai ugc video generator, best ai ugc tool, ugc ad generator, ai ugc tiktok shop</td>
+<td>Broad match on the best 10 keywords, once smart bidding has 30 sales</td>
+</tr>
+<tr>
+<td>Clone: clone winning ads, copy competitor ads, winning ads ai</td>
+<td></td>
+</tr>
+<tr>
+<td>Replace UGC creators: hire ugc creators, cheap ugc ads, ugc ads cost; billo alternatives, insense alternatives</td>
+<td></td>
+</tr>
+</tbody></table></div>
+<p><strong>High searches, low buying intent (do not launch):</strong> &quot;meta ads library&quot;, &quot;winning ads examples&quot;, &quot;facebook ad creative size&quot;, &quot;what is ugc&quot;, &quot;ai ugc ads course&quot;, &quot;ugc creator&quot; on its own.</p>
+<h2>Stage 4: Account structure</h2>
+<p>Six search campaigns in <a href="files/1-campaigns.csv" download><code>generated/1-campaigns.csv</code></a>. Locations: United States, Canada, United Kingdom, Australia. English. All start Paused, on &quot;Maximize clicks&quot; with a cost-per-click cap, until there are 15 sales in 30 days. Then switch to &quot;Maximize conversions&quot;, and later to a target cost per sale.</p>
+<div class="table"><table>
+<thead>
+<tr>
+<th>Campaign</th>
+<th>Phase</th>
+<th>Daily budget</th>
+<th>Why it exists</th>
+<th>Signal it gives</th>
+<th>Scale / hold / cut</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Brand</td>
+<td>1</td>
+<td>$10</td>
+<td>Stop rivals from taking people who searched our name.</td>
+<td>Sales from people who already know us.</td>
+<td>Hold at 90%+ of brand searches shown. Never cut.</td>
+</tr>
+<tr>
+<td>Competitors</td>
+<td>1</td>
+<td>$140</td>
+<td>People already comparing AI UGC tools. Highest intent.</td>
+<td>Which rival&#39;s buyers switch.</td>
+<td>Scale a rival&#39;s group +20% if its cost per sale beats target for 14 days. Cut a group at 2x target spend with no sale.</td>
+</tr>
+<tr>
+<td>AI UGC Ads</td>
+<td>1</td>
+<td>$230</td>
+<td>The main category searches, and the most search volume.</td>
+<td>Which way of naming the product sells.</td>
+<td>Same rule, per ad group.</td>
+</tr>
+<tr>
+<td>Clone Winning Ads</td>
+<td>1</td>
+<td>$50</td>
+<td>Exactly what the product does. Proven demand, but seven rivals claim it, so the ads lead with &quot;from a pasted link, on every plan&quot;.</td>
+<td>Whether &quot;clone&quot; beats &quot;generator&quot; as the message.</td>
+<td>Scale if cost per sale beats target; its words move into the other ads if it wins.</td>
+</tr>
+<tr>
+<td>Replace UGC Creators</td>
+<td>1</td>
+<td>$70</td>
+<td>People about to pay a human creator $100 to $650, or shopping Billo and Insense.</td>
+<td>Whether the cost comparison converts.</td>
+<td>Cut at 2x target spend with no sale.</td>
+</tr>
+<tr>
+<td>AI Agent</td>
+<td>2</td>
+<td>$20</td>
+<td>Claude and agent users; rivals rank here, few bid. Starts once the MCP guide is live; its $20 comes out of AI UGC Ads.</td>
+<td>Demand for the agent route.</td>
+<td>Cut at 2x target spend with no sale.</td>
+</tr>
+</tbody></table></div>
+<p><strong>Budget: $500 a day, search ads only</strong> (about $15,000 a month). Brand searches are few, so Brand rarely spends its full $10. Each week, move any budget a campaign cannot spend to AI UGC Ads.</p>
+<p>Not used: YouTube, display, Demand Gen, Shopping and Performance Max. The budget is search ads only, and Viral View has no physical products to list.</p>
+<h2>Stage 5: Search ad copy</h2>
+<p>16 ads across 14 ad groups in <a href="files/6-responsive-search-ads.csv" download><code>generated/6-responsive-search-ads.csv</code></a>: 15 headlines (30 characters max) and 4 descriptions (90 max) each. Headline 1 is pinned to match the search. Rival names never appear in ad text (Google can take ads down on a trademark complaint); the rival&#39;s name is only the keyword.</p>
+<p><strong>Three versions for &quot;ai ugc ad generator&quot;</strong> (all three run in the same ad group so Google can compare them):</p>
+<div class="table"><table>
+<thead>
+<tr>
+<th>Version</th>
+<th>For</th>
+<th>Pinned headline</th>
+<th>Sample headlines</th>
+<th>Descriptions lead with</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Direct response</td>
+<td>Ready to buy; wants the tool now.</td>
+<td>AI UGC Ad Generator</td>
+<td>Paste a Link. Get a UGC Ad. · Product Link to Ad in 14 Min · From $19/mo Billed Yearly · 7-Day Full Refund</td>
+<td>&quot;Paste your product page, pick a proven ad, and get a finished 9:16 UGC video ad.&quot;</td>
+</tr>
+<tr>
+<td>Proof heavy</td>
+<td>Comparing tools; doubts AI output.</td>
+<td>AI UGC Ad Generator</td>
+<td>Demo Ad: $1.70 in AI Costs · See Every Scene Before You Pay · Real Exports, Not Mockups · See the Full Demo Record</td>
+<td>&quot;Our 16-second demo ad cost $1.70 in AI generation and took 14 minutes. See the record.&quot;</td>
+</tr>
+<tr>
+<td>Problem first</td>
+<td>Burned by creators or tired ads.</td>
+<td>AI UGC Ad Generator</td>
+<td>Ads Burn Out Every 2 Weeks? · Tired of Ghosting Creators? · Skip the $200+ Creator Fee · No Reshoots, No Waiting</td>
+<td>&quot;Creators charge $200+ a video and take weeks. Viral View clones a winning ad for you.&quot;</td>
+</tr>
+</tbody></table></div>
+<p>Ready-to-buy copy makes Viral View the obvious answer. Comparing copy makes the result believable with the demo record. Problem copy names the pain first.</p>
+<p><strong>Writing rules:</strong> the builder rejects exclamation marks, rival names and these words: &quot;revolutionize&quot;, &quot;game-changer&quot;, &quot;unlock&quot;, &quot;seamless&quot;, &quot;effortless&quot;, &quot;cutting-edge&quot;, &quot;10x&quot;. Checked by hand: every number comes from the landing page record or a sourced rate.</p>
+<h2>Stage 6: Shopping feed</h2>
+<p>Does not apply. This stage rewrites product titles and descriptions for Google Shopping. Viral View sells a subscription, not physical products, so it has no product feed. Skipped.</p>
+<h2>Stage 7: Landing pages</h2>
+<p>Today every Google click would land on the home page (<code>/</code>, &quot;Winning UGC ads, no creators needed&quot;) or the clone page (<code>/new/1</code>, &quot;Clone winning ads for your product&quot;, which has the creator-cost table). Both match the AI UGC and Clone searches. Nothing matches a person who searched a rival&#39;s name and &quot;pricing&quot; or &quot;alternative&quot;. That is the highest-intent group, so it gets the new page.</p>
+<p><strong>Brief: <code>/compare</code>, for &quot;arcads alternative&quot;, &quot;creatify pricing&quot;, &quot;makeugc vs arcads&quot; (people comparing tools)</strong></p>
+<div class="table"><table>
+<thead>
+<tr>
+<th>Section</th>
+<th>Content</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Hero headline</td>
+<td>&quot;AI UGC ads without the credit math.&quot;</td>
+</tr>
+<tr>
+<td>Subheadline</td>
+<td>&quot;No credits to buy or lose. Unlimited projects on every plan. AI generation billed at cost, straight to your own provider account.&quot;</td>
+</tr>
+<tr>
+<td>Proof bar</td>
+<td>$1.70 AI cost for a 16-second demo ad · 2,945 proven ads to clone · 7-day full plan refund, used or not</td>
+</tr>
+<tr>
+<td>Until it ships</td>
+<td>Rival-search ads land on the home page. <code>build.mjs</code> has a <code>COMPARE_LIVE</code> switch; flip it and rebuild when /compare is live.</td>
+</tr>
+<tr>
+<td>Problem, in buyers&#39; words</td>
+<td>Three real quotes from Stage 1: &quot;You&#39;re essentially renting the credits...&quot;, &quot;Every platform sells credits, and a headline price of &quot;$99/mo&quot; tells you absolutely nothing about how many actual videos you can actually generate.&quot;, &quot;I just wanted to clone ad, I click button, it took all my tokens…&quot; (no names)</td>
+</tr>
+<tr>
+<td>How it works</td>
+<td>Paste your product link → pick a proven ad (or paste any TikTok, Instagram or Facebook link) → approve the script, creator and a still of every scene → export.</td>
+</tr>
+<tr>
+<td>Comparison</td>
+<td>A table: plan price, what it buys, do credits expire, refund, clone from a link, check every scene before paying. Rows for Viral View and five rivals, each fact linked and dated &quot;checked 23 Sep 2026&quot;. No &quot;cheapest&quot; claim.</td>
+</tr>
+<tr>
+<td>Real exports</td>
+<td>The existing wall of 15 real Viral View exports. This answers &quot;looks fake&quot; with video, not words.</td>
+</tr>
+<tr>
+<td>Objections</td>
+<td>Two bills explained (plan plus AI at cost); how to set up the provider account; the AI creator is labelled as AI; the 7-day refund.</td>
+</tr>
+<tr>
+<td>FAQ</td>
+<td>The home page&#39;s short FAQ.</td>
+</tr>
+<tr>
+<td>Call to action</td>
+<td>&quot;Start my first ad&quot;, with &quot;7-day full refund of your plan, even if you used it&quot; beside it. The refund covers the Viral View plan, not provider spend, so the copy always says &quot;plan&quot;.</td>
+</tr>
+</tbody></table></div>
+<p>The first screen repeats the search: &quot;without the credit math&quot; answers &quot;pricing&quot;; &quot;alternative&quot; is answered by the comparison table directly below.</p>
+<p><strong>Four angle variations for other searches</strong></p>
+<div class="table"><table>
+<thead>
+<tr>
+<th>Search intent</th>
+<th>Hero</th>
+<th>Core promise</th>
+<th>Proof needed</th>
+<th>Objections to handle</th>
+<th>CTA</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>&quot;ai ugc ad generator&quot; (wants the tool)</td>
+<td>&quot;Winning UGC ads, no creators needed.&quot; (the home page as it is)</td>
+<td>Product link to finished ad</td>
+<td>Real export wall, $1.70 record</td>
+<td>Looks fake; two bills</td>
+<td>Make my first ad</td>
+</tr>
+<tr>
+<td>&quot;clone winning ads&quot; (knows the method)</td>
+<td>&quot;Clone winning ads for your product.&quot; (<code>/new/1</code> as it is)</td>
+<td>Same hook and pacing, new everything else</td>
+<td>Side-by-side source vs clone</td>
+<td>Is cloning legal</td>
+<td>Start now</td>
+</tr>
+<tr>
+<td>&quot;hire ugc creators&quot; (about to pay a human)</td>
+<td>&quot;A creator costs $200 and two weeks. This costs $1.70 and an afternoon.&quot;</td>
+<td>No creators, samples or reshoots</td>
+<td>Cost table vs Billo and Insense</td>
+<td>AI vs real people; disclosure</td>
+<td>Make my first ad</td>
+</tr>
+<tr>
+<td>&quot;arcads claude code skill&quot; (agent users)</td>
+<td>&quot;Viral View, inside the agent you already use.&quot; (the MCP guide, once mcp.viralview.io is live; /developers until then)</td>
+<td>Clone ads from Claude</td>
+<td>Setup steps, one command</td>
+<td>Setup effort</td>
+<td>Set it up</td>
+</tr>
+</tbody></table></div>
+<p>Only <code>/compare</code> is new; the other four reuse live pages. <code>/compare</code> is row GA 0.3.</p>
+<h2>Stage 8: Video ads (parked)</h2>
+<p>Parked: the budget is search ads only, so no video ads are made or run. These concepts wait until YouTube is added.</p>
+<p>The post uses Higgsfield for this stage. Viral View makes UGC video ads itself, so every ad below is made in Viral View, and the ad&#39;s own spend panel number goes on screen. That is the proof no rival can copy: the ad is the demo. Each ad costs a few dollars of AI generation on Jon&#39;s provider account, so none is made until Jon says go.</p>
+<p><strong>9-shot YouTube ad: &quot;The ad is the demo&quot;</strong> (30 s, 9:16 for Shorts plus a 16:9 cut, UGC style with screen recordings)</p>
+<div class="table"><table>
+<thead>
+<tr>
+<th>#</th>
+<th>Time</th>
+<th>Scene</th>
+<th>Voiceover</th>
+<th>On-screen text</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>1</td>
+<td>0–2 s</td>
+<td>AI creator, selfie, in a car, holding a phone.</td>
+<td>&quot;Creators charge two hundred dollars and up for one ad.&quot;</td>
+<td>$200+ per ad</td>
+</tr>
+<tr>
+<td>2</td>
+<td>2–5 s</td>
+<td>Phone screen: a proven ad from the Viral View library, &quot;Active for 90 days&quot;.</td>
+<td>&quot;Meanwhile this ad has run for three months. That means it sells.&quot;</td>
+<td>Running 90+ days = it works</td>
+</tr>
+<tr>
+<td>3</td>
+<td>5–8 s</td>
+<td>Screen: product link pasted into Viral View.</td>
+<td>&quot;So I pasted my product link into Viral View.&quot;</td>
+<td>1. Paste your product link</td>
+</tr>
+<tr>
+<td>4</td>
+<td>8–11 s</td>
+<td>Screen: ranked library ads, one picked.</td>
+<td>&quot;It found proven ads for my product. I picked one.&quot;</td>
+<td>2,945 proven ads</td>
+</tr>
+<tr>
+<td>5</td>
+<td>11–14 s</td>
+<td>Screen: source script and new script side by side.</td>
+<td>&quot;Same hook, same pacing. Every line rewritten for my product.&quot;</td>
+<td>Same structure. Your script.</td>
+</tr>
+<tr>
+<td>6</td>
+<td>14–18 s</td>
+<td>Screen: three AI creators, then a still for each scene.</td>
+<td>&quot;I picked a creator and checked every scene before paying for video.&quot;</td>
+<td>See every scene before you pay</td>
+</tr>
+<tr>
+<td>7</td>
+<td>18–22 s</td>
+<td>The finished ad plays full screen.</td>
+<td>&quot;Fourteen minutes later, this.&quot;</td>
+<td>14 minutes</td>
+</tr>
+<tr>
+<td>8</td>
+<td>22–26 s</td>
+<td>Spend panel from this project.</td>
+<td>&quot;The AI cost [the number on screen].&quot;</td>
+<td>Real number from the spend panel</td>
+</tr>
+<tr>
+<td>9</td>
+<td>26–30 s</td>
+<td>Back to the creator, who waves. End card.</td>
+<td>&quot;Oh, and I&#39;m AI too. This ad was made in Viral View.&quot;</td>
+<td>Start your first ad · 7-day refund · viralview.io</td>
+</tr>
+</tbody></table></div>
+<p>Shot 8 must show this ad&#39;s real spend, not the $1.70 demo figure. Shot 1 uses the same sourced creator rate as the search ads ($200+ a video, Stages 1 and 2). A small &quot;AI creator&quot; label stays on screen from shot 1: New York now requires ads to disclose AI performers, and the creator must never pose as a real customer.</p>
+<p><strong>Five more concepts from the strongest pain points</strong> (Stage 1)</p>
+<div class="table"><table>
+<thead>
+<tr>
+<th>#</th>
+<th>Hook (first 2 s)</th>
+<th>Visual idea</th>
+<th>Script, in short</th>
+<th>Image prompt</th>
+<th>Animation prompt</th>
+<th>CTA</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>1</td>
+<td>&quot;Our winning ads die after 7-10 days.&quot;</td>
+<td>A winning ad fades to grey on a phone, then ten fresh versions fan out.</td>
+<td>Winners wear out. Clone the same winner into new hooks, creators and scenes in an afternoon.</td>
+<td>Phone showing an ad-results screen with a falling line, desk, soft daylight, 9:16</td>
+<td>The line drops, the screen swipes, ten ad tiles fan out from it</td>
+<td>Clone your winner</td>
+</tr>
+<tr>
+<td>2</td>
+<td>&quot;You&#39;re renting your credits.&quot;</td>
+<td>A meter labelled &quot;credits&quot; drains as the month ends; a receipt reads &quot;AI cost $1.70&quot;.</td>
+<td>Credit plans expire and hide the real cost. Viral View has no credits; you pay the AI at cost.</td>
+<td>Glass jar of tokens on a desk with a calendar showing the 30th, 9:16</td>
+<td>Tokens vanish from the jar as the calendar flips</td>
+<td>See the real cost</td>
+</tr>
+<tr>
+<td>3</td>
+<td>&quot;Creators take two weeks. This took 14 minutes.&quot;</td>
+<td>Split screen: a shipping box and a calendar vs a screen recording.</td>
+<td>No samples, no briefs, no chasing. Paste a link, get the ad.</td>
+<td>Parcel with a courier label next to a wall calendar, flat lay, 9:16</td>
+<td>Calendar pages rip away on the left while the right side renders an ad</td>
+<td>Make my first ad</td>
+</tr>
+<tr>
+<td>4</td>
+<td>&quot;Can you tell she&#39;s AI?&quot;</td>
+<td>The AI-reveal format from the home page: a normal UGC clip, then the reveal.</td>
+<td>Show the ad first, reveal it was made in Viral View, show the spend panel.</td>
+<td>(none; uses a real export)</td>
+<td>(none; real export)</td>
+<td>Make ads like these</td>
+</tr>
+<tr>
+<td>5</td>
+<td>&quot;Weak scene? Redo just that one.&quot;</td>
+<td>An ad of three scenes; one flips red, is redone, and the ad plays through.</td>
+<td>Check a still of every scene before paying for video. Redo one scene, keep the rest.</td>
+<td>Three phone-frame stills side by side, the middle one marked, 9:16</td>
+<td>The marked still spins and is replaced, then all three play</td>
+<td>Try it on your product</td>
+</tr>
+</tbody></table></div>
+<p>Concepts 1, 3 and 5 are screen recordings plus Viral View exports, which need no outside image tool. Concept 2 needs one generated still. Nothing here uses a rival&#39;s name or a real person&#39;s likeness.</p>
+<h2>Stage 9: Daily check</h2>
+<p>Runs every morning once the account is live and tracking works. It compares the last 7 days with the 7 before, per campaign: spend, sales, revenue, return on spend, cost per sale, cost per click, click rate, share of searches shown, searches lost to low rank, searches lost to budget, and the top search terms.</p>
+<p>It flags: return on spend down 20% or more; cost per sale up 20% or more; winners held back by budget; campaigns losing searches to rank; our brand name showing up in non-brand campaigns; search terms that spent money with no sale; ad groups spending with no sale.</p>
+<p>Then it writes an action list: campaign, issue, evidence, change, risk, expected effect. It never changes budgets or bids on its own. Jon approves each change.</p>
+<p><strong>How it gets the data:</strong> simplest first. (1) Google Ads can email a scheduled report every morning; a scheduled Claude task reads it and writes the action list. (2) Later, the app&#39;s own daily spend import (<code>lib/ad-spend.ts</code>) feeds /track once the fixes below ship.</p>
+<h2>Stage 10: Weekly scaling</h2>
+<p>Every Monday, compare 7, 14 and 30-day windows. Raise a budget 15 to 20% only when the result is good in all three windows. Hold when windows disagree. Lower or pause when all three are bad. Nothing scales on one good week.</p>
+<p><strong>First testing roadmap (week 3, once phase 1 has data)</strong>, ranked by expected effect then effort:</p>
+<div class="table"><table>
+<thead>
+<tr>
+<th>#</th>
+<th>Test</th>
+<th>Type</th>
+<th>Effect</th>
+<th>Effort</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>1</td>
+<td>Competitor searches land on the comparison page vs the home page</td>
+<td>Landing page</td>
+<td>High</td>
+<td>Low</td>
+</tr>
+<tr>
+<td>2</td>
+<td>&quot;Clone winning ads&quot; message vs &quot;AI UGC ad generator&quot; message in the AI UGC ads</td>
+<td>Creative</td>
+<td>High</td>
+<td>Low</td>
+</tr>
+<tr>
+<td>3</td>
+<td>Exact match vs phrase match on the top 20 AI UGC keywords</td>
+<td>Keyword</td>
+<td>Medium</td>
+<td>Low</td>
+</tr>
+<tr>
+<td>4</td>
+<td>&quot;free trial&quot; searches with the 7-day refund headline</td>
+<td>Keyword</td>
+<td>Medium</td>
+<td>Low</td>
+</tr>
+<tr>
+<td>5</td>
+<td>Proof-heavy ad vs problem ad on &quot;ai ugc ad generator&quot; (both already built)</td>
+<td>Creative</td>
+<td>Medium</td>
+<td>None</td>
+</tr>
+<tr>
+<td>6</td>
+<td>Yearly price first vs monthly price first on the landing page</td>
+<td>Landing page</td>
+<td>Medium</td>
+<td>Low</td>
+</tr>
+<tr>
+<td>7</td>
+<td>&quot;Stop Renting Credits&quot; vs &quot;Looking for an Alternative?&quot; as the pinned headline on rival searches</td>
+<td>Creative</td>
+<td>Medium</td>
+<td>Low</td>
+</tr>
+<tr>
+<td>8</td>
+<td>AI Agent campaign to /developers (the MCP guide once it is live)</td>
+<td>Keyword</td>
+<td>Low</td>
+<td>Low</td>
+</tr>
+<tr>
+<td>9</td>
+<td>Split the competitor campaign into one campaign per rival</td>
+<td>Structure</td>
+<td>Low</td>
+<td>Low</td>
+</tr>
+<tr>
+<td>10</td>
+<td>Guided first ad before the provider-account step</td>
+<td>Offer</td>
+<td>High</td>
+<td>High</td>
+</tr>
+<tr>
+<td>11</td>
+<td>&quot;First ad free on us&quot; offer vs 7-day refund</td>
+<td>Offer</td>
+<td>High</td>
+<td>High</td>
+</tr>
+</tbody></table></div>
+<p>Rows 10 and 11 replace the post&#39;s two Shopping-feed tests, which do not apply.</p>
+<h2>Tracking fixes needed before launch (row GA 0.2)</h2>
+<p>The app already sends Google purchases back (<code>lib/conversions.ts</code>) and imports Google spend daily (<code>lib/ad-spend.ts</code>), but neither can work as written:</p>
+<ol>
+<li><strong>Both use a fixed Google login token.</strong> Google&#39;s tokens expire after one hour, so both stop working an hour after the secret is set. They need to swap a long-lived refresh token for a fresh one each time.</li>
+<li><strong>Both call retired Google Ads API versions</strong> (v17 and v18). Google turns off each version after about a year; every call to them now fails. The current version is v25.</li>
+<li><strong>The spend import sends no developer token</strong>, which Google requires on every call.</li>
+</ol>
+<p>The site-wide Google Ads tag is already live (#2324). Still missing: a &quot;Begin checkout&quot; conversion in the Google Ads account, fired as a tag event on the checkout buttons (they already carry <code>data-vv-pricing-source</code>), and purchase uploads, which come with the fix above.</p>
+<h2>Import steps (Google Ads Editor)</h2>
+<ol>
+<li>Install Google Ads Editor and sign in to the account.</li>
+<li>Import the six files in <code>generated/</code> in order (campaigns, locations, ad groups, keywords, negatives, ads) using Account &gt; Import &gt; From file. Editor shows every change before anything is sent.</li>
+<li>Set the account tracking template to <code>{lpurl}?utm_source=google&amp;utm_medium=cpc&amp;utm_campaign={campaignid}&amp;utm_term={keyword}</code>. Leave auto-tagging on.</li>
+<li>Post the changes. Campaigns stay Paused until Jon turns them on. Turn on the five phase 1 campaigns (Brand, Competitors, AI UGC Ads, Clone Winning Ads, Replace UGC Creators), $500 a day together. AI Agent waits for phase 2.</li>
+</ol>
+<p>To change keywords or ads, edit <code>build.mjs</code> and run <code>node docs/marketing/google-ads/build.mjs</code>. It refuses to write files if any headline is over 30 characters, any description over 90, any rival&#39;s name appears in ad text, or a keyword is blocked by its own campaign&#39;s negatives.</p>
+</main></body></html>
