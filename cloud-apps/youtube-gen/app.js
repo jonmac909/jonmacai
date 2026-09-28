@@ -3225,7 +3225,7 @@ async function generateKieAssetsForLatestPackage(targets = null) {
     events: [],
   };
   state.channelError = "";
-  state.channelStatus = `Generating ${targetLabel} with Nano Banana Pro...`;
+  state.channelStatus = `Generating ${targetLabel} with GPT Image 2.5...`;
   update();
 
   let lastError = "";
