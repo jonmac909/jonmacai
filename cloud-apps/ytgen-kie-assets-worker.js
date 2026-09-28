@@ -152,19 +152,45 @@ async function usableSourceUrl(packageData) {
 }
 
 
-function defaultPrompt(packageData, index) {
-  const source = packageData.sourceVideos?.[0];
-  const title = text(packageData.titles?.[index - 1] || packageData.titles?.[0] || source?.title, "AI video workflow");
-  const angle = text(packageData.topicAngle || packageData.recommendedStyle, "AI video production workflow");
-  return `Create a 16:9 YouTube thumbnail for Jon Mac. Use the source outlier thumbnail as the layout reference and preserve the broad composition. Video title: ${title}. Angle: ${angle}. High contrast, clean YouTube packaging, no fake UI text unless it is part of the thumbnail concept.`;
+function conflictsWithImageMap(prompt) {
+  return /image\s+1\s+is\s+the\s+layout\s+lock/i.test(prompt)
+    || /image\s+1\s+is\s+the\s+source\s+thumbnail/i.test(prompt)
+    || /reverse\s+engineer\s+image\s+1/i.test(prompt)
+    || /swap\s+the\s+visible\s+presenter\/person\s+in\s+image\s+1/i.test(prompt)
+    || /using\s+images\s+2-4\s+as\s+identity\s+references/i.test(prompt)
+    || /reverse engineer the source thumbnail image into a production-ready/i.test(prompt);
+}
+
+function hasMatchingImageMap(prompt) {
+  return /image\s+1\s+is\s+the\s+primary\s+jon\s+mac\s+identity\s+reference/i.test(prompt)
+    && /image\s+2\s+is\s+the\s+source\s+thumbnail/i.test(prompt);
+}
+
+function identityLockPrompt(packageData, index) {
+  const source = packageData.sourceVideos?.[0] || {};
+  const title = text(packageData.titles?.[index - 1] || packageData.titles?.[0] || source.title, "source thumbnail");
+  return [
+    "Render one finished 16:9 YouTube thumbnail. Do not output a prompt, description, mockup, or explanation.",
+    `Prompt protocol: ${PROTOCOL}.`,
+    `Option ${index}.`,
+    "Image map for generation: image 1 is the primary Jon Mac identity reference. Image 2 is the source thumbnail and layout lock. Images 3-4 are secondary Jon Mac identity references.",
+    "Identity replacement is required, not optional. Preserve Jon Mac facial identity from image 1. Use image 2 only for composition, crop, pose, and text placement.",
+    "Do not inherit face identity, brow shape, beard style, hairline, age, or facial likeness from image 2 or the source presenter.",
+    "If identity and layout conflict, keep Jon Mac's face from image 1 and loosen layout second. One visible presenter only, and that presenter must be Jon Mac.",
+    `Source thumbnail topic to preserve structurally: ${title}.`,
+  ].join(" ");
 }
 
 function buildPrompt(packageData, index, overrides = {}) {
   const override = text(overrides[String(index)]);
-  if (override) return override;
   const stored = text(packageData.thumbnailPrompts?.[index - 1]);
-  if (stored) return stored;
-  return defaultPrompt(packageData, index);
+  const candidate = override || stored;
+  if (candidate && hasMatchingImageMap(candidate) && !conflictsWithImageMap(candidate)) return candidate;
+  const base = identityLockPrompt(packageData, index);
+  if (override && !conflictsWithImageMap(override) && !hasMatchingImageMap(override)) {
+    return `${base} Requested change: ${override}`;
+  }
+  return base;
 }
 
 async function kie(path, apiKey, init = {}) {
@@ -267,26 +293,68 @@ async function persistImages(env, request, urls, taskId, index) {
   return saved;
 }
 
-async function generateOne(env, request, apiKey, packageData, index, overrides, onProgress) {
-  const prompt = buildPrompt(packageData, index, overrides);
-  onProgress({ status: "progress", percent: 4, step: "Submitting to Nano Banana Pro", detail: `Thumbnail ${index} queued.` });
-  const sourceUrl = await usableSourceUrl(packageData) || sourceThumb(packageData);
-  const taskId = await createTask(request, apiKey, prompt, sourceUrl);
-  onProgress({ status: "progress", percent: 12, step: "Nano Banana Pro task queued", detail: `Task ${taskId}` });
-  const urls = await waitForTask(apiKey, taskId, (percent, detail) => {
-    onProgress({ status: "progress", percent, step: "Generating thumbnail", detail });
+function optionEvent(event, index) {
+  return {
+    ...event,
+    status: "progress",
+    optionIndex: index,
+    detail: `${text(event.detail)} Option ${index}.`.trim(),
+  };
+}
+
+async function submitOne(request, apiKey, prompt, sourceUrl, index, onProgress) {
+  onProgress({
+    status: "progress",
+    percent: 4,
+    step: "Submitting to Nano Banana Pro",
+    detail: `Thumbnail ${index} queued.`,
+    optionIndex: index,
+    optionStatus: "submitting",
   });
-  const saved = await persistImages(env, request, urls, taskId, index);
+  const taskId = await createTask(request, apiKey, prompt, sourceUrl);
+  onProgress({
+    status: "progress",
+    percent: 12,
+    step: "Nano Banana Pro task queued",
+    detail: `Task ${taskId}`,
+    optionIndex: index,
+    optionStatus: "submitted",
+    taskId,
+  });
+  return { index, prompt, taskId };
+}
+
+async function finishOne(env, request, apiKey, job, onProgress) {
+  const urls = await waitForTask(apiKey, job.taskId, (percent, detail) => {
+    onProgress({
+      status: "progress",
+      percent,
+      step: "Generating thumbnail",
+      detail,
+      optionIndex: job.index,
+      optionStatus: "waiting",
+      taskId: job.taskId,
+    });
+  });
+  const saved = await persistImages(env, request, urls, job.taskId, job.index);
   const asset = {
     type: "thumbnail",
-    index,
-    prompt,
+    index: job.index,
+    prompt: job.prompt,
     urls: saved,
-    taskId,
-    filename: `youtube-gen-thumbnail-${index}.png`,
+    taskId: job.taskId,
+    filename: `youtube-gen-thumbnail-${job.index}.png`,
     promptVersion: PROMPT_VERSION,
   };
-  onProgress({ status: "progress", percent: 100, step: "Thumbnail ready", detail: `Thumbnail ${index} generated.`, asset });
+  onProgress({
+    status: "progress",
+    percent: 100,
+    step: "Thumbnail ready",
+    detail: `Thumbnail ${job.index} generated.`,
+    asset,
+    optionIndex: job.index,
+    optionStatus: "ready",
+  });
   return asset;
 }
 
@@ -346,18 +414,41 @@ export default {
             detail: `Preparing ${indexes.length} thumbnail${indexes.length === 1 ? "" : "s"}.`,
             assets,
           });
-          await Promise.all(indexes.map((index, offset) => (async () => {
+          const sourceUrl = await usableSourceUrl(packageData) || sourceThumb(packageData);
+          const overrides = body.promptOverrides || {};
+          const jobs = await Promise.all(indexes.map(async (index) => {
             try {
-              const asset = await generateOne(env, request, apiKey, packageData, index, body.promptOverrides || {}, (event) => {
-                const percent = Number(event.percent || 0);
-                const mapped = 12 + Math.round((offset + Math.max(0, Math.min(100, percent)) / 100) / indexes.length * 82);
-                enqueue(controller, {
-                  ...event,
-                  status: "progress",
-                  percent: Math.min(99, mapped),
-                  step: `${text(event.step, "Generating thumbnail")} ${offset + 1} of ${indexes.length}`,
-                  detail: `${text(event.detail)} Option ${index}.`.trim(),
-                });
+              const prompt = buildPrompt(packageData, index, overrides);
+              return await submitOne(request, apiKey, prompt, sourceUrl, index, (event) => {
+                enqueue(controller, optionEvent(event, index));
+              });
+            } catch (error) {
+              const message = error instanceof Error ? error.message : "Kie image generation failed.";
+              warnings.push(`Option ${index}: ${message}`);
+              enqueue(controller, {
+                status: "progress",
+                percent: 12,
+                step: "Thumbnail not submitted",
+                detail: `Option ${index}: ${message}`,
+                optionIndex: index,
+                optionStatus: "error",
+                error: message,
+                assets,
+              });
+              return null;
+            }
+          }));
+          enqueue(controller, {
+            status: "progress",
+            percent: 15,
+            step: "All thumbnails submitted",
+            detail: `Queued ${jobs.filter(Boolean).length} of ${indexes.length} Nano Banana Pro jobs.`,
+            assets,
+          });
+          await Promise.all(jobs.filter(Boolean).map(async (job) => {
+            try {
+              const asset = await finishOne(env, request, apiKey, job, (event) => {
+                enqueue(controller, optionEvent(event, job.index));
               });
               assets.thumbnails.push(asset);
               assets.thumbnails.sort((a, b) => Number(a.index || 0) - Number(b.index || 0));
@@ -365,22 +456,27 @@ export default {
                 status: "progress",
                 percent: Math.min(99, 18 + Math.round(assets.thumbnails.length / indexes.length * 78)),
                 step: "Saved thumbnail",
-                detail: `Thumbnail ${index} saved.`,
+                detail: `Thumbnail ${job.index} saved.`,
+                optionIndex: job.index,
+                optionStatus: "ready",
                 asset,
                 assets,
               });
             } catch (error) {
               const message = error instanceof Error ? error.message : "Kie image generation failed.";
-              warnings.push(`Option ${index}: ${message}`);
+              warnings.push(`Option ${job.index}: ${message}`);
               enqueue(controller, {
                 status: "progress",
-                percent: Math.min(99, 18 + Math.round((offset + 1) / indexes.length * 78)),
+                percent: Math.min(99, 18 + Math.round((assets.thumbnails.length + 1) / indexes.length * 78)),
                 step: "Thumbnail not saved",
-                detail: `Option ${index}: ${message}`,
+                detail: `Option ${job.index}: ${message}`,
+                optionIndex: job.index,
+                optionStatus: "error",
+                error: message,
                 assets,
               });
             }
-          })()));
+          }));
           if (!assets.thumbnails.length) throw new Error(warnings[0] || "Kie image generation failed.");
           enqueue(controller, {
             status: "complete",
