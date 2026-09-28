@@ -200,9 +200,16 @@ test("legacy Image-1-layout-lock prompt cannot ship against identity-first image
     targets: { thumbnails: [4] },
   });
   assert.equal(log.payloads.length, 1);
-  const input = log.payloads[0].input;
+  const body = log.payloads[0];
+  const input = body.input;
   const prompt = String(input.prompt || "");
-  const images = (input.image_input || []).map(unwrapSrc);
+  assert.equal(body.model, "gpt-image-2-5-flare-image-to-image");
+  assert.equal(Object.hasOwn(input, "image_input"), false);
+  assert.equal(body.model.includes("nano"), false);
+  const images = (input.input_urls || []).map(unwrapSrc);
+  assert.equal(input.aspect_ratio, "16:9");
+  assert.equal(input.resolution, "1K");
+  assert.equal(input.background, "opaque");
   assert.match(images[0], /jon-mac-profile-local/);
   assert.match(images[1], /_bC_-BW0Z5A/);
   assert.match(images[2], /jon-mac-profile\.png/);

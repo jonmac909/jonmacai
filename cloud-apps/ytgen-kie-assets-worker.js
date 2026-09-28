@@ -1,4 +1,4 @@
-const MODEL = "nano-banana-pro";
+const MODEL = "gpt-image-2-5-flare-image-to-image";
 const PROMPT_VERSION = "source-layout-lock-v6";
 const PROTOCOL = "thumbnail-identity-lock-v6";
 const JON_REFS = [
@@ -216,7 +216,7 @@ async function kie(path, apiKey, init = {}) {
 async function createTask(request, apiKey, prompt, sourceImageUrl) {
   const source = firstHttpUrl(sourceImageUrl);
   if (!source) throw new Error("Kie needs a public source thumbnail URL before it can generate this thumbnail.");
-  const imageInput = [
+  const inputUrls = [
     proxyUrl(request, JON_REFS[0]),
     proxyUrl(request, source),
     ...JON_REFS.slice(1).map((url) => proxyUrl(request, url)),
@@ -227,10 +227,10 @@ async function createTask(request, apiKey, prompt, sourceImageUrl) {
       model: MODEL,
       input: {
         prompt,
-        image_input: imageInput,
+        input_urls: inputUrls,
         aspect_ratio: "16:9",
         resolution: "1K",
-        output_format: "png",
+        background: "opaque",
       },
     }),
   });
@@ -306,7 +306,7 @@ async function submitOne(request, apiKey, prompt, sourceUrl, index, onProgress) 
   onProgress({
     status: "progress",
     percent: 4,
-    step: "Submitting to Nano Banana Pro",
+    step: "Submitting to GPT Image 2.5",
     detail: `Thumbnail ${index} queued.`,
     optionIndex: index,
     optionStatus: "submitting",
@@ -315,7 +315,7 @@ async function submitOne(request, apiKey, prompt, sourceUrl, index, onProgress) 
   onProgress({
     status: "progress",
     percent: 12,
-    step: "Nano Banana Pro task queued",
+    step: "GPT Image 2.5 task queued",
     detail: `Task ${taskId}`,
     optionIndex: index,
     optionStatus: "submitted",
@@ -410,7 +410,7 @@ export default {
           enqueue(controller, {
             status: "progress",
             percent: 1,
-            step: "Starting Nano Banana Pro",
+            step: "Starting GPT Image 2.5",
             detail: `Preparing ${indexes.length} thumbnail${indexes.length === 1 ? "" : "s"}.`,
             assets,
           });
@@ -442,7 +442,7 @@ export default {
             status: "progress",
             percent: 15,
             step: "All thumbnails submitted",
-            detail: `Queued ${jobs.filter(Boolean).length} of ${indexes.length} Nano Banana Pro jobs.`,
+            detail: `Queued ${jobs.filter(Boolean).length} of ${indexes.length} GPT Image 2.5 jobs.`,
             assets,
           });
           await Promise.all(jobs.filter(Boolean).map(async (job) => {
