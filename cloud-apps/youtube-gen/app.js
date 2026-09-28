@@ -2282,27 +2282,8 @@ function repairActivePackageTitleOptions() {
 }
 
 function thumbnailPromptsFromScratch(source, titles = []) {
-  const title = source?.title || titles[0] || "custom YouTube project";
-  const thumbnail = source?.thumbnail || maxresThumbnailUrl(source?.id);
-  const layoutReference = thumbnail
-    ? `Imported source thumbnail reference: ${thumbnail}.`
-    : "Use the imported source thumbnail as the visual reference once one is added.";
-  const base = [
-    "Reverse engineer the source thumbnail image into a production-ready YouTube thumbnail prompt, then render that thumbnail for Jon Mac.",
-    layoutReference,
-    "Image 1 is the layout lock. Recreate the same composition, crop, subject placement, text-block locations, icon/logo areas, background style, and visual hierarchy.",
-    "Swap any visible presenter/person with Jon Mac from the reference images while keeping the same pose, scale, crop, and lighting. If the source has no presenter, do not add one.",
-    "Replace source logos, product names, and headline text only inside matching existing areas. Do not add new panels, arrows, people, mockups, grids, or portrait-only framing.",
-    `Source thumbnail topic: ${title}.`,
-    "Use short clean text only. Keep words spelled correctly and separated by spaces. If clean text is hard, use fewer words.",
-  ].join(" ");
-  return [
-    `${base} Option 1 should stay closest to the source layout. Keep all major blocks in the same positions.`,
-    `${base} Option 2 should keep the exact same layout and only adjust the top text or icon treatment.`,
-    `${base} Option 3 should keep the exact same layout and only adjust the presenter expression if the source uses a person. No portrait-only output.`,
-    `${base} Option 4 should keep the exact same layout and only adjust contrast or color intensity. No new text structure.`,
-    `${base} Option 5 should keep the exact same layout and only make the spacing cleaner. Do not remove the source text-block structure.`,
-  ];
+  const packageData = { sourceVideos: [source], titles };
+  return [1, 2, 3, 4, 5].map((index) => writerStyleThumbnailPrompt(packageData, index));
 }
 
 function createScratchPackage({ projectName = "", script = "", youtubeUrl = "", metadata = null } = {}) {
@@ -2666,11 +2647,22 @@ function updateIdeaProgress(event) {
 
 function updateAssetProgress(event) {
   updateProgressState("assetProgress", event);
+  if (event.asset?.type === "thumbnail" && hasDisplayableAssetUrl(event.asset)) {
+    saveAssetsToCurrentPackage({ thumbnails: [event.asset] });
+  }
 }
 
 function updateProgressState(key, event) {
   const previous = state[key] || { events: [] };
   const percent = Number.isFinite(Number(event.percent)) ? Math.max(0, Math.min(100, Number(event.percent))) : previous.percent || 0;
+  const optionErrors = { ...(previous.optionErrors || {}) };
+  const optionIndex = Number(event.optionIndex || 0);
+  if (optionIndex && event.optionStatus === "error") {
+    optionErrors[optionIndex] = event.detail || event.error || "Thumbnail generation failed.";
+  }
+  if (optionIndex && (event.optionStatus === "ready" || event.optionStatus === "submitted")) {
+    delete optionErrors[optionIndex];
+  }
   const entry = {
     percent,
     step: event.step || event.status || previous.step || "Working",
@@ -2685,6 +2677,7 @@ function updateProgressState(key, event) {
   state[key] = {
     ...entry,
     partialAssets,
+    optionErrors,
     events: [entry, ...(previous.events || [])].slice(0, 12),
   };
 }
@@ -3015,13 +3008,22 @@ function isLegacyThumbnailPrompt(value) {
   ) {
     return true;
   }
-  return /image\s+1\s+is\s+the\s+source\s+thumbnail|swap\s+the\s+visible\s+presenter\/person\s+in\s+image\s+1|using\s+images\s+2-4\s+as\s+identity\s+references|reverse\s+engineer\s+image\s+1/i.test(text);
+  return /image\s+1\s+is\s+the\s+(?:source\s+thumbnail|layout\s+lock)|swap\s+the\s+visible\s+presenter\/person\s+in\s+image\s+1|using\s+images\s+2-4\s+as\s+identity\s+references|reverse\s+engineer\s+image\s+1|reverse engineer the source thumbnail image into a production-ready/i.test(text);
 }
 
 function editableThumbnailPrompt(packageData, index) {
   const edits = thumbnailPromptEdits(packageData);
   const edited = edits[String(index)];
   return edited && !isLegacyThumbnailPrompt(edited) ? edited : writerStyleThumbnailPrompt(packageData, index);
+}
+
+function promptOverridesForTargets(packageData, targets) {
+  const overrides = {};
+  for (const index of targets?.thumbnails || []) {
+    const prompt = editableThumbnailPrompt(packageData, index);
+    if (prompt) overrides[String(index)] = prompt;
+  }
+  return overrides;
 }
 
 function thumbnailPromptReady(index) {
@@ -3210,6 +3212,7 @@ async function generateKieAssetsForLatestPackage(targets = null) {
         ? `${targets.thumbnails.length} thumbnails`
         : "thumbnails and visual hooks";
 
+  const runId = (state.assetGenerationRunId = (state.assetGenerationRunId || 0) + 1);
   state.assetGenerationLoading = true;
   state.assetGenerationTarget = targets;
   state.assetProgress = {
@@ -3218,6 +3221,7 @@ async function generateKieAssetsForLatestPackage(targets = null) {
     detail: `Preparing ${targetLabel}.`,
     status: "progress",
     partialAssets: { references: [], thumbnails: [], visualHooks: [] },
+    optionErrors: {},
     events: [],
   };
   state.channelError = "";
@@ -3239,14 +3243,17 @@ async function generateKieAssetsForLatestPackage(targets = null) {
             package: latestPackage,
             targets,
             existingAssets: latestPackage.assets || {},
-            promptOverrides: thumbnailPromptEdits(latestPackage),
+            promptOverrides: promptOverridesForTargets(latestPackage, targets),
           }),
         });
         if (!response.ok) {
           const data = await response.json().catch(() => ({}));
           throw new Error(data.error || `Kie generation failed with ${response.status}`);
         }
-        const assets = await readProgressStream(response, updateAssetProgress, "assets");
+        const assets = await readProgressStream(response, (event) => {
+          if (runId !== state.assetGenerationRunId) return;
+          updateAssetProgress(event);
+        }, "assets");
         saveAssetsToCurrentPackage(assets);
         if (!assetsSatisfyTargets(assets, targets)) {
           const partialCount = assetResultCount(assets);
@@ -5197,7 +5204,11 @@ function isGeneratingAsset(kind, index = null) {
   if (!state.assetGenerationLoading) return false;
   const target = state.assetGenerationTarget;
   if (!target) return kind === "all";
-  if (kind === "thumbnail") return (target.thumbnails || []).includes(index);
+  if (kind === "thumbnail") {
+    if (!(target.thumbnails || []).includes(index)) return false;
+    const merged = mergePackageAssets(latestPackage()?.assets || {}, state.assetProgress?.partialAssets || {});
+    return !assetByIndex(merged, "thumbnails", index);
+  }
   if (kind === "thumbnail-all") return (target.thumbnails || []).length > 1 && !(target.visualHooks || []).length;
   if (kind === "visualHook") return (target.visualHooks || []).includes(index);
   if (kind === "visual-all") return (target.visualHooks || []).length > 1 && !(target.thumbnails || []).length;
@@ -5266,7 +5277,7 @@ function renderPackageStepper(packageData) {
 function renderPackageWorkspace(packageData, sourceRows) {
   const allowedSteps = new Set(PACKAGE_STEPS.map(([key]) => key));
   const step = allowedSteps.has(state.packageStep) ? state.packageStep : "titles";
-  const assets = packageData?.assets || {};
+  const assets = mergePackageAssets(packageData?.assets || {}, step === "thumbnails" ? (state.assetProgress?.partialAssets || {}) : {});
   if (step === "source") {
     const sourceChoices = autoSelectedRemakeRows();
     const packageSources = sourceRowsForPackage(packageData);
@@ -5390,9 +5401,10 @@ function renderPackageWorkspace(packageData, sourceRows) {
               const asset = assetByIndex(assets, "thumbnails", optionIndex);
               const url = assetImageUrl(asset);
               const isGeneratingThis = isGeneratingAsset("thumbnail", optionIndex);
+              const optionError = state.assetProgress?.optionErrors?.[optionIndex];
               return `
                 <article class="generated-thumb ${optionIndex === selectedIndex ? "active" : ""} ${isGeneratingThis ? "generating" : ""}" data-select-thumb-prompt="${optionIndex}">
-                  ${url ? `<img src="${url}" alt="Generated thumbnail ${optionIndex}" loading="lazy" />` : `<div class="thumb-placeholder"><span>${isGeneratingThis ? `Generating option ${optionIndex}` : `Option ${optionIndex}`}</span></div>`}
+                  ${url ? `<img src="${url}" alt="Generated thumbnail ${optionIndex}" loading="lazy" />` : `<div class="thumb-placeholder"><span>${optionError ? escapeHtml(String(optionError).slice(0, 140)) : isGeneratingThis ? `Generating option ${optionIndex}` : `Option ${optionIndex}`}</span></div>`}
                   <div class="generated-thumb-actions">
                     ${url ? `<button type="button" data-preview-asset="${escapeHtml(url)}" data-preview-filename="youtube-gen-thumbnail-${optionIndex}.png">Preview</button>` : `<button type="button" data-select-thumb-prompt="${optionIndex}">Select</button>`}
                     ${url ? `<button type="button" class="asset-download-link" data-download-asset="${escapeHtml(url)}" data-download-filename="youtube-gen-thumbnail-${optionIndex}.png">Download</button>` : ""}
