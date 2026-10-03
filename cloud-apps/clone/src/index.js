@@ -19,6 +19,9 @@ export default {
     if (url.pathname === "/clone/api/purchase" && request.method === "POST") {
       return handlePurchase(request, env);
     }
+    if (url.pathname === "/clone/api/checkout-session" && request.method === "POST") {
+      return handleCheckoutSession(env);
+    }
     let path = url.pathname.replace(/^\/clone/, "");
     if (path === "" || path === "/") path = "/index.html";
     const res = await env.ASSETS.fetch(new Request(new URL(path, url.origin), request));
@@ -107,6 +110,43 @@ If you hit any trouble checking out, just reply to this email.
     } catch {}
   }
   return json({ ok: true });
+}
+
+// Commas embedded checkout for the $47 seat. The session secret is seller-scoped and
+// reusable, so one per isolate every 30 minutes is plenty; the API key never leaves here.
+const COMMAS_CREATOR_ID = "viralview";
+const COMMAS_PRODUCT_ID = "nmGzE";
+const SESSION_TTL_MS = 30 * 60 * 1000;
+let cachedSession = null;
+
+async function handleCheckoutSession(env) {
+  if (!env.COMMAS_API_KEY) return json({ ok: false, error: "checkout not configured" }, 503);
+  if (!cachedSession || Date.now() - cachedSession.at > SESSION_TTL_MS) {
+    let secret = "";
+    try {
+      const res = await fetch("https://www.fanbasis.com/public-api/checkout-sessions/embedded", {
+        method: "POST",
+        headers: { "x-api-key": env.COMMAS_API_KEY, "content-type": "application/json" },
+        body: JSON.stringify({
+          creator_id: COMMAS_CREATOR_ID,
+          product_id: COMMAS_PRODUCT_ID,
+          metadata: { source: "jonmac.ai/clone" },
+        }),
+      });
+      const body = await res.json().catch(() => null);
+      if (res.ok) secret = String(body?.data?.checkout_session_secret || "");
+    } catch {}
+    if (!secret) return json({ ok: false, error: "checkout session failed" }, 502);
+    cachedSession = { secret, at: Date.now() };
+  }
+  return new Response(JSON.stringify({
+    ok: true,
+    creatorId: COMMAS_CREATOR_ID,
+    productId: COMMAS_PRODUCT_ID,
+    checkoutSessionSecret: cachedSession.secret,
+  }), {
+    headers: { "content-type": "application/json", "cache-control": "no-store" },
+  });
 }
 
 function json(body, status = 200) {

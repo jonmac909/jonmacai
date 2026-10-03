@@ -1,8 +1,8 @@
 {
   // jonmac.ai/clone — The Clone Method webinar funnel (lander, upsells, policies).
   // Mirrors the live jonmac-agency Worker settings as of version 58 (2026-09-07).
-  // Secrets (set with `wrangler secret put`, never committed): COMMAS_WEBHOOK_SECRET,
-  // RESEND_API_KEY, RESEND_AUDIENCE_ID.
+  // Secrets (set with `wrangler secret put`, never committed): COMMAS_API_KEY,
+  // COMMAS_WEBHOOK_SECRET, RESEND_API_KEY, RESEND_AUDIENCE_ID.
   "name": "jonmac-agency",
   "main": "src/index.js",
   "compatibility_date": "2026-08-01",

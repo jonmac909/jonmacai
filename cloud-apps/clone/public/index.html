@@ -817,7 +817,7 @@ a.presscite h3{text-decoration:underline;text-decoration-thickness:1px;text-unde
       <input type="text" id="lead_name" name="name" placeholder="Full Name..." autocomplete="name">
       <input type="email" id="lead_email" name="email" placeholder="Email Address..." autocomplete="email">
       <input type="tel" id="lead_phone" name="phone" placeholder="Phone Number..." autocomplete="tel">
-      <p class="lead-err" id="leaderr">Enter your name and a valid email to continue.</p>
+      <p class="lead-err" id="leaderr">Enter your name, a valid email and a phone number to continue.</p>
       <button type="submit" class="lead-go">Go To Step #2 &rarr;</button>
     </form>
     <p class="lead-priv">We Respect Your Privacy &amp; Information.</p>
@@ -827,14 +827,21 @@ a.presscite h3{text-decoration:underline;text-decoration-thickness:1px;text-unde
 <script>
 (function(){
   var lead=document.getElementById('lead'),form=document.getElementById('leadf'),
-      err=document.getElementById('leaderr'),dest='';
-  function done(){ try{return localStorage.getItem('jm_lead')==='1';}catch(e){return false;} }
+      err=document.getElementById('leaderr'),STEP2='/clone/checkout.html';
+  /* buyer details ride to step 2 in sessionStorage, never in the URL */
+  function saved(){ try{return !!sessionStorage.getItem('jm_checkout');}catch(e){return false;} }
+  /* E.164: keep a typed +country code, otherwise assume US/Canada (+1) */
+  function e164(raw){
+    var d=raw.replace(/\D/g,'');
+    if(/^\s*(\+|00)/.test(raw)){ if(raw.trim().indexOf('00')===0)d=d.slice(2); return /^[1-9]\d{7,14}$/.test(d)?'+'+d:''; }
+    if(d.length===11&&d[0]==='1')d=d.slice(1);
+    return /^[2-9]\d{2}[2-9]\d{6}$/.test(d)?'+1'+d:'';
+  }
   document.addEventListener('click',function(e){
     var a=e.target.closest&&e.target.closest('a');
     if(!a||!/commas\.com\/checkout/.test(a.href))return;
-    if(done())return;                      /* already captured: straight to checkout */
     e.preventDefault();
-    dest=a.href;
+    if(saved()){location.href=STEP2;return;}   /* already captured this visit: straight to step 2 */
     lead.classList.add('show');
     if(window.jmTrack)jmTrack('LeadFormOpen',{});
     setTimeout(function(){document.getElementById('lead_name').focus();},50);
@@ -846,14 +853,17 @@ a.presscite h3{text-decoration:underline;text-decoration-thickness:1px;text-unde
     e.preventDefault();
     var name=document.getElementById('lead_name').value.trim(),
         email=document.getElementById('lead_email').value.trim(),
-        phone=document.getElementById('lead_phone').value.trim();
-    if(!name||!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)){err.style.display='block';return;}
+        phone=e164(document.getElementById('lead_phone').value);
+    name=name.replace(/\s+/g,' ');
+    if(!name||!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)||!phone){err.style.display='block';return;}
     err.style.display='none';
+    var sp=name.indexOf(' ');
+    try{sessionStorage.setItem('jm_checkout',JSON.stringify({
+      first_name:sp<0?name:name.slice(0,sp),last_name:sp<0?'':name.slice(sp+1),email:email,phone:phone}));}catch(e){}
     var utm=null; try{utm=JSON.parse(sessionStorage.getItem('jm_attr')||'null');}catch(e){}
-    try{localStorage.setItem('jm_lead','1');}catch(e){}
     if(window.jmTrack)jmTrack('Lead',{});
     if(window.fbq)fbq('track','Lead');
-    var go=function(){location.href=dest||'https://commas.com/checkout/nmGzEY7RCWcGOKl';};
+    var go=function(){location.href=STEP2;};
     var t=setTimeout(go,900);              /* never hold the buyer hostage to the API */
     fetch('/clone/api/lead',{method:'POST',headers:{'content-type':'application/json'},
       body:JSON.stringify({name:name,email:email,phone:phone,utm:utm}),keepalive:true
