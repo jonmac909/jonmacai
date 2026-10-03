@@ -345,6 +345,14 @@ h1{font-size:clamp(40px,5.4vw,60px);line-height:1.08}
 .wall{display:grid;grid-template-columns:1fr 1fr;gap:14px}
 .wall img{width:100%;border-radius:12px;border:1px solid #E4E1DC;display:block}
 @media(max-width:700px){.wall{grid-template-columns:1fr}}
+
+/* CTA sizing from getclients.com/mdw: as wide as its text and centered, full width on phones.
+   fit-content + auto margins (not inline-flex) so it centers in every container. Colors unchanged. */
+.cta,.yes{display:flex;width:fit-content;max-width:100%;margin-left:auto;margin-right:auto;align-self:center;
+  gap:10px;padding:19px 46px;border-radius:12px;font-weight:800;
+  box-shadow:0 8px 30px rgba(11,92,246,.30);transition:transform .15s ease,box-shadow .15s ease}
+.cta:hover,.yes:hover{transform:translateY(-2px);box-shadow:0 11px 34px rgba(11,92,246,.34)}
+@media(max-width:720px){.cta,.yes{width:100%}}
 </style>
 
 <svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
