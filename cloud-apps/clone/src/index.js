@@ -22,6 +22,10 @@ export default {
     if (url.pathname === "/clone/api/checkout-session" && request.method === "POST") {
       return handleCheckoutSession(env);
     }
+    // The checkout now lives in the lander's popup; the old step-2 page sends people back there.
+    if (url.pathname === "/clone/checkout.html") {
+      return Response.redirect(url.origin + "/clone/" + url.search, 302);
+    }
     let path = url.pathname.replace(/^\/clone/, "");
     if (path === "" || path === "/") path = "/index.html";
     const res = await env.ASSETS.fetch(new Request(new URL(path, url.origin), request));

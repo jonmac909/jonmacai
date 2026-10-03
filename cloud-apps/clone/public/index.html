@@ -294,16 +294,47 @@ a.presscite h3{text-decoration:underline;text-decoration-thickness:1px;text-unde
   background:rgba(14,13,17,.82);border:1px solid rgba(255,255,255,.25);border-radius:999px;
   padding:9px 18px;white-space:nowrap}
 
-/* ---- lead capture modal (Dan-style 2-step) ---- */
-.lead{position:fixed;inset:0;z-index:80;display:none;align-items:center;justify-content:center;background:rgba(10,9,16,.62);padding:18px}
+/* ---- 2-step checkout modal (Dan-style tabs): step 1 contact, step 2 Commas checkout ---- */
+.lead{position:fixed;inset:0;z-index:80;display:none;overflow-y:auto;-webkit-overflow-scrolling:touch;background:rgba(10,9,16,.62);padding:28px 18px}
 .lead.show{display:flex}
-.lead-in{position:relative;background:#fff;border:3px solid var(--sig);border-radius:18px;width:min(680px,100%);padding:clamp(20px,3.5vw,34px);box-shadow:0 30px 80px rgba(0,0,0,.35)}
+.lead-in{position:relative;margin:auto;background:#fff;border:3px solid var(--sig);border-radius:18px;width:min(680px,100%);padding:clamp(20px,3.5vw,34px);box-shadow:0 30px 80px rgba(0,0,0,.35)}
 .lead-x{position:absolute;top:-16px;right:-16px;width:38px;height:38px;border-radius:50%;background:#111;color:#fff;border:3px solid #fff;font-size:19px;font-weight:800;cursor:pointer;line-height:1}
 .lead-steps{display:flex;justify-content:space-between;gap:12px;margin-bottom:6px}
 .lead-steps b{font-family:var(--util);font-size:clamp(17px,2vw,22px);color:var(--sig)}
 .lead-steps span{display:block;font-family:var(--util);font-weight:600;font-size:13px;color:#555}
-.lead-steps .off b{color:#0A0910}
-.lead-bar{height:6px;background:var(--sig);border-radius:3px;margin:0 0 18px;position:relative}
+.lead-steps>div:last-child{text-align:right}
+.lead[data-step="1"] .lead-steps .s2 b,.lead[data-step="2"] .lead-steps .s1 b{color:#0A0910}
+.lead-steps .s1 i{display:none;font-style:normal}
+.lead[data-step="2"] .lead-steps .s1 i{display:inline}
+.lead-bar{height:6px;background:var(--rule);border-radius:3px;margin:0 0 22px;position:relative}
+.lead-bar::before{content:"";position:absolute;left:0;top:0;bottom:0;width:50%;background:var(--sig);border-radius:3px;transition:width .25s}
+.lead-bar::after{content:"";position:absolute;top:6px;left:25%;transform:translateX(-50%);border:8px solid transparent;border-top-color:var(--sig);transition:left .25s}
+.lead[data-step="2"] .lead-bar::before{width:100%}
+.lead[data-step="2"] .lead-bar::after{left:75%}
+.lead-p2,.lead[data-step="2"] .lead-p1{display:none}
+.lead[data-step="2"] .lead-p2{display:block}
+.lead-pay{position:relative;min-height:240px}
+.lead-ck{height:840px}
+.lead-load{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-family:var(--util);font-weight:700;font-size:14px;color:var(--ink-3)}
+.lead-pay.ready .lead-load{display:none}
+.lead-sum{font-family:var(--util);font-size:15px;border:1px solid var(--rule);border-radius:10px;margin:14px 0}
+.lead-sum div{display:flex;justify-content:space-between;gap:12px;padding:10px 14px}
+.lead-sum .hd{font-weight:800;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3);border-bottom:1px solid var(--rule)}
+.lead-sum .tot{font-weight:800;border-top:1px solid var(--rule)}
+.lead-go:disabled{opacity:.55;cursor:default;filter:none}
+.lead-back{display:block;margin:12px auto 0;background:none;border:0;font-family:var(--util);font-weight:700;font-size:14px;color:var(--sig);cursor:pointer;text-decoration:underline}
+.lead-fb{display:none;text-align:center;font-size:18px;color:var(--ink-2);padding:10px 0 4px}
+.lead-fb p{margin:0 0 16px}
+.lead-fb a{text-decoration:none}
+.lead.failed .lead-fb{display:block}
+.lead.failed .lead-pay,.lead.failed .lead-sum,.lead.failed #paygo{display:none}
+@media(max-width:560px){
+  .lead{padding:12px 8px}
+  .lead-in{padding:18px 12px;border-width:2px}
+  .lead-x{top:6px;right:6px;width:34px;height:34px;border-width:2px}
+  .lead-steps{padding-right:34px}
+  .lead-ck{height:1000px}
+}
 .lead input{width:100%;font:inherit;font-size:17px;padding:15px 16px;border:1.5px solid #C9C6C1;border-radius:10px;margin-bottom:13px}
 .lead input:focus{outline:none;border-color:var(--sig)}
 .lead-go{width:100%;font-family:var(--util);font-weight:800;font-size:clamp(17px,2vw,21px);color:#fff;background:var(--sig);border:0;border-radius:10px;padding:17px;cursor:pointer}
@@ -808,31 +839,55 @@ a.presscite h3{text-decoration:underline;text-decoration-thickness:1px;text-unde
 </script>
 
 
-<div class="lead" id="lead" role="dialog" aria-modal="true" aria-label="Reserve your seat">
+<div class="lead" id="lead" data-step="1" role="dialog" aria-modal="true" aria-label="Reserve your seat">
   <div class="lead-in">
     <button class="lead-x" aria-label="Close" id="leadx">&times;</button>
     <div class="lead-steps">
-      <div><b>Your Info</b><span>Contact Details</span></div>
-      <div class="off"><b>Billing Info</b><span>Secure Checkout</span></div>
+      <div class="s1"><b>Your Info <i>&#10003;</i></b><span>Contact Details</span></div>
+      <div class="s2"><b>Billing Info</b><span>Secure Checkout</span></div>
     </div>
     <div class="lead-bar"></div>
-    <form id="leadf" novalidate>
-      <input type="text" id="lead_name" name="name" placeholder="Full Name..." autocomplete="name">
-      <input type="email" id="lead_email" name="email" placeholder="Email Address..." autocomplete="email">
-      <input type="tel" id="lead_phone" name="phone" placeholder="Phone Number..." autocomplete="tel">
-      <p class="lead-err" id="leaderr">Enter your name, a valid email and a phone number to continue.</p>
-      <button type="submit" class="lead-go">Go To Step #2 &rarr;</button>
-    </form>
+    <div class="lead-p1">
+      <form id="leadf" novalidate>
+        <input type="text" id="lead_name" name="name" placeholder="Full Name..." autocomplete="name">
+        <input type="email" id="lead_email" name="email" placeholder="Email Address..." autocomplete="email">
+        <input type="tel" id="lead_phone" name="phone" placeholder="Phone Number..." autocomplete="tel">
+        <p class="lead-err" id="leaderr">Enter your name, a valid email and a phone number to continue.</p>
+        <button type="submit" class="lead-go">Go To Step #2 &rarr;</button>
+      </form>
+    </div>
+    <div class="lead-p2">
+      <div class="lead-pay" id="leadpay">
+        <div class="lead-ck" id="leadck"></div>
+        <p class="lead-load">Loading secure checkout&hellip;</p>
+      </div>
+      <div class="lead-sum">
+        <div class="hd"><span>Item</span><span>Price</span></div>
+        <div><span>The Clone Method &mdash; Live Training</span><span>$47.00</span></div>
+        <div class="tot"><span>Total</span><span>$47.00</span></div>
+      </div>
+      <p class="lead-err" id="payerr" style="margin:0 0 12px"></p>
+      <button type="button" class="lead-go" id="paygo" disabled>Complete Order &mdash; $47</button>
+      <div class="lead-fb">
+        <p>The checkout didn&rsquo;t load here. Finish on the secure Commas page instead &mdash; it takes under a minute.</p>
+        <a class="cta" id="leadhosted" href="https://commas.com/checkout/nmGzEY7RCWcGOKl">Complete My Order &mdash; $47 &rarr;</a>
+      </div>
+      <button type="button" class="lead-back" id="leadback">&larr; Edit details</button>
+    </div>
     <p class="lead-priv">We Respect Your Privacy &amp; Information.</p>
   </div>
 </div>
 
 <script>
 (function(){
-  var lead=document.getElementById('lead'),form=document.getElementById('leadf'),
-      err=document.getElementById('leaderr'),STEP2='/clone/checkout.html';
-  /* buyer details ride to step 2 in sessionStorage, never in the URL */
-  function saved(){ try{return !!sessionStorage.getItem('jm_checkout');}catch(e){return false;} }
+  var SDK='https://cdn.embedded.fanbasis.io/embed/index.js',
+      HOSTED='https://commas.com/checkout/nmGzEY7RCWcGOKl',
+      SUCCESS='https://jonmac.ai/clone/software.html',
+      lead=document.getElementById('lead'),form=document.getElementById('leadf'),
+      err=document.getElementById('leaderr'),pay=document.getElementById('leadpay'),
+      go=document.getElementById('paygo'),payerr=document.getElementById('payerr'),
+      GO=go.textContent,boot=null,checkout=null,mounted=false,ready=false,failed=false,timer=0;
+  function read(k){ try{return JSON.parse(sessionStorage.getItem(k)||'null');}catch(e){return null;} }
   /* E.164: keep a typed +country code, otherwise assume US/Canada (+1) */
   function e164(raw){
     var d=raw.replace(/\D/g,'');
@@ -840,24 +895,131 @@ a.presscite h3{text-decoration:underline;text-decoration-thickness:1px;text-unde
     if(d.length===11&&d[0]==='1')d=d.slice(1);
     return /^[2-9]\d{2}[2-9]\d{6}$/.test(d)?'+1'+d:'';
   }
+  function step(n){ lead.setAttribute('data-step',n); lead.scrollTop=0; }
+
+  /* ---- step 2: Commas embedded checkout ---- */
+  function fail(why){
+    if(ready||failed)return;
+    failed=true; clearTimeout(timer);
+    if(window.console)console.warn('[checkout] fallback:',why);
+    var attr=read('jm_attr')||{},u=new URL(HOSTED);
+    Object.keys(attr).forEach(function(k){ if(attr[k])u.searchParams.set(k,attr[k]); });
+    document.getElementById('leadhosted').href=u.toString();
+    lead.classList.add('failed');
+  }
+  /* buyer details go in through the SDK setters once the form is up, never in the iframe URL */
+  function fill(){
+    var b=read('jm_checkout');
+    if(!ready||!b)return;
+    [['setFirstName','first_name'],['setLastName','last_name'],['setEmail','email'],['setPhone','phone']].forEach(function(s){
+      if(!b[s[1]])return;
+      Promise.resolve(checkout[s[0]](String(b[s[1]]))).catch(function(e){
+        if(window.console)console.warn('[checkout] '+s[0],e&&e.code);
+      });
+    });
+  }
+  function payError(msg){ payerr.textContent=msg; payerr.style.display=msg?'block':'none'; }
+  function resetGo(){ go.disabled=!ready; go.textContent=GO; }
+  /* SDK + session start loading when the popup opens, so step 2 is ready when they reach it */
+  function preload(){
+    if(boot)return boot;
+    var sdk=new Promise(function(res,rej){
+      var s=document.createElement('script'); s.src=SDK; s.async=true;
+      s.onload=function(){ window.PaymentCheckout?res():rej('sdk missing'); };
+      s.onerror=function(){ rej('sdk load'); };
+      document.head.appendChild(s);
+    });
+    var session=fetch('/clone/api/checkout-session',{method:'POST'})
+      .then(function(r){ return r.json(); })
+      .then(function(j){ if(!j||!j.ok||!j.checkoutSessionSecret)throw 'session'; return j; });
+    boot=Promise.all([session,sdk]).then(function(v){ return v[0]; });
+    boot.catch(function(){});
+    return boot;
+  }
+  function mount(session){
+    var attr=read('jm_attr')||{},meta={lp:'clone'};
+    Object.keys(attr).forEach(function(k){ if(attr[k])meta[k]=String(attr[k]); });
+    try{
+      checkout=PaymentCheckout.create({
+        creatorId:session.creatorId,
+        productId:session.productId,
+        checkoutSessionSecret:session.checkoutSessionSecret,
+        environment:'production',
+        collectPhone:true,
+        showSubmitButton:false,
+        containerOptions:{width:'100%',height:'100%'},
+        metadata:meta,
+        redirectSettings:{success_redirect_url:SUCCESS,always_redirect:true},
+        theme:{theme:'light',show_product_info:false,product_layout:'above',show_coupon_row:true,accent_color:'#0B5CF6'}
+      });
+      checkout.attachToElement(document.getElementById('leadck'));
+    }catch(e){ return fail(e&&e.message||'create'); }
+    /* handlers go on before init(), per the SDK docs */
+    checkout.on('form:ready',function(){ ready=true; clearTimeout(timer); pay.classList.add('ready'); resetGo(); fill(); });
+    checkout.on('checkout:error',function(e){
+      if(!ready)return fail(e&&e.code||'checkout:error');
+      if(window.console)console.error('[checkout]',e&&e.code,e&&e.message);
+    });
+    checkout.on('form:submitting',function(){ payError(''); go.disabled=true; go.textContent='Processing…'; });
+    checkout.on('form:submission_error',function(d){
+      resetGo();
+      payError((d&&d.data&&d.data.errorMessage)||'Payment didn’t go through. Check your card details and try again.');
+    });
+    checkout.on('form:validation',function(d){ if(d&&d.isValid===false)resetGo(); });
+    checkout.on('checkout:success',function(){
+      try{sessionStorage.removeItem('jm_checkout');}catch(e){}
+      location.href=SUCCESS;
+    });
+    Promise.resolve(checkout.init()).catch(function(e){ fail(e&&e.code||'init'); });
+  }
+  function showPay(){
+    step(2);
+    if(mounted){ fill(); return; }
+    mounted=true;
+    timer=setTimeout(function(){ fail('timeout'); },20000);
+    preload().then(mount,fail);
+  }
+  go.addEventListener('click',function(){
+    if(checkout&&checkout.isFormReady())checkout.submitForm();
+  });
+
+  /* ---- open / close ---- */
+  function open(){
+    var b=read('jm_checkout');
+    lead.classList.add('show');
+    document.documentElement.style.overflow='hidden';
+    preload();
+    if(window.jmTrack)jmTrack('LeadFormOpen',{});
+    if(b){                                   /* already gave details this visit: straight to billing */
+      document.getElementById('lead_name').value=(b.first_name+' '+b.last_name).trim();
+      document.getElementById('lead_email').value=b.email;
+      document.getElementById('lead_phone').value=b.phone;
+      showPay();
+    }else{
+      step(1);
+      setTimeout(function(){document.getElementById('lead_name').focus();},50);
+    }
+  }
+  function close(){ lead.classList.remove('show'); document.documentElement.style.overflow=''; }
   document.addEventListener('click',function(e){
     var a=e.target.closest&&e.target.closest('a');
-    if(!a||!/commas\.com\/checkout/.test(a.href))return;
+    if(!a||!/commas\.com\/checkout/.test(a.href)||a.closest('#lead'))return;
     e.preventDefault();
-    if(saved()){location.href=STEP2;return;}   /* already captured this visit: straight to step 2 */
-    lead.classList.add('show');
-    if(window.jmTrack)jmTrack('LeadFormOpen',{});
-    setTimeout(function(){document.getElementById('lead_name').focus();},50);
+    open();
   },true);
-  function close(){lead.classList.remove('show');}
   document.getElementById('leadx').addEventListener('click',close);
-  lead.addEventListener('click',function(e){if(e.target===lead)close();});
+  lead.addEventListener('click',function(e){ if(e.target===lead)close(); });
+  document.addEventListener('keydown',function(e){ if(e.key==='Escape'&&lead.classList.contains('show'))close(); });
+  document.getElementById('leadback').addEventListener('click',function(){
+    step(1); document.getElementById('lead_name').focus();
+  });
+
+  /* ---- step 1: contact details ---- */
   form.addEventListener('submit',function(e){
     e.preventDefault();
-    var name=document.getElementById('lead_name').value.trim(),
+    var name=document.getElementById('lead_name').value.trim().replace(/\s+/g,' '),
         email=document.getElementById('lead_email').value.trim(),
         phone=e164(document.getElementById('lead_phone').value);
-    name=name.replace(/\s+/g,' ');
     if(!name||!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)||!phone){err.style.display='block';return;}
     err.style.display='none';
     var sp=name.indexOf(' ');
@@ -866,11 +1028,9 @@ a.presscite h3{text-decoration:underline;text-decoration-thickness:1px;text-unde
     var utm=null; try{utm=JSON.parse(sessionStorage.getItem('jm_attr')||'null');}catch(e){}
     if(window.jmTrack)jmTrack('Lead',{});
     if(window.fbq)fbq('track','Lead');
-    var go=function(){location.href=STEP2;};
-    var t=setTimeout(go,900);              /* never hold the buyer hostage to the API */
     fetch('/clone/api/lead',{method:'POST',headers:{'content-type':'application/json'},
-      body:JSON.stringify({name:name,email:email,phone:phone,utm:utm}),keepalive:true
-    }).then(function(){clearTimeout(t);go();}).catch(function(){clearTimeout(t);go();});
+      body:JSON.stringify({name:name,email:email,phone:phone,utm:utm}),keepalive:true}).catch(function(){});
+    showPay();
   });
 })();
 </script>
