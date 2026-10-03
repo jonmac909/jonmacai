@@ -1,0 +1,6 @@
+# filenames are content-hashed, so they can never go stale
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
+
+/*.html
+  Cache-Control: public, max-age=300, must-revalidate

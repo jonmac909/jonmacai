@@ -1,0 +1,29 @@
+{
+  // jonmac.ai/clone — The Clone Method webinar funnel (lander, upsells, policies).
+  // Mirrors the live jonmac-agency Worker settings as of version 58 (2026-09-07).
+  // Secrets (set with `wrangler secret put`, never committed): COMMAS_WEBHOOK_SECRET,
+  // RESEND_API_KEY, RESEND_AUDIENCE_ID.
+  "name": "jonmac-agency",
+  "main": "src/index.js",
+  "compatibility_date": "2026-08-01",
+  "workers_dev": false,
+  "preview_urls": false,
+  "assets": {
+    "directory": "./public",
+    "binding": "ASSETS",
+    "html_handling": "none",
+    "not_found_handling": "none"
+  },
+  "vars": {
+    "CHECKOUT_URL": "https://commas.com/checkout/nmGzEY7RCWcGOKl",
+    "RESEND_FROM": "Jon Mac <support@viralview.io>",
+    "RESEND_REPLY_TO": "jon@thejonmac.com"
+  },
+  "kv_namespaces": [
+    { "binding": "CLONE_LEADS", "id": "73af279f67c745a78652cf26f4c9bfe9" }
+  ],
+  "routes": [
+    { "pattern": "jonmac.ai/agency*", "zone_name": "jonmac.ai" },
+    { "pattern": "jonmac.ai/clone*", "zone_name": "jonmac.ai" }
+  ]
+}
