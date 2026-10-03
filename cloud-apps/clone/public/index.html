@@ -34,9 +34,11 @@ body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--serif);
 .shell{max-width:760px;margin:0 auto;padding:0 clamp(20px,5vw,28px)}
 .wide{max-width:1060px}
 h1,h2,h3{margin:0;font-family:var(--serif);font-weight:700;text-wrap:balance;letter-spacing:-.02em}
-h1{font-size:clamp(34px,4.9vw,56px);line-height:1.08;text-wrap:normal}
-h2{font-size:clamp(28px,3.8vw,42px);line-height:1.14}
-h3{font-size:clamp(20px,2vw,24px);line-height:1.25}
+/* headline sizes copied from getclients.com/mdw: 28/64px hero, 26/36px sections, 22/26px items, split at 768px */
+h1{font-size:28px;line-height:1.1;letter-spacing:-1px;text-wrap:normal}
+h2{font-size:26px;line-height:1.2}
+h3{font-size:22px;line-height:1.2}
+@media(min-width:768px){h1{font-size:64px}h2{font-size:36px}h3{font-size:26px}}
 p{margin:0}
 b,strong{font-weight:700}
 em{font-style:italic}
@@ -53,12 +55,24 @@ section{padding:clamp(40px,5.5vw,66px) 0}
 
 /* clock bar */
 .bar{position:sticky;top:0;z-index:70;background:var(--bar);color:#E8E5E0;border-bottom:3px solid var(--sig);padding:11px 0}
-.bar-in{display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:5px 20px;text-align:center}
-.bar .util{font-size:12px;color:#98948E}
-.bar b{color:var(--sig-lt);font-family:var(--util);font-weight:800;font-variant-numeric:tabular-nums;font-size:14px}
-.live{width:8px;height:8px;border-radius:50%;background:var(--sig);display:inline-block;margin-right:8px;
-      box-shadow:0 0 0 0 rgba(11,92,246,.65);animation:ping 2.6s ease-out infinite}
-@keyframes ping{70%{box-shadow:0 0 0 10px rgba(11,92,246,0)}100%{box-shadow:0 0 0 0 rgba(11,92,246,0)}}
+/* sizing and layout copied from Dan's timer bar (getclients.com/mdw); colors stay Jon's */
+.bar-in{display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:12px;text-align:center;
+        font-family:var(--util);font-size:15px;line-height:1.4;letter-spacing:.5px}
+.bar .util{font-size:inherit;font-weight:700;letter-spacing:1px;color:#98948E}
+.bar .util .w{color:#fff}
+.bar b{color:var(--sig-lt);font-family:var(--util);font-weight:900;font-variant-numeric:tabular-nums;font-size:18px;letter-spacing:1px}
+.bar #when{color:#fff;font-weight:400;font-size:inherit;letter-spacing:inherit}
+.bar .sep{color:#4b5563;font-weight:400}
+.bar .sep-m{display:none}
+.live{width:6px;height:6px;border-radius:50%;background:var(--sig);display:inline-block;margin-right:8px;
+      vertical-align:middle;animation:pulse 2s ease-in-out infinite}
+@keyframes pulse{50%{opacity:.25}}
+@media(max-width:600px){
+  .bar-in{font-size:11px;gap:4px;line-height:1.1}
+  .bar b{font-size:13px}
+  .bar .dw,.bar .wk,.bar .ord,.bar .sep{display:none}
+  .bar .sep-m{display:inline}
+}
 
 /* hero */
 .hero{padding:clamp(28px,3.5vw,44px) 0 clamp(20px,2.5vw,30px)}
@@ -83,10 +97,10 @@ section{padding:clamp(40px,5.5vw,66px) 0}
 .cta{display:inline-flex;align-items:center;justify-content:center;gap:11px;background:var(--sig);color:#fff;
      font-family:var(--util);font-weight:800;font-size:clamp(16px,1.6vw,19px);text-decoration:none;cursor:pointer;
      border:0;border-radius:12px;padding:19px 46px;align-self:center;max-width:560px;width:100%;
-     box-shadow:0 3px 0 var(--sig-deep),0 16px 32px -16px rgba(7,66,190,.85);
-     transition:transform .16s cubic-bezier(.2,.8,.2,1),box-shadow .16s}
-.cta:hover{transform:translateY(-2px);box-shadow:0 5px 0 var(--sig-deep),0 22px 42px -18px rgba(7,66,190,.9)}
-.cta:active{transform:translateY(1px);box-shadow:0 2px 0 var(--sig-deep)}
+     box-shadow:0 8px 30px rgba(11,92,246,.30);
+     transition:transform .15s ease,box-shadow .15s ease}
+.cta:hover{transform:translateY(-2px);box-shadow:0 11px 34px rgba(11,92,246,.34)}
+.cta:active{transform:translateY(0);box-shadow:0 6px 22px rgba(11,92,246,.30)}
 .cta-sub{font-family:var(--util);font-size:13.5px;color:var(--ink-3);line-height:1.6;max-width:64ch;margin:0 auto;font-weight:500}
 a:focus-visible,summary:focus-visible{outline:3px solid var(--sig);outline-offset:4px;border-radius:6px}
 
@@ -279,7 +293,6 @@ a.presscite h3{text-decoration:underline;text-decoration-thickness:1px;text-unde
   box-shadow:0 4px 10px rgba(17,16,20,.16),0 36px 70px -36px rgba(17,16,20,.95)}
 .vslbox{position:relative}
 .herovid[hidden]{display:none!important}
-.h1clone{font-size:clamp(28px,3.6vw,43px);white-space:nowrap}
 .persons4{grid-template-columns:repeat(4,1fr);gap:clamp(10px,1.4vw,16px)}
 .persons4 .person{padding:20px 18px;gap:8px}
 .persons4 .person h3{font-size:clamp(17px,1.4vw,20px)}
@@ -287,7 +300,6 @@ a.presscite h3{text-decoration:underline;text-decoration-thickness:1px;text-unde
 .persons4 .tag{font-size:10.5px}
 @media(max-width:1000px){.persons4{grid-template-columns:repeat(2,1fr)}}
 @media(max-width:620px){.persons4{grid-template-columns:1fr}}
-@media(max-width:900px){.h1clone{white-space:normal}}
 #vslsoon{position:relative;display:block}
 .vslbadge{position:absolute;left:50%;bottom:18px;transform:translateX(-50%);
   font-family:var(--util);font-weight:800;font-size:12px;letter-spacing:.12em;color:#fff;
@@ -337,8 +349,9 @@ a.presscite h3{text-decoration:underline;text-decoration-thickness:1px;text-unde
 }
 .lead input{width:100%;font:inherit;font-size:17px;padding:15px 16px;border:1.5px solid #C9C6C1;border-radius:10px;margin-bottom:13px}
 .lead input:focus{outline:none;border-color:var(--sig)}
-.lead-go{width:100%;font-family:var(--util);font-weight:800;font-size:clamp(17px,2vw,21px);color:#fff;background:var(--sig);border:0;border-radius:10px;padding:17px;cursor:pointer}
-.lead-go:hover{filter:brightness(1.08)}
+.lead-go{width:100%;font-family:var(--util);font-weight:800;font-size:clamp(17px,2vw,21px);color:#fff;background:var(--sig);border:0;border-radius:12px;padding:19px 46px;cursor:pointer;
+  box-shadow:0 8px 30px rgba(11,92,246,.30);transition:transform .15s ease,box-shadow .15s ease}
+.lead-go:hover{filter:brightness(1.08);transform:translateY(-2px);box-shadow:0 11px 34px rgba(11,92,246,.34)}
 .lead-priv{text-align:center;font-family:var(--util);font-size:13px;color:#8B8880;margin:12px 0 0}
 .lead-err{display:none;color:#C0392B;font-family:var(--util);font-size:13.5px;font-weight:700;margin:-6px 0 10px}
 </style>
@@ -351,9 +364,9 @@ a.presscite h3{text-decoration:underline;text-decoration-thickness:1px;text-unde
 </head>
 <body>
 <div class="bar"><div class="shell wide bar-in">
-  <span class="util"><span class="live" aria-hidden="true"></span>Training date:</span>
+  <span class="util"><span class="live" aria-hidden="true"></span>Training <span class="dw w">date</span>:</span>
   <b id="when">Tue, Wed &amp; Thu at 7:00 PM ET</b>
-  <span class="util">&mdash;</span>
+  <span class="util"><span class="sep">|</span><span class="sep-m">-</span></span>
   <span class="util">Starts in</span><b id="cd">00d : 00h : 00m : 00s</b>
 </div></div>
 
@@ -805,15 +818,16 @@ a.presscite h3{text-decoration:underline;text-decoration-thickness:1px;text-unde
     var f=function(o){return new Intl.DateTimeFormat('en-US',Object.assign({timeZone:'America/New_York'},o)).format(t);};
     var tzp=new Intl.DateTimeFormat('en-US',{timeZone:'America/New_York',timeZoneName:'short'})
       .formatToParts(t).find(function(x){return x.type==='timeZoneName';});
-    return f({weekday:'long'})+', '+f({month:'long'})+' '+ord(+f({day:'numeric'}))+
+    return '<span class="wk">'+f({weekday:'long'})+', </span>'+f({month:'long'})+' '+
+      (function(d){return d+'<span class="ord">'+ord(d).slice(String(d).length)+'</span>';})(+f({day:'numeric'}))+
       ' @ 7:00 PM '+(tzp?tzp.value:'ET');
   }
-  document.getElementById('when').textContent=whenLabel(target);
+  document.getElementById('when').innerHTML=whenLabel(target);
   var cd=document.getElementById('cd'),D=document.getElementById('d'),H=document.getElementById('h'),
       M=document.getElementById('m'),S=document.getElementById('s');
   function tick(){
     var ms=target-new Date();
-    if(ms<=0){target=nextSession();document.getElementById('when').textContent=whenLabel(target);ms=target-new Date();}
+    if(ms<=0){target=nextSession();document.getElementById('when').innerHTML=whenLabel(target);ms=target-new Date();}
     var s=Math.floor(ms/1000),dd=Math.floor(s/86400),hh=Math.floor(s%86400/3600),
         mm=Math.floor(s%3600/60),ss=s%60;
     cd.textContent=p(dd)+'d : '+p(hh)+'h : '+p(mm)+'m : '+p(ss)+'s';

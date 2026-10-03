@@ -30,12 +30,24 @@ section{padding:clamp(34px,4.6vw,56px) 0}
 .letter{font-size:clamp(19px,1.8vw,22px);line-height:1.6;max-width:60ch;margin:0 auto}
 
 .bar{position:sticky;top:0;z-index:70;background:var(--bar);color:#E8E5E0;border-bottom:3px solid var(--sig);padding:11px 0}
-.bar-in{display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:5px 20px;text-align:center}
-.bar .util{font-size:12px;color:#98948E}
-.bar b{color:var(--sig-lt);font-family:var(--util);font-weight:800;font-variant-numeric:tabular-nums;font-size:14px}
-.live{width:8px;height:8px;border-radius:50%;background:var(--sig);display:inline-block;margin-right:8px;
-      box-shadow:0 0 0 0 rgba(11,92,246,.65);animation:ping 2.6s ease-out infinite}
-@keyframes ping{70%{box-shadow:0 0 0 10px rgba(11,92,246,0)}100%{box-shadow:0 0 0 0 rgba(11,92,246,0)}}
+/* sizing and layout copied from Dan's timer bar (getclients.com/mdw); colors stay Jon's */
+.bar-in{display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:12px;text-align:center;
+        font-family:var(--util);font-size:15px;line-height:1.4;letter-spacing:.5px}
+.bar .util{font-size:inherit;font-weight:700;letter-spacing:1px;color:#98948E}
+.bar .util .w{color:#fff}
+.bar b{color:var(--sig-lt);font-family:var(--util);font-weight:900;font-variant-numeric:tabular-nums;font-size:18px;letter-spacing:1px}
+.bar #when{color:#fff;font-weight:400;font-size:inherit;letter-spacing:inherit}
+.bar .sep{color:#4b5563;font-weight:400}
+.bar .sep-m{display:none}
+.live{width:6px;height:6px;border-radius:50%;background:var(--sig);display:inline-block;margin-right:8px;
+      vertical-align:middle;animation:pulse 2s ease-in-out infinite}
+@keyframes pulse{50%{opacity:.25}}
+@media(max-width:600px){
+  .bar-in{font-size:11px;gap:4px;line-height:1.1}
+  .bar b{font-size:13px}
+  .bar .dw,.bar .wk,.bar .ord,.bar .sep{display:none}
+  .bar .sep-m{display:inline}
+}
 
 .qual{font-family:var(--util);text-transform:uppercase;font-weight:800;font-size:clamp(11px,1.15vw,13.5px);
       letter-spacing:.05em;color:var(--sig);line-height:1.5;text-align:center}
@@ -78,9 +90,9 @@ a:focus-visible,button:focus-visible{outline:3px solid var(--sig);outline-offset
 
 <div class="bar">
   <div class="shell bar-in">
-    <span class="util"><span class="live"></span>TRAINING DATE:</span>
+    <span class="util"><span class="live"></span>TRAINING <span class="dw w">DATE</span>:</span>
     <b id="when">Tue, Wed &amp; Thu at 7:00 PM ET</b>
-    <span class="util">&mdash;</span>
+    <span class="util"><span class="sep">|</span><span class="sep-m">-</span></span>
     <span class="util">STARTS IN</span>
     <b id="clk">&mdash;</b>
   </div>
@@ -199,15 +211,16 @@ function whenLabel(t){
   var f=function(o){return new Intl.DateTimeFormat('en-US',Object.assign({timeZone:'America/New_York'},o)).format(t);};
   var tzp=new Intl.DateTimeFormat('en-US',{timeZone:'America/New_York',timeZoneName:'short'})
     .formatToParts(t).find(function(x){return x.type==='timeZoneName';});
-  return f({weekday:'long'})+', '+f({month:'long'})+' '+ord(+f({day:'numeric'}))+' @ 7:00 PM '+(tzp?tzp.value:'ET');
+  return '<span class="wk">'+f({weekday:'long'})+', </span>'+f({month:'long'})+' '+
+      (function(d){return d+'<span class="ord">'+ord(d).slice(String(d).length)+'</span>';})(+f({day:'numeric'}))+' @ 7:00 PM '+(tzp?tzp.value:'ET');
 }
 (function () {
   var el = document.getElementById("clk"), wh = document.getElementById("when");
   var target = nextSession();
-  if (wh) wh.textContent = whenLabel(target);
+  if (wh) wh.innerHTML = whenLabel(target);
   (function tick() {
     var ms = target - new Date();
-    if (ms <= 0) { target = nextSession(); if (wh) wh.textContent = whenLabel(target); ms = target - new Date(); }
+    if (ms <= 0) { target = nextSession(); if (wh) wh.innerHTML = whenLabel(target); ms = target - new Date(); }
     var s = Math.floor(ms / 1000), d = Math.floor(s / 86400), h = Math.floor(s % 86400 / 3600),
         m = Math.floor(s % 3600 / 60), ss = s % 60;
     el.textContent = String(d).padStart(2, "0") + "d : " + String(h).padStart(2, "0") + "h : " +
