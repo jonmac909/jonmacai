@@ -79,7 +79,7 @@ a:focus-visible,button:focus-visible{outline:3px solid var(--sig);outline-offset
 <div class="bar">
   <div class="shell bar-in">
     <span class="util"><span class="live"></span>TRAINING DATE:</span>
-    <b id="when">Every day at 8:00 PM ET</b>
+    <b id="when">Tue, Wed &amp; Thu at 7:00 PM ET</b>
     <span class="util">&mdash;</span>
     <span class="util">STARTS IN</span>
     <b id="clk">&mdash;</b>
@@ -151,7 +151,7 @@ a:focus-visible,button:focus-visible{outline:3px solid var(--sig);outline-offset
         <textarea id="q_want" name="TopQuestion" placeholder="Be specific. &ldquo;How do I pick my first product&rdquo; beats &ldquo;tell me more about TikTok&rdquo;." required></textarea>
       </div>
 
-      <button class="cta" type="submit" id="go">SEND IT &mdash; SEE YOU AT 12 PM ET</button>
+      <button class="cta" type="submit" id="go">SEND IT &mdash; SEE YOU AT 7 PM ET</button>
       <p class="cta-sub">Answers go straight to me at jon@thejonmac.com. Not shared, not sold, not added to anything.</p>
       <p class="cta-sub" id="err" style="color:#C1332B;display:none"></p>
     </form>
@@ -160,7 +160,7 @@ a:focus-visible,button:focus-visible{outline:3px solid var(--sig);outline-offset
       <div class="tick"><svg viewBox="0 0 24 24"><path d="M4 12.5l5.5 5.5L20 6.5"/></svg></div>
       <h1>Got it.</h1>
       <p class="letter mid">That's everything I need. Your Zoom link is already in your inbox &mdash;
-        block the 2 hours and I'll see you at 12pm Eastern.</p>
+        block the 2 hours and I'll see you at 7pm Eastern.</p>
       <p class="cta-sub"><a href="welcome.html" style="color:var(--sig)">&larr; Back to your confirmation page</a></p>
     </div>
   </div>
@@ -172,31 +172,34 @@ a:focus-visible,button:focus-visible{outline:3px solid var(--sig);outline-offset
 var FORM_ENDPOINT = "";
 var FALLBACK_EMAIL = "jon@thejonmac.com";
 
-/* Next 20:00 America/New_York, DST-safe, correct from any viewer timezone. */
-function elevenET(ref){
-  var p=new Intl.DateTimeFormat('en-CA',{timeZone:'America/New_York',
-        year:'numeric',month:'2-digit',day:'2-digit'}).format(ref).split('-');
-  var t=Date.UTC(+p[0],+p[1]-1,+p[2],24,0,0);            /* 20:00 EDT guess */
+/* Next Tue/Wed/Thu 19:00 America/New_York, DST-safe, correct from any viewer timezone. */
+function sevenET(y,m,d){
+  var t=Date.UTC(y,m,d,23,0,0);                           /* 19:00 EDT guess */
   for(var i=0;i<3;i++){
     var h=+new Intl.DateTimeFormat('en-US',{timeZone:'America/New_York',
           hour:'numeric',hour12:false}).format(new Date(t));
     if(h===24)h=0;
-    if(h===20)break;
-    t+=(20-h)*3600000;
+    if(h===19)break;
+    t+=(19-h)*3600000;
   }
   return new Date(t);
 }
 function nextSession(){
-  var now=new Date(),t=elevenET(now);
-  if(t<=now)t=elevenET(new Date(now.getTime()+864e5));
-  return t;
+  var now=new Date(),p=new Intl.DateTimeFormat('en-CA',{timeZone:'America/New_York',
+        year:'numeric',month:'2-digit',day:'2-digit'}).format(now).split('-');
+  for(var i=0;i<8;i++){
+    var day=new Date(Date.UTC(+p[0],+p[1]-1,+p[2]+i)),wd=day.getUTCDay();
+    if(wd<2||wd>4)continue;                                /* Tue=2 Wed=3 Thu=4 */
+    var t=sevenET(day.getUTCFullYear(),day.getUTCMonth(),day.getUTCDate());
+    if(t>now)return t;
+  }
 }
 function ord(d){var s=['th','st','nd','rd'],v=d%100;return d+(s[(v-20)%10]||s[v]||s[0]);}
 function whenLabel(t){
   var f=function(o){return new Intl.DateTimeFormat('en-US',Object.assign({timeZone:'America/New_York'},o)).format(t);};
   var tzp=new Intl.DateTimeFormat('en-US',{timeZone:'America/New_York',timeZoneName:'short'})
     .formatToParts(t).find(function(x){return x.type==='timeZoneName';});
-  return f({weekday:'long'})+', '+f({month:'long'})+' '+ord(+f({day:'numeric'}))+' @ 8:00 PM '+(tzp?tzp.value:'ET');
+  return f({weekday:'long'})+', '+f({month:'long'})+' '+ord(+f({day:'numeric'}))+' @ 7:00 PM '+(tzp?tzp.value:'ET');
 }
 (function () {
   var el = document.getElementById("clk"), wh = document.getElementById("when");
@@ -256,7 +259,7 @@ document.getElementById("sv").addEventListener("submit", function (e) {
     finish();
   }).catch(function () {
     go.disabled = false;
-    go.textContent = "SEND IT — SEE YOU AT 12 PM ET";
+    go.textContent = "SEND IT — SEE YOU AT 7 PM ET";
     err.textContent = "That didn't send. Email your answers to " + FALLBACK_EMAIL + " and I'll sort it.";
     err.style.display = "block";
   });
