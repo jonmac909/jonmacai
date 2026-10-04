@@ -1,5 +1,7 @@
 // jonmac.ai/clone: static funnel pages from ./public plus the lead and purchase hooks.
 // Recovered from the deployed jonmac-agency bundle (version 58, 2026-09-07).
+import { cookieName, isSandbox, paymentConfig } from './payment-config.js';
+import { publicConfig, sandboxAccess, sandboxEnv, sandboxPage } from './sandbox.js';
 import { buyerSession, checkoutContext, recordPurchaseProof, sameOrigin, upsell, validWebhook } from './upsells.js';
 
 export default {
@@ -15,6 +17,16 @@ export default {
     if (url.pathname === "/clone") {
       return Response.redirect(url.origin + "/clone/" + url.search, 301);
     }
+    // Sandbox hooks have a separate key/HMAC and never touch lead/email systems.
+    if (url.pathname === '/clone/api/sandbox/purchase' && request.method === 'POST') {
+      const testEnv = sandboxEnv(env);
+      try { paymentConfig(testEnv); } catch { return json({ ok: false, error: 'sandbox_unconfigured' }, 503); }
+      return handlePurchase(request, testEnv);
+    }
+    const access = await sandboxAccess(request, env);
+    if (access.response) return access.response;
+    env = access.env;
+    if (url.pathname === '/clone/api/config' && isSandbox(env)) return json(publicConfig(access.config, env));
     if (url.pathname === "/clone/api/lead" && request.method === "POST") {
       return handleLead(request, env);
     }
@@ -36,13 +48,15 @@ export default {
     const res = await env.ASSETS.fetch(new Request(new URL(path, url.origin), request));
     if (res.status === 404) {
       const fb = await env.ASSETS.fetch(new Request(new URL("/index.html", url.origin), request));
-      return new Response(fb.body, { status: 404, headers: fb.headers });
+      const missing = new Response(fb.body, { status: 404, headers: fb.headers });
+      return isSandbox(env) ? sandboxPage(missing, access.config, env) : missing;
     }
-    return res;
+    return isSandbox(env) ? sandboxPage(res, access.config, env) : res;
   },
 };
 
 async function handleLead(request, env) {
+  if (isSandbox(env)) return json({ ok: true, environment: 'sandbox' });
   let data;
   try {
     data = await request.json();
@@ -123,24 +137,25 @@ If you hit any trouble checking out, just reply to this email.
 
 // Commas embedded checkout for the $47 seat. The session secret is seller-scoped and
 // reusable, so one per isolate every 30 minutes is plenty; the API key never leaves here.
-const COMMAS_CREATOR_ID = "viralview";
-const COMMAS_PRODUCT_ID = "nmGzE";
 const SESSION_TTL_MS = 30 * 60 * 1000;
-let cachedSession = null;
+const cachedSessions = new Map();
 
 async function handleCheckoutSession(request, env) {
   if (!sameOrigin(request)) return json({ ok: false, error: 'origin' }, 403);
-  if (!env.COMMAS_API_KEY) return json({ ok: false, error: "checkout not configured" }, 503);
+  const config = paymentConfig(env);
+  if (!config.apiKey) return json({ ok: false, error: "checkout not configured" }, 503);
   const context = await checkoutContext(request, env);
-  if (!cachedSession || Date.now() - cachedSession.at > SESSION_TTL_MS) {
+  let cachedSession = cachedSessions.get(config.environment);
+  if (!cachedSession || cachedSession.key !== config.apiKey || cachedSession.creator !== config.creator ||
+      cachedSession.product !== config.seat || Date.now() - cachedSession.at > SESSION_TTL_MS) {
     let secret = "";
     try {
-      const res = await fetch("https://www.fanbasis.com/public-api/checkout-sessions/embedded", {
+      const res = await fetch(config.base + "/checkout-sessions/embedded", {
         method: "POST",
-        headers: { "x-api-key": env.COMMAS_API_KEY, "content-type": "application/json" },
+        headers: { "x-api-key": config.apiKey, "content-type": "application/json" },
         body: JSON.stringify({
-          creator_id: COMMAS_CREATOR_ID,
-          product_id: COMMAS_PRODUCT_ID,
+          creator_id: config.creator,
+          product_id: config.seat,
           metadata: { source: "jonmac.ai/clone" },
         }),
       });
@@ -148,18 +163,21 @@ async function handleCheckoutSession(request, env) {
       if (res.ok) secret = String(body?.data?.checkout_session_secret || "");
     } catch {}
     if (!secret) return json({ ok: false, error: "checkout session failed" }, 502);
-    cachedSession = { secret, at: Date.now() };
+    cachedSession = { secret, at: Date.now(), key: config.apiKey, creator: config.creator, product: config.seat };
+    cachedSessions.set(config.environment, cachedSession);
   }
   const responseHeaders = new Headers({ 'content-type': 'application/json', 'cache-control': 'no-store' });
   if (context) {
     responseHeaders.append('set-cookie', context.cookie);
     // A new checkout must never reuse a previous buyer's signed billing identity.
-    responseHeaders.append('set-cookie', '__Secure-clone-buyer=; Path=/clone; Max-Age=0; HttpOnly; Secure; SameSite=Lax');
+    responseHeaders.append('set-cookie', cookieName(env, 'buyer') + '=; Path=/clone; Max-Age=0; HttpOnly; Secure; SameSite=Lax');
   }
   return new Response(JSON.stringify({
     ok: true,
-    creatorId: COMMAS_CREATOR_ID,
-    productId: COMMAS_PRODUCT_ID,
+    creatorId: config.creator,
+    productId: config.seat,
+    environment: config.environment,
+    hostedCheckoutUrl: config.hostedSeat,
     checkoutSessionSecret: cachedSession.secret,
     checkoutRef: context?.ref || null,
   }), {
@@ -177,7 +195,7 @@ function json(body, status = 200) {
 async function handlePurchase(request, env) {
   const body = await request.text();
   const sigHeader = request.headers.get('x-webhook-signature') || request.headers.get('x-signature') || request.headers.get('x-fanbasis-signature');
-  if (!await validWebhook(body, sigHeader, env.COMMAS_WEBHOOK_SECRET)) return json({ ok: false, error: 'bad signature' }, 401);
+  if (!await validWebhook(body, sigHeader, (isSandbox(env) ? env.COMMAS_SANDBOX_WEBHOOK_SECRET : env.COMMAS_WEBHOOK_SECRET))) return json({ ok: false, error: 'bad signature' }, 401);
   let payload;
   try {
     payload = JSON.parse(body);
@@ -185,6 +203,7 @@ async function handlePurchase(request, env) {
     return json({ ok: false, error: "bad json" }, 400);
   }
   await recordPurchaseProof(payload, env);
+  if (isSandbox(env)) return json({ ok: true, environment: 'sandbox' });
   const email = String(
     payload?.data?.buyer?.email || payload?.customer?.email || payload?.data?.customer?.email || payload?.email || payload?.data?.email || "",
   ).trim().toLowerCase();

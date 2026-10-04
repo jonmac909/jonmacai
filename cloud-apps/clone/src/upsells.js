@@ -1,17 +1,7 @@
-const BASE = 'https://www.fanbasis.com/public-api';
+import { cookieName, isSandbox, paymentConfig, table, tokenKind } from './payment-config.js';
+export { OFFERS } from './payment-config.js';
 const TTL = 30 * 60;
 const enc = new TextEncoder();
-const CHECKOUT_COOKIE = '__Secure-clone-checkout';
-const BUYER_COOKIE = '__Secure-clone-buyer';
-
-export const OFFERS = Object.freeze({
-  software: { group: 'software', service: 'wg0E8', cents: 9700, recurring: true, description: 'Viral View Pro — $97/month', next: '/clone/audit.html', hosted: 'https://commas.com/checkout/wg0E8nj4FjdaJ6L' },
-  trial: { group: 'software', service: '2J89z', cents: 0, trial: true, next: '/clone/audit.html', hosted: 'https://commas.com/checkout/2J89z1C1sozSM3' },
-  audit: { group: 'audit', service: 'XXYMA', cents: 49700, description: 'TikTok Shop Audit — $497', next: '/clone/vault.html', hosted: 'https://commas.com/checkout/XXYMA1NymVQ5wpc' },
-  vault: { group: 'vault', service: 'O9gZr', cents: 29700, description: 'The Vault — lifetime access — $297', next: '/clone/welcome.html', hosted: 'https://commas.com/checkout/O9gZrPCEazKZx1I' },
-  vault_plan: { group: 'vault', service: 'jJYvv', cents: 9900, recurring: true, description: 'The Vault — 3 monthly payments of $99', next: '/clone/welcome.html', hosted: 'https://commas.com/checkout/jJYvvwCNDeq7PMsh' },
-});
-
 export function json(body, status = 200, extra = {}) {
   return new Response(JSON.stringify(body), { status, headers: {
     'content-type': 'application/json', 'cache-control': 'no-store',
@@ -41,7 +31,7 @@ export async function sign(payload, secret) {
   const data = btoa(JSON.stringify(payload)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
   return data + '.' + hex(await crypto.subtle.sign('HMAC', await key(secret, ['sign']), enc.encode(data)));
 }
-async function readCookie(request, name, secret, kind, allowExpired = false) {
+export async function readCookie(request, name, secret, kind, allowExpired = false) {
   if (!secret) return null;
   const token = (request.headers.get('cookie') || '').split(';').map(s => s.trim()).find(s => s.startsWith(name + '='))?.slice(name.length + 1);
   if (!token || token.length > 2048) return null;
@@ -54,14 +44,14 @@ async function readCookie(request, name, secret, kind, allowExpired = false) {
       p.iat <= now && (p.exp > now || allowExpired) && p.exp - p.iat === TTL ? p : null;
   } catch { return null; }
 }
-function cookie(name, token) { return `${name}=${token}; Path=/clone; Max-Age=${TTL}; HttpOnly; Secure; SameSite=Lax`; }
+export function cookie(name, token) { return `${name}=${token}; Path=/clone; Max-Age=${TTL}; HttpOnly; Secure; SameSite=Lax`; }
 
 export async function checkoutContext(request, env) {
   if (!env.CLONE_TOKEN_SECRET) return null;
   const iat = Math.floor(Date.now() / 1000);
   const ref = btoa(String.fromCharCode(...crypto.getRandomValues(new Uint8Array(32)))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-  const token = await sign({ kind: 'checkout', ref, iat, exp: iat + TTL }, env.CLONE_TOKEN_SECRET);
-  return { ref, cookie: cookie(CHECKOUT_COOKIE, token) };
+  const token = await sign({ kind: tokenKind(env, 'checkout'), ref, iat, exp: iat + TTL }, env.CLONE_TOKEN_SECRET);
+  return { ref, cookie: cookie(cookieName(env, 'checkout'), token) };
 }
 
 // Called only after the existing purchase hook verifies its raw-body HMAC.
@@ -71,30 +61,31 @@ export async function recordPurchaseProof(payload, env) {
   const email = String(d?.buyer?.email || '').trim().toLowerCase();
   const paidAt = Date.parse(d?.created_at || payload?.created_at);
   if (!env.CLONE_UPSELLS || payload?.type !== 'payment.succeeded' ||
-      d?.item?.id !== 'nmGzE' || Number(d?.amount) !== 47 || Number(d?.quantity || 1) !== 1 ||
+      d?.item?.id !== paymentConfig(env).seat || Number(d?.amount) !== 47 || Number(d?.quantity || 1) !== 1 ||
       !/^[A-Za-z0-9_-]{43}$/.test(ref || '') || !email ||
       !/^[A-Za-z0-9-]{3,100}$/.test(d?.transaction_history_id || '') ||
       !Number.isFinite(paidAt) || Math.abs(Date.now() - paidAt) > TTL * 1000) return;
-  await env.CLONE_UPSELLS.prepare(`INSERT INTO clone_purchase_proofs
+  await env.CLONE_UPSELLS.prepare(`INSERT INTO ${table(env, 'purchase_proofs')}
     (checkout_ref, transaction_ref, email_hash, paid_at) VALUES (?, ?, ?, ?)
     ON CONFLICT(checkout_ref) DO NOTHING`).bind(ref, d.transaction_history_id, await hash(email), paidAt).run();
-  await env.CLONE_UPSELLS.prepare('DELETE FROM clone_purchase_proofs WHERE paid_at < ?').bind(Date.now() - TTL * 2000).run();
+  await env.CLONE_UPSELLS.prepare(`DELETE FROM ${table(env, 'purchase_proofs')} WHERE paid_at < ?`).bind(Date.now() - TTL * 2000).run();
 }
 
 async function commas(env, path, init = {}) {
-  if (!env.COMMAS_API_KEY) throw new Error('unconfigured');
-  const response = await fetch(BASE + path, { ...init, headers: {
-    'x-api-key': env.COMMAS_API_KEY, 'content-type': 'application/json', ...init.headers,
+  const config = paymentConfig(env);
+  if (!config.apiKey) throw new Error('unconfigured');
+  const response = await fetch(config.base + path, { ...init, headers: {
+    'x-api-key': config.apiKey, 'content-type': 'application/json', ...init.headers,
   }, signal: AbortSignal.timeout(15000) });
   const body = await response.json().catch(() => null);
   return { response, body };
 }
 function success(result) { return result.response.ok && result.body?.status === 'success'; }
 
-async function matchesPurchase(tx, proof, intent) {
+async function matchesPurchase(tx, proof, intent, env) {
   const paidAt = Date.parse(tx?.transaction_date);
   const email = String(tx?.fan?.email || '').trim().toLowerCase();
-  return tx && (tx.product?.id || tx.service?.id) === 'nmGzE' && Number(tx.amount) === 47 &&
+  return tx && (tx.product?.id || tx.service?.id) === paymentConfig(env).seat && Number(tx.amount) === 47 &&
     Array.isArray(tx.refunds) && tx.refunds.length === 0 && email &&
     Number.isFinite(paidAt) && paidAt >= intent.iat * 1000 - 5000 &&
     Math.abs(paidAt - proof.paid_at) <= 60000 && Date.now() - paidAt < TTL * 1000 &&
@@ -104,12 +95,12 @@ async function matchesPurchase(tx, proof, intent) {
 export async function buyerSession(request, env) {
   if (!sameOrigin(request)) return json({ ok: false, error: 'origin' }, 403);
   if (!env.CLONE_UPSELLS || !env.CLONE_TOKEN_SECRET) return json({ ok: false, fallback: true }, 503);
-  const existing = await readCookie(request, BUYER_COOKIE, env.CLONE_TOKEN_SECRET, 'buyer');
+  const existing = await readCookie(request, cookieName(env, 'buyer'), env.CLONE_TOKEN_SECRET, tokenKind(env, 'buyer'));
   if (existing) return json({ ok: true });
-  const intent = await readCookie(request, CHECKOUT_COOKIE, env.CLONE_TOKEN_SECRET, 'checkout');
+  const intent = await readCookie(request, cookieName(env, 'checkout'), env.CLONE_TOKEN_SECRET, tokenKind(env, 'checkout'));
   if (!intent) return json({ ok: false, fallback: true }, 401);
   try {
-    const proof = await env.CLONE_UPSELLS.prepare('SELECT * FROM clone_purchase_proofs WHERE checkout_ref = ?').bind(intent.ref).first();
+    const proof = await env.CLONE_UPSELLS.prepare(`SELECT * FROM ${table(env, 'purchase_proofs')} WHERE checkout_ref = ?`).bind(intent.ref).first();
     if (!proof) return json({ ok: false, pending: true }, 202);
     // Webhook order IDs and SDK transaction hashids differ. Try the exact reference,
     // then reconcile the recent product ledger against the signed webhook identity/time.
@@ -118,12 +109,12 @@ export async function buyerSession(request, env) {
     const ref = input?.transactionId || proof.transaction_ref;
     if (!/^[A-Za-z0-9-]{3,100}$/.test(ref)) return json({ ok: false }, 400);
     const direct = await commas(env, '/transactions/' + encodeURIComponent(ref));
-    let tx = success(direct) && await matchesPurchase(direct.body.data, proof, intent) ? direct.body.data : null;
+    let tx = success(direct) && await matchesPurchase(direct.body.data, proof, intent, env) ? direct.body.data : null;
     if (!tx) {
-      const ledger = await commas(env, '/checkout-sessions/nmGzE/transactions?per_page=100');
+      const ledger = await commas(env, '/checkout-sessions/' + paymentConfig(env).seat + '/transactions?per_page=100');
       if (success(ledger)) {
         for (const row of ledger.body.data?.transactions || []) {
-          if (await matchesPurchase(row, proof, intent)) { tx = row; break; }
+          if (await matchesPurchase(row, proof, intent, env)) { tx = row; break; }
         }
       }
     }
@@ -134,8 +125,8 @@ export async function buyerSession(request, env) {
       String(c.email).trim().toLowerCase() === email && Number.isSafeInteger(Number(c.id)) && Number(c.id) > 0) : [];
     if (customers.length !== 1) return json({ ok: false, fallback: true }, 401);
     const iat = Math.floor(Date.now() / 1000);
-    const token = await sign({ kind: 'buyer', buyer: Number(customers[0].id), purchased: proof.paid_at, iat, exp: iat + TTL }, env.CLONE_TOKEN_SECRET);
-    return json({ ok: true }, 200, { 'set-cookie': cookie(BUYER_COOKIE, token) });
+    const token = await sign({ kind: tokenKind(env, 'buyer'), buyer: Number(customers[0].id), purchased: proof.paid_at, iat, exp: iat + TTL }, env.CLONE_TOKEN_SECRET);
+    return json({ ok: true }, 200, { 'set-cookie': cookie(cookieName(env, 'buyer'), token) });
   } catch { return json({ ok: false, fallback: true }, 503); }
 }
 
@@ -146,8 +137,8 @@ function fallback(offer, reason = 'unavailable') {
 function pending() {
   return json({ ok: false, pending: true, message: 'Your payment is still being confirmed. Check again before placing another order.' }, 202);
 }
-function existingClaim(claim) {
-  const offer = OFFERS[claim.offer];
+function existingClaim(claim, env) {
+  const offer = paymentConfig(env).offers[claim.offer];
   if (claim.state === 'charged') return json({ ok: true, next: offer.next });
   if (claim.state === 'fallback') return fallback(offer, 'previous_fallback');
   return pending();
@@ -157,43 +148,44 @@ export async function upsell(request, env) {
   if (!sameOrigin(request)) return json({ ok: false, error: 'origin' }, 403);
   let input;
   try { input = await request.json(); } catch { return json({ ok: false, error: 'bad json' }, 400); }
-  const offer = Object.hasOwn(OFFERS, input?.offer) ? OFFERS[input.offer] : null;
+  const offers = paymentConfig(env).offers;
+  const offer = Object.hasOwn(offers, input?.offer) ? offers[input.offer] : null;
   if (!offer) return json({ ok: false, error: 'invalid offer' }, 400);
   if (!env.CLONE_UPSELLS || !env.CLONE_TOKEN_SECRET) return fallback(offer);
-  const buyer = await readCookie(request, BUYER_COOKIE, env.CLONE_TOKEN_SECRET, 'buyer');
+  const buyer = await readCookie(request, cookieName(env, 'buyer'), env.CLONE_TOKEN_SECRET, tokenKind(env, 'buyer'));
   const db = env.CLONE_UPSELLS;
   if (!buyer || !Number.isSafeInteger(buyer.buyer) || buyer.buyer <= 0) {
     // An expired, authentic token may only inspect its prior claim. It cannot
     // authorize billing, but must not send an unresolved payment to checkout.
-    const expired = await readCookie(request, BUYER_COOKIE, env.CLONE_TOKEN_SECRET, 'buyer', true);
+    const expired = await readCookie(request, cookieName(env, 'buyer'), env.CLONE_TOKEN_SECRET, tokenKind(env, 'buyer'), true);
     if (expired && Number.isSafeInteger(expired.buyer)) {
       try {
-        const prior = await db.prepare('SELECT * FROM clone_upsell_claims WHERE buyer_id = ? AND offer_group = ?').bind(expired.buyer, offer.group).first();
-        if (prior) return existingClaim(prior);
+        const prior = await db.prepare(`SELECT * FROM ${table(env, 'upsell_claims')} WHERE buyer_id = ? AND offer_group = ?`).bind(expired.buyer, offer.group).first();
+        if (prior) return existingClaim(prior, env);
       } catch { return pending(); }
     }
     return fallback(offer, 'buyer_unverified');
   }
   let claimed = false, sent = false;
   try {
-    const previous = await db.prepare('SELECT * FROM clone_upsell_claims WHERE buyer_id = ? AND offer_group = ?').bind(buyer.buyer, offer.group).first();
-    if (previous) return existingClaim(previous);
+    const previous = await db.prepare(`SELECT * FROM ${table(env, 'upsell_claims')} WHERE buyer_id = ? AND offer_group = ?`).bind(buyer.buyer, offer.group).first();
+    if (previous) return existingClaim(previous, env);
     // Atomic uniqueness across isolates, double clicks, sessions and alternative plans.
-    const insert = await db.prepare(`INSERT INTO clone_upsell_claims
+    const insert = await db.prepare(`INSERT INTO ${table(env, 'upsell_claims')}
       (buyer_id, offer_group, offer, state, created_at) VALUES (?, ?, ?, 'processing', ?)
       ON CONFLICT(buyer_id, offer_group) DO NOTHING`).bind(buyer.buyer, offer.group, input.offer, Date.now()).run();
     claimed = insert.meta?.changes === 1;
     if (!claimed) {
-      const row = await db.prepare('SELECT * FROM clone_upsell_claims WHERE buyer_id = ? AND offer_group = ?').bind(buyer.buyer, offer.group).first();
-      return row ? existingClaim(row) : pending();
+      const row = await db.prepare(`SELECT * FROM ${table(env, 'upsell_claims')} WHERE buyer_id = ? AND offer_group = ?`).bind(buyer.buyer, offer.group).first();
+      return row ? existingClaim(row, env) : pending();
     }
     const finish = async (state, ref = null) => {
-      await db.prepare('UPDATE clone_upsell_claims SET state = ?, charge_ref = ? WHERE buyer_id = ? AND offer_group = ?').bind(state, ref, buyer.buyer, offer.group).run();
+      await db.prepare(`UPDATE ${table(env, 'upsell_claims')} SET state = ?, charge_ref = ? WHERE buyer_id = ? AND offer_group = ?`).bind(state, ref, buyer.buyer, offer.group).run();
     };
-    const enabledAt = Date.parse(env.CLONE_REBILL_ENABLED_AT || '');
-    if (env.CLONE_REBILL_ENABLED !== 'true' || !Number.isFinite(enabledAt) ||
+    const enabledAt = Date.parse((isSandbox(env) ? env.CLONE_SANDBOX_REBILL_ENABLED_AT : env.CLONE_REBILL_ENABLED_AT) || '');
+    if ((isSandbox(env) ? env.CLONE_SANDBOX_REBILL_ENABLED : env.CLONE_REBILL_ENABLED) !== 'true' || !Number.isFinite(enabledAt) ||
         !Number.isFinite(buyer.purchased) || buyer.purchased <= enabledAt ||
-        offer.trial || (offer.recurring && env.CLONE_SUBSCRIPTIONS_ENABLED !== 'true')) {
+        offer.trial || (offer.recurring && (isSandbox(env) ? env.CLONE_SANDBOX_SUBSCRIPTIONS_ENABLED : env.CLONE_SUBSCRIPTIONS_ENABLED) !== 'true')) {
       await finish('fallback');
       return fallback(offer, offer.trial ? 'trial_hosted' : 'rebill_unavailable');
     }
@@ -211,7 +203,7 @@ export async function upsell(request, env) {
       (methods.body.data.payment_methods || []).filter(m => m.type === 'card' && typeof m.id === 'string') : [];
     const card = cards.find(m => m.is_default) || cards[0];
     if (!card) { await finish('fallback'); return fallback(offer, 'no_saved_card'); }
-    const idempotency = 'clone-' + await hash(`${buyer.buyer}:${offer.group}`);
+    const idempotency = (isSandbox(env) ? 'clone-sandbox-' : 'clone-') + await hash(`${buyer.buyer}:${offer.group}`);
     sent = true;
     const charge = await commas(env, '/customers/' + buyer.buyer + '/charge', {
       method: 'POST', headers: { 'Idempotency-Key': idempotency }, body: JSON.stringify({
@@ -237,7 +229,7 @@ export async function upsell(request, env) {
   } catch {
     if (claimed && !sent) {
       try {
-        await db.prepare('UPDATE clone_upsell_claims SET state = ?, charge_ref = ? WHERE buyer_id = ? AND offer_group = ?').bind('fallback', null, buyer.buyer, offer.group).run();
+        await db.prepare(`UPDATE ${table(env, 'upsell_claims')} SET state = ?, charge_ref = ? WHERE buyer_id = ? AND offer_group = ?`).bind('fallback', null, buyer.buyer, offer.group).run();
         return fallback(offer);
       } catch { /* Durable claim stays locked if persistence failed. */ }
     }

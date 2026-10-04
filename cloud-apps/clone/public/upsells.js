@@ -1,5 +1,12 @@
 (function () {
   'use strict';
+  var sandbox = !!(window.CloneMode && CloneMode.environment === 'sandbox');
+  var suffix = sandbox ? '?sandbox=1' : '';
+  var storagePrefix = sandbox ? 'jm_sandbox_clone_' : 'jm_clone_';
+  function validHosted(url) {
+    return sandbox ? Object.values(CloneMode.hosted).includes(url) && /^https:\/\/sandbox\.commas\.net\//.test(url || '') :
+      /^https:\/\/commas\.com\/checkout\/[A-Za-z0-9]+$/.test(url || '');
+  }
   var buttons = Array.from(document.querySelectorAll('[data-upsell]'));
   var busy = false, panel, buyerReady;
   var style = document.createElement('style');
@@ -12,13 +19,13 @@
   document.head.appendChild(style);
 
   async function post(path, body) {
-    var response = await fetch('/clone/api/' + path, { method: 'POST', credentials: 'same-origin',
+    var response = await fetch('/clone/api/' + path + suffix, { method: 'POST', credentials: 'same-origin',
       headers: { 'content-type': 'application/json' }, body: JSON.stringify(body), signal: AbortSignal.timeout(20000) });
     return response.json();
   }
   async function verifyBuyer() {
     var ref;
-    try { ref = sessionStorage.getItem('jm_clone_transaction'); } catch (e) {}
+    try { ref = sessionStorage.getItem(storagePrefix + 'transaction'); } catch (e) {}
     for (var i = 0; i < 12; i++) {
       var result = await post('buyer-session', { transactionId: ref || undefined });
       if (!result.pending) return result.ok;
@@ -50,7 +57,7 @@
     var result;
     var group = ['software', 'trial'].includes(button.dataset.upsell) ? 'software' :
       ['vault', 'vault_plan'].includes(button.dataset.upsell) ? 'vault' : 'audit';
-    var pendingKey = 'jm_clone_pending_' + group, hadPending = false;
+    var pendingKey = storagePrefix + 'pending_' + group, hadPending = false;
     try { hadPending = !!sessionStorage.getItem(pendingKey); } catch (e) {}
     try {
       await buyerReady;
@@ -68,16 +75,17 @@
     if (result.ok || result.fallback) {
       try { sessionStorage.removeItem(pendingKey); } catch (e) {}
     }
-    if (result.ok && /^\/clone\/(audit|vault|welcome)\.html$/.test(result.next || '')) {
+    if (result.ok && /^\/clone\/(audit|vault|welcome)\.html(?:\?sandbox=1)?$/.test(result.next || '')) {
+      if (sandbox !== result.next.endsWith('?sandbox=1')) throw new Error('Wrong checkout environment');
       location.href = result.next; return;
     }
     if (result.fallback && ['rebill_unavailable', 'trial_hosted', 'buyer_unverified', 'no_saved_card', 'previous_fallback'].includes(result.reason) &&
-        /^https:\/\/commas\.com\/checkout\/[A-Za-z0-9]+$/.test(result.checkoutUrl || '')) {
+        validHosted(result.checkoutUrl)) {
       location.href = result.checkoutUrl; return;
     }
     button.innerHTML = old; button.removeAttribute('aria-busy');
     var slot = message(button, result.message || 'This offer needs secure checkout to finish. Continue with Commas below.');
-    if (result.fallback && /^https:\/\/commas\.com\/checkout\/[A-Za-z0-9]+$/.test(result.checkoutUrl || '')) {
+    if (result.fallback && validHosted(result.checkoutUrl)) {
       var link = document.createElement('a'); link.className = 'yes'; link.href = result.checkoutUrl;
       link.textContent = 'Continue to Secure Checkout →'; slot.appendChild(link);
       disable(false);
