@@ -1,0 +1,288 @@
+<meta charset="utf-8">
+<title>Before your session — tell me where you're at</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex">
+<style>
+:root{
+  --paper:#fff;--ink:#111014;--ink-2:#33313A;--ink-3:#6E6B75;
+  --sig:#0B5CF6;--sig-deep:#0742BE;--sig-wash:#EEF3FF;--sig-lt:#6FA6FF;
+  --bar:#0E0D11;--rule:#E4E2DE;--rule-2:#CBC8C3;--soft:#F7F6F3;
+  --serif:Georgia,"Times New Roman",Times,serif;
+  --util:Montserrat,-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--serif);font-size:20px;
+     line-height:1.62;-webkit-font-smoothing:antialiased}
+.shell{max-width:760px;margin:0 auto;padding:0 clamp(20px,5vw,28px)}
+h1,h2{margin:0;font-family:var(--serif);font-weight:700;text-wrap:balance;letter-spacing:-.02em}
+h1{font-size:clamp(32px,4.4vw,50px);line-height:1.08}
+p{margin:0}
+.sig{color:var(--sig)}
+.mid{text-align:center}
+.col{display:flex;flex-direction:column}
+.g10{gap:10px}.g16{gap:16px}.g22{gap:22px}.g30{gap:30px}
+section{padding:clamp(34px,4.6vw,56px) 0}
+.hr{border:0;border-top:1px solid var(--rule);margin:0}
+.dim{color:var(--ink-3)}
+.util{font-family:var(--util);letter-spacing:.085em;text-transform:uppercase;font-weight:700;font-size:12.5px}
+.small{font-size:18px}
+.letter{font-size:clamp(19px,1.8vw,22px);line-height:1.6;max-width:60ch;margin:0 auto}
+
+.bar{position:sticky;top:0;z-index:70;background:var(--bar);color:#E8E5E0;border-bottom:3px solid var(--sig);padding:11px 0}
+/* sizing and layout copied from Dan's timer bar (getclients.com/mdw); colors stay Jon's */
+.bar-in{display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:12px;text-align:center;
+        font-family:var(--util);font-size:15px;line-height:1.4;letter-spacing:.5px}
+.bar .util{font-size:inherit;font-weight:700;letter-spacing:1px;color:#98948E}
+.bar .util .w{color:#fff}
+.bar b{color:var(--sig-lt);font-family:var(--util);font-weight:900;font-variant-numeric:tabular-nums;font-size:18px;letter-spacing:1px}
+.bar #when{color:#fff;font-weight:400;font-size:inherit;letter-spacing:inherit}
+.bar .sep{color:#4b5563;font-weight:400}
+.bar .sep-m{display:none}
+.live{width:6px;height:6px;border-radius:50%;background:var(--sig);display:inline-block;margin-right:8px;
+      vertical-align:middle;animation:pulse 2s ease-in-out infinite}
+@keyframes pulse{50%{opacity:.25}}
+@media(max-width:600px){
+  .bar-in{font-size:11px;gap:4px;line-height:1.1}
+  .bar b{font-size:13px}
+  .bar .dw,.bar .wk,.bar .ord,.bar .sep{display:none}
+  .bar .sep-m{display:inline}
+}
+
+.qual{font-family:var(--util);text-transform:uppercase;font-weight:800;font-size:clamp(11px,1.15vw,13.5px);
+      letter-spacing:.05em;color:var(--sig);line-height:1.5;text-align:center}
+
+form{display:flex;flex-direction:column;gap:26px}
+.f{display:flex;flex-direction:column;gap:8px}
+.f label{font-family:var(--util);font-weight:700;font-size:13px;letter-spacing:.05em;text-transform:uppercase;color:var(--ink-2)}
+.f .hint{font-family:var(--util);font-weight:500;font-size:13px;color:var(--ink-3);letter-spacing:0;text-transform:none;line-height:1.5}
+.f input,.f select,.f textarea{
+  width:100%;font-family:var(--serif);font-size:19px;color:var(--ink);background:var(--paper);
+  border:1px solid var(--rule-2);border-radius:10px;padding:14px 16px;line-height:1.5;
+  transition:border-color .14s,box-shadow .14s}
+.f textarea{min-height:118px;resize:vertical}
+.f select{font-family:var(--util);font-weight:500;font-size:17px;appearance:none;cursor:pointer;
+  background-image:url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%236E6B75' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:right 15px center;background-size:19px;padding-right:46px}
+.f input:focus,.f select:focus,.f textarea:focus{
+  outline:0;border-color:var(--sig);box-shadow:0 0 0 3px rgba(11,92,246,.16)}
+.f input:invalid:not(:placeholder-shown){border-color:#C1332B}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:26px}
+@media(max-width:620px){.two{grid-template-columns:1fr}}
+
+.cta{display:inline-flex;align-items:center;justify-content:center;gap:11px;background:var(--sig);color:#fff;
+     font-family:var(--util);font-weight:800;font-size:clamp(16px,1.6vw,19px);text-decoration:none;cursor:pointer;
+     border:0;border-radius:12px;padding:19px 46px;align-self:center;max-width:560px;width:100%;
+     box-shadow:0 3px 0 var(--sig-deep),0 16px 32px -16px rgba(7,66,190,.85);
+     transition:transform .16s cubic-bezier(.2,.8,.2,1),box-shadow .16s}
+.cta:hover{transform:translateY(-2px);box-shadow:0 5px 0 var(--sig-deep),0 22px 42px -18px rgba(7,66,190,.9)}
+.cta:active{transform:translateY(1px);box-shadow:0 2px 0 var(--sig-deep)}
+.cta[disabled]{opacity:.55;cursor:default;transform:none;box-shadow:0 3px 0 var(--sig-deep)}
+.cta-sub{font-family:var(--util);font-size:13.5px;color:var(--ink-3);line-height:1.6;text-align:center;font-weight:500}
+a:focus-visible,button:focus-visible{outline:3px solid var(--sig);outline-offset:4px;border-radius:6px}
+
+.done{display:none;text-align:center;gap:18px;flex-direction:column;padding:clamp(40px,6vw,80px) 0}
+.done.on{display:flex}
+.tick{width:64px;height:64px;border-radius:50%;background:var(--sig-wash);display:grid;place-items:center;margin:0 auto}
+.tick svg{width:30px;height:30px;stroke:var(--sig);fill:none;stroke-width:3;stroke-linecap:round;stroke-linejoin:round}
+.hide{display:none}
+
+/* CTA sizing from getclients.com/mdw: as wide as its text and centered, full width on phones.
+   fit-content + auto margins (not inline-flex) so it centers in every container. Colors unchanged. */
+.cta,.yes{display:flex;width:fit-content;max-width:100%;margin-left:auto;margin-right:auto;align-self:center;
+  gap:10px;padding:19px 46px;border-radius:12px;font-weight:800;
+  box-shadow:0 8px 30px rgba(11,92,246,.30);transition:transform .15s ease,box-shadow .15s ease}
+.cta:hover,.yes:hover{transform:translateY(-2px);box-shadow:0 11px 34px rgba(11,92,246,.34)}
+@media(max-width:720px){.cta,.yes{width:100%}}
+</style>
+
+<div class="bar">
+  <div class="shell bar-in">
+    <span class="util"><span class="live"></span>TRAINING <span class="dw w">DATE</span>:</span>
+    <b id="when">Tue, Wed &amp; Thu at 7:00 PM ET</b>
+    <span class="util"><span class="sep">|</span><span class="sep-m">-</span></span>
+    <span class="util">STARTS IN</span>
+    <b id="clk">&mdash;</b>
+  </div>
+</div>
+
+<section id="ask">
+  <div class="shell col g30">
+    <div class="col g16">
+      <p class="qual">Takes 2 minutes &mdash; and it changes what I teach in your session</p>
+      <h1 class="mid">Tell Me Where <span class="sig">You're Actually At</span></h1>
+      <p class="letter mid">I build every session around the room that's in it. If I know what you've
+        already tried, whether you've touched TikTok Shop, and where you're stuck, I can aim the
+        2 hours at that instead of guessing. Nobody sees these answers but me.</p>
+    </div>
+
+    <hr class="hr">
+
+    <form id="sv" novalidate>
+      <div class="two">
+        <div class="f">
+          <label for="q_name">Your name</label>
+          <input id="q_name" name="Name" type="text" autocomplete="name" placeholder="First and last" required>
+        </div>
+        <div class="f">
+          <label for="q_email">Email</label>
+          <input id="q_email" name="Email" type="email" autocomplete="email" placeholder="The one you bought with" required>
+        </div>
+      </div>
+
+      <div class="f">
+        <label for="q_phone">Phone</label>
+        <span class="hint">Only used if I need to reach you about your seat. No calls, no lists.</span>
+        <input id="q_phone" name="Phone" type="tel" autocomplete="tel" placeholder="+1 555 000 0000" required>
+      </div>
+
+      <div class="f">
+        <label for="q_stage">Where are you right now?</label>
+        <select id="q_stage" name="Stage" required>
+          <option value="" selected disabled>Pick the closest one</option>
+          <option>Tried dropshipping or ecommerce &mdash; the inventory or ad spend ate me alive</option>
+          <option>Tried posting content &mdash; did everything right, got 40 views and a cricket</option>
+          <option>Brand new &mdash; no store, no audience, just done watching other people win</option>
+          <option>Already on TikTok Shop &mdash; my videos aren't converting like the ones blowing up</option>
+        </select>
+      </div>
+
+      <div class="f">
+        <label for="q_tiktok">Have you ever posted a TikTok Shop video?</label>
+        <select id="q_tiktok" name="TikTokExperience" required>
+          <option value="" selected disabled>Pick the closest one</option>
+          <option>Never &mdash; I don't even have the account set up yet</option>
+          <option>I have the account but haven't posted a shop video</option>
+          <option>Posted a few &mdash; nothing sold</option>
+          <option>Posted plenty &mdash; some sales, nothing consistent</option>
+          <option>I earn commissions regularly and want to scale</option>
+        </select>
+      </div>
+
+      <div class="f">
+        <label for="q_biz">If a side income brought you an extra $1,000 a month &mdash; real money, every month &mdash; what would it actually change?</label>
+        <span class="hint">Don't type what sounds impressive. Type the real thing. The car payment. The credit card. The first month of rent covered by something you built.</span>
+        <textarea id="q_biz" name="Counterweight" placeholder="I read these before every session and I read some back at the close. Make it real." required></textarea>
+      </div>
+
+      <div class="f">
+        <label for="q_want">What's the #1 question you want answered live?</label>
+        <span class="hint">The last stretch of every session is the room's questions. Type yours now and I'll build around it.</span>
+        <textarea id="q_want" name="TopQuestion" placeholder="Be specific. &ldquo;How do I pick my first product&rdquo; beats &ldquo;tell me more about TikTok&rdquo;." required></textarea>
+      </div>
+
+      <button class="cta" type="submit" id="go">SEND IT &mdash; SEE YOU AT 7 PM ET</button>
+      <p class="cta-sub">Answers go straight to me at jon@thejonmac.com. Not shared, not sold, not added to anything.</p>
+      <p class="cta-sub" id="err" style="color:#C1332B;display:none"></p>
+    </form>
+
+    <div class="done col" id="done">
+      <div class="tick"><svg viewBox="0 0 24 24"><path d="M4 12.5l5.5 5.5L20 6.5"/></svg></div>
+      <h1>Got it.</h1>
+      <p class="letter mid">That's everything I need. Your Zoom link is already in your inbox &mdash;
+        block the 2 hours and I'll see you at 7pm Eastern.</p>
+      <p class="cta-sub"><a href="welcome.html" style="color:var(--sig)">&larr; Back to your confirmation page</a></p>
+    </div>
+  </div>
+</section>
+
+<script>
+// Swap this for a real endpoint (Formspree / Basin / your own handler) and the form POSTs to it.
+// Left as-is, the form falls back to opening a pre-filled email to jon@thejonmac.com so it still works.
+var FORM_ENDPOINT = "";
+var FALLBACK_EMAIL = "jon@thejonmac.com";
+
+/* Next Tue/Wed/Thu 19:00 America/New_York, DST-safe, correct from any viewer timezone. */
+function sevenET(y,m,d){
+  var t=Date.UTC(y,m,d,23,0,0);                           /* 19:00 EDT guess */
+  for(var i=0;i<3;i++){
+    var h=+new Intl.DateTimeFormat('en-US',{timeZone:'America/New_York',
+          hour:'numeric',hour12:false}).format(new Date(t));
+    if(h===24)h=0;
+    if(h===19)break;
+    t+=(19-h)*3600000;
+  }
+  return new Date(t);
+}
+function nextSession(){
+  var now=new Date(),p=new Intl.DateTimeFormat('en-CA',{timeZone:'America/New_York',
+        year:'numeric',month:'2-digit',day:'2-digit'}).format(now).split('-');
+  for(var i=0;i<8;i++){
+    var day=new Date(Date.UTC(+p[0],+p[1]-1,+p[2]+i)),wd=day.getUTCDay();
+    if(wd<2||wd>4)continue;                                /* Tue=2 Wed=3 Thu=4 */
+    var t=sevenET(day.getUTCFullYear(),day.getUTCMonth(),day.getUTCDate());
+    if(t>now)return t;
+  }
+}
+function ord(d){var s=['th','st','nd','rd'],v=d%100;return d+(s[(v-20)%10]||s[v]||s[0]);}
+function whenLabel(t){
+  var f=function(o){return new Intl.DateTimeFormat('en-US',Object.assign({timeZone:'America/New_York'},o)).format(t);};
+  var tzp=new Intl.DateTimeFormat('en-US',{timeZone:'America/New_York',timeZoneName:'short'})
+    .formatToParts(t).find(function(x){return x.type==='timeZoneName';});
+  return '<span class="wk">'+f({weekday:'long'})+', </span>'+f({month:'long'})+' '+
+      (function(d){return d+'<span class="ord">'+ord(d).slice(String(d).length)+'</span>';})(+f({day:'numeric'}))+' @ 7:00 PM '+(tzp?tzp.value:'ET');
+}
+(function () {
+  var el = document.getElementById("clk"), wh = document.getElementById("when");
+  var target = nextSession();
+  if (wh) wh.innerHTML = whenLabel(target);
+  (function tick() {
+    var ms = target - new Date();
+    if (ms <= 0) { target = nextSession(); if (wh) wh.innerHTML = whenLabel(target); ms = target - new Date(); }
+    var s = Math.floor(ms / 1000), d = Math.floor(s / 86400), h = Math.floor(s % 86400 / 3600),
+        m = Math.floor(s % 3600 / 60), ss = s % 60;
+    el.textContent = String(d).padStart(2, "0") + "d : " + String(h).padStart(2, "0") + "h : " +
+                     String(m).padStart(2, "0") + "m : " + String(ss).padStart(2, "0") + "s";
+    setTimeout(tick, 1000);
+  })();
+})();
+
+document.getElementById("sv").addEventListener("submit", function (e) {
+  e.preventDefault();
+  var form = e.target, err = document.getElementById("err"), go = document.getElementById("go");
+
+  if (!form.checkValidity()) {
+    var bad = form.querySelector(":invalid");
+    err.textContent = "One field still needs filling in.";
+    err.style.display = "block";
+    bad.focus();
+    bad.scrollIntoView({ block: "center", behavior: "smooth" });
+    return;
+  }
+  err.style.display = "none";
+
+  var data = {};
+  new FormData(form).forEach(function (v, k) { data[k] = v; });
+
+  function finish() {
+    form.classList.add("hide");
+    document.getElementById("done").classList.add("on");
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  if (!FORM_ENDPOINT) {
+    var body = Object.keys(data).map(function (k) { return k + ":\n" + data[k]; }).join("\n\n");
+    window.location.href = "mailto:" + FALLBACK_EMAIL +
+      "?subject=" + encodeURIComponent("Workshop survey — " + (data.Name || "")) +
+      "&body=" + encodeURIComponent(body);
+    finish();
+    return;
+  }
+
+  go.disabled = true;
+  go.textContent = "SENDING…";
+  fetch(FORM_ENDPOINT, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify(data)
+  }).then(function (r) {
+    if (!r.ok) throw new Error(r.status);
+    finish();
+  }).catch(function () {
+    go.disabled = false;
+    go.textContent = "SEND IT — SEE YOU AT 7 PM ET";
+    err.textContent = "That didn't send. Email your answers to " + FALLBACK_EMAIL + " and I'll sort it.";
+    err.style.display = "block";
+  });
+});
+</script>

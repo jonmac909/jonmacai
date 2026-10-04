@@ -1,0 +1,711 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Add Viral View — $97/mo</title>
+<!--
+Structural + typographic clone of getclients.com/mdw-a-9.
+Fonts matched to his: Georgia (headlines and body, via --contentfont/--headlinefont on his page)
+and Montserrat for labels, buttons and the clock. Body 18-22px, same as his.
+Copy register follows clientascension.io/ai-assisted-agency: plain explanatory prose, plain-question
+headings. Section order and word volume matched to Dan's page (~5,000 words).
+-->
+<style>
+:root{
+  --paper:#fff;--ink:#111014;--ink-2:#33313A;--ink-3:#6E6B75;
+  --sig:#0B5CF6;--sig-deep:#0742BE;--sig-wash:#EEF3FF;--sig-lt:#6FA6FF;
+  --bar:#0E0D11;--rule:#E4E2DE;--rule-2:#CBC8C3;--soft:#F7F6F3;
+  --serif:Georgia,"Times New Roman",Times,serif;
+  --util:Montserrat,-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--serif);font-size:20px;
+     line-height:1.62;-webkit-font-smoothing:antialiased}
+.shell{max-width:760px;margin:0 auto;padding:0 clamp(20px,5vw,28px)}
+.wide{max-width:1060px}
+h1,h2,h3{margin:0;font-family:var(--serif);font-weight:700;text-wrap:balance;letter-spacing:-.02em}
+h1{font-size:clamp(34px,4.9vw,56px);line-height:1.08;text-wrap:normal}
+h2{font-size:clamp(28px,3.8vw,42px);line-height:1.14}
+h3{font-size:clamp(20px,2vw,24px);line-height:1.25}
+p{margin:0}
+b,strong{font-weight:700}
+em{font-style:italic}
+.sig{color:var(--sig)}
+.mid{text-align:center}
+.col{display:flex;flex-direction:column}
+.g10{gap:10px}.g16{gap:16px}.g22{gap:22px}.g30{gap:30px}
+section{padding:clamp(40px,5.5vw,66px) 0}
+.hr{border:0;border-top:1px solid var(--rule);margin:0}
+.dim{color:var(--ink-3)}
+.util{font-family:var(--util);letter-spacing:.085em;text-transform:uppercase;font-weight:700;font-size:12.5px}
+.num{font-variant-numeric:tabular-nums}
+.small{font-size:18px}
+
+/* clock bar */
+.bar{position:sticky;top:0;z-index:70;background:var(--bar);color:#E8E5E0;border-bottom:3px solid var(--sig);padding:11px 0}
+.bar-in{display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:5px 20px;text-align:center}
+.bar .util{font-size:12px;color:#98948E}
+.bar b{color:var(--sig-lt);font-family:var(--util);font-weight:800;font-variant-numeric:tabular-nums;font-size:14px}
+.live{width:8px;height:8px;border-radius:50%;background:var(--sig);display:inline-block;margin-right:8px;
+      box-shadow:0 0 0 0 rgba(11,92,246,.65);animation:ping 2.6s ease-out infinite}
+@keyframes ping{70%{box-shadow:0 0 0 10px rgba(11,92,246,0)}100%{box-shadow:0 0 0 0 rgba(11,92,246,0)}}
+
+/* hero */
+.hero{padding:clamp(28px,3.5vw,44px) 0 clamp(20px,2.5vw,30px)}
+.hero .shell{max-width:960px}
+.hero .letter{max-width:800px}
+.qual{font-family:var(--util);text-transform:uppercase;font-weight:800;font-size:clamp(11px,1.15vw,13.5px);
+      letter-spacing:.05em;color:var(--sig);line-height:1.5;max-width:none;margin:0 auto;white-space:nowrap}
+@media (max-width:700px){.qual{white-space:normal;letter-spacing:.06em}}
+.letter{font-size:clamp(19px,1.8vw,22px);line-height:1.6;max-width:58ch;margin:0 auto}
+.point{font-family:var(--util);font-weight:800;text-transform:uppercase;letter-spacing:.08em;font-size:13px;
+       color:var(--sig);display:flex;align-items:center;justify-content:center;gap:10px}
+.point .i{width:13px;height:13px;stroke:var(--sig);fill:none;stroke-width:2.6;stroke-linecap:round;stroke-linejoin:round}
+
+/* countdown blocks */
+.clock{display:flex;justify-content:center;gap:clamp(8px,1.4vw,16px);flex-wrap:wrap}
+.cbox{background:var(--bar);color:#fff;border-radius:10px;min-width:clamp(74px,9vw,104px);padding:14px 10px;text-align:center}
+.cbox b{display:block;font-family:var(--util);font-weight:800;font-size:clamp(26px,3.4vw,40px);line-height:1;font-variant-numeric:tabular-nums}
+.cbox span{display:block;font-family:var(--util);font-size:10.5px;letter-spacing:.13em;color:#98948E;margin-top:6px;font-weight:700}
+.csep{align-self:center;font-family:var(--util);font-weight:800;font-size:24px;color:var(--rule-2)}
+
+/* action */
+.cta{display:inline-flex;align-items:center;justify-content:center;gap:11px;background:var(--sig);color:#fff;
+     font-family:var(--util);font-weight:800;font-size:clamp(16px,1.6vw,19px);text-decoration:none;cursor:pointer;
+     border:0;border-radius:12px;padding:19px 46px;align-self:center;max-width:560px;width:100%;
+     box-shadow:0 3px 0 var(--sig-deep),0 16px 32px -16px rgba(7,66,190,.85);
+     transition:transform .16s cubic-bezier(.2,.8,.2,1),box-shadow .16s}
+.cta:hover{transform:translateY(-2px);box-shadow:0 5px 0 var(--sig-deep),0 22px 42px -18px rgba(7,66,190,.9)}
+.cta:active{transform:translateY(1px);box-shadow:0 2px 0 var(--sig-deep)}
+.cta-sub{font-family:var(--util);font-size:13.5px;color:var(--ink-3);line-height:1.6;max-width:64ch;margin:0 auto;font-weight:500}
+a:focus-visible,summary:focus-visible{outline:3px solid var(--sig);outline-offset:4px;border-radius:6px}
+
+/* video */
+.video{aspect-ratio:16/9;background:#131218;border-radius:10px;position:relative;overflow:hidden;display:grid;place-items:center;
+       box-shadow:0 4px 10px rgba(17,16,20,.16),0 36px 70px -36px rgba(17,16,20,.95)}
+.video img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:.48}
+.video iframe{position:absolute;inset:0;width:100%;height:100%;border:0;display:block}
+/* youtube player, viralview.io settings: no chrome, click toggles play/pause */
+.vv-hero{background:#061426}
+.vv-hero iframe{pointer-events:none}  /* youtube never sees the mouse: no hover chrome */
+.vv-toggle{position:absolute;inset:0;z-index:10;padding:0;border:0;background:transparent;cursor:pointer}
+.vv-label{pointer-events:none;position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
+  border:1px solid rgba(255,255,255,.2);background:#F8FDFF;border-radius:999px;padding:12px 20px;
+  font-family:var(--util);font-size:14px;font-weight:900;color:#02101F;white-space:nowrap;
+  box-shadow:0 20px 50px rgba(2,9,22,.32);opacity:0;transition:opacity .18s}
+.vv-hero:hover .vv-label,.vv-hero:not([data-state="playing"]) .vv-label{opacity:1}
+.vv-fs{position:absolute;bottom:14px;right:14px;z-index:20;display:grid;place-items:center;
+  width:42px;height:42px;border-radius:50%;border:1px solid rgba(255,255,255,.25);color:#fff;
+  background:rgba(2,9,22,.72);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);
+  cursor:pointer;transition:transform .15s}
+.vv-fs:hover{transform:scale(1.06)}
+.vv-fs svg{width:19px;height:19px;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
+.vv-hero:fullscreen{border-radius:0}
+.video .ph{position:absolute;left:0;right:0;bottom:16px;font-family:var(--util);font-size:12px;color:#B4AFBC;text-align:center;font-weight:600}
+.play{position:relative;width:80px;height:80px;border-radius:50%;background:var(--sig);display:grid;place-items:center;box-shadow:0 8px 22px rgba(0,0,0,.55)}
+.play svg{width:28px;height:28px;margin-left:5px;fill:#fff}
+
+/* devices */
+.chat{background:var(--soft);border-left:3px solid var(--rule-2);border-radius:0 8px 8px 0;padding:18px 22px;
+      display:flex;flex-direction:column;gap:9px;font-size:19px;color:var(--ink-2)}
+.vs{display:grid;grid-template-columns:1fr 1fr;border:1px solid var(--rule);border-radius:10px;overflow:hidden}
+.vs>div{padding:28px}
+.vs>div:first-child{border-right:1px solid var(--rule);background:var(--soft)}
+.vs .who{font-family:var(--util);font-size:11.5px;letter-spacing:.09em;text-transform:uppercase;font-weight:800;color:var(--ink-3)}
+.vs>div:last-child .who{color:var(--sig)}
+.vs dl{margin:16px 0 0;display:flex;flex-direction:column;gap:13px}
+.vs dt{font-family:var(--util);font-size:11.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3);font-weight:700}
+.vs dd{margin:2px 0 0;font-size:18px;line-height:1.4}
+.vs>div:last-child dd{font-weight:700}
+
+.cards3{display:grid;grid-template-columns:repeat(3,1fr);gap:clamp(14px,2vw,22px)}
+.card3{border:1px solid var(--rule);border-radius:10px;overflow:hidden;background:var(--paper)}
+.card3 img{width:100%;aspect-ratio:9/16;object-fit:cover;display:block}
+.card3 .bd{padding:18px}
+.card3 .nm{font-family:var(--util);font-size:11.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--ink-3);font-weight:700}
+.card3 .big{font-family:var(--serif);font-weight:700;font-size:clamp(28px,3vw,36px);line-height:1;margin:6px 0 10px;color:var(--sig)}
+.card3 p{font-size:17px;color:var(--ink-2);line-height:1.5}
+
+.fail{border-top:2px solid var(--ink)}
+.frow{display:grid;grid-template-columns:52px 1fr;gap:18px;padding:26px 0;border-bottom:1px solid var(--rule)}
+.frow .n{font-family:var(--serif);font-weight:700;font-size:40px;line-height:1;color:var(--sig)}
+.frow p{font-size:18.5px;color:var(--ink-2);margin-top:8px}
+
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:clamp(12px,2vw,20px);text-align:center}
+.stat{border:1px solid var(--rule);border-radius:10px;padding:22px 12px}
+.stat b{display:block;font-family:var(--serif);font-weight:700;font-size:clamp(30px,3.6vw,44px);line-height:1;color:var(--sig);font-variant-numeric:tabular-nums}
+.stat span{display:block;font-family:var(--util);font-size:10.5px;letter-spacing:.11em;color:var(--ink-3);margin-top:9px;font-weight:700}
+
+/* calculator */
+.calc{background:var(--bar);color:#EDEAE6;border-radius:14px;padding:clamp(22px,3vw,34px)}
+.calc .hd{font-family:var(--util);font-size:11.5px;letter-spacing:.13em;color:#98948E;font-weight:700;text-align:center}
+.inputs{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin:20px 0 26px}
+.inputs label{display:flex;flex-direction:column;gap:7px;font-family:var(--util);font-size:10.5px;letter-spacing:.09em;color:#98948E;font-weight:700}
+.inputs input{background:#1B1A20;border:1px solid #2E2C35;border-radius:8px;color:#fff;font-family:var(--util);
+              font-weight:700;font-size:19px;padding:12px 14px;width:100%;font-variant-numeric:tabular-nums}
+.inputs input:focus{outline:2px solid var(--sig);border-color:var(--sig)}
+.cmp{display:grid;grid-template-columns:1fr auto 1fr;gap:16px;align-items:center}
+.cbx{background:#1B1A20;border-radius:10px;padding:20px;text-align:center}
+.cbx.win{background:var(--sig)}
+.cbx .t{font-family:var(--util);font-size:10.5px;letter-spacing:.11em;color:#98948E;font-weight:700}
+.cbx.win .t{color:rgba(255,255,255,.75)}
+.cbx .v{font-family:var(--util);font-weight:800;font-size:clamp(24px,3vw,34px);margin:8px 0 4px;font-variant-numeric:tabular-nums}
+.cbx .s{font-family:var(--util);font-size:12.5px;color:#98948E;font-weight:600}
+.cbx.win .s{color:rgba(255,255,255,.88)}
+.arrow{font-family:var(--util);font-size:22px;color:#5C5966}
+.saved{text-align:center;margin-top:20px;font-family:var(--util);font-weight:800;font-size:clamp(20px,2.6vw,30px);color:var(--sig-lt);font-variant-numeric:tabular-nums}
+.savedsub{text-align:center;font-family:var(--util);font-size:11px;letter-spacing:.11em;color:#98948E;margin-top:6px;font-weight:700}
+
+.persons{display:grid;grid-template-columns:repeat(3,1fr);gap:clamp(14px,2vw,20px)}
+.person{border:1px solid var(--rule);border-radius:10px;padding:26px;display:flex;flex-direction:column;gap:10px}
+.person .tag{font-family:var(--util);font-size:10.5px;letter-spacing:.13em;color:var(--sig);font-weight:800}
+.person p{font-size:17.5px;color:var(--ink-2);line-height:1.5}
+
+.inside{border-top:2px solid var(--ink)}
+.irow{display:grid;grid-template-columns:auto 1fr;gap:16px;padding:20px 0;border-bottom:1px solid var(--rule);align-items:start}
+.irow .tick{width:24px;height:24px;border-radius:50%;background:var(--sig-wash);display:grid;place-items:center;margin-top:4px;flex:none}
+.irow .tick .i{width:14px;height:14px;stroke:var(--sig);fill:none;stroke-width:2.6;stroke-linecap:round;stroke-linejoin:round}
+.irow p{font-size:18px;color:var(--ink-2);margin-top:5px}
+
+.stack{border:2px solid var(--ink);border-radius:12px;overflow:hidden}
+.srow{padding:24px 26px;border-bottom:1px solid var(--rule)}
+.srow:last-child{border-bottom:0}
+.srow p{font-size:18px;color:var(--ink-2);margin-top:7px}
+.invest{background:var(--bar);color:#fff;padding:26px;text-align:center}
+.invest .v{font-family:var(--serif);font-weight:700;font-size:clamp(34px,4.4vw,50px);line-height:1}
+.realtalk{border:2px dashed var(--sig);background:var(--sig-wash);border-radius:12px;padding:clamp(24px,3vw,34px)}
+.warn{border:2px dashed #C2452F;background:#FDF1EE;border-radius:10px;padding:20px 22px;font-family:var(--util);
+      font-size:13px;line-height:1.65;color:#9C3A22;font-weight:600}
+
+details{border-bottom:1px solid var(--rule)}
+summary{cursor:pointer;list-style:none;display:flex;justify-content:space-between;align-items:center;gap:22px;
+        padding:22px 0;font-family:var(--serif);font-weight:700;font-size:clamp(19px,1.9vw,23px);line-height:1.25}
+summary::-webkit-details-marker{display:none}
+summary .i{width:18px;height:18px;flex:none;stroke:var(--sig);fill:none;stroke-width:2.4;stroke-linecap:round;
+           transition:transform .22s cubic-bezier(.2,.8,.2,1)}
+details[open] summary .i{transform:rotate(45deg)}
+details .ans{padding:0 0 24px;font-size:18.5px;color:var(--ink-2);max-width:66ch}
+
+.close{background:var(--bar);color:#F2EFEB;padding:clamp(52px,7vw,86px) 0}
+.close h2{color:#fff}.close .dim{color:#A9A5A0}
+.signoff{font-family:var(--serif);font-weight:700;font-size:26px;color:#fff;text-align:center}
+.legal{padding:36px 0 64px;background:var(--soft);border-top:1px solid var(--rule)}
+.legal p{font-family:var(--util);font-size:11.5px;line-height:1.75;color:#6E675C;font-weight:500}
+
+@media (max-width:860px){.cards3,.stats,.persons{grid-template-columns:1fr}.inputs{grid-template-columns:1fr}
+  .cmp{grid-template-columns:1fr}.arrow{transform:rotate(90deg)}
+  .vs{grid-template-columns:1fr}.vs>div:first-child{border-right:0;border-bottom:1px solid var(--rule)}}
+@media (max-width:720px){body{font-size:19px}.cta{width:100%}.frow{grid-template-columns:1fr;gap:4px}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+.statement{font-family:var(--serif);font-weight:700;font-size:clamp(26px,3.6vw,40px);
+            line-height:1.14;letter-spacing:-.022em}
+.reassure{font-size:clamp(19px,1.8vw,22px);line-height:1.55}
+.vidslot{position:relative;aspect-ratio:9/16;background:#17161B;display:grid;place-items:center}
+.vidslot .vp{width:54px;height:54px;border-radius:50%;background:var(--sig);position:relative;
+             box-shadow:0 6px 18px rgba(0,0,0,.5)}
+.vidslot .vp::after{content:"";position:absolute;left:21px;top:16px;border-style:solid;
+                    border-width:11px 0 11px 17px;border-color:transparent transparent transparent #fff}
+.vidslot .vlab{position:absolute;bottom:12px;left:0;right:0;text-align:center;font-family:var(--util);
+               font-size:10.5px;letter-spacing:.11em;color:#8B8794;font-weight:700}
+
+.wrapbar{background:#0E0D11;color:#E8E5E0;padding:12px 0;text-align:center;font-family:var(--util);
+         font-weight:800;font-size:13px;letter-spacing:.06em;text-transform:uppercase}
+.wrapbar b{color:#FF6B4A}
+.steps-bar{display:flex;justify-content:center;gap:10px;padding:18px 0;font-family:var(--util);
+           font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3);font-weight:700}
+.steps-bar span.on{color:var(--sig)}
+.prog{height:8px;background:#EDEAE4;border-radius:99px;overflow:hidden;max-width:520px;margin:0 auto}
+.prog i{display:block;height:100%;background:var(--sig);border-radius:99px}
+.progtxt{text-align:center;font-family:var(--util);font-weight:800;font-size:12px;color:var(--sig);margin-top:8px}
+.yes{display:block;background:#12A150;color:#fff;font-family:var(--util);font-weight:800;
+     font-size:clamp(16px,1.7vw,20px);text-align:center;text-decoration:none;border-radius:12px;
+     padding:22px 28px;box-shadow:0 3px 0 #0B7A3C,0 16px 32px -16px rgba(11,122,60,.8);
+     transition:transform .16s cubic-bezier(.2,.8,.2,1)}
+.yes:hover{transform:translateY(-2px)}
+.yes small{display:block;font-weight:600;font-size:13px;opacity:.85;margin-top:6px;letter-spacing:.02em}
+.no{display:block;text-align:center;font-family:var(--util);font-size:14px;color:var(--ink-3);
+    text-decoration:underline;margin-top:16px}
+.no span{display:block;font-size:12px;color:#A29EA8;text-decoration:none;margin-top:3px}
+.bullets{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:14px}
+.bullets li{display:block;position:relative;padding-left:22px;font-size:18px;line-height:1.5}
+.bullets li::before{content:"";position:absolute;left:0;top:9px;width:8px;height:8px;border-radius:50%;background:var(--sig)}
+.pricebox{border:2px solid var(--ink);border-radius:12px;padding:26px;text-align:center}
+.pricebox .was{font-family:var(--util);font-size:15px;color:var(--ink-3);text-decoration:line-through}
+.pricebox .now{font-family:var(--serif);font-weight:700;font-size:clamp(34px,4.4vw,50px);line-height:1}
+/* exit popup */
+.pop{position:fixed;inset:0;background:rgba(17,16,20,.72);display:none;place-items:center;z-index:200;padding:20px}
+.pop.show{display:grid}
+.pop-in{background:#fff;border:3px solid var(--sig);border-radius:14px;max-width:760px;width:100%;
+        padding:clamp(28px,4vw,48px);position:relative;max-height:90vh;overflow:auto}
+.pop-x{position:absolute;top:14px;right:14px;width:38px;height:38px;border-radius:50%;border:2px solid var(--ink-3);
+       background:#fff;cursor:pointer;font-size:20px;line-height:1;color:var(--ink-2)}
+.pop h2{font-size:clamp(26px,3.4vw,40px);margin-bottom:8px}
+.pop hr{border:0;border-top:1px solid var(--rule);margin:18px 0}
+
+/* Dan-parity components */
+.anchor{border:2px solid var(--ink);border-radius:12px;padding:clamp(22px,3vw,30px);text-align:center}
+.anchor .was{font-family:var(--serif);font-weight:700;font-size:clamp(30px,4vw,44px);color:var(--ink-3);
+  text-decoration:line-through;text-decoration-thickness:3px;text-decoration-color:#C2452F}
+.anchor .now{font-family:var(--serif);font-weight:700;font-size:clamp(40px,5.5vw,60px);color:var(--sig);line-height:1.05}
+.anchor .why{font-family:var(--util);font-size:13px;letter-spacing:.07em;text-transform:uppercase;color:var(--ink-3);font-weight:700;margin-top:8px}
+.shot{display:block;width:100%;border:1px solid var(--rule);border-radius:12px;
+  box-shadow:0 4px 10px rgba(17,16,20,.10),0 24px 48px -28px rgba(17,16,20,.5)}
+.shotrow{display:grid;grid-template-columns:1fr 1fr;gap:clamp(14px,2vw,22px);align-items:start}
+@media(max-width:700px){.shotrow{grid-template-columns:1fr}}
+.shotcap{font-family:var(--util);font-size:12.5px;color:var(--ink-2);margin-top:9px;line-height:1.5}
+.shotcap b{color:var(--ink)}
+.miniproof{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+@media(max-width:700px){.miniproof{grid-template-columns:1fr}}
+.miniproof img{width:100%;height:auto;display:block;border:1px solid var(--rule);border-radius:10px}
+
+/* ---- DR skin: Dan layout, Jon blue ---- */
+body{font-family:var(--util)}
+h1,h2,h3{font-family:var(--util);letter-spacing:-.012em;text-wrap:balance}
+h1{font-weight:900;font-size:clamp(38px,5.2vw,58px);line-height:1.1}
+h2{font-weight:900;font-size:clamp(24px,3.4vw,38px);line-height:1.15}
+h3{font-weight:800}
+p,li,dd{font-family:var(--util)}
+.letter{font-family:var(--util);font-size:clamp(17px,1.7vw,21px);line-height:1.6;font-weight:600}
+.letter b,p b{font-weight:800}
+.acc{color:var(--sig)}
+.alertbar{background:linear-gradient(180deg,#17161B,#0A0910);color:#fff;padding:15px 0;border-bottom:3px solid var(--sig)}
+.alertbar .in{max-width:1100px;margin:0 auto;padding:0 20px;display:flex;align-items:center;justify-content:center;gap:16px;flex-wrap:wrap}
+.alertbar .tri{width:26px;height:26px;flex:none}
+.alertbar b{font-family:var(--util);font-weight:900;font-size:clamp(14px,1.8vw,19px);letter-spacing:.01em}
+.alertbar .div{width:1px;height:22px;background:rgba(255,255,255,.25)}
+.alertbar .ord{font-family:var(--util);font-weight:600;font-size:clamp(12px,1.5vw,15px);color:#C9C5CF}
+.alertbar .ord u{color:var(--sig-lt);font-weight:900;text-underline-offset:3px}
+.prog2{height:30px;background:#E9E6EF;border-radius:99px;max-width:1000px;margin:0 auto;overflow:hidden}
+.prog2 i{display:flex;align-items:center;justify-content:center;height:100%;border-radius:99px;
+  background:linear-gradient(90deg,var(--sig-deep),var(--sig) 60%,#4F8DFF)}
+.prog2 i span{font-family:var(--util);font-weight:900;font-size:13px;color:#fff;letter-spacing:.06em}
+.vidstrip{background:var(--sig);color:#fff;font-family:var(--util);font-weight:800;font-size:clamp(12px,1.4vw,15px);
+  letter-spacing:.14em;text-transform:uppercase;text-align:center;padding:12px 10px;border-radius:10px 10px 0 0;
+  display:flex;align-items:center;justify-content:center;gap:10px}
+.vidstrip svg{width:17px;height:17px;fill:#fff}
+.vidwrap .video,.vidwrap video{border-radius:0 0 10px 10px}
+
+/* ---- Dan rhythm: scale, alternating sections, mega CTA, dark footer ---- */
+section{padding:clamp(60px,7.5vw,105px) 0}
+p,li,dd{font-size:18px;line-height:1.65}
+h2{font-size:clamp(28px,3.8vw,40px)}
+.secdark{background:#0F0F0F;color:#EDEBE8}
+.secdark h2,.secdark h3{color:#fff}
+.secdark p,.secdark li{color:#C9C6C1}
+.secdark .anchor{border-color:#fff}
+.secdark li b,.secdark p b{color:#fff}
+.secgrey{background:#F5F5F5}
+.yes{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
+  background:var(--sig);color:#fff;text-decoration:none;font-family:var(--util);font-weight:800;
+  font-size:17px;letter-spacing:.02em;text-transform:uppercase;border-radius:12px;
+  width:min(566px,100%);min-height:69px;margin:0 auto;padding:19px 46px;text-align:center;
+  box-shadow:0 8px 30px rgba(11,92,246,.30);
+  transition:transform .15s ease,box-shadow .15s ease}
+.yes:hover{transform:translateY(-2px);box-shadow:0 11px 34px rgba(11,92,246,.34)}
+.yes small{display:block;font-size:11.5px;font-weight:600;letter-spacing:.04em;text-transform:none;opacity:.85}
+.no{display:block;text-align:center;font-family:var(--util);font-size:13px;color:var(--ink-3);
+  margin:18px auto 0;text-decoration:underline;text-underline-offset:3px}
+.no span{display:block;font-size:11px;text-decoration:none}
+.secdark .no{color:#8B8880}
+.footdark{background:#080603;color:#8B8880;padding:46px 0 60px}
+.footdark p{font-size:12px;line-height:1.6;color:#8B8880}
+.footdark a{color:#B4B0A8}
+
+/* ---- Dan pattern language v2 ---- */
+h2{text-transform:uppercase;letter-spacing:.005em}
+.eyebrow{font-family:var(--util);font-weight:800;font-size:13px;letter-spacing:.14em;
+  text-transform:uppercase;color:var(--sig);margin-bottom:10px}
+.secdark .eyebrow{color:var(--sig-lt)}
+.bullets li{display:block;position:relative;background:#fff;border:1px solid #E7E5EF;border-radius:14px;
+  padding:20px 22px 20px 54px;box-shadow:0 10px 24px -18px rgba(17,16,20,.35);font-size:17px}
+.bullets{gap:14px}
+.bullets li::before{content:"\2713";position:absolute;left:20px;top:20px;width:22px;height:22px;
+  border-radius:50%;background:var(--sig);color:#fff;font-size:13px;font-weight:900;
+  display:flex;align-items:center;justify-content:center}
+.secdark .bullets li{background:#1A191F;border-color:#2A2930;color:#D9D6D1}
+.secdark .bullets li b{color:#fff}
+.leg{background:#fff;border:1px solid #E7E5EF;border-radius:14px;padding:22px;box-shadow:0 10px 24px -18px rgba(17,16,20,.35);
+  border-bottom:1px solid #E7E5EF;margin-bottom:14px}
+.inside{border-top:0}
+.irow{background:#fff;border:1px solid #E7E5EF;border-radius:14px;padding:20px 22px;margin-bottom:14px;
+  border-bottom:1px solid #E7E5EF;box-shadow:0 10px 24px -18px rgba(17,16,20,.35)}
+.secdark .irow{background:#1A191F;border-color:#2A2930}
+.srow{background:#fff;border:1px solid #E7E5EF;border-radius:14px;padding:22px 24px;margin-bottom:14px;box-shadow:0 10px 24px -18px rgba(17,16,20,.35)}
+.stack{border:0;border-radius:0;overflow:visible}
+.secdark .srow{background:#1A191F;border-color:#2A2930}
+.yes small{display:none}
+.ctacap{font-family:var(--util);font-size:12.5px;color:var(--ink-3);text-align:center;margin:12px auto 0;max-width:566px;line-height:1.5}
+.secdark .ctacap{color:#8B8880}
+.no{font-weight:800;text-transform:uppercase;font-size:12px;letter-spacing:.05em;text-decoration:none;color:var(--ink-2)}
+.no::before{content:"\1F6AB  "}
+.no span{font-weight:600;text-transform:none;font-size:11px;color:var(--ink-3);margin-top:3px}
+h1{font-size:clamp(40px,5.4vw,60px);line-height:1.08}
+.letter{color:var(--ink);font-weight:600}
+.prog2{max-width:min(1100px,92%)}
+.sectint{background:#F2F6FF}
+.wall{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.wall img{width:100%;border-radius:12px;border:1px solid #E4E1DC;display:block}
+@media(max-width:700px){.wall{grid-template-columns:1fr}}
+
+/* CTA sizing from getclients.com/mdw: as wide as its text and centered, full width on phones.
+   fit-content + auto margins (not inline-flex) so it centers in every container. Colors unchanged. */
+.cta,.yes{display:flex;width:fit-content;max-width:100%;margin-left:auto;margin-right:auto;align-self:center;
+  gap:10px;padding:19px 46px;border-radius:12px;font-weight:800;
+  box-shadow:0 8px 30px rgba(11,92,246,.30);transition:transform .15s ease,box-shadow .15s ease}
+.cta:hover,.yes:hover{transform:translateY(-2px);box-shadow:0 11px 34px rgba(11,92,246,.34)}
+@media(max-width:720px){.cta,.yes{width:100%}}
+</style>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+<g id="c"><path d="M3 8.5l4 4 8-8"/></g><g id="pl"><path d="M9 3v12M3 9h12"/></g>
+<g id="ar"><path d="M3 9.5h13M11 4.5l5 5-5 5"/></g><g id="dn"><path d="M8 3v11M3.5 9.5L8 14l4.5-4.5"/></g>
+</defs></svg>
+
+<div class="alertbar"><div class="in">
+  <svg class="tri" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2 23 21H1Z" fill="var(--sig)"/><rect x="11" y="9" width="2.4" height="6" rx="1" fill="#0A0910"/><circle cx="12.2" cy="17.4" r="1.5" fill="#0A0910"/></svg><b>WAIT! Do NOT Close This Page Yet!</b>
+  <span class="div"></span><span class="ord">Your order <u>ISN'T COMPLETE</u></span>
+</div></div>
+<div class="shell" style="padding-top:22px">
+  <div class="prog2"><i style="width:80%"><span>80%</span></i></div>
+</div>
+
+<section class="sectint" style="padding-bottom:34px"><div class="shell col g22 mid">
+  <p class="qual">One-time offer &mdash; this price is not available later</p>
+  <h1>The Training Teaches The Method. <span class="acc">This Runs It For You.</span></h1>
+  <p class="letter">Viral View is the software I built after selling CommerceHQ. It reads a winning TikTok Shop video's structure and rebuilds it around a different product &mdash; labelled, linked and ready to post &mdash; which is the part of the method
+    that takes the longest by hand.</p>
+  <a class="yes" data-upsell="software" href="https://commas.com/checkout/wg0E8nj4FjdaJ6L">GET VIRAL VIEW + LOCK IN $97/MO →</a>
+  <p class="ctacap">Cancel anytime. Your own API key. No credits, no markup.</p>
+</div></section>
+
+<div class="shell vidwrap"><div class="vidstrip"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9v6h4l6 5V4L8 9H4zm13.5 3a3.5 3.5 0 0 0-2-3.15v6.3a3.5 3.5 0 0 0 2-3.15zm-2-7.7v2.1a5.9 5.9 0 0 1 0 11.2v2.1a8 8 0 0 0 0-15.4z"/></svg>CLICK BELOW TO WATCH FIRST!</div><div class="video vv-hero" data-state="muted">
+  <iframe src="https://www.youtube-nocookie.com/embed/uEZCT3PwCIc?autoplay=1&amp;mute=1&amp;controls=0&amp;loop=1&amp;playlist=uEZCT3PwCIc&amp;playsinline=1&amp;rel=0&amp;modestbranding=1&amp;iv_load_policy=3&amp;disablekb=1&amp;fs=0&amp;cc_load_policy=3&amp;cc_lang_pref=invalid&amp;enablejsapi=1&amp;vq=hd1080&amp;start=0" title="Viral View — software demo" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen" allowfullscreen playsinline referrerpolicy="strict-origin-when-cross-origin"></iframe><button type="button" class="vv-toggle" aria-label="Watch Viral View — software demo"><span class="vv-label" aria-hidden="true">Watch</span></button><button type="button" class="vv-fs" aria-label="Full screen" title="Full screen"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M8 4H4v4M16 4h4v4M20 16v4h-4M4 16v4h4"/></svg></button>
+</div></div>
+
+<section><div class="shell col g16">
+  <a class="yes" data-upsell="software" href="https://commas.com/checkout/wg0E8nj4FjdaJ6L">GET VIRAL VIEW + LOCK IN $97/MO →</a>
+  <p class="ctacap">Cancel anytime. Your own API key. No credits, no markup.</p>
+  <a class="no" href="audit.html" data-exit>No thanks, I'll do it all by hand<span>I'm fine spending the extra hours</span></a>
+</div></section>
+
+<hr class="hr">
+
+<section><div class="shell col g22">
+  <p class="eyebrow">THE PROBLEM IT SOLVES</p>
+  <h2>Here's the part nobody warns you <span class="acc">about</span></h2>
+  <p>You can learn the method in 2 hours. You can find a winner in 10 minutes.</p>
+  <p>Then you have to actually build the thing.</p>
+  <p>Read the structure. Write the script around a different product. Plan the scenes. Build a
+    character and keep her consistent. Generate. Review. Regenerate the frames that came out wrong.
+    Cut it. Export it vertical.</p>
+  <p>Now do that for every product on your watchlist, this week, because the winners you're cloning are alive right now and won't be next week.</p>
+  <p><b>That's where people quit.</b> Not at the strategy. At the fourth hour of the third video on
+    a Tuesday night &mdash; while the window it was meant for quietly closes.</p>
+  <p>I built Viral View because I wanted the method to run without the hours. You paste the winner,
+    answer 3 questions, and the structure comes back rebuilt around your product.</p>
+  <p>Run the arithmetic on the manual version. Call it 4 hours per clean clone &mdash; script, scenes,
+    character, generation, review, re-rolls, captions, export. A real testing month is 30 posts.
+    That's 120 hours. A part-time job, on top of your actual job, forever.</p>
+  <p>And the worst part isn't the hours. It's <b>when</b> the hours land. The window is open the day
+    you find the winner. By hand, your clone ships 3 evenings later &mdash; into a colder window every
+    single time. You're not slow because you're lazy. You're slow because rendering by hand is slow.</p>
+  <p>The machine doesn't make the method smarter. It makes it <b>on time</b>.</p>
+  <a class="yes" data-upsell="software" href="https://commas.com/checkout/wg0E8nj4FjdaJ6L">GET VIRAL VIEW + LOCK IN $97/MO →</a>
+  <p class="ctacap">Cancel anytime. Your own API key. No credits, no markup.</p>
+</div></section>
+
+<section style="padding-top:0"><div class="shell col g22">
+  <p class="eyebrow">WHAT VIRAL VIEW DOES FOR YOU</p>
+  <h2>What it <span class="acc">does</span></h2>
+  <ul class="bullets">
+    <li><b>Reads the structure</b> &mdash; hook, pacing, proof beat and payoff, named on screen with timings, so you're not guessing where the beats land.</li>
+    <li><b>Rewrites the script around your offer</b> &mdash; not a template swap. The same shape, your product, your angle.</li>
+    <li><b>Plans the scenes</b> &mdash; an editable shot list before anything renders, so you fix problems for free instead of paying to regenerate.</li>
+    <li><b>Locks a character</b> &mdash; one face across a month of angles, so the account compounds recognition.</li>
+    <li><b>Regenerates single frames</b> &mdash; redo the one shot that came out wrong. Keep the rest.</li>
+    <li><b>Exports 1080&times;1920</b> &mdash; captioned, ready to upload.</li>
+    <li><b>The winning-ad library</b> &mdash; 1,912 ads, dated, sorted by how long each survived, tagged by format and niche.</li>
+    <li><b>No credits</b> &mdash; you connect your own API key and pay the provider directly. We never mark it up, and you see the cost before you press go.</li>
+  </ul>
+</div></section>
+
+<section style="padding-top:0"><div class="shell col g16">
+  <a class="yes" data-upsell="software" href="https://commas.com/checkout/wg0E8nj4FjdaJ6L">GET VIRAL VIEW + LOCK IN $97/MO →</a>
+  <p class="ctacap">Cancel anytime. Your own API key. No credits, no markup.</p>
+  <a class="no" href="audit.html" data-exit>No thanks, I'll do it all by hand<span>I'm fine spending the extra hours</span></a>
+</div></section>
+
+<hr class="hr">
+
+<section><div class="shell col g22">
+  <p class="eyebrow">REAL DASHBOARDS</p>
+  <h2>The people using this method, with the commission column <span class="acc">showing</span></h2>
+  <p>The machine produces the videos. The method decides which videos. Here's what accounts running
+    both look like &mdash; estimated commission, the money that reaches the person, flops included in
+    every one of these stories.</p>
+  <div class="wall">
+    <img src="assets/proof-01.webp" alt="Affiliate dashboard, estimated commission shown" loading="lazy">
+    <img src="assets/proof-02.webp" alt="Affiliate dashboard, estimated commission shown" loading="lazy">
+    <img src="assets/proof-03.webp" alt="Affiliate dashboard, estimated commission shown" loading="lazy">
+    <img src="assets/proof-04.webp" alt="Affiliate dashboard, estimated commission shown" loading="lazy">
+    <img src="assets/proof-05.webp" alt="Affiliate dashboard, estimated commission shown" loading="lazy">
+    <img src="assets/proof-06.webp" alt="Affiliate dashboard, estimated commission shown" loading="lazy">
+    <img src="assets/proof-07.webp" alt="Affiliate dashboard, estimated commission shown" loading="lazy">
+    <img src="assets/proof-08.webp" alt="Affiliate dashboard, estimated commission shown" loading="lazy">
+    <img src="assets/proof-09.webp" alt="Affiliate dashboard, estimated commission shown" loading="lazy">
+    <img src="assets/proof-10.webp" alt="Affiliate dashboard, estimated commission shown" loading="lazy">
+    <img src="assets/proof-11.webp" alt="Affiliate dashboard, estimated commission shown" loading="lazy">
+    <img src="assets/proof-12.webp" alt="Affiliate dashboard, estimated commission shown" loading="lazy">
+    <img src="assets/proof-13.webp" alt="Affiliate dashboard, estimated commission shown" loading="lazy">
+    <img src="assets/proof-14.webp" alt="Affiliate dashboard, estimated commission shown" loading="lazy">
+    <img src="assets/proof-15.webp" alt="Affiliate dashboard, estimated commission shown" loading="lazy">
+    <img src="assets/proof-16.webp" alt="Affiliate dashboard, estimated commission shown" loading="lazy">
+    <img src="assets/proof-17.webp" alt="Affiliate dashboard, estimated commission shown" loading="lazy">
+    <img src="assets/proof-18.webp" alt="Affiliate dashboard, estimated commission shown" loading="lazy">
+    <img src="assets/proof-19.webp" alt="Affiliate dashboard, estimated commission shown" loading="lazy">
+    <img src="assets/proof-20.webp" alt="Affiliate dashboard, estimated commission shown" loading="lazy">
+    <img src="assets/proof-21.webp" alt="Affiliate dashboard, estimated commission shown" loading="lazy">
+    <img src="assets/proof-22.webp" alt="Affiliate dashboard, estimated commission shown" loading="lazy">
+  </div>
+  <p class="dim small">Individual results vary wildly and these are not typical. Most people who try
+    affiliate content earn little or nothing. Nobody's software makes a bad video pick profitable.</p>
+</div></section>
+
+<hr class="hr">
+
+<section class="secdark"><div class="shell col g22">
+  <p class="eyebrow">SEE IT WORK</p>
+  <h2>See the machine, not a <span class="acc">promise</span></h2>
+  <div class="shotrow">
+    <div>
+      <img class="shot" src="assets/a59992acb6.webp" alt="Viral View clone step: the skeleton kept — hook order, pain beat, proof placement, where the ask lands — and the surface swapped: person, voice, words, room" loading="lazy">
+      <p class="shotcap"><b>One click, 4 things swapped.</b> The skeleton stays &mdash; hook order,
+        pain beat, proof placement, the ask. The surface changes &mdash; the person, the voice, the
+        words, the room. A cousin, not a twin, with the AI label on.</p>
+    </div>
+    <div>
+      <img class="shot" src="assets/dd2ccdcc20.webp" alt="Viral View output frame: an AI creator holding the product, vertical format" loading="lazy">
+      <p class="shotcap"><b>The output.</b> A vertical, captioned, ready-to-post video with a
+        consistent AI creator &mdash; no camera, no filming day, no face of yours anywhere.</p>
+    </div>
+  </div>
+  <div class="shotrow" style="margin-top:8px">
+    <div>
+      <img class="shot" src="assets/d936a7587e.webp" alt="AI creator talking-head frame with on-screen captions" loading="lazy">
+      <p class="shotcap"><b>The creator.</b> Locked across a month of angles so the account compounds
+        recognition instead of paying full price for attention every post.</p>
+    </div>
+    <div>
+      <p style="font-size:18px;line-height:1.6">This is the part I refuse to hide behind a demo call:
+        you connect <b>your own API key</b> and pay the provider directly. The cost of every
+        generation is on screen <b>before</b> you press go. We never mark it up, we never sell
+        credits, and at normal volume the raw cost is a few dollars a month.</p>
+      <p style="font-size:18px;line-height:1.6;margin-top:12px">Why? Because my software only wins if
+        you get results and stay. Check the incentives. Always. Including mine.</p>
+    </div>
+  </div>
+</div></section>
+
+<section class="secdark"><div class="shell col g22">
+  <p class="eyebrow">WATCH IT RUN</p>
+  <h2>Watch the full demo <span class="acc">walkthrough</span></h2>
+  <p class="mid" style="max-width:62ch;margin:0 auto">Paste a winner, answer 3 questions, watch the
+    structure come back rebuilt around a different product &mdash; start to finished vertical export,
+    nothing cut out, nothing sped up.</p>
+  <div class="video vv-hero" data-state="muted">
+    <iframe src="https://www.youtube-nocookie.com/embed/uEZCT3PwCIc?autoplay=1&amp;mute=1&amp;controls=0&amp;loop=1&amp;playlist=uEZCT3PwCIc&amp;playsinline=1&amp;rel=0&amp;modestbranding=1&amp;iv_load_policy=3&amp;disablekb=1&amp;fs=0&amp;cc_load_policy=3&amp;cc_lang_pref=invalid&amp;enablejsapi=1&amp;vq=hd1080&amp;start=0" title="Viral View — full demo walkthrough" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen" allowfullscreen playsinline referrerpolicy="strict-origin-when-cross-origin"></iframe><button type="button" class="vv-toggle" aria-label="Watch Viral View — full demo walkthrough"><span class="vv-label" aria-hidden="true">Watch</span></button><button type="button" class="vv-fs" aria-label="Full screen" title="Full screen"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M8 4H4v4M16 4h4v4M20 16v4h-4M4 16v4h4"/></svg></button>
+  </div>
+  <a class="yes" data-upsell="software" href="https://commas.com/checkout/wg0E8nj4FjdaJ6L">GET VIRAL VIEW + LOCK IN $97/MO →</a>
+  <p class="ctacap">Cancel anytime. Your own API key. No credits, no markup.</p>
+</div></section>
+
+<hr class="hr">
+
+<section><div class="shell col g22">
+  <p class="eyebrow">THE MATH</p>
+  <h2>The math on doing it by <span class="acc">hand</span></h2>
+  <p>By hand, one clean clone is an evening. The window doesn't care. It closes at the same speed whether you're fast or slow, which means by hand you are always late. Not sometimes. Structurally.</p>
+  <p>The machine drops the same clone to minutes, at provider cost &mdash; a few dollars a month at normal volume,
+    charged to your own key, never to us.</p>
+  <p>The software is $97 a month. If it saves you one afternoon, it paid for itself. If it gets one clone out the door while its window was still open, it paid for the year. And a real testing month for the first time, it changes what you can charge.</p>
+</div></section>
+
+
+
+<hr class="hr">
+
+<section class="secdark"><div class="shell col g22">
+  <p class="eyebrow">EVERYTHING YOU GET</p>
+  <h2>Everything that comes with the <span class="acc">$97</span></h2>
+  <div class="stack">
+    <div class="srow"><h3>The Clone Engine</h3>
+      <p>Paste a winning video, answer 3 questions, get the structure back rebuilt around your
+        product &mdash; script, scenes, character, captions, vertical export. The hours, deleted.</p></div>
+    <div class="srow"><h3>Character Lock</h3>
+      <p>One consistent AI creator across every video you make this month. Recognition compounds;
+        accounts that reset their face every post pay full price for attention forever.</p></div>
+    <div class="srow"><h3>The Winning-Ad Library</h3>
+      <p>1,912 ads, dated, sorted by survival, tagged by format and niche. The skeletons worth
+        cloning, already found and filed.</p></div>
+    <div class="srow"><h3>Scene-Level Control</h3>
+      <p>Editable shot list before render, single-frame regeneration after. Fix the one wrong shot
+        for pennies instead of re-rolling the whole video.</p></div>
+    <div class="srow"><h3>Your Own API Key</h3>
+      <p>You pay the provider directly and see the cost before every render. No credits, no markup,
+        no meter we profit from. The subscription pays for the machine, not the fuel.</p></div>
+  </div>
+  <p><b>Who this is for:</b> anyone who left the training convinced and doesn't want the method to
+    die at the fourth hour of the third video. <b>Who it isn't for:</b> anyone who hasn't taken the
+    training yet &mdash; the machine amplifies judgment, it doesn't replace it.</p>
+  <a class="yes" data-upsell="software" href="https://commas.com/checkout/wg0E8nj4FjdaJ6L">GET VIRAL VIEW + LOCK IN $97/MO →</a>
+  <p class="ctacap">Cancel anytime. Your own API key. No credits, no markup.</p>
+</div></section>
+
+<hr class="hr">
+
+<section style="padding-top:0" class="secgrey"><div class="shell col g22">
+  <p class="eyebrow">COMPARE THE COST</p>
+  <h2 class="mid">Do the math against one creator <span class="acc">invoice</span></h2>
+  <p class="mid" style="max-width:60ch;margin:0 auto">One human creator charges $400&ndash;500 for a
+    handful of videos and caps you at a few concepts a month. The machine produces descendants of
+    live winners the same afternoon the winner starts rising &mdash; which is the entire game,
+    because the window doesn't wait for a creator's turnaround time.</p>
+  <div class="anchor">
+    <div class="was">$400&ndash;500 per creator batch</div>
+    <div class="now">$97/mo</div>
+    <div class="why">CANCEL ANYTIME &middot; YOUR OWN API KEY &middot; NO CREDITS, NO MARKUP</div>
+  </div>
+</div></section>
+
+<hr class="hr">
+
+<section><div class="shell col g16">
+  <h2 style="margin-bottom:10px">Quick answers</h2>
+  <details open><summary>What does generation actually cost me?<svg class="i" viewBox="0 0 18 18"><use href="#pl"/></svg></summary>
+    <p class="ans">You pay your AI provider directly through your own key &mdash; at normal volume,
+    a few dollars a month. The exact cost shows on screen before every render. We take nothing on
+    top, which is why I can show it to you instead of hiding it.</p></details>
+  <details><summary>Does it post to TikTok for me?<svg class="i" viewBox="0 0 18 18"><use href="#pl"/></svg></summary>
+    <p class="ans">No &mdash; and you don't want it to. You review every video, attach your product
+    link, and post it yourself with the AI label on. The machine does the hours; the judgment and the
+    account stay yours.</p></details>
+  <details><summary>What happens if I cancel?<svg class="i" viewBox="0 0 18 18"><use href="#pl"/></svg></summary>
+    <p class="ans">You stop being charged from the next cycle, and everything you already exported is
+    yours forever. No lock-in, no export fee, no "talk to retention" call.</p></details>
+  <details><summary>Do I need this to use what the training teaches?<svg class="i" viewBox="0 0 18 18"><use href="#pl"/></svg></summary>
+    <p class="ans">No. The method works by hand &mdash; I teach it that way on purpose. The software
+    exists because by hand, one clean clone is an evening, and the window doesn't care how busy your
+    evening was. It buys you speed, not secrets.</p></details>
+  <details><summary>Is there a contract or a lock-in?<svg class="i" viewBox="0 0 18 18"><use href="#pl"/></svg></summary>
+    <p class="ans">No. Month to month, cancel from inside the app in two clicks. Everything you
+    exported stays yours forever.</p></details>
+  <details><summary>Does it work for my niche?<svg class="i" viewBox="0 0 18 18"><use href="#pl"/></svg></summary>
+    <p class="ans">The engine clones structure, and structure travels across niches &mdash; that's the
+    whole premise of the method. The library is tagged by format and niche so you start from winners
+    closest to your product.</p></details>
+  <details><summary>What if I get stuck?<svg class="i" viewBox="0 0 18 18"><use href="#pl"/></svg></summary>
+    <p class="ans">Support is email, answered by people who use the product. And the training you just
+    bought is the manual &mdash; the software runs the exact method it teaches.</p></details>
+  <a class="yes" data-upsell="software" href="https://commas.com/checkout/wg0E8nj4FjdaJ6L">GET VIRAL VIEW + LOCK IN $97/MO →</a>
+  <p class="ctacap">Cancel anytime. Your own API key. No credits, no markup.</p>
+</div></section>
+
+<hr class="hr">
+
+<section class="sectint"><div class="shell col g22 mid">
+  <p class="eyebrow">TRY IT RISK FREE</p>
+  <h2>How about 7 days on <span class="acc">me?</span></h2>
+  <p class="letter" style="margin:0 auto">What are you actually risking? <b class="sig">7 days. Full
+    access. $0. I'm covering the trial, not you.</b> If it doesn't fit how you work, cancel &mdash;
+    nothing lost. If it does, you just stopped spending your evenings building TikTok videos by hand.</p>
+  <a class="yes" data-upsell="trial" href="https://commas.com/checkout/2J89z1C1sozSM3">START MY FREE 7-DAY TRIAL →</a>
+  <p class="ctacap">$0 today, then $97/mo. Cancel anytime during the trial and pay nothing.</p>
+</div></section>
+
+<hr class="hr">
+
+<section class="sectint" style="padding-top:0"><div class="shell col g22 mid">
+  <p class="eyebrow">STILL NOT SURE?</p>
+  <h2>The evenings are the <span class="acc">price</span></h2>
+  <p class="mid" style="max-width:60ch;margin:0 auto">You'll run the method either way &mdash; you just
+    paid for the training. The only question is whether every clone costs you an evening or a few
+    minutes. That's the entire decision on this page. Pick the version of the next 30 days you
+    actually want.</p>
+  <a class="yes" data-upsell="software" href="https://commas.com/checkout/wg0E8nj4FjdaJ6L">GET VIRAL VIEW + LOCK IN $97/MO →</a>
+  <p class="ctacap">Cancel anytime. Your own API key. No credits, no markup.</p>
+</div></section>
+
+<hr class="hr">
+
+<section style="padding-top:0"><div class="shell col g22">
+  <div class="pricebox">
+    <p class="now">$97<span style="font-size:18px;font-family:var(--util);color:var(--ink-3)">/month</span></p>
+    <p class="dim small" style="margin-top:8px">Cancel anytime. Only offered here.</p>
+  </div>
+  <a class="yes" data-upsell="software" href="https://commas.com/checkout/wg0E8nj4FjdaJ6L">GET VIRAL VIEW + LOCK IN $97/MO →</a>
+  <p class="ctacap">Cancel anytime. Your own API key. No credits, no markup.</p>
+  <a class="no" href="audit.html" data-exit>No thanks, I'll do it all by hand<span>I'm fine spending the extra hours</span></a>
+</div></section>
+
+<div class="pop" id="pop"><div class="pop-in">
+  <button class="pop-x" aria-label="Close" data-close>&times;</button>
+  <p class="eyebrow">TRY IT RISK FREE</p>
+  <h2>How about 7 days on <span class="acc">me?</span></h2>
+  <hr>
+  <p class="letter" style="margin:0">What are you actually risking? <b class="sig">7 days. Full access.
+    $0. I'm covering the trial, not you.</b></p>
+  <p class="letter" style="margin:16px 0 0">If it doesn't fit how you work, cancel. <b>Nothing lost.</b></p>
+  <p class="letter" style="margin:16px 0 24px">If it does, you just stopped spending your evenings building TikTok videos by hand.</p>
+  <a class="yes" data-upsell="trial" href="https://commas.com/checkout/2J89z1C1sozSM3">GET VIRAL VIEW + LOCK IN $97/MO →</a>
+  <p class="ctacap">Cancel anytime. Your own API key. No credits, no markup.</p>
+  <a class="no" href="audit.html" data-close>No thanks, I'm good<span>Take me to the next step</span></a>
+</div></div>
+
+<div class="legal"><div class="shell col g16">
+  <p><b>DISCLAIMER:</b> Results are not typical and vary with effort, experience, niche and market.
+    Generation costs are paid by you directly to your chosen provider and are not included in the
+    subscription. Nothing on this page is a promise of results or future earnings.</p>
+  <p>&copy; 2026 Jon Mac &middot; Terms &middot; Privacy &middot; Refund policy</p>
+</div></div>
+
+<script>
+(function(){
+  var pop=document.getElementById('pop'), armed=true;
+  function show(e){ if(!armed) return; armed=false; if(e) e.preventDefault(); pop.classList.add('show'); }
+  document.querySelectorAll('[data-exit]').forEach(function(a){ a.addEventListener('click',show); });
+  document.addEventListener('mouseout',function(e){ if(!e.relatedTarget && e.clientY<10) show(); });
+  document.querySelectorAll('[data-close]').forEach(function(b){
+    b.addEventListener('click',function(e){ if(b.tagName!=='A')e.preventDefault(); pop.classList.remove('show'); }); });
+  pop.addEventListener('click',function(e){ if(e.target===pop) pop.classList.remove('show'); });
+})();
+</script>
+
+<script>
+/* YouTube players: chrome hidden (controls=0), the whole frame is the play/pause button. */
+(function(){
+  function cmd(f,func,args){
+    try{f.contentWindow.postMessage(JSON.stringify({event:'command',func:func,args:args||[]}),'*');}catch(e){}
+  }
+  document.querySelectorAll('.vv-hero').forEach(function(h){
+    var f=h.querySelector('iframe'),t=h.querySelector('.vv-toggle'),
+        l=h.querySelector('.vv-label'),fs=h.querySelector('.vv-fs');
+    function set(state,label){h.dataset.state=state;l.textContent=label;t.setAttribute('aria-label',label);}
+    /* captions off: the url params ask, these enforce it once the player is up */
+    function noCC(){cmd(f,'unloadModule',['captions']);cmd(f,'unloadModule',['cc']);}
+    f.addEventListener('load',function(){[300,1200,3000].forEach(function(d){setTimeout(noCC,d)});});
+    t.addEventListener('click',function(){
+      var s=h.dataset.state;
+      if(s==='muted'){cmd(f,'unMute');cmd(f,'seekTo',[0,true]);cmd(f,'playVideo');set('playing','Pause');}
+      else if(s==='playing'){cmd(f,'pauseVideo');set('paused','Resume');}
+      else{cmd(f,'playVideo');set('playing','Pause');}
+      noCC();setTimeout(noCC,600);
+    });
+    if(fs)fs.addEventListener('click',function(){
+      if(document.fullscreenElement)document.exitFullscreen();
+      else if(h.requestFullscreen)h.requestFullscreen();
+      else if(h.webkitRequestFullscreen)h.webkitRequestFullscreen();
+    });
+  });
+})();
+</script>
+
+<script src="/clone/upsells.js?v=1" defer></script>
