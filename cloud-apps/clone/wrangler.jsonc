@@ -3,6 +3,8 @@
   // Mirrors the live jonmac-agency Worker settings as of version 58 (2026-09-07).
   // Secrets (set with `wrangler secret put`, never committed): COMMAS_API_KEY,
   // COMMAS_WEBHOOK_SECRET, CLONE_TOKEN_SECRET, RESEND_API_KEY, RESEND_AUDIENCE_ID.
+  // Sandbox secrets: COMMAS_SANDBOX_API_KEY, COMMAS_SANDBOX_WEBHOOK_SECRET,
+  // CLONE_SANDBOX_ACCESS_TOKEN (random 32+ chars). Sandbox product config: README.
   "name": "jonmac-agency",
   "main": "src/index.js",
   "compatibility_date": "2026-08-01",
@@ -11,7 +13,7 @@
   "assets": {
     "directory": "./public",
     "binding": "ASSETS",
-    "run_worker_first": ["/clone/api/*"],
+    "run_worker_first": ["/clone", "/clone/*"],
     "html_handling": "none",
     "not_found_handling": "none"
   },
@@ -23,7 +25,12 @@
     // Felipe confirmed activation Oct 4 at 2:59 PM (Slack timezone unspecified).
     // Use receipt of Ana's confirmation as a conservative, unambiguous UTC cutoff.
     "CLONE_REBILL_ENABLED_AT": "2026-10-04T21:14:20Z",
-    "CLONE_SUBSCRIPTIONS_ENABLED": "false"
+    "CLONE_SUBSCRIPTIONS_ENABLED": "false",
+    // Enables only the authenticated ?sandbox=1 path. Missing key/IDs fail closed.
+    "COMMAS_ENV": "sandbox",
+    "CLONE_SANDBOX_REBILL_ENABLED": "false",
+    "CLONE_SANDBOX_SUBSCRIPTIONS_ENABLED": "false",
+    "CLONE_SANDBOX_REBILL_ENABLED_AT": ""
   },
   "kv_namespaces": [
     { "binding": "CLONE_LEADS", "id": "73af279f67c745a78652cf26f4c9bfe9" }

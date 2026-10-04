@@ -900,12 +900,15 @@ a.presscite h3{text-decoration:underline;text-decoration-thickness:1px;text-unde
   </div>
 </div>
 
-<script src="/clone/checkout-handoff.js?v=1"></script>
+<script src="/clone/checkout-handoff.js?v=2"></script>
 <script>
 (function(){
   var SDK='https://cdn.embedded.fanbasis.io/embed/index.js',
-      HOSTED='https://commas.com/checkout/nmGzEY7RCWcGOKl',
-      SUCCESS='https://jonmac.ai/clone/software.html',
+      HOSTED=(window.CloneMode&&CloneMode.hosted.seat)||'https://commas.com/checkout/nmGzEY7RCWcGOKl',
+      MODE=window.CloneMode&&CloneMode.environment==='sandbox'?'sandbox':'production',
+      SUFFIX=MODE==='sandbox'?'?sandbox=1':'',
+      CHECKOUT_KEY=MODE==='sandbox'?'jm_sandbox_checkout':'jm_checkout',
+      SUCCESS=location.origin+'/clone/software.html'+SUFFIX,
       lead=document.getElementById('lead'),form=document.getElementById('leadf'),
       err=document.getElementById('leaderr'),pay=document.getElementById('leadpay'),
       go=document.getElementById('paygo'),payerr=document.getElementById('payerr'),
@@ -932,7 +935,7 @@ a.presscite h3{text-decoration:underline;text-decoration-thickness:1px;text-unde
   }
   /* buyer details go in through the SDK setters once the form is up, never in the iframe URL */
   function fill(){
-    var b=read('jm_checkout');
+    var b=read(CHECKOUT_KEY);
     if(!ready||!b)return;
     [['setFirstName','first_name'],['setLastName','last_name'],['setEmail','email'],['setPhone','phone']].forEach(function(s){
       if(!b[s[1]])return;
@@ -952,9 +955,9 @@ a.presscite h3{text-decoration:underline;text-decoration-thickness:1px;text-unde
       s.onerror=function(){ rej('sdk load'); };
       document.head.appendChild(s);
     });
-    var session=fetch('/clone/api/checkout-session',{method:'POST'})
+    var session=fetch('/clone/api/checkout-session'+SUFFIX,{method:'POST'})
       .then(function(r){ return r.json(); })
-      .then(function(j){ if(!j||!j.ok||!j.checkoutSessionSecret)throw 'session'; return j; });
+      .then(function(j){ if(!j||!j.ok||!j.checkoutSessionSecret||j.environment!==MODE)throw 'session'; HOSTED=j.hostedCheckoutUrl; return j; });
     boot=Promise.all([session,sdk]).then(function(v){ return v[0]; });
     boot.catch(function(){});
     return boot;
@@ -968,7 +971,7 @@ a.presscite h3{text-decoration:underline;text-decoration-thickness:1px;text-unde
         creatorId:session.creatorId,
         productId:session.productId,
         checkoutSessionSecret:session.checkoutSessionSecret,
-        environment:'production',
+        environment:session.environment,
         collectPhone:true,
         showSubmitButton:false,
         containerOptions:{width:'100%',height:'100%'},
@@ -1006,7 +1009,7 @@ a.presscite h3{text-decoration:underline;text-decoration-thickness:1px;text-unde
 
   /* ---- open / close ---- */
   function open(){
-    var b=read('jm_checkout');
+    var b=read(CHECKOUT_KEY);
     lead.classList.add('show');
     document.documentElement.style.overflow='hidden';
     preload();
@@ -1024,7 +1027,7 @@ a.presscite h3{text-decoration:underline;text-decoration-thickness:1px;text-unde
   function close(){ lead.classList.remove('show'); document.documentElement.style.overflow=''; }
   document.addEventListener('click',function(e){
     var a=e.target.closest&&e.target.closest('a');
-    if(!a||!/commas\.com\/checkout/.test(a.href)||a.closest('#lead'))return;
+    if(!a||a.href.split('?')[0]!==HOSTED||a.closest('#lead'))return;
     e.preventDefault();
     open();
   },true);
@@ -1044,12 +1047,12 @@ a.presscite h3{text-decoration:underline;text-decoration-thickness:1px;text-unde
     if(!name||!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)||!phone){err.style.display='block';return;}
     err.style.display='none';
     var sp=name.indexOf(' ');
-    try{sessionStorage.setItem('jm_checkout',JSON.stringify({
+    try{sessionStorage.setItem(CHECKOUT_KEY,JSON.stringify({
       first_name:sp<0?name:name.slice(0,sp),last_name:sp<0?'':name.slice(sp+1),email:email,phone:phone}));}catch(e){}
     var utm=null; try{utm=JSON.parse(sessionStorage.getItem('jm_attr')||'null');}catch(e){}
     if(window.jmTrack)jmTrack('Lead',{});
     if(window.fbq)fbq('track','Lead');
-    fetch('/clone/api/lead',{method:'POST',headers:{'content-type':'application/json'},
+    fetch('/clone/api/lead'+SUFFIX,{method:'POST',headers:{'content-type':'application/json'},
       body:JSON.stringify({name:name,email:email,phone:phone,utm:utm}),keepalive:true}).catch(function(){});
     showPay();
   });

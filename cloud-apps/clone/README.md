@@ -25,9 +25,9 @@ cookies expire after 30 minutes. Client customer IDs never authorize billing.
 `vault`, or `vault_plan`. Prices, service IDs and next-page URLs are server-owned.
 Before billing, it verifies the current service terms and obtains the customer's
 saved card server-side. `service_id` uses the numeric ID resolved from the public
-service ID, with `amount_cents` on `/customers/:id/charge`. **Commas must confirm
-the exact service-ID request field, ID format and recurring subscription behavior
-before activating recurring upsells.** The public charge reference
+service ID, with `amount_cents` on `/customers/:id/charge`. **Recurring upsells stay gated
+until the sandbox end-to-end run confirms the service-ID request field, ID format
+and subscription creation.** The public charge reference
 currently does not document `service_id`; the subscription capability was
 reported by Commas support, and has been implemented and tested with mocks only.
 
@@ -44,8 +44,8 @@ browser pending marker survives refreshes and prevents an expired session from
 offering another checkout. An authentic expired buyer token can inspect an
 existing claim, but cannot authorize a new charge.
 
-The installed D1 database is `jonmacai-clone-upsells`. No new Worker or webhook
-subscription is needed. Existing secrets remain on `jonmac-agency`; the release
+The installed D1 database is `jonmacai-clone-upsells`. The production Worker
+and webhook remain in place; sandbox needs its own webhook subscription. Existing secrets remain on `jonmac-agency`; the release
 adds `CLONE_TOKEN_SECRET` (random 32-byte signing key). Never put keys, raw Commas
 responses or card data into browser code, Git or logs.
 
@@ -71,9 +71,9 @@ software and vault exit popups remain, and their final No thanks links continue.
 
 Manual rebill activation is confirmed; no additional activation approval is
 needed. Keep the conservative cutoff unless Commas supplies a precise timestamp
-with timezone. Enable `CLONE_SUBSCRIPTIONS_ENABLED` only
-for Jon's approved live test after confirming service-ID behavior; keep recurring
-rebills disabled outside that test until it passes.
+with timezone. Enable `CLONE_SUBSCRIPTIONS_ENABLED`
+only after confirming service-ID behavior in the sandbox end-to-end run. Jon
+has selected sandbox validation; do not prepare or run a live-card test.
 The free seven-day trial always uses its own hosted service `2J89z`: the charge
 API requires at least one cent and documents no free-trial enrollment mechanism.
 The $99 vault option uses `jJYvv`, three monthly payments, not an unlimited plan.
@@ -82,8 +82,9 @@ The $99 vault option uses `jJYvv`, three monthly payments, not an unlimited plan
 cards, numeric customer IDs, positive `amount_cents`, and charge preconditions.
 Its [sandbox](https://commasdocs.com/#environments) uses
 `https://api-sandbox.commas.net` and a separate key from the sandbox dashboard.
-No sandbox key is provisioned in the supplied environment; all billing tests use
-mocks. No real card was charged during implementation or verification.
+The separate sandbox key and products are pending from Jon. Mock tests validate
+the implementation; provider acceptance remains pending the sandbox end-to-end run.
+No real card was charged during implementation or verification.
 
 ## Validation and deployment
 
@@ -94,7 +95,9 @@ node <installed-wrangler-cli> deploy --dry-run --config cloud-apps/clone/wrangle
 node <installed-wrangler-cli> deploy --config cloud-apps/clone/wrangler.jsonc
 ```
 
-Validation passed: 18 mocked backend/SQLite tests; browser checks for spinner,
+Validation passed: 26 mocked backend/SQLite tests; seven-case sandbox browser
+runner with mocked Commas/SDK (eight paid upsells, three verified/cancelled
+subscriptions, and rejection when subscription creation is missing); browser checks for spinner,
 disabled buttons, double-click suppression, explicit rejection, ambiguous
 response across refresh/expired identity, next-page navigation, decline links,
 automatic hosted fallback and mobile layout. Run the browser smoke test with
@@ -103,29 +106,119 @@ automatic hosted fallback and mobile layout. Run the browser smoke test with
 at port 8796. Screenshots are written to the OS temp directory as
 `clone-upsell-fallback.png` and `clone-upsell-mobile.png`.
 
-## Single live test — prepared only; Jon's approval required
+## Protected sandbox - provisioning pending
 
-1. Manual rebill activation is already confirmed. Before testing the software
-   subscription, confirm `service_id` name/ID format,
-   whether $97 creates a 30-day recurring subscription, and whether the vault
-   plan stops after its configured three payments. Keep trial hosted.
-2. Obtain Jon's explicit approval for **one $47 purchase plus one $97 software
-   upsell ($144 total), refunding both and canceling the created subscription**.
-   Use only Jon's approved test buyer/card, buying after the deployed eligibility
-   cutoff. Do not reuse an older purchase. Approval has not been given; **do not
-   run this test or submit any real charge during this activation update**.
-3. In a fresh browser, buy the $47 seat once through `/clone/`. Confirm the
-   signed webhook/browser binding and buyer cookie; never record card details.
-   With the service-ID contract confirmed, temporarily enable recurring rebills
-   for this approved test. If the purchase cannot be verified, stop; do not
-   complete another hosted purchase as part of this test.
-4. Click the $97 YES once. Confirm no card entry, one $97 charge, advancement to
-   audit, and an active `wg0E8` subscription with its next $97 billing date in
-   30 days. Repeat the same endpoint request and reload/revisit: expect cached
-   success and exactly one $97 charge. Skip audit and vault to reach welcome
-   and survey. Do not purchase other offers.
-5. Refund the $47 and $97 transactions, cancel the new recurring subscription,
-   and verify refunds/cancellation in Commas. Record transaction/subscription
-   IDs, results and any nonrefundable processing fees. Restore the gates if any
-   condition fails; an ambiguous charge must be reconciled before another
-   checkout. Only release recurring billing after this test passes.
+Jon selected **sandbox end-to-end validation only**. Do not prepare or run a
+live-card test. Public `/clone/` always uses production, even when
+`COMMAS_ENV=sandbox` enables the protected test path. The server accepts sandbox
+requests only with `?sandbox=1` and a valid 30-minute HttpOnly access cookie.
+
+Provision only inside the separate account at https://sandbox.commas.net:
+
+| Map name | Sandbox product terms | Production reference (do not reuse) |
+| --- | --- | --- |
+| `seat` | $47, one-time | `nmGzE` |
+| `software` | $97 every 30 days, no trial | `wg0E8` |
+| `trial` | $97 every 30 days, free seven-day trial | `2J89z` |
+| `audit` | $497, one-time | `XXYMA` |
+| `vault` | $297, one-time lifetime access | `O9gZr` |
+| `vault_plan` | $99 every 30 days, initial payment + two renewals | `jJYvv` |
+
+Need **six short public product/service IDs**, their **six full sandbox hosted
+checkout URLs**, and the sandbox seller/creator handle. Numeric product IDs are
+resolved server-side and never copied from production. Configure these Worker
+variables (JSON maps use the names above):
+
+- `COMMAS_ENV=sandbox` enables protected test requests only.
+- `COMMAS_SANDBOX_CREATOR_ID` = sandbox seller handle.
+- `COMMAS_SANDBOX_PRODUCT_IDS` = JSON object containing all six short IDs.
+- `COMMAS_SANDBOX_CHECKOUT_URLS` = JSON object containing all six URLs. Only
+  `https://sandbox.commas.net/checkout/<id>` or sandbox
+  `/agency-checkout/<handle>/<id>` URLs are accepted. Supply the actual sandbox
+  URLs; never derive them by replacing the host in a production URL. Configure
+  sandbox product success redirects back to the corresponding next Clone page
+  with `?sandbox=1` (seat to software, software/trial to audit, audit to vault,
+  vault/plan to welcome).
+- `CLONE_SANDBOX_REBILL_ENABLED=true` once sandbox manual rebill is enabled.
+- `CLONE_SANDBOX_REBILL_ENABLED_AT` = sandbox activation timestamp in UTC.
+- `CLONE_SANDBOX_SUBSCRIPTIONS_ENABLED=true` for sandbox validation of the
+  support-reported `service_id` contract. Production subscription gate stays
+  disabled until this sandbox run proves subscription creation and plan terms.
+
+Set separate secrets on the existing `jonmac-agency` Worker using Cloudflare
+secret storage: `COMMAS_SANDBOX_API_KEY`, `COMMAS_SANDBOX_WEBHOOK_SECRET`, and
+`CLONE_SANDBOX_ACCESS_TOKEN` (random 32+ characters). Register a **sandbox-only**
+`payment.succeeded` webhook to `https://jonmac.ai/clone/api/sandbox/purchase`,
+and store its signing secret in `COMMAS_SANDBOX_WEBHOOK_SECRET`. The runner
+checks that an active matching webhook exists before submitting checkout. No production
+webhook needs modification. Missing settings, a reused production key/ID, or a
+production fallback URL reject sandbox access before making any provider call.
+The sandbox webhook and lead endpoint skip production lead/email automation.
+Sandbox and production have separate session caches, signed cookie names and
+kinds, session storage keys, D1 proof/claim tables, and provider idempotency keys.
+
+**Never select sandbox using the production key or Commas CLI.** Commas persists
+its selected environment server-side per API key, shared across clients. This
+implementation invokes no environment-selection API or CLI command. It sends
+sandbox requests directly to `https://api-sandbox.commas.net/public-api`, using
+only the dedicated sandbox key, and sets the Embedded SDK environment to
+`'sandbox'`. The currently published SDK resolves this to its older
+`embedded-checkout.qa.dev-fan-basis.com` embed hostname; do not change the SDK
+value to `'qa'` or substitute production credentials. The provider run will
+verify the actual sandbox checkout/session compatibility.
+
+For a browser, enter `/clone/?sandbox=1&token=<access-token>`; the Worker sets the
+access cookie and immediately redirects to strip the secret before assets load.
+Prefer `POST /clone/api/sandbox/access` with `{ "token": "..." }` and same-origin
+headers, as the runner does, to keep the token out of URLs. Funnel navigation
+preserves `?sandbox=1`; pages use private/no-store, no-referrer and noindex headers.
+Returning to a URL without `sandbox=1` selects the normal production funnel.
+
+## Sandbox end-to-end runner
+
+```powershell
+npm ci --prefix cloud-apps/clone
+node cloud-apps/clone/node_modules/playwright/cli.js install chromium
+npm run test:sandbox --prefix cloud-apps/clone
+```
+
+The last command prints the prepared sandbox plan only. After provisioning the
+Worker settings/webhook above, set `COMMAS_ENV=sandbox`,
+`COMMAS_SANDBOX_API_KEY`, and `CLONE_SANDBOX_ACCESS_TOKEN` in the runner's process
+environment, then run:
+
+```powershell
+npm run test:sandbox --prefix cloud-apps/clone -- --run
+```
+
+`CLONE_SANDBOX_URL` defaults to `https://jonmac.ai/clone/`. Only that target and
+loopback mock servers are allowed. The provider API host is fixed to sandbox;
+production checkout hosts are blocked by the browser. The runner never uses
+`COMMAS_API_KEY`. No screenshots, traces, raw provider bodies, keys or card
+fields are logged. Optional `CLONE_SANDBOX_SELECTORS` JSON can adapt the card
+field selectors if the sandbox iframe differs; missing/ambiguous fields stop
+before payment submission. Do not set a real card: the runner uses only the
+[official sandbox Visa test card](https://commasdocs.com/#environments), a future
+expiry and test CVC.
+
+Default coverage is seven fresh $47 sandbox purchases with unique test buyers:
+full software to audit to vault funnel; software replay; audit replay; vault replay;
+three-payment vault plan; trial fallback; and alternative vault-plan suppression.
+For each paid upsell it verifies no card form opens, exactly one matching provider
+transaction, concurrent API repeats plus refresh/UI repeats without another
+charge, and the expected next page retaining sandbox mode. Recurring offers
+must create exactly one new active monthly subscription with its first renewal
+30 days out; the vault product must stop after two renewals. Created test
+subscriptions are cancelled at the end, including on failure after discovery.
+The trial is verified as **sandbox hosted fallback**, without submitting another
+card: the rebill API has no documented free-trial enrollment and requires a
+positive charge. A successful charge without a resulting subscription fails the
+runner; it never retries the payment through hosted checkout.
+
+For offline verification, `npm run test:sandbox:mock --prefix cloud-apps/clone`
+uses the actual Worker, HTMLRewriter, D1 and browser with a mocked provider/SDK
+and blocked external resources. It runs the same seven-case script, verifies
+production tables stay empty, and proves the runner rejects a successful charge
+that fails to create a subscription. This does not replace provider acceptance.
+The real sandbox run has **not** been executed: key, products and webhook remain
+pending. No live-card test is planned or authorized.
