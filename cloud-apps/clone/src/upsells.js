@@ -191,7 +191,8 @@ export async function upsell(request, env) {
       await db.prepare('UPDATE clone_upsell_claims SET state = ?, charge_ref = ? WHERE buyer_id = ? AND offer_group = ?').bind(state, ref, buyer.buyer, offer.group).run();
     };
     const enabledAt = Date.parse(env.CLONE_REBILL_ENABLED_AT || '');
-    if (env.CLONE_REBILL_ENABLED !== 'true' || !Number.isFinite(enabledAt) || buyer.purchased < enabledAt ||
+    if (env.CLONE_REBILL_ENABLED !== 'true' || !Number.isFinite(enabledAt) ||
+        !Number.isFinite(buyer.purchased) || buyer.purchased <= enabledAt ||
         offer.trial || (offer.recurring && env.CLONE_SUBSCRIPTIONS_ENABLED !== 'true')) {
       await finish('fallback');
       return fallback(offer, offer.trial ? 'trial_hosted' : 'rebill_unavailable');
@@ -226,7 +227,11 @@ export async function upsell(request, env) {
     // Only explicit rejection is safe to send to a second checkout. Timeouts, 409,
     // malformed success, 5xx or pending gateway outcomes must stay permanently locked.
     if ([400, 402, 403, 404, 422].includes(charge.response.status) && charge.body?.status === 'error') {
-      await finish('fallback'); return fallback(offer, 'payment_rejected');
+      const code = String(charge.body.code || '').toLowerCase();
+      const message = String(charge.body.message || '');
+      const unavailable = ['rebill_not_enabled', 'no_authorized_subscription', 'card_on_file_not_enabled'].includes(code) ||
+        /no authorized subscription found|(?:manual\s+)?rebill(?:ing)?\b.{0,100}(?:not\s+(?:been\s+)?enabled|disabled)|card\s+on\s+file\b.{0,100}(?:not\s+enabled|disabled)/i.test(message);
+      await finish('fallback'); return fallback(offer, unavailable ? 'rebill_unavailable' : 'payment_rejected');
     }
     await finish('unknown'); return pending();
   } catch {

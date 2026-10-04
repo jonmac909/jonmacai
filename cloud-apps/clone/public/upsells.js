@@ -71,7 +71,7 @@
     if (result.ok && /^\/clone\/(audit|vault|welcome)\.html$/.test(result.next || '')) {
       location.href = result.next; return;
     }
-    if (result.fallback && ['rebill_unavailable', 'trial_hosted', 'buyer_unverified', 'no_saved_card'].includes(result.reason) &&
+    if (result.fallback && ['rebill_unavailable', 'trial_hosted', 'buyer_unverified', 'no_saved_card', 'previous_fallback'].includes(result.reason) &&
         /^https:\/\/commas\.com\/checkout\/[A-Za-z0-9]+$/.test(result.checkoutUrl || '')) {
       location.href = result.checkoutUrl; return;
     }

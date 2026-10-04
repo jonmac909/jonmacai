@@ -19,8 +19,10 @@
     "CHECKOUT_URL": "https://commas.com/checkout/nmGzEY7RCWcGOKl",
     "RESEND_FROM": "Jon Mac <support@viralview.io>",
     "RESEND_REPLY_TO": "jon@thejonmac.com",
-    "CLONE_REBILL_ENABLED": "false",
-    "CLONE_REBILL_ENABLED_AT": "",
+    "CLONE_REBILL_ENABLED": "true",
+    // Felipe confirmed activation Oct 4 at 2:59 PM (Slack timezone unspecified).
+    // Use receipt of Ana's confirmation as a conservative, unambiguous UTC cutoff.
+    "CLONE_REBILL_ENABLED_AT": "2026-10-04T21:14:20Z",
     "CLONE_SUBSCRIPTIONS_ENABLED": "false"
   },
   "kv_namespaces": [
