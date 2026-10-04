@@ -450,7 +450,7 @@ h1{font-size:clamp(40px,5.4vw,60px);line-height:1.08}
     <p class="now">$297</p>
     <p class="dim small" style="margin-top:8px">One time, on this page only. Full refund if it isn't for you.</p>
   </div>
-  <a class="yes" href="https://commas.com/checkout/O9gZrPCEazKZx1I">YES — ADD THE FULL VAULT FOR $297</a>
+  <a class="yes" data-upsell="vault" href="https://commas.com/checkout/O9gZrPCEazKZx1I">YES — ADD THE FULL VAULT FOR $297</a>
   <p class="ctacap">One time. Lifetime access. Full refund if it isn't for you.</p>
   <a class="no" href="welcome.html" data-exit>No thanks &mdash; just the workshop<span>Take me to my receipt</span></a>
 </div></section>
@@ -459,7 +459,7 @@ h1{font-size:clamp(40px,5.4vw,60px);line-height:1.08}
   <button class="pop-x" aria-label="Close" data-close>&times;</button>
   <h2>Want to split it into 3 payments of $99?</h2>
   <hr>
-  <a class="yes" href="https://commas.com/checkout/jJYvvwCNDeq7PMsh">YES — ADD THE FULL VAULT FOR $297</a>
+  <a class="yes" data-upsell="vault_plan" href="https://commas.com/checkout/jJYvvwCNDeq7PMsh">YES — ADD THE FULL VAULT FOR $297</a>
   <p class="ctacap">One time. Lifetime access. Full refund if it isn't for you.</p>
   <a class="no" href="welcome.html" data-close>No thanks &mdash; I'll pass on the vault<span>Take me to my receipt now</span></a>
 </div></div>
@@ -477,7 +477,7 @@ h1{font-size:clamp(40px,5.4vw,60px);line-height:1.08}
   document.querySelectorAll('[data-exit]').forEach(function(a){ a.addEventListener('click',show); });
   document.addEventListener('mouseout',function(e){ if(!e.relatedTarget && e.clientY<10) show(); });
   document.querySelectorAll('[data-close]').forEach(function(b){
-    b.addEventListener('click',function(e){ e.preventDefault(); pop.classList.remove('show'); }); });
+    b.addEventListener('click',function(e){ if(b.tagName!=='A')e.preventDefault(); pop.classList.remove('show'); }); });
   pop.addEventListener('click',function(e){ if(e.target===pop) pop.classList.remove('show'); });
 })();
 </script>
@@ -510,3 +510,5 @@ h1{font-size:clamp(40px,5.4vw,60px);line-height:1.08}
   });
 })();
 </script>
+
+<script src="/clone/upsells.js?v=1" defer></script>

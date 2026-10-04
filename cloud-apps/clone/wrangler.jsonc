@@ -2,7 +2,7 @@
   // jonmac.ai/clone — The Clone Method webinar funnel (lander, upsells, policies).
   // Mirrors the live jonmac-agency Worker settings as of version 58 (2026-09-07).
   // Secrets (set with `wrangler secret put`, never committed): COMMAS_API_KEY,
-  // COMMAS_WEBHOOK_SECRET, RESEND_API_KEY, RESEND_AUDIENCE_ID.
+  // COMMAS_WEBHOOK_SECRET, CLONE_TOKEN_SECRET, RESEND_API_KEY, RESEND_AUDIENCE_ID.
   "name": "jonmac-agency",
   "main": "src/index.js",
   "compatibility_date": "2026-08-01",
@@ -11,16 +11,23 @@
   "assets": {
     "directory": "./public",
     "binding": "ASSETS",
+    "run_worker_first": ["/clone/api/*"],
     "html_handling": "none",
     "not_found_handling": "none"
   },
   "vars": {
     "CHECKOUT_URL": "https://commas.com/checkout/nmGzEY7RCWcGOKl",
     "RESEND_FROM": "Jon Mac <support@viralview.io>",
-    "RESEND_REPLY_TO": "jon@thejonmac.com"
+    "RESEND_REPLY_TO": "jon@thejonmac.com",
+    "CLONE_REBILL_ENABLED": "false",
+    "CLONE_REBILL_ENABLED_AT": "",
+    "CLONE_SUBSCRIPTIONS_ENABLED": "false"
   },
   "kv_namespaces": [
     { "binding": "CLONE_LEADS", "id": "73af279f67c745a78652cf26f4c9bfe9" }
+  ],
+  "d1_databases": [
+    { "binding": "CLONE_UPSELLS", "database_name": "jonmacai-clone-upsells", "database_id": "cafcc654-94e7-498c-81cf-e197393c1176", "migrations_dir": "migrations" }
   ],
   "routes": [
     { "pattern": "jonmac.ai/agency*", "zone_name": "jonmac.ai" },

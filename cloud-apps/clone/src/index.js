@@ -1,5 +1,7 @@
 // jonmac.ai/clone: static funnel pages from ./public plus the lead and purchase hooks.
 // Recovered from the deployed jonmac-agency bundle (version 58, 2026-09-07).
+import { buyerSession, checkoutContext, recordPurchaseProof, sameOrigin, upsell, validWebhook } from './upsells.js';
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
@@ -20,8 +22,11 @@ export default {
       return handlePurchase(request, env);
     }
     if (url.pathname === "/clone/api/checkout-session" && request.method === "POST") {
-      return handleCheckoutSession(env);
+      return handleCheckoutSession(request, env);
     }
+    if (url.pathname === '/clone/api/buyer-session' && request.method === 'POST') return buyerSession(request, env);
+    if (url.pathname === '/clone/api/upsell' && request.method === 'POST') return upsell(request, env);
+    if (url.pathname.startsWith('/clone/api/')) return json({ ok: false, error: 'not found' }, 404);
     // The checkout now lives in the lander's popup; the old step-2 page sends people back there.
     if (url.pathname === "/clone/checkout.html") {
       return Response.redirect(url.origin + "/clone/" + url.search, 302);
@@ -123,8 +128,10 @@ const COMMAS_PRODUCT_ID = "nmGzE";
 const SESSION_TTL_MS = 30 * 60 * 1000;
 let cachedSession = null;
 
-async function handleCheckoutSession(env) {
+async function handleCheckoutSession(request, env) {
+  if (!sameOrigin(request)) return json({ ok: false, error: 'origin' }, 403);
   if (!env.COMMAS_API_KEY) return json({ ok: false, error: "checkout not configured" }, 503);
+  const context = await checkoutContext(request, env);
   if (!cachedSession || Date.now() - cachedSession.at > SESSION_TTL_MS) {
     let secret = "";
     try {
@@ -143,45 +150,41 @@ async function handleCheckoutSession(env) {
     if (!secret) return json({ ok: false, error: "checkout session failed" }, 502);
     cachedSession = { secret, at: Date.now() };
   }
+  const responseHeaders = new Headers({ 'content-type': 'application/json', 'cache-control': 'no-store' });
+  if (context) {
+    responseHeaders.append('set-cookie', context.cookie);
+    // A new checkout must never reuse a previous buyer's signed billing identity.
+    responseHeaders.append('set-cookie', '__Secure-clone-buyer=; Path=/clone; Max-Age=0; HttpOnly; Secure; SameSite=Lax');
+  }
   return new Response(JSON.stringify({
     ok: true,
     creatorId: COMMAS_CREATOR_ID,
     productId: COMMAS_PRODUCT_ID,
     checkoutSessionSecret: cachedSession.secret,
+    checkoutRef: context?.ref || null,
   }), {
-    headers: { "content-type": "application/json", "cache-control": "no-store" },
+    headers: responseHeaders,
   });
 }
 
 function json(body, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { "content-type": "application/json" },
+    headers: { "content-type": "application/json", "cache-control": "no-store" },
   });
 }
 
 async function handlePurchase(request, env) {
   const body = await request.text();
-  if (env.COMMAS_WEBHOOK_SECRET) {
-    const sigHeader = request.headers.get("x-signature") || request.headers.get("x-fanbasis-signature") || request.headers.get("x-webhook-signature") || "";
-    const key = await crypto.subtle.importKey(
-      "raw",
-      new TextEncoder().encode(env.COMMAS_WEBHOOK_SECRET),
-      { name: "HMAC", hash: "SHA-256" },
-      false,
-      ["sign"],
-    );
-    const mac = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(body));
-    const digest = [...new Uint8Array(mac)].map((b) => b.toString(16).padStart(2, "0")).join("");
-    const given = sigHeader.trim().replace(/^sha256=/, "");
-    if (given !== digest) return json({ ok: false, error: "bad signature" }, 401);
-  }
+  const sigHeader = request.headers.get('x-webhook-signature') || request.headers.get('x-signature') || request.headers.get('x-fanbasis-signature');
+  if (!await validWebhook(body, sigHeader, env.COMMAS_WEBHOOK_SECRET)) return json({ ok: false, error: 'bad signature' }, 401);
   let payload;
   try {
     payload = JSON.parse(body);
   } catch {
     return json({ ok: false, error: "bad json" }, 400);
   }
+  await recordPurchaseProof(payload, env);
   const email = String(
     payload?.data?.buyer?.email || payload?.customer?.email || payload?.data?.customer?.email || payload?.email || payload?.data?.email || "",
   ).trim().toLowerCase();

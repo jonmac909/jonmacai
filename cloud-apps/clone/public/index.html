@@ -900,6 +900,7 @@ a.presscite h3{text-decoration:underline;text-decoration-thickness:1px;text-unde
   </div>
 </div>
 
+<script src="/clone/checkout-handoff.js?v=1"></script>
 <script>
 (function(){
   var SDK='https://cdn.embedded.fanbasis.io/embed/index.js',
@@ -961,6 +962,7 @@ a.presscite h3{text-decoration:underline;text-decoration-thickness:1px;text-unde
   function mount(session){
     var attr=read('jm_attr')||{},meta={lp:'clone'};
     Object.keys(attr).forEach(function(k){ if(attr[k])meta[k]=String(attr[k]); });
+    if(session.checkoutRef)meta.clone_checkout_ref=session.checkoutRef;
     try{
       checkout=PaymentCheckout.create({
         creatorId:session.creatorId,
@@ -988,10 +990,7 @@ a.presscite h3{text-decoration:underline;text-decoration-thickness:1px;text-unde
       payError((d&&d.data&&d.data.errorMessage)||'Payment didn’t go through. Check your card details and try again.');
     });
     checkout.on('form:validation',function(d){ if(d&&d.isValid===false)resetGo(); });
-    checkout.on('checkout:success',function(){
-      try{sessionStorage.removeItem('jm_checkout');}catch(e){}
-      location.href=SUCCESS;
-    });
+    checkout.on('checkout:success',function(data){ CloneCheckout.succeeded(data); });
     Promise.resolve(checkout.init()).catch(function(e){ fail(e&&e.code||'init'); });
   }
   function showPay(){

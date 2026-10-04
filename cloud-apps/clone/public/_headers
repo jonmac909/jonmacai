@@ -4,3 +4,9 @@
 
 /*.html
   Cache-Control: public, max-age=300, must-revalidate
+
+/upsells.js
+  Cache-Control: no-cache
+
+/checkout-handoff.js
+  Cache-Control: no-cache
