@@ -26,8 +26,8 @@ cookies expire after 30 minutes. Client customer IDs never authorize billing.
 Before billing, it verifies the current service terms and obtains the customer's
 saved card server-side. `service_id` uses the numeric ID resolved from the public
 service ID, with `amount_cents` on `/customers/:id/charge`. **Commas must confirm
-the exact service-ID request field, ID format, product association and recurring
-subscription behavior before activating rebills.** The public charge reference
+the exact service-ID request field, ID format and recurring subscription behavior
+before activating recurring upsells.** The public charge reference
 currently does not document `service_id`; the subscription capability was
 reported by Commas support, and has been implemented and tested with mocks only.
 
@@ -51,18 +51,27 @@ responses or card data into browser code, Git or logs.
 
 ## Activation and fallback
 
-Production ships with `CLONE_REBILL_ENABLED="false"`,
-`CLONE_SUBSCRIPTIONS_ENABLED="false"`, and an empty
-`CLONE_REBILL_ENABLED_AT`. The YES buttons automatically open their existing
-hosted checkout while unavailable, unverified or missing a saved card. Explicit
-charge failures show a message and a blue hosted checkout button. No thanks
+Ana reported that Felipe confirmed manual rebill **ON** for `jon@thejonmac.com`
+in Slack on October 4, 2026 at 2:59 PM. The Slack timestamp has no timezone, so
+`CLONE_REBILL_ENABLED_AT="2026-10-04T21:14:20Z"` conservatively uses the time
+Ana's confirmation was received and processed. This is an eligibility cutoff,
+not a claim about the exact provider activation time. All pre-October-4
+purchases, and purchases at or before this cutoff, remain on hosted checkout.
+
+Production now sets `CLONE_REBILL_ENABLED="true"` and keeps
+`CLONE_SUBSCRIPTIONS_ENABLED="false"`. Verified purchases after the cutoff can
+use saved-card one-click billing for the $497 audit and $297 lifetime vault.
+The $97 software subscription, $99 vault payment plan and free trial still use
+their existing hosted checkouts. The YES buttons automatically open hosted
+checkout while unavailable, unverified, missing a saved card or when Commas
+explicitly rejects rebilling/authorization. Other explicit charge failures show
+a message and a blue hosted checkout button. No thanks
 continues through software → audit → vault → welcome → survey; the existing
 software and vault exit popups remain, and their final No thanks links continue.
 
-After Commas confirms Card on File/manual rebilling is enabled on Viral View
-`org_8dfMp4cmF3MG`, record its exact enablement time as ISO UTC in
-`CLONE_REBILL_ENABLED_AT` and set `CLONE_REBILL_ENABLED="true"`. Purchases before
-that time stay on hosted checkout. Enable `CLONE_SUBSCRIPTIONS_ENABLED` only
+Manual rebill activation is confirmed; no additional activation approval is
+needed. Keep the conservative cutoff unless Commas supplies a precise timestamp
+with timezone. Enable `CLONE_SUBSCRIPTIONS_ENABLED` only
 for Jon's approved live test after confirming service-ID behavior; keep recurring
 rebills disabled outside that test until it passes.
 The free seven-day trial always uses its own hosted service `2J89z`: the charge
@@ -85,7 +94,7 @@ node <installed-wrangler-cli> deploy --dry-run --config cloud-apps/clone/wrangle
 node <installed-wrangler-cli> deploy --config cloud-apps/clone/wrangler.jsonc
 ```
 
-Validation passed: 16 mocked backend/SQLite tests; browser checks for spinner,
+Validation passed: 18 mocked backend/SQLite tests; browser checks for spinner,
 disabled buttons, double-click suppression, explicit rejection, ambiguous
 response across refresh/expired identity, next-page navigation, decline links,
 automatic hosted fallback and mobile layout. Run the browser smoke test with
@@ -96,13 +105,15 @@ at port 8796. Screenshots are written to the OS temp directory as
 
 ## Single live test — prepared only; Jon's approval required
 
-1. Wait for Commas' written activation confirmation and exact enablement time.
-   Confirm `service_id` name/ID format, whether it associates one-time products,
+1. Manual rebill activation is already confirmed. Before testing the software
+   subscription, confirm `service_id` name/ID format,
    whether $97 creates a 30-day recurring subscription, and whether the vault
    plan stops after its configured three payments. Keep trial hosted.
 2. Obtain Jon's explicit approval for **one $47 purchase plus one $97 software
    upsell ($144 total), refunding both and canceling the created subscription**.
-   Use only Jon's approved test buyer/card; do not reuse an older purchase.
+   Use only Jon's approved test buyer/card, buying after the deployed eligibility
+   cutoff. Do not reuse an older purchase. Approval has not been given; **do not
+   run this test or submit any real charge during this activation update**.
 3. In a fresh browser, buy the $47 seat once through `/clone/`. Confirm the
    signed webhook/browser binding and buyer cookie; never record card details.
    With the service-ID contract confirmed, temporarily enable recurring rebills

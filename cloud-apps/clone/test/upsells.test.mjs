@@ -110,6 +110,33 @@ test('Clone one-click payments: verified identity, durable claims and safe fallb
     assert.equal((await (await upsell(request('upsell', { offer: 'trial' }, await buyerCookie(e)), e)).json()).checkoutUrl, OFFERS.trial.hosted);
     assert.equal(calls.length, 0);
   });
+  await t.test('production activation charges only one-time offers after the confirmed purchase cutoff', async () => {
+    const config = readFileSync(new URL('../wrangler.jsonc', import.meta.url), 'utf8');
+    const vars = JSON.parse(config.match(/"vars":\s*(\{[\s\S]*?\})/)[1].replace(/^\s*\/\/.*$/gm, ''));
+    const cutoff = Date.parse(vars.CLONE_REBILL_ENABLED_AT);
+    assert.equal(vars.CLONE_REBILL_ENABLED, 'true');
+    assert.ok(Number.isFinite(cutoff));
+    for (const purchased of [Date.parse('2026-10-03T23:59:59Z'), cutoff - 1, cutoff, null, cutoff + 1]) {
+      for (const offer of ['audit', 'vault']) {
+        const e = { ...env(), ...vars }, calls = mockCommas();
+        const r = await (await upsell(request('upsell', { offer }, await buyerCookie(e, { purchased })), e)).json();
+        if (purchased === cutoff + 1) {
+          assert.equal(r.ok, true);
+          assert.equal(calls.filter(c => c.url.endsWith('/charge')).length, 1);
+        } else {
+          assert.equal(r.reason, 'rebill_unavailable');
+          assert.equal(r.checkoutUrl, OFFERS[offer].hosted);
+          assert.equal(calls.length, 0);
+        }
+      }
+    }
+    for (const offer of ['software', 'vault_plan', 'trial']) {
+      const e = { ...env(), ...vars }, calls = mockCommas();
+      const r = await (await upsell(request('upsell', { offer }, await buyerCookie(e, { purchased: cutoff + 1 })), e)).json();
+      assert.equal(r.fallback, true);
+      assert.equal(calls.length, 0);
+    }
+  });
   await t.test('no saved card and changed product terms cannot charge', async () => {
     for (const overrides of [{ methods: response({ customer: { id: 12345 }, payment_methods: [] }) }, { product: response({ product: { id: 1382675 }, amount_cents: 99900, type: 'onetime' }) }, { methods: response({ customer: { id: 99999 }, payment_methods: [{ id: 'other-card', type: 'card' }] }) }]) {
       const e = env(), calls = mockCommas(overrides);
@@ -119,9 +146,24 @@ test('Clone one-click payments: verified identity, durable claims and safe fallb
   });
   await t.test('explicit rebill rejection falls back and is never charged again', async () => {
     const e = env(), cookie = await buyerCookie(e), calls = mockCommas({ charge: () => new Response(JSON.stringify({ status: 'error', message: 'No authorized subscription found for customer' }), { status: 404 }) });
-    assert.equal((await (await upsell(request('upsell', { offer: 'audit' }, cookie), e)).json()).fallback, true);
+    assert.equal((await (await upsell(request('upsell', { offer: 'audit' }, cookie), e)).json()).reason, 'rebill_unavailable');
     assert.equal((await (await upsell(request('upsell', { offer: 'audit' }, cookie), e)).json()).fallback, true);
     assert.equal(calls.filter(c => c.url.endsWith('/charge')).length, 1);
+  });
+  await t.test('disabled rebill errors auto-fallback while card declines still show a retry checkout button', async () => {
+    for (const [message, code, reason] of [
+      ['Manual rebilling is not enabled for organization', undefined, 'rebill_unavailable'],
+      ['Manual rebill has not been enabled', undefined, 'rebill_unavailable'],
+      ['This organization cannot use this feature', 'REBILL_NOT_ENABLED', 'rebill_unavailable'],
+      ['Card declined by issuer', undefined, 'payment_rejected'],
+    ]) {
+      const e = env(), cookie = await buyerCookie(e);
+      const calls = mockCommas({ charge: () => new Response(JSON.stringify({ status: 'error', message, code }), { status: 403 }) });
+      const r = await (await upsell(request('upsell', { offer: 'audit' }, cookie), e)).json();
+      assert.equal(r.reason, reason); assert.equal(r.checkoutUrl, OFFERS.audit.hosted);
+      assert.equal((await (await upsell(request('upsell', { offer: 'audit' }, cookie), e)).json()).reason, 'previous_fallback');
+      assert.equal(calls.filter(c => c.url.endsWith('/charge')).length, 1);
+    }
   });
   await t.test('timeouts, 409, malformed successes and 5xx remain locked without a second checkout', async () => {
     for (const charge of [() => { throw new Error('network timeout'); }, () => response([], 409, 'error'), () => response([], 500, 'error'), () => response({ status: 'processing' }), () => response({ status: 'succeeded', charge_id: 'mock', amount: 1 })]) {
