@@ -1,0 +1,23 @@
+{
+  "id": "fixture-webhook-envelope",
+  "type": "payment.succeeded",
+  "created_at": "2026-10-07T18:00:00Z",
+  "data": {
+    "payment_id": "ORD-JON16-TEST-SEAT",
+    "transaction_history_id": "ORD-JON16-TEST-SEAT",
+    "status": "succeeded",
+    "created_at": "2026-10-07T18:00:00Z",
+    "amount": 47,
+    "currency": "USD",
+    "quantity": 1,
+    "buyer": { "email": "fixture@example.test" },
+    "item": { "id": "nmGzE", "type": "onetime", "title": "The Clone Method" },
+    "api_metadata": {
+      "data": {
+        "whop_anonymous_id": "wuid_jon16_fixture",
+        "whop_page_url": "https://jonmac.ai/clone/?utm_source=whop&wacid=campaign&wasid=adset&waid=ad&token=excluded",
+        "clone_checkout_ref": "fixture-only"
+      }
+    }
+  }
+}

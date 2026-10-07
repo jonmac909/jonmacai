@@ -4,6 +4,7 @@
   "type": "module",
   "scripts": {
     "test": "node --test test/*.test.mjs",
+    "test:whop:browser": "node test/whop-browser.mjs",
     "test:sandbox": "node test/sandbox-e2e.mjs",
     "test:sandbox:mock": "node test/sandbox-mock.mjs"
   },

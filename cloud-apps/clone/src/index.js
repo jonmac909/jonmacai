@@ -3,6 +3,7 @@
 import { cookieName, isSandbox, paymentConfig } from './payment-config.js';
 import { publicConfig, sandboxAccess, sandboxEnv, sandboxPage } from './sandbox.js';
 import { buyerSession, checkoutContext, recordPurchaseProof, sameOrigin, upsell, validWebhook } from './upsells.js';
+import { deliverWhopEvent, enqueueWhopEvent, flushWhopEvents, whopAttribution, whopPurchaseFromVerifiedPayment } from './whop-events.js';
 
 export default {
   async fetch(request, env) {
@@ -51,7 +52,17 @@ export default {
       const missing = new Response(fb.body, { status: 404, headers: fb.headers });
       return isSandbox(env) ? sandboxPage(missing, access.config, env) : missing;
     }
-    return isSandbox(env) ? sandboxPage(res, access.config, env) : res;
+    const response = isSandbox(env) ? sandboxPage(res, access.config, env) : res;
+    const headers = new Headers(response.headers);
+    // Existing page scripts/SDK remain allowed. No default-src restriction is
+    // introduced for the funnel's video, fonts, images or embedded checkout.
+    headers.set('content-security-policy', "script-src 'self' 'unsafe-inline' https://t.whop.tw https://cdn.embedded.fanbasis.io https://connect.facebook.net https://www.googletagmanager.com");
+    if (env.CLONE_VERSION?.id) headers.set('x-clone-version', env.CLONE_VERSION.id);
+    if (env.CLONE_VERSION?.tag) headers.set('x-clone-commit', env.CLONE_VERSION.tag);
+    return new Response(response.body, { status: response.status, headers });
+  },
+  async scheduled(controller, env, ctx) {
+    ctx.waitUntil(flushWhopEvents(env));
   },
 };
 
@@ -77,8 +88,19 @@ async function handleLead(request, env) {
     page: "clone",
     ua: request.headers.get("user-agent") || "",
     ts: new Date().toISOString(),
+    whop: whopAttribution(data, request),
   };
   await env.CLONE_LEADS.put(`lead:${email}`, JSON.stringify(record));
+  // The browser supplies the same IDs for deduplication. A server ID also covers
+  // browsers whose pixel was blocked. Email delivery is independent of CAPI.
+  const eventId = typeof data.eventId === 'string' && /^clone_lead_[a-z0-9-]{36}$/i.test(data.eventId)
+    ? data.eventId : 'clone_lead_' + crypto.randomUUID();
+  for (const [eventName, id] of [['lead', eventId], ['complete_registration', eventId + '_registration']]) {
+    const event = { eventName, eventId: id, url: record.whop.pageUrl, anonymousId: record.whop.anonymousId, email, eventTime: Date.now() };
+    try {
+      if (await enqueueWhopEvent(env, event)) await deliverWhopEvent(env, id);
+    } catch { console.error('Whop lead delivery pending'); }
+  }
   if (env.RESEND_API_KEY) {
     const headers = {
       authorization: `Bearer ${env.RESEND_API_KEY}`,
@@ -116,7 +138,7 @@ async function handleLead(request, env) {
         to: email,
         reply_to: env.RESEND_REPLY_TO || undefined,
         subject: "Your seat isn't saved yet",
-        text: `${firstName ? firstName + " — " : ""}you're one step from your seat at The Clone Method live training (every Tuesday, Wednesday and Thursday at 7:00 PM ET).
+        text: `${firstName ? firstName + " — " : ""}you're one step from your seat at The Clone Method live training (daily at 7:00 PM ET).
 
 Finish here, it takes under a minute:
 ${checkout}
@@ -204,6 +226,22 @@ async function handlePurchase(request, env) {
   }
   await recordPurchaseProof(payload, env);
   if (isSandbox(env)) return json({ ok: true, environment: 'sandbox' });
+  // Only a signed successful payment for one of the six Clone products may emit
+  // a purchase. No checkout/thank-you/browser endpoint can manufacture one.
+  const buyerEmail = String(payload?.data?.buyer?.email || '').trim().toLowerCase();
+  let attribution = {};
+  if (buyerEmail) {
+    const lead = await env.CLONE_LEADS.get(`lead:${buyerEmail}`);
+    try { attribution = JSON.parse(lead || '{}').whop || {}; } catch {}
+  }
+  const event = whopPurchaseFromVerifiedPayment(payload, attribution);
+  if (event) {
+    try {
+      if (await enqueueWhopEvent(env, event) && !await deliverWhopEvent(env, event.eventId)) {
+        return json({ ok: false, error: 'conversion_pending' }, 503);
+      }
+    } catch { return json({ ok: false, error: 'conversion_pending' }, 503); }
+  }
   const email = String(
     payload?.data?.buyer?.email || payload?.customer?.email || payload?.data?.customer?.email || payload?.email || payload?.data?.email || "",
   ).trim().toLowerCase();

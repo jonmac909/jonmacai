@@ -7,6 +7,7 @@
     return sandbox ? Object.values(CloneMode.hosted).includes(url) && /^https:\/\/sandbox\.commas\.net\//.test(url || '') :
       /^https:\/\/commas\.com\/checkout\/[A-Za-z0-9]+$/.test(url || '');
   }
+  function hostedUrl(url) { return window.CloneWhop ? CloneWhop.decorate(url) : url; }
   var buttons = Array.from(document.querySelectorAll('[data-upsell]'));
   var busy = false, panel, buyerReady;
   var style = document.createElement('style');
@@ -81,12 +82,12 @@
     }
     if (result.fallback && ['rebill_unavailable', 'trial_hosted', 'buyer_unverified', 'no_saved_card', 'previous_fallback'].includes(result.reason) &&
         validHosted(result.checkoutUrl)) {
-      location.href = result.checkoutUrl; return;
+      location.href = hostedUrl(result.checkoutUrl); return;
     }
     button.innerHTML = old; button.removeAttribute('aria-busy');
     var slot = message(button, result.message || 'This offer needs secure checkout to finish. Continue with Commas below.');
     if (result.fallback && validHosted(result.checkoutUrl)) {
-      var link = document.createElement('a'); link.className = 'yes'; link.href = result.checkoutUrl;
+      var link = document.createElement('a'); link.className = 'yes'; link.href = hostedUrl(result.checkoutUrl);
       link.textContent = 'Continue to Secure Checkout →'; slot.appendChild(link);
       disable(false);
     } else {

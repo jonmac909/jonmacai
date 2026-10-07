@@ -1,5 +1,68 @@
 # Clone funnel payments
 
+## Daily schedule and Whop measurement (JON-16)
+
+The training runs daily at 7 PM America/New_York. Lander, welcome, survey,
+terms, search/social descriptions and the lead email agree. `public/schedule.js`
+selects today before 7 PM or tomorrow at/after 7 PM, including DST changes.
+The Google Calendar link uses local 19:00–21:00 dates, `ctz=America/New_York`
+and `RRULE:FREQ=DAILY` to preserve Eastern time on future recurrences.
+
+All nine pages load the existing Viral View Whop pixel implementation with scope
+`biz_7mMLeRhCNlr8Nl`. Browser events are `page`, `lead`,
+`complete_registration` and `add_to_cart` (Whop's existing checkout-click name).
+Existing Meta/Google code and IDs remain as configured. The privacy disclosure
+includes Whop, and the Worker CSP allows `t.whop.tw` alongside existing scripts.
+Protected Commas sandbox pages and payments never send Whop events.
+
+The opt-in shares event IDs between browser and CAPI. `_wuid` and a limited set
+of campaign parameters, including `wacid`/`wasid`/`waid`, are stored with the
+lead, added to embedded-checkout metadata and carried to every hosted checkout.
+Server URLs retain attribution but exclude secrets, email and access tokens.
+
+Purchases originate only from the existing HMAC-verified Commas
+`payment.succeeded` webhook. All six products (`nmGzE`, `wg0E8`, `2J89z`,
+`XXYMA`, `O9gZr`, `jJYvv`), including subsequent paid trial/subscription/plan
+payments, are covered. The event value is the actual positive USD `data.amount`,
+including discounts, rather than the offer's catalog price. A free trial
+enrollment emits no purchase. No browser page or SDK success callback emits
+revenue. One-click rebills are tracked when their verified payment webhook
+arrives: Commas charge IDs and webhook public order IDs differ, so emitting from
+both without a canonical ID would double-count. Keep the existing account-wide
+`payment.succeeded` webhook subscribed for all products and renewal payments.
+
+The canonical event ID is `purchase_<transaction_history_id>` (or the documented
+payment ID when missing). D1 migration `0003_whop_events.sql` adds an atomic,
+leased delivery queue. Whop receives the same ID on every retry; completed rows
+are never delivered again. A failed purchase delivery returns 503 for webhook
+retry. A one-minute Worker cron retries pending events, even without webhook
+redelivery. Events older than 28 days are not submitted. Checkout itself never
+depends on Whop availability. Whop requires the Worker-only `WHOP_API_KEY` secret;
+never include it in browser assets, Git, URLs or logs.
+
+The current [Whop event schema](https://github.com/whopio/whopsdk-typescript/blob/main/src/api/resources/events/client/requests/CreateEventsRequest.ts)
+documents raw `user.phone`, but no hashed-phone field, so phone is not sent to
+Whop. It documents arbitrary custom names, but no standard refund conversion or
+purchase reversal semantics. Refunds are therefore skipped rather than emitted
+as purchases or undocumented negative purchases. The reference's standard event
+names are retained. Commas product descriptions remain Jon-owned and unchanged.
+
+Validation:
+
+```powershell
+npm ci --prefix cloud-apps/clone
+npm test --prefix cloud-apps/clone
+npm run test:whop:browser --prefix cloud-apps/clone
+npm run test:sandbox:mock --prefix cloud-apps/clone
+node <installed-wrangler-cli> deploy --dry-run --config cloud-apps/clone/wrangler.jsonc
+```
+
+GitHub's `Clone funnel / verify` runs backend/fixture tests, all-page browser
+tracking checks and existing sandbox payment regression checks. For release,
+apply the D1 migration before deploying the reviewed merged commit using the
+normal Wrangler command, with `--tag <merged-sha> --keep-vars`. Live pages return
+`X-Clone-Commit` and `X-Clone-Version` to verify the exact release.
+
 Production: `https://jonmac.ai/clone/`, existing Cloudflare Worker `jonmac-agency`.
 The current Clone pages and embedded modal were deployed from local Clone feature
 branches before those branches reached GitHub main. This release includes that

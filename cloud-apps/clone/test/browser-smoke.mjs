@@ -23,6 +23,7 @@ function browser(...args) {
 function evaluate(js) { return browser('eval', js); }
 function expectTrue(js) { assert.equal(evaluate(js), 'true', js); }
 try {
+  browser('network', 'route', 'https://t.whop.tw/**', '--body', '');
   browser('open', base + 'software.html'); browser('snapshot', '-i');
   expectTrue(`document.querySelectorAll('[data-upsell="software"]').length > 0 && document.querySelectorAll('[data-upsell="trial"]').length > 0 && Array.from(document.querySelectorAll('a.yes')).every(a=>a.dataset.upsell)`);
   evaluate(`window.mockRequests=0; window.fetch=async function(url){if(String(url).endsWith('/upsell')){window.mockRequests++;return new Promise(resolve=>{window.finishMock=()=>resolve(new Response(JSON.stringify({ok:true,next:'/clone/audit.html'})));});}return new Response(JSON.stringify({ok:false}));};`);
@@ -33,7 +34,7 @@ try {
 
   evaluate(`window.fetch=async()=>new Response(JSON.stringify({ok:false,fallback:true,reason:'payment_rejected',message:'Payment declined. Continue with secure checkout.',checkoutUrl:'https://commas.com/checkout/XXYMA1NymVQ5wpc'}));document.querySelector('[data-upsell]').click();`);
   browser('wait', '.upsell-result');
-  expectTrue(`document.querySelector('.upsell-result a').href === 'https://commas.com/checkout/XXYMA1NymVQ5wpc' && !document.querySelector('.upsell-spinner')`);
+  expectTrue(`new URL(document.querySelector('.upsell-result a').href).pathname === '/checkout/XXYMA1NymVQ5wpc' && !document.querySelector('.upsell-spinner')`);
   browser('scrollintoview', '.upsell-result');
   browser('screenshot', join(tmpdir(), 'clone-upsell-fallback.png'));
   console.log('PASS: explicit decline shows message and correct blue hosted fallback');
@@ -50,7 +51,7 @@ try {
   browser('wait', '--url', '**/clone/vault.html');
   console.log('PASS: ambiguous payment stays safe after refresh/expired identity; confirmed audit advances to vault');
 
-  expectTrue(`document.querySelector('[data-upsell="vault_plan"]').href === 'https://commas.com/checkout/jJYvvwCNDeq7PMsh'`);
+  expectTrue(`new URL(document.querySelector('[data-upsell="vault_plan"]').href).pathname === '/checkout/jJYvvwCNDeq7PMsh'`);
   evaluate(`document.querySelector('[data-exit]').click();`);
   expectTrue(`document.querySelector('#pop').classList.contains('show')`);
   browser('snapshot', '-i'); browser('click', '#pop a[data-close]');

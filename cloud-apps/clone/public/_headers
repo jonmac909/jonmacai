@@ -10,3 +10,9 @@
 
 /checkout-handoff.js
   Cache-Control: no-cache
+
+/whop-pixel.js
+  Cache-Control: no-cache
+
+/schedule.js
+  Cache-Control: no-cache

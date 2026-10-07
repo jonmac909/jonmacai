@@ -1,4 +1,6 @@
 <meta charset="utf-8">
+<script src="/clone/schedule.js?v=1"></script>
+<script src="/clone/whop-pixel.js?v=1"></script>
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>You're in — The Clone Method</title>
 <!--
@@ -372,7 +374,7 @@ h1{font-size:clamp(40px,5.4vw,60px);line-height:1.08}
   <h1>CONGRATS! <span class="acc">You're In.</span></h1>
   <p class="letter">Your seat for The Clone Method live training is booked. Here's how to make sure you
     actually get what you came for.</p>
-  <p class="qual" style="margin-top:6px">Live training: <span id="when">Tue, Wed &amp; Thu at 7:00 PM ET</span></p>
+  <p class="qual" style="margin-top:6px">Live training: <span id="when">Daily at 7:00 PM ET</span></p>
 </div></section>
 
 <div class="shell vidwrap"><div class="vidstrip"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9v6h4l6 5V4L8 9H4zm13.5 3a3.5 3.5 0 0 0-2-3.15v6.3a3.5 3.5 0 0 0 2-3.15zm-2-7.7v2.1a5.9 5.9 0 0 1 0 11.2v2.1a8 8 0 0 0 0-15.4z"/></svg>CLICK BELOW TO WATCH FIRST!</div><div class="video vv-hero" data-state="muted">
@@ -433,38 +435,16 @@ h1{font-size:clamp(40px,5.4vw,60px);line-height:1.08}
 
 <script>
 (function(){
-/* Next Tue/Wed/Thu 19:00 America/New_York, DST-safe, correct from any viewer timezone. */
-function sevenET(y,m,d){
-  var t=Date.UTC(y,m,d,23,0,0);                           /* 19:00 EDT guess */
-  for(var i=0;i<3;i++){
-    var h=+new Intl.DateTimeFormat('en-US',{timeZone:'America/New_York',
-          hour:'numeric',hour12:false}).format(new Date(t));
-    if(h===24)h=0;
-    if(h===19)break;
-    t+=(19-h)*3600000;
-  }
-  return new Date(t);
-}
-function nextSession(){
-  var now=new Date(),p=new Intl.DateTimeFormat('en-CA',{timeZone:'America/New_York',
-        year:'numeric',month:'2-digit',day:'2-digit'}).format(now).split('-');
-  for(var i=0;i<8;i++){
-    var day=new Date(Date.UTC(+p[0],+p[1]-1,+p[2]+i)),wd=day.getUTCDay();
-    if(wd<2||wd>4)continue;                                /* Tue=2 Wed=3 Thu=4 */
-    var t=sevenET(day.getUTCFullYear(),day.getUTCMonth(),day.getUTCDate());
-    if(t>now)return t;
-  }
-}
+/* Daily 19:00 America/New_York, including DST transitions. */
+var nextSession = CloneSchedule.nextSession;
   var target=nextSession();
   var cal=document.getElementById('cal');
   if(cal){
-    function z(d){return d.toISOString().replace(/[-:]|\.\d{3}/g,'');}
-    var end=new Date(target.getTime()+2*3600000);
     cal.href='https://calendar.google.com/calendar/render?action=TEMPLATE'
       +'&text='+encodeURIComponent('The Clone Method \u2014 Live Training')
-      +'&dates='+z(target)+'/'+z(end)
-      +'&recur='+encodeURIComponent('RRULE:FREQ=WEEKLY;BYDAY=TU,WE,TH')
-      +'&details='+encodeURIComponent('Your Zoom link is in your inbox. 2 hours live with Jon Mac. Runs every Tuesday, Wednesday and Thursday at 7:00 PM ET \u2014 come to any session. Recording included.')
+      +'&dates='+CloneSchedule.calendarDates(target)+'&ctz=America%2FNew_York'
+      +'&recur='+encodeURIComponent('RRULE:FREQ=DAILY')
+      +'&details='+encodeURIComponent('Your Zoom link is in your inbox. 2 hours live with Jon Mac. Runs daily at 7:00 PM ET \u2014 come to any session. Recording included.')
       +'&location=Zoom';
   }
 })();
