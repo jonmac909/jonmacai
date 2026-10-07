@@ -1,0 +1,22 @@
+name: Clone checks
+on:
+  pull_request:
+    paths: ['cloud-apps/clone/**', '.github/workflows/clone-checks.yml']
+  push:
+    branches: [main]
+    paths: ['cloud-apps/clone/**', '.github/workflows/clone-checks.yml']
+permissions:
+  contents: read
+jobs:
+  clone:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: cloud-apps/clone/package-lock.json
+      - run: npm ci --prefix cloud-apps/clone
+      - run: npm test --prefix cloud-apps/clone
+      - run: npx --yes wrangler@4.135.0 deploy --dry-run --config cloud-apps/clone/wrangler.jsonc
