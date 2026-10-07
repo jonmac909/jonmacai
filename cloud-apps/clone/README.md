@@ -384,8 +384,9 @@ use a `test_user_` identity, deliver only to `jon@thejonmac.com`, mark the subje
 `scheduled_at`/`last_event` before and after delivery. No real buyer receives tests.
 
 Remote checks for draft [PR #69](https://github.com/jonmac909/jonmacai/pull/69)
-are blocked: repository GitHub Actions is disabled, and its four Netlify checks
-failed. The same Netlify failures appear on the preceding merged PR #68.
+remain blocked by four failed Netlify checks. GitHub Actions was initially
+disabled; it became enabled during preparation and the Clone tests/Worker build
+now pass there. The same Netlify failures appear on the preceding merged PR #68.
 Those checks have not been bypassed or disabled. Restore working CI before
 merging; passing local checks does not make the remote checks green.
 
