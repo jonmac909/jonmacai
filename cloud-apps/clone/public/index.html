@@ -311,6 +311,10 @@ a.presscite h3{text-decoration:underline;text-decoration-thickness:1px;text-unde
 /* ---- 2-step checkout modal (Dan-style tabs): step 1 contact, step 2 Commas checkout ---- */
 .lead{position:fixed;inset:0;z-index:80;display:none;overflow-y:auto;-webkit-overflow-scrolling:touch;background:rgba(10,9,16,.62);padding:28px 18px}
 .lead.show{display:flex}
+.lead .lead-consent{display:flex;align-items:flex-start;gap:10px;margin:12px 0 18px;font-size:12px;line-height:1.6;color:#555;text-align:left}
+.lead .lead-consent input{width:18px;height:18px;min-width:18px;margin:3px 0 0;padding:0;accent-color:var(--sig)}
+.lead .lead-consent a{color:var(--sig)}
+.lead .lead-consent input:focus-visible{outline:2px solid var(--sig);outline-offset:3px}
 .lead-in{position:relative;margin:auto;background:#fff;border:3px solid var(--sig);border-radius:18px;width:min(680px,100%);padding:clamp(20px,3.5vw,34px);box-shadow:0 30px 80px rgba(0,0,0,.35)}
 .lead-x{position:absolute;top:-16px;right:-16px;width:38px;height:38px;border-radius:50%;background:#111;color:#fff;border:3px solid #fff;font-size:19px;font-weight:800;cursor:pointer;line-height:1}
 .lead-steps{display:flex;justify-content:space-between;gap:12px;margin-bottom:6px}
@@ -857,8 +861,12 @@ a.presscite h3{text-decoration:underline;text-decoration-thickness:1px;text-unde
       <form id="leadf" novalidate>
         <input type="text" id="lead_name" name="name" placeholder="Full Name..." autocomplete="name">
         <input type="email" id="lead_email" name="email" placeholder="Email Address..." autocomplete="email">
-        <input type="tel" id="lead_phone" name="phone" placeholder="Phone Number..." autocomplete="tel">
-        <p class="lead-err" id="leaderr">Enter your name, a valid email and a phone number to continue.</p>
+        <input type="tel" id="lead_phone" name="phone" placeholder="Phone Number (optional)..." autocomplete="tel" aria-label="Phone number (optional)">
+        <label class="lead-consent" for="lead_sms_consent">
+          <input type="checkbox" id="lead_sms_consent" name="smsConsent" value="yes" data-consent-version="clone-sms-2026-10-07-v1">
+          <span>By checking this box, I agree to receive automated text reminders about The Clone Method from Jon Mac at the number above. Up to 7 messages per session. Message and data rates may apply. Reply STOP to opt out or HELP for help. Consent is not a condition of purchase. <a href="terms.html" target="_blank" rel="noopener">Terms</a> &amp; <a href="privacy.html" target="_blank" rel="noopener">Privacy</a>.</span>
+        </label>
+        <p class="lead-err" id="leaderr" role="alert">Enter your name and a valid email. A valid phone number is required only if you request text reminders.</p>
         <button type="submit" class="lead-go">Go To Step #2 &rarr;</button>
       </form>
     </div>
@@ -885,6 +893,7 @@ a.presscite h3{text-decoration:underline;text-decoration-thickness:1px;text-unde
 </div>
 
 <script src="/clone/checkout-handoff.js?v=2"></script>
+<script src="/clone/readiness.js?v=1"></script>
 <script>
 (function(){
   var SDK='https://cdn.embedded.fanbasis.io/embed/index.js',
@@ -948,6 +957,8 @@ a.presscite h3{text-decoration:underline;text-decoration-thickness:1px;text-unde
   }
   function mount(session){
     var attr=read('jm_attr')||{},meta={lp:'clone'};
+    var sessionDay=CloneSchedule.calendarDates(CloneSchedule.nextSession()).slice(0,8);
+    meta.clone_session_date=sessionDay.slice(0,4)+'-'+sessionDay.slice(4,6)+'-'+sessionDay.slice(6,8);
     Object.keys(attr).forEach(function(k){ if(attr[k])meta[k]=String(attr[k]); });
     if(window.CloneWhop)Object.assign(meta,CloneWhop.metadata());
     if(session.checkoutRef)meta.clone_checkout_ref=session.checkoutRef;
@@ -957,7 +968,7 @@ a.presscite h3{text-decoration:underline;text-decoration-thickness:1px;text-unde
         productId:session.productId,
         checkoutSessionSecret:session.checkoutSessionSecret,
         environment:session.environment,
-        collectPhone:true,
+        collectPhone:!!(read(CHECKOUT_KEY)||{}).phone,
         showSubmitButton:false,
         containerOptions:{width:'100%',height:'100%'},
         metadata:meta,
@@ -1028,8 +1039,9 @@ a.presscite h3{text-decoration:underline;text-decoration-thickness:1px;text-unde
     e.preventDefault();
     var name=document.getElementById('lead_name').value.trim().replace(/\s+/g,' '),
         email=document.getElementById('lead_email').value.trim(),
-        phone=e164(document.getElementById('lead_phone').value);
-    if(!name||!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)||!phone){err.style.display='block';return;}
+        rawPhone=document.getElementById('lead_phone').value.trim(),phone=e164(rawPhone),
+        consent=document.getElementById('lead_sms_consent');
+    if(!name||!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)||((rawPhone||consent.checked)&&!phone)){err.style.display='block';return;}
     err.style.display='none';
     var sp=name.indexOf(' ');
     try{sessionStorage.setItem(CHECKOUT_KEY,JSON.stringify({
@@ -1038,7 +1050,8 @@ a.presscite h3{text-decoration:underline;text-decoration-thickness:1px;text-unde
     if(window.jmTrack)jmTrack('Lead',{});
     if(window.fbq)fbq('track','Lead');
     fetch('/clone/api/lead'+SUFFIX,{method:'POST',headers:{'content-type':'application/json'},
-      body:JSON.stringify(Object.assign({name:name,email:email,phone:phone,utm:utm},
+      body:JSON.stringify(Object.assign({name:name,email:email,phone:phone,utm:utm,
+        smsConsent:consent.checked,smsConsentVersion:consent.dataset.consentVersion},
         window.CloneWhop?CloneWhop.lead(email):{})),keepalive:true}).catch(function(){});
     showPay();
   });

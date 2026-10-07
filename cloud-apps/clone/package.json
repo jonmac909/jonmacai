@@ -3,6 +3,8 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "scorecard": "node scripts/scorecard.mjs",
+    "test:readiness:browser": "node test/readiness-browser.mjs",
     "test": "node --test test/*.test.mjs",
     "test:whop:browser": "node test/whop-browser.mjs",
     "test:sandbox": "node test/sandbox-e2e.mjs",
