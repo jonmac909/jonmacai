@@ -1,6 +1,8 @@
 // Port of viralview.io/lib/whop-pixel.ts. The API key belongs only on the Worker.
 (function () {
   'use strict';
+  // Preview/local hosts must not pollute the production ad account.
+  if (location.hostname !== 'jonmac.ai') return;
   if (window.CloneMode && CloneMode.environment === 'sandbox') return;
   var keys = new Set(['utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term', 'utm_id', 'vv_link',
     'utm_meta_ad_id', 'utm_meta_adset_id', 'utm_meta_campaign_id', 'utm_placement', 'utm_adset', 'utm_whop',

@@ -77,7 +77,7 @@ try {
   for (const reason of ['rebill_unavailable', 'previous_fallback']) {
     browser('open', base + 'software.html');
     evaluate(`window.fetch=async()=>new Response(JSON.stringify({ok:false,fallback:true,reason:'${reason}',checkoutUrl:'https://commas.com/checkout/wg0E8nj4FjdaJ6L'}));document.querySelector('[data-upsell]').click();`);
-    browser('wait', '--url', '**/checkout/wg0E8nj4FjdaJ6L');
+    browser('wait', '--url', '**/checkout/wg0E8nj4FjdaJ6L*');
     expectTrue(`document.body.textContent.includes('Hosted fallback intercepted')`);
     console.log('PASS: ' + reason + ' automatically sends YES to the existing hosted checkout');
   }

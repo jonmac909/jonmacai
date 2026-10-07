@@ -63,6 +63,12 @@ apply the D1 migration before deploying the reviewed merged commit using the
 normal Wrangler command, with `--tag <merged-sha> --keep-vars`. Live pages return
 `X-Clone-Commit` and `X-Clone-Version` to verify the exact release.
 
+Netlify deploy previews run the Clone backend tests and build static assets under
+`/clone/` using `scripts/build-preview.mjs`. This corrects the legacy preview
+command that expected a nonexistent root `package.json` and `dist` folder.
+The context override changes previews only. Production Worker APIs remain on
+Cloudflare; local/preview hostnames do not send events to the production Whop account.
+
 Production: `https://jonmac.ai/clone/`, existing Cloudflare Worker `jonmac-agency`.
 The current Clone pages and embedded modal were deployed from local Clone feature
 branches before those branches reached GitHub main. This release includes that

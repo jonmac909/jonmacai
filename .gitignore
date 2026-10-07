@@ -13,4 +13,5 @@ cloud-apps/command-center/screenshots/
 cloud-apps/command-center/tmp-dist/
 **/__pycache__/
 *.pyc
+cloud-apps/clone/.netlify-preview/
 _sponsor-kanban/

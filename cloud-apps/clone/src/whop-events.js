@@ -79,7 +79,8 @@ export async function sendWhopServerEvent(env, event) {
       body: JSON.stringify(payload), signal: AbortSignal.timeout(3000),
     });
     // Never log response bodies, identity data or authorization headers.
-    return { ok: response.ok, status: response.status };
+    const body = await response.json().catch(() => null);
+    return { ok: response.ok, status: response.status, id: typeof body?.id === 'string' ? body.id : null };
   } catch { return { ok: false, status: 0 }; }
 }
 

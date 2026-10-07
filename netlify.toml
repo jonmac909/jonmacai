@@ -1,0 +1,5 @@
+# Clone PR previews were running a stale root npm build with no package.json.
+# Production retains its existing hosting configuration; Clone ships on Cloudflare.
+[context.deploy-preview]
+  command = "npm ci --prefix cloud-apps/clone && npm test --prefix cloud-apps/clone && node cloud-apps/clone/scripts/build-preview.mjs"
+  publish = "cloud-apps/clone/.netlify-preview"
