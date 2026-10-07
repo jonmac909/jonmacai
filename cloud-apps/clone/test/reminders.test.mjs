@@ -280,8 +280,20 @@ test('durable scheduling, authenticated hooks, retries and cancellation', async 
     await purchaseReminders(seat(), f.env);
     await assert.rejects(() => purchaseReminders({ type: 'refund.created', data: { payment_id: 'ORD-mock-seat' } }, f.env));
     fail = false; await retryReminders(f.env);
-    assert.equal(p.calls.filter(c => c.path.endsWith('/cancel')).length, 8);
+    assert.equal(p.calls.filter(c => c.path.endsWith('/cancel')).length, 14);
     assert.equal(f.sql.prepare('SELECT complete FROM clone_webinar_sessions').get().complete, 1);
+  });
+
+  await t.test('an expired uncertain schedule does not prevent cancellation of known emails', async () => {
+    const f = fixture(), p = provider();
+    await purchaseReminders(seat(), f.env);
+    f.sql.prepare("UPDATE clone_webinar_steps SET email_id = NULL, state = 'processing' WHERE step = 'E2'").run();
+    Date.now = () => ms + 24 * 3600000;
+    await assert.rejects(() => purchaseReminders({ type: 'refund.created', data: { payment_id: 'ORD-mock-seat' } }, f.env), /reconciliation/);
+    Date.now = () => ms;
+    assert.equal(p.calls.filter(c => c.path.endsWith('/cancel')).length, 6);
+    assert.equal(p.calls.filter(c => c.path === '/emails').length, 8);
+    assert.equal(f.sql.prepare('SELECT complete FROM clone_webinar_sessions').get().complete, 2);
   });
 
   await t.test('unsubscribe GET is safe for scanners; one-click POST cancels and suppresses future seats', async () => {

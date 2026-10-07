@@ -371,7 +371,7 @@ node <installed-wrangler-cli> deploy --config cloud-apps/clone/wrangler.jsonc --
 ```
 
 The PR workflow runs the unit checks and Worker build without production secrets.
-Local validation covers DST/cutoff timing, late buyers, duplicate/concurrent
+All 50 local unit/backend tests pass. Validation covers DST/cutoff timing, late buyers, duplicate/concurrent
 webhooks, provider rejection, lost responses, refund races, cancellation retry,
 unsubscribe, provider opt-outs and sandbox isolation. The mocked browser payment
 suite passes all seven cases. The real Resend test send, provider IDs/status,
@@ -382,6 +382,12 @@ explicit conflict before activating email delivery. For the approved real test,
 use a `test_user_` identity, deliver only to `jon@thejonmac.com`, mark the subject
 `[TEST]`, schedule 2-5 minutes ahead, and record the Resend ID and retrieved
 `scheduled_at`/`last_event` before and after delivery. No real buyer receives tests.
+
+Remote checks for draft [PR #69](https://github.com/jonmac909/jonmacai/pull/69)
+are blocked: repository GitHub Actions is disabled, and its four Netlify checks
+failed. The same Netlify failures appear on the preceding merged PR #68.
+Those checks have not been bypassed or disabled. Restore working CI before
+merging; passing local checks does not make the remote checks green.
 
 Provider references: [scheduling](https://resend.com/docs/dashboard/emails/schedule-email),
 [email idempotency](https://resend.com/docs/api-reference/emails/send-email),

@@ -38,32 +38,42 @@ async function optedOut(db, email) {
 async function stopSession(env, session) {
   const db = env.CLONE_UPSELLS;
   await run(db, "UPDATE clone_webinar_sessions SET state = 'cancelled', complete = 0 WHERE transaction_ref = ?", session.transaction_ref);
+  let needsReview = false, pendingFailure = false;
   const uncertain = await rows(db, "SELECT * FROM clone_webinar_steps WHERE transaction_ref = ? AND attempted_at IS NOT NULL AND email_id IS NULL AND scheduled_at IS NOT NULL AND state != 'cancelled'", session.transaction_ref);
   for (const step of uncertain) {
     // Recover a lost scheduling response while the original idempotency key is valid.
     // Never recreate an immediate/past email during refund or unsubscribe handling.
     if (Date.now() - step.attempted_at >= DAY - 60000 || Date.parse(step.scheduled_at) <= Date.now() + 60000) {
       await run(db, "UPDATE clone_webinar_steps SET state = 'unknown' WHERE transaction_ref = ? AND step = ?", session.transaction_ref, step.step);
-      await run(db, 'UPDATE clone_webinar_sessions SET complete = 2 WHERE transaction_ref = ?', session.transaction_ref);
-      throw new Error('reminder_cancel_needs_reconciliation');
+      needsReview = true;
+      continue;
     }
-    const recovered = await resend(env, '/emails', { method: 'POST',
-      headers: { 'Idempotency-Key': `${session.transaction_ref}-${step.step}` }, body: step.payload });
-    if (!recovered.response.ok || !recovered.body?.id) throw new Error('reminder_cancel_recovery_failed');
-    await run(db, "UPDATE clone_webinar_steps SET email_id = ?, state = 'submitted' WHERE transaction_ref = ? AND step = ?", recovered.body.id, session.transaction_ref, step.step);
+    try {
+      const recovered = await resend(env, '/emails', { method: 'POST',
+        headers: { 'Idempotency-Key': `${session.transaction_ref}-${step.step}` }, body: step.payload });
+      if (!recovered.response.ok || !recovered.body?.id) throw new Error('reminder_cancel_recovery_failed');
+      await run(db, "UPDATE clone_webinar_steps SET email_id = ?, state = 'submitted' WHERE transaction_ref = ? AND step = ?", recovered.body.id, session.transaction_ref, step.step);
+    } catch { pendingFailure = true; }
   }
   const steps = await rows(db, "SELECT * FROM clone_webinar_steps WHERE transaction_ref = ? AND email_id IS NOT NULL AND state != 'cancelled' AND step != 'event'", session.transaction_ref);
   for (const step of steps) {
     // Delivered/immediate emails cannot be recalled. Retry actual cancellation failures.
     if (!step.scheduled_at) continue;
-    const result = await resend(env, '/emails/' + encodeURIComponent(step.email_id) + '/cancel', { method: 'POST' });
-    if (!result.response.ok) {
-      const status = await resend(env, '/emails/' + encodeURIComponent(step.email_id));
-      if (!status.response.ok || !['canceled', 'cancelled', 'sent', 'delivered', 'bounced', 'failed', 'suppressed'].includes(status.body?.last_event)) {
-        throw new Error('reminder_cancel_failed');
+    try {
+      const result = await resend(env, '/emails/' + encodeURIComponent(step.email_id) + '/cancel', { method: 'POST' });
+      if (!result.response.ok) {
+        const status = await resend(env, '/emails/' + encodeURIComponent(step.email_id));
+        if (!status.response.ok || !['canceled', 'cancelled', 'sent', 'delivered', 'bounced', 'failed', 'suppressed'].includes(status.body?.last_event)) {
+          throw new Error('reminder_cancel_failed');
+        }
       }
-    }
-    await run(db, "UPDATE clone_webinar_steps SET state = 'cancelled' WHERE transaction_ref = ? AND step = ?", session.transaction_ref, step.step);
+      await run(db, "UPDATE clone_webinar_steps SET state = 'cancelled' WHERE transaction_ref = ? AND step = ?", session.transaction_ref, step.step);
+    } catch { pendingFailure = true; }
+  }
+  if (pendingFailure) throw new Error('reminder_cancel_failed');
+  if (needsReview) {
+    await run(db, 'UPDATE clone_webinar_sessions SET complete = 2 WHERE transaction_ref = ?', session.transaction_ref);
+    throw new Error('reminder_cancel_needs_reconciliation');
   }
   // A concurrent scheduler will notice the tombstone, save its ID, and cancel it.
   await run(db, 'UPDATE clone_webinar_sessions SET complete = 1 WHERE transaction_ref = ? AND locked_until = 0', session.transaction_ref);
