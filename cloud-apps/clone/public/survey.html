@@ -1,4 +1,6 @@
 <meta charset="utf-8">
+<script src="/clone/schedule.js?v=1"></script>
+<script src="/clone/whop-pixel.js?v=1"></script>
 <title>Before your session — tell me where you're at</title>
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="robots" content="noindex">
@@ -99,7 +101,7 @@ a:focus-visible,button:focus-visible{outline:3px solid var(--sig);outline-offset
 <div class="bar">
   <div class="shell bar-in">
     <span class="util"><span class="live"></span>TRAINING <span class="dw w">DATE</span>:</span>
-    <b id="when">Tue, Wed &amp; Thu at 7:00 PM ET</b>
+    <b id="when">Daily at 7:00 PM ET</b>
     <span class="util"><span class="sep">|</span><span class="sep-m">-</span></span>
     <span class="util">STARTS IN</span>
     <b id="clk">&mdash;</b>
@@ -192,28 +194,8 @@ a:focus-visible,button:focus-visible{outline:3px solid var(--sig);outline-offset
 var FORM_ENDPOINT = "";
 var FALLBACK_EMAIL = "jon@thejonmac.com";
 
-/* Next Tue/Wed/Thu 19:00 America/New_York, DST-safe, correct from any viewer timezone. */
-function sevenET(y,m,d){
-  var t=Date.UTC(y,m,d,23,0,0);                           /* 19:00 EDT guess */
-  for(var i=0;i<3;i++){
-    var h=+new Intl.DateTimeFormat('en-US',{timeZone:'America/New_York',
-          hour:'numeric',hour12:false}).format(new Date(t));
-    if(h===24)h=0;
-    if(h===19)break;
-    t+=(19-h)*3600000;
-  }
-  return new Date(t);
-}
-function nextSession(){
-  var now=new Date(),p=new Intl.DateTimeFormat('en-CA',{timeZone:'America/New_York',
-        year:'numeric',month:'2-digit',day:'2-digit'}).format(now).split('-');
-  for(var i=0;i<8;i++){
-    var day=new Date(Date.UTC(+p[0],+p[1]-1,+p[2]+i)),wd=day.getUTCDay();
-    if(wd<2||wd>4)continue;                                /* Tue=2 Wed=3 Thu=4 */
-    var t=sevenET(day.getUTCFullYear(),day.getUTCMonth(),day.getUTCDate());
-    if(t>now)return t;
-  }
-}
+/* Daily 19:00 America/New_York, including DST transitions. */
+var nextSession = CloneSchedule.nextSession;
 function ord(d){var s=['th','st','nd','rd'],v=d%100;return d+(s[(v-20)%10]||s[v]||s[0]);}
 function whenLabel(t){
   var f=function(o){return new Intl.DateTimeFormat('en-US',Object.assign({timeZone:'America/New_York'},o)).format(t);};

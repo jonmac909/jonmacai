@@ -1,7 +1,7 @@
 {
   // jonmac.ai/clone — The Clone Method webinar funnel (lander, upsells, policies).
   // Mirrors the live jonmac-agency Worker settings as of version 58 (2026-09-07).
-  // Secrets (set with `wrangler secret put`, never committed): COMMAS_API_KEY,
+  // Secrets (set with `wrangler secret put`, never committed): WHOP_API_KEY, COMMAS_API_KEY,
   // COMMAS_WEBHOOK_SECRET, CLONE_TOKEN_SECRET, RESEND_API_KEY, RESEND_AUDIENCE_ID.
   // Sandbox secrets: COMMAS_SANDBOX_API_KEY, COMMAS_SANDBOX_WEBHOOK_SECRET,
   // CLONE_SANDBOX_ACCESS_TOKEN (random 32+ chars). Sandbox product config: README.
@@ -10,6 +10,8 @@
   "compatibility_date": "2026-08-01",
   "workers_dev": false,
   "preview_urls": false,
+  "triggers": { "crons": ["*/1 * * * *"] },
+  "version_metadata": { "binding": "CLONE_VERSION" },
   "assets": {
     "directory": "./public",
     "binding": "ASSETS",
