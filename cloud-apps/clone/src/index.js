@@ -4,6 +4,7 @@ import { cookieName, isSandbox, paymentConfig } from './payment-config.js';
 import { publicConfig, sandboxAccess, sandboxEnv, sandboxPage } from './sandbox.js';
 import { buyerSession, checkoutContext, recordPurchaseProof, sameOrigin, upsell, validWebhook } from './upsells.js';
 import { deliverWhopEvent, enqueueWhopEvent, flushWhopEvents, whopAttribution, whopPurchaseFromVerifiedPayment } from './whop-events.js';
+import { purchaseReminders, retryReminders, unsubscribeReminders } from './reminders.js';
 
 export default {
   async fetch(request, env) {
@@ -18,6 +19,7 @@ export default {
     if (url.pathname === "/clone") {
       return Response.redirect(url.origin + "/clone/" + url.search, 301);
     }
+    if (url.pathname === '/clone/api/reminders/unsubscribe') return unsubscribeReminders(request, env);
     // Sandbox hooks have a separate key/HMAC and never touch lead/email systems.
     if (url.pathname === '/clone/api/sandbox/purchase' && request.method === 'POST') {
       const testEnv = sandboxEnv(env);
@@ -62,7 +64,7 @@ export default {
     return new Response(response.body, { status: response.status, headers });
   },
   async scheduled(controller, env, ctx) {
-    ctx.waitUntil(flushWhopEvents(env));
+    ctx.waitUntil(Promise.all([flushWhopEvents(env), retryReminders(env)]));
   },
 };
 
@@ -80,7 +82,11 @@ async function handleLead(request, env) {
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) {
     return json({ ok: false, error: "invalid email" }, 400);
   }
+  const previous = await env.CLONE_LEADS.get(`lead:${email}`);
+  let saved = {};
+  try { saved = previous ? JSON.parse(previous) : {}; } catch {}
   const record = {
+    ...saved,
     email,
     name,
     phone,
@@ -116,7 +122,6 @@ async function handleLead(request, env) {
           email,
           first_name: firstName,
           last_name: name.slice(firstName.length).trim(),
-          unsubscribed: false,
         }),
       }));
     }
@@ -235,32 +240,17 @@ async function handlePurchase(request, env) {
     try { attribution = JSON.parse(lead || '{}').whop || {}; } catch {}
   }
   const event = whopPurchaseFromVerifiedPayment(payload, attribution);
+  let conversionPending = false;
   if (event) {
     try {
       if (await enqueueWhopEvent(env, event) && !await deliverWhopEvent(env, event.eventId)) {
-        return json({ ok: false, error: 'conversion_pending' }, 503);
+        conversionPending = true;
       }
-    } catch { return json({ ok: false, error: 'conversion_pending' }, 503); }
+    } catch { conversionPending = true; }
   }
-  const email = String(
-    payload?.data?.buyer?.email || payload?.customer?.email || payload?.data?.customer?.email || payload?.email || payload?.data?.email || "",
-  ).trim().toLowerCase();
-  if (!email) return json({ ok: true, note: "no email in payload" });
-  const rec = await env.CLONE_LEADS.get(`lead:${email}`);
-  if (rec) {
-    try {
-      const r = JSON.parse(rec);
-      r.purchased = true;
-      r.purchasedAt = new Date().toISOString();
-      await env.CLONE_LEADS.put(`lead:${email}`, JSON.stringify(r));
-    } catch {}
+  try {
+    const reminders = await purchaseReminders(payload, env);
+    return conversionPending ? json({ ok: false, error: 'conversion_pending' }, 503) : json({ ok: true, ...reminders });
   }
-  if (env.RESEND_API_KEY) {
-    await fetch("https://api.resend.com/events/send", {
-      method: "POST",
-      headers: { authorization: `Bearer ${env.RESEND_API_KEY}`, "content-type": "application/json" },
-      body: JSON.stringify({ event: "clone.purchase", email, data: {} }),
-    }).catch(() => {});
-  }
-  return json({ ok: true });
+  catch { return json({ ok: false, error: 'reminders_pending' }, 503); }
 }

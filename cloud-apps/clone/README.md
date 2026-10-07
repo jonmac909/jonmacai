@@ -291,3 +291,121 @@ production tables stay empty, and proves the runner rejects a successful charge
 that fails to create a subscription. This does not replace provider acceptance.
 The real sandbox run has **not** been executed: key, products and webhook remain
 pending. No live-card test is planned or authorized.
+
+## Daily webinar reminders (JON-17)
+
+A signed, enveloped Commas `payment.succeeded` for one USD $47 `nmGzE`
+seat with status `succeeded` assigns the next daily 7 PM America/New_York
+session at least two hours after webhook verification. Exactly 5 PM ET gets
+tonight; a later purchase gets tomorrow. Calendar dates use the IANA timezone,
+including spring/fall DST transitions. The KV lead retains `session_at`,
+`session_label`, and `commas_txn`. Buyers who skipped the opt-in also get a record.
+The `clone.purchase` event carries those fields under Resend's documented
+`payload` field (the previous `data` field was not the current API contract).
+
+The mechanism is the Resend Emails API with ISO `scheduled_at`, visible under
+Emails in the Resend dashboard. The documented Automation delay is a fixed
+duration, with no documented per-contact `session_at` delay. No Automation is
+created by this change. Before activation, inspect existing `clone.purchase`
+Automations and ensure none duplicates this sequence.
+
+| Step | Delivery | Subject |
+| --- | --- | --- |
+| E1 | Immediately | You're in |
+| E2 | 24 hours before, only when the session is more than 24 hours away | Why followers don't matter |
+| E3 | Session day, 9 AM ET | What we'll build tonight |
+| E4 | One hour before | Your link for tonight |
+| E5 | Ten minutes before | Starting in 10 |
+| E6 | Session start | We're live |
+| E7 | Fifteen minutes after | Trouble joining? |
+| E8 | Following calendar day, 9 AM ET | Your Clone Method replay |
+
+Each message has plain text, simple HTML, reply-to `jon@thejonmac.com`, an
+unsubscribe footer, and one-click `List-Unsubscribe` headers. E1 includes a
+Google Calendar link without the private join URL. E4-E7 include the join URL
+only inside email; this feature adds no SMS or public join-link endpoint.
+The GET unsubscribe page requires a button click, so email scanners do not
+unsubscribe buyers. One-click POST records a durable preference and cancels
+scheduled reminders for every session belonging to that email. Existing Resend
+contact opt-outs also suppress the sequence. A later opt-in does not reset them.
+
+Set `CLONE_ZOOM_JOIN_URL` to the HTTPS Zoom Webinar join URL in Worker vars;
+set optional `CLONE_REPLAY_URL` to an HTTPS replay URL. Both are blank in the
+checked-in config. Missing/invalid Zoom URL skips E4-E7; missing/invalid replay
+URL skips E8. Already-past steps are skipped rather than sent immediately.
+The persisted skipped steps are not backfilled by a later configuration change.
+Repo, process environment, and deployed Worker bindings were checked on October
+7, 2026; no Zoom or replay configuration was found. To use secret bindings
+instead, remove the same-name blank vars before provisioning the secrets.
+
+Migration `0004_reminders.sql` stores the session and exact request bodies/IDs in
+the existing `CLONE_UPSELLS` D1 database. Stable email idempotency keys are
+`<commas_txn>-E1` through `-E8`; permanent D1 records prevent resubmission after
+Resend's 24-hour key retention ends. Concurrent deliveries claim the session
+atomically. Failed submissions return HTTP 503 so Commas can retry. The one-minute
+Worker cron, shared with Whop's retry, recovers unfinished schedules,
+initialization, and cancellations.
+Uncertain email submissions older than 24 hours, and uncertain event submissions
+(events have no documented idempotency guarantee), stop at `complete = 2` for
+manual reconciliation. Inspect the matching transaction/step in the Resend
+dashboard and repair the stored result; do not clear an uncertain claim blindly.
+
+Signed `refund.created`/refund-success or payment-cancellation events cancel by
+the original transaction/payment ID through `POST /emails/{id}/cancel`, including
+refunds delivered before purchase. Ensure the existing Commas webhook subscription
+includes `refund.created`; this code does not change provider subscriptions or
+products. A refund for an upsell does not cancel a different seat transaction.
+Lost scheduling responses are recovered with the same key before cancellation;
+already-immediate or delivered emails cannot be recalled. Sandbox hooks remain
+isolated from all production lead and reminder systems.
+
+Before release, run the Clone checks and apply the additive migration, then
+deploy only the reviewed, merged commit:
+
+```powershell
+npm ci --prefix cloud-apps/clone
+npm test --prefix cloud-apps/clone
+npm run test:sandbox:mock --prefix cloud-apps/clone
+node <installed-wrangler-cli> deploy --dry-run --config cloud-apps/clone/wrangler.jsonc
+node <installed-wrangler-cli> d1 migrations apply jonmacai-clone-upsells --remote --config cloud-apps/clone/wrangler.jsonc
+node <installed-wrangler-cli> deploy --config cloud-apps/clone/wrangler.jsonc --tag "<merged-commit-sha>" --message "JON-17 <merged-commit-sha>"
+```
+
+The PR workflow runs the unit checks and Worker build without production secrets.
+All 60 local unit/backend tests pass. Validation covers DST/cutoff timing, late buyers, duplicate/concurrent
+webhooks, provider rejection, lost responses, refund races, cancellation retry,
+unsubscribe, provider opt-outs and sandbox isolation. The mocked browser payment
+suite passes all seven cases. Migration 0004 is applied remotely. The single approved Jon-only test was accepted
+with Resend ID `01a116cd-b16d-73d6-a859-ddde48ebdd1b`. API retrieval confirmed
+`last_event: scheduled`, `scheduled_at: 2026-10-07T14:42:00.851Z` and only
+`jon@thejonmac.com` as recipient. Final delivery, remote checks and exact-commit deployment evidence are recorded
+in PR #69 and the JON-17 completion report. Jon/Ana authorized option A on October 7:
+one Jon-only test using the existing Worker secret, then activation after all
+checks are green with E4-E8 guarded off. Zoom is pending and does not block release.
+For the approved real test,
+use a `test_user_` identity, deliver only to `jon@thejonmac.com`, mark the subject
+`[TEST]`, schedule 2-5 minutes ahead, and record the Resend ID and retrieved
+`scheduled_at`/`last_event` before and after delivery. No real buyer receives tests.
+
+The remote-only `scripts/resend-test-worker.js` entry uses a private random access
+token and one stable `test_user_JON17_` run ID. It stores exactly one E1 scheduled
+three minutes ahead, overrides delivery to `jon@thejonmac.com`, and emits no
+purchase/lead event or Whop conversion. Repeated submission reuses the same email.
+Run it with `wrangler dev --remote` against the existing `jonmac-agency` Worker;
+Wrangler retains its secret binding in Cloudflare. Never copy or print the key.
+Keep the generated test config/token in ignored `.wrangler` storage. This entry
+is not imported or routed by the production Worker. `/status` retrieves only
+the email associated with that fixed test run. Stop the preview after delivery.
+
+[PR #69](https://github.com/jonmac909/jonmacai/pull/69) incorporates merged PR #70,
+including its preview-only Netlify build. Both Whop and reminder cron work remain
+active, and conversion failure does not prevent reminder scheduling. Migration
+0004 follows Whop's 0003. All remote checks must pass before merging; none is
+bypassed or disabled. Zoom and replay stay blank for this release.
+
+Provider references: [scheduling](https://resend.com/docs/dashboard/emails/schedule-email),
+[email idempotency](https://resend.com/docs/api-reference/emails/send-email),
+[cancel](https://resend.com/docs/api-reference/emails/cancel-email),
+[event payload/response](https://resend.com/docs/api-reference/events/send-event),
+[Automation delay contract](https://github.com/resend/resend-skills/blob/main/skills/resend/references/automations.md),
+and [Commas webhook envelopes](https://commasdocs.com/).
