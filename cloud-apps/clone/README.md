@@ -338,12 +338,13 @@ Repo, process environment, and deployed Worker bindings were checked on October
 7, 2026; no Zoom or replay configuration was found. To use secret bindings
 instead, remove the same-name blank vars before provisioning the secrets.
 
-Migration `0003_reminders.sql` stores the session and exact request bodies/IDs in
+Migration `0004_reminders.sql` stores the session and exact request bodies/IDs in
 the existing `CLONE_UPSELLS` D1 database. Stable email idempotency keys are
 `<commas_txn>-E1` through `-E8`; permanent D1 records prevent resubmission after
 Resend's 24-hour key retention ends. Concurrent deliveries claim the session
-atomically. Failed submissions return HTTP 503 so Commas can retry. A five-minute
-Worker cron recovers unfinished schedules, initialization, and cancellations.
+atomically. Failed submissions return HTTP 503 so Commas can retry. The one-minute
+Worker cron, shared with Whop's retry, recovers unfinished schedules,
+initialization, and cancellations.
 Uncertain email submissions older than 24 hours, and uncertain event submissions
 (events have no documented idempotency guarantee), stop at `complete = 2` for
 manual reconciliation. Inspect the matching transaction/step in the Resend
@@ -367,28 +368,40 @@ npm test --prefix cloud-apps/clone
 npm run test:sandbox:mock --prefix cloud-apps/clone
 node <installed-wrangler-cli> deploy --dry-run --config cloud-apps/clone/wrangler.jsonc
 node <installed-wrangler-cli> d1 migrations apply jonmacai-clone-upsells --remote --config cloud-apps/clone/wrangler.jsonc
-node <installed-wrangler-cli> deploy --config cloud-apps/clone/wrangler.jsonc --message "JON-17 <merged-commit-sha>"
+node <installed-wrangler-cli> deploy --config cloud-apps/clone/wrangler.jsonc --tag "<merged-commit-sha>" --message "JON-17 <merged-commit-sha>"
 ```
 
 The PR workflow runs the unit checks and Worker build without production secrets.
-All 50 local unit/backend tests pass. Validation covers DST/cutoff timing, late buyers, duplicate/concurrent
+All 60 local unit/backend tests pass. Validation covers DST/cutoff timing, late buyers, duplicate/concurrent
 webhooks, provider rejection, lost responses, refund races, cancellation retry,
 unsubscribe, provider opt-outs and sandbox isolation. The mocked browser payment
-suite passes all seven cases. The real Resend test send, provider IDs/status,
-production migration, merge, deployment and exact-commit live verification remain
-pending: the task prompt requires a real test email but its final guardrail says
-"never send messages/emails ... or handle secrets: block instead." Resolve that
-explicit conflict before activating email delivery. For the approved real test,
+suite passes all seven cases. Migration 0004 is applied remotely. The single approved Jon-only test was accepted
+with Resend ID `01a116cd-b16d-73d6-a859-ddde48ebdd1b`. API retrieval confirmed
+`last_event: scheduled`, `scheduled_at: 2026-10-07T14:42:00.851Z` and only
+`jon@thejonmac.com` as recipient. Final delivery, remote checks and exact-commit deployment evidence are recorded
+in PR #69 and the JON-17 completion report. Jon/Ana authorized option A on October 7:
+one Jon-only test using the existing Worker secret, then activation after all
+checks are green with E4-E8 guarded off. Zoom is pending and does not block release.
+For the approved real test,
 use a `test_user_` identity, deliver only to `jon@thejonmac.com`, mark the subject
 `[TEST]`, schedule 2-5 minutes ahead, and record the Resend ID and retrieved
 `scheduled_at`/`last_event` before and after delivery. No real buyer receives tests.
 
-Remote checks for draft [PR #69](https://github.com/jonmac909/jonmacai/pull/69)
-remain blocked by four failed Netlify checks. GitHub Actions was initially
-disabled; it became enabled during preparation and the Clone tests/Worker build
-now pass there. The same Netlify failures appear on the preceding merged PR #68.
-Those checks have not been bypassed or disabled. Restore working CI before
-merging; passing local checks does not make the remote checks green.
+The remote-only `scripts/resend-test-worker.js` entry uses a private random access
+token and one stable `test_user_JON17_` run ID. It stores exactly one E1 scheduled
+three minutes ahead, overrides delivery to `jon@thejonmac.com`, and emits no
+purchase/lead event or Whop conversion. Repeated submission reuses the same email.
+Run it with `wrangler dev --remote` against the existing `jonmac-agency` Worker;
+Wrangler retains its secret binding in Cloudflare. Never copy or print the key.
+Keep the generated test config/token in ignored `.wrangler` storage. This entry
+is not imported or routed by the production Worker. `/status` retrieves only
+the email associated with that fixed test run. Stop the preview after delivery.
+
+[PR #69](https://github.com/jonmac909/jonmacai/pull/69) incorporates merged PR #70,
+including its preview-only Netlify build. Both Whop and reminder cron work remain
+active, and conversion failure does not prevent reminder scheduling. Migration
+0004 follows Whop's 0003. All remote checks must pass before merging; none is
+bypassed or disabled. Zoom and replay stay blank for this release.
 
 Provider references: [scheduling](https://resend.com/docs/dashboard/emails/schedule-email),
 [email idempotency](https://resend.com/docs/api-reference/emails/send-email),

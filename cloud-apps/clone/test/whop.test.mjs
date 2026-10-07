@@ -11,9 +11,9 @@ const origin = 'https://jonmac.ai';
 const fixture = JSON.parse(readFileSync(new URL('./fixtures/commas-payment.json', import.meta.url)));
 function env() {
   const db = new DatabaseSync(':memory:');
-  for (const name of ['0001_upsells.sql', '0002_sandbox.sql', '0003_whop_events.sql']) db.exec(readFileSync(new URL('../migrations/' + name, import.meta.url), 'utf8'));
+  for (const name of ['0001_upsells.sql', '0002_sandbox.sql', '0003_whop_events.sql', '0004_reminders.sql']) db.exec(readFileSync(new URL('../migrations/' + name, import.meta.url), 'utf8'));
   const leads = new Map();
-  return { WHOP_API_KEY: 'fixture-whop-key', COMMAS_WEBHOOK_SECRET: 'fixture-webhook-key',
+  return { WHOP_API_KEY: 'fixture-whop-key', COMMAS_WEBHOOK_SECRET: 'fixture-webhook-key', RESEND_API_KEY: 'fixture-resend-key',
     CLONE_LEADS: { async get(k) { return leads.get(k) || null; }, async put(k, v) { leads.set(k, v); } },
     CLONE_UPSELLS: { prepare(query) { const stmt = db.prepare(query); return { bind(...args) { return {
       async run() { return { meta: { changes: Number(stmt.run(...args).changes) } }; },
@@ -28,6 +28,11 @@ function webhook(e, payload, valid = true) {
   const raw = JSON.stringify(payload);
   return new Request(origin + '/clone/api/purchase', { method: 'POST', body: raw,
     headers: { 'x-webhook-signature': createHmac('sha256', valid ? e.COMMAS_WEBHOOK_SECRET : 'wrong-key').update(raw).digest('hex') } });
+}
+function mockResend(url) {
+  if (!String(url).startsWith('https://api.resend.com/')) return null;
+  return Response.json(String(url).endsWith('/events/send') ? { object: 'event', event: 'clone.purchase' } :
+    String(url).includes('/contacts/') ? { unsubscribed: false } : { id: 'fixture-resend-email' });
 }
 test('daily Eastern schedule and recurring calendar stay at 19:00 over DST, weekends and year boundaries', () => {
   const scope = { Intl, Date }; vm.createContext(scope);
@@ -55,6 +60,7 @@ test('signed Commas fixtures: all six products, actual cash, canonical transacti
   const saved = globalThis.fetch; t.after(() => { globalThis.fetch = saved; });
   let calls = [];
   globalThis.fetch = async (url, init) => {
+    const resend = mockResend(url); if (resend) return resend;
     assert.equal(url, 'https://api.whop.com/api/v1/events');
     calls.push(JSON.parse(init.body)); return new Response('{"id":"fixture-event"}', { status: 200 });
   };
@@ -87,10 +93,10 @@ test('signed Commas fixtures: all six products, actual cash, canonical transacti
   });
   await t.test('API failure returns retriable webhook response and cron retries the same event ID', async () => {
     const e = env(), p = payment(); calls = [];
-    globalThis.fetch = async (url, init) => { calls.push(JSON.parse(init.body)); return new Response('{}', { status: 503 }); };
+    globalThis.fetch = async (url, init) => { const resend = mockResend(url); if (resend) return resend; calls.push(JSON.parse(init.body)); return new Response('{}', { status: 503 }); };
     assert.equal((await worker.fetch(webhook(e, p), e)).status, 503);
     e.db.exec('UPDATE clone_whop_events SET lease_until=0');
-    globalThis.fetch = async (url, init) => { calls.push(JSON.parse(init.body)); return new Response('{}', { status: 200 }); };
+    globalThis.fetch = async (url, init) => { const resend = mockResend(url); if (resend) return resend; calls.push(JSON.parse(init.body)); return new Response('{}', { status: 200 }); };
     await flushWhopEvents(e);
     assert.equal(calls.length, 2); assert.equal(calls[0].event_id, calls[1].event_id);
     assert.equal((await worker.fetch(webhook(e, p), e)).status, 200); assert.equal(calls.length, 2);

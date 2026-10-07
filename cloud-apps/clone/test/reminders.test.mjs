@@ -4,6 +4,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { createHmac } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import worker from '../src/index.js';
+import testWorker from '../scripts/resend-test-worker.js';
 import { assignSession, calendarUrl, reminderMessage, reminderPlan } from '../src/reminder-plan.js';
 import { purchaseReminders, retryReminders, unsubscribeReminders } from '../src/reminders.js';
 
@@ -14,7 +15,7 @@ const ms = Date.parse(purchaseTime);
 
 function fixture() {
   const sql = new DatabaseSync(':memory:');
-  for (const migration of ['0001_upsells', '0002_sandbox', '0003_reminders']) sql.exec(readFileSync(new URL(`../migrations/${migration}.sql`, import.meta.url), 'utf8'));
+  for (const migration of ['0001_upsells', '0002_sandbox', '0003_whop_events', '0004_reminders']) sql.exec(readFileSync(new URL(`../migrations/${migration}.sql`, import.meta.url), 'utf8'));
   const leads = new Map();
   const db = { prepare(query) {
     const stmt = sql.prepare(query);
@@ -318,7 +319,7 @@ test('durable scheduling, authenticated hooks, retries and cancellation', async 
 
   await t.test('unverified, failed, wrong-product and wrong-amount events send nothing', async () => {
     const f = fixture(), p = provider();
-    for (const input of [seat({ amount: 97 }), seat({ status: 'failed' }), seat({ currency: 'CAD' }), seat({ item: { id: 'wg0E8' } }), seat({ quantity: 2 }), seat({ buyer: { email: 'bad' } }), { ...seat(), type: 'subscription.created' }]) {
+    for (const input of [seat({ amount: 97 }), seat({ status: 'failed' }), seat({ refunds: [{}] }), seat({ currency: 'CAD' }), seat({ item: { id: 'wg0E8' } }), seat({ quantity: 2 }), seat({ buyer: { email: 'bad' } }), { ...seat(), type: 'subscription.created' }]) {
       assert.deepEqual(await purchaseReminders(input, f.env), { ignored: true });
     }
     const body = JSON.stringify(seat());
@@ -343,5 +344,26 @@ test('durable scheduling, authenticated hooks, retries and cancellation', async 
     await retryReminders(f.env);
     assert.equal(p.calls.length, 0);
     assert.equal(f.sql.prepare('SELECT COUNT(*) AS n FROM clone_webinar_sessions').get().n, 0);
+  });
+
+  await t.test('the remote test entry permits one Jon-only email and rejects unauthenticated sends', async () => {
+    const f = fixture(), p = provider();
+    f.env.CLONE_EMAIL_TEST_ACCESS_TOKEN = 'mock-only-test-access';
+    f.env.CLONE_EMAIL_TEST_RUN_ID = 'test_user_JON17_' + 'a'.repeat(32);
+    const url = 'https://preview.example/send';
+    assert.equal((await testWorker.fetch(new Request(url, { method: 'POST' }), f.env)).status, 403);
+    assert.equal(p.calls.length, 0);
+    const request = () => new Request(url, { method: 'POST', headers: { 'x-test-access': f.env.CLONE_EMAIL_TEST_ACCESS_TOKEN }, body: JSON.stringify({ to: 'unapproved@example.com' }) });
+    assert.equal((await testWorker.fetch(request(), f.env)).status, 200);
+    assert.equal((await testWorker.fetch(request(), f.env)).status, 200);
+    const emails = p.calls.filter(c => c.path === '/emails');
+    assert.equal(emails.length, 1);
+    const message = JSON.parse(emails[0].body);
+    assert.equal(message.to, 'jon@thejonmac.com');
+    assert.match(message.subject, /^\[TEST\]/);
+    assert.equal(Date.parse(message.scheduled_at) - ms, 3 * 60000);
+    assert.equal(p.calls.filter(c => c.path === '/events/send').length, 0);
+    assert.equal(f.sql.prepare('SELECT COUNT(*) AS n FROM clone_webinar_steps').get().n, 1);
+    assert.equal(f.leads.size, 0);
   });
 });

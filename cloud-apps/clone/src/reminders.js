@@ -16,6 +16,7 @@ export function verifiedSeat(payload, env) {
   if (payload?.type !== 'payment.succeeded' || d?.status !== 'succeeded' ||
       d?.item?.id !== paymentConfig(env).seat || Number(d?.amount) !== 47 ||
       Number(d?.quantity ?? 1) !== 1 || d?.currency !== 'USD' ||
+      (Array.isArray(d?.refunds) && d.refunds.length > 0) ||
       !emailPattern.test(email) || !referencePattern.test(transaction_ref) ||
       !Number.isFinite(Date.parse(d?.created_at)) || Date.parse(d.created_at) > Date.now() + 300000) return null;
   return { transaction_ref, payment_ref: String(d.payment_id || transaction_ref), email };
@@ -79,7 +80,7 @@ async function stopSession(env, session) {
   await run(db, 'UPDATE clone_webinar_sessions SET complete = 1 WHERE transaction_ref = ? AND locked_until = 0', session.transaction_ref);
 }
 
-async function scheduleSession(env, transactionRef) {
+export async function scheduleSession(env, transactionRef) {
   const db = env.CLONE_UPSELLS;
   let session = await first(db, 'SELECT * FROM clone_webinar_sessions WHERE transaction_ref = ?', transactionRef);
   if (session?.complete === 2) throw new Error('reminder_needs_reconciliation');
