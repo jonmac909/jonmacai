@@ -112,7 +112,7 @@ test('Clone one-click payments: verified identity, durable claims and safe fallb
   });
   await t.test('production activation charges only one-time offers after the confirmed purchase cutoff', async () => {
     const config = readFileSync(new URL('../wrangler.jsonc', import.meta.url), 'utf8');
-    const vars = JSON.parse(config.match(/"vars":\s*(\{[\s\S]*?\})/)[1].replace(/^\s*\/\/.*$/gm, ''));
+    const vars = JSON.parse(config.replace(/^\s*\/\/.*$/gm, '')).vars;
     const cutoff = Date.parse(vars.CLONE_REBILL_ENABLED_AT);
     assert.equal(vars.CLONE_REBILL_ENABLED, 'true');
     assert.ok(Number.isFinite(cutoff));

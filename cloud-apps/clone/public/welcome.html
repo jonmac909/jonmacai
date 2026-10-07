@@ -351,6 +351,14 @@ h1{font-size:clamp(40px,5.4vw,60px);line-height:1.08}
 .letter{color:var(--ink);font-weight:600}
 .prog2{max-width:min(1100px,92%)}
 
+.faq-grid{display:grid;grid-template-columns:1fr 1fr;gap:22px}
+.faq-answer{background:#fff;border:1px solid var(--rule);border-radius:14px;padding:24px}
+.faq-answer h3{font-size:20px;margin-bottom:12px}
+.faq-answer p{font-size:16px;margin:0}
+.faq-video{aspect-ratio:16/9;margin-top:18px;border-radius:10px;overflow:hidden;background:#131218}
+.faq-video iframe{width:100%;height:100%;border:0;display:block}
+@media(max-width:720px){.faq-grid{grid-template-columns:1fr}}
+
 /* CTA sizing from getclients.com/mdw: as wide as its text and centered, full width on phones.
    fit-content + auto margins (not inline-flex) so it centers in every container. Colors unchanged. */
 .cta,.yes{display:flex;width:fit-content;max-width:100%;margin-left:auto;margin-right:auto;align-self:center;
@@ -380,6 +388,25 @@ h1{font-size:clamp(40px,5.4vw,60px);line-height:1.08}
 <div class="shell vidwrap"><div class="vidstrip"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9v6h4l6 5V4L8 9H4zm13.5 3a3.5 3.5 0 0 0-2-3.15v6.3a3.5 3.5 0 0 0 2-3.15zm-2-7.7v2.1a5.9 5.9 0 0 1 0 11.2v2.1a8 8 0 0 0 0-15.4z"/></svg>CLICK BELOW TO WATCH FIRST!</div><div class="video vv-hero" data-state="muted">
   <iframe src="https://www.youtube-nocookie.com/embed/Uh5gF29EkmA?autoplay=1&amp;mute=1&amp;controls=0&amp;loop=1&amp;playlist=Uh5gF29EkmA&amp;playsinline=1&amp;rel=0&amp;modestbranding=1&amp;iv_load_policy=3&amp;disablekb=1&amp;fs=0&amp;cc_load_policy=3&amp;cc_lang_pref=invalid&amp;enablejsapi=1&amp;vq=hd1080&amp;start=0" title="Welcome — your seat is confirmed" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen" allowfullscreen playsinline referrerpolicy="strict-origin-when-cross-origin"></iframe><button type="button" class="vv-toggle" aria-label="Watch Welcome — your seat is confirmed"><span class="vv-label" aria-hidden="true">Watch</span></button><button type="button" class="vv-fs" aria-label="Full screen" title="Full screen"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M8 4H4v4M16 4h4v4M20 16v4h-4M4 16v4h4"/></svg></button>
 </div></div>
+
+<section><div class="shell col g22">
+  <p class="eyebrow">BEFORE WE GO LIVE</p>
+  <h2>Your questions, <span class="acc">answered</span></h2>
+  <div class="faq-grid" id="breakout-faq">
+    <article class="faq-answer"><h3>Do I need followers?</h3>
+      <p>You do not need an existing audience to attend the training. TikTok Shop affiliate access has its own eligibility rules, which depend on your market and account. We will show you what to check before you start.</p>
+      <div class="faq-video" data-faq-video="followers" data-video-title="Do I need followers?" hidden></div></article>
+    <article class="faq-answer"><h3>Do I need to film myself?</h3>
+      <p>No. The method uses original AI-generated visuals and your own product angle. We study the structure of a winning video, then create fresh content. We do not copy another creator's footage or identity.</p>
+      <div class="faq-video" data-faq-video="camera" data-video-title="Do I need to film myself?" hidden></div></article>
+    <article class="faq-answer"><h3>Do I need a TikTok Shop account?</h3>
+      <p>You can join the training before setting up your account. To earn affiliate commissions, you need eligible TikTok Shop affiliate access. Bring your account questions so you can work out the next step for your situation.</p>
+      <div class="faq-video" data-faq-video="shop" data-video-title="Do I need a TikTok Shop account?" hidden></div></article>
+    <article class="faq-answer"><h3>How much time should I set aside?</h3>
+      <p>Block two hours for the live training and join from a computer for the exercise. Afterward, allow time to research products, create original videos and test what works. Your pace and results will vary.</p>
+      <div class="faq-video" data-faq-video="time" data-video-title="How much time should I set aside?" hidden></div></article>
+  </div>
+</div></section>
 
 <section><div class="shell col g22">
   <p class="eyebrow">DO THIS NOW</p>
@@ -433,6 +460,7 @@ h1{font-size:clamp(40px,5.4vw,60px);line-height:1.08}
   <p>&copy; 2026 Jon Mac &middot; Terms &middot; Privacy &middot; Refund policy &middot; jon@thejonmac.com</p>
 </div></div>
 
+<script src="/clone/readiness.js?v=1"></script>
 <script>
 (function(){
 /* Daily 19:00 America/New_York, including DST transitions. */

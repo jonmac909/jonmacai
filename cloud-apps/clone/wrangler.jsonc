@@ -20,6 +20,11 @@
     "not_found_handling": "none"
   },
   "vars": {
+    "CLONE_SCORECARD_ENABLED": "true",
+    "SMS_ENABLED": "false",
+    "SMS_PROVIDER": "",
+    "SMS_SENDER": "",
+    "CLONE_FAQ_VIDEO_IDS": "{}",
     "CHECKOUT_URL": "https://commas.com/checkout/nmGzEY7RCWcGOKl",
     "RESEND_FROM": "Jon Mac <support@viralview.io>",
     "RESEND_REPLY_TO": "jon@thejonmac.com",

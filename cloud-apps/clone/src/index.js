@@ -5,6 +5,8 @@ import { publicConfig, sandboxAccess, sandboxEnv, sandboxPage } from './sandbox.
 import { buyerSession, checkoutContext, recordPurchaseProof, sameOrigin, upsell, validWebhook } from './upsells.js';
 import { deliverWhopEvent, enqueueWhopEvent, flushWhopEvents, whopAttribution, whopPurchaseFromVerifiedPayment } from './whop-events.js';
 import { purchaseReminders, retryReminders, unsubscribeReminders } from './reminders.js';
+import { consentEvidence, readinessConfig } from './readiness.js';
+import { recordScorecardPayment, recordVisit, sessionDate } from './scorecard.js';
 
 export default {
   async fetch(request, env) {
@@ -30,6 +32,15 @@ export default {
     if (access.response) return access.response;
     env = access.env;
     if (url.pathname === '/clone/api/config' && isSandbox(env)) return json(publicConfig(access.config, env));
+    if (url.pathname === '/clone/api/readiness' && request.method === 'GET') return json(readinessConfig(env));
+    if (url.pathname === '/clone/api/visit' && request.method === 'POST') {
+      if (!sameOrigin(request)) return json({ ok: false, error: 'origin' }, 403);
+      let data;
+      try { data = await request.json(); } catch { return json({ ok: false, error: 'bad json' }, 400); }
+      if (!/^[a-f0-9-]{36}$/i.test(data?.id || '')) return json({ ok: false, error: 'invalid visit' }, 400);
+      try { return json({ ok: true, recorded: await recordVisit(env, data.id) }); }
+      catch { return json({ ok: false, error: 'metrics unavailable' }, 503); }
+    }
     if (url.pathname === "/clone/api/lead" && request.method === "POST") {
       return handleLead(request, env);
     }
@@ -76,9 +87,12 @@ async function handleLead(request, env) {
   } catch {
     return json({ ok: false, error: "bad json" }, 400);
   }
+  if (!data || typeof data !== 'object') return json({ ok: false, error: 'bad json' }, 400);
   const email = String(data.email || "").trim().toLowerCase();
   const name = String(data.name || "").trim().slice(0, 120);
-  const phone = String(data.phone || "").trim().slice(0, 40);
+  let consent;
+  try { consent = consentEvidence(data); }
+  catch (error) { return json({ ok: false, error: error.message }, 400); }
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) {
     return json({ ok: false, error: "invalid email" }, 400);
   }
@@ -89,12 +103,13 @@ async function handleLead(request, env) {
     ...saved,
     email,
     name,
-    phone,
+    ...consent,
     utm: data.utm || null,
     page: "clone",
     ua: request.headers.get("user-agent") || "",
     ts: new Date().toISOString(),
     whop: whopAttribution(data, request),
+    sessionDate: sessionDate(),
   };
   await env.CLONE_LEADS.put(`lead:${email}`, JSON.stringify(record));
   // The browser supplies the same IDs for deduplication. A server ID also covers
@@ -248,9 +263,19 @@ async function handlePurchase(request, env) {
       }
     } catch { conversionPending = true; }
   }
+  let outcome;
   try {
     const reminders = await purchaseReminders(payload, env);
-    return conversionPending ? json({ ok: false, error: 'conversion_pending' }, 503) : json({ ok: true, ...reminders });
+    outcome = conversionPending ? json({ ok: false, error: 'conversion_pending' }, 503) : json({ ok: true, ...reminders });
   }
-  catch { return json({ ok: false, error: 'reminders_pending' }, 503); }
+  catch { outcome = json({ ok: false, error: 'reminders_pending' }, 503); }
+  // Observe after the existing reminder handler: preserve its cancellation and
+  // scheduling behavior and use the session it assigned to the paid registrant.
+  let scoreLead = {};
+  if (buyerEmail) {
+    try { scoreLead = JSON.parse(await env.CLONE_LEADS.get(`lead:${buyerEmail}`) || '{}'); } catch {}
+  }
+  try { await recordScorecardPayment(payload, env, scoreLead); }
+  catch { return json({ ok: false, error: 'scorecard_pending' }, 503); }
+  return outcome;
 }

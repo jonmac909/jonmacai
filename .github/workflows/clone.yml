@@ -27,5 +27,6 @@ jobs:
       - run: npm ci
       - run: npx --no-install playwright install --with-deps chromium
       - run: npm test
+      - run: npm run test:readiness:browser
       - run: npm run test:whop:browser
       - run: npm run test:sandbox:mock

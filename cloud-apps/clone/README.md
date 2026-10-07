@@ -1,5 +1,83 @@
 # Clone funnel payments
 
+## Launch readiness (JON-15 B+)
+
+The phone field is optional unless the visitor requests text reminders. The SMS
+checkbox starts unchecked, including after a reload; saved checkout contact
+details never restore permission. Its disclosure identifies Jon Mac, automated
+training reminders, frequency, message/data rates, STOP/HELP, and optional
+consent with Terms/Privacy links. The Worker validates the phone and explicit
+boolean opt-in plus disclosure version. The lead stores `smsConsent`, the
+server-generated `smsConsentAt`, `smsConsentVersion`, consent page and phone,
+and `smsConsentStatus`. Opt-ins start `pending_confirmation`, not confirmed.
+This follows the optional-consent and disclosure principles in
+[47 CFR 64.1200](https://www.govinfo.gov/link/cfr/47/64?link-type=pdf&sectionnum=1200&year=mostrecent).
+
+`src/sms.js` provides the transport interface and six reminder templates, with
+an additional help message only for a known non-attendee. Late registrants skip
+elapsed steps. Texts contain no join/replay links: those remain in email/calendar
+through JON-17's `CLONE_ZOOM_JOIN_URL` and `CLONE_REPLAY_URL`. The interface has no
+installed provider and is not called by any route or cron. `SMS_ENABLED=false`,
+empty `SMS_PROVIDER`/`SMS_SENDER`, or sandbox mode disables it. Future activation
+also requires an implemented provider, verified sender, confirmed double opt-in
+for the same number, and handling confirmation, STOP/HELP and other revocations.
+Setting environment variables alone cannot activate sending in this release.
+No signup, outbound email/text or paid provider test is part of this build.
+
+The welcome page has four text answers immediately after the existing welcome
+video. Empty video slots are hidden, without placeholders or iframe requests.
+Configure optional `CLONE_FAQ_VIDEO_IDS` as a JSON map with keys `followers`,
+`camera`, `shop`, `time` and 11-character YouTube IDs. Only valid IDs produce
+privacy-enhanced, lazy-loaded players. `/clone/api/readiness` returns these
+public IDs, consent version, metric state and the deployed version/commit;
+it exposes no lead information, credentials or webinar access links.
+
+Migration `0005_launch_readiness.sql` adds a first-party ledger and read-only
+`clone_session_scorecard` view. `CLONE_SCORECARD_ENABLED=true` activates counting.
+A browser-session visit ID is retained per upcoming Eastern session and deduped
+server-side; reloads do not add visits. This is an aggregate site metric, with
+no new external pixel, email/phone/IP field or changed advertising tags.
+Sandbox traffic never writes production metrics. Visits can be undercounted
+when JavaScript/storage/requests are blocked; they are not unique-person counts.
+
+Only HMAC-verified Commas `payment.succeeded` events record money. Canonical
+transaction IDs deduplicate repeated deliveries; $47 seat purchases and each
+upsell's payments are counted separately, using actual cash in integer cents.
+The reminder handler's assigned session takes priority over checkout/lead dates
+when available. Those dates are retained near purchase; old attribution
+on a renewal falls back to its next Eastern session. Counts describe observed
+payments (including later paid subscriptions/plans), not pitch conversion.
+No historical backfill or ad/Zoom data source is connected. Ad spend, impressions,
+clicks, attendance, peak/pitch counts and audit bookings remain SQL `NULL`.
+
+The existing signed purchase hook also accepts the documented
+[`refund.created` payload](https://commasdocs.com/#webhook-events): actual refunded
+`data.amount` and `data.refund_id` are counted once, without invoking purchase
+email automation. It does not issue refunds or alter webhook subscriptions.
+Refund delivery needs that event enabled on the existing Commas subscription by
+its owner. Since refund transaction hashids can differ from public payment order
+IDs, unmatched refunds appear under `session_date=null` until a reconciliation
+source exists. They are never assigned to the customer's latest visit. Refund
+counts mean observed notifications; an absent source is not proof of no refunds.
+Net cash subtracts observed refunds and excludes provider processing fees.
+
+Read the scorecard using Wrangler's existing owner authentication (no public
+report endpoint, new secret or write command):
+
+```powershell
+$env:CLONE_WRANGLER_CLI = '<installed wrangler.js path>'
+npm run scorecard --prefix cloud-apps/clone -- --remote
+npm run scorecard --prefix cloud-apps/clone -- --remote 2026-10-07 --json
+```
+
+Use `--local` for a local database. The CLI validates its date and runs only a
+fixed SELECT, returning up to 100 session rows. Missing sources remain null.
+Apply the migration before deploying with `--keep-vars --tag <merged-sha>`.
+The shared daily schedule, existing pixels and email reminder sequence are
+unchanged by JON-15. CI additionally runs `npm run test:readiness:browser`, using
+the actual Worker/KV/D1 with mocked external resources and no message/payment
+submission. Mobile screenshots are saved in the OS temp directory.
+
 ## Daily schedule and Whop measurement (JON-16)
 
 The training runs daily at 7 PM America/New_York. Lander, welcome, survey,
