@@ -11,7 +11,7 @@ const origin = 'https://jonmac.ai';
 const fixture = JSON.parse(readFileSync(new URL('./fixtures/commas-payment.json', import.meta.url)));
 function env() {
   const db = new DatabaseSync(':memory:');
-  for (const name of ['0001_upsells.sql', '0002_sandbox.sql', '0003_whop_events.sql', '0004_reminders.sql']) db.exec(readFileSync(new URL('../migrations/' + name, import.meta.url), 'utf8'));
+  for (const name of ['0001_upsells.sql', '0002_sandbox.sql', '0003_whop_events.sql', '0004_reminders.sql', '0006_sandbox_observability.sql']) db.exec(readFileSync(new URL('../migrations/' + name, import.meta.url), 'utf8'));
   const leads = new Map();
   return { WHOP_API_KEY: 'fixture-whop-key', COMMAS_WEBHOOK_SECRET: 'fixture-webhook-key', RESEND_API_KEY: 'fixture-resend-key',
     CLONE_LEADS: { async get(k) { return leads.get(k) || null; }, async put(k, v) { leads.set(k, v); } },
@@ -114,7 +114,7 @@ test('signed Commas fixtures: all six products, actual cash, canonical transacti
   });
   await t.test('sandbox, invalid names/IDs/time and nonpositive purchases never contact Whop', async () => {
     calls = [];
-    assert.equal(await enqueueWhopEvent({ ...env(), CLONE_PAYMENT_MODE: 'sandbox' }, whopPurchaseFromVerifiedPayment(payment())), false);
+    assert.equal(await enqueueWhopEvent({ ...env(), CLONE_PAYMENT_MODE: 'sandbox' }, whopPurchaseFromVerifiedPayment(payment())), true);
     for (const event of [{ eventName: 'purchase', value: 0 }, { eventName: 'refund' }, { eventName: 'lead', eventTime: Date.now() + 120000 },
       { eventName: 'lead', eventId: 'x'.repeat(251) }]) {
       assert.equal((await sendWhopServerEvent(env(), { eventId: 'fixture', url: origin + '/clone/', ...event })).status, 0);

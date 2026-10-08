@@ -91,7 +91,8 @@ All nine pages load the existing Viral View Whop pixel implementation with scope
 `complete_registration` and `add_to_cart` (Whop's existing checkout-click name).
 Existing Meta/Google code and IDs remain as configured. The privacy disclosure
 includes Whop, and the Worker CSP allows `t.whop.tw` alongside existing scripts.
-Protected Commas sandbox pages and payments never send Whop events.
+Protected Commas sandbox pages and payments use log-only Whop tracking. They
+never load the Whop SDK or send browser/server requests to the live account.
 
 The opt-in shares event IDs between browser and CAPI. `_wuid` and a limited set
 of campaign parameters, including `wacid`/`wasid`/`waid`, are stored with the
@@ -300,7 +301,9 @@ and store its signing secret in `COMMAS_SANDBOX_WEBHOOK_SECRET`. The runner
 checks that an active matching webhook exists before submitting checkout. No production
 webhook needs modification. Missing settings, a reused production key/ID, or a
 production fallback URL reject sandbox access before making any provider call.
-The sandbox webhook and lead endpoint skip production lead/email automation.
+The sandbox lead endpoint skips production lead/email automation. The signed
+sandbox purchase hook logs Whop conversions and schedules test-mailbox reminders
+as described below; it never emits the production Resend automation event.
 Sandbox and production have separate session caches, signed cookie names and
 kinds, session storage keys, D1 proof/claim tables, and provider idempotency keys.
 
@@ -367,8 +370,74 @@ uses the actual Worker, HTMLRewriter, D1 and browser with a mocked provider/SDK
 and blocked external resources. It runs the same seven-case script, verifies
 production tables stay empty, and proves the runner rejects a successful charge
 that fails to create a subscription. This does not replace provider acceptance.
-The real sandbox run has **not** been executed: key, products and webhook remain
-pending. No live-card test is planned or authorized.
+The real sandbox payment run has **not** been executed. Dedicated key, six
+products and sandbox webhook #7 are now provisioned; provider checkout remains
+blocked. Earlier key/provisioning notes in this section describe the initial setup.
+
+## JON-6 sandbox observability and proof
+
+Sandbox Whop is always **log-only**, even if production `WHOP_API_KEY` exists.
+`sandboxEnv` clears that key, and every sender independently refuses sandbox.
+Browser tracking avoids the SDK/scope entirely and logs the exact payload plus
+`<transaction-or-journey>:page:<pathname>`. Session storage prevents a second page
+log on reload for that transaction. Lead/cart logs also remain local. Browser
+attribution has a separate sandbox storage key. No sandbox Whop credentials are
+needed or expected.
+
+Signed sandbox purchases persist the exact would-be server payload and
+`sandbox_purchase_<canonical-Commas-transaction>` in `clone_sandbox_whop_events`.
+The payload retains the intended account field for inspection only. Atomic
+uniqueness logs once across concurrent, duplicate and retry deliveries; no
+network send follows. These rows are never read by the production delivery queue.
+
+Apply migration `0006_sandbox_observability.sql` through the usual release gate
+before releasing this code. Reminders use separate `clone_sandbox_webinar_*`
+tables and `sandbox:lead:<email>` KV keys. A verified sandbox $47 seat schedules
+the normal eligible sequence with recipient hardcoded to
+`jon+vvtest@thejonmac.com`, subject prefix `[SANDBOX TEST]`, and Resend idempotency
+keys prefixed `clone-sandbox-`. No cc/bcc or production automation events are
+allowed. E1 is scheduled three minutes ahead for cancellable QA; production E1
+keeps its immediate behavior. Missing Zoom/replay links still gate E4-E8.
+Signed refunds and token-authorized unsubscribe cancel unsent sandbox emails
+using the same retry-safe state machine without touching production records.
+
+Run deterministic checks with `npm run test:sandbox:pages` and `npm test`.
+The page runner checks all six pages per simulated transaction, reload dedup,
+daily 7 PM ET copy, video frames and zero Whop network requests. Survey's absent
+video is an explicit known gap. To check actual YouTube playback, pass
+`-- --live-video`; `JON6_PURCHASE_PROOF` can point to the signed purchase report
+so each transaction gets its own six-page proof. Mocked video frames alone do
+not prove playback.
+
+For actual Resend proof, `scripts/sandbox-proof-worker.js` is a private remote
+preview entry point using the existing Worker secret binding in-place and an
+isolated QA D1 database. It is never imported by production. Keep its config,
+access token and real sandbox webhook signing secret in ignored `.wrangler`
+storage. Require `JON6_PROOF_ACCESS` and run ID `SIM-JON6-<20 hex>`; restrict the
+preview to loopback. `npm run test:sandbox:proof` reads private vars from
+`.wrangler/private-proof.json` (override with `JON6_PROOF_PRIVATE_CONFIG`). It
+signs six simulated purchases with the actual sandbox webhook secret, verifies
+rejection with the wrong secret, submits duplicate/retry envelopes, retrieves
+Resend scheduled status, then signs a refund and verifies cancellation. Cleanup
+runs even after assertions fail. Never print the private config or key. Stop
+the preview afterward; no production deployment or configuration mutation is
+part of this proof. These IDs are **simulated**, not provider transactions.
+
+Docker validation, without provider credentials or GitHub Actions:
+
+```sh
+docker build -f cloud-apps/clone/Dockerfile.checks -t jonmacai-jon6-checks cloud-apps/clone
+docker run --rm --ipc=host jonmacai-jon6-checks
+```
+
+This runs the backend tests, browser regressions, mocked payment flow, page
+checks and Worker bundle dry run. Merge, production migrations/secrets/config
+and deployment remain gated. Provider payments, saved-card upsells, actual
+subscriptions, refunds and the older-buyer hosted fallback must still pass
+after Commas supplies **B: a working sandbox checkout/embed URL for
+viral-view-sandbox**, with **A: repair the current sandbox integration** as
+fallback. Jon relays Ana's request to Felipe. Survey video and Zoom/replay links
+remain Jon-input gaps.
 
 ## Daily webinar reminders (JON-17)
 
