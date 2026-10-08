@@ -1,5 +1,5 @@
 // Port of viralview.io/lib/whop-events-api.ts and lib/whop-pixel.ts.
-import { isSandbox, OFFERS } from './payment-config.js';
+import { isSandbox, OFFERS, paymentConfig } from './payment-config.js';
 
 export const WHOP_ACCOUNT_ID = 'biz_7mMLeRhCNlr8Nl';
 export const MAX_EVENT_AGE_MS = 28 * 24 * 60 * 60 * 1000;
@@ -31,19 +31,20 @@ export function whopAttribution(data, request) {
   }
   return { anonymousId, pageUrl: normalizeWhopPageUrl(data?.pageUrl || data?.whop_page_url) };
 }
-export function whopPurchaseFromVerifiedPayment(payload, attribution = {}) {
+export function whopPurchaseFromVerifiedPayment(payload, attribution = {}, env = {}) {
   const d = payload?.data;
   // Canonical Commas public order ID, never the webhook envelope or SDK charge ID.
   const transaction = String(d?.transaction_history_id || d?.payment_id || '');
   const value = Number(d?.amount);
-  if (payload?.type !== 'payment.succeeded' || !PRODUCTS.has(d?.item?.id) ||
+  const products = isSandbox(env) ? new Set([paymentConfig(env).seat, ...Object.values(paymentConfig(env).offers).map(o => o.service)]) : PRODUCTS;
+  if (payload?.type !== 'payment.succeeded' || !products.has(d?.item?.id) ||
       (d?.status && d.status !== 'succeeded') || !/^[A-Za-z0-9_-]{3,100}$/.test(transaction) ||
       d?.amount == null || !Number.isFinite(value) || value <= 0 ||
       String(d?.currency || 'USD').toUpperCase() !== 'USD' || (Array.isArray(d?.refunds) && d.refunds.length)) return null;
   const meta = d?.api_metadata?.data || d?.metadata || {};
   const parsedTime = Date.parse(d?.created_at || payload?.created_at);
   if (!Number.isFinite(parsedTime)) return null;
-  return { eventName: 'purchase', eventId: 'purchase_' + transaction, eventTime: parsedTime,
+  return { eventName: 'purchase', eventId: (isSandbox(env) ? 'sandbox_purchase_' : 'purchase_') + transaction, eventTime: parsedTime,
     url: normalizeWhopPageUrl(meta.whop_page_url || attribution.pageUrl),
     anonymousId: normalizeWhopAnonymousId(meta.whop_anonymous_id || attribution.anonymousId),
     email: String(d?.buyer?.email || '').trim().toLowerCase(), value, currency: 'USD' };
@@ -85,8 +86,17 @@ export async function sendWhopServerEvent(env, event) {
 }
 
 export async function enqueueWhopEvent(env, event) {
-  if (isSandbox(env) || !env.WHOP_API_KEY || !whopPayload(event)) return false;
+  const payload = whopPayload(event);
+  if ((!isSandbox(env) && !env.WHOP_API_KEY) || !payload) return false;
   if (!env.CLONE_UPSELLS) throw new Error('Whop event storage unavailable');
+  if (isSandbox(env)) {
+    // Atomic uniqueness prevents duplicate rows/console output across retries.
+    // This durable payload is a log only; the sender always refuses sandbox.
+    const saved = await env.CLONE_UPSELLS.prepare(`INSERT INTO clone_sandbox_whop_events (event_id, payload, created_at)
+      VALUES (?, ?, ?) ON CONFLICT(event_id) DO NOTHING`).bind(event.eventId, JSON.stringify(payload), Date.now()).run();
+    if (saved.meta?.changes === 1) console.info(JSON.stringify({ mode: 'sandbox-log-only', dedup_key: event.eventId, payload }));
+    return true;
+  }
   await env.CLONE_UPSELLS.prepare(`INSERT INTO clone_whop_events (event_id, payload, created_at)
     VALUES (?, ?, ?) ON CONFLICT(event_id) DO NOTHING`).bind(event.eventId, JSON.stringify(event), Date.now()).run();
   return true;

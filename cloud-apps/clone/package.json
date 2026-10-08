@@ -8,7 +8,9 @@
     "test": "node --test test/*.test.mjs",
     "test:whop:browser": "node test/whop-browser.mjs",
     "test:sandbox": "node test/sandbox-e2e.mjs",
-    "test:sandbox:mock": "node test/sandbox-mock.mjs"
+    "test:sandbox:mock": "node test/sandbox-mock.mjs",
+    "test:sandbox:pages": "node test/sandbox-pages.mjs",
+    "test:sandbox:proof": "node scripts/sandbox-proof.mjs"
   },
   "devDependencies": {
     "miniflare": "4.20260730.0",

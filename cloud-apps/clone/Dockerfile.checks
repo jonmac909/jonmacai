@@ -1,0 +1,6 @@
+FROM node:22-bookworm
+WORKDIR /app
+COPY package.json package-lock.json ./
+RUN npm ci && npx playwright install --with-deps chromium && npm install --global wrangler@4.145.0
+COPY . .
+CMD ["node", "scripts/docker-checks.mjs"]
