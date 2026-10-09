@@ -135,17 +135,12 @@ npm run test:sandbox:mock --prefix cloud-apps/clone
 node <installed-wrangler-cli> deploy --dry-run --config cloud-apps/clone/wrangler.jsonc
 ```
 
-GitHub's `Clone funnel / verify` runs backend/fixture tests, all-page browser
-tracking checks and existing sandbox payment regression checks. For release,
-apply the D1 migration before deploying the reviewed merged commit using the
+The Docker release gate (`docker/clone-funnel`) runs backend/fixture tests,
+all-page browser tracking checks and existing sandbox payment regression checks.
+GitHub Actions is disabled. For release, apply the D1 migration before deploying
+the reviewed merged commit using the
 normal Wrangler command, with `--tag <merged-sha> --keep-vars`. Live pages return
 `X-Clone-Commit` and `X-Clone-Version` to verify the exact release.
-
-Netlify deploy previews run the Clone backend tests and build static assets under
-`/clone/` using `scripts/build-preview.mjs`. This corrects the legacy preview
-command that expected a nonexistent root `package.json` and `dist` folder.
-The context override changes previews only. Production Worker APIs remain on
-Cloudflare; local/preview hostnames do not send events to the production Whop account.
 
 Production: `https://jonmac.ai/clone/`, existing Cloudflare Worker `jonmac-agency`.
 The current Clone pages and embedded modal were deployed from local Clone feature
@@ -449,7 +444,8 @@ node <installed-wrangler-cli> d1 migrations apply jonmacai-clone-upsells --remot
 node <installed-wrangler-cli> deploy --config cloud-apps/clone/wrangler.jsonc --tag "<merged-commit-sha>" --message "JON-17 <merged-commit-sha>"
 ```
 
-The PR workflow runs the unit checks and Worker build without production secrets.
+The Docker release gate runs the unit checks and Worker build without production
+secrets.
 All 60 local unit/backend tests pass. Validation covers DST/cutoff timing, late buyers, duplicate/concurrent
 webhooks, provider rejection, lost responses, refund races, cancellation retry,
 unsubscribe, provider opt-outs and sandbox isolation. The mocked browser payment
@@ -475,11 +471,11 @@ Keep the generated test config/token in ignored `.wrangler` storage. This entry
 is not imported or routed by the production Worker. `/status` retrieves only
 the email associated with that fixed test run. Stop the preview after delivery.
 
-[PR #69](https://github.com/jonmac909/jonmacai/pull/69) incorporates merged PR #70,
-including its preview-only Netlify build. Both Whop and reminder cron work remain
-active, and conversion failure does not prevent reminder scheduling. Migration
-0004 follows Whop's 0003. All remote checks must pass before merging; none is
-bypassed or disabled. Zoom and replay stay blank for this release.
+[PR #69](https://github.com/jonmac909/jonmacai/pull/69) incorporates merged PR #70.
+Both Whop and reminder cron work remain active, and conversion failure does not
+prevent reminder scheduling. Migration
+0004 follows Whop's 0003. The Docker release gate must pass before merging.
+Zoom and replay stay blank for this release.
 
 Provider references: [scheduling](https://resend.com/docs/dashboard/emails/schedule-email),
 [email idempotency](https://resend.com/docs/api-reference/emails/send-email),
