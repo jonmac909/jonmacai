@@ -9,6 +9,7 @@ export const OFFERS = Object.freeze({
 // Only the Worker access gate may select this internal mode. COMMAS_ENV enables
 // the protected test path; it never changes the public funnel's default.
 export function isSandbox(env) { return env.CLONE_PAYMENT_MODE === 'sandbox'; }
+export function leadKey(env, email) { return (isSandbox(env) ? 'sandbox:' : '') + 'lead:' + email; }
 export function table(env, name) { return (isSandbox(env) ? 'clone_sandbox_' : 'clone_') + name; }
 export function cookieName(env, kind) { return '__Secure-clone-' + (isSandbox(env) ? 'sandbox-' : '') + kind; }
 export function tokenKind(env, kind) { return (isSandbox(env) ? 'sandbox-' : '') + kind; }
@@ -26,7 +27,7 @@ export function paymentConfig(env) {
   const productionIds = new Set(['nmGzE', ...Object.values(OFFERS).map(o => o.service)]);
   const names = ['seat', ...Object.keys(OFFERS)];
   for (const name of names) {
-    if (!/^[A-Za-z0-9]{3,100}$/.test(ids?.[name] || '') || productionIds.has(ids[name]) ||
+    if (!/^[A-Za-z0-9]{2,100}$/.test(ids?.[name] || '') || productionIds.has(ids[name]) ||
         !/^https:\/\/sandbox\.commas\.net\/(?:checkout\/[A-Za-z0-9]+|agency-checkout\/[A-Za-z0-9_-]+\/[A-Za-z0-9]+)$/.test(urls?.[name] || '')) throw new Error('sandbox_unconfigured');
   }
   if (new Set(names.map(n => ids[n])).size !== names.length) throw new Error('sandbox_unconfigured');

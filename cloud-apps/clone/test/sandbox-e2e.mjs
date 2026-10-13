@@ -194,7 +194,9 @@ export async function runSandbox(options = {}) {
           stage = testCase.name + ': reconcile ' + name;
           if (name === 'trial') {
             assert.equal(outcome.reason, 'trial_hosted'); assert.equal(outcome.checkoutUrl, c.hosted.trial);
-            await page.waitForURL(c.hosted.trial); assert.equal(forBuyer(await transactions()).length, before.length);
+            const hostedTrial = new URL(c.hosted.trial);
+            await page.waitForURL(url => url.origin === hostedTrial.origin && url.pathname === hostedTrial.pathname);
+            assert.equal(forBuyer(await transactions()).length, before.length);
             result.offers.push({ offer: name, fallback: 'sandbox hosted trial; no trial submitted' }); continue;
           }
           assert.equal(outcome.ok, true, 'One-click sandbox charge failed; do not retry via hosted checkout');

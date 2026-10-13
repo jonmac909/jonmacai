@@ -12,13 +12,15 @@ import { mockProduct, sandboxIds, sandboxSettings, sandboxUrls } from './sandbox
 const origin = 'https://jonmac.ai';
 function env() {
   const db = new DatabaseSync(':memory:');
-  for (const migration of ['0001_upsells.sql', '0002_sandbox.sql']) db.exec(readFileSync(new URL('../migrations/' + migration, import.meta.url), 'utf8'));
+  for (const migration of ['0001_upsells.sql', '0002_sandbox.sql', '0006_sandbox_observability.sql']) db.exec(readFileSync(new URL('../migrations/' + migration, import.meta.url), 'utf8'));
+  const leads = new Map();
   return { ...sandboxSettings(), CLONE_UPSELLS: { prepare(query) {
     const stmt = db.prepare(query); return { bind(...args) { return {
       async run() { return { meta: { changes: Number(stmt.run(...args).changes) } }; },
       async first() { return stmt.get(...args) || null; },
     }; } };
-  } }, CLONE_LEADS: { get() { throw new Error('sandbox touched live leads'); }, put() { throw new Error('sandbox touched live leads'); } } };
+  } }, CLONE_LEADS: { async get(k) { assert.ok(k.startsWith('sandbox:lead:')); return leads.get(k) || null; },
+    async put(k, v) { assert.ok(k.startsWith('sandbox:lead:')); leads.set(k, v); } } };
 }
 function req(path, body = {}, cookie = '', method = 'POST') { return new Request(origin + '/clone/' + path, {
   method, headers: { origin, cookie, 'content-type': 'application/json' }, ...(method === 'POST' ? { body: JSON.stringify(body) } : {}),

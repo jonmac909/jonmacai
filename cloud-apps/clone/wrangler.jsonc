@@ -39,9 +39,14 @@
     "CLONE_SUBSCRIPTIONS_ENABLED": "false",
     // Enables only the authenticated ?sandbox=1 path. Missing key/IDs fail closed.
     "COMMAS_ENV": "sandbox",
-    "CLONE_SANDBOX_REBILL_ENABLED": "false",
-    "CLONE_SANDBOX_SUBSCRIPTIONS_ENABLED": "false",
-    "CLONE_SANDBOX_REBILL_ENABLED_AT": ""
+    // Sandbox business "Viral View Sandbox" (handle test-4), Stripe test mode since Oct 13.
+    "COMMAS_SANDBOX_CREATOR_ID": "test-4",
+    "COMMAS_SANDBOX_PRODUCT_IDS": "{\"seat\":\"86o\",\"software\":\"9Q3\",\"trial\":\"0VX\",\"audit\":\"gL6\",\"vault\":\"jq5\",\"vault_plan\":\"kZX\"}",
+    "COMMAS_SANDBOX_CHECKOUT_URLS": "{\"seat\":\"https://sandbox.commas.net/checkout/86ovQtjdMxan4\",\"software\":\"https://sandbox.commas.net/checkout/9Q3sQZo8yDU3BpF\",\"trial\":\"https://sandbox.commas.net/checkout/0VXn2FfBHVpqe\",\"audit\":\"https://sandbox.commas.net/checkout/gL6iog5O5eew0es\",\"vault\":\"https://sandbox.commas.net/checkout/jq5p4vCJK3p\",\"vault_plan\":\"https://sandbox.commas.net/checkout/kZXp0AeQC5cULG\"}",
+    "CLONE_SANDBOX_REBILL_ENABLED": "true",
+    "CLONE_SANDBOX_SUBSCRIPTIONS_ENABLED": "true",
+    // Sandbox key for test-4 created Oct 13 4:47 PM PT; earlier sandbox buyers use hosted checkout.
+    "CLONE_SANDBOX_REBILL_ENABLED_AT": "2026-10-13T23:47:00Z"
   },
   "kv_namespaces": [
     { "binding": "CLONE_LEADS", "id": "73af279f67c745a78652cf26f4c9bfe9" }

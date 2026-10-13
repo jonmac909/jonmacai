@@ -1,3 +1,6 @@
+import { isSandbox } from './payment-config.js';
+
+export const SANDBOX_REMINDER_RECIPIENT = 'jon+vvtest@thejonmac.com';
 const HOUR = 60 * 60 * 1000;
 const eastern = new Intl.DateTimeFormat('en-US', {
   timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit',
@@ -48,7 +51,7 @@ export function reminderPlan({ transaction_ref, purchased_at, session_at }, env,
   const session = Date.parse(session_at);
   if (!Number.isFinite(session) || !Number.isFinite(purchased_at)) throw new Error('invalid_session');
   const candidates = [
-    ['E1', purchased_at], ['E2', session - 24 * HOUR],
+    ['E1', purchased_at + (isSandbox(env) ? 3 * 60 * 1000 : 0)], ['E2', session - 24 * HOUR],
     ['E3', easternTime(session, 0, 9)], ['E4', session - HOUR],
     ['E5', session - 10 * 60 * 1000], ['E6', session],
     ['E7', session + 15 * 60 * 1000], ['E8', easternTime(session, 1, 9)],
@@ -56,10 +59,10 @@ export function reminderPlan({ transaction_ref, purchased_at, session_at }, env,
   const join = configuredUrl(env.CLONE_ZOOM_JOIN_URL, true);
   const replay = configuredUrl(env.CLONE_REPLAY_URL);
   return candidates.map(([step, at]) => ({
-    step, scheduled_at: step === 'E1' ? null : new Date(at).toISOString(),
+    step, scheduled_at: step === 'E1' && !isSandbox(env) ? null : new Date(at).toISOString(),
     idempotency_key: `${transaction_ref}-${step}`, join, replay,
     skip: step === 'E2' && session - purchased_at <= 24 * HOUR ? 'within_24_hours' :
-      step !== 'E1' && at <= now ? 'past' :
+      (step !== 'E1' || isSandbox(env)) && at <= now ? 'past' :
       ['E4', 'E5', 'E6', 'E7'].includes(step) && !join ? 'missing_join_url' :
       step === 'E8' && !replay ? 'missing_replay_url' : null,
   }));
@@ -94,13 +97,13 @@ export function reminderMessage(session, plan, env) {
     E8: ["Your Clone Method replay", `Rewatch the part you need, then finish one draft before starting another. One completed test will teach you more than a folder of unfinished ideas.\n\nWatch the replay:\n${plan.replay}`],
   };
   const [subject, body] = copy[plan.step];
-  const unsubscribe = `https://jonmac.ai/clone/api/reminders/unsubscribe?token=${encodeURIComponent(session.unsubscribe_token)}`;
+  const unsubscribe = `https://jonmac.ai/clone/api/reminders/unsubscribe?token=${encodeURIComponent(session.unsubscribe_token)}${isSandbox(env) ? '&sandbox=1' : ''}`;
   const text = `${body}\n\n${reminder}\n\n— Jon\n\nUnsubscribe from webinar reminders:\n${unsubscribe}`;
   const html = '<div style="font-family:Arial,sans-serif;font-size:16px;line-height:1.6;max-width:600px">' +
     text.split('\n\n').map(p => `<p>${escapeHtml(p).replace(/https:\/\/[^\s<]+/g, u => `<a href="${u}">${u}</a>`).replace(/\n/g, '<br>')}</p>`).join('') + '</div>';
   return {
-    from: env.RESEND_FROM || 'Jon Mac <support@viralview.io>', to: session.email,
-    reply_to: env.RESEND_REPLY_TO || 'jon@thejonmac.com', subject, text, html,
+    from: env.RESEND_FROM || 'Jon Mac <support@viralview.io>', to: isSandbox(env) ? SANDBOX_REMINDER_RECIPIENT : session.email,
+    reply_to: env.RESEND_REPLY_TO || 'jon@thejonmac.com', subject: (isSandbox(env) ? '[SANDBOX TEST] ' : '') + subject, text, html,
     ...(plan.scheduled_at ? { scheduled_at: plan.scheduled_at } : {}),
     headers: { 'List-Unsubscribe': `<${unsubscribe}>`, 'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click' },
     tags: [{ name: 'campaign', value: 'clone-webinar' }, { name: 'step', value: plan.step }],

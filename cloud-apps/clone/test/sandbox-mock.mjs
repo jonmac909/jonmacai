@@ -57,7 +57,7 @@ const publicRoot = new URL('../public/', import.meta.url);
 const mf = new Miniflare({
   modules: true, scriptPath: fileURLToPath(new URL('../src/index.js', import.meta.url)), compatibilityDate: '2026-07-01',
   modulesRules: [{ type: 'ESModule', include: ['**/*.js'] }],
-  host: '127.0.0.1', port: 0, https: true, bindings: settings, d1Databases: ['CLONE_UPSELLS'],
+  host: '127.0.0.1', port: 0, https: true, bindings: settings, d1Databases: ['CLONE_UPSELLS'], kvNamespaces: ['CLONE_LEADS'],
   outboundService: provider,
   serviceBindings: { ASSETS: async request => {
     const path = new URL(request.url).pathname;
@@ -83,7 +83,7 @@ try {
   const base = await mf.ready;
   webhookUrl = new URL('/clone/api/sandbox/purchase', base).toString();
   const db = await mf.getD1Database('CLONE_UPSELLS');
-  for (const migration of ['0001_upsells.sql', '0002_sandbox.sql']) {
+  for (const migration of ['0001_upsells.sql', '0002_sandbox.sql', '0006_sandbox_observability.sql']) {
     const sql = readFileSync(new URL('../migrations/' + migration, import.meta.url), 'utf8');
     for (const statement of sql.split(';').filter(s => s.trim())) await db.prepare(statement).run();
   }

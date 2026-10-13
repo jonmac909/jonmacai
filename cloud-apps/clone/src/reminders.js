@@ -1,5 +1,5 @@
-import { isSandbox, paymentConfig } from './payment-config.js';
-import { assignSession, escapeHtml, reminderMessage, reminderPlan } from './reminder-plan.js';
+import { isSandbox, leadKey, paymentConfig } from './payment-config.js';
+import { assignSession, escapeHtml, reminderMessage, reminderPlan, SANDBOX_REMINDER_RECIPIENT } from './reminder-plan.js';
 
 const DAY = 24 * 60 * 60 * 1000;
 const LOCK = 5 * 60 * 1000;
@@ -8,6 +8,12 @@ const referencePattern = /^[A-Za-z0-9_-]{3,100}$/;
 const rows = async (db, sql, ...args) => (await db.prepare(sql).bind(...args).all()).results;
 const first = (db, sql, ...args) => db.prepare(sql).bind(...args).first();
 const run = (db, sql, ...args) => db.prepare(sql).bind(...args).run();
+
+function reminderDb(env) {
+  if (!isSandbox(env)) return env.CLONE_UPSELLS;
+  // Reuse the scheduling/cancellation state machine with separate durable tables.
+  return { prepare(sql) { return env.CLONE_UPSELLS.prepare(sql.replace(/\bclone_webinar_(sessions|steps|refunds|preferences)\b/g, 'clone_sandbox_webinar_$1')); } };
+}
 
 export function verifiedSeat(payload, env) {
   const d = payload?.data;
@@ -24,6 +30,15 @@ export function verifiedSeat(payload, env) {
 
 async function resend(env, path, init = {}) {
   if (!env.RESEND_API_KEY) throw new Error('resend_unconfigured');
+  if (isSandbox(env) && init.method === 'POST') {
+    if (path === '/events/send') throw new Error('sandbox_automation_forbidden');
+    if (path === '/emails') {
+      const message = JSON.parse(init.body);
+      if (message.to !== SANDBOX_REMINDER_RECIPIENT || message.cc || message.bcc) throw new Error('sandbox_recipient_forbidden');
+    }
+    if (init.headers?.['Idempotency-Key']) init = { ...init, headers: { ...init.headers,
+      'Idempotency-Key': 'clone-sandbox-' + init.headers['Idempotency-Key'] } };
+  }
   const response = await fetch('https://api.resend.com' + path, {
     ...init, headers: { authorization: `Bearer ${env.RESEND_API_KEY}`,
       'content-type': 'application/json', ...init.headers }, signal: AbortSignal.timeout(15000),
@@ -37,7 +52,7 @@ async function optedOut(db, email) {
 }
 
 async function stopSession(env, session) {
-  const db = env.CLONE_UPSELLS;
+  const db = reminderDb(env);
   await run(db, "UPDATE clone_webinar_sessions SET state = 'cancelled', complete = 0 WHERE transaction_ref = ?", session.transaction_ref);
   let needsReview = false, pendingFailure = false;
   const uncertain = await rows(db, "SELECT * FROM clone_webinar_steps WHERE transaction_ref = ? AND attempted_at IS NOT NULL AND email_id IS NULL AND scheduled_at IS NOT NULL AND state != 'cancelled'", session.transaction_ref);
@@ -81,7 +96,7 @@ async function stopSession(env, session) {
 }
 
 export async function scheduleSession(env, transactionRef) {
-  const db = env.CLONE_UPSELLS;
+  const db = reminderDb(env);
   let session = await first(db, 'SELECT * FROM clone_webinar_sessions WHERE transaction_ref = ?', transactionRef);
   if (session?.complete === 2) throw new Error('reminder_needs_reconciliation');
   if (!session || session.complete) return;
@@ -91,7 +106,7 @@ export async function scheduleSession(env, transactionRef) {
   const claimed = await run(db, 'UPDATE clone_webinar_sessions SET locked_until = ? WHERE transaction_ref = ? AND locked_until < ? AND complete = 0 AND state = ?', lockUntil, transactionRef, Date.now(), 'active');
   if (claimed.meta.changes !== 1) throw new Error('reminders_processing');
   try {
-    const contact = await resend(env, '/contacts/' + encodeURIComponent(session.email));
+    const contact = await resend(env, '/contacts/' + encodeURIComponent(isSandbox(env) ? SANDBOX_REMINDER_RECIPIENT : session.email));
     if (contact.response.status !== 404 && !contact.response.ok) throw new Error('contact_lookup_failed');
     if (contact.body?.unsubscribed) {
       await run(db, 'INSERT INTO clone_webinar_preferences(email) VALUES (?) ON CONFLICT(email) DO UPDATE SET unsubscribed = 1', session.email);
@@ -146,12 +161,11 @@ export async function scheduleSession(env, transactionRef) {
 }
 
 export async function purchaseReminders(payload, env) {
-  if (isSandbox(env)) return { ignored: true };
   const seat = verifiedSeat(payload, env);
   const refunded = ['refund.created', 'refund.succeeded', 'payment.refunded', 'payment.canceled', 'payment.cancelled'].includes(payload?.type);
   if (!seat && !refunded) return { ignored: true };
   if (!env.CLONE_UPSELLS) throw new Error('reminder_store_unconfigured');
-  const db = env.CLONE_UPSELLS;
+  const db = reminderDb(env);
   if (refunded) {
     const d = payload.data;
     const references = [...new Set([d?.transaction_history_id, d?.payment_id, d?.transaction_id, d?.original_transaction_id].filter(v => referencePattern.test(String(v || ''))).map(String))];
@@ -160,10 +174,10 @@ export async function purchaseReminders(payload, env) {
       await run(db, 'INSERT INTO clone_webinar_refunds(transaction_ref) VALUES (?) ON CONFLICT DO NOTHING', ref);
       await run(db, "UPDATE clone_webinar_sessions SET state = 'cancelled', complete = 0 WHERE transaction_ref = ? OR payment_ref = ?", ref, ref);
       for (const session of await rows(db, 'SELECT * FROM clone_webinar_sessions WHERE transaction_ref = ? OR payment_ref = ?', ref, ref)) {
-        const raw = await env.CLONE_LEADS.get('lead:' + session.email);
+        const raw = await env.CLONE_LEADS.get(leadKey(env, session.email));
         const lead = raw ? JSON.parse(raw) : { email: session.email };
         if (lead.commas_txn === session.transaction_ref) {
-          await env.CLONE_LEADS.put('lead:' + session.email, JSON.stringify({ ...lead, purchased: false, refundedAt: new Date().toISOString() }));
+          await env.CLONE_LEADS.put(leadKey(env, session.email), JSON.stringify({ ...lead, purchased: false, refundedAt: new Date().toISOString() }));
         }
         await stopSession(env, session);
       }
@@ -187,9 +201,9 @@ export async function purchaseReminders(payload, env) {
     return { cancelled: true };
   }
   if (session.state !== 'active') return { cancelled: true };
-  const raw = await env.CLONE_LEADS.get('lead:' + seat.email);
+  const raw = await env.CLONE_LEADS.get(leadKey(env, seat.email));
   const lead = raw ? JSON.parse(raw) : { email: seat.email };
-  await env.CLONE_LEADS.put('lead:' + seat.email, JSON.stringify({ ...lead, purchased: true,
+  await env.CLONE_LEADS.put(leadKey(env, seat.email), JSON.stringify({ ...lead, purchased: true,
     purchasedAt: new Date(session.purchased_at).toISOString(), commas_txn: session.transaction_ref,
     session_at: session.session_at, session_label: session.session_label }));
   await initializeSteps(env, session);
@@ -198,24 +212,24 @@ export async function purchaseReminders(payload, env) {
 }
 
 async function initializeSteps(env, session) {
-  const db = env.CLONE_UPSELLS;
+  const db = reminderDb(env);
   for (const plan of reminderPlan(session, env)) {
     await run(db, `INSERT INTO clone_webinar_steps(transaction_ref, step, scheduled_at, payload, state)
       VALUES (?, ?, ?, ?, ?) ON CONFLICT(transaction_ref, step) DO NOTHING`,
     session.transaction_ref, plan.step, plan.scheduled_at, JSON.stringify(reminderMessage(session, plan, env)), plan.skip ? 'skipped' : 'pending');
   }
   // Resend calls this event data "payload" in its current API contract.
-  await run(db, `INSERT INTO clone_webinar_steps(transaction_ref, step, payload)
-    VALUES (?, 'event', ?) ON CONFLICT(transaction_ref, step) DO NOTHING`, session.transaction_ref, JSON.stringify({
+  await run(db, `INSERT INTO clone_webinar_steps(transaction_ref, step, payload, state)
+    VALUES (?, 'event', ?, ?) ON CONFLICT(transaction_ref, step) DO NOTHING`, session.transaction_ref, JSON.stringify({
     event: 'clone.purchase', email: session.email,
     payload: { session_at: session.session_at, session_label: session.session_label, commas_txn: session.transaction_ref },
-  }));
+  }), isSandbox(env) ? 'skipped' : 'pending');
   await run(db, 'UPDATE clone_webinar_sessions SET initialized = 1 WHERE transaction_ref = ?', session.transaction_ref);
 }
 
 export async function retryReminders(env) {
-  if (!env.CLONE_UPSELLS || isSandbox(env)) return;
-  const sessions = await rows(env.CLONE_UPSELLS, 'SELECT transaction_ref FROM clone_webinar_sessions WHERE complete = 0 AND locked_until < ? LIMIT 50', Date.now());
+  if (!env.CLONE_UPSELLS) return;
+  const sessions = await rows(reminderDb(env), 'SELECT transaction_ref FROM clone_webinar_sessions WHERE complete = 0 AND locked_until < ? LIMIT 50', Date.now());
   for (const session of sessions) {
     try { await scheduleSession(env, session.transaction_ref); }
     catch { console.error('Clone reminder retry pending; inspect durable step records.'); }
@@ -227,14 +241,14 @@ export async function unsubscribeReminders(request, env) {
   const headers = { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store',
     'referrer-policy': 'no-referrer', 'x-robots-tag': 'noindex', 'content-security-policy': "default-src 'none'; form-action 'self'; frame-ancestors 'none'" };
   const session = /^[a-f0-9]{64}$/.test(token || '') && env.CLONE_UPSELLS &&
-    await first(env.CLONE_UPSELLS, 'SELECT * FROM clone_webinar_sessions WHERE unsubscribe_token = ?', token);
+    await first(reminderDb(env), 'SELECT * FROM clone_webinar_sessions WHERE unsubscribe_token = ?', token);
   if (!session) return new Response('This unsubscribe link is invalid.', { status: 404, headers });
-  if (request.method === 'GET') return new Response(`<!doctype html><title>Webinar reminders</title><h1>Stop webinar reminders</h1><form method="post" action="/clone/api/reminders/unsubscribe?token=${escapeHtml(token)}"><button>Unsubscribe</button></form>`, { headers });
+  if (request.method === 'GET') return new Response(`<!doctype html><title>Webinar reminders</title><h1>Stop webinar reminders</h1><form method="post" action="/clone/api/reminders/unsubscribe?token=${escapeHtml(token)}${isSandbox(env) ? '&amp;sandbox=1' : ''}"><button>Unsubscribe</button></form>`, { headers });
   if (request.method !== 'POST') return new Response('Method not allowed', { status: 405, headers });
-  await run(env.CLONE_UPSELLS, 'INSERT INTO clone_webinar_preferences(email) VALUES (?) ON CONFLICT(email) DO UPDATE SET unsubscribed = 1', session.email);
-  await run(env.CLONE_UPSELLS, "UPDATE clone_webinar_sessions SET state = 'cancelled', complete = 0 WHERE email = ?", session.email);
+  await run(reminderDb(env), 'INSERT INTO clone_webinar_preferences(email) VALUES (?) ON CONFLICT(email) DO UPDATE SET unsubscribed = 1', session.email);
+  await run(reminderDb(env), "UPDATE clone_webinar_sessions SET state = 'cancelled', complete = 0 WHERE email = ?", session.email);
   try {
-    for (const buyerSession of await rows(env.CLONE_UPSELLS, 'SELECT * FROM clone_webinar_sessions WHERE email = ?', session.email)) await stopSession(env, buyerSession);
+    for (const buyerSession of await rows(reminderDb(env), 'SELECT * FROM clone_webinar_sessions WHERE email = ?', session.email)) await stopSession(env, buyerSession);
   } catch { return new Response('Your preference is saved. Cancellation is being retried.', { status: 503, headers }); }
   return new Response('<!doctype html><title>Unsubscribed</title><h1>You are unsubscribed from webinar reminders.</h1>', { headers });
 }

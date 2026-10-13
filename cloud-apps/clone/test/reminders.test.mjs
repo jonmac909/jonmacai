@@ -7,6 +7,7 @@ import worker from '../src/index.js';
 import testWorker from '../scripts/resend-test-worker.js';
 import { assignSession, calendarUrl, reminderMessage, reminderPlan } from '../src/reminder-plan.js';
 import { purchaseReminders, retryReminders, unsubscribeReminders } from '../src/reminders.js';
+import { sandboxSettings } from './sandbox-fixture.mjs';
 
 const join = 'https://example.zoom.us/j/123456789?pwd=mock-only';
 const replay = 'https://example.com/replay';
@@ -15,7 +16,7 @@ const ms = Date.parse(purchaseTime);
 
 function fixture() {
   const sql = new DatabaseSync(':memory:');
-  for (const migration of ['0001_upsells', '0002_sandbox', '0003_whop_events', '0004_reminders']) sql.exec(readFileSync(new URL(`../migrations/${migration}.sql`, import.meta.url), 'utf8'));
+  for (const migration of ['0001_upsells', '0002_sandbox', '0003_whop_events', '0004_reminders', '0006_sandbox_observability']) sql.exec(readFileSync(new URL(`../migrations/${migration}.sql`, import.meta.url), 'utf8'));
   const leads = new Map();
   const db = { prepare(query) {
     const stmt = sql.prepare(query);
@@ -339,7 +340,7 @@ test('durable scheduling, authenticated hooks, retries and cancellation', async 
 
   await t.test('sandbox purchases never call production reminder providers or tables', async () => {
     const f = fixture(), p = provider();
-    f.env.CLONE_PAYMENT_MODE = 'sandbox';
+    Object.assign(f.env, sandboxSettings(), { CLONE_PAYMENT_MODE: 'sandbox' });
     assert.deepEqual(await purchaseReminders(seat(), f.env), { ignored: true });
     await retryReminders(f.env);
     assert.equal(p.calls.length, 0);

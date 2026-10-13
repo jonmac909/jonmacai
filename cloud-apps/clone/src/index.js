@@ -1,6 +1,6 @@
 // jonmac.ai/clone: static funnel pages from ./public plus the lead and purchase hooks.
 // Recovered from the deployed jonmac-agency bundle (version 58, 2026-09-07).
-import { cookieName, isSandbox, paymentConfig } from './payment-config.js';
+import { cookieName, isSandbox, leadKey, paymentConfig } from './payment-config.js';
 import { publicConfig, sandboxAccess, sandboxEnv, sandboxPage } from './sandbox.js';
 import { buyerSession, checkoutContext, recordPurchaseProof, sameOrigin, upsell, validWebhook } from './upsells.js';
 import { deliverWhopEvent, enqueueWhopEvent, flushWhopEvents, whopAttribution, whopPurchaseFromVerifiedPayment } from './whop-events.js';
@@ -21,8 +21,8 @@ export default {
     if (url.pathname === "/clone") {
       return Response.redirect(url.origin + "/clone/" + url.search, 301);
     }
-    if (url.pathname === '/clone/api/reminders/unsubscribe') return unsubscribeReminders(request, env);
-    // Sandbox hooks have a separate key/HMAC and never touch lead/email systems.
+    if (url.pathname === '/clone/api/reminders/unsubscribe') return unsubscribeReminders(request, url.searchParams.get('sandbox') === '1' ? sandboxEnv(env) : env);
+    // Sandbox hooks have separate HMAC/storage, log-only Whop and test-mailbox reminders.
     if (url.pathname === '/clone/api/sandbox/purchase' && request.method === 'POST') {
       const testEnv = sandboxEnv(env);
       try { paymentConfig(testEnv); } catch { return json({ ok: false, error: 'sandbox_unconfigured' }, 503); }
@@ -75,12 +75,12 @@ export default {
     return new Response(response.body, { status: response.status, headers });
   },
   async scheduled(controller, env, ctx) {
-    ctx.waitUntil(Promise.all([flushWhopEvents(env), retryReminders(env)]));
+    ctx.waitUntil(Promise.all([flushWhopEvents(env), retryReminders(env),
+      ...(env.COMMAS_ENV === 'sandbox' ? [retryReminders(sandboxEnv(env))] : [])]));
   },
 };
 
 async function handleLead(request, env) {
-  if (isSandbox(env)) return json({ ok: true, environment: 'sandbox' });
   let data;
   try {
     data = await request.json();
@@ -96,7 +96,7 @@ async function handleLead(request, env) {
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) {
     return json({ ok: false, error: "invalid email" }, 400);
   }
-  const previous = await env.CLONE_LEADS.get(`lead:${email}`);
+  const previous = await env.CLONE_LEADS.get(leadKey(env, email));
   let saved = {};
   try { saved = previous ? JSON.parse(previous) : {}; } catch {}
   const record = {
@@ -111,7 +111,8 @@ async function handleLead(request, env) {
     whop: whopAttribution(data, request),
     sessionDate: sessionDate(),
   };
-  await env.CLONE_LEADS.put(`lead:${email}`, JSON.stringify(record));
+  await env.CLONE_LEADS.put(leadKey(env, email), JSON.stringify(record));
+  if (isSandbox(env)) return json({ ok: true, environment: 'sandbox' });
   // The browser supplies the same IDs for deduplication. A server ID also covers
   // browsers whose pixel was blocked. Email delivery is independent of CAPI.
   const eventId = typeof data.eventId === 'string' && /^clone_lead_[a-z0-9-]{36}$/i.test(data.eventId)
@@ -245,16 +246,15 @@ async function handlePurchase(request, env) {
     return json({ ok: false, error: "bad json" }, 400);
   }
   await recordPurchaseProof(payload, env);
-  if (isSandbox(env)) return json({ ok: true, environment: 'sandbox' });
   // Only a signed successful payment for one of the six Clone products may emit
   // a purchase. No checkout/thank-you/browser endpoint can manufacture one.
   const buyerEmail = String(payload?.data?.buyer?.email || '').trim().toLowerCase();
   let attribution = {};
   if (buyerEmail) {
-    const lead = await env.CLONE_LEADS.get(`lead:${buyerEmail}`);
+    const lead = await env.CLONE_LEADS.get(leadKey(env, buyerEmail));
     try { attribution = JSON.parse(lead || '{}').whop || {}; } catch {}
   }
-  const event = whopPurchaseFromVerifiedPayment(payload, attribution);
+  const event = whopPurchaseFromVerifiedPayment(payload, attribution, env);
   let conversionPending = false;
   if (event) {
     try {
@@ -266,14 +266,14 @@ async function handlePurchase(request, env) {
   let outcome;
   try {
     const reminders = await purchaseReminders(payload, env);
-    outcome = conversionPending ? json({ ok: false, error: 'conversion_pending' }, 503) : json({ ok: true, ...reminders });
+    outcome = conversionPending ? json({ ok: false, error: 'conversion_pending' }, 503) : json({ ok: true, ...reminders, ...(isSandbox(env) ? { environment: 'sandbox' } : {}) });
   }
   catch { outcome = json({ ok: false, error: 'reminders_pending' }, 503); }
   // Observe after the existing reminder handler: preserve its cancellation and
   // scheduling behavior and use the session it assigned to the paid registrant.
   let scoreLead = {};
   if (buyerEmail) {
-    try { scoreLead = JSON.parse(await env.CLONE_LEADS.get(`lead:${buyerEmail}`) || '{}'); } catch {}
+    try { scoreLead = JSON.parse(await env.CLONE_LEADS.get(leadKey(env, buyerEmail)) || '{}'); } catch {}
   }
   try { await recordScorecardPayment(payload, env, scoreLead); }
   catch { return json({ ok: false, error: 'scorecard_pending' }, 503); }

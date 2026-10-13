@@ -11,7 +11,7 @@ async function validToken(value, secret) {
   return difference === 0;
 }
 
-export function sandboxEnv(env) { return { ...env, CLONE_PAYMENT_MODE: 'sandbox' }; }
+export function sandboxEnv(env) { return { ...env, CLONE_PAYMENT_MODE: 'sandbox', WHOP_API_KEY: '' }; }
 
 export async function sandboxAccess(request, env) {
   const url = new URL(request.url);
