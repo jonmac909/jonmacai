@@ -1,0 +1,20 @@
+{
+  "name": "jonmac-www-redirect",
+  "main": "worker.mjs",
+  "compatibility_date": "2026-08-01",
+  "workers_dev": true,
+  "preview_urls": false,
+  "version_metadata": { "binding": "SITE_VERSION" },
+  "routes": [
+    { "pattern": "www.jonmac.ai", "custom_domain": true, "zone_name": "jonmac.ai" }
+  ],
+  "env": {
+    "preview": {
+      "name": "jonmac-www-preview",
+      "workers_dev": true,
+      "preview_urls": false,
+      "version_metadata": { "binding": "SITE_VERSION" },
+      "routes": []
+    }
+  }
+}
