@@ -66,6 +66,7 @@ test("share key shows the passcode gate; wrong passcode is refused; right one si
   const body = await index.text();
   for (const name of ["Aria", "Max", "Mina", "Sienna", "Theo", "Viktor", "Zane"]) assert.match(body, new RegExp(`<h2>${name}</h2>`));
   assert.match(index.headers.get("content-security-policy"), /script-src 'self'/);
+  assert.equal(index.headers.get("cache-control"), "no-store, no-transform", "no edge script injection");
 });
 
 test("publish script uploads MP4 + source + chapters; republish replaces media and keeps comments", async () => {

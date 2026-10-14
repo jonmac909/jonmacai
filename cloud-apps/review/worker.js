@@ -96,9 +96,11 @@ export function json(body, status = 200, extra = {}) {
     status, headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store", ...extra },
   });
 }
+// no-transform keeps Cloudflare's zone-level Web Analytics beacon out of the private pages
+// (it would also trip the CSP and log console errors).
 const html = (body, status = 200, extra = {}) => new Response(body, {
   status,
-  headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store", "Content-Security-Policy": CSP, ...extra },
+  headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store, no-transform", "Content-Security-Policy": CSP, ...extra },
 });
 const notFound = () => new Response("Not found", { status: 404, headers: { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store" } });
 const fail = (status, error) => json({ error }, status);
