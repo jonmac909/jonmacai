@@ -74,6 +74,11 @@ export function renderIndex({ channels, videos }, message = "") {
 </main>`);
 }
 
+// Secondary players: collapsed, muted, never preloaded or autoplayed.
+const extra = (id, label, url) => url ? `<details class="extra" id="${id}"><summary>${label}</summary>
+    <video id="${id}-player" class="extra-player" controls playsinline webkit-playsinline muted preload="none" src="${escapeHtml(url)}" aria-label="${label}"></video>
+  </details>` : "";
+
 export function renderVideo(video, versions, channelName) {
   const data = JSON.stringify({ slug: video.slug, duration: video.duration, chapters: video.chapters, status: video.status })
     .replace(/</g, "\\u003c");
@@ -95,9 +100,8 @@ export function renderVideo(video, versions, channelName) {
     `<button type="button" data-t="${Number(t)}">${formatTime(t)} ${escapeHtml(label)}</button>`).join("")}</div>` : ""}
   <div class="status-row"><span class="muted">Status</span><div class="status-btns" id="status">${statusButtons}</div></div>
   ${video.notes ? `<p class="notes">${escapeHtml(video.notes)}</p>` : ""}
-  ${video.source_url ? `<details class="source" id="source"><summary>Source video (muted)</summary>
-    <video id="source-player" controls playsinline webkit-playsinline muted preload="none" src="${escapeHtml(video.source_url)}" aria-label="Source video"></video>
-  </details>` : ""}
+  ${extra("source", "Source video (muted)", video.source_url)}
+  ${extra("compare", "First 60 s side by side (muted)", video.compare_url)}
   <section class="composer" aria-label="Add a comment">
     <form id="comment-form" novalidate>
       <div class="who" id="who">

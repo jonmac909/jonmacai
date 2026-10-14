@@ -60,12 +60,14 @@
     if (button) seek(Number(button.dataset.t));
   });
 
-  const source = $("source");
-  if (source) {
-    const sourcePlayer = $("source-player");
-    sourcePlayer.muted = true;
-    source.addEventListener("toggle", () => { if (!source.open) sourcePlayer.pause(); });
+  // Source / first-60 players stay muted; closing one pauses it; pausing ours pauses everything.
+  const extras = [...document.querySelectorAll("video.extra-player")];
+  for (const extra of extras) {
+    extra.muted = true;
+    const box = extra.closest("details");
+    box.addEventListener("toggle", () => { if (!box.open) extra.pause(); });
   }
+  player.addEventListener("pause", () => { for (const extra of extras) extra.pause(); });
 
   function showName() {
     const name = store.get();

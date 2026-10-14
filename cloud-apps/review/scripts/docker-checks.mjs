@@ -9,4 +9,4 @@ for (const [command, args] of checks) {
   const result = spawnSync(command, args, { stdio: 'inherit', env: { ...process.env, CI: 'true' } });
   if (result.status !== 0) process.exit(result.status || 1);
 }
-console.log('PASS review portal Docker checks (unit, Workers runtime, WebKit iPhone, bundle dry run); no deployment.');
+console.log('PASS review portal Docker checks (unit, Workers runtime, desktop Chrome playback, bundle dry run); no deployment.');

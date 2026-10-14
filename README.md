@@ -32,8 +32,9 @@ here as a normal video; its old release notes are in git history (`67b55b0`).
 
 - `/review` lists each channel → video → version, with status (needs review / changes
   requested / approved) and the open comment count.
-- `/review/<slug>` plays our video only. The source video, if published, is a collapsed,
-  muted extra. The player never autoplays and plays inline on iPhone.
+- `/review/<slug>` plays our video only. The source video and a first-60 side-by-side, if
+  published, are collapsed, muted extras. Nothing autoplays, pausing ours pauses everything,
+  and the player plays inline on phones.
 - Pausing fills the comment timestamp. Comments are listed in time order, clicking one
   seeks there, and each can be resolved or reopened. The name is asked once and kept in
   the browser. The status buttons set the video's status.
@@ -69,10 +70,11 @@ Each comment has `id, slug, author, t` (seconds), `text, created_at, resolved, r
 ```sh
 node cloud-apps/review/scripts/review_publish.mjs --slug mina-1-v10 --channel mina \
   --video mina-1 --version v10 --title "Mina: AI shorts tutorial" --file mina01_v10.mp4 \
-  [--source source_h264.mp4] [--chapters versions.json] [--notes "what changed"]
+  [--source source_h264.mp4] [--compare first60_side_by_side.mp4] [--chapters versions.json]   [--notes "QC verdict / what changed"]
 ```
 
-- `--file` and `--source` take a local path or an https URL.
+- `--file`, `--source` and `--compare` take a local path or an https URL. Send H.264/AAC web
+  copies; convert AV1 sources first.
 - The script checks the file is H.264/AAC and fast-start, records the sha256, uploads in
   50 MiB chunks through the Worker, saves the metadata and checks that HEAD and byte
   ranges work.
@@ -91,8 +93,9 @@ docker run --rm --ipc=host jonmac-review-checks
 The gate runs:
 - unit tests;
 - Workers-runtime tests (gate, publish script, Range/416/ETag media, comments API, fail-closed secrets);
-- headless WebKit with iPhone emulation: tap to play past 3 s, no autoplay, zero console
-  errors, and a comment created and resolved through both the UI and the API;
+- headless desktop Google Chrome (Jon's review gate): a click plays ours with sound past 3 s,
+  nothing autoplays, the extras stay muted and pause when ours pauses, zero console errors,
+  and a comment is created and resolved through both the UI and the API;
 - the Worker bundle dry run.
 
 After the gate passes and the PR is merged, release the merged commit:
@@ -110,4 +113,5 @@ docker run --rm --ipc=host --env-file C:\Users\partn\.jonmac-review.env jonmac-r
 
 Responses carry `X-Review-Version` (the deploy tag).
 
-Windows note: Playwright's Windows WebKit build cannot decode video. Run the browser checks in Docker.
+Run the browser checks in Docker. Playwright's own Chromium has no H.264, so the gate installs
+Google Chrome inside the container.
