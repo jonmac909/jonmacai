@@ -77,11 +77,14 @@ async function main() {
       document.addEventListener("play", (event) => window.__plays.push({ id: event.target.id, at: performance.now() }), true);
     });
 
-    // 1. Share link, then passcode.
-    await page.goto(`${base}/review/${slug}?k=${encodeURIComponent(secrets.REVIEW_SHARE_KEY)}`);
+    // 1. Fresh browser, bare link (no share key): the passcode page, never a 404; then the video.
+    const first = await page.goto(`${base}/review/${slug}`);
+    report.bareLink = { status: first.status(), url: page.url() };
+    assert.equal(first.status(), 200, "bare link shows a page, not a 404");
+    assert.ok(page.url().startsWith(`${base}/review/login?next=`), `passcode page: ${page.url()}`);
     await page.fill("#passcode", secrets.REVIEW_PASSCODE);
     await Promise.all([page.waitForURL(`${base}/review/${slug}`), page.click("button[type=submit]")]);
-    assert.ok(!page.url().includes("k="), "share key removed from the address bar");
+    assert.ok(!page.url().includes("k="), "share key not in the address bar");
     await page.waitForFunction(() => document.getElementById("player").readyState >= 1, null, { timeout: 30000 });
 
     // 2. No autoplay: nothing plays and every media element stays paused without a tap.
