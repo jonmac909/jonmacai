@@ -6,9 +6,11 @@ main = "worker.js"
 compatibility_date = "2026-08-01"
 workers_dev = false
 preview_urls = false
+# "jonmac.ai/review" alone does not match "/review?k=..." (routes cannot name query strings),
+# so the share link would fall through to the main site. "review*" covers /review, /review?k=
+# and /review/<slug>; no other jonmac.ai page starts with /review.
 routes = [
-  { pattern = "jonmac.ai/review", zone_name = "jonmac.ai" },
-  { pattern = "jonmac.ai/review/*", zone_name = "jonmac.ai" },
+  { pattern = "jonmac.ai/review*", zone_name = "jonmac.ai" },
   { pattern = "jonmac.ai/api/review/*", zone_name = "jonmac.ai" }
 ]
 
