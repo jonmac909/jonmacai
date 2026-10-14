@@ -19,13 +19,13 @@ export function migrationStatements() {
   return sql.split(/;\s*\n/).map((s) => s.trim().replace(/;$/, "")).filter(Boolean);
 }
 
-export async function startRuntime({ listen = false, bindings = SECRETS } = {}) {
+export async function startRuntime({ listen = false, https = true, bindings = SECRETS } = {}) {
   const mf = new Miniflare({
     modules: true,
     scriptPath: fileURLToPath(new URL("worker.js", root)),
     modulesRules: [{ type: "ESModule", include: ["**/*.js"] }],
-    compatibilityDate: "2026-09-07",
-    ...(listen ? { host: "127.0.0.1", port: 0, https: true } : {}),
+    compatibilityDate: "2026-08-01",
+    ...(listen ? { host: "127.0.0.1", port: 0, https } : {}),
     bindings,
     d1Databases: ["DB"],
     r2Buckets: ["MEDIA"],

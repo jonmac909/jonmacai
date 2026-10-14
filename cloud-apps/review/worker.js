@@ -64,8 +64,10 @@ function cookies(request) {
   }
   return out;
 }
-const cookie = (name, value, days) =>
-  `${name}=${value}; Path=/; Max-Age=${days * 86400}; HttpOnly; Secure; SameSite=Lax`;
+// Production always runs on https (see route); only local http test servers drop Secure.
+const LOCAL_HOSTS = new Set(["127.0.0.1", "localhost"]);
+const cookie = (url, name, value, days) =>
+  `${name}=${value}; Path=/; Max-Age=${days * 86400}; HttpOnly;${url.protocol === "https:" ? " Secure;" : ""} SameSite=Lax`;
 
 async function hasSession(request, env) {
   return verifySession(env, cookies(request)[SESSION_COOKIE]);
@@ -85,7 +87,8 @@ const SECURITY = {
   "X-Content-Type-Options": "nosniff",
   "Referrer-Policy": "no-referrer",
 };
-const CSP = "default-src 'none'; script-src 'self'; style-src 'self'; media-src 'self'; connect-src 'self'; " +
+// WebKit's native video controls inject inline styles that a page CSP would block (console error).
+const CSP = "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; media-src 'self'; connect-src 'self'; " +
   "img-src 'self' data:; form-action 'self'; frame-ancestors 'none'; base-uri 'none'";
 
 export function json(body, status = 200, extra = {}) {
@@ -191,8 +194,8 @@ async function login(request, env, url) {
     return html(renderGate({ next, k: key, error: "That passcode is not right." }), 401);
   }
   const headers = new Headers({ Location: next, "Cache-Control": "no-store" });
-  headers.append("Set-Cookie", cookie(SESSION_COOKIE, await makeSession(env), SESSION_DAYS));
-  headers.append("Set-Cookie", cookie(LINK_COOKIE, await linkToken(env), 365));
+  headers.append("Set-Cookie", cookie(url, SESSION_COOKIE, await makeSession(env), SESSION_DAYS));
+  headers.append("Set-Cookie", cookie(url, LINK_COOKIE, await linkToken(env), 365));
   return new Response(null, { status: 303, headers });
 }
 
@@ -212,7 +215,7 @@ async function pages(request, env, url) {
   if (!await hasSession(request, env)) {
     if (!await hasLink(request, env, url)) return notFound();
     const headers = {};
-    if (url.searchParams.has("k")) headers["Set-Cookie"] = cookie(LINK_COOKIE, await linkToken(env), 365);
+    if (url.searchParams.has("k")) headers["Set-Cookie"] = cookie(url, LINK_COOKIE, await linkToken(env), 365);
     return html(renderGate({ next: slug ? `/review/${slug}` : "/review", k: url.searchParams.get("k") || "" }), 200, headers);
   }
   // Signed in: drop the share key from the address bar.
@@ -406,6 +409,10 @@ async function asset(request, env, url) {
 
 async function route(request, env) {
   const url = new URL(request.url);
+  if (url.protocol === "http:" && !LOCAL_HOSTS.has(url.hostname)) {
+    url.protocol = "https:";
+    return new Response(null, { status: 308, headers: { Location: url.href, "Cache-Control": "no-store" } });
+  }
   if (url.pathname.startsWith("/review/_/")) return asset(request, env, url);
   const isApi = url.pathname.startsWith("/api/review/");
   if (!isApi && url.pathname !== "/review" && !url.pathname.startsWith("/review/")) return notFound();

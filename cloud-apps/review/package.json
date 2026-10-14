@@ -15,5 +15,9 @@
   "overrides": {
     "sharp": "0.35.4",
     "undici": "7.29.1"
+  },
+  "allowScripts": {
+    "sharp@0.35.4": true,
+    "workerd@1.20260730.1": true
   }
 }
