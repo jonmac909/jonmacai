@@ -7,7 +7,8 @@ export const STATUSES = ["needs_review", "changes_requested", "approved"];
 const SECRETS = ["REVIEW_SHARE_KEY", "REVIEW_PASSCODE", "REVIEW_SESSION_SECRET", "REVIEW_API_TOKEN"];
 const SESSION_COOKIE = "review_session";
 const LINK_COOKIE = "review_link";
-const SESSION_DAYS = 90;
+const SESSION_DAYS = 30;
+const LINK_DAYS = 30;
 const SLUG = /^[a-z0-9](?:[a-z0-9-]{0,78}[a-z0-9])?$/;
 const RESERVED = new Set(["login", "media", "api"]);
 const enc = new TextEncoder();
@@ -71,11 +72,6 @@ const cookie = (url, name, value, days) =>
 
 async function hasSession(request, env) {
   return verifySession(env, cookies(request)[SESSION_COOKIE]);
-}
-async function hasLink(request, env, url) {
-  const key = url.searchParams.get("k");
-  if (key && await safeEqual(key, env.REVIEW_SHARE_KEY)) return true;
-  return safeEqual(cookies(request)[LINK_COOKIE], await linkToken(env));
 }
 async function isAgent(request, env) {
   const match = /^Bearer\s+(\S+)$/i.exec(request.headers.get("Authorization") || "");
@@ -186,19 +182,36 @@ async function streamMedia(request, env, row, kind) {
   return new Response(object.body, { status: range ? 206 : 200, headers });
 }
 
+const safeNext = (value) => /^\/review(\/[a-z0-9-]{1,80})?$/.test(value || "") ? value : "/review";
+const redirect = (location, headers = {}) =>
+  new Response(null, { status: 303, headers: { Location: location, "Cache-Control": "no-store", ...headers } });
+
+// Signed-out visitors always land on the passcode page, with or without a share key; a missing
+// or wrong key never 404s. A valid key is remembered in a cookie (30 days) once they sign in.
+function loginRedirect(path, key) {
+  const query = new URLSearchParams({ next: safeNext(path) });
+  if (key) query.set("k", key);
+  return redirect(`/review/login?${query}`);
+}
+
 async function login(request, env, url) {
+  if (request.method === "GET" || request.method === "HEAD") {
+    const next = safeNext(url.searchParams.get("next"));
+    if (await hasSession(request, env)) return redirect(next);
+    return html(renderGate({ next, k: url.searchParams.get("k") || "" }));
+  }
+  if (request.method !== "POST") return new Response("Method not allowed", { status: 405, headers: { Allow: "GET, POST" } });
   const form = await request.formData().catch(() => null);
-  const next = /^\/review(\/[a-z0-9-]{1,80})?$/.test(form?.get("next") || "") ? form.get("next") : "/review";
+  const next = safeNext(form?.get("next"));
   const key = form?.get("k") || "";
-  const linked = (key && await safeEqual(key, env.REVIEW_SHARE_KEY)) ||
-    await safeEqual(cookies(request)[LINK_COOKIE], await linkToken(env));
-  if (!linked) return notFound();
-  if (!await safeEqual(form.get("passcode") || "", env.REVIEW_PASSCODE)) {
+  if (!await safeEqual(form?.get("passcode") || "", env.REVIEW_PASSCODE)) {
     return html(renderGate({ next, k: key, error: "That passcode is not right." }), 401);
   }
   const headers = new Headers({ Location: next, "Cache-Control": "no-store" });
   headers.append("Set-Cookie", cookie(url, SESSION_COOKIE, await makeSession(env), SESSION_DAYS));
-  headers.append("Set-Cookie", cookie(url, LINK_COOKIE, await linkToken(env), 365));
+  if (key && await safeEqual(key, env.REVIEW_SHARE_KEY)) {
+    headers.append("Set-Cookie", cookie(url, LINK_COOKIE, await linkToken(env), LINK_DAYS));
+  }
   return new Response(null, { status: 303, headers });
 }
 
@@ -208,21 +221,19 @@ async function pages(request, env, url) {
 
   const media = /^\/review\/media\/([^/]+)\/(video|source|compare)\.mp4$/.exec(path);
   if (media) {
-    if (!(await hasSession(request, env) || await isAgent(request, env)) || !validSlug(media[1])) return notFound();
+    if (!(await hasSession(request, env) || await isAgent(request, env))) {
+      return new Response("Sign in at /review first.", { status: 401, headers: { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store" } });
+    }
+    if (!validSlug(media[1])) return notFound();
     const row = await env.DB.prepare("SELECT video_key, source_key, compare_key FROM videos WHERE slug = ?").bind(media[1]).first();
     return row ? streamMedia(request, env, row, media[2]) : notFound();
   }
 
   const slug = path === "/review" ? null : path.slice("/review/".length);
+  if (!await hasSession(request, env)) return loginRedirect(path, url.searchParams.get("k"));
   if (slug !== null && !validSlug(slug)) return notFound();
-  if (!await hasSession(request, env)) {
-    if (!await hasLink(request, env, url)) return notFound();
-    const headers = {};
-    if (url.searchParams.has("k")) headers["Set-Cookie"] = cookie(url, LINK_COOKIE, await linkToken(env), 365);
-    return html(renderGate({ next: slug ? `/review/${slug}` : "/review", k: url.searchParams.get("k") || "" }), 200, headers);
-  }
   // Signed in: drop the share key from the address bar.
-  if (url.searchParams.has("k")) return new Response(null, { status: 303, headers: { Location: path, "Cache-Control": "no-store" } });
+  if (url.searchParams.has("k")) return redirect(path);
 
   if (slug === null) return html(renderIndex(await listVideos(env)));
   const row = await getVideo(env, slug);
@@ -425,7 +436,7 @@ async function route(request, env) {
     return isApi ? fail(503, "not_configured") : new Response("Review portal is not configured.", { status: 503 });
   }
   if (isApi) return api(request, env, url);
-  if (url.pathname === "/review/login") return request.method === "POST" ? login(request, env, url) : notFound();
+  if (url.pathname === "/review/login") return login(request, env, url);
   return pages(request, env, url);
 }
 

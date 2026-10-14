@@ -27,37 +27,56 @@ function publish(args) {
 before(async () => { runtime = await startRuntime({ listen: true }); });
 after(async () => { await runtime?.mf.dispose(); });
 
-test("without the share key the portal looks absent", async () => {
-  for (const path of ["/review", "/review/", "/review/anything", "/review/media/x/video.mp4"]) {
+test("signed out, any review link (no key, wrong key, unknown slug) goes to the passcode page, never 404", async () => {
+  const cases = [
+    ["/review", "/review/login?next=%2Freview"],
+    ["/review/", "/review/login?next=%2Freview"],
+    ["/review/theo-1-v4", "/review/login?next=%2Freview%2Ftheo-1-v4"],
+    ["/review/theo-1-v4?k=wrong-key", "/review/login?next=%2Freview%2Ftheo-1-v4&k=wrong-key"],
+    ["/review/Not_A_Slug", "/review/login?next=%2Freview"],
+  ];
+  for (const [path, location] of cases) {
     const response = await fetchApp(path);
-    assert.equal(response.status, 404, path);
+    assert.equal(response.status, 303, path);
+    assert.equal(response.headers.get("location"), location, path);
     assert.equal(response.headers.get("x-robots-tag"), "noindex, nofollow");
     await response.arrayBuffer();
   }
+  const page = await fetchApp("/review/login?next=%2Freview%2Ftheo-1-v4&k=wrong-key");
+  assert.equal(page.status, 200);
+  const body = await page.text();
+  assert.match(body, /name="passcode"/);
+  assert.match(body, /name="next" value="\/review\/theo-1-v4"/);
+  const media = await fetchApp("/review/media/x/video.mp4");
+  assert.equal(media.status, 401);
+  await media.arrayBuffer();
   const api = await fetchApp("/api/review/videos");
   assert.equal(api.status, 401);
   await api.arrayBuffer();
 });
 
-test("share key shows the passcode gate; wrong passcode is refused; right one signs in", async () => {
-  const gate = await fetchApp(`/review?k=${SECRETS.REVIEW_SHARE_KEY}`);
-  assert.equal(gate.status, 200);
-  assert.match(await gate.text(), /name="passcode"/);
-  const linkCookie = gate.headers.get("set-cookie").split(";")[0];
-
-  const wrong = await fetchApp("/review/login", { method: "POST", body: new URLSearchParams({ passcode: "nope", next: "/review", k: "" }), headers: { Cookie: linkCookie } });
+test("wrong passcode is refused; the passcode alone signs in; a valid key is remembered 30 days", async () => {
+  const wrong = await fetchApp("/review/login", { method: "POST", body: new URLSearchParams({ passcode: "nope", next: "/review", k: "" }) });
   assert.equal(wrong.status, 401);
-  await wrong.arrayBuffer();
+  assert.match(await wrong.text(), /That passcode is not right/);
 
-  const noLink = await fetchApp("/review/login", { method: "POST", body: new URLSearchParams({ passcode: SECRETS.REVIEW_PASSCODE, next: "/review" }) });
-  assert.equal(noLink.status, 404, "passcode alone is not enough");
-  await noLink.arrayBuffer();
+  const bare = await fetchApp("/review/login", { method: "POST", body: new URLSearchParams({ passcode: SECRETS.REVIEW_PASSCODE, next: "/review/theo-1-v4", k: "wrong-key" }) });
+  assert.equal(bare.status, 303, "passcode without (or with a wrong) key signs in");
+  assert.equal(bare.headers.get("location"), "/review/theo-1-v4");
+  const bareCookies = bare.headers.getSetCookie();
+  assert.equal(bareCookies.length, 1, "wrong key is not remembered");
+  assert.match(bareCookies[0], /^review_session=.*Max-Age=2592000;/);
+  await bare.arrayBuffer();
+  const signedInLogin = await fetchApp("/review/login?next=%2Freview", { headers: { Cookie: bareCookies[0].split(";")[0] } });
+  assert.equal(signedInLogin.status, 303, "already signed in skips the passcode page");
+  await signedInLogin.arrayBuffer();
 
   const ok = await fetchApp("/review/login", { method: "POST", body: new URLSearchParams({ passcode: SECRETS.REVIEW_PASSCODE, next: "https://evil.example/", k: SECRETS.REVIEW_SHARE_KEY }) });
   assert.equal(ok.status, 303);
   assert.equal(ok.headers.get("location"), "/review", "open redirect blocked");
   const setCookie = ok.headers.getSetCookie();
-  assert.ok(setCookie.every((c) => /HttpOnly; Secure; SameSite=Lax/.test(c)));
+  assert.ok(setCookie.every((c) => /Max-Age=2592000; HttpOnly; Secure; SameSite=Lax/.test(c)), setCookie.join(" | "));
+  assert.ok(setCookie.some((c) => c.startsWith("review_link=")), "valid key remembered");
   cookie = setCookie.map((c) => c.split(";")[0]).join("; ");
   await ok.arrayBuffer();
 
@@ -99,7 +118,7 @@ test("media streams with video/mp4, HEAD, byte ranges, 416 and ETag revalidation
   const path = new URL(video.video_url).pathname + new URL(video.video_url).search;
 
   const anonymous = await fetchApp(path);
-  assert.equal(anonymous.status, 404);
+  assert.equal(anonymous.status, 401);
   await anonymous.arrayBuffer();
 
   const head = await fetchApp(path, { method: "HEAD", headers: { Cookie: cookie } });

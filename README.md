@@ -41,9 +41,11 @@ here as a normal video; its old release notes are in git history (`67b55b0`).
 
 ### Access
 
-Both are needed: the share link `https://jonmac.ai/review?k=<REVIEW_SHARE_KEY>`, then
-the passcode. Without the key, every page returns 404. Sign-in lasts 90 days. Changing
-the passcode or share key signs everyone out. Plain http is sent to https. All pages and
+Send plain links (`https://jonmac.ai/review/<slug>`). A signed-out visitor, with or without
+a share key, always lands on the passcode page and then goes on to the page they opened;
+a missing or wrong key never returns 404. Sign-in lasts 30 days. A valid share key
+(`?k=<REVIEW_SHARE_KEY>`) is remembered in a cookie for 30 days after sign-in. Changing the
+passcode or share key signs everyone out. Signed-out media requests get 401. Plain http is sent to https. All pages and
 media are `noindex`. The values live outside the repo in `C:\Users\partn\.jonmac-review.env`
 (Worker secrets: `REVIEW_SHARE_KEY`, `REVIEW_PASSCODE`, `REVIEW_SESSION_SECRET`,
 `REVIEW_API_TOKEN`). GPU1 holds only the API token and share link, in

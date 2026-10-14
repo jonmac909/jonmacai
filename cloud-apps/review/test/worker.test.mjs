@@ -29,7 +29,8 @@ test("sessions are signed, expire, and die when the passcode rotates", async () 
   const now = Date.UTC(2026, 9, 14);
   const session = await makeSession(SECRETS, now);
   assert.ok(await verifySession(SECRETS, session, now));
-  assert.ok(!(await verifySession(SECRETS, session, now + 91 * 86400e3)), "expired");
+  assert.ok(await verifySession(SECRETS, session, now + 29 * 86400e3), "valid for 30 days");
+  assert.ok(!(await verifySession(SECRETS, session, now + 31 * 86400e3)), "expired");
   assert.ok(!(await verifySession({ ...SECRETS, REVIEW_PASSCODE: "rotated-passcode" }, session, now)), "passcode rotated");
   assert.ok(!(await verifySession(SECRETS, session.replace(/.$/, (c) => (c === "A" ? "B" : "A")), now)), "tampered");
   assert.ok(!(await verifySession(SECRETS, "", now)));
