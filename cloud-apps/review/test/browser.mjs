@@ -1,5 +1,6 @@
-// Headless WebKit with iPhone emulation: gate, no autoplay, playback past 3 s, and a comment
-// created and resolved through the UI and through the agent API. Zero console errors allowed.
+// Headless desktop Google Chrome (Jon's review gate): access gate, no autoplay, playback past 3 s,
+// pausing ours pauses the muted source/first-60 players, and a comment created and resolved
+// through the UI and through the agent API. Zero console errors allowed.
 //   node test/browser.mjs                         local Miniflare + fixture clip
 //   node test/browser.mjs --live --slug mina-1-v9 live site; secrets from env or ~/.jonmac-review.env
 // Live runs delete their proof comments afterwards and never change the video status.
@@ -9,7 +10,7 @@ import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { devices, webkit } from "playwright";
+import { chromium } from "playwright";
 
 const argv = process.argv.slice(2);
 const live = argv.includes("--live");
@@ -40,7 +41,7 @@ async function setup() {
   const clip = fileURLToPath(new URL("./fixtures/clip.mp4", import.meta.url));
   const result = spawnSync(process.execPath, [fileURLToPath(new URL("../scripts/review_publish.mjs", import.meta.url)),
     "--base", runtime.url, "--slug", "proof-v1", "--channel", "mina", "--video", "proof", "--version", "v1",
-    "--title", "Proof clip", "--file", clip, "--source", clip, "--chapters", fileURLToPath(new URL("./fixtures/chapters.json", import.meta.url))],
+    "--title", "Proof clip", "--file", clip, "--source", clip, "--compare", clip, "--chapters", fileURLToPath(new URL("./fixtures/chapters.json", import.meta.url))],
   { encoding: "utf8", env: { ...process.env, REVIEW_API_TOKEN: SECRETS.REVIEW_API_TOKEN } });
   assert.equal(result.status, 0, result.stderr);
   return { base: runtime.url, slug: "proof-v1", secrets: SECRETS, done: () => runtime.mf.dispose() };
@@ -57,12 +58,12 @@ async function main() {
     assert.ok(response.ok, `${init.method || "GET"} ${path}: ${response.status} ${JSON.stringify(body)}`);
     return body;
   };
-  const report = { url: `${base}/review/${slug}`, browser: "", device: "iPhone 15", consoleErrors: [], pageErrors: [], media: [] };
+  const report = { url: `${base}/review/${slug}`, browser: "", device: "Desktop 1440x900", consoleErrors: [], pageErrors: [], media: [] };
   const created = [];
-  const browser = await webkit.launch();
+  const browser = await chromium.launch({ channel: "chrome" });
   try {
-    report.browser = `WebKit ${browser.version()} (headless)`;
-    const context = await browser.newContext({ ...devices["iPhone 15"] });
+    report.browser = `Google Chrome ${browser.version()} (headless)`;
+    const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
     const page = await context.newPage();
     page.on("console", (message) => { if (message.type() === "error") report.consoleErrors.push(message.text()); });
     page.on("pageerror", (error) => report.pageErrors.push(String(error)));
@@ -89,29 +90,45 @@ async function main() {
       plays: window.__plays.length,
       paused: [...document.querySelectorAll("video, audio")].every((m) => m.paused),
       autoplayAttr: [...document.querySelectorAll("video, audio")].some((m) => m.autoplay),
-      sourceMuted: document.getElementById("source-player")?.muted ?? null,
-      sourceOpen: document.getElementById("source")?.open ?? null,
+      extras: [...document.querySelectorAll("video.extra-player")].map((v) => ({ id: v.id, muted: v.muted, open: v.closest("details").open })),
       t: document.getElementById("player").currentTime,
     }));
     assert.deepEqual({ plays: idle.plays, paused: idle.paused, autoplayAttr: idle.autoplayAttr }, { plays: 0, paused: true, autoplayAttr: false });
-    if (idle.sourceMuted !== null) assert.deepEqual([idle.sourceMuted, idle.sourceOpen], [true, false], "source is muted and collapsed");
+    for (const extra of idle.extras) assert.deepEqual([extra.muted, extra.open], [true, false], `${extra.id} is muted and collapsed`);
     report.noAutoplay = idle;
 
-    // 3. Tap play (a real touch on the player), then play past 3 s.
+    // 3. Click play on our video (a real mouse click), then play past 3 s with sound on.
     const box = await page.locator("#player").boundingBox();
-    await page.touchscreen.tap(box.x + box.width / 2, box.y + box.height / 2);
+    await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
     await page.waitForTimeout(800);
-    report.playStartedBy = "tap on the video";
+    report.playStartedBy = "mouse click on the video";
     if (await page.evaluate(() => document.getElementById("player").paused)) {
-      // Headless WebKit draws no native controls to tap; the play button is the same user gesture.
       await page.evaluate(() => document.getElementById("player").play());
-      report.playStartedBy = "player.play() after the tap (headless WebKit has no visible native controls)";
+      report.playStartedBy = "player.play() after the click";
     }
     await page.waitForFunction(() => document.getElementById("player").currentTime > 3.2, null, { timeout: 45000 });
     report.playedTo = await page.evaluate(() => document.getElementById("player").currentTime);
+    report.ourMuted = await page.evaluate(() => document.getElementById("player").muted);
+    assert.equal(report.ourMuted, false, "our video plays with sound");
+
+    // 3b. Open the muted extras and start them; pausing ours must pause all of them.
+    const extraIds = idle.extras.map((e) => e.id);
+    for (const id of extraIds) {
+      await page.click(`#${id.replace(/-player$/, "")} summary`);
+      await page.evaluate((v) => document.getElementById(v).play(), id);
+    }
+    if (extraIds.length) {
+      await page.waitForFunction((ids) => ids.every((v) => !document.getElementById(v).paused), extraIds);
+      report.extrasPlayingMuted = await page.evaluate((ids) => ids.map((v) => document.getElementById(v).muted), extraIds);
+      assert.ok(report.extrasPlayingMuted.every(Boolean), "extras stay muted while playing");
+    }
 
     // 4. Pause fills the timestamp; UI comment; seek on click; resolve in the UI.
     await page.evaluate(() => document.getElementById("player").pause());
+    if (extraIds.length) {
+      await page.waitForFunction((ids) => ids.every((v) => document.getElementById(v).paused), extraIds);
+      report.pauseAllPausedExtras = extraIds;
+    }
     const paused = await page.evaluate(() => ({ t: document.getElementById("player").currentTime, stamp: document.getElementById("stamp").textContent }));
     const expected = `${Math.floor(paused.t / 60)}:${String(Math.floor(paused.t % 60)).padStart(2, "0")}.${Math.floor((paused.t * 10) % 10)}`;
     assert.equal(paused.stamp, expected, "pause auto-filled the timestamp");

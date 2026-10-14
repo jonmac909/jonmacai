@@ -5,9 +5,9 @@
 //
 //   node review_publish.mjs --slug mina-1-v9 --channel mina --video mina-1 --version v9 \
 //     --title "Mina: AI shorts tutorial" --file mina01_v9.mp4 [--source source_h264.mp4] \
-//     [--chapters versions.json] [--notes "what changed"] [--status needs_review] [--dry-run]
+//     [--compare first60_side_by_side.mp4] [--chapters versions.json] [--notes "what changed"] [--dry-run]
 //
-// --file/--source accept a local path or an http(s) URL. --chapters accepts a JSON array of
+// --file/--source/--compare accept a local path or an http(s) URL. --chapters accepts a JSON array of
 // [seconds, label] pairs, or a GPU1 versions.json ({"chapters": {"<file name>": [...]}}).
 import { createHash, randomUUID } from "node:crypto";
 import { createReadStream, createWriteStream, existsSync, openSync, readFileSync, readSync, closeSync, statSync } from "node:fs";
@@ -189,10 +189,11 @@ async function main() {
 
   const video = await inspect(await localFile(args.file, "video"), "video");
   const source = args.source ? await inspect(await localFile(args.source, "source"), "source") : null;
+  const compare = args.compare ? await inspect(await localFile(args.compare, "compare"), "compare") : null;
   const chapters = chaptersFrom(args.chapters, args.file);
-  for (const warning of [...video.warnings, ...(source?.warnings || [])]) console.error(`WARNING: ${warning}`);
+  for (const warning of [...video.warnings, ...(source?.warnings || []), ...(compare?.warnings || [])]) console.error(`WARNING: ${warning}`);
   if (args["dry-run"]) {
-    console.log(JSON.stringify({ dryRun: true, base, video, source, chapters }, null, 2));
+    console.log(JSON.stringify({ dryRun: true, base, video, source, compare, chapters }, null, 2));
     return;
   }
   if (!token) throw new Error("REVIEW_API_TOKEN is not set (env or ~/.jonmac-review.env)");
@@ -200,16 +201,18 @@ async function main() {
   const call = client(base, token);
   const videoKey = await upload(call, args.slug, "video", video);
   const sourceKey = source ? await upload(call, args.slug, "source", source) : null;
+  const compareKey = compare ? await upload(call, args.slug, "compare", compare) : null;
   const { video: published } = await call(`${args.slug}/publish`, {
     method: "POST",
     body: {
       channel: args.channel, channel_name: args["channel-name"], video: args.video, version: args.version,
       title: args.title, status: args.status, notes: args.notes, chapters,
-      video_key: videoKey, video_sha256: video.sha256, source_key: sourceKey, duration: video.duration,
+      video_key: videoKey, video_sha256: video.sha256, source_key: sourceKey, compare_key: compareKey, duration: video.duration,
     },
   });
   await verify(published.video_url, token, video.size);
   if (source) await verify(published.source_url, token, source.size);
+  if (compare) await verify(published.compare_url, token, compare.size);
   console.log(JSON.stringify({ ok: true, page_url: published.page_url, video_url: published.video_url,
     size: video.size, sha256: video.sha256, duration: video.duration, status: published.status }, null, 2));
 }

@@ -1,5 +1,5 @@
 // Local Workers runtime (Miniflare/workerd) with D1, R2 and static assets for the review portal.
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { Miniflare, Response as MFResponse } from "miniflare";
 
@@ -14,7 +14,9 @@ const root = new URL("../", import.meta.url);
 const TYPES = { js: "text/javascript; charset=utf-8", css: "text/css; charset=utf-8" };
 
 export function migrationStatements() {
-  const sql = readFileSync(new URL("migrations/0001_review_portal.sql", root), "utf8")
+  const dir = new URL("migrations/", root);
+  const sql = readdirSync(dir).filter((f) => f.endsWith(".sql")).sort()
+    .map((f) => readFileSync(new URL(f, dir), "utf8")).join("\n")
     .split("\n").filter((line) => !line.trim().startsWith("--")).join("\n");
   return sql.split(/;\s*\n/).map((s) => s.trim().replace(/;$/, "")).filter(Boolean);
 }

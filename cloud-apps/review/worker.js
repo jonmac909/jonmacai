@@ -135,6 +135,7 @@ function publicVideo(row, origin) {
     page_url: `${origin}/review/${row.slug}`,
     video_url: `${origin}/review/media/${row.slug}/video.mp4?v=${mediaTag(row.video_key)}`,
     source_url: row.source_key ? `${origin}/review/media/${row.slug}/source.mp4?v=${mediaTag(row.source_key)}` : null,
+    compare_url: row.compare_key ? `${origin}/review/media/${row.slug}/compare.mp4?v=${mediaTag(row.compare_key)}` : null,
     video_size: row.video_size, video_sha256: row.video_sha256,
     open_comments: row.open_count ?? undefined, total_comments: row.total_count ?? undefined,
     created_at: row.created_at, updated_at: row.updated_at,
@@ -157,7 +158,7 @@ async function listVideos(env) {
 const getVideo = (env, slug) => env.DB.prepare(`${VIDEO_LIST} WHERE v.slug = ?`).bind(slug).first();
 
 async function streamMedia(request, env, row, kind) {
-  const key = kind === "video" ? row.video_key : row.source_key;
+  const key = row[`${kind}_key`];
   if (!key) return notFound();
   const info = await env.MEDIA.head(key);
   if (!info) return notFound();
@@ -205,10 +206,10 @@ async function pages(request, env, url) {
   const path = url.pathname.replace(/\/+$/, "") || "/review";
   if (!["GET", "HEAD"].includes(request.method)) return new Response("Method not allowed", { status: 405, headers: { Allow: "GET, HEAD" } });
 
-  const media = /^\/review\/media\/([^/]+)\/(video|source)\.mp4$/.exec(path);
+  const media = /^\/review\/media\/([^/]+)\/(video|source|compare)\.mp4$/.exec(path);
   if (media) {
     if (!(await hasSession(request, env) || await isAgent(request, env)) || !validSlug(media[1])) return notFound();
-    const row = await env.DB.prepare("SELECT video_key, source_key FROM videos WHERE slug = ?").bind(media[1]).first();
+    const row = await env.DB.prepare("SELECT video_key, source_key, compare_key FROM videos WHERE slug = ?").bind(media[1]).first();
     return row ? streamMedia(request, env, row, media[2]) : notFound();
   }
 
@@ -327,7 +328,7 @@ async function publishApi(request, env, url, slug, resource, uploadId, action) {
 
   if (resource === "uploads" && uploadId === undefined && method === "POST") {
     const body = await readJson(request);
-    if (!body || !["video", "source"].includes(body.kind)) return fail(400, "kind must be video or source");
+    if (!body || !["video", "source", "compare"].includes(body.kind)) return fail(400, "kind must be video, source or compare");
     const key = `review/${slug}/${body.kind}-${Date.now().toString(36)}${crypto.randomUUID().slice(0, 6)}.mp4`;
     const upload = await env.MEDIA.createMultipartUpload(key, { httpMetadata: { contentType: "video/mp4" } });
     return json({ key, uploadId: upload.uploadId }, 201);
@@ -367,32 +368,34 @@ async function publishApi(request, env, url, slug, resource, uploadId, action) {
     const status = body.status === undefined ? "needs_review" : body.status;
     if (!validSlug(channel) || !validSlug(video) || !version || !title) return fail(400, "channel, video, version and title are required (lowercase slugs)");
     if (!STATUSES.includes(status)) return fail(400, "bad status");
-    if (!ownKey(body.video_key) || (body.source_key != null && !ownKey(body.source_key))) return fail(400, "keys must come from this slug's uploads");
+    const extras = ["source_key", "compare_key"];
+    if (!ownKey(body.video_key) || extras.some((k) => body[k] != null && !ownKey(body[k]))) return fail(400, "keys must come from this slug's uploads");
     const videoInfo = await env.MEDIA.head(body.video_key);
     if (!videoInfo) return fail(400, "video_key was not uploaded");
-    if (body.source_key && !await env.MEDIA.head(body.source_key)) return fail(400, "source_key was not uploaded");
+    for (const k of extras) if (body[k] && !await env.MEDIA.head(body[k])) return fail(400, `${k} was not uploaded`);
     const duration = Number(body.duration);
     const chapters = Array.isArray(body.chapters)
       ? JSON.stringify(body.chapters.filter((c) => Array.isArray(c) && Number.isFinite(Number(c[0]))).slice(0, 100).map((c) => [Number(c[0]), text(String(c[1] ?? ""), 120)]))
       : null;
-    const previous = await env.DB.prepare("SELECT video_key, source_key FROM videos WHERE slug = ?").bind(slug).first();
+    const previous = await env.DB.prepare("SELECT video_key, source_key, compare_key FROM videos WHERE slug = ?").bind(slug).first();
     const stamp = now();
     await env.DB.batch([
       env.DB.prepare("INSERT OR IGNORE INTO channels (slug, name, sort) VALUES (?, ?, 100)")
         .bind(channel, text(body.channel_name, 60) || channel.charAt(0).toUpperCase() + channel.slice(1)),
       env.DB.prepare(`INSERT INTO videos (slug, channel, video, version, title, status, video_key, video_size, video_sha256,
-          source_key, duration, chapters, notes, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          source_key, compare_key, duration, chapters, notes, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(slug) DO UPDATE SET channel = excluded.channel, video = excluded.video, version = excluded.version,
           title = excluded.title, status = excluded.status, video_key = excluded.video_key, video_size = excluded.video_size,
-          video_sha256 = excluded.video_sha256, source_key = excluded.source_key, duration = excluded.duration,
+          video_sha256 = excluded.video_sha256, source_key = excluded.source_key, compare_key = excluded.compare_key, duration = excluded.duration,
           chapters = excluded.chapters, notes = excluded.notes, updated_at = excluded.updated_at`)
         .bind(slug, channel, video, version, title, status, body.video_key, videoInfo.size,
           /^[a-f0-9]{64}$/.test(body.video_sha256 || "") ? body.video_sha256 : null,
-          body.source_key || null, Number.isFinite(duration) && duration > 0 ? duration : null,
+          body.source_key || null, body.compare_key || null, Number.isFinite(duration) && duration > 0 ? duration : null,
           chapters, text(body.notes, 2000) || null, stamp, stamp),
     ]);
-    const stale = [previous?.video_key, previous?.source_key].filter((k) => k && k !== body.video_key && k !== body.source_key);
+    const kept = new Set([body.video_key, body.source_key, body.compare_key]);
+    const stale = [previous?.video_key, previous?.source_key, previous?.compare_key].filter((k) => k && !kept.has(k));
     if (stale.length) await env.MEDIA.delete(stale);
     return json({ video: publicVideo(await getVideo(env, slug), url.origin) }, previous ? 200 : 201);
   }

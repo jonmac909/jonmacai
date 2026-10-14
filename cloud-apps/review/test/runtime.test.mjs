@@ -69,9 +69,9 @@ test("share key shows the passcode gate; wrong passcode is refused; right one si
   assert.equal(index.headers.get("cache-control"), "no-store, no-transform", "no edge script injection");
 });
 
-test("publish script uploads MP4 + source + chapters; republish replaces media and keeps comments", async () => {
+test("publish script uploads MP4 + source + compare; republish replaces media and keeps comments", async () => {
   const first = publish(["--slug", "mina-1-v9", "--channel", "mina", "--video", "mina-1", "--version", "v9",
-    "--title", "Mina tutorial", "--file", clipPath, "--source", clipPath, "--notes", "First cut"]);
+    "--title", "Mina tutorial", "--file", clipPath, "--source", clipPath, "--compare", clipPath, "--notes", "First cut"]);
   assert.equal(first.ok, true);
   assert.equal(first.page_url, `${runtime.url}/review/mina-1-v9`);
   assert.equal(first.size, clip.length);
@@ -84,13 +84,14 @@ test("publish script uploads MP4 + source + chapters; republish replaces media a
     "--title", "Mina tutorial", "--file", clipPath]);
   assert.notEqual(again.video_url, first.video_url, "new media tag busts caches");
   const objects = await runtime.bucket.list({ prefix: "review/mina-1-v9/" });
-  assert.equal(objects.objects.length, 1, "old video and source objects deleted");
+  assert.equal(objects.objects.length, 1, "old video, source and compare objects deleted");
   const comments = await (await fetchApp("/api/review/mina-1-v9/comments", { headers: agent })).json();
   assert.equal(comments.comments.length, 1);
   assert.equal(comments.video.source_url, null);
+  assert.equal(comments.video.compare_url, null);
   await fetchApp("/api/review/mina-1-v9/comments/" + comments.comments[0].id, { method: "DELETE", headers: agent }).then((r) => r.arrayBuffer());
 
-  publish(["--slug", "mina-1-v8", "--channel", "mina", "--video", "mina-1", "--version", "v8", "--title", "Mina tutorial", "--file", clipPath, "--source", clipPath]);
+  publish(["--slug", "mina-1-v8", "--channel", "mina", "--video", "mina-1", "--version", "v8", "--title", "Mina tutorial", "--file", clipPath, "--source", clipPath, "--compare", clipPath]);
 });
 
 test("media streams with video/mp4, HEAD, byte ranges, 416 and ETag revalidation", async () => {
@@ -134,15 +135,23 @@ test("media streams with video/mp4, HEAD, byte ranges, 416 and ETag revalidation
   await staleIfRange.arrayBuffer();
 });
 
-test("video page renders our player without autoplay, muted collapsed source and version links", async () => {
+test("video page renders our player without autoplay, muted collapsed source/compare and version links", async () => {
   const page = await fetchApp("/review/mina-1-v8", { headers: { Cookie: cookie } });
   assert.equal(page.status, 200);
   const body = await page.text();
   const player = /<video id="player"[^>]*>/.exec(body)[0];
   assert.match(player, /playsinline/);
   assert.doesNotMatch(player, /autoplay/);
-  assert.match(body, /<details class="source" id="source">/);
-  assert.match(/<video id="source-player"[^>]*>/.exec(body)[0], /muted[^>]*preload="none"/);
+  for (const id of ["source", "compare"]) {
+    assert.match(body, new RegExp(`<details class="extra" id="${id}">`));
+    const tag = new RegExp(`<video id="${id}-player"[^>]*>`).exec(body)[0];
+    assert.match(tag, /muted[^>]*preload="none"/);
+    assert.doesNotMatch(tag, /autoplay/);
+  }
+  const compare = await fetchApp(new URL(/id="compare-player"[^>]*src="([^"]+)"/.exec(body)[1], runtime.url).pathname, { headers: { Cookie: cookie, Range: "bytes=0-1" } });
+  assert.equal(compare.status, 206);
+  assert.equal(compare.headers.get("content-type"), "video/mp4");
+  await compare.arrayBuffer();
   assert.match(body, /href="\/review\/mina-1-v9">v9</);
 
   const missing = await fetchApp("/review/nope", { headers: { Cookie: cookie } });
