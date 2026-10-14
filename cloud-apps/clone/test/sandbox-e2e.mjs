@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import { pathToFileURL } from 'node:url';
 import { chromium } from 'playwright';
 import { OFFERS } from '../src/payment-config.js';
+import { customerId } from '../src/upsells.js';
 
 export const CASES = [
   { name: 'full funnel', offers: ['software', 'audit', 'vault'] },
@@ -106,7 +107,7 @@ export async function runSandbox(options = {}) {
         for (const name of ['seat', ...new Set(testCase.offers.filter(n => n !== 'trial'))]) {
           const product = await provider('/checkout-sessions/' + c.products[name]);
           assert.equal(product.amount_cents, name === 'seat' ? 4700 : OFFERS[name].cents, 'Sandbox price mismatch');
-          assert.equal(product.type, OFFERS[name]?.recurring ? 'subscription' : 'onetime');
+          if (OFFERS[name]?.recurring) assert.equal(product.type, 'subscription'); else assert.ok(['onetime', 'onetime_reusable'].includes(product.type), 'Sandbox type mismatch');
           if (OFFERS[name]?.recurring) {
             assert.equal(product.subscription.frequency_days, 30); assert.ok(!product.subscription.free_trial_days);
             if (name === 'vault_plan') assert.equal(product.subscription.auto_expire_after_x_periods, 2);
@@ -168,7 +169,7 @@ export async function runSandbox(options = {}) {
         assert.equal((transaction.product || transaction.service).id, c.products.seat); assert.equal(Number(transaction.amount), 47);
         assert.equal(transaction.fan.email.toLowerCase(), email); assert.deepEqual(transaction.refunds, []);
         const customers = (await list('/customers?search=' + encodeURIComponent(email), 'customers')).filter(x => x.email.toLowerCase() === email);
-        assert.equal(customers.length, 1); const customer = Number(customers[0].id); assert.ok(Number.isSafeInteger(customer) && customer > 0);
+        assert.equal(customers.length, 1); const customer = customerId(customers[0].id); assert.ok(customer, 'Unexpected customer ID format');
         const savedCards = await provider('/customers/' + customer + '/payment-methods');
         assert.ok(savedCards.payment_methods.some(x => x.type === 'card'), 'Checkout did not save sandbox card');
         const seatRows = (await list('/checkout-sessions/' + c.products.seat + '/transactions', 'transactions')).filter(x => x.fan?.email?.toLowerCase() === email);

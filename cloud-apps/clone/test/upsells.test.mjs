@@ -4,10 +4,12 @@ import { DatabaseSync } from 'node:sqlite';
 import { createHmac } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import worker from '../src/index.js';
-import { buyerSession, checkoutContext, hash, OFFERS, sign, upsell } from '../src/upsells.js';
+import { buyerSession, checkoutContext, customerId, hash, OFFERS, sign, upsell } from '../src/upsells.js';
 
 const origin = 'https://jonmac.ai';
 const now = () => Math.floor(Date.now() / 1000);
+// Live Commas shapes (read-only check, Oct 14 2026): text customer IDs, 'onetime_reusable' one-time products.
+const BUYER = 'user_Mock12345';
 function database() {
   const sql = new DatabaseSync(':memory:');
   sql.exec(readFileSync(new URL('../migrations/0001_upsells.sql', import.meta.url), 'utf8'));
@@ -31,7 +33,7 @@ function request(path, body = {}, cookie = '', requestOrigin = origin) {
     headers: { origin: requestOrigin, cookie, 'content-type': 'application/json' }, body: JSON.stringify(body) });
 }
 async function buyerCookie(e, extras = {}) {
-  const token = await sign({ kind: 'buyer', buyer: 12345, purchased: Date.now(), iat: now(), exp: now() + 1800, ...extras }, e.CLONE_TOKEN_SECRET);
+  const token = await sign({ kind: 'buyer', buyer: BUYER, purchased: Date.now(), iat: now(), exp: now() + 1800, ...extras }, e.CLONE_TOKEN_SECRET);
   return '__Secure-clone-buyer=' + token;
 }
 function response(data, status = 200, apiStatus = 'success') {
@@ -47,12 +49,12 @@ function mockCommas(overrides = {}) {
       const b = JSON.parse(init.body);
       return response({ status: 'succeeded', charge_id: 'mock-charge', amount: b.amount_cents / 100 });
     }
-    if (String(url).endsWith('/payment-methods')) return overrides.methods || response({ customer: { id: 12345 }, payment_methods: [{ id: 'mock-card', type: 'card', is_default: true }] });
+    if (String(url).endsWith('/payment-methods')) return overrides.methods || response({ customer: { id: BUYER }, payment_methods: [{ id: 'mock-card', type: 'card', is_default: true }] });
     if (String(url).includes('/checkout-sessions/')) {
       const service = String(url).split('/').pop();
       const o = Object.values(OFFERS).find(o => o.service === service);
       if (o) return overrides.product || response({ product: { id: { wg0E8: 1287855, XXYMA: 1382675, O9gZr: 1287825, jJYvv: 1287845 }[service] },
-        amount_cents: o.cents, type: o.recurring ? 'subscription' : 'onetime', subscription: { frequency_days: 30, free_trial_days: null, auto_expire_after_x_periods: service === 'jJYvv' ? 2 : null } });
+        amount_cents: o.cents, type: o.recurring ? 'subscription' : 'onetime_reusable', subscription: { frequency_days: 30, free_trial_days: null, auto_expire_after_x_periods: service === 'jJYvv' ? 2 : null } });
     }
     if (overrides.other) return overrides.other(url, init);
     throw new Error('Unexpected mocked request');
@@ -74,7 +76,7 @@ test('Clone one-click payments: verified identity, durable claims and safe fallb
       assert.equal(b.amount_cents, OFFERS[name].cents);
       assert.ok(Number.isSafeInteger(b.service_id));
       assert.equal(b.payment_method_id, 'mock-card');
-      assert.ok(charge.url.endsWith('/customers/12345/charge'));
+      assert.ok(charge.url.endsWith('/customers/' + BUYER + '/charge'));
       assert.match(charge.headers['Idempotency-Key'], /^clone-[a-f0-9]{64}$/);
       assert.equal((await (await upsell(request('upsell', { offer: name }, cookie), e)).json()).ok, true);
       assert.equal(calls.filter(c => c.url.endsWith('/charge')).length, 1);
@@ -138,7 +140,7 @@ test('Clone one-click payments: verified identity, durable claims and safe fallb
     }
   });
   await t.test('no saved card and changed product terms cannot charge', async () => {
-    for (const overrides of [{ methods: response({ customer: { id: 12345 }, payment_methods: [] }) }, { product: response({ product: { id: 1382675 }, amount_cents: 99900, type: 'onetime' }) }, { methods: response({ customer: { id: 99999 }, payment_methods: [{ id: 'other-card', type: 'card' }] }) }]) {
+    for (const overrides of [{ methods: response({ customer: { id: BUYER }, payment_methods: [] }) }, { product: response({ product: { id: 1382675 }, amount_cents: 99900, type: 'onetime_reusable' }) }, { product: response({ product: { id: 1382675 }, amount_cents: 49700, type: 'subscription' }) }, { methods: response({ customer: { id: 'user_Other99999' }, payment_methods: [{ id: 'other-card', type: 'card' }] }) }]) {
       const e = env(), calls = mockCommas(overrides);
       assert.equal((await (await upsell(request('upsell', { offer: 'audit' }, await buyerCookie(e)), e)).json()).fallback, true);
       assert.equal(calls.filter(c => c.url.endsWith('/charge')).length, 0);
@@ -182,6 +184,26 @@ test('Clone one-click payments: verified identity, durable claims and safe fallb
     for (let i = 0; i < 2; i++) assert.equal((await (await upsell(request('upsell', { offer: 'audit' }, cookie), e)).json()).pending, true);
     assert.equal(calls.filter(c => c.url.endsWith('/charge')).length, 1);
   });
+  await t.test('older numeric customer IDs and the older onetime type still charge once', async () => {
+    const e = env(), cookie = await buyerCookie(e, { buyer: 12345 });
+    const calls = mockCommas({ methods: response({ customer: { id: 12345 }, payment_methods: [{ id: 'mock-card', type: 'card' }] }),
+      product: response({ product: { id: 1382675 }, amount_cents: 49700, type: 'onetime' }) });
+    assert.equal((await (await upsell(request('upsell', { offer: 'audit' }, cookie), e)).json()).ok, true);
+    assert.equal((await (await upsell(request('upsell', { offer: 'audit' }, cookie), e)).json()).ok, true);
+    assert.ok(calls.find(c => c.url.endsWith('/customers/12345/charge')));
+    assert.equal(calls.filter(c => c.url.endsWith('/charge')).length, 1);
+  });
+  await t.test('malformed customer IDs are rejected before any Commas request', async () => {
+    for (const bad of [0, -1, 1.5, '12abc', 'user_', 'user_a/b', '../charge', 'cus_123', null, {}, [], true, 2 ** 60]) {
+      assert.equal(customerId(bad), null, String(bad));
+      const e = env(), calls = mockCommas();
+      assert.equal((await (await upsell(request('upsell', { offer: 'audit' }, await buyerCookie(e, { buyer: bad })), e)).json()).reason, 'buyer_unverified');
+      assert.equal(calls.length, 0);
+    }
+    for (const good of ['user_UO5X64MBXzdg', 12345, '12345']) assert.equal(customerId(good), String(good));
+    const e = env(), cookie = await proof(e); identityMock({}, [{ id: 'user_bad/../x', email: 'mock@example.test' }]);
+    assert.equal((await (await buyerSession(request('buyer-session', {}, cookie), e)).json()).ok, false);
+  });
   await t.test('expired signed identity may read a prior unresolved claim but never authorize new billing', async () => {
     const e = env(), calls = mockCommas({ charge: () => { throw new Error('timeout'); } });
     await upsell(request('upsell', { offer: 'audit' }, await buyerCookie(e)), e);
@@ -203,7 +225,7 @@ test('Clone one-click payments: verified identity, durable claims and safe fallb
     assert.equal((await worker.fetch(new Request(origin + '/clone/api/purchase', { method: 'POST', headers: { 'x-webhook-signature': signature }, body: raw }), e)).status, 200);
     return intent.cookie.split(';')[0];
   }
-  function identityMock(change = {}, customers = [{ id: 12345, email: 'mock@example.test' }]) {
+  function identityMock(change = {}, customers = [{ id: BUYER, email: 'mock@example.test' }]) {
     return mockCommas({ other: (url) => {
       if (String(url).includes('/transactions/')) return response({ id: 919049, product: { id: 'nmGzE' }, amount: 47,
         refunds: [], transaction_date: new Date().toISOString(), fan: { email: 'mock@example.test', id: 'different-public-id' }, ...change });
@@ -212,21 +234,21 @@ test('Clone one-click payments: verified identity, durable claims and safe fallb
       throw new Error('Unexpected identity lookup');
     } });
   }
-  await t.test('signed webhook plus verified $47 transaction resolves numeric customer, with secure cookie', async () => {
+  await t.test('signed webhook plus verified $47 transaction resolves the text customer ID, with secure cookie', async () => {
     const e = env(), cookie = await proof(e), calls = identityMock();
     const r = await buyerSession(request('buyer-session', { transactionId: 'tx-mock', customerId: 99999 }, cookie), e);
     assert.equal((await r.json()).ok, true);
     const buyer = r.headers.get('set-cookie');
     assert.match(buyer, /HttpOnly; Secure; SameSite=Lax/); assert.match(buyer, /Max-Age=1800/);
     assert.equal((await (await upsell(request('upsell', { offer: 'audit' }, buyer.split(';')[0]), e)).json()).ok, true);
-    assert.ok(calls.find(c => c.url.endsWith('/customers/12345/charge')));
+    assert.ok(calls.find(c => c.url.endsWith('/customers/' + BUYER + '/charge')));
   });
   await t.test('webhook order reference reconciles through the product ledger when direct lookup does not resolve', async () => {
     const e = env(), cookie = await proof(e);
     mockCommas({ other: url => {
       if (String(url).includes('/transactions/')) return response([], 404, 'error');
       if (String(url).includes('/transactions?')) return response({ transactions: [{ product: { id: 'nmGzE' }, amount: 47, refunds: [], transaction_date: new Date().toISOString(), fan: { email: 'mock@example.test' } }] });
-      if (String(url).includes('/customers?')) return response({ customers: [{ id: 12345, email: 'mock@example.test' }] });
+      if (String(url).includes('/customers?')) return response({ customers: [{ id: BUYER, email: 'mock@example.test' }] });
       throw new Error('Unexpected ledger request');
     } });
     assert.equal((await (await buyerSession(request('buyer-session', {}, cookie), e)).json()).ok, true);
@@ -255,7 +277,7 @@ test('Clone one-click payments: verified identity, durable claims and safe fallb
       const e = env(), cookie = await proof(e); identityMock(change);
       assert.equal((await (await buyerSession(request('buyer-session', { transactionId: 'tx-mock' }, cookie), e)).json()).ok, false);
     }
-    const e = env(), cookie = await proof(e); identityMock({}, [{ id: 1, email: 'mock@example.test' }, { id: 2, email: 'mock@example.test' }]);
+    const e = env(), cookie = await proof(e); identityMock({}, [{ id: 'user_A1', email: 'mock@example.test' }, { id: 'user_B2', email: 'mock@example.test' }]);
     assert.equal((await (await buyerSession(request('buyer-session', {}, cookie), e)).json()).ok, false);
   });
   await t.test('webhooks must have a valid signature and a paid Clone seat', async () => {

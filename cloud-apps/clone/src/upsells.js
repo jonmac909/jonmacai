@@ -81,6 +81,11 @@ async function commas(env, path, init = {}) {
   return { response, body };
 }
 function success(result) { return result.response.ok && result.body?.status === 'success'; }
+// Commas customer IDs are text ('user_…') since Oct 2026; older records used positive integers.
+export function customerId(value) {
+  const id = typeof value === 'number' || typeof value === 'string' ? String(value) : '';
+  return /^(?:user_[A-Za-z0-9]{1,64}|[1-9][0-9]{0,14})$/.test(id) ? id : null;
+}
 
 async function matchesPurchase(tx, proof, intent, env) {
   const paidAt = Date.parse(tx?.transaction_date);
@@ -122,10 +127,10 @@ export async function buyerSession(request, env) {
     const email = tx.fan.email.trim().toLowerCase();
     const result = await commas(env, '/customers?per_page=100&search=' + encodeURIComponent(email));
     const customers = success(result) ? (result.body.data?.customers || []).filter(c =>
-      String(c.email).trim().toLowerCase() === email && Number.isSafeInteger(Number(c.id)) && Number(c.id) > 0) : [];
+      String(c.email).trim().toLowerCase() === email && customerId(c.id)) : [];
     if (customers.length !== 1) return json({ ok: false, fallback: true }, 401);
     const iat = Math.floor(Date.now() / 1000);
-    const token = await sign({ kind: tokenKind(env, 'buyer'), buyer: Number(customers[0].id), purchased: proof.paid_at, iat, exp: iat + TTL }, env.CLONE_TOKEN_SECRET);
+    const token = await sign({ kind: tokenKind(env, 'buyer'), buyer: customerId(customers[0].id), purchased: proof.paid_at, iat, exp: iat + TTL }, env.CLONE_TOKEN_SECRET);
     return json({ ok: true }, 200, { 'set-cookie': cookie(cookieName(env, 'buyer'), token) });
   } catch { return json({ ok: false, fallback: true }, 503); }
 }
@@ -154,13 +159,15 @@ export async function upsell(request, env) {
   if (!env.CLONE_UPSELLS || !env.CLONE_TOKEN_SECRET) return fallback(offer);
   const buyer = await readCookie(request, cookieName(env, 'buyer'), env.CLONE_TOKEN_SECRET, tokenKind(env, 'buyer'));
   const db = env.CLONE_UPSELLS;
-  if (!buyer || !Number.isSafeInteger(buyer.buyer) || buyer.buyer <= 0) {
+  const buyerId = customerId(buyer?.buyer);
+  if (!buyerId) {
     // An expired, authentic token may only inspect its prior claim. It cannot
     // authorize billing, but must not send an unresolved payment to checkout.
     const expired = await readCookie(request, cookieName(env, 'buyer'), env.CLONE_TOKEN_SECRET, tokenKind(env, 'buyer'), true);
-    if (expired && Number.isSafeInteger(expired.buyer)) {
+    const expiredId = customerId(expired?.buyer);
+    if (expiredId) {
       try {
-        const prior = await db.prepare(`SELECT * FROM ${table(env, 'upsell_claims')} WHERE buyer_id = ? AND offer_group = ?`).bind(expired.buyer, offer.group).first();
+        const prior = await db.prepare(`SELECT * FROM ${table(env, 'upsell_claims')} WHERE buyer_id = ? AND offer_group = ?`).bind(expiredId, offer.group).first();
         if (prior) return existingClaim(prior, env);
       } catch { return pending(); }
     }
@@ -168,19 +175,19 @@ export async function upsell(request, env) {
   }
   let claimed = false, sent = false;
   try {
-    const previous = await db.prepare(`SELECT * FROM ${table(env, 'upsell_claims')} WHERE buyer_id = ? AND offer_group = ?`).bind(buyer.buyer, offer.group).first();
+    const previous = await db.prepare(`SELECT * FROM ${table(env, 'upsell_claims')} WHERE buyer_id = ? AND offer_group = ?`).bind(buyerId, offer.group).first();
     if (previous) return existingClaim(previous, env);
     // Atomic uniqueness across isolates, double clicks, sessions and alternative plans.
     const insert = await db.prepare(`INSERT INTO ${table(env, 'upsell_claims')}
       (buyer_id, offer_group, offer, state, created_at) VALUES (?, ?, ?, 'processing', ?)
-      ON CONFLICT(buyer_id, offer_group) DO NOTHING`).bind(buyer.buyer, offer.group, input.offer, Date.now()).run();
+      ON CONFLICT(buyer_id, offer_group) DO NOTHING`).bind(buyerId, offer.group, input.offer, Date.now()).run();
     claimed = insert.meta?.changes === 1;
     if (!claimed) {
-      const row = await db.prepare(`SELECT * FROM ${table(env, 'upsell_claims')} WHERE buyer_id = ? AND offer_group = ?`).bind(buyer.buyer, offer.group).first();
+      const row = await db.prepare(`SELECT * FROM ${table(env, 'upsell_claims')} WHERE buyer_id = ? AND offer_group = ?`).bind(buyerId, offer.group).first();
       return row ? existingClaim(row, env) : pending();
     }
     const finish = async (state, ref = null) => {
-      await db.prepare(`UPDATE ${table(env, 'upsell_claims')} SET state = ?, charge_ref = ? WHERE buyer_id = ? AND offer_group = ?`).bind(state, ref, buyer.buyer, offer.group).run();
+      await db.prepare(`UPDATE ${table(env, 'upsell_claims')} SET state = ?, charge_ref = ? WHERE buyer_id = ? AND offer_group = ?`).bind(state, ref, buyerId, offer.group).run();
     };
     const enabledAt = Date.parse((isSandbox(env) ? env.CLONE_SANDBOX_REBILL_ENABLED_AT : env.CLONE_REBILL_ENABLED_AT) || '');
     if ((isSandbox(env) ? env.CLONE_SANDBOX_REBILL_ENABLED : env.CLONE_REBILL_ENABLED) !== 'true' || !Number.isFinite(enabledAt) ||
@@ -193,19 +200,19 @@ export async function upsell(request, env) {
     const product = await commas(env, '/checkout-sessions/' + offer.service);
     const p = product.body?.data;
     if (!success(product) || !Number.isSafeInteger(p?.product?.id) || p.amount_cents !== offer.cents ||
-        p.type !== (offer.recurring ? 'subscription' : 'onetime') ||
+        (offer.recurring ? p.type !== 'subscription' : !['onetime', 'onetime_reusable'].includes(p.type)) ||
         (offer.recurring && (p.subscription?.frequency_days !== 30 || p.subscription?.free_trial_days ||
           (offer.group === 'vault' && p.subscription?.auto_expire_after_x_periods !== 2)))) {
       await finish('fallback'); return fallback(offer, 'product_terms_changed');
     }
-    const methods = await commas(env, '/customers/' + buyer.buyer + '/payment-methods');
-    const cards = success(methods) && Number(methods.body.data?.customer?.id) === buyer.buyer ?
+    const methods = await commas(env, '/customers/' + buyerId + '/payment-methods');
+    const cards = success(methods) && customerId(methods.body.data?.customer?.id) === buyerId ?
       (methods.body.data.payment_methods || []).filter(m => m.type === 'card' && typeof m.id === 'string') : [];
     const card = cards.find(m => m.is_default) || cards[0];
     if (!card) { await finish('fallback'); return fallback(offer, 'no_saved_card'); }
-    const idempotency = (isSandbox(env) ? 'clone-sandbox-' : 'clone-') + await hash(`${buyer.buyer}:${offer.group}`);
+    const idempotency = (isSandbox(env) ? 'clone-sandbox-' : 'clone-') + await hash(`${buyerId}:${offer.group}`);
     sent = true;
-    const charge = await commas(env, '/customers/' + buyer.buyer + '/charge', {
+    const charge = await commas(env, '/customers/' + buyerId + '/charge', {
       method: 'POST', headers: { 'Idempotency-Key': idempotency }, body: JSON.stringify({
         payment_method_id: card.id, amount_cents: offer.cents, description: offer.description,
         service_id: p.product.id,
@@ -229,7 +236,7 @@ export async function upsell(request, env) {
   } catch {
     if (claimed && !sent) {
       try {
-        await db.prepare(`UPDATE ${table(env, 'upsell_claims')} SET state = ?, charge_ref = ? WHERE buyer_id = ? AND offer_group = ?`).bind('fallback', null, buyer.buyer, offer.group).run();
+        await db.prepare(`UPDATE ${table(env, 'upsell_claims')} SET state = ?, charge_ref = ? WHERE buyer_id = ? AND offer_group = ?`).bind('fallback', null, buyerId, offer.group).run();
         return fallback(offer);
       } catch { /* Durable claim stays locked if persistence failed. */ }
     }
