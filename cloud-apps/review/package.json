@@ -1,0 +1,23 @@
+{
+  "name": "jonmac-review-portal",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test test/worker.test.mjs test/runtime.test.mjs",
+    "test:browser": "node test/browser.mjs",
+    "proof": "node test/browser.mjs --live",
+    "publish": "node scripts/review_publish.mjs"
+  },
+  "devDependencies": {
+    "miniflare": "4.20260730.0",
+    "playwright": "1.63.0"
+  },
+  "overrides": {
+    "sharp": "0.35.4",
+    "undici": "7.29.1"
+  },
+  "allowScripts": {
+    "sharp@0.35.4": true,
+    "workerd@1.20260730.1": true
+  }
+}

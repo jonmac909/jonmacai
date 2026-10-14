@@ -19,146 +19,95 @@ If that route is missing, redirects to login, or fails, it falls back to:
 cloud-apps/base-path.js
 cloud-apps/youtube-gen/app.js
 cloud-apps/youtube-gen/index.html
+cloud-apps/review/          (jonmac.ai/review portal)
 ```
 
-## VSL review
+## Video review portal
 
-[jonmac.ai/review](https://jonmac.ai/review) is **withdrawn**. The read-only
-`jonmac-review` Cloudflare Worker returns HTTP 410 with `Cache-Control: no-store`
-while `REVIEW_WITHDRAWN = "true"`. Keep that guard enabled until the native master
-passes editorial, native-render, audio and AAA Sabri parity QA. Do not restore the
-rejected edit or deploy the historical `main` configuration, which lacks the guard.
+[jonmac.ai/review](https://jonmac.ai/review) is a private review site for the AI
+channels. Jon shares it with his editor. Code: `cloud-apps/review/` (Cloudflare Worker
+`jonmac-review`, D1 database `jonmac-review` for comments, R2 bucket `jonmac-review-media`
+for MP4s). It replaces the withdrawn VSL page. The VSL native master can be published
+here as a normal video; its old release notes are in git history (`67b55b0`).
 
-The prepared release targets only `jonmac.ai/review` and `jonmac.ai/review/*`;
-`workers_dev` remains disabled. Media belongs in the existing `frame-media`
-R2 bucket at `reviews/jon-main-vsl/native-master-v1-web.mp4`. The Worker streams
-R2 bodies without buffering and preserves HEAD, byte ranges, suffix/open-ended
-seeks, ETags and If-Range. The review is public when released, not password-protected;
-HTML and response headers exclude indexing. HTML revalidates; media caches for
-one hour. All player/download URLs now carry `?v=native-master-v1`.
+- `/review` lists each channel → video → version, with status (needs review / changes
+  requested / approved) and the open comment count.
+- `/review/<slug>` plays our video only. The source video, if published, is a collapsed,
+  muted extra. The player never autoplays and plays inline on iPhone.
+- Pausing fills the comment timestamp. Comments are listed in time order, clicking one
+  seeks there, and each can be resolved or reopened. The name is asked once and kept in
+  the browser. The status buttons set the video's status.
 
-### Final media gate
+### Access
 
-Main owns final media approval and publication. No final media has been uploaded
-by this preparation. Historical duration, resolution and graphic-count claims were
-removed rather than carried forward as native-master facts.
+Both are needed: the share link `https://jonmac.ai/review?k=<REVIEW_SHARE_KEY>`, then
+the passcode. Without the key, every page returns 404. Sign-in lasts 90 days. Changing
+the passcode or share key signs everyone out. Plain http is sent to https. All pages and
+media are `noindex`. The values live outside the repo in `C:\Users\partn\.jonmac-review.env`
+(Worker secrets: `REVIEW_SHARE_KEY`, `REVIEW_PASSCODE`, `REVIEW_SESSION_SECRET`,
+`REVIEW_API_TOKEN`). GPU1 holds only the API token and share link, in
+`C:\Users\<user>\.jonmac-review.env`.
 
-- Inspect the approved native master and its approved fast-start web MP4, not an
-  older export. The editorial contract is 13,073 keeper frames at 24000/1001 fps on
-  a 3840×2160 working canvas; those are acceptance targets, not measured web metadata.
-  Record actual web duration, dimensions, frame count, fps and audio channel mapping.
-- Replace `#release-metadata` in `cloud-apps/review/public/index.html` with those
-  measured release values. Add only claims supported by the approved render.
-- Replace `cloud-apps/review/public/poster.jpg` with a frame from the approved web
-  MP4. The historical poster is deliberately not referenced by the prepared page.
-  Then add `poster="/review/poster.jpg?v=native-master-v1"` to `<video>`.
-- The page credits “Cylinder Seven” by Chris Zabriskie, links the
-  [official source](https://chriszabriskie.com/cylinders/) and
-  [CC BY 4.0 license](https://creativecommons.org/licenses/by/4.0/), and discloses:
-  "Edited, crossfaded, level-adjusted and ducked. No endorsement implied."
-  Confirm the final audio manifest still matches this selected track.
-- Keep the R2 key and every video/poster URL version aligned. Do not overwrite a
-  released object with different bytes; use a new key and version for later edits.
-  Keep source footage, rejected-project archives and large exports outside Git.
+### Agent API
 
-Main can gather release metadata and extract the approved poster in PowerShell
-(set both values to the actual approved file and editorially selected timestamp):
+Send `Authorization: Bearer $REVIEW_API_TOKEN` with every call. Base: `https://jonmac.ai/api/review`.
+
+| Call | Purpose |
+|---|---|
+| `GET /videos` | all channels and videos with status and open counts |
+| `GET /<slug>` | one video (URLs, duration, chapters, status) |
+| `GET /<slug>/comments?status=open` | open comments in time order (`all`, `resolved` also work) |
+| `POST /<slug>/comments/<id>/resolve` | mark resolved; body `{"by": "agent name"}`, or `{"resolved": false}` to reopen |
+| `POST /<slug>/comments` | add a comment `{"author", "t", "text"}` |
+| `DELETE /<slug>/comments/<id>` | delete (agents only) |
+| `POST /<slug>/status` | `{"status": "needs_review" \| "changes_requested" \| "approved"}` |
+
+Each comment has `id, slug, author, t` (seconds), `text, created_at, resolved, resolved_at, resolved_by`.
+
+### Publishing a video
+
+```sh
+node cloud-apps/review/scripts/review_publish.mjs --slug mina-1-v10 --channel mina \
+  --video mina-1 --version v10 --title "Mina: AI shorts tutorial" --file mina01_v10.mp4 \
+  [--source source_h264.mp4] [--chapters versions.json] [--notes "what changed"]
+```
+
+- `--file` and `--source` take a local path or an https URL.
+- The script checks the file is H.264/AAC and fast-start, records the sha256, uploads in
+  50 MiB chunks through the Worker, saves the metadata and checks that HEAD and byte
+  ranges work.
+- The token comes from `REVIEW_API_TOKEN` or `~/.jonmac-review.env`.
+- Use one slug per version (`<video>-v<n>`). Publishing the same slug again replaces its
+  media, resets the status to needs review and keeps its comments.
+- GPU1 copy: `C:/tmp/fi04-review/scripts/review_publish.mjs`.
+
+### Checks and deploy (Docker gate; no GitHub Actions)
+
+```sh
+docker build -f cloud-apps/review/Dockerfile.checks -t jonmac-review-checks cloud-apps/review
+docker run --rm --ipc=host jonmac-review-checks
+```
+
+The gate runs:
+- unit tests;
+- Workers-runtime tests (gate, publish script, Range/416/ETag media, comments API, fail-closed secrets);
+- headless WebKit with iPhone emulation: tap to play past 3 s, no autoplay, zero console
+  errors, and a comment created and resolved through both the UI and the API;
+- the Worker bundle dry run.
+
+After the gate passes and the PR is merged, release the merged commit:
 
 ```powershell
-$ApprovedMp4 = Read-Host 'Absolute path to the QA-approved web MP4'
-$PosterTime = Read-Host 'Editorially selected poster timestamp (HH:MM:SS.mmm)'
-ffprobe -v error -count_frames -show_entries "format=duration,size:stream=index,codec_type,codec_name,width,height,r_frame_rate,avg_frame_rate,nb_read_frames,sample_rate,channels,channel_layout" -of json "$ApprovedMp4"
-ffmpeg -n -ss "$PosterTime" -i "$ApprovedMp4" -frames:v 1 "$env:TEMP\native-master-v1-poster.jpg"
-Copy-Item "$env:TEMP\native-master-v1-poster.jpg" cloud-apps/review/public/poster.jpg
+npx --yes wrangler@4.145.0 d1 migrations apply jonmac-review --remote --config cloud-apps/review/wrangler.toml
+npx --yes wrangler@4.145.0 deploy --config cloud-apps/review/wrangler.toml --tag <merged-sha>
 ```
 
-### Upload and release commands — Main only, after QA
-
-Run from `C:/Users/partn/orca/workspaces/jonmacai/Feature-VSL-Review`.
-Wrangler uploads at most **315 MB per file**, one object at a time; the R2 service's
-larger limits do not remove that CLI cap. Use multipart S3/rclone for a larger web
-copy rather than compressing away approved quality just to fit Wrangler.
-
-For a file within the Wrangler cap, upload while withdrawal is still enabled:
+Live proof (secrets from the env file; it deletes its own test comments and leaves the status alone):
 
 ```powershell
-npx --no-install wrangler r2 object put frame-media/reviews/jon-main-vsl/native-master-v1-web.mp4 --file "$ApprovedMp4" --content-type video/mp4 --remote --config cloud-apps/review/wrangler.toml
+docker run --rm --ipc=host --env-file C:\Users\partn\.jonmac-review.env jonmac-review-checks node test/browser.mjs --live --slug mina-1-v9
 ```
 
-For larger files, configure a private `r2` rclone remote using securely supplied R2
-S3 credentials scoped to `frame-media` (Object Read & Write). Use the S3 API endpoint
-shown in the Cloudflare R2 dashboard and `no_check_bucket = true`
-for object-level credentials. Do not put keys in Git, command arguments or logs.
-Wrangler OAuth is not an S3 access-key pair. With that remote available:
+Responses carry `X-Review-Version` (the deploy tag).
 
-```powershell
-rclone copyto "$ApprovedMp4" r2:frame-media/reviews/jon-main-vsl/native-master-v1-web.mp4 --s3-no-check-bucket --s3-upload-cutoff 100M --s3-chunk-size 100M
-```
-
-R2 allows approximately 5 GiB single-part and 4.995 TiB multipart objects, up to
-10,000 parts; non-final parts must be at least 5 MiB. See the current provider
-[upload guidance](https://developers.cloudflare.com/r2/objects/upload-objects/),
-[limits](https://developers.cloudflare.com/r2/platform/limits/) and
-[rclone configuration](https://developers.cloudflare.com/r2/examples/rclone/).
-
-Before clearing withdrawal, download the new object and compare its SHA-256 with
-the approved local copy. Both hashes must match:
-
-```powershell
-npx --no-install wrangler r2 object get frame-media/reviews/jon-main-vsl/native-master-v1-web.mp4 --file "$env:TEMP\native-master-v1-upload-check.mp4" --remote --config cloud-apps/review/wrangler.toml
-Get-FileHash "$ApprovedMp4", "$env:TEMP\native-master-v1-upload-check.mp4" -Algorithm SHA256
-```
-
-Only after the upload is verified against the approved bytes, the poster and
-measured metadata are in place, and Main approves QA, set
-`REVIEW_WITHDRAWN = "false"`. The existing tests and deployment check are Main's
-single post-integration gate; no tests/build/lint were run during preparation:
-
-```powershell
-node --test cloud-apps/review/worker.test.mjs
-npx --no-install wrangler deploy --dry-run --config cloud-apps/review/wrangler.toml
-```
-
-Use the existing [PR #2](https://github.com/jonmac909/jonmacai/pull/2), targeting
-`main` from `jonmac909/Feature-VSL-Review`. The prepared three-file change was
-committed as `e6607e5`; `origin/main` (`077d2f1`) was integrated in merge commit
-`3110cba`. The four conflicts were confined to this review's README, page, Worker
-and Wrangler configuration. The withdrawal guard and versioned native-master
-target were retained instead of the historical rejected release; unrelated
-upstream content was unchanged.
-
-Production hosting is entirely on Cloudflare. Review the integrated diff and
-complete the target Worker's build, deployment and live verification before
-calling a release complete.
-
-```powershell
-git push origin HEAD:jonmac909/Feature-VSL-Review
-gh pr edit 2 --title "Release approved native VSL master review" --body "Replace the withdrawn edit with the QA-approved native master at jonmac.ai/review. Final metadata and poster come from the approved media. R2 upload verified; native-render, audio and AAA Sabri parity QA approved. Cloudflare deployment remains a manual release gate."
-gh pr merge 2 --squash
-```
-
-Do not use that approval wording or merge command before those conditions are
-true. Deploy only the reviewed, merged release tree (not an older `main` checkout):
-
-```powershell
-npx --no-install wrangler deploy --config cloud-apps/review/wrangler.toml
-```
-
-After deployment, Main must exercise `https://jonmac.ai/review` in a browser:
-poster, sound, seeking, fullscreen and download; confirm measured media metadata,
-noindex/cache headers, HEAD and `Range: bytes=0-1` returning 206 with correct
-Content-Range. If the release fails, restore `REVIEW_WITHDRAWN = "true"` and deploy
-that guarded version; do not roll back to a historical unguarded edit.
-
-### Readiness observed during preparation
-
-- Live `/review` returns HTTP 410. R2 `frame-media` reports zero objects.
-- Cached Wrangler 4.129.1 is available, authenticated by stored OAuth; account,
-  Worker/route write permissions and R2 bucket read access are available.
-- GitHub CLI access works with repository ADMIN permission. `main` has no branch
-  protection; that does not waive Main's QA or Cloudflare release verification.
-- `rclone` is installed. No rclone configuration, AWS credentials file, or
-  Cloudflare/AWS/R2 credential environment variables were found in this process.
-  A multipart upload still needs a securely provisioned R2 S3 access-key pair.
-- No upload, deployment, merge, push, withdrawal change, or validation command
-  was performed during preparation. Worker range-serving code and tests are unchanged.
+Windows note: Playwright's Windows WebKit build cannot decode video. Run the browser checks in Docker.
