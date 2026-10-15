@@ -41,7 +41,8 @@ function running(r = {}, gpus = []) {
   out.push({ label: 'Qwen image jobs', value: qwen ? `${qwen} running` : 'none', on: qwen > 0 });
   const py = Array.isArray(r.python) ? r.python : [];
   const scripts = [...new Set(py.map((p) => String(p.script || 'python').slice(0, 40)))];
-  out.push({ label: 'Python', value: py.length ? `${py.length} · ${scripts.slice(0, 4).join(', ')}` : 'none', on: py.length > 0 });
+  const pyCount = num(r.pythonCount) ?? py.length;
+  out.push({ label: 'Python', value: pyCount ? `${pyCount} · ${scripts.slice(0, 4).join(', ')}` : 'none', on: pyCount > 0 });
   if (r.docker != null) out.push({ label: 'Docker', value: r.docker ? 'up' : 'down', on: !!r.docker });
   if (r.orca != null) out.push({ label: 'Orca', value: r.orca ? 'up' : 'down', on: !!r.orca });
   return out;

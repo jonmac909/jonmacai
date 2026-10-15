@@ -215,6 +215,7 @@ def summarize(names, pyjobs, titles):
         'resolve': {'open': resolve_open, 'project': project if resolve_open else '', 'windows': len(titles)},
         'ffmpeg': names.count('ffmpeg.exe') + names.count('ffmpeg'),
         'python': [j for j in pyjobs if j['kind'] == 'python'][:8],
+        'pythonCount': len([j for j in pyjobs if j['kind'] == 'python']),
         'qwen': len([j for j in pyjobs if j['kind'] == 'qwen']),
         'docker': bool(has & {'com.docker.backend.exe', 'docker desktop.exe', 'dockerd.exe'}),
         'orca': 'orca.exe' in has,
