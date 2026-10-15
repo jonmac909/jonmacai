@@ -145,7 +145,7 @@ def label_python(cmdline):
     script = ''
     for tok in cmdline.replace('"', ' ').split():
         if tok.lower().endswith('.py'):
-            script = Path(tok).name
+            script = tok.replace('\\', '/').rsplit('/', 1)[-1]
             break
     if not script and ' -m ' in low:
         script = cmdline.split(' -m ', 1)[1].split()[0]
