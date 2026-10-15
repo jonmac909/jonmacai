@@ -281,3 +281,5 @@ tfoot td{font-weight:600;color:var(--ink);border-top:1px solid var(--line)}
 .stagedots i{width:.9rem;height:.3rem;border-radius:1rem;background:var(--line)}
 .stagedots i.past{background:var(--ok-fill)} .stagedots i.now{background:var(--accent)}
 .muted{color:var(--muted)}
+.split.two{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,24rem),1fr));gap:.9rem}
+.asks{margin:0;padding-left:1.2rem;display:flex;flex-direction:column;gap:.45rem;line-height:1.4}

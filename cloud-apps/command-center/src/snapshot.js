@@ -14,6 +14,7 @@ import { buildMachines, HOSTS, MACHINE_INTERVAL_MS } from './machines.js';
 import { overlayVideos } from './videos.js';
 import { overlayWebinar } from './webinar.js';
 import { buildCash, usd } from './cash.js';
+import { buildNow } from './now.js';
 
 export const COLLECTOR_INTERVAL_MS = 5 * 60 * 1000;
 
@@ -38,6 +39,7 @@ export const INTERVALS = {
   videos: COLLECTOR_INTERVAL_MS,
   webinar: COLLECTOR_INTERVAL_MS,
   sponsors_cash: COLLECTOR_INTERVAL_MS,
+  needs_jon: COLLECTOR_INTERVAL_MS,
 };
 
 const MACHINES = [
@@ -463,6 +465,7 @@ export function mergeSnapshot(fixture, rows, nowMs = Date.now(), overrides = {},
   if (out.pages.sponsors) out.pages.sponsors.cash = cash;
   if (out.pages.home) out.pages.home.sponsorsCash = cash;
   applyHome(out, by, extra, nowMs);
+  if (out.pages.home) buildNow(out, by, nowMs, INTERVALS);
   if (cash.available && out.goal) {
     out.goal = { ...out.goal, pct: cash.pct, sub: `Trailing 90-day avg ${usd(cash.trailing.avg)} a month` };
   }
