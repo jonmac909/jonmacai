@@ -11,6 +11,7 @@ import { overlayOutreach, blankOutreach } from './outreach.js';
 import { overlayLife } from './life.js';
 import { applyHome } from './home.js';
 import { buildMachines, HOSTS, MACHINE_INTERVAL_MS } from './machines.js';
+import { overlayVideos } from './videos.js';
 
 export const COLLECTOR_INTERVAL_MS = 5 * 60 * 1000;
 
@@ -32,6 +33,8 @@ export const INTERVALS = {
   bank_scan: COLLECTOR_INTERVAL_MS,
   machine_gpu1: MACHINE_INTERVAL_MS,
   machine_gpu2: MACHINE_INTERVAL_MS,
+  videos: COLLECTOR_INTERVAL_MS,
+  sponsors_cash: COLLECTOR_INTERVAL_MS,
 };
 
 const MACHINES = [
@@ -442,6 +445,11 @@ export function mergeSnapshot(fixture, rows, nowMs = Date.now(), overrides = {},
     } else {
       out.pages.life.actions = [{ label: 'Connect calendar', href: '/dashboard/api/google/start' }, ...(out.pages.life.actions || [])];
     }
+  }
+  if (out.pages.videos) {
+    const f = by.videos ? freshness(by.videos.collected_at, nowMs, INTERVALS.videos) : null;
+    overlayVideos(out.pages.videos, by.videos, extra.reviews, f ? f.label : '');
+    if (f?.stale) out.pages.videos.stale = true;
   }
   applyHome(out, by, extra, nowMs);
   const groupOk = groupScan(by)?.data?.access === 'ok';

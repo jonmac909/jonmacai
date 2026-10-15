@@ -74,6 +74,21 @@ function targetFor(kind, payload = {}) {
   return 'worker';
 }
 
+// Read-only view of the review portal's D1 (cloud-apps/review owns it). No keys or passcodes.
+async function listReviewPages(db) {
+  if (!db) return null;
+  try {
+    const { results } = await db.prepare(
+      `SELECT v.channel, v.video, v.version, v.slug, v.status, v.updated_at,
+        (SELECT count(*) FROM comments c WHERE c.slug = v.slug AND c.resolved = 0) AS open_comments
+       FROM videos v ORDER BY v.updated_at DESC LIMIT 200`,
+    ).all();
+    return results || [];
+  } catch {
+    return null;
+  }
+}
+
 function machineOf(request, env) {
   const auth = request.headers.get('Authorization') || '';
   const token = auth.startsWith('Bearer ') ? auth.slice(7) : '';
@@ -124,11 +139,23 @@ async function login(request, env) {
   return json({ ok: true }, 200, { 'Set-Cookie': sessionCookieHeader(token, SESSION_DAYS * 24 * 3600) });
 }
 
+// Pages built only from live feeds; they have no fixture numbers at all.
+const LIVE_PAGES = { videos: {} };
+
 function filterSnapshot(pages) {
-  const want = pages ? pages.split(',').map((s) => s.trim()).filter(Boolean) : Object.keys(snapshot.pages);
+  const all = { ...snapshot.pages, ...LIVE_PAGES };
+  const want = pages ? pages.split(',').map((s) => s.trim()).filter(Boolean) : Object.keys(all);
   const out = {};
-  for (const id of want) if (snapshot.pages[id]) out[id] = snapshot.pages[id];
-  return JSON.parse(JSON.stringify({ pages: out, nav: snapshot.nav, goal: snapshot.goal, sources: snapshot.sources }));
+  for (const id of want) if (all[id]) out[id] = all[id];
+  return JSON.parse(JSON.stringify({ pages: out, nav: liveNav(snapshot.nav), goal: snapshot.goal, sources: snapshot.sources }));
+}
+
+function liveNav(nav) {
+  const groups = nav.groups.map((g) => (g.title !== 'Business' ? g : {
+    ...g,
+    items: [{ id: 'videos', label: 'Videos', icon: 'film' }, ...g.items.filter((i) => i.id !== 'youtube' && i.id !== 'video')],
+  }));
+  return { ...nav, groups };
 }
 
 async function postAction(request, env, ctx) {
@@ -326,6 +353,7 @@ export async function handleApi(request, env, ctx) {
       extra.drafts = [];
       extra.draftsError = err.message || 'Drafts unavailable';
     }
+    extra.reviews = await listReviewPages(env.REVIEW_DB);
     extra.platforms = configuredPlatforms(env);
     extra.unavailable = unavailablePlatforms(env);
     const merged = mergeSnapshot(base, await listSnapshots(env.DB), now, overrides, await listIdeas(env.DB), await listPosts(env.DB), await listVideoProjects(env.DB), extra);
