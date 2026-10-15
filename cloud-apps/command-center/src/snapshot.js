@@ -339,6 +339,7 @@ export function mergeSnapshot(fixture, rows, nowMs = Date.now(), overrides = {},
   if (out.pages.home) out.pages.home.machines = hosts;
   if (out.pages.agents) {
     out.pages.agents.hosts = hosts;
+    out.pages.agents.title = 'Machines & Agents';
     out.pages.agents.machines = MACHINES.map((m) => {
       const row = by[m.source];
       if (!row) return { ...m, hostname: '', ageLabel: 'No heartbeat yet', stale: false };

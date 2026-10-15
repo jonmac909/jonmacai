@@ -108,6 +108,10 @@ function navHtml() {
       const badge = n ? `<span class="n">${n}</span>` : '';
       return `<button class="nav" data-page="${it.id}"><svg class="ic"><use href="#i-${it.icon}"/></svg>${it.label}${badge}</button>`;
     }).join('');
+    if (g.archive) {
+      const open = g.items.some((it) => it.id === hashPage()) ? ' open' : '';
+      return `<details class="navgrp archive"${open}><summary>${g.title}</summary>${items}</details>`;
+    }
     return `<div class="navgrp"><h4>${g.title}</h4>${items}</div>`;
   }).join('');
 }

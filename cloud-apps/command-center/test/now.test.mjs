@@ -45,3 +45,13 @@ test('Waiting On You parser keeps numbered asks and drops emails', () => {
   assert.deepEqual(items[0], { area: 'Namecheap', ask: 'Confirm the alert' });
   assert.ok(!items[1].ask.includes('@'));
 });
+
+test('nav lists the live pages and hides the rest under Archive', async () => {
+  const { liveNav } = await import('../src/api.js');
+  const nav = liveNav(snapshot.nav);
+  const main = nav.groups.filter((g) => !g.archive).flatMap((g) => g.items.map((i) => i.label));
+  assert.deepEqual(main, ['Home', 'Machines & Agents', 'Videos', 'Webinar', 'Sponsors', 'Viral View', 'Money', 'Life']);
+  const archived = nav.groups.find((g) => g.archive).items.map((i) => i.id);
+  for (const id of ['mastermind', 'markets', 'outreach', 'content', 'youtube', 'video', 'support']) assert.ok(archived.includes(id), id);
+  for (const g of nav.groups) for (const i of g.items) assert.ok(snapshot.pages[i.id] || ['videos', 'webinar'].includes(i.id), i.id);
+});

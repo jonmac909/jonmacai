@@ -151,12 +151,35 @@ function filterSnapshot(pages) {
   return JSON.parse(JSON.stringify({ pages: out, nav: liveNav(snapshot.nav), goal: snapshot.goal, sources: snapshot.sources }));
 }
 
-function liveNav(nav) {
-  const groups = nav.groups.map((g) => (g.title !== 'Business' ? g : {
-    ...g,
-    items: [{ id: 'videos', label: 'Videos', icon: 'film' }, { id: 'webinar', label: 'Webinar', icon: 'clock' }, ...g.items.filter((i) => i.id !== 'youtube' && i.id !== 'video')],
-  }));
-  return { ...nav, groups };
+// Nav for Jon's businesses now. Pages that no longer fit, or have no live feed, sit under a
+// collapsed Archive group: hidden from the main list, code kept, still reachable.
+export function liveNav(nav) {
+  return {
+    ...nav,
+    groups: [
+      { title: 'Overview', items: [{ id: 'home', label: 'Home', icon: 'home' }] },
+      { title: 'Right now', items: [
+        { id: 'agents', label: 'Machines & Agents', icon: 'bot' },
+        { id: 'videos', label: 'Videos', icon: 'film' },
+        { id: 'webinar', label: 'Webinar', icon: 'clock' },
+      ] },
+      { title: 'Business', items: [
+        { id: 'sponsors', label: 'Sponsors', icon: 'mail' },
+        { id: 'viral', label: 'Viral View', icon: 'chart' },
+        { id: 'money', label: 'Money', icon: 'wallet' },
+      ] },
+      { title: 'Life', items: [{ id: 'life', label: 'Life', icon: 'heart' }] },
+      { title: 'Archive', archive: true, items: [
+        { id: 'support', label: 'Support', icon: 'chat' },
+        { id: 'content', label: 'Content', icon: 'pen' },
+        { id: 'outreach', label: 'Cold outreach', icon: 'send' },
+        { id: 'youtube', label: 'YouTube (old)', icon: 'film' },
+        { id: 'video', label: 'Video editor (old)', icon: 'up' },
+        { id: 'markets', label: 'Markets', icon: 'trend' },
+        { id: 'mastermind', label: 'Mastermind', icon: 'bulb' },
+      ] },
+    ],
+  };
 }
 
 async function postAction(request, env, ctx) {
