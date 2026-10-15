@@ -60,6 +60,14 @@ def workspace_of(path):
 ASKING = ('Do you want to', 'Would you like to', 'Allow this', '❯ 1. Yes', '> 1. Yes', 'Press enter to confirm')
 
 
+def term_title(t):
+    title = str(t.get('title') or '')
+    if title.lower().endswith('.exe'):
+        title = title.replace('\\', '/').rsplit('/', 1)[-1][:-4]
+        title = {'powershell': 'PowerShell', 'pwsh': 'PowerShell', 'cmd': 'Command Prompt'}.get(title.lower(), title)
+    return redact_long(title, 80)
+
+
 def screen_read(handle):
     """(last meaningful line, True when the screen shows a yes/no prompt waiting on Jon)."""
     try:
@@ -123,7 +131,7 @@ def collect_report(machine):
         if term:
             seen.add(term.get('handle'))
             item['terminal'] = term.get('handle')
-            item['title'] = redact_long(term.get('title') or '', 80)
+            item['title'] = term_title(term)
             item['workspace'] = workspace_of(term.get('worktreePath'))
             if term.get('connected') and term.get('handle') not in lines:
                 lines[term['handle']] = screen_read(term['handle'])
@@ -148,11 +156,11 @@ def collect_report(machine):
             continue
         out.append({
             'id': '%s:%s' % (t.get('executionHostId') or 'local', t.get('handle')),
-            'name': redact_long(t.get('title') or '', 80) or 'Terminal',
+            'name': term_title(t) or 'Terminal',
             'runs': LABEL.get(machine, machine),
             'machine': machine,
             'terminal': t.get('handle'),
-            'title': redact_long(t.get('title') or '', 80),
+            'title': term_title(t),
             'workspace': workspace_of(t.get('worktreePath')),
             'lastLine': screen_read(t['handle'])[0],
             'lastOutputAt': t.get('lastOutputAt'),
