@@ -20,6 +20,11 @@
       "binding": "REVIEW_DB",
       "database_name": "jonmac-review",
       "database_id": "aaf91d9f-48f9-458a-aa6d-24354266a39b"
+    },
+    {
+      "binding": "CLONE_DB",
+      "database_name": "jonmacai-clone-upsells",
+      "database_id": "cafcc654-94e7-498c-81cf-e197393c1176"
     }
   ],
   "r2_buckets": [

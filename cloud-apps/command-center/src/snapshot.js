@@ -12,6 +12,7 @@ import { overlayLife } from './life.js';
 import { applyHome } from './home.js';
 import { buildMachines, HOSTS, MACHINE_INTERVAL_MS } from './machines.js';
 import { overlayVideos } from './videos.js';
+import { overlayWebinar } from './webinar.js';
 
 export const COLLECTOR_INTERVAL_MS = 5 * 60 * 1000;
 
@@ -34,6 +35,7 @@ export const INTERVALS = {
   machine_gpu1: MACHINE_INTERVAL_MS,
   machine_gpu2: MACHINE_INTERVAL_MS,
   videos: COLLECTOR_INTERVAL_MS,
+  webinar: COLLECTOR_INTERVAL_MS,
   sponsors_cash: COLLECTOR_INTERVAL_MS,
 };
 
@@ -450,6 +452,11 @@ export function mergeSnapshot(fixture, rows, nowMs = Date.now(), overrides = {},
     const f = by.videos ? freshness(by.videos.collected_at, nowMs, INTERVALS.videos) : null;
     overlayVideos(out.pages.videos, by.videos, extra.reviews, f ? f.label : '');
     if (f?.stale) out.pages.videos.stale = true;
+  }
+  if (out.pages.webinar) {
+    const f = by.webinar ? freshness(by.webinar.collected_at, nowMs, INTERVALS.webinar) : null;
+    overlayWebinar(out.pages.webinar, by.webinar, extra.funnel, nowMs, f ? f.label : '');
+    if (f?.stale) out.pages.webinar.stale = true;
   }
   applyHome(out, by, extra, nowMs);
   const groupOk = groupScan(by)?.data?.access === 'ok';

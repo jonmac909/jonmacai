@@ -11,6 +11,7 @@ import {
   upsertPost, listPosts, listChecklist, listHabits, deleteChecklist,
 } from './db.js';
 import { mergeSnapshot } from './snapshot.js';
+import { listFunnel } from './webinar.js';
 import { overlayVideo } from './video.js';
 import { boardStageFor, mapColumn } from './sponsors.js';
 import { normalizePost } from './content.js';
@@ -140,7 +141,7 @@ async function login(request, env) {
 }
 
 // Pages built only from live feeds; they have no fixture numbers at all.
-const LIVE_PAGES = { videos: {} };
+const LIVE_PAGES = { videos: {}, webinar: {} };
 
 function filterSnapshot(pages) {
   const all = { ...snapshot.pages, ...LIVE_PAGES };
@@ -153,7 +154,7 @@ function filterSnapshot(pages) {
 function liveNav(nav) {
   const groups = nav.groups.map((g) => (g.title !== 'Business' ? g : {
     ...g,
-    items: [{ id: 'videos', label: 'Videos', icon: 'film' }, ...g.items.filter((i) => i.id !== 'youtube' && i.id !== 'video')],
+    items: [{ id: 'videos', label: 'Videos', icon: 'film' }, { id: 'webinar', label: 'Webinar', icon: 'clock' }, ...g.items.filter((i) => i.id !== 'youtube' && i.id !== 'video')],
   }));
   return { ...nav, groups };
 }
@@ -354,6 +355,7 @@ export async function handleApi(request, env, ctx) {
       extra.draftsError = err.message || 'Drafts unavailable';
     }
     extra.reviews = await listReviewPages(env.REVIEW_DB);
+    extra.funnel = await listFunnel(env.CLONE_DB);
     extra.platforms = configuredPlatforms(env);
     extra.unavailable = unavailablePlatforms(env);
     const merged = mergeSnapshot(base, await listSnapshots(env.DB), now, overrides, await listIdeas(env.DB), await listPosts(env.DB), await listVideoProjects(env.DB), extra);

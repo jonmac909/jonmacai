@@ -12,10 +12,11 @@ import { render as life } from './pages/life.js';
 import { render as mastermind } from './pages/mastermind.js';
 import { render as agents } from './pages/agents.js';
 import { render as videos } from './pages/videos.js';
+import { render as webinar } from './pages/webinar.js';
 import { formatJobResult } from './ui.js';
 import { bindModals, openDraft } from './modals.js';
 const PREFIX = '/dashboard';
-const pages = { home, sponsors, viral, youtube, content, outreach, support, video, money, markets, life, mastermind, agents, videos };
+const pages = { home, sponsors, viral, youtube, content, outreach, support, video, money, markets, life, mastermind, agents, videos, webinar };
 let data = null;
 
 const root = document.documentElement;
@@ -346,7 +347,7 @@ document.getElementById('goalsub').textContent = data.goal.sub;
 // Machines heartbeat every 60 s: refresh Home and Agents while visible.
 setInterval(() => {
   const id = hashPage();
-  if (document.hidden || !['home', 'agents', 'videos'].includes(id)) return;
+  if (document.hidden || !['home', 'agents', 'videos', 'webinar'].includes(id)) return;
   if (document.activeElement && /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName)) return;
   const y = window.scrollY;
   go(id, { refetch: true }).then(() => window.scrollTo(0, y)).catch(() => {});
