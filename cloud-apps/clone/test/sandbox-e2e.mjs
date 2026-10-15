@@ -1,6 +1,8 @@
 // No Commas CLI or environment-selection API. Every provider request uses the
 // hard-coded sandbox host and the dedicated sandbox key. Never trace card entry.
 import assert from 'node:assert/strict';
+import { createHmac } from 'node:crypto';
+import { mkdirSync, writeFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import { chromium } from 'playwright';
 import { OFFERS } from '../src/payment-config.js';
@@ -41,7 +43,9 @@ export async function runSandbox(options = {}) {
   const pageUrl = file => new URL(file + '?sandbox=1', base).toString();
   const apiUrl = route => new URL('api/' + route + '?sandbox=1', base).toString();
   const selectors = { ...DEFAULT_SELECTORS, ...JSON.parse(settings.CLONE_SANDBOX_SELECTORS || '{}') };
-  const report = { environment: 'sandbox', cases: [], checkoutCount: 0, cardEntries: 0, subscriptions: [] };
+  const report = { environment: 'sandbox', cases: [], checkoutCount: 0, cardEntries: 0, subscriptions: [], simulatedWebhooks: [] };
+  const simulateWebhooks = settings.CLONE_SANDBOX_SIMULATE_WEBHOOKS === '1';
+  let currentPage = null, allowHosted = false;
   const browser = await chromium.launch({ headless: true });
   const providerFetch = options.providerFetch || fetch;
   const createdSubscriptions = [];
@@ -76,6 +80,76 @@ export async function runSandbox(options = {}) {
     };
     return required ? until(find, 'Sandbox checkout field not found') : find();
   }
+  // Commas embedded checkout requires a billing address (autocomplete).
+  async function address(page) {
+    const input = await field(page, settings.CLONE_SANDBOX_ADDRESS_SELECTOR || 'input[placeholder*="address" i]', false);
+    if (!input) return false;
+    await input.click(); await input.pressSequentially('1600 Amphitheatre Parkway', { delay: 40 });
+    const pick = await until(async () => {
+      for (const frame of page.frames()) {
+        const option = frame.locator('[role="option"], .pac-item, li[id*="option" i]').filter({ hasText: /Amphitheatre/i }).first();
+        if (await option.count() && await option.isVisible()) return option;
+      }
+      return false;
+    }, 'Address suggestion not shown', 15000).catch(() => null);
+    if (pick) await pick.click(); else { await input.press('ArrowDown'); await input.press('Enter'); }
+    await sleep(1500); return true;
+  }
+  // Sandbox Commas sends no real webhook events yet. When enabled, replay the
+  // same signed payment/refund event the Worker expects, marked simulated.
+  async function simulate(context, hook, type, data) {
+    if (!simulateWebhooks) return null;
+    assert.ok(hook?.secret_key, 'Sandbox webhook secret unavailable');
+    const body = JSON.stringify({ id: 'simulated-' + type + '-' + (data.transaction_history_id || data.payment_id), type, simulated: true, created_at: new Date().toISOString(), data });
+    const signature = createHmac('sha256', hook.secret_key).update(body).digest('hex');
+    const r = await context.request.post(hook.webhook_url, { headers: { 'content-type': 'application/json', 'x-webhook-signature': signature }, data: body });
+    const result = { simulated: true, type, item: data.item?.id || null, ref: data.transaction_history_id || data.payment_id, status: r.status(), body: await r.json().catch(() => null) };
+    report.simulatedWebhooks.push(result); return result;
+  }
+  function paymentEvent(tx, productId, email, extra = {}) {
+    const ref = tx.public_transaction_id || String(tx.id);
+    return { payment_id: ref, transaction_history_id: ref, status: 'succeeded', created_at: tx.transaction_date || new Date().toISOString(),
+      amount: Number(tx.amount), currency: 'USD', quantity: 1, refunds: [], buyer: { email }, item: { id: productId }, ...extra };
+  }
+  // Real hosted sandbox subscription purchase (card re-entry by design), then
+  // verify the subscription and its 30-day renewal. Cancelled in cleanup.
+  async function hostedSubscription(context, c, name, email) {
+    const product = c.products[name];
+    const subsBefore = await list('/checkout-sessions/' + product + '/subscriptions', 'subscriptions');
+    const page = await context.newPage(); currentPage = page;
+    allowHosted = true;
+    try {
+      await page.goto(c.hosted[name]);
+      const commas = () => page.frames().find(f => /commas\.net/.test(f.url())) || page.mainFrame();
+      await until(async () => (await commas().getByLabel(/first name/i).count()) > 0, 'Hosted checkout form not shown', 60000);
+      const byLabel = async (label, value) => { const el = commas().getByLabel(label).first(); if (await el.count() && !(await el.inputValue())) await el.fill(value); };
+      await byLabel(/first name/i, 'Clone'); await byLabel(/last name/i, 'Sandbox'); await byLabel(/^email/i, email);
+      await byLabel(/phone/i, '3055550100');
+      await address(page);
+      await (await field(page, selectors.number)).fill(CARD);
+      await (await field(page, selectors.expiry)).fill('12' + String(new Date().getUTCFullYear() + 2).slice(-2));
+      await (await field(page, selectors.cvc)).fill('123');
+      for (const frame of page.frames()) {
+        const terms = frame.getByRole('checkbox', { name: /terms|agree|consent/i });
+        for (let i = 0; i < await terms.count(); i++) if (await terms.nth(i).isVisible()) await terms.nth(i).check();
+      }
+      report.cardEntries++; report.checkoutCount++;
+      const pay = commas().getByRole('button', { name: /pay|subscribe|complete|start/i }).last();
+      for (let attempt = 0; ; attempt++) {
+        await pay.click({ timeout: 5000 }).catch(() => {});
+        if (await page.waitForURL(u => u.hostname === base.hostname, { timeout: 5000 }).then(() => true, () => false)) break;
+        assert.ok(attempt < 12, 'Hosted subscription checkout never completed');
+      }
+      const sub = await until(async () => {
+        const rows = (await list('/checkout-sessions/' + product + '/subscriptions', 'subscriptions')).filter(x => !subsBefore.some(b => b.id === x.id) && String(x.email).toLowerCase() === email);
+        assert.ok(rows.length <= 1, 'Duplicate subscription created'); return rows[0];
+      }, 'Hosted checkout did not create a subscription');
+      const record = { product, id: sub.id }; createdSubscriptions.push(record); report.subscriptions.push(record);
+      const days = (Date.parse(sub.next_renewal_date) - Date.now()) / 86400000;
+      assert.ok(days > 29 && days < 31, 'Subscription next billing date must be 30 days out');
+      return { id: sub.id, status: sub.subscription_status, nextRenewal: sub.next_renewal_date, landed: new URL(page.url()).pathname };
+    } finally { allowHosted = false; await page.close(); }
+  }
   async function login(context) {
     const r = await context.request.post(new URL('api/sandbox/access', base).toString(), { headers: { origin: base.origin }, data: { token } });
     assert.equal(r.status(), 200, 'Sandbox access/configuration unavailable');
@@ -83,7 +157,6 @@ export async function runSandbox(options = {}) {
     assert.equal(configResponse.status(), 200, 'Sandbox configuration unavailable');
     const c = await configResponse.json();
     assert.equal(c.environment, 'sandbox'); assert.equal(c.rebillEnabled, true, 'Sandbox rebill gate must be enabled');
-    assert.equal(c.subscriptionsEnabled, true, 'Sandbox subscription gate must be enabled');
     for (const name of ['seat', ...Object.keys(OFFERS)]) {
       assert.ok(c.products[name] && !['nmGzE', ...Object.values(OFFERS).map(o => o.service)].includes(c.products[name]), 'Sandbox product map required');
       assert.ok(c.hosted[name].startsWith('https://sandbox.commas.net/'), 'Sandbox hosted URL required');
@@ -92,7 +165,7 @@ export async function runSandbox(options = {}) {
   }
   try {
     const runId = Date.now().toString(36);
-    const selected = options.cases || CASES;
+    const selected = options.cases || (settings.CLONE_SANDBOX_CASES ? settings.CLONE_SANDBOX_CASES.split(',').map(n => CASES[Number(n)]).filter(Boolean) : CASES);
     for (const [index, testCase] of selected.entries()) {
       stage = 'case ' + (index + 1) + ': ' + testCase.name;
       const context = await browser.newContext({ serviceWorkers: 'block', ignoreHTTPSErrors: ['localhost', '127.0.0.1'].includes(base.hostname) });
@@ -100,6 +173,7 @@ export async function runSandbox(options = {}) {
         const c = await login(context);
         const hooks = await provider('/webhook-subscriptions');
         const hookUrl = new URL('api/sandbox/purchase', base).toString();
+        const hook = hooks.find(h => h.webhook_url === hookUrl && h.is_active);
         assert.ok(Array.isArray(hooks) && hooks.some(h => h.webhook_url === hookUrl && h.is_active &&
           h.event_types?.includes('payment.succeeded')), 'Active sandbox purchase webhook required before checkout');
         // Check product terms before the first checkout. Sandbox service_id support
@@ -113,7 +187,15 @@ export async function runSandbox(options = {}) {
             if (name === 'vault_plan') assert.equal(product.subscription.auto_expire_after_x_periods, 2);
           }
         }
-        const page = await context.newPage();
+        const page = await context.newPage(); currentPage = page;
+        const consoleLines = []; page.on('console', m => consoleLines.push(m.type() + ': ' + m.text().slice(0, 300)));
+        page.on('pageerror', e => consoleLines.push('pageerror: ' + String(e).slice(0, 300)));
+        currentPage.consoleLines = consoleLines;
+        if (settings.CLONE_SANDBOX_ARTIFACTS) await page.addInitScript(() => {
+          window.__checkoutMessages = [];
+          addEventListener('message', e => { try { const d = typeof e.data === 'string' ? JSON.parse(e.data) : e.data;
+            if (d && d.type && !/stripe/i.test(String(e.origin))) window.__checkoutMessages.push(JSON.stringify(d).replace(/4242[ 0-9]*/g, '[card]').slice(0, 600)); } catch {} });
+        });
         let blockedProduction = false, cardFrames = 0;
         page.on('framenavigated', frame => {
           if (/checkout|stripe/.test(frame.url()) || (frame.parentFrame() && frame.url() === 'about:srcdoc')) cardFrames++;
@@ -123,7 +205,7 @@ export async function runSandbox(options = {}) {
           const live = ['commas.com', 'www.fanbasis.com', 'fanbasis.com', 'embedded.fanbasis.io'].includes(u.hostname);
           if (live) { blockedProduction = true; return route.abort(); }
           // Trial navigation is asserted without submitting another hosted payment.
-          if (u.hostname === 'sandbox.commas.net' && route.request().isNavigationRequest()) {
+          if (u.hostname === 'sandbox.commas.net' && route.request().isNavigationRequest() && !allowHosted) {
             return route.fulfill({ contentType: 'text/html', body: '<p>Sandbox hosted fallback verified.</p>' });
           }
           return route.continue();
@@ -149,7 +231,8 @@ export async function runSandbox(options = {}) {
         await page.locator('#lead_name').fill('Clone Sandbox'); await page.locator('#lead_email').fill(email);
         await page.locator('#lead_phone').fill('3055550100'); await page.locator('#leadf button[type="submit"]').click();
         stage = testCase.name + ': enter sandbox card';
-        await page.waitForFunction(() => document.querySelector('#leadpay').classList.contains('ready'));
+        await page.waitForFunction(() => document.querySelector('#leadpay').classList.contains('ready'), null, { timeout: 60000 });
+        await address(page);
         await (await field(page, selectors.number)).fill(CARD);
         const expiry = await field(page, selectors.expiry, false);
         if (expiry) await expiry.fill('12' + String(new Date().getUTCFullYear() + 2).slice(-2));
@@ -162,7 +245,15 @@ export async function runSandbox(options = {}) {
         }
         report.cardEntries++;
         stage = testCase.name + ': submit seat checkout';
-        await page.locator('#paygo').click(); await page.waitForURL(pageUrl('software.html'));
+        // The page ignores clicks until Commas reports a valid form (a few seconds
+        // after typing). Retry the click; once submitting, the button disables itself.
+        for (let attempt = 0; ; attempt++) {
+          await page.locator('#paygo').click({ timeout: 5000 }).catch(() => {});
+          const submitted = await page.waitForURL(pageUrl('software.html'), { timeout: 4000 }).then(() => true, () => false);
+          if (submitted) break;
+          if (await page.locator('#paygo').isDisabled().catch(() => false)) { await page.waitForURL(pageUrl('software.html'), { timeout: 90000 }); break; }
+          assert.ok(attempt < 10, 'Seat checkout never became submittable');
+        }
         const transactionId = await page.evaluate(() => sessionStorage.getItem('jm_sandbox_clone_transaction'));
         assert.ok(transactionId, 'SDK purchase reference missing');
         const transaction = await provider('/transactions/' + transactionId);
@@ -175,59 +266,65 @@ export async function runSandbox(options = {}) {
         const seatRows = (await list('/checkout-sessions/' + c.products.seat + '/transactions', 'transactions')).filter(x => x.fan?.email?.toLowerCase() === email);
         assert.equal(seatRows.length, 1, 'Initial checkout must create exactly one transaction');
         report.checkoutCount++;
+        stage = testCase.name + ': seat webhook';
+        const seatEvent = paymentEvent(transaction, c.products.seat, email, { api_metadata: { data: { clone_checkout_ref: session.checkoutRef } } });
+        for (let i = 0; i < 2; i++) { const s = await simulate(context, hook, 'payment.succeeded', seatEvent); if (s) assert.equal(s.status, 200, 'Simulated seat webhook rejected'); }
+        stage = testCase.name + ': buyer proof';
         await until(async () => {
           const r = await context.request.post(apiUrl('buyer-session'), { headers: { origin: base.origin }, data: { transactionId } });
           const b = await r.json(); if (b.pending) return false; assert.equal(b.ok, true, 'Sandbox webhook identity verification failed'); return true;
         }, 'Sandbox buyer proof timed out');
-        const result = { name: testCase.name, seatTransaction: transaction.id || transactionId, offers: [] };
+        const result = { name: testCase.name, email, seatTransaction: transaction.public_transaction_id || transaction.id || transactionId, customer, offers: [] };
         for (const name of testCase.offers) {
           stage = testCase.name + ': verify ' + name;
           await page.goto(pageUrl(pages[name]));
           const product = c.products[name];
-          const transactions = () => list('/checkout-sessions/' + product + '/transactions', 'transactions');
+          const transactions = (id = product) => list('/checkout-sessions/' + id + '/transactions', 'transactions');
           const forBuyer = rows => rows.filter(x => x.fan?.email?.toLowerCase() === email);
+          const records = () => list('/subscribers?customer_id=' + customer, 'subscribers');
           const before = forBuyer(await transactions());
-          const subsBefore = await list('/subscribers?customer_id=' + customer + '&product_id=' + product, 'subscribers');
+          const recordsBefore = await records();
           const framesBefore = cardFrames;
           const button = page.locator('[data-upsell="' + name + '"]').first();
           if (name === 'vault_plan') { await page.locator('[data-exit]').click(); }
           await button.click(); const outcome = await nextUpsell();
           stage = testCase.name + ': reconcile ' + name;
-          if (name === 'trial') {
-            assert.equal(outcome.reason, 'trial_hosted'); assert.equal(outcome.checkoutUrl, c.hosted.trial);
-            const hostedTrial = new URL(c.hosted.trial);
-            await page.waitForURL(url => url.origin === hostedTrial.origin && url.pathname === hostedTrial.pathname);
-            assert.equal(forBuyer(await transactions()).length, before.length);
-            result.offers.push({ offer: name, fallback: 'sandbox hosted trial; no trial submitted' }); continue;
+          const replay = () => context.request.post(apiUrl('upsell'), { headers: { origin: base.origin }, data: { offer: name } });
+          if (name === 'trial' || (OFFERS[name].recurring && !c.subscriptionsEnabled)) {
+            // Commas' saved-card charge cannot create a subscription (docs: no product
+            // or plan field), so recurring offers and the trial always use hosted checkout.
+            assert.equal(outcome.fallback, true); assert.equal(outcome.reason, name === 'trial' ? 'trial_hosted' : 'rebill_unavailable');
+            assert.equal(outcome.checkoutUrl, c.hosted[name]);
+            const hosted = new URL(c.hosted[name]);
+            await page.waitForURL(url => url.origin === hosted.origin && url.pathname === hosted.pathname);
+            for (const r of await Promise.all([replay(), replay()])) assert.equal((await r.json()).checkoutUrl, c.hosted[name]);
+            assert.equal(forBuyer(await transactions()).length, before.length, 'Hosted fallback must not charge');
+            assert.equal((await records()).length, recordsBefore.length, 'Hosted fallback must not charge a saved card');
+            const entry = { offer: name, fallback: outcome.reason, hosted: c.hosted[name], charged: false };
+            if (name === 'software' && settings.CLONE_SANDBOX_HOSTED_SUBSCRIPTION === '1' && !report.hostedSubscription) {
+              stage = testCase.name + ': hosted subscription ' + name;
+              entry.subscription = await hostedSubscription(context, c, name, email); report.hostedSubscription = entry.subscription;
+            }
+            result.offers.push(entry); continue;
           }
           assert.equal(outcome.ok, true, 'One-click sandbox charge failed; do not retry via hosted checkout');
           await page.waitForURL(new URL(outcome.next, base).toString());
           assert.equal(cardFrames, framesBefore, 'One-click upsell opened a card form');
           assert.equal(await page.locator('iframe[src*="checkout"], iframe[src*="stripe"], input[autocomplete^="cc-"]').count(), 0, 'Upsell requested card re-entry');
+          // Commas files saved-card charges under an ad-hoc one-time product named
+          // after the charge description, not under the configured product.
+          const isNew = x => !recordsBefore.some(b => b.id === x.id);
           const charged = await until(async () => {
-            const rows = forBuyer(await transactions()).filter(x => !before.some(b => b.id === x.id)); return rows.length ? rows : false;
-          }, 'Upsell transaction absent from sandbox ledger');
-          assert.equal(charged.length, 1, 'More than one upsell charge'); assert.equal(Number(charged[0].amount) * 100, OFFERS[name].cents);
-          let subscription;
-          if (OFFERS[name].recurring) {
-            stage = testCase.name + ': subscription creation ' + name;
-            subscription = await until(async () => {
-              const rows = (await list('/subscribers?customer_id=' + customer + '&product_id=' + product, 'subscribers'))
-                .filter(x => x.customer?.email?.toLowerCase() === email && x.product?.id === product && !subsBefore.some(b => b.id === x.id));
-              assert.ok(rows.length <= 1, 'Duplicate subscription created'); return rows[0];
-            }, 'Saved-card charge did not create a subscription');
-            const record = { product, id: subscription.subscription.id }; createdSubscriptions.push(record);
-            assert.equal(subscription.subscription.status, 'active'); assert.equal(subscription.subscription.payment_frequency, 'monthly');
-            assert.ok(Date.parse(subscription.subscription.created_at) >= Date.now() - 300000, 'Subscription was not created by this test');
-            const rows = await list('/checkout-sessions/' + product + '/subscriptions', 'subscriptions');
-            const renewal = rows.find(x => x.id === record.id); assert.ok(renewal, 'Subscription missing from product');
-            const days = (Date.parse(renewal.next_renewal_date) - Date.now()) / 86400000;
-            assert.ok(days > 29 && days < 31, 'Subscription next billing date must be 30 days out');
-            report.subscriptions.push(record);
-          }
+            const rows = (await records()).filter(x => isNew(x) && x.product?.title === OFFERS[name].description); return rows.length ? rows : false;
+          }, 'Upsell charge absent from sandbox records');
+          assert.equal(charged.length, 1, 'More than one upsell charge');
+          const adhoc = charged[0].product.id;
+          const adhocRows = forBuyer(await transactions(adhoc)); assert.equal(adhocRows.length, 1, 'Upsell ledger row missing');
+          assert.equal(Number(adhocRows[0].amount) * 100, OFFERS[name].cents);
+          assert.equal(forBuyer(await transactions()).length, before.length, 'Charge unexpectedly filed under the configured product');
+          for (let i = 0; i < 2; i++) { const s = await simulate(context, hook, 'payment.succeeded', paymentEvent(adhocRows[0], adhoc, email)); if (s) assert.equal(s.status, 200, 'Simulated upsell webhook rejected'); }
           // Concurrent API repeats, refresh + UI repeat, and alternative plan all
-          // reuse the permanent claim. Compare the provider ledger after settling.
-          const replay = () => context.request.post(apiUrl('upsell'), { headers: { origin: base.origin }, data: { offer: name } });
+          // reuse the permanent claim. Compare the provider records after settling.
           stage = testCase.name + ': idempotency ' + name;
           for (const r of await Promise.all([replay(), replay()])) assert.deepEqual(await r.json(), outcome);
           stage = testCase.name + ': UI replay ' + name;
@@ -239,24 +336,46 @@ export async function runSandbox(options = {}) {
           if (testCase.alternative) {
             const r = await context.request.post(apiUrl('upsell'), { headers: { origin: base.origin }, data: { offer: testCase.alternative } });
             assert.deepEqual(await r.json(), outcome);
-            const alternativeRows = forBuyer(await list('/checkout-sessions/' + c.products[testCase.alternative] + '/transactions', 'transactions'));
-            assert.equal(alternativeRows.length, 0, 'Alternative plan charged the same buyer twice');
           }
           await sleep(options.settleMs ?? 3000);
-          assert.equal(forBuyer(await transactions()).length, before.length + 1, 'Repeat requests duplicated a provider charge');
-          if (subscription) {
-            const rows = (await list('/subscribers?customer_id=' + customer + '&product_id=' + product, 'subscribers')).filter(x => x.customer?.email?.toLowerCase() === email);
-            assert.equal(rows.length, subsBefore.length + 1, 'Repeat requests duplicated a subscription');
-          }
-          result.offers.push({ offer: name, transaction: charged[0].id, idempotent: true, cardReentry: false, subscription: subscription?.subscription.id });
+          assert.equal((await records()).filter(isNew).length, 1, 'Repeat requests duplicated a provider charge');
+          result.offers.push({ offer: name, adhocProduct: adhoc, transaction: adhocRows[0].public_transaction_id || adhocRows[0].id, idempotent: true, cardReentry: false });
         }
         assert.equal(blockedProduction, false, 'Funnel attempted a production payment host');
         report.cases.push(result); options.log?.('PASS sandbox case ' + (index + 1) + ': ' + testCase.name);
+      } catch (error) {
+        if (settings.CLONE_SANDBOX_ARTIFACTS && currentPage) {
+          try {
+            mkdirSync(settings.CLONE_SANDBOX_ARTIFACTS, { recursive: true });
+            await currentPage.screenshot({ path: settings.CLONE_SANDBOX_ARTIFACTS + '/failure.png', fullPage: false });
+            writeFileSync(settings.CLONE_SANDBOX_ARTIFACTS + '/console.txt', (currentPage.consoleLines || []).join(String.fromCharCode(10)));
+            writeFileSync(settings.CLONE_SANDBOX_ARTIFACTS + '/messages.txt', (await currentPage.evaluate(() => window.__checkoutMessages || []).catch(() => [])).join(String.fromCharCode(10)));
+            for (const [i, frame] of currentPage.frames().entries()) {
+              const text = await frame.locator('body').innerText({ timeout: 2000 }).catch(() => '');
+              writeFileSync(settings.CLONE_SANDBOX_ARTIFACTS + '/frame-' + i + '.txt', frame.url().split('?')[0] + String.fromCharCode(10) + text.slice(0, 4000));
+              if (/commas\.net/.test(frame.url())) {
+                const fields = await frame.evaluate(() => [...document.querySelectorAll('input,select,[role=alert],[class*=error i]')].map(e => ({
+                  tag: e.tagName, name: e.name || e.id || '', placeholder: e.placeholder || '', value: e.tagName === 'INPUT' || e.tagName === 'SELECT' ? (e.type === 'checkbox' ? String(e.checked) : e.value) : '',
+                  invalid: e.getAttribute('aria-invalid'), text: e.tagName === 'INPUT' || e.tagName === 'SELECT' ? '' : (e.innerText || '').slice(0, 200) }))).catch(() => []);
+                writeFileSync(settings.CLONE_SANDBOX_ARTIFACTS + '/fields-' + i + '.json', JSON.stringify(fields, null, 1));
+              }
+            }
+          } catch { /* artifacts are best effort */ }
+        }
+        throw error;
       } finally { await context.close(); }
     }
     assert.equal(report.cardEntries, report.checkoutCount, 'Card must be entered once per initial checkout only');
     return report;
-  } catch {
+  } catch (error) {
+    if (settings.CLONE_SANDBOX_ARTIFACTS) {
+      // Local debugging only: never contains the access token (login is an API request).
+      try {
+        mkdirSync(settings.CLONE_SANDBOX_ARTIFACTS, { recursive: true });
+        writeFileSync(settings.CLONE_SANDBOX_ARTIFACTS + '/failure.txt', stage + String.fromCharCode(10) + String(error?.stack || error).replaceAll(apiKey, '[key]').replaceAll(token, '[token]'));
+        if (currentPage) await currentPage.screenshot({ path: settings.CLONE_SANDBOX_ARTIFACTS + '/failure.png', fullPage: false });
+      } catch { /* artifacts are best effort */ }
+    }
     // Do not print Playwright/API errors, URLs, tokens, card fields or raw bodies.
     throw new Error('Sandbox E2E failed during ' + stage + '. No hosted payment retry was submitted.');
   } finally {

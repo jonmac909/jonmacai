@@ -10,7 +10,7 @@ import { sandboxIds, sandboxSettings, mockProduct } from './sandbox-fixture.mjs'
 
 const settings = sandboxSettings();
 const buyers = [], transactions = [], subscriptions = [], charges = [];
-let counter = 10000, omitSubscription = false, webhookUrl;
+let counter = 10000, omitRecord = false, webhookUrl;
 const reply = data => new MFResponse(JSON.stringify({ status: 'success', data }), { headers: { 'content-type': 'application/json' } });
 const nameForId = id => Object.keys(sandboxIds).find(name => sandboxIds[name] === id);
 async function provider(request) {
@@ -23,22 +23,24 @@ async function provider(request) {
   }
   if (path.startsWith('/transactions/')) return reply(transactions.find(t => String(t.id) === path.split('/').pop()) || null);
   if (path === '/customers') return reply({ customers: buyers.filter(b => b.email.includes(url.searchParams.get('search') || '')) });
-  if (/\/payment-methods$/.test(path)) return reply({ customer: { id: Number(path.split('/')[2]) }, payment_methods: [{ id: 'mock-saved-card', type: 'card', is_default: true }] });
+  if (/\/payment-methods$/.test(path)) return reply({ customer: { id: path.split('/')[2] }, payment_methods: [{ id: 'mock-saved-card', type: 'card', is_default: true }] });
   if (/\/charge$/.test(path)) {
-    const customer = buyers.find(b => b.id === Number(path.split('/')[2])), body = await request.json();
+    const customer = buyers.find(b => b.id === path.split('/')[2]), body = await request.json();
     const name = Object.keys(sandboxIds).find(n => mockProduct(n).product.id === body.service_id);
     assert.ok(customer && name); assert.equal(body.payment_method_id, 'mock-saved-card'); assert.equal(body.amount_cents, mockProduct(name).amount_cents);
+    assert.notEqual(mockProduct(name).type, 'subscription', 'Recurring offers must use hosted checkout');
     const idem = request.headers.get('Idempotency-Key'); assert.ok(!charges.some(c => c.idem === idem), 'Duplicate provider charge');
-    const tx = { id: ++counter, product: { id: sandboxIds[name] }, fan: { email: customer.email }, amount: body.amount_cents / 100, refunds: [], transaction_date: new Date().toISOString() };
+    const adhoc = 'AH' + (++counter);
+    const tx = { id: ++counter, product: { id: adhoc, title: body.description }, fan: { email: customer.email }, amount: body.amount_cents / 100, refunds: [], transaction_date: new Date().toISOString() };
     transactions.push(tx); charges.push({ idem, customer: customer.id, name });
-    if (mockProduct(name).type === 'subscription' && !omitSubscription) subscriptions.push({ id: ++counter, customer: { id: 'hashid', email: customer.email }, product: { id: sandboxIds[name] }, customerNumber: customer.id,
-      subscription: { id: counter, status: 'active', payment_frequency: 'monthly', created_at: new Date().toISOString() },
-      next_renewal_date: new Date(Date.now() + 30 * 86400000).toISOString() });
-    return reply({ status: 'succeeded', charge_id: String(tx.id), amount: tx.amount });
+    if (!omitRecord) subscriptions.push({ id: ++counter, customer: { id: 'hashid', email: customer.email }, product: { id: adhoc, title: body.description }, customerNumber: customer.id,
+      subscription: { id: counter, status: 'onetime_service', created_at: new Date().toISOString() } });
+    return reply({ status: 'succeeded', charge_id: 'pi_mock' + tx.id, amount: tx.amount });
   }
-  if (path === '/subscribers') return reply({ subscribers: subscriptions.filter(s => s.customerNumber === Number(url.searchParams.get('customer_id')) && s.product.id === url.searchParams.get('product_id')), pagination: { has_more: false } });
+  if (path === '/subscribers') return reply({ subscribers: subscriptions.filter(s => s.customerNumber === url.searchParams.get('customer_id') && (!url.searchParams.get('product_id') || s.product.id === url.searchParams.get('product_id'))), pagination: { has_more: false } });
   if (path.startsWith('/checkout-sessions/')) {
     const [, , id, suffix, subId] = path.split('/');
+    if (id.startsWith('AH') && suffix === 'transactions') return reply({ transactions: transactions.filter(t => t.product.id === id), pagination: { has_more: false } });
     const name = nameForId(id); assert.ok(name, 'Unknown mock product');
     if (suffix === 'transactions') return reply({ transactions: transactions.filter(t => t.product.id === id), pagination: { has_more: false } });
     if (suffix === 'subscriptions') {
@@ -102,7 +104,7 @@ try {
       });
       await page.exposeFunction('mockPurchase', async (email, ref) => {
         assert.match(email, /^clone-sandbox-/); assert.match(ref, /^[A-Za-z0-9_-]{43}$/);
-        const buyer = { id: ++counter, email }; buyers.push(buyer);
+        const buyer = { id: 'user_Mock' + (++counter), email }; buyers.push(buyer);
         const tx = { id: ++counter, product: { id: sandboxIds.seat }, amount: 47, fan: { email }, refunds: [], transaction_date: new Date().toISOString() }; transactions.push(tx);
         const body = JSON.stringify({ type: 'payment.succeeded', created_at: tx.transaction_date, data: { item: tx.product, amount: 47, quantity: 1, buyer: { email }, transaction_history_id: String(tx.id), api_metadata: { data: { clone_checkout_ref: ref } } } });
         const r = await mf.dispatchFetch(new URL('/clone/api/sandbox/purchase', base), { method: 'POST', headers: { 'x-webhook-signature': createHmac('sha256', settings.COMMAS_SANDBOX_WEBHOOK_SECRET).update(body).digest('hex') }, body });
@@ -111,13 +113,13 @@ try {
     },
   };
   const report = await runSandbox(options);
-  assert.equal(report.checkoutCount, 7); assert.equal(report.cardEntries, 7); assert.equal(charges.length, 8);
-  assert.equal(report.subscriptions.length, 3); assert.ok(subscriptions.every(s => s.subscription.status === 'cancelled'));
+  assert.equal(report.checkoutCount, 7); assert.equal(report.cardEntries, 7); assert.equal(charges.length, 5);
+  assert.equal(report.subscriptions.length, 0);
+  assert.ok(report.cases.flatMap(c => c.offers).filter(o => ['software', 'vault_plan', 'trial'].includes(o.offer)).every(o => o.charged === false && o.hosted));
   const liveClaims = await db.prepare('SELECT COUNT(*) AS n FROM clone_upsell_claims').first(); assert.equal(liveClaims.n, 0);
-  console.log('PASS: seven mock checkouts, eight one-click charges, three verified/cancelled subscriptions, no production claims');
-  // Prove the runner rejects the undocumented capability if charge succeeds but
-  // Commas does not actually create the subscription.
-  omitSubscription = true;
-  await assert.rejects(runSandbox({ ...options, cases: [CASES[1]], verifyTimeout: 1000 }), /subscription creation software/);
-  console.log('PASS: runner rejects a successful charge without subscription creation');
+  console.log('PASS: seven mock checkouts, five one-click one-time charges, recurring offers and trial on hosted checkout, no production claims');
+  // Prove the runner rejects a reported success that leaves no provider record.
+  omitRecord = true;
+  await assert.rejects(runSandbox({ ...options, cases: [CASES[2]], verifyTimeout: 1000 }), /reconcile audit/);
+  console.log('PASS: runner rejects a successful charge without a provider record');
 } finally { await mf.dispose(); }

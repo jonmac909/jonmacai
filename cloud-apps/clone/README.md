@@ -167,12 +167,15 @@ cookies expire after 30 minutes. Client customer IDs never authorize billing.
 `POST /clone/api/upsell {offer}` accepts only `software`, `trial`, `audit`,
 `vault`, or `vault_plan`. Prices, service IDs and next-page URLs are server-owned.
 Before billing, it verifies the current service terms and obtains the customer's
-saved card server-side. `service_id` uses the numeric ID resolved from the public
-service ID, with `amount_cents` on `/customers/:id/charge`. **Recurring upsells stay gated
-until the sandbox end-to-end run confirms the service-ID request field, ID format
-and subscription creation.** The public charge reference
-currently does not document `service_id`; the subscription capability was
-reported by Commas support, and has been implemented and tested with mocks only.
+saved card server-side and charges `amount_cents` on `/customers/:id/charge`.
+**Commas' charge endpoint has no product or plan field** (docs: `payment_method_id`,
+`amount_cents`, `description`, `metadata` only). The sandbox run on Oct 15 2026
+confirmed it: a saved-card charge is filed under an ad-hoc one-time product named
+after `description`, and never creates a subscription; `service_id` is ignored.
+So recurring upsells ($97/month, 3 x $99) and the trial always use hosted
+checkout, and both `CLONE_SUBSCRIPTIONS_ENABLED` flags must stay `"false"`
+(a config test enforces this). One-click charges still collect the exact amount,
+but their webhook `item.id` is the ad-hoc product, not the configured one.
 
 The D1 primary key `(buyer_id, offer_group)` atomically claims the order before
 the charge. Software/trial and vault/plan each share a group. This prevents
@@ -284,9 +287,8 @@ variables (JSON maps use the names above):
   vault/plan to welcome).
 - `CLONE_SANDBOX_REBILL_ENABLED=true` once sandbox manual rebill is enabled.
 - `CLONE_SANDBOX_REBILL_ENABLED_AT` = sandbox activation timestamp in UTC.
-- `CLONE_SANDBOX_SUBSCRIPTIONS_ENABLED=true` for sandbox validation of the
-  support-reported `service_id` contract. Production subscription gate stays
-  disabled until this sandbox run proves subscription creation and plan terms.
+- `CLONE_SANDBOX_SUBSCRIPTIONS_ENABLED=false`, like production: Commas' saved-card
+  charge cannot create subscriptions (see above).
 
 Set separate secrets on the existing `jonmac-agency` Worker using Cloudflare
 secret storage: `COMMAS_SANDBOX_API_KEY`, `COMMAS_SANDBOX_WEBHOOK_SECRET`, and

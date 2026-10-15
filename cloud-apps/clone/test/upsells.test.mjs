@@ -139,6 +139,11 @@ test('Clone one-click payments: verified identity, durable claims and safe fallb
       assert.equal(calls.length, 0);
     }
   });
+  await t.test('subscription one-click stays off in config: Commas charges cannot create subscriptions', () => {
+    const vars = JSON.parse(readFileSync(new URL('../wrangler.jsonc', import.meta.url), 'utf8').replace(/^\s*\/\/.*$/gm, '')).vars;
+    assert.equal(vars.CLONE_SUBSCRIPTIONS_ENABLED, 'false');
+    assert.equal(vars.CLONE_SANDBOX_SUBSCRIPTIONS_ENABLED, 'false');
+  });
   await t.test('no saved card and changed product terms cannot charge', async () => {
     for (const overrides of [{ methods: response({ customer: { id: BUYER }, payment_methods: [] }) }, { product: response({ product: { id: 1382675 }, amount_cents: 99900, type: 'onetime_reusable' }) }, { product: response({ product: { id: 1382675 }, amount_cents: 49700, type: 'subscription' }) }, { methods: response({ customer: { id: 'user_Other99999' }, payment_methods: [{ id: 'other-card', type: 'card' }] }) }]) {
       const e = env(), calls = mockCommas(overrides);
