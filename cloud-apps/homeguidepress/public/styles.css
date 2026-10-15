@@ -56,7 +56,7 @@ section { padding: 28px 0; border-top: 1px solid var(--line); }
 .promises strong, .chapters strong { display: block; font-family: var(--sans); font-size: 21px; margin-bottom: 4px; }
 .chapters { counter-reset: ch; }
 .chapters li { counter-increment: ch; }
-.chapters strong::before { content: 'Chapter ' counter(ch) ': '; color: var(--accent); }
+.chapters.numbered strong::before { content: 'Chapter ' counter(ch) ': '; color: var(--accent); }
 .format { color: var(--muted); }
 .pending { background: #fff6d6; border: 1px dashed #c9a227; padding: 12px 16px; border-radius: 8px; }
 .ticks li { padding-left: 34px; position: relative; margin-bottom: 12px; }

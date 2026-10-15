@@ -47,7 +47,7 @@ export function landing(p, { checkoutReady, query = '' }) {
   const sections = [];
   if (p.promises.length) sections.push(`<section><h2>What makes it different</h2><ul class="promises">${p.promises.map(([h, t]) => `<li><strong>${esc(h)}</strong><span>${esc(t)}</span></li>`).join('')}</ul></section>`);
   sections.push(p.chapters.length
-    ? `<section><h2>What's inside</h2><p class="format">${esc(p.format)}.</p><ol class="chapters">${p.chapters.map(([h, t]) => `<li><strong>${esc(h)}</strong><span>${esc(t)}</span></li>`).join('')}</ol></section>`
+    ? `<section><h2>What's inside</h2><p class="format">${esc(p.format)}.</p><ol class="chapters${p.numbered ? ' numbered' : ''}">${p.chapters.map(([h, t]) => `<li><strong>${esc(h)}</strong><span>${esc(t)}</span></li>`).join('')}</ol></section>`
     : `<section><h2>What's inside</h2><p class="format">${esc(p.format)}.</p><p class="pending">The full chapter list goes here once the book is finished.</p></section>`);
   if (p.forWho.length) sections.push(`<section><h2>Who it's for</h2><ul class="ticks">${p.forWho.map(t => `<li>${esc(t)}</li>`).join('')}</ul>${p.notFor ? `<p>${esc(p.notFor)}</p>` : ''}</section>`);
   const faq = [...p.faq,

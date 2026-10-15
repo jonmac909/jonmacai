@@ -81,15 +81,15 @@ test('landing page: noindex, chapters, buy link keeps src and utm', async () => 
   assert.equal(f.sql.prepare("SELECT COUNT(*) n FROM clicks WHERE kind='view' AND slug='angelo' AND src='aff-angelo-1'").get().n, 1);
 });
 
-test('pending persona and missing checkout show placeholders, never a buy link', async () => {
+test('missing checkout link shows a placeholder, never a buy link', async () => {
   const f = fixture();
-  const body = await (await get(f, '/steve')).text();
-  assert.match(body, /\[persona name pending\]/);
+  const body = await (await get(f, '/the-long-life-dog')).text();
+  assert.match(body, /Marco Bellandi, Marco&#39;s Dog Sense/);
   assert.match(body, /Checkout opens soon/);
   assert.doesNotMatch(body, /href="\/go\/steve/);
   const go = await get(f, '/go/steve?src=x', { redirect: 'manual' });
   assert.equal(go.status, 302);
-  assert.equal(go.headers.get('location'), 'https://homeguidepress.com/steve?src=x');
+  assert.equal(go.headers.get('location'), 'https://homeguidepress.com/the-long-life-dog?src=x');
 });
 
 test('/go counts the click and forwards attribution to Commas', async () => {
@@ -229,7 +229,7 @@ test('unknown Commas product stores the order but sends nothing', async t => {
 
 test('every public page renders', async () => {
   const f = fixture();
-  for (const path of ['/', '/finally-written-down', '/steve', '/freddy', '/gary', '/teruko', '/delton', '/prepared', '/thanks?p=angelo', '/privacy', '/terms', '/refunds']) {
+  for (const path of ['/', '/finally-written-down', '/the-long-life-dog', '/guardian-dog-field-books', '/drivers-bundle', '/light-and-orderly', '/the-straight-pour', '/ready-at-home', '/thanks?p=angelo', '/privacy', '/terms', '/refunds']) {
     const r = await get(f, path);
     assert.equal(r.status, 200, path);
   }
