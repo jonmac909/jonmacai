@@ -28,6 +28,8 @@ const DEFAULT_SELECTORS = {
 };
 const pages = { software: 'software.html', trial: 'software.html', audit: 'audit.html', vault: 'vault.html', vault_plan: 'vault.html' };
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+// Sandbox-only diagnostics (attempts, refusals) appear on the first response only.
+const core = ({ attempts, refusals, provider, ...rest } = {}) => rest;
 
 export async function runSandbox(options = {}) {
   const settings = options.settings || process.env;
@@ -398,16 +400,16 @@ export async function runSandbox(options = {}) {
           // Concurrent API repeats, refresh + UI repeat, and alternative plan all
           // reuse the permanent claim. Compare the provider records after settling.
           stage = testCase.name + ': idempotency ' + name;
-          for (const r of await Promise.all([replay(), replay()])) assert.deepEqual(await r.json(), outcome);
+          for (const r of await Promise.all([replay(), replay()])) assert.deepEqual(core(await r.json()), core(outcome));
           stage = testCase.name + ': UI replay ' + name;
           await page.goto(pageUrl(pages[name])); await page.reload();
           await page.locator('[data-upsell="' + name + '"][role="button"]').first().waitFor({ state: 'attached' });
           if (name === 'vault_plan') await page.locator('[data-exit]').click();
-          await page.locator('[data-upsell="' + name + '"]').first().click(); assert.deepEqual(await nextUpsell(), outcome);
+          await page.locator('[data-upsell="' + name + '"]').first().click(); assert.deepEqual(core(await nextUpsell()), core(outcome));
           await page.waitForURL(new URL(outcome.next, base).toString());
           if (testCase.alternative) {
             const r = await context.request.post(apiUrl('upsell'), { headers: { origin: base.origin }, data: { offer: testCase.alternative } });
-            assert.deepEqual(await r.json(), outcome);
+            assert.deepEqual(core(await r.json()), core(outcome));
           }
           await sleep(options.settleMs ?? 3000);
           assert.equal((await records()).filter(isNew).length, 1, 'Repeat requests duplicated a provider charge');
