@@ -13,7 +13,7 @@ import { applyHome } from './home.js';
 import { buildMachines, HOSTS, MACHINE_INTERVAL_MS } from './machines.js';
 import { overlayVideos } from './videos.js';
 import { overlayWebinar } from './webinar.js';
-import { buildCash, usd } from './cash.js';
+import { buildCash, usd, withoutExcluded } from './cash.js';
 import { buildNow } from './now.js';
 
 export const COLLECTOR_INTERVAL_MS = 5 * 60 * 1000;
@@ -36,7 +36,7 @@ export const INTERVALS = {
   bank_scan: COLLECTOR_INTERVAL_MS,
   machine_gpu1: MACHINE_INTERVAL_MS,
   machine_gpu2: MACHINE_INTERVAL_MS,
-  videos: COLLECTOR_INTERVAL_MS,
+  videos: MACHINE_INTERVAL_MS,
   webinar: COLLECTOR_INTERVAL_MS,
   sponsors_cash: COLLECTOR_INTERVAL_MS,
   needs_jon: COLLECTOR_INTERVAL_MS,
@@ -325,7 +325,9 @@ export function mergeSnapshot(fixture, rows, nowMs = Date.now(), overrides = {},
   const by = {};
   const staleSources = [];
   for (const row of rows || []) {
-    by[row.source] = row;
+    by[row.source] = row.source === 'sponsors' || row.source === 'sponsors_cash'
+      ? { ...row, data: withoutExcluded(row.source, row.data) }
+      : row;
     if (row.source === 'google_oauth' || row.source === 'telegram_sent' || row.source === 'mastermind_group') continue;
     const interval = INTERVALS[row.source] ?? DEFAULT_INTERVAL_MS;
     const f = freshness(row.collected_at, nowMs, interval);
@@ -454,7 +456,7 @@ export function mergeSnapshot(fixture, rows, nowMs = Date.now(), overrides = {},
   }
   if (out.pages.videos) {
     const f = by.videos ? freshness(by.videos.collected_at, nowMs, INTERVALS.videos) : null;
-    overlayVideos(out.pages.videos, by.videos, extra.reviews, f ? f.label : '');
+    overlayVideos(out.pages.videos, by.videos, extra.reviews, nowMs);
     if (f?.stale) out.pages.videos.stale = true;
   }
   if (out.pages.webinar) {

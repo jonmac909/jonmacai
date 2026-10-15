@@ -288,3 +288,4 @@ tfoot td{font-weight:600;color:var(--ink);border-top:1px solid var(--line)}
 .navgrp.archive summary::before{content:'▸ '}
 .navgrp.archive[open] summary::before{content:'▾ '}
 .navgrp.archive:not([open])>.nav{display:none}
+.bad{color:var(--crit-ink)}
