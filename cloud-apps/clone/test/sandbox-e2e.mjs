@@ -257,7 +257,7 @@ export async function runSandbox(options = {}) {
           await route.fulfill({ response });
         });
         const nextUpsell = () => until(() => upsellResults.shift(), 'Upsell response timed out', 120000);
-        const email = `clone-sandbox-${runId}-${index}@example.test`;
+        const email = `clone-sandbox-${runId}-${stressOffset + index}-${Math.random().toString(36).slice(2, 6)}@example.test`;
         await page.goto(pageUrl(''));
         assert.equal(await page.evaluate(() => window.CloneMode?.environment), 'sandbox');
         stage = testCase.name + ': open seat modal';
