@@ -391,7 +391,7 @@ Apply migration `0006_sandbox_observability.sql` through the usual release gate
 before releasing this code. Reminders use separate `clone_sandbox_webinar_*`
 tables and `sandbox:lead:<email>` KV keys. A verified sandbox $47 seat schedules
 the normal eligible sequence with recipient hardcoded to
-`jon+vvtest@thejonmac.com`, subject prefix `[SANDBOX TEST]`, and Resend idempotency
+`delivered@resend.dev` (Resend's test sink; never a real inbox), subject prefix `[SANDBOX TEST]`, and Resend idempotency
 keys prefixed `clone-sandbox-`. No cc/bcc or production automation events are
 allowed. E1 is scheduled three minutes ahead for cancellable QA; production E1
 keeps its immediate behavior. Missing Zoom/replay links still gate E4-E8.

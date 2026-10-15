@@ -1,6 +1,7 @@
 import { isSandbox } from './payment-config.js';
 
-export const SANDBOX_REMINDER_RECIPIENT = 'jon+vvtest@thejonmac.com';
+// Resend's test sink: logged as delivered in Resend, never sent to a real inbox.
+export const SANDBOX_REMINDER_RECIPIENT = 'delivered@resend.dev';
 const HOUR = 60 * 60 * 1000;
 const eastern = new Intl.DateTimeFormat('en-US', {
   timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit',

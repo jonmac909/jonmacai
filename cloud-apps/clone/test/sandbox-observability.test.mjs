@@ -7,6 +7,7 @@ import worker from '../src/index.js';
 import { sandboxSettings, sandboxIds } from './sandbox-fixture.mjs';
 import { sandboxEnv } from '../src/sandbox.js';
 import { retryReminders } from '../src/reminders.js';
+import { SANDBOX_REMINDER_RECIPIENT } from '../src/reminder-plan.js';
 import { sendWhopServerEvent, flushWhopEvents } from '../src/whop-events.js';
 
 function fixture() {
@@ -43,10 +44,10 @@ test('signed sandbox deliveries log once, schedule only the test mailbox, retry 
   globalThis.fetch = async (url, init = {}) => {
     assert.ok(String(url).startsWith('https://api.resend.com/'), 'Sandbox made a non-Resend network call');
     const path = new URL(url).pathname; calls.push({ path, init });
-    if (path.startsWith('/contacts/')) { assert.ok(path.endsWith('jon%2Bvvtest%40thejonmac.com')); return Response.json({ unsubscribed: false }); }
+    if (path.startsWith('/contacts/')) { assert.ok(path.endsWith('delivered%40resend.dev')); return Response.json({ unsubscribed: false }); }
     if (path === '/emails') {
       const payload = JSON.parse(init.body), key = init.headers['Idempotency-Key'];
-      assert.equal(payload.to, 'jon+vvtest@thejonmac.com'); assert.ok(!payload.cc && !payload.bcc);
+      assert.equal(payload.to, 'delivered@resend.dev'); assert.ok(!payload.cc && !payload.bcc);
       assert.ok(payload.scheduled_at); assert.ok(key.startsWith('clone-sandbox-SIM-JON6-'));
       if (!accepted.has(key)) accepted.set(key, { id: 'mock-' + accepted.size, payload: init.body, last_event: 'scheduled' });
       assert.equal(accepted.get(key).payload, init.body);
@@ -90,4 +91,9 @@ test('signed sandbox deliveries log once, schedule only the test mailbox, retry 
     for (let i = 0; i < 2; i++) assert.equal((await worker.fetch(hook(env, current), env)).status, 200);
   }
   assert.equal(logs.length, 6); assert.equal(sql.prepare('SELECT COUNT(*) n FROM clone_sandbox_whop_events').get().n, 6);
+});
+
+test('sandbox email only goes to the Resend test sink, never a real inbox', () => {
+  assert.equal(SANDBOX_REMINDER_RECIPIENT, 'delivered@resend.dev');
+  assert.ok(!/thejonmac|viralview/i.test(SANDBOX_REMINDER_RECIPIENT));
 });

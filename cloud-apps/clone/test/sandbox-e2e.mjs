@@ -45,7 +45,7 @@ export async function runSandbox(options = {}) {
   const selectors = { ...DEFAULT_SELECTORS, ...JSON.parse(settings.CLONE_SANDBOX_SELECTORS || '{}') };
   const report = { environment: 'sandbox', cases: [], checkoutCount: 0, cardEntries: 0, subscriptions: [], simulatedWebhooks: [] };
   const simulateWebhooks = settings.CLONE_SANDBOX_SIMULATE_WEBHOOKS === '1';
-  let currentPage = null, allowHosted = false;
+  let currentPage = null, allowHosted = false, lastCharge = 0;
   const browser = await chromium.launch({ headless: true });
   const providerFetch = options.providerFetch || fetch;
   const createdSubscriptions = [];
@@ -81,8 +81,8 @@ export async function runSandbox(options = {}) {
     return required ? until(find, 'Sandbox checkout field not found') : find();
   }
   // Commas embedded checkout requires a billing address (autocomplete).
-  async function address(page) {
-    const input = await field(page, settings.CLONE_SANDBOX_ADDRESS_SELECTOR || 'input[placeholder*="address" i]', false);
+  async function address(page, selector = settings.CLONE_SANDBOX_ADDRESS_SELECTOR || 'input[placeholder*="address" i]') {
+    const input = await field(page, selector, false);
     if (!input) return false;
     await input.click(); await input.pressSequentially('1600 Amphitheatre Parkway', { delay: 40 });
     const pick = await until(async () => {
@@ -125,7 +125,14 @@ export async function runSandbox(options = {}) {
       const byLabel = async (label, value) => { const el = commas().getByLabel(label).first(); if (await el.count() && !(await el.inputValue())) await el.fill(value); };
       await byLabel(/first name/i, 'Clone'); await byLabel(/last name/i, 'Sandbox'); await byLabel(/^email/i, email);
       await byLabel(/phone/i, '3055550100');
-      await address(page);
+      // Hosted checkout: street autocomplete fills city, ZIP and state.
+      if (await commas().locator('input[name="addressLine1"]').count()) {
+        await address(page, 'input[name="addressLine1"]');
+        for (const [n, v] of [['city', 'Mountain View'], ['zip', '94043'], ['state', 'CA']]) {
+          const el = commas().locator('input[name="' + n + '"]');
+          if (await el.count() && await el.isVisible() && !(await el.inputValue())) await el.fill(v);
+        }
+      } else await address(page);
       await (await field(page, selectors.number)).fill(CARD);
       await (await field(page, selectors.expiry)).fill('12' + String(new Date().getUTCFullYear() + 2).slice(-2));
       await (await field(page, selectors.cvc)).fill('123');
@@ -148,6 +155,18 @@ export async function runSandbox(options = {}) {
       const days = (Date.parse(sub.next_renewal_date) - Date.now()) / 86400000;
       assert.ok(days > 29 && days < 31, 'Subscription next billing date must be 30 days out');
       return { id: sub.id, status: sub.subscription_status, nextRenewal: sub.next_renewal_date, landed: new URL(page.url()).pathname };
+    } catch (error) {
+      if (settings.CLONE_SANDBOX_ARTIFACTS) {
+        try {
+          mkdirSync(settings.CLONE_SANDBOX_ARTIFACTS, { recursive: true });
+          await page.screenshot({ path: settings.CLONE_SANDBOX_ARTIFACTS + '/hosted.png', fullPage: true });
+          const fields = await page.mainFrame().evaluate(() => [...document.querySelectorAll('input,select,button,[role=alert],[class*=error i]')].map(e => ({
+            tag: e.tagName, label: e.getAttribute('aria-label') || e.name || e.id || '', value: e.tagName === 'INPUT' || e.tagName === 'SELECT' ? (e.type === 'checkbox' ? String(e.checked) : e.value) : '',
+            text: (e.innerText || '').slice(0, 120), disabled: !!e.disabled }))).catch(() => []);
+          writeFileSync(settings.CLONE_SANDBOX_ARTIFACTS + '/hosted-fields.json', JSON.stringify({ url: page.url().split('?')[0], fields }, null, 1));
+        } catch { /* best effort */ }
+      }
+      throw error;
     } finally { allowHosted = false; await page.close(); }
   }
   async function login(context) {
@@ -287,7 +306,11 @@ export async function runSandbox(options = {}) {
           const framesBefore = cardFrames;
           const button = page.locator('[data-upsell="' + name + '"]').first();
           if (name === 'vault_plan') { await page.locator('[data-exit]').click(); }
+          // Sandbox refuses a burst of saved-card charges (about 3 per 2 minutes
+          // account-wide, generic 400). Space one-click charges when configured.
+          if (!OFFERS[name].recurring && name !== 'trial' && lastCharge) await sleep(Math.max(0, lastCharge + Number(settings.CLONE_SANDBOX_CHARGE_GAP_MS || 0) - Date.now()));
           await button.click(); const outcome = await nextUpsell();
+          if (outcome.ok) lastCharge = Date.now();
           stage = testCase.name + ': reconcile ' + name;
           const replay = () => context.request.post(apiUrl('upsell'), { headers: { origin: base.origin }, data: { offer: name } });
           if (name === 'trial' || (OFFERS[name].recurring && !c.subscriptionsEnabled)) {
