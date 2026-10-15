@@ -74,13 +74,13 @@ export function renderIndex({ channels, videos }, message = "") {
 </main>`);
 }
 
-// Secondary players: collapsed, muted, never preloaded or autoplayed.
+// Secondary player (first-60 clip): collapsed, muted, never preloaded or autoplayed.
 const extra = (id, label, url) => url ? `<details class="extra" id="${id}"><summary>${label}</summary>
     <video id="${id}-player" class="extra-player" controls playsinline webkit-playsinline muted preload="none" src="${escapeHtml(url)}" aria-label="${label}"></video>
   </details>` : "";
 
 export function renderVideo(video, versions, channelName) {
-  const data = JSON.stringify({ slug: video.slug, duration: video.duration, chapters: video.chapters, status: video.status })
+  const data = JSON.stringify({ slug: video.slug, duration: video.duration, chapters: video.chapters, status: video.status, sync: video.sync })
     .replace(/</g, "\\u003c");
   const versionLinks = versions.length > 1 ? `<nav class="version-nav" aria-label="Versions">${versions.map((v) =>
     v.slug === video.slug
@@ -94,13 +94,30 @@ export function renderVideo(video, versions, channelName) {
     <h1>${escapeHtml(video.title)} <span class="muted">${escapeHtml(video.version)}</span></h1>
     ${versionLinks}
   </header>
-  <video id="player" controls playsinline webkit-playsinline preload="metadata"
-    src="${escapeHtml(video.video_url)}#t=0.001" aria-label="Our video"></video>
+  ${video.source_url ? `<div class="duo" id="duo">
+    <figure class="pane"><figcaption>Source <span class="muted" id="source-audio">muted</span></figcaption>
+      <video id="source-player" controls playsinline webkit-playsinline muted preload="metadata"
+        src="${escapeHtml(video.source_url)}#t=0.001" aria-label="Source video"></video>
+      <p class="pane-error" id="source-error" hidden>The source video did not load. Ours still plays.</p></figure>
+    <figure class="pane"><figcaption>Ours <span class="muted" id="ours-audio">sound on</span></figcaption>
+      <video id="player" controls playsinline webkit-playsinline preload="metadata"
+        src="${escapeHtml(video.video_url)}#t=0.001" aria-label="Our video"></video></figure>
+  </div>
+  <div class="transport" id="transport">
+    <button type="button" class="primary" id="play-both">Play both</button>
+    <button type="button" id="pause-both">Pause both</button>
+    <button type="button" id="source-only">Source only</button>
+    <button type="button" id="ours-only">Ours only</button>
+    <label class="toggle"><input type="checkbox" id="sync" checked> Keep in sync <span class="muted">(${video.sync.length ? "cut map" : "same offset"})</span></label>
+    <span class="audio-switch" role="radiogroup" aria-label="Sound from">Sound:
+      <label><input type="radio" name="audio" value="ours" checked> Ours</label>
+      <label><input type="radio" name="audio" value="source"> Source</label></span>
+  </div>` : `<video id="player" controls playsinline webkit-playsinline preload="metadata"
+    src="${escapeHtml(video.video_url)}#t=0.001" aria-label="Our video"></video>`}
   ${video.chapters.length ? `<div class="chapters" id="chapters">${video.chapters.map(([t, label]) =>
     `<button type="button" data-t="${Number(t)}">${formatTime(t)} ${escapeHtml(label)}</button>`).join("")}</div>` : ""}
   <div class="status-row"><span class="muted">Status</span><div class="status-btns" id="status">${statusButtons}</div></div>
   ${video.notes ? `<p class="notes">${escapeHtml(video.notes)}</p>` : ""}
-  ${extra("source", "Source video (muted)", video.source_url)}
   ${extra("compare", "First 60 s side by side (muted)", video.compare_url)}
   <section class="composer" aria-label="Add a comment">
     <form id="comment-form" novalidate>

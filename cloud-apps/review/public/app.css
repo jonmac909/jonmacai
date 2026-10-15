@@ -44,6 +44,15 @@ input, textarea { width: 100%; background: var(--panel); border: 1px solid var(-
 .version-nav a, .version-nav .current { border: 1px solid var(--line); border-radius: 6px; padding: 4px 10px; text-decoration: none; }
 .version-nav .current { background: var(--accent); color: #04121b; border-color: var(--accent); font-weight: 700; }
 video { display: block; width: 100%; max-height: 70vh; background: #000; border-radius: 10px; border: 1px solid var(--line); }
+.duo { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.pane { margin: 0; min-width: 0; }
+.pane figcaption { font-weight: 700; margin-bottom: 6px; }
+.pane video { aspect-ratio: 16 / 9; }
+.pane-error { color: var(--red); margin: 6px 0 0; }
+.transport { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; margin-top: 10px; }
+.toggle, .audio-switch { display: inline-flex; align-items: center; gap: 6px; }
+.audio-switch label { display: inline-flex; align-items: center; gap: 4px; }
+@media (max-width: 760px) { .duo { grid-template-columns: 1fr; } }
 .chapters { display: flex; gap: 6px; overflow-x: auto; padding: 10px 0 2px; -webkit-overflow-scrolling: touch; }
 .chapters button { white-space: nowrap; font-size: 14px; }
 .status-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin: 14px 0; }
