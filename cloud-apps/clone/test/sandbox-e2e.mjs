@@ -247,8 +247,14 @@ export async function runSandbox(options = {}) {
         await page.locator('a[href^="https://sandbox.commas.net/"]').first().click();
         const session = await (await sessionResponse).json();
         assert.equal(session.environment, 'sandbox'); assert.equal(session.productId, c.products.seat);
-        await page.locator('#lead_name').fill('Clone Sandbox'); await page.locator('#lead_email').fill(email);
-        await page.locator('#lead_phone').fill('3055550100'); await page.locator('#leadf button[type="submit"]').click();
+        // Fill until the values stick (the modal can still be animating focus).
+        await until(async () => {
+          for (const [sel, v] of [['#lead_name', 'Clone Sandbox'], ['#lead_email', email], ['#lead_phone', '3055550100']]) {
+            if (await page.locator(sel).inputValue() !== v) await page.locator(sel).fill(v);
+          }
+          return await page.locator('#lead_name').inputValue() === 'Clone Sandbox' && await page.locator('#lead_email').inputValue() === email;
+        }, 'Lead form did not accept values', 15000);
+        await page.locator('#leadf button[type="submit"]').click();
         stage = testCase.name + ': enter sandbox card';
         await page.waitForFunction(() => document.querySelector('#leadpay').classList.contains('ready'), null, { timeout: 60000 });
         await address(page);
