@@ -4,6 +4,7 @@ import { cookieName, isSandbox, leadKey, paymentConfig } from './payment-config.
 import { publicConfig, sandboxAccess, sandboxEnv, sandboxPage } from './sandbox.js';
 import { buyerSession, checkoutContext, recordPurchaseProof, sameOrigin, upsell, validWebhook } from './upsells.js';
 import { deliverWhopEvent, enqueueWhopEvent, flushWhopEvents, whopAttribution, whopPurchaseFromVerifiedPayment } from './whop-events.js';
+import { deliverMetaEvent, enqueueMetaEvent, flushMetaEvents, metaAttribution, metaConfigured, metaPaymentFromWebhook, metaPurchase } from './meta-events.js';
 import { purchaseReminders, retryReminders, unsubscribeReminders } from './reminders.js';
 import { consentEvidence, readinessConfig } from './readiness.js';
 import { recordScorecardPayment, recordVisit, sessionDate } from './scorecard.js';
@@ -69,13 +70,23 @@ export default {
     const headers = new Headers(response.headers);
     // Existing page scripts/SDK remain allowed. No default-src restriction is
     // introduced for the funnel's video, fonts, images or embedded checkout.
+    // Meta pixel ID for meta-pixel.js on every page; only when Meta is configured (never sandbox).
+    if (!isSandbox(env) && metaConfigured(env) && (headers.get('content-type') || '').includes('text/html')) {
+      const tag = '<script>window.CLONE_META=' + JSON.stringify({ pixelId: env.META_PIXEL_ID }) + ';</script>';
+      const html = (await response.text()).replace(/<meta charset=[^>]*>/i, m => m + tag);
+      headers.set('content-security-policy', "script-src 'self' 'unsafe-inline' https://t.whop.tw https://cdn.embedded.fanbasis.io https://connect.facebook.net https://www.googletagmanager.com");
+      if (env.CLONE_VERSION?.id) headers.set('x-clone-version', env.CLONE_VERSION.id);
+      if (env.CLONE_VERSION?.tag) headers.set('x-clone-commit', env.CLONE_VERSION.tag);
+      headers.delete('content-length');
+      return new Response(html, { status: response.status, headers });
+    }
     headers.set('content-security-policy', "script-src 'self' 'unsafe-inline' https://t.whop.tw https://cdn.embedded.fanbasis.io https://connect.facebook.net https://www.googletagmanager.com");
     if (env.CLONE_VERSION?.id) headers.set('x-clone-version', env.CLONE_VERSION.id);
     if (env.CLONE_VERSION?.tag) headers.set('x-clone-commit', env.CLONE_VERSION.tag);
     return new Response(response.body, { status: response.status, headers });
   },
   async scheduled(controller, env, ctx) {
-    ctx.waitUntil(Promise.all([flushWhopEvents(env), retryReminders(env),
+    ctx.waitUntil(Promise.all([flushWhopEvents(env), flushMetaEvents(env), retryReminders(env),
       ...(env.COMMAS_ENV === 'sandbox' ? [retryReminders(sandboxEnv(env))] : [])]));
   },
 };
@@ -109,6 +120,7 @@ async function handleLead(request, env) {
     ua: request.headers.get("user-agent") || "",
     ts: new Date().toISOString(),
     whop: whopAttribution(data, request),
+    meta: metaAttribution(data, request),
     sessionDate: sessionDate(),
   };
   await env.CLONE_LEADS.put(leadKey(env, email), JSON.stringify(record));
@@ -263,6 +275,16 @@ async function handlePurchase(request, env) {
       }
     } catch { conversionPending = true; }
   }
+  // Meta Conversions API: one Purchase per sale, exactly once, off until configured.
+  try {
+    const sale = metaPaymentFromWebhook(payload, env);
+    if (sale) {
+      let lead = {};
+      try { lead = JSON.parse(await env.CLONE_LEADS.get(leadKey(env, String(sale.email || '').trim().toLowerCase())) || '{}'); } catch {}
+      const body = await metaPurchase(env, { ...sale, lead, pageUrl: payload?.data?.api_metadata?.data?.whop_page_url });
+      if (await enqueueMetaEvent(env, sale.eventId, body)) await deliverMetaEvent(env, sale.eventId);
+    }
+  } catch { /* queued events are retried by the cron flush */ }
   let outcome;
   try {
     const reminders = await purchaseReminders(payload, env);

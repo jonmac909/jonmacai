@@ -38,7 +38,7 @@ function hook(env, payload, secret = env.COMMAS_SANDBOX_WEBHOOK_SECRET) {
 test('signed sandbox deliveries log once, schedule only the test mailbox, retry and refund safely', async t => {
   const saved = globalThis.fetch, info = console.info, timer = globalThis.setTimeout;
   const logs = [], accepted = new Map(), calls = []; let loseFirstResponse = true, failCancel = true;
-  console.info = line => logs.push(JSON.parse(line));
+  console.info = line => { const entry = JSON.parse(line); if (entry.dedup_key) logs.push(entry); };
   globalThis.setTimeout = (fn, ms, ...args) => timer(fn, ms === 250 ? 0 : ms, ...args);
   t.after(() => { globalThis.fetch = saved; console.info = info; globalThis.setTimeout = timer; });
   globalThis.fetch = async (url, init = {}) => {

@@ -79,6 +79,7 @@
     if (result.ok || result.fallback) {
       try { sessionStorage.removeItem(pendingKey); } catch (e) {}
     }
+    if (result.ok && result.purchaseEventId && window.CloneMetaQueue) CloneMetaQueue(result.purchaseEventId, result.value);
     if (result.ok && /^\/clone\/(audit|vault|welcome)\.html(?:\?sandbox=1)?$/.test(result.next || '')) {
       if (sandbox !== result.next.endsWith('?sandbox=1')) throw new Error('Wrong checkout environment');
       location.href = result.next; return;

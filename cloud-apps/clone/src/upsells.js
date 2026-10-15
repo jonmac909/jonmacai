@@ -1,6 +1,7 @@
 import { cookieName, isSandbox, leadKey, paymentConfig, table, tokenKind } from './payment-config.js';
 import { deliverWhopEvent, enqueueWhopEvent, whopPurchaseFromVerifiedPayment } from './whop-events.js';
 import { recordScorecardPayment } from './scorecard.js';
+import { deliverMetaEvent, enqueueMetaEvent, metaPurchase, metaPurchaseEventId } from './meta-events.js';
 export { OFFERS } from './payment-config.js';
 const TTL = 30 * 60;
 const enc = new TextEncoder();
@@ -182,6 +183,11 @@ export async function recordOneClickSale(env, { name, offer, buyerId, customer, 
     if (event && await enqueueWhopEvent(env, event)) await deliverWhopEvent(env, event.eventId);
   } catch { /* the queued event is retried by the cron flush */ }
   try { await recordScorecardPayment(payload, env, lead); } catch { /* scorecard is reporting only */ }
+  try {
+    const eventId = metaPurchaseEventId('oneclick', chargeId);
+    const body = await metaPurchase(env, { eventId, value: offer.cents / 100, email, at, lead, pageUrl: 'https://jonmac.ai' + offer.next.split('?')[0] });
+    if (await enqueueMetaEvent(env, eventId, body)) await deliverMetaEvent(env, eventId);
+  } catch { /* retried by the cron flush */ }
 }
 
 function fallback(offer, reason = 'unavailable') {
@@ -296,7 +302,7 @@ export async function upsell(request, env) {
     if (success(charge) && d?.status === 'succeeded' && d.charge_id && Number(d.amount) * 100 === offer.cents) {
       await finish('charged', String(d.charge_id));
       await recordOneClickSale(env, { name: input.offer, offer, buyerId, customer, chargeId: String(d.charge_id) });
-      return json({ ok: true, next: offer.next, ...diagnostics });
+      return json({ ok: true, next: offer.next, purchaseEventId: metaPurchaseEventId('oneclick', String(d.charge_id)), value: offer.cents / 100, ...diagnostics });
     }
     // Only explicit rejection is safe to send to a second checkout. Timeouts, 409,
     // malformed success, 5xx or pending gateway outcomes must stay permanently locked.

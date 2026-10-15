@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
+<script src="meta-pixel.js"></script>
 <script src="/clone/schedule.js?v=1"></script>
 <script src="/clone/whop-pixel.js?v=1"></script>
 <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -961,7 +962,7 @@ a.presscite h3{text-decoration:underline;text-decoration-thickness:1px;text-unde
     meta.clone_session_date=sessionDay.slice(0,4)+'-'+sessionDay.slice(4,6)+'-'+sessionDay.slice(6,8);
     Object.keys(attr).forEach(function(k){ if(attr[k])meta[k]=String(attr[k]); });
     if(window.CloneWhop)Object.assign(meta,CloneWhop.metadata());
-    if(session.checkoutRef)meta.clone_checkout_ref=session.checkoutRef;
+    if(session.checkoutRef){ meta.clone_checkout_ref=session.checkoutRef; window.cloneCheckoutRef=session.checkoutRef; }
     try{
       checkout=PaymentCheckout.create({
         creatorId:session.creatorId,

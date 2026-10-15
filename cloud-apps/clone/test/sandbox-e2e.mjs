@@ -29,7 +29,7 @@ const DEFAULT_SELECTORS = {
 const pages = { software: 'software.html', trial: 'software.html', audit: 'audit.html', vault: 'vault.html', vault_plan: 'vault.html' };
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 // Sandbox-only diagnostics (attempts, refusals) appear on the first response only.
-const core = ({ attempts, refusals, provider, ...rest } = {}) => rest;
+const core = ({ attempts, refusals, provider, purchaseEventId, value, ...rest } = {}) => rest;
 
 export async function runSandbox(options = {}) {
   const settings = options.settings || process.env;

@@ -72,7 +72,8 @@ test('Clone one-click payments: verified identity, durable claims and safe fallb
     for (const name of ['software', 'audit', 'vault', 'vault_plan']) {
       const e = env(), cookie = await buyerCookie(e), calls = mockCommas();
       const r = await upsell(request('upsell', { offer: name, amount_cents: 1, customerId: 99999 }, cookie), e);
-      assert.deepEqual(await r.json(), { ok: true, next: OFFERS[name].next });
+      const body = await r.json(); assert.deepEqual({ ok: body.ok, next: body.next }, { ok: true, next: OFFERS[name].next });
+      assert.equal(body.purchaseEventId, 'clone_purchase_oneclick_mock-charge');
       const charge = calls.find(c => c.url.endsWith('/charge'));
       const b = JSON.parse(charge.body);
       assert.equal(b.amount_cents, OFFERS[name].cents);
@@ -146,7 +147,8 @@ test('Clone one-click payments: verified identity, durable claims and safe fallb
   await t.test('recurring offers and the $1 trial charge the first payment once and are listed for manual setup', async () => {
     for (const [name, plan, days] of [['software', 'VV Pro $97/mo (month 1 paid)', 30], ['vault_plan', 'Vault 3 x $99 (payment 1 of 3 paid)', 30], ['trial', 'VV Pro $1 trial -> $97/mo', 7]]) {
       const e = { ...env(), CLONE_TRIAL_ONECLICK: 'true' }, cookie = await buyerCookie(e), calls = mockCommas();
-      assert.deepEqual(await (await upsell(request('upsell', { offer: name }, cookie), e)).json(), { ok: true, next: OFFERS[name].next });
+      const first = await (await upsell(request('upsell', { offer: name }, cookie), e)).json();
+      assert.deepEqual({ ok: first.ok, next: first.next }, { ok: true, next: OFFERS[name].next });
       const charge = JSON.parse(calls.find(c => c.url.endsWith('/charge')).body);
       assert.equal(charge.amount_cents, name === 'trial' ? 100 : OFFERS[name].cents);
       const rows = await e.CLONE_UPSELLS.prepare('SELECT * FROM clone_manual_subscriptions').bind().all();
