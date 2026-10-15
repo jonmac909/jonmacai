@@ -10,12 +10,12 @@ export function sandboxSettings() { return {
   CLONE_SANDBOX_ACCESS_TOKEN: 'mock-only-access-token-32-characters-long',
   CLONE_REBILL_ENABLED: 'true', CLONE_SUBSCRIPTIONS_ENABLED: 'false',
   CLONE_REBILL_ENABLED_AT: new Date(Date.now() - 60000).toISOString(),
-  CLONE_SANDBOX_REBILL_ENABLED: 'true', CLONE_SANDBOX_SUBSCRIPTIONS_ENABLED: 'true',
+  CLONE_SANDBOX_REBILL_ENABLED: 'true', CLONE_SANDBOX_SUBSCRIPTIONS_ENABLED: 'false',
   CLONE_SANDBOX_REBILL_ENABLED_AT: new Date(Date.now() - 60000).toISOString(),
 }; }
 export function mockProduct(name) {
   const offer = OFFERS[name];
   return { product: { id: 9000 + Object.keys(sandboxIds).indexOf(name) },
-    amount_cents: offer?.trial ? 9700 : offer?.cents || 4700, type: offer?.recurring || offer?.trial ? 'subscription' : 'onetime',
+    amount_cents: offer?.trial ? 9700 : offer?.cents || 4700, type: offer?.recurring || offer?.trial ? 'subscription' : 'onetime_reusable',
     subscription: { frequency_days: 30, free_trial_days: offer?.trial ? 7 : null, auto_expire_after_x_periods: name === 'vault_plan' ? 2 : null } };
 }

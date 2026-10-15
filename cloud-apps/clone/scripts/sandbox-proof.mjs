@@ -28,7 +28,7 @@ try {
       transaction_history_id: ref, payment_id: ref + '-payment', status: 'succeeded',
       amount: ({ seat: 47, software: 97, trial: 97, audit: 497, vault: 297, vault_plan: 99 })[name],
       quantity: 1, currency: 'USD', created_at: new Date().toISOString(), item: { id: product },
-      buyer: { email: 'jon+vvtest@thejonmac.com' },
+      buyer: { email: 'delivered@resend.dev' },
       api_metadata: { data: { whop_page_url: 'https://jonmac.ai/clone/?utm_source=JON6-sandbox&token=removed' } },
     } };
     assert.equal((await api('/clone/api/sandbox/purchase', payload, 'wrong-sandbox-secret')).status, 401);
@@ -47,7 +47,7 @@ try {
   assert.ok(report.before_refund.events.every(e => !JSON.stringify(e.payload).includes('removed')));
   assert.ok(report.before_refund.statuses.length > 0);
   for (const status of report.before_refund.statuses) {
-    assert.equal(status.api_status, 200); assert.deepEqual(status.to, ['jon+vvtest@thejonmac.com']);
+    assert.equal(status.api_status, 200); assert.deepEqual(status.to, ['delivered@resend.dev']);
     assert.equal(status.last_event, 'scheduled'); assert.ok(status.scheduled_at);
   }
 } catch (e) { error = e; }
@@ -68,4 +68,4 @@ assert.ok(report.after_refund.statuses.every(s => s.api_status === 200 && ['canc
 console.log(JSON.stringify({ pass: true, simulated_transactions: report.purchases.length,
   delivery_count: report.purchases.reduce((n, p) => n + p.deliveries, 0), whop_durable_logs: report.before_refund.events.length,
   resend_scheduled: report.before_refund.statuses.length, resend_cancelled: report.after_refund.statuses.length,
-  recipient: 'jon+vvtest@thejonmac.com', report: '.wrangler/proof/signed-simulation.json' }));
+  recipient: 'delivered@resend.dev', report: '.wrangler/proof/signed-simulation.json' }));
