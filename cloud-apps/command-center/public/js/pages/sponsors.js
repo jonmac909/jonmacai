@@ -1,4 +1,5 @@
 import { tiles, pg, pill, btn, kanban, pgrow, head, esc } from '../ui.js';
+import { cashCard } from '../cash.js';
 
 export function render(d) {
   const right = d.actions.map((a) => btn(a.label, { msg: a.msg, cls: 'line', href: a.href, kind: a.kind, payload: a.payload })).join('');
@@ -18,6 +19,7 @@ export function render(d) {
   }).join('');
   return `<div class="wrap">
   ${head(d.title, d.sub, right)}
+  ${cashCard(d.cash)}
   ${tiles(d.tiles)}
   <div class="card pad">
     <div class="cardhead"><h2>${d.septemberBar.title}</h2><span class="meta">${d.septemberBar.meta}</span></div>

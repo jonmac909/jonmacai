@@ -13,6 +13,7 @@ import { applyHome } from './home.js';
 import { buildMachines, HOSTS, MACHINE_INTERVAL_MS } from './machines.js';
 import { overlayVideos } from './videos.js';
 import { overlayWebinar } from './webinar.js';
+import { buildCash, usd } from './cash.js';
 
 export const COLLECTOR_INTERVAL_MS = 5 * 60 * 1000;
 
@@ -458,7 +459,13 @@ export function mergeSnapshot(fixture, rows, nowMs = Date.now(), overrides = {},
     overlayWebinar(out.pages.webinar, by.webinar, extra.funnel, nowMs, f ? f.label : '');
     if (f?.stale) out.pages.webinar.stale = true;
   }
+  const cash = buildCash(by.sponsors_cash, by.sponsors, nowMs);
+  if (out.pages.sponsors) out.pages.sponsors.cash = cash;
+  if (out.pages.home) out.pages.home.sponsorsCash = cash;
   applyHome(out, by, extra, nowMs);
+  if (cash.available && out.goal) {
+    out.goal = { ...out.goal, pct: cash.pct, sub: `Trailing 90-day avg ${usd(cash.trailing.avg)} a month` };
+  }
   const groupOk = groupScan(by)?.data?.access === 'ok';
   if (out.pages.home?.mastermindPick && !groupOk) {
     out.pages.home.mastermindPick = {
