@@ -1,0 +1,41 @@
+{
+  // homeguidepress.com: Home Guide Press landing pages + Commas webhook + Resend delivery (JON-59).
+  // Secrets (wrangler secret put, never committed): COMMAS_WEBHOOK_SECRET, RESEND_API_KEY, LINK_SECRET,
+  // COMMAS_TEST_WEBHOOK_SECRET (signed test webhooks only; delete it to switch the test path off).
+  "name": "homeguidepress",
+  "main": "src/index.js",
+  "compatibility_date": "2026-08-01",
+  "workers_dev": false,
+  "preview_urls": false,
+  "triggers": { "crons": ["*/10 * * * *"] },
+  "assets": {
+    "directory": "./public",
+    "binding": "ASSETS",
+    "html_handling": "none",
+    "not_found_handling": "none"
+  },
+  "vars": {
+    "SITE_URL": "https://homeguidepress.com",
+    "RESEND_FROM_ADDRESS": "books@homeguidepress.com",
+    // "true" once Ana says a product is live; until then every page is noindex and robots.txt disallows all.
+    "INDEXING": "false",
+    // Commas checkout link per product key, from the ebook worker's JON-59 comment. Empty = "Checkout opens soon".
+    "CHECKOUT_URLS": "{}",
+    // Commas product ID per key, if the ID isn't the start of the checkout link path.
+    "PRODUCT_IDS": "{}",
+    // Optional per-key file list override: {"steve":[{"name":"...pdf","object":"steve/....pdf"}]}.
+    "FILES": "{}",
+    // Signed test webhooks may only email these addresses (never Jon's inbox).
+    "TEST_RECIPIENTS": "delivered@resend.dev"
+  },
+  "d1_databases": [
+    { "binding": "DB", "database_name": "homeguidepress", "database_id": "3d74fd02-98ef-45ff-b6ec-5a9848d8c9fb", "migrations_dir": "migrations" }
+  ],
+  "r2_buckets": [
+    { "binding": "BOOKS", "bucket_name": "homeguidepress-books" }
+  ],
+  "routes": [
+    { "pattern": "homeguidepress.com", "custom_domain": true },
+    { "pattern": "www.homeguidepress.com", "custom_domain": true }
+  ]
+}
