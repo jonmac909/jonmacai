@@ -21,7 +21,7 @@
 
   async function post(path, body) {
     var response = await fetch('/clone/api/' + path + suffix, { method: 'POST', credentials: 'same-origin',
-      headers: { 'content-type': 'application/json' }, body: JSON.stringify(body), signal: AbortSignal.timeout(20000) });
+      headers: { 'content-type': 'application/json' }, body: JSON.stringify(body), signal: AbortSignal.timeout(path === 'upsell' ? 90000 : 20000) });
     return response.json();
   }
   async function verifyBuyer() {
@@ -64,7 +64,10 @@
       await buyerReady;
       // Persist BEFORE dispatch so a refresh during the charge also stays safe.
       try { sessionStorage.setItem(pendingKey, '1'); } catch (e) {}
-      result = await post('upsell', { offer: button.dataset.upsell });
+      var slow = setTimeout(function () {
+        button.innerHTML = '<span class="upsell-spinner" aria-hidden="true"></span>Still processing — this can take up to a minute. Please don’t refresh.';
+      }, 6000);
+      try { result = await post('upsell', { offer: button.dataset.upsell }); } finally { clearTimeout(slow); }
     } catch (e) {
       // A network failure can happen AFTER billing. A repeat checks the durable
       // claim and cannot submit a second charge; never expose hosted checkout here.

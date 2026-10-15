@@ -46,6 +46,9 @@ export async function runSandbox(options = {}) {
   const report = { environment: 'sandbox', cases: [], checkoutCount: 0, cardEntries: 0, subscriptions: [], simulatedWebhooks: [] };
   const simulateWebhooks = settings.CLONE_SANDBOX_SIMULATE_WEBHOOKS === '1';
   let currentPage = null, allowHosted = false, lastCharge = 0;
+  // Test a not-yet-live Worker version (0% traffic) via Cloudflare's version override, jonmac.ai only.
+  const versionHeader = /^[0-9a-f-]{36}$/.test(settings.CLONE_SANDBOX_VERSION_OVERRIDE || '') ?
+    { 'Cloudflare-Workers-Version-Overrides': 'jonmac-agency="' + settings.CLONE_SANDBOX_VERSION_OVERRIDE + '"' } : null;
   const browser = await chromium.launch({ headless: true });
   const providerFetch = options.providerFetch || fetch;
   const createdSubscriptions = [];
@@ -184,10 +187,22 @@ export async function runSandbox(options = {}) {
   }
   try {
     const runId = Date.now().toString(36);
-    const selected = options.cases || (settings.CLONE_SANDBOX_CASES ? settings.CLONE_SANDBOX_CASES.split(',').map(n => CASES[Number(n)]).filter(Boolean) : CASES);
+    // Stress mode: N fresh buyers, each one-clicking every upsell at buyer speed.
+    // Even buyers take $97/mo + $497 + $297; odd buyers take the $1 trial + $497 + 3 x $99.
+    const stress = Number(settings.CLONE_SANDBOX_STRESS || 0), stressOffset = Number(settings.CLONE_SANDBOX_STRESS_OFFSET || 0);
+    const selected = options.cases || (stress ? Array.from({ length: stress }, (_, i) => ({ name: 'stress ' + (stressOffset + i + 1),
+      offers: (stressOffset + i) % 2 ? ['trial', 'audit', 'vault_plan'] : ['software', 'audit', 'vault'] })) :
+      settings.CLONE_SANDBOX_CASES ? settings.CLONE_SANDBOX_CASES.split(',').map(n => CASES[Number(n)]).filter(Boolean) : CASES);
     for (const [index, testCase] of selected.entries()) {
       stage = 'case ' + (index + 1) + ': ' + testCase.name;
       const context = await browser.newContext({ serviceWorkers: 'block', ignoreHTTPSErrors: ['localhost', '127.0.0.1'].includes(base.hostname) });
+      if (versionHeader) {
+        for (const method of ['get', 'post']) {
+          const original = context.request[method].bind(context.request);
+          context.request[method] = (url, opts = {}) => original(url, { ...opts,
+            headers: { ...(opts.headers || {}), ...(new URL(url).hostname === base.hostname ? versionHeader : {}) } });
+        }
+      }
       try {
         const c = await login(context);
         const hooks = await provider('/webhook-subscriptions');
@@ -227,18 +242,19 @@ export async function runSandbox(options = {}) {
           if (u.hostname === 'sandbox.commas.net' && route.request().isNavigationRequest() && !allowHosted) {
             return route.fulfill({ contentType: 'text/html', body: '<p>Sandbox hosted fallback verified.</p>' });
           }
-          return route.continue();
+          return route.continue(versionHeader && u.hostname === base.hostname ? { headers: { ...route.request().headers(), ...versionHeader } } : undefined);
         });
         if (options.preparePage) await options.preparePage(page, context);
         const upsellResults = [];
         // Read the real response before the page's immediate success redirect
         // disposes it. Forward the unchanged response to the browser.
         await context.route(apiUrl('upsell'), async route => {
-          const response = await route.fetch({ maxRetries: 0, maxRedirects: 0 });
+          const response = await route.fetch({ maxRetries: 0, maxRedirects: 0, timeout: 120000,
+            ...(versionHeader ? { headers: { ...route.request().headers(), ...versionHeader } } : {}) });
           upsellResults.push(await response.json());
           await route.fulfill({ response });
         });
-        const nextUpsell = () => until(() => upsellResults.shift(), 'Upsell response timed out');
+        const nextUpsell = () => until(() => upsellResults.shift(), 'Upsell response timed out', 120000);
         const email = `clone-sandbox-${runId}-${index}@example.test`;
         await page.goto(pageUrl(''));
         assert.equal(await page.evaluate(() => window.CloneMode?.environment), 'sandbox');
@@ -300,6 +316,33 @@ export async function runSandbox(options = {}) {
           const b = await r.json(); if (b.pending) return false; assert.equal(b.ok, true, 'Sandbox webhook identity verification failed'); return true;
         }, 'Sandbox buyer proof timed out');
         const result = { name: testCase.name, email, seatTransaction: transaction.public_transaction_id || transaction.id || transactionId, customer, offers: [] };
+        if (stress) {
+          // Record every click (first try and final) instead of stopping at the first refusal.
+          const records = () => list('/subscribers?customer_id=' + customer, 'subscribers');
+          const recordsBefore = await records();
+          for (const name of testCase.offers) {
+            stage = testCase.name + ': stress ' + name;
+            await page.goto(pageUrl(pages[name]));
+            await page.locator('[data-upsell="' + name + '"][role="button"]').first().waitFor({ state: 'attached' });
+            if (name === 'vault_plan') await page.locator('[data-exit]').click();
+            const clicked = Date.now();
+            await page.locator('[data-upsell="' + name + '"]').first().click();
+            const outcome = await nextUpsell();
+            result.offers.push({ offer: name, clickedAt: new Date(clicked).toISOString(), ms: Date.now() - clicked,
+              ok: outcome.ok === true, firstTry: outcome.ok === true && outcome.attempts === 1, attempts: outcome.attempts ?? null,
+              reason: outcome.reason || null, refusals: outcome.refusals || [], provider: outcome.provider || null });
+            if (outcome.ok) await page.waitForURL(new URL(outcome.next, base).toString()).catch(() => {});
+          }
+          await sleep(3000);
+          const added = (await records()).filter(x => !recordsBefore.some(b => b.id === x.id));
+          for (const entry of result.offers) {
+            const title = OFFERS[entry.offer].chargeDescription || OFFERS[entry.offer].description;
+            entry.providerCharges = added.filter(x => x.product?.title === title).length;
+            entry.exactlyOnce = entry.providerCharges === (entry.ok ? 1 : 0);
+          }
+          report.cases.push(result); options.log?.('STRESS ' + testCase.name + ': ' + result.offers.map(o => o.offer + '=' + (o.firstTry ? 'first-try' : o.ok ? 'retry-ok' : 'REFUSED')).join(' '));
+          continue;
+        }
         for (const name of testCase.offers) {
           stage = testCase.name + ': verify ' + name;
           await page.goto(pageUrl(pages[name]));

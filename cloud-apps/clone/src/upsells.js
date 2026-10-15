@@ -1,4 +1,6 @@
-import { cookieName, isSandbox, paymentConfig, table, tokenKind } from './payment-config.js';
+import { cookieName, isSandbox, leadKey, paymentConfig, table, tokenKind } from './payment-config.js';
+import { deliverWhopEvent, enqueueWhopEvent, whopPurchaseFromVerifiedPayment } from './whop-events.js';
+import { recordScorecardPayment } from './scorecard.js';
 export { OFFERS } from './payment-config.js';
 const TTL = 30 * 60;
 const enc = new TextEncoder();
@@ -135,6 +137,53 @@ export async function buyerSession(request, env) {
   } catch { return json({ ok: false, fallback: true }, 503); }
 }
 
+function retryDelay(env) {
+  const value = Number(env.CLONE_CHARGE_RETRY_MS);
+  return Number.isFinite(value) && value >= 0 && value <= 20000 ? value : 20000;
+}
+const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+function chargeGap(env) {
+  const value = Number(isSandbox(env) ? env.CLONE_SANDBOX_CHARGE_GAP_MS : env.CLONE_CHARGE_GAP_MS);
+  return Number.isFinite(value) && value >= 0 ? Math.min(value, 60000) : 36000;
+}
+function refusedBeforePayment(charge) {
+  const result = charge.body?.data?.result;
+  return charge.response.status === 400 && charge.body?.status === 'error' && result && result.success === false &&
+    result.payment_intent_id == null && /something went wrong/i.test(String(charge.body.message || result.error || ''));
+}
+function providerNote(charge) {
+  return { status: charge.response.status, request_id: charge.body?.request_id || charge.response.headers.get('x-amzn-trace-id') || null,
+    message: String(charge.body?.message || '').slice(0, 120), at: new Date().toISOString() };
+}
+function easternDay(at) {
+  const parts = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date(at));
+  return ['year', 'month', 'day'].map(k => parts.find(x => x.type === k).value).join('-');
+}
+// A one-click charge is filed by Commas under an ad-hoc product, so its webhook never
+// matches our products. Record the sale here, once per charge ID: Whop purchase,
+// session scorecard, and (recurring/trial) the manual-subscription list for Jon.
+export async function recordOneClickSale(env, { name, offer, buyerId, customer, chargeId }) {
+  const at = Date.now(), email = String(customer?.email || '').trim().toLowerCase();
+  const payload = { type: 'payment.succeeded', created_at: new Date(at).toISOString(), data: {
+    payment_id: chargeId, transaction_history_id: chargeId, status: 'succeeded', created_at: new Date(at).toISOString(),
+    amount: offer.cents / 100, currency: 'USD', refunds: [], buyer: { email }, item: { id: offer.service } } };
+  if (offer.recurring || offer.trial) {
+    try {
+      await env.CLONE_UPSELLS.prepare(`INSERT INTO ${table(env, 'manual_subscriptions')}
+        (charge_ref, buyer_id, email, name, offer, plan, amount_cents, charged_at, billing_starts_on)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(charge_ref) DO NOTHING`)
+        .bind(chargeId, buyerId, email, customer?.name || null, name, offer.plan, offer.cents, at, easternDay(at + offer.billingDays * 86400000)).run();
+    } catch (error) { console.error(JSON.stringify({ event: 'manual_subscription_log_failed', charge: chargeId, error: String(error).slice(0, 120) })); }
+  }
+  let lead = {};
+  try { lead = JSON.parse(await env.CLONE_LEADS?.get(leadKey(env, email)) || '{}'); } catch {}
+  try {
+    const event = whopPurchaseFromVerifiedPayment(payload, lead.whop || {}, env);
+    if (event && await enqueueWhopEvent(env, event)) await deliverWhopEvent(env, event.eventId);
+  } catch { /* the queued event is retried by the cron flush */ }
+  try { await recordScorecardPayment(payload, env, lead); } catch { /* scorecard is reporting only */ }
+}
+
 function fallback(offer, reason = 'unavailable') {
   return json({ ok: false, fallback: true, reason, checkoutUrl: offer.hosted,
     message: 'This offer needs secure checkout to finish. Continue with Commas below.' });
@@ -187,41 +236,67 @@ export async function upsell(request, env) {
       return row ? existingClaim(row, env) : pending();
     }
     const finish = async (state, ref = null) => {
-      await db.prepare(`UPDATE ${table(env, 'upsell_claims')} SET state = ?, charge_ref = ? WHERE buyer_id = ? AND offer_group = ?`).bind(state, ref, buyerId, offer.group).run();
+      await db.prepare(`UPDATE ${table(env, 'upsell_claims')} SET state = ?, charge_ref = ?, charged_at = ? WHERE buyer_id = ? AND offer_group = ?`)
+        .bind(state, ref, state === 'charged' ? Date.now() : null, buyerId, offer.group).run();
     };
     const enabledAt = Date.parse((isSandbox(env) ? env.CLONE_SANDBOX_REBILL_ENABLED_AT : env.CLONE_REBILL_ENABLED_AT) || '');
-    if ((isSandbox(env) ? env.CLONE_SANDBOX_REBILL_ENABLED : env.CLONE_REBILL_ENABLED) !== 'true' || !Number.isFinite(enabledAt) ||
+    const flag = name => env[(isSandbox(env) ? 'CLONE_SANDBOX_' : 'CLONE_') + name] === 'true';
+    if (!flag('REBILL_ENABLED') || !Number.isFinite(enabledAt) ||
         !Number.isFinite(buyer.purchased) || buyer.purchased <= enabledAt ||
-        offer.trial || (offer.recurring && (isSandbox(env) ? env.CLONE_SANDBOX_SUBSCRIPTIONS_ENABLED : env.CLONE_SUBSCRIPTIONS_ENABLED) !== 'true')) {
+        (offer.trial && !flag('TRIAL_ONECLICK')) || (offer.recurring && !flag('SUBSCRIPTIONS_ENABLED'))) {
       await finish('fallback');
       return fallback(offer, offer.trial ? 'trial_hosted' : 'rebill_unavailable');
     }
     // Resolve public service ID to numeric ID and verify the live terms before billing.
+    // The charge itself cannot reference the product; this guards the hosted fallback.
     const product = await commas(env, '/checkout-sessions/' + offer.service);
     const p = product.body?.data;
-    if (!success(product) || !Number.isSafeInteger(p?.product?.id) || p.amount_cents !== offer.cents ||
-        (offer.recurring ? p.type !== 'subscription' : !['onetime', 'onetime_reusable'].includes(p.type)) ||
-        (offer.recurring && (p.subscription?.frequency_days !== 30 || p.subscription?.free_trial_days ||
-          (offer.group === 'vault' && p.subscription?.auto_expire_after_x_periods !== 2)))) {
+    const subscriptionProduct = offer.recurring || offer.trial;
+    if (!success(product) || !Number.isSafeInteger(p?.product?.id) || p.amount_cents !== (offer.productCents ?? offer.cents) ||
+        (subscriptionProduct ? p.type !== 'subscription' : !['onetime', 'onetime_reusable'].includes(p.type)) ||
+        (subscriptionProduct && p.subscription?.frequency_days !== 30) ||
+        (offer.recurring && (p.subscription?.free_trial_days || (offer.group === 'vault' && p.subscription?.auto_expire_after_x_periods !== 2))) ||
+        // The hosted fallback must be the same "$1 for 7 days, then $97/month" offer.
+        (offer.trial && (Number(p.subscription?.initial_fee) !== 1 || p.subscription?.initial_fee_days !== 7))) {
       await finish('fallback'); return fallback(offer, 'product_terms_changed');
     }
     const methods = await commas(env, '/customers/' + buyerId + '/payment-methods');
-    const cards = success(methods) && customerId(methods.body.data?.customer?.id) === buyerId ?
+    const customer = methods.body?.data?.customer;
+    const cards = success(methods) && customerId(customer?.id) === buyerId ?
       (methods.body.data.payment_methods || []).filter(m => m.type === 'card' && typeof m.id === 'string') : [];
     const card = cards.find(m => m.is_default) || cards[0];
     if (!card) { await finish('fallback'); return fallback(offer, 'no_saved_card'); }
     const idempotency = (isSandbox(env) ? 'clone-sandbox-' : 'clone-') + await hash(`${buyerId}:${offer.group}`);
+    // Commas refuses ("Oops! Something went wrong", no payment intent) a saved-card
+    // charge on a customer within ~32 s of that customer's previous successful charge
+    // (sandbox, Oct 15 2026: 14/15 refused inside 32 s, 36/36 accepted otherwise).
+    // Wait out that window from the buyer's last charge, including the $47 purchase.
+    const last = await db.prepare(`SELECT MAX(charged_at) AS at FROM ${table(env, 'upsell_claims')} WHERE buyer_id = ? AND state = 'charged'`).bind(buyerId).first();
+    const wait = Math.max(buyer.purchased, Number(last?.at) || 0) + chargeGap(env) - Date.now();
+    if (wait > 0) await sleep(Math.min(wait, chargeGap(env)));
+    const body = JSON.stringify({ payment_method_id: card.id, amount_cents: offer.cents, description: offer.chargeDescription || offer.description,
+      service_id: p.product.id });
+    const refusals = [];
+    let charge, attempts = 0;
     sent = true;
-    const charge = await commas(env, '/customers/' + buyerId + '/charge', {
-      method: 'POST', headers: { 'Idempotency-Key': idempotency }, body: JSON.stringify({
-        payment_method_id: card.id, amount_cents: offer.cents, description: offer.description,
-        service_id: p.product.id,
-      }),
-    });
+    for (let attempt = 1; ; attempt++) {
+      attempts = attempt;
+      charge = await commas(env, '/customers/' + buyerId + '/charge', {
+        method: 'POST', headers: { 'Idempotency-Key': attempt === 1 ? idempotency : idempotency + '-retry' }, body });
+      // Retry once, only when Commas says no payment was started. Unknown outcomes
+      // (timeouts, 409, 5xx, malformed) never retry.
+      if (attempt === 1 && refusedBeforePayment(charge) && env[(isSandbox(env) ? 'CLONE_SANDBOX_' : 'CLONE_') + 'CHARGE_RETRY'] !== 'false') {
+        refusals.push(providerNote(charge)); await sleep(retryDelay(env)); continue;
+      }
+      if (refusedBeforePayment(charge)) refusals.push(providerNote(charge));
+      break;
+    }
     const d = charge.body?.data;
+    const diagnostics = isSandbox(env) ? { attempts, refusals } : {};
     if (success(charge) && d?.status === 'succeeded' && d.charge_id && Number(d.amount) * 100 === offer.cents) {
       await finish('charged', String(d.charge_id));
-      return json({ ok: true, next: offer.next });
+      await recordOneClickSale(env, { name: input.offer, offer, buyerId, customer, chargeId: String(d.charge_id) });
+      return json({ ok: true, next: offer.next, ...diagnostics });
     }
     // Only explicit rejection is safe to send to a second checkout. Timeouts, 409,
     // malformed success, 5xx or pending gateway outcomes must stay permanently locked.
@@ -230,7 +305,9 @@ export async function upsell(request, env) {
       const message = String(charge.body.message || '');
       const unavailable = ['rebill_not_enabled', 'no_authorized_subscription', 'card_on_file_not_enabled'].includes(code) ||
         /no authorized subscription found|(?:manual\s+)?rebill(?:ing)?\b.{0,100}(?:not\s+(?:been\s+)?enabled|disabled)|card\s+on\s+file\b.{0,100}(?:not\s+enabled|disabled)/i.test(message);
-      await finish('fallback'); return fallback(offer, unavailable ? 'rebill_unavailable' : 'payment_rejected');
+      await finish('fallback');
+      const result = await fallback(offer, unavailable ? 'rebill_unavailable' : 'payment_rejected').json();
+      return json({ ...result, ...diagnostics, ...(isSandbox(env) ? { provider: providerNote(charge) } : {}) });
     }
     await finish('unknown'); return pending();
   } catch {

@@ -25,11 +25,18 @@ export function easternTime(at, dayOffset, hour) {
   return guess;
 }
 
+// First live session: Thu Oct 22 2026, 7 PM ET. Buyers before 5 PM ET that day get
+// it (ads run Oct 20-22); after that, the next daily session at least 2 hours away.
+export const FIRST_SESSION = Date.UTC(2026, 9, 22, 23, 0, 0);
+export const LAUNCH_CUTOFF = FIRST_SESSION - 2 * HOUR;
+const LAUNCH_FROM = Date.UTC(2026, 9, 13); // pre-launch window start
+
 export function assignSession(purchasedAt) {
   const at = new Date(purchasedAt).getTime();
   if (!Number.isFinite(at)) throw new Error('invalid_purchase_time');
   let session = easternTime(at, 0, 19);
   if (session - at < 2 * HOUR) session = easternTime(at, 1, 19);
+  if (at >= LAUNCH_FROM && at < LAUNCH_CUTOFF) session = FIRST_SESSION;
   return {
     session_at: new Date(session).toISOString(),
     session_label: new Intl.DateTimeFormat('en-US', {

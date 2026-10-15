@@ -85,7 +85,7 @@ try {
   const base = await mf.ready;
   webhookUrl = new URL('/clone/api/sandbox/purchase', base).toString();
   const db = await mf.getD1Database('CLONE_UPSELLS');
-  for (const migration of ['0001_upsells.sql', '0002_sandbox.sql', '0006_sandbox_observability.sql']) {
+  for (const migration of ['0001_upsells.sql', '0002_sandbox.sql', '0006_sandbox_observability.sql', '0007_oneclick_sales.sql']) {
     const sql = readFileSync(new URL('../migrations/' + migration, import.meta.url), 'utf8');
     for (const statement of sql.split(';').filter(s => s.trim())) await db.prepare(statement).run();
   }

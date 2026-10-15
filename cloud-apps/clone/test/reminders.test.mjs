@@ -16,7 +16,7 @@ const ms = Date.parse(purchaseTime);
 
 function fixture() {
   const sql = new DatabaseSync(':memory:');
-  for (const migration of ['0001_upsells', '0002_sandbox', '0003_whop_events', '0004_reminders', '0006_sandbox_observability']) sql.exec(readFileSync(new URL(`../migrations/${migration}.sql`, import.meta.url), 'utf8'));
+  for (const migration of ['0001_upsells', '0002_sandbox', '0003_whop_events', '0004_reminders', '0006_sandbox_observability', '0007_oneclick_sales']) sql.exec(readFileSync(new URL(`../migrations/${migration}.sql`, import.meta.url), 'utf8'));
   const leads = new Map();
   const db = { prepare(query) {
     const stmt = sql.prepare(query);
