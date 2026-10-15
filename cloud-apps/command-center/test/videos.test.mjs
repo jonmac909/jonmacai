@@ -34,6 +34,8 @@ test('stage follows review page, then HeyGen ledger, then queue', () => {
   assert.equal(stageOf({}, { status: 'approved' }), 'approved');
   assert.equal(stageOf({}, { status: 'changes_requested' }), 'build');
   assert.equal(stageOf({}, null), '');
+  assert.equal(stageOf({ kind: 'viralview', queueStatus: 'producing', ledger: { status: 'done' } }, { status: 'needs_review' }), 'build');
+  assert.equal(stageOf({ queueStatus: 'paused' }, null), 'paused');
 });
 
 test('videos page uses the newest review version and never invents posts', () => {

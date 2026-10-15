@@ -19,6 +19,9 @@ function latestReview(reviews, ch) {
 
 export function stageOf(ch, review) {
   if (ch.posted) return 'posted';
+  // A ViralView video back in production (redo) has an older review page; that page is not ready for Jon.
+  if (review && ch.kind === 'viralview' && ch.queueStatus && ch.queueStatus !== 'review') review = null;
+  if (ch.queueStatus === 'paused') return 'paused';
   if (review?.status === 'approved' || ch.uploadApproved) return 'approved';
   if (review?.status === 'needs_review') return 'ready for Jon';
   const led = ch.ledger?.status || '';
@@ -71,6 +74,8 @@ export function overlayVideos(page, row, reviews, label) {
   page.rows = channels.map((ch) => {
     const review = latestReview(reviews, ch);
     const stage = stageOf(ch, review);
+    const label = reviewLabel(review);
+    if (review && stage !== 'ready for Jon' && stage !== 'approved' && review.status === 'needs_review') label.text = `Older version · ${review.version}`, label.cls = '';
     const posts = d.posts && d.posts[ch.id] != null ? d.posts[ch.id] : null;
     return {
       id: ch.id,
@@ -82,7 +87,7 @@ export function overlayVideos(page, row, reviews, label) {
       stage,
       stageIdx: STAGES.indexOf(stage),
       heygen: ch.ledger?.status || '',
-      review: reviewLabel(review),
+      review: label,
       posts: posts != null && Number.isFinite(Number(posts)) ? Number(posts) : null,
       target: ch.target,
     };
