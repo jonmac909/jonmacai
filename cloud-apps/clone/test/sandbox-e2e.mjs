@@ -324,7 +324,8 @@ export async function runSandbox(options = {}) {
           const recordsBefore = await records();
           for (const name of testCase.offers) {
             stage = testCase.name + ': stress ' + name;
-            await page.goto(pageUrl(pages[name]));
+            await page.waitForLoadState().catch(() => {});
+            for (let i = 0; ; i++) { try { await page.goto(pageUrl(pages[name])); break; } catch (e) { if (i > 3) throw e; await sleep(1000); } }
             await page.locator('[data-upsell="' + name + '"][role="button"]').first().waitFor({ state: 'attached' });
             if (name === 'vault_plan') await page.locator('[data-exit]').click();
             const clicked = Date.now();
@@ -334,7 +335,10 @@ export async function runSandbox(options = {}) {
               ok: outcome.ok === true, firstTry: outcome.ok === true && outcome.attempts === 1, attempts: outcome.attempts ?? null,
               reason: outcome.reason || null, refusals: outcome.refusals || [], provider: outcome.provider || null });
             if (outcome.ok) await page.waitForURL(new URL(outcome.next, base).toString()).catch(() => {});
+            else await page.waitForURL(u => u.hostname !== base.hostname, { timeout: 5000 }).catch(() => {});
           }
+          // The run must have hit the intended Worker version.
+          result.version = await page.evaluate(() => fetch(location.href, { method: 'HEAD' }).then(r => r.headers.get('x-clone-version'))).catch(() => null);
           await sleep(3000);
           const added = (await records()).filter(x => !recordsBefore.some(b => b.id === x.id));
           for (const entry of result.offers) {
