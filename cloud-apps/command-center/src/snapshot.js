@@ -116,13 +116,13 @@ function homeChip(by, nowMs) {
   return `${head} · ${issues.join(' · ')}`;
 }
 
-function redactActivity(value) {
+function redactActivity(value, max = 80) {
   return String(value || '')
     .replace(/\S+@\S+/g, '')
     .replace(/\bsk-[A-Za-z0-9_-]{6,}\b/gi, '')
     .replace(/\s+/g, ' ')
     .trim()
-    .slice(0, 80);
+    .slice(0, max);
 }
 
 function overlayAgents(page, by, nowMs) {
@@ -146,6 +146,9 @@ function overlayAgents(page, by, nowMs) {
         runs: a.runs || m.label,
         machine: a.machine || m.id,
         now: redactActivity(a.now),
+        title: redactActivity(a.title),
+        workspace: redactActivity(a.workspace),
+        lastLine: redactActivity(a.lastLine, 160),
         feedStale: f.stale,
         asOf: row.collected_at,
         waiting: a.waiting ? { ...a.waiting, title: redactActivity(a.waiting.title), lines } : a.waiting,
@@ -177,18 +180,24 @@ function overlayAgents(page, by, nowMs) {
       btn: a.page ? 'Open' : '',
     })),
   };
+  const rank = (a) => (a.status === 'needs_you' || a.status === 'action_required' ? 0 : a.status === 'working' && !a.feedStale ? 1 : a.status === 'idle' ? 2 : 3);
+  const waitingOnJon = (a) => a.status === 'needs_you' || a.status === 'action_required';
   page.all = {
-    title: 'All agents',
-    rows: agents.map((a) => ({
+    title: 'Live terminals',
+    rows: [...agents].sort((x, y) => rank(x) - rank(y)).map((a) => ({
       id: a.id,
       agent: a.name,
+      title: a.title || '',
+      workspace: a.workspace || '',
+      lastLine: a.feedStale ? '' : (a.lastLine || ''),
+      status: a.feedStale ? 'stale' : a.status,
       runs: a.runs,
       now: a.now,
       asOf: a.asOf,
       job: a.feedStale ? 'Stale' : a.job,
       pct: a.feedStale ? 0 : a.pct,
       pg: a.feedStale ? '' : (a.pg || ''),
-      pill: a.feedStale ? 'Stale' : a.pill,
+      pill: a.feedStale ? 'Stale' : waitingOnJon(a) ? 'Waiting on Jon' : a.pill,
       pillCls: a.feedStale ? '' : (a.pillCls || ''),
       page: a.page || undefined,
       machine: a.machine,

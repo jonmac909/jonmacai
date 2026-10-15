@@ -5,7 +5,7 @@ import time
 
 from pathlib import Path
 
-from agent_status import classify_sessions
+from agent_status import classify_sessions, last_line, redact_long
 from omp_lifecycle import load_records, overlay
 
 AGENTS_JSON = Path(__file__).resolve().parents[1] / 'agents.json'
@@ -50,6 +50,38 @@ def _meta():
 
 
 
+def workspace_of(path):
+    parts = [p for p in str(path or '').replace('\\', '/').split('/') if p]
+    if 'workspaces' in parts:
+        return '/'.join(parts[parts.index('workspaces') + 1:])[:60]
+    return parts[-1][:60] if parts else ''
+
+
+ASKING = ('Do you want to', 'Would you like to', 'Allow this', '❯ 1. Yes', '> 1. Yes', 'Press enter to confirm')
+
+
+def screen_read(handle):
+    """(last meaningful line, True when the screen shows a yes/no prompt waiting on Jon)."""
+    try:
+        r = _json(['terminal', 'read', '--terminal', handle, '--screen'], 8)
+    except Exception:
+        return '', False
+    tail = (r.get('terminal') or {}).get('tail') or []
+    asking = any(a in str(l) for l in tail[-14:] for a in ASKING)
+    return last_line(tail), asking
+
+
+def _term_for(row, terms):
+    pane = row.get('pane') or ''
+    for t in terms:
+        if t.get('worktreeId') == row.get('worktreeId') and '%s:%s' % (t.get('tabId'), t.get('leafId')) == pane:
+            return t
+    for t in terms:
+        if t.get('handle') and t.get('handle') == pane:
+            return t
+    return None
+
+
 def collect_report(machine):
     now = int(time.time() * 1000)
     try:
@@ -60,6 +92,8 @@ def collect_report(machine):
     terms = listed.get('terminals') or []
     meta = _meta()
     out = []
+    seen = set()
+    lines = {}
     for row in overlay(classify_sessions(ps.get('worktrees') or [], terms, now), terms, load_records(), now):
         info = meta.get(row['name']) or {}
         item = {
@@ -81,17 +115,51 @@ def collect_report(machine):
         }
         if row.get('provenance'):
             item['provenance'] = row['provenance']
+        term = _term_for(row, terms)
+        if not term and row['status'] not in ('working', 'action_required'):
+            continue  # leftover record of a closed pane, not a live terminal
+        if not term:
+            item['workspace'] = workspace_of(str(row.get('worktreeId') or '').split('::')[-1])
+        if term:
+            seen.add(term.get('handle'))
+            item['terminal'] = term.get('handle')
+            item['title'] = redact_long(term.get('title') or '', 80)
+            item['workspace'] = workspace_of(term.get('worktreePath'))
+            if term.get('connected') and term.get('handle') not in lines:
+                lines[term['handle']] = screen_read(term['handle'])
+            line, asking = lines.get(term.get('handle'), ('', False))
+            item['lastLine'] = line
+            if asking and item['status'] in ('working', 'idle', 'unverified'):
+                item.update({'status': 'action_required', 'pill': 'Action required', 'pillCls': 'risk', 'job': 'Waiting', 'pg': 'risk'})
+            item['lastOutputAt'] = term.get('lastOutputAt')
         for t in terms:
             if t.get('worktreeId') == row.get('worktreeId') and t.get('connected') and t.get('handle') and t.get('agentIdentity'):
                 item['handle'] = t['handle']
                 break
-        if row['status'] == 'action_required':
+        if item['status'] == 'action_required':
             item['waiting'] = {
-                'title': row['now'],
-                'lines': [row['now']],
+                'title': item.get('title') or row['now'],
+                'lines': [item.get('lastLine') or row['now']],
                 'waitLabel': 'Action required',
             }
         out.append(item)
+    for t in terms:
+        if not t.get('connected') or t.get('handle') in seen:
+            continue
+        out.append({
+            'id': '%s:%s' % (t.get('executionHostId') or 'local', t.get('handle')),
+            'name': redact_long(t.get('title') or '', 80) or 'Terminal',
+            'runs': LABEL.get(machine, machine),
+            'machine': machine,
+            'terminal': t.get('handle'),
+            'title': redact_long(t.get('title') or '', 80),
+            'workspace': workspace_of(t.get('worktreePath')),
+            'lastLine': screen_read(t['handle'])[0],
+            'lastOutputAt': t.get('lastOutputAt'),
+            'now': t.get('agentIdentity') or 'shell',
+            'job': 'Idle', 'pct': 0, 'pg': '', 'status': 'idle', 'pill': 'Idle', 'pillCls': '', 'page': '',
+            'observedAt': t.get('lastOutputAt'),
+        })
     return {
         'ok': True,
         'unreachable': False,

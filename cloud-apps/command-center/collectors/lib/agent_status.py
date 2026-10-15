@@ -11,6 +11,40 @@ def redact(text):
     return ' '.join(t.split())[:80]
 
 
+CHROME = re.compile(
+    r'^(?:[─━═│┃╭╮╰╯\-_=\s]+$|❯|›\s*$|>\s*$|\$\s*$|PS [A-Z]:\\.*>\s*$|[✻✢✳✶✽*·⏵⎿]|esc to|\? for shortcuts'
+    r'|Ran \d+ |Read \d+ |Searched |• Working \(|⏎|.*context left|.*bypass permissions)', re.I)
+TOOL = re.compile(r'^[●•]\s*(?:[A-Z][A-Za-z]+\(|Monitor event|Stop Task|Bash|Read|Edit|Write|Update|Explored|Ran |Called )')
+BULLET = re.compile(r'^[●•]\s+')
+
+
+def redact_long(text, n=160):
+    t = EMAIL.sub('', text or '')
+    t = SECRET.sub('', t)
+    return ' '.join(t.split())[:n]
+
+
+def last_line(lines):
+    """Last meaningful line on an agent's screen: the newest prose bullet (with its wrapped
+    continuation), else the newest line that is not prompt, spinner or box chrome."""
+    rows = [str(l or '').rstrip() for l in (lines or [])]
+    for i in range(len(rows) - 1, -1, -1):
+        r = rows[i].strip()
+        if BULLET.match(r) and not TOOL.match(r):
+            text = BULLET.sub('', r)
+            for nxt in rows[i + 1:i + 4]:
+                if nxt.startswith('  ') and nxt.strip() and not nxt.strip().startswith(('⎿', '-', '●', '•')) and not CHROME.match(nxt.strip()):
+                    text += ' ' + nxt.strip()
+                else:
+                    break
+            return redact_long(text)
+    for i in range(len(rows) - 1, -1, -1):
+        r = rows[i].strip()
+        if r and not CHROME.match(r):
+            return redact_long(BULLET.sub('', r))
+    return ''
+
+
 def _connected(term):
     return bool(term.get('connected')) and bool(term.get('agentIdentity'))
 

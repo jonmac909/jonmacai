@@ -21,9 +21,9 @@ export function render(d) {
       : r.page
         ? btn('Open', { page: r.page, cls: 'line', sm: true })
         : '';
-    const when = clock(r.asOf);
-    const doing = when ? `${r.now} · ${when}` : r.now;
-    return `<tr><td>${esc(r.agent)}</td><td>${esc(r.runs)}</td><td>${esc(doing)}</td><td>${pill(r.pill, r.pillCls || '')}</td><td class="num">${action}</td></tr>`;
+    const name = r.title || r.agent;
+    const line = r.lastLine || r.now || '';
+    return `<tr><td><b>${esc(name)}</b>${r.title && r.agent && r.agent !== r.title ? `<br><small>${esc(r.agent)}</small>` : ''}</td><td>${esc(r.workspace || '—')}</td><td>${pill(r.pill, r.pillCls || '')}</td><td class="lastline">${esc(line)}</td><td>${esc(r.runs)}</td><td class="num">${action}</td></tr>`;
   }).join('');
   const machines = (d.machines || []).map(machineCard).join('');
   const stale = (d.staleSources || []).map((s) => `<li>${s.label || s.source} · ${s.ageLabel}</li>`).join('');
@@ -38,8 +38,8 @@ export function render(d) {
     <div class="todo">${jobs}</div>
   </div>
   <div class="card pad">
-    <div class="cardhead"><h2>${d.all.title}</h2><div class="key"><span style="--c:var(--risk-fill)">Action required</span><span style="--c:var(--ok-fill)">Working</span><span style="--c:var(--crit-fill)">Error</span></div></div>
-    <div class="tblwrap"><table><thead><tr><th>Agent</th><th>Runs on</th><th>Doing now</th><th>Status</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
+    <div class="cardhead"><h2>${d.all.title}</h2><div class="key"><span style="--c:var(--risk-fill)">Waiting on Jon</span><span style="--c:var(--ok-fill)">Working</span><span style="--c:var(--crit-fill)">Error</span></div></div>
+    <div class="tblwrap"><table><thead><tr><th>Terminal</th><th>Workspace</th><th>Status</th><th>Last line</th><th>Machine</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
   </div>
 </div>`;
 }
