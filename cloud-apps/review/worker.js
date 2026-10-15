@@ -123,11 +123,12 @@ function publicComment(row) {
 }
 
 function publicVideo(row, origin) {
-  let chapters = [];
+  let chapters = [], sync = [];
   try { chapters = row.chapters ? JSON.parse(row.chapters) : []; } catch {}
+  try { sync = row.sync_map ? JSON.parse(row.sync_map) : []; } catch {}
   return {
     slug: row.slug, channel: row.channel, video: row.video, version: row.version, title: row.title,
-    status: row.status, duration: row.duration, chapters, notes: row.notes || "",
+    status: row.status, duration: row.duration, chapters, sync, notes: row.notes || "",
     page_url: `${origin}/review/${row.slug}`,
     video_url: `${origin}/review/media/${row.slug}/video.mp4?v=${mediaTag(row.video_key)}`,
     source_url: row.source_key ? `${origin}/review/media/${row.slug}/source.mp4?v=${mediaTag(row.source_key)}` : null,
@@ -388,22 +389,25 @@ async function publishApi(request, env, url, slug, resource, uploadId, action) {
     const chapters = Array.isArray(body.chapters)
       ? JSON.stringify(body.chapters.filter((c) => Array.isArray(c) && Number.isFinite(Number(c[0]))).slice(0, 100).map((c) => [Number(c[0]), text(String(c[1] ?? ""), 120)]))
       : null;
+    const syncOk = (s) => Array.isArray(s) && s.length === 4 && s.every((n) => typeof n === "number" && Number.isFinite(n) && n >= 0);
+    const syncMap = Array.isArray(body.sync) && body.sync.length && body.sync.length <= 5000 && body.sync.every(syncOk)
+      ? JSON.stringify(body.sync.map((s) => s.map((n) => Math.round(n * 1000) / 1000))) : null;
     const previous = await env.DB.prepare("SELECT video_key, source_key, compare_key FROM videos WHERE slug = ?").bind(slug).first();
     const stamp = now();
     await env.DB.batch([
       env.DB.prepare("INSERT OR IGNORE INTO channels (slug, name, sort) VALUES (?, ?, 100)")
         .bind(channel, text(body.channel_name, 60) || channel.charAt(0).toUpperCase() + channel.slice(1)),
       env.DB.prepare(`INSERT INTO videos (slug, channel, video, version, title, status, video_key, video_size, video_sha256,
-          source_key, compare_key, duration, chapters, notes, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          source_key, compare_key, duration, chapters, sync_map, notes, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(slug) DO UPDATE SET channel = excluded.channel, video = excluded.video, version = excluded.version,
           title = excluded.title, status = excluded.status, video_key = excluded.video_key, video_size = excluded.video_size,
           video_sha256 = excluded.video_sha256, source_key = excluded.source_key, compare_key = excluded.compare_key, duration = excluded.duration,
-          chapters = excluded.chapters, notes = excluded.notes, updated_at = excluded.updated_at`)
+          chapters = excluded.chapters, sync_map = excluded.sync_map, notes = excluded.notes, updated_at = excluded.updated_at`)
         .bind(slug, channel, video, version, title, status, body.video_key, videoInfo.size,
           /^[a-f0-9]{64}$/.test(body.video_sha256 || "") ? body.video_sha256 : null,
           body.source_key || null, body.compare_key || null, Number.isFinite(duration) && duration > 0 ? duration : null,
-          chapters, text(body.notes, 2000) || null, stamp, stamp),
+          chapters, syncMap, text(body.notes, 2000) || null, stamp, stamp),
     ]);
     const kept = new Set([body.video_key, body.source_key, body.compare_key]);
     const stale = [previous?.video_key, previous?.source_key, previous?.compare_key].filter((k) => k && !kept.has(k));

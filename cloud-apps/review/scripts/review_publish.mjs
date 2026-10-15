@@ -5,10 +5,13 @@
 //
 //   node review_publish.mjs --slug mina-1-v9 --channel mina --video mina-1 --version v9 \
 //     --title "Mina: AI shorts tutorial" --file mina01_v9.mp4 [--source source_h264.mp4] \
-//     [--compare first60_side_by_side.mp4] [--chapters versions.json] [--notes "what changed"] [--dry-run]
+//     [--compare first60_side_by_side.mp4] [--chapters versions.json] [--sync versions.json]
+//     [--notes "what changed"] [--dry-run]
 //
 // --file/--source/--compare accept a local path or an http(s) URL. --chapters accepts a JSON array of
 // [seconds, label] pairs, or a GPU1 versions.json ({"chapters": {"<file name>": [...]}}).
+// --sync (defaults to the --chapters versions.json) reads the ours-to-source cut map: "timemap"
+// [ours, source, length] per file, or visual_intervals/cut_intervals/map for the current version.
 import { createHash, randomUUID } from "node:crypto";
 import { createReadStream, createWriteStream, existsSync, openSync, readFileSync, readSync, closeSync, statSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
@@ -113,6 +116,22 @@ function chaptersFrom(path, file) {
   return list;
 }
 
+export function syncFrom(path, file) {
+  if (!path) return undefined;
+  const parsed = JSON.parse(readFileSync(path, "utf8"));
+  if (Array.isArray(parsed) || !parsed) return undefined;
+  const name = basename(file);
+  const timemap = parsed.timemap?.[name];
+  if (Array.isArray(timemap)) return timemap.map(([o, s, d]) => [o, o + d, s, s + d]);
+  if (parsed.versions?.[0] !== name) return undefined;
+  const segments = [...(parsed.visual_intervals || []), ...(parsed.cut_intervals || [])];
+  const [src, ours] = Array.isArray(parsed.map) ? parsed.map : [];
+  if (Array.isArray(src) && Array.isArray(ours)) {
+    for (let i = 0; i + 1 < Math.min(src.length, ours.length); i++) segments.push([ours[i], ours[i + 1], src[i], src[i + 1]]);
+  }
+  return segments.length ? segments : undefined;
+}
+
 function client(base, token) {
   return async function call(path, { method = "GET", body, raw, headers = {} } = {}) {
     for (let attempt = 1; ; attempt++) {
@@ -191,9 +210,10 @@ async function main() {
   const source = args.source ? await inspect(await localFile(args.source, "source"), "source") : null;
   const compare = args.compare ? await inspect(await localFile(args.compare, "compare"), "compare") : null;
   const chapters = chaptersFrom(args.chapters, args.file);
+  const sync = syncFrom(args.sync || args.chapters, args.file);
   for (const warning of [...video.warnings, ...(source?.warnings || []), ...(compare?.warnings || [])]) console.error(`WARNING: ${warning}`);
   if (args["dry-run"]) {
-    console.log(JSON.stringify({ dryRun: true, base, video, source, compare, chapters }, null, 2));
+    console.log(JSON.stringify({ dryRun: true, base, video, source, compare, chapters, syncSegments: sync?.length || 0 }, null, 2));
     return;
   }
   if (!token) throw new Error("REVIEW_API_TOKEN is not set (env or ~/.jonmac-review.env)");
@@ -206,7 +226,7 @@ async function main() {
     method: "POST",
     body: {
       channel: args.channel, channel_name: args["channel-name"], video: args.video, version: args.version,
-      title: args.title, status: args.status, notes: args.notes, chapters,
+      title: args.title, status: args.status, notes: args.notes, chapters, sync,
       video_key: videoKey, video_sha256: video.sha256, source_key: sourceKey, compare_key: compareKey, duration: video.duration,
     },
   });

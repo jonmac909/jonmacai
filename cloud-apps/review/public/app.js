@@ -60,7 +60,7 @@
     if (button) seek(Number(button.dataset.t));
   });
 
-  // Source / first-60 players stay muted; closing one pauses it; pausing ours pauses everything.
+  // First-60 clip: collapsed and muted; closing it or pausing ours pauses it.
   const extras = [...document.querySelectorAll("video.extra-player")];
   for (const extra of extras) {
     extra.muted = true;
@@ -68,6 +68,79 @@
     box.addEventListener("toggle", () => { if (!box.open) extra.pause(); });
   }
   player.addEventListener("pause", () => { for (const extra of extras) extra.pause(); });
+
+  // Sound: exactly one player may have sound. Ours by default; the switch or unmuting a
+  // player's own controls moves the sound to that player and mutes every other one.
+  const source = $("source-player");
+  const media = [player, source, ...extras].filter(Boolean);
+  let soundFrom = player;
+  function applySound() {
+    for (const m of media) m.muted = m !== soundFrom;
+    for (const radio of document.querySelectorAll('input[name="audio"]')) {
+      radio.checked = (radio.value === "ours" && soundFrom === player) || (radio.value === "source" && soundFrom === source);
+    }
+    if (source) {
+      $("ours-audio").textContent = soundFrom === player ? "sound on" : "muted";
+      $("source-audio").textContent = soundFrom === source ? "sound on" : "muted";
+    }
+  }
+  for (const m of media) m.addEventListener("volumechange", () => { if (!m.muted && m !== soundFrom) { soundFrom = m; applySound(); } });
+  for (const radio of document.querySelectorAll('input[name="audio"]')) {
+    radio.addEventListener("change", () => { soundFrom = radio.value === "source" ? source : player; applySound(); });
+  }
+  applySound();
+
+  // Side by side: source left, ours right. Sync maps our time to source time with the cut map
+  // ([ours_start, ours_end, source_start, source_end], first match wins); without one it keeps
+  // the offset the two had when Play both was pressed. Ours never depends on the source.
+  const sync = Array.isArray(data.sync) ? data.sync : [];
+  let offset = 0;
+  function toSource(t) {
+    if (!sync.length) return Math.max(0, t + offset);
+    const hit = sync.find((s) => t >= s[0] && t < s[1]);
+    if (hit) return hit[2] + (t - hit[0]) * (hit[1] > hit[0] ? (hit[3] - hit[2]) / (hit[1] - hit[0]) : 0);
+    let before = null;
+    for (const s of sync) if (s[0] <= t && (!before || s[0] > before[0])) before = s;
+    return before ? Math.max(0, before[2] + (t - before[0])) : t;
+  }
+  window.reviewSync = { toSource };
+  if (source) {
+    let mode = null; // "both" | "ours" | "source"
+    let sourceOk = true;
+    const syncOn = () => $("sync").checked && sourceOk;
+    const align = () => { if (syncOn()) source.currentTime = toSource(player.currentTime); };
+    const play = (m) => m.play().catch(() => {});
+    const sourceFailed = () => {
+      sourceOk = false;
+      $("source-error").hidden = false;
+      for (const id of ["play-both", "source-only"]) $(id).disabled = true;
+      if (soundFrom === source) { soundFrom = player; applySound(); }
+    };
+    source.addEventListener("error", sourceFailed);
+    // A fast failure can fire before this deferred script runs.
+    if (source.error || source.networkState === HTMLMediaElement.NETWORK_NO_SOURCE) sourceFailed();
+    $("play-both").addEventListener("click", () => {
+      mode = "both";
+      if (!sync.length) offset = source.currentTime - player.currentTime;
+      align();
+      play(player);
+      play(source);
+    });
+    $("pause-both").addEventListener("click", () => { mode = null; player.pause(); source.pause(); });
+    $("source-only").addEventListener("click", () => { mode = "source"; player.pause(); play(source); });
+    $("ours-only").addEventListener("click", () => { mode = "ours"; source.pause(); play(player); });
+    const recompute = () => { mode = !player.paused && !source.paused ? "both" : !player.paused ? "ours" : !source.paused ? "source" : mode; };
+    player.addEventListener("play", recompute);
+    source.addEventListener("play", recompute);
+    // Pausing one side while both run pauses the other (pausing ours pauses everything).
+    player.addEventListener("pause", () => { if (mode === "both") source.pause(); });
+    source.addEventListener("pause", () => { if (mode === "both") player.pause(); });
+    player.addEventListener("seeked", () => { if (mode !== "source") align(); });
+    setInterval(() => {
+      if (mode !== "both" || player.paused || source.paused || !syncOn()) return;
+      if (Math.abs(source.currentTime - toSource(player.currentTime)) > 0.4) align();
+    }, 500);
+  }
 
   function showName() {
     const name = store.get();

@@ -32,9 +32,14 @@ here as a normal video; its old release notes are in git history (`67b55b0`).
 
 - `/review` lists each channel → video → version, with status (needs review / changes
   requested / approved) and the open comment count.
-- `/review/<slug>` plays our video only. The source video and a first-60 side-by-side, if
-  published, are collapsed, muted extras. Nothing autoplays, pausing ours pauses everything,
-  and the player plays inline on phones.
+- `/review/<slug>` shows the original source (left) and ours (right) side by side at the
+  same size, stacked on narrow screens. Buttons: Play both, Pause both, Source only, Ours
+  only, and a "Keep in sync" toggle that follows the cut map (GPU1 `versions.json` timemap or
+  cut intervals; otherwise it keeps the starting offset). Ours has sound and the source is
+  muted. The Ours/Source sound switch (or unmuting either player) keeps exactly one player
+  audible. Nothing autoplays. If the source fails, ours still plays and the page says so.
+  The first-60 side-by-side clip (collapsed, muted), chapters, QC notes and comments sit
+  under the players.
 - Pausing fills the comment timestamp. Comments are listed in time order, clicking one
   seeks there, and each can be resolved or reopened. The name is asked once and kept in
   the browser. The status buttons set the video's status.
@@ -72,9 +77,10 @@ Each comment has `id, slug, author, t` (seconds), `text, created_at, resolved, r
 ```sh
 node cloud-apps/review/scripts/review_publish.mjs --slug mina-1-v10 --channel mina \
   --video mina-1 --version v10 --title "Mina: AI shorts tutorial" --file mina01_v10.mp4 \
-  [--source source_h264.mp4] [--compare first60_side_by_side.mp4] [--chapters versions.json]   [--notes "QC verdict / what changed"]
+  [--source source_h264.mp4] [--compare first60_side_by_side.mp4] [--chapters versions.json]   [--sync versions.json] [--notes "QC verdict / what changed"]
 ```
 
+- The sync map comes from `--sync`, or from the `--chapters` versions.json when that's given.
 - `--file`, `--source` and `--compare` take a local path or an https URL. Send H.264/AAC web
   copies; convert AV1 sources first.
 - The script checks the file is H.264/AAC and fast-start, records the sha256, uploads in
@@ -95,9 +101,14 @@ docker run --rm --ipc=host jonmac-review-checks
 The gate runs:
 - unit tests;
 - Workers-runtime tests (gate, publish script, Range/416/ETag media, comments API, fail-closed secrets);
-- headless desktop Google Chrome (Jon's review gate): a click plays ours with sound past 3 s,
-  nothing autoplays, the extras stay muted and pause when ours pauses, zero console errors,
-  and a comment is created and resolved through both the UI and the API;
+- headless desktop Google Chrome (Jon's review gate), starting from the share link in a fresh
+  browser:
+  - source left and ours right at the same size, both loaded, nothing autoplays;
+  - Play both runs both past 3 s with exactly one audio track, and the source stays on the sync map;
+  - the sound switch works, as do Pause both, Source only and Ours only;
+  - a comment is created and resolved through both the UI and the API;
+  - with the source blocked, ours still plays;
+  - zero console errors;
 - the Worker bundle dry run.
 
 After the gate passes and the PR is merged, release the merged commit:

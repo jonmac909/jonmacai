@@ -110,7 +110,11 @@ test("publish script uploads MP4 + source + compare; republish replaces media an
   assert.equal(comments.video.compare_url, null);
   await fetchApp("/api/review/mina-1-v9/comments/" + comments.comments[0].id, { method: "DELETE", headers: agent }).then((r) => r.arrayBuffer());
 
-  publish(["--slug", "mina-1-v8", "--channel", "mina", "--video", "mina-1", "--version", "v8", "--title", "Mina tutorial", "--file", clipPath, "--source", clipPath, "--compare", clipPath]);
+  publish(["--slug", "mina-1-v8", "--channel", "mina", "--video", "mina-1", "--version", "v8", "--title", "Mina tutorial", "--file", clipPath,
+    "--source", clipPath, "--compare", clipPath, "--chapters", fileURLToPath(new URL("./fixtures/versions.json", import.meta.url))]);
+  const v8 = (await (await fetchApp("/api/review/mina-1-v8", { headers: agent })).json()).video;
+  assert.deepEqual(v8.sync, [[0, 4, 0.5, 4.5], [4, 7.5, 1, 4.5]], "timemap stored as ours-to-source segments");
+  assert.deepEqual(v8.chapters, [[0, "Intro"], [4, "Middle"]]);
 });
 
 test("media streams with video/mp4, HEAD, byte ranges, 416 and ETag revalidation", async () => {
@@ -154,19 +158,25 @@ test("media streams with video/mp4, HEAD, byte ranges, 416 and ETag revalidation
   await staleIfRange.arrayBuffer();
 });
 
-test("video page renders our player without autoplay, muted collapsed source/compare and version links", async () => {
+test("video page: source left and ours right with transport controls, muted collapsed first-60, no autoplay", async () => {
   const page = await fetchApp("/review/mina-1-v8", { headers: { Cookie: cookie } });
   assert.equal(page.status, 200);
   const body = await page.text();
   const player = /<video id="player"[^>]*>/.exec(body)[0];
   assert.match(player, /playsinline/);
   assert.doesNotMatch(player, /autoplay/);
-  for (const id of ["source", "compare"]) {
-    assert.match(body, new RegExp(`<details class="extra" id="${id}">`));
-    const tag = new RegExp(`<video id="${id}-player"[^>]*>`).exec(body)[0];
-    assert.match(tag, /muted[^>]*preload="none"/);
-    assert.doesNotMatch(tag, /autoplay/);
-  }
+  const duo = /<div class="duo" id="duo">[\s\S]*?<\/div>/.exec(body)[0];
+  assert.ok(duo.indexOf('id="source-player"') < duo.indexOf('id="player"'), "source left, ours right");
+  const sourceTag = /<video id="source-player"[^>]*>/.exec(body)[0];
+  assert.match(sourceTag, /muted[^>]*preload="metadata"/);
+  assert.doesNotMatch(sourceTag, /autoplay/);
+  for (const id of ["play-both", "pause-both", "source-only", "ours-only", "sync"]) assert.match(body, new RegExp(`id="${id}"`));
+  assert.match(body, /name="audio" value="ours" checked/);
+  assert.match(body, /\(cut map\)/);
+  assert.match(body, /<details class="extra" id="compare">/);
+  const compareTag = /<video id="compare-player"[^>]*>/.exec(body)[0];
+  assert.match(compareTag, /muted[^>]*preload="none"/);
+  assert.doesNotMatch(compareTag, /autoplay/);
   const compare = await fetchApp(new URL(/id="compare-player"[^>]*src="([^"]+)"/.exec(body)[1], runtime.url).pathname, { headers: { Cookie: cookie, Range: "bytes=0-1" } });
   assert.equal(compare.status, 206);
   assert.equal(compare.headers.get("content-type"), "video/mp4");
