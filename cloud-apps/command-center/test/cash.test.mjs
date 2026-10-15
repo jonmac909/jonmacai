@@ -50,3 +50,21 @@ test('collector drops the evidence column', () => {
   assert.equal(rows[1].usd, null);
   assert.ok(!JSON.stringify(rows).includes('RBC'));
 });
+
+test('Coursiv and GoLogin are never counted or shown', async () => {
+  const { mergeSnapshot } = await import('../src/snapshot.js');
+  const snap = (await import('../fixtures/snapshot.json', { with: { type: 'json' } })).default;
+  const out = mergeSnapshot(snap, [
+    { source: 'sponsors_cash', collected_at: new Date(now).toISOString(), data: JSON.stringify({ rows: [{ date: '2026-10-05', sponsor: 'Coursiv', usd: 650 }, { date: '2026-10-02', sponsor: 'Topview', usd: 734.37 }] }) },
+    { source: 'sponsors', collected_at: new Date(now).toISOString(), data: JSON.stringify({ collections: { items: [
+      { sponsor: 'InVideo', total: 4200, paid: 0, owed: 4200, month: 'October', bucket: 'collect-now' },
+      { sponsor: 'Viktor (Softstory)', total: 2000, paid: 1000, owed: 1000, month: 'October', bucket: 'delivery-balance' },
+      { sponsor: 'Coursiv', total: 650, paid: 0, owed: 650, month: 'October', bucket: 'collect-now' },
+      { sponsor: 'GoLogin', total: 900, paid: 0, owed: 900, month: 'October', bucket: 'collect-now' },
+    ], incomeTotals: {}, incomeLabels: {} }, cards: [{ id: 'g', sponsor: 'Gologin', contact: 'Kyle', stage: 'drafts' }] }) },
+  ], now);
+  const c = out.pages.sponsors.cash;
+  assert.deepEqual(c.unpaid.map((u) => [u.sponsor, u.owed]), [['InVideo', 4200], ['Viktor (Softstory)', 1000]]);
+  assert.equal(c.month.usd, 734.37);
+  assert.equal(/coursiv|gologin/i.test(JSON.stringify(out.pages)), false);
+});

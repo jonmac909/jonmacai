@@ -1,6 +1,19 @@
 // Sponsors tile: cash actually received (GPU2 `sponsors_cash` from cash_ledger.csv), trailing 90-day
 // monthly average vs $10k, and unpaid invoices from the `sponsors` collections feed.
 export const SPONSOR_TARGET = 10000;
+// Jon, Oct 14: the Coursiv receivable was bogus; never count or show Coursiv or GoLogin.
+export const EXCLUDED_SPONSORS = /coursiv|gologin/i;
+
+const excluded = (x) => EXCLUDED_SPONSORS.test(String(x?.sponsor || '')) || EXCLUDED_SPONSORS.test(String(x?.contact || ''));
+
+export function withoutExcluded(source, data) {
+  const d = parse(data);
+  if (source === 'sponsors_cash') return { ...d, rows: (d.rows || []).filter((r) => !excluded(r)) };
+  const out = { ...d };
+  if (d.collections) out.collections = { ...d.collections, items: (d.collections.items || []).filter((i) => !excluded(i)) };
+  if (Array.isArray(d.cards)) out.cards = d.cards.filter((c) => !excluded(c));
+  return out;
+}
 
 function parse(raw) {
   if (raw && typeof raw === 'object') return raw;
