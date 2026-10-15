@@ -1,4 +1,5 @@
 import { tiles, pill, btn, job, head, esc } from '../ui.js';
+import { machinesSection } from '../machines.js';
 
 function clock(iso) {
   const t = Date.parse(iso || '');
@@ -28,8 +29,9 @@ export function render(d) {
   const stale = (d.staleSources || []).map((s) => `<li>${s.label || s.source} · ${s.ageLabel}</li>`).join('');
   return `<div class="wrap">
   ${head(d.title, d.sub)}
+  ${machinesSection(d.hosts, { full: true })}
   ${tiles(d.tiles)}
-  ${machines ? `<div class="sec"><div class="bar"><h2>Machines</h2></div><div class="todo">${machines}</div></div>` : ''}
+  ${machines ? `<div class="sec"><div class="bar"><h2>Agent feeds</h2></div><div class="todo">${machines}</div></div>` : ''}
   ${stale ? `<div class="card pad"><div class="cardhead"><h2>Stale</h2></div><ul>${stale}</ul></div>` : ''}
   <div class="sec">
     <div class="bar"><h2>${d.waiting.title}</h2></div>

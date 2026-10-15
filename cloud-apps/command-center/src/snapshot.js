@@ -10,6 +10,7 @@ import { overlayViral, applyHomeViral } from './viral.js';
 import { overlayOutreach, blankOutreach } from './outreach.js';
 import { overlayLife } from './life.js';
 import { applyHome } from './home.js';
+import { buildMachines, HOSTS, MACHINE_INTERVAL_MS } from './machines.js';
 
 export const COLLECTOR_INTERVAL_MS = 5 * 60 * 1000;
 
@@ -29,6 +30,8 @@ export const INTERVALS = {
   instantly: DEFAULT_INTERVAL_MS,
   calendar: DEFAULT_INTERVAL_MS,
   bank_scan: COLLECTOR_INTERVAL_MS,
+  machine_gpu1: MACHINE_INTERVAL_MS,
+  machine_gpu2: MACHINE_INTERVAL_MS,
 };
 
 const MACHINES = [
@@ -311,11 +314,14 @@ export function mergeSnapshot(fixture, rows, nowMs = Date.now(), overrides = {},
     const f = freshness(row.collected_at, nowMs, interval);
     out.sources[row.source] = { updatedAt: row.collected_at, stale: f.stale, ageLabel: f.label };
     if (f.stale) {
-      const m = MACHINES.find((x) => x.source === row.source);
+      const m = MACHINES.find((x) => x.source === row.source) || HOSTS.find((x) => x.source === row.source);
       staleSources.push({ source: row.source, label: m ? m.label : row.source, ageLabel: f.label });
     }
   }
+  const hosts = buildMachines(by, nowMs);
+  if (out.pages.home) out.pages.home.machines = hosts;
   if (out.pages.agents) {
+    out.pages.agents.hosts = hosts;
     out.pages.agents.machines = MACHINES.map((m) => {
       const row = by[m.source];
       if (!row) return { ...m, hostname: '', ageLabel: 'No heartbeat yet', stale: false };

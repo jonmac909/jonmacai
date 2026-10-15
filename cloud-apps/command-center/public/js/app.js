@@ -342,6 +342,14 @@ document.getElementById('donutpct').textContent = `${data.goal.pct}%`;
 document.getElementById('donut').style.background = `conic-gradient(var(--accent) 0 ${data.goal.pct}%,var(--line) ${data.goal.pct}% 100%)`;
 document.getElementById('goallabel').textContent = data.goal.label;
 document.getElementById('goalsub').textContent = data.goal.sub;
+// Machines heartbeat every 60 s: refresh Home and Agents while visible.
+setInterval(() => {
+  const id = hashPage();
+  if (document.hidden || (id !== 'home' && id !== 'agents')) return;
+  if (document.activeElement && /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName)) return;
+  const y = window.scrollY;
+  go(id, { refetch: true }).then(() => window.scrollTo(0, y)).catch(() => {});
+}, 60000);
 let last = hashPage();
 try { if (!location.hash) last = localStorage.getItem('cc-page') || last; } catch {}
 go(last);

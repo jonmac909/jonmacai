@@ -1,4 +1,5 @@
 import { tiles, pg, pill, job, btn, dots, esc } from '../ui.js';
+import { machinesSection } from '../machines.js';
 
 export function render(d) {
   const date = d.date;
@@ -8,6 +9,7 @@ export function render(d) {
   const L = d.life;
   return `<div class="wrap">
   <div class="head"><div><h1>${d.greeting}</h1><p id="date">${date}</p></div><span class="chip">${d.chip}</span></div>
+  ${machinesSection(d.machines, { link: true })}
   ${tiles(d.tiles)}
   <div class="card pad run">
     <div class="lab"><strong>${d.runThrough.title}</strong><span id="runcount">${d.runThrough.done} of ${d.runThrough.total} done</span></div>
