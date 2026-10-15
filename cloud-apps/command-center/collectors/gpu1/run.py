@@ -147,7 +147,7 @@ def main():
         except Exception as err:
             sys.stderr.write('runner %s %s\n' % (type(err).__name__, getattr(err, 'code', '')))
             sys.stderr.flush()
-            time.sleep(15)
+            time.sleep(300 if getattr(err, 'code', None) in (401, 403) else 15)
             sys.stderr.write('runner continued\n')
             sys.stderr.flush()
         if once:

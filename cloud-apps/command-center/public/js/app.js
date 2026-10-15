@@ -11,10 +11,12 @@ import { render as markets } from './pages/markets.js';
 import { render as life } from './pages/life.js';
 import { render as mastermind } from './pages/mastermind.js';
 import { render as agents } from './pages/agents.js';
+import { render as videos } from './pages/videos.js';
+import { render as webinar } from './pages/webinar.js';
 import { formatJobResult } from './ui.js';
 import { bindModals, openDraft } from './modals.js';
 const PREFIX = '/dashboard';
-const pages = { home, sponsors, viral, youtube, content, outreach, support, video, money, markets, life, mastermind, agents };
+const pages = { home, sponsors, viral, youtube, content, outreach, support, video, money, markets, life, mastermind, agents, videos, webinar };
 let data = null;
 
 const root = document.documentElement;
@@ -106,6 +108,10 @@ function navHtml() {
       const badge = n ? `<span class="n">${n}</span>` : '';
       return `<button class="nav" data-page="${it.id}"><svg class="ic"><use href="#i-${it.icon}"/></svg>${it.label}${badge}</button>`;
     }).join('');
+    if (g.archive) {
+      const open = g.items.some((it) => it.id === hashPage()) ? ' open' : '';
+      return `<details class="navgrp archive"${open}><summary>${g.title}</summary>${items}</details>`;
+    }
     return `<div class="navgrp"><h4>${g.title}</h4>${items}</div>`;
   }).join('');
 }
@@ -342,6 +348,14 @@ document.getElementById('donutpct').textContent = `${data.goal.pct}%`;
 document.getElementById('donut').style.background = `conic-gradient(var(--accent) 0 ${data.goal.pct}%,var(--line) ${data.goal.pct}% 100%)`;
 document.getElementById('goallabel').textContent = data.goal.label;
 document.getElementById('goalsub').textContent = data.goal.sub;
+// Machines heartbeat every 60 s: refresh Home and Agents while visible.
+setInterval(() => {
+  const id = hashPage();
+  if (document.hidden || !['home', 'agents', 'videos', 'webinar'].includes(id)) return;
+  if (document.activeElement && /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName)) return;
+  const y = window.scrollY;
+  go(id, { refetch: true }).then(() => window.scrollTo(0, y)).catch(() => {});
+}, 60000);
 let last = hashPage();
 try { if (!location.hash) last = localStorage.getItem('cc-page') || last; } catch {}
 go(last);

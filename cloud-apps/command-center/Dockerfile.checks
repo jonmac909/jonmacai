@@ -1,0 +1,9 @@
+# GPU2 Docker gate for the command center (never GitHub Actions).
+# docker build -q -f Dockerfile.checks -t cc-checks . && docker run --rm cc-checks
+FROM node:22-bookworm
+RUN apt-get update -qq && apt-get install -y -qq python3 >/dev/null && ln -sf /usr/bin/python3 /usr/local/bin/python
+WORKDIR /app
+COPY . .
+RUN chmod +x scripts/orca-stub
+ENV TZ=America/Vancouver ORCA=/app/scripts/orca-stub
+CMD ["node", "scripts/docker-checks.mjs"]

@@ -260,3 +260,32 @@ tfoot td{font-weight:600;color:var(--ink);border-top:1px solid var(--line)}
   .wrap{min-width:0;max-width:100%}
 }
 @media (min-width:821px){.navs{display:flex;flex-direction:column;gap:1.25rem}}
+.machines{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,26rem),1fr));gap:.9rem}
+.machine{padding:1rem 1.1rem;display:flex;flex-direction:column;gap:.6rem}
+.machine .top{display:flex;justify-content:space-between;align-items:center;gap:.6rem}
+.machine .area{font-weight:600}
+.machine.crit{border-color:var(--crit-line)}
+.machine.stale{opacity:.8}
+.machine .mseen{margin:0;color:var(--muted);font-size:.85rem}
+.machine .mgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(12rem,1fr));gap:.6rem 1.2rem}
+.machine .mgrid>div{display:flex;flex-direction:column;gap:.55rem}
+.machine .mnote{margin:0;color:var(--muted);font-size:.85rem}
+.machine .malert{margin:0;padding:.5rem .7rem;list-style:none;border-radius:.6rem;background:var(--crit-bg);color:var(--crit-ink);font-size:.88rem;font-weight:600}
+.machine .mrun{margin:0;padding:0;list-style:none;display:grid;grid-template-columns:repeat(auto-fit,minmax(13rem,1fr));gap:.25rem 1.2rem;font-size:.86rem}
+.machine .mrun li{display:flex;justify-content:space-between;gap:.6rem;color:var(--muted);min-width:0}
+.machine .mrun li b{font-weight:500;text-align:right;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.machine .mrun li.on{color:var(--ink)} .machine .mrun li.on b{color:var(--ok-ink)}
+.machine .mrun li.warn{color:var(--risk-ink)} .machine .mrun li.warn b{color:var(--risk-ink)}
+.lastline{max-width:34rem;color:var(--ink-2);font-size:.86rem;line-height:1.35}
+.stagedots{display:flex;gap:3px;margin-top:.35rem}
+.stagedots i{width:.9rem;height:.3rem;border-radius:1rem;background:var(--line)}
+.stagedots i.past{background:var(--ok-fill)} .stagedots i.now{background:var(--accent)}
+.muted{color:var(--muted)}
+.split.two{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,24rem),1fr));gap:.9rem}
+.asks{margin:0;padding-left:1.2rem;display:flex;flex-direction:column;gap:.45rem;line-height:1.4}
+.navgrp.archive summary{cursor:pointer;padding:0 .6rem .3rem;font-size:.8rem;font-weight:500;color:var(--muted);list-style:none}
+.navgrp.archive summary::-webkit-details-marker{display:none}
+.navgrp.archive summary::before{content:'▸ '}
+.navgrp.archive[open] summary::before{content:'▾ '}
+.navgrp.archive:not([open])>.nav{display:none}
+.bad{color:var(--crit-ink)}

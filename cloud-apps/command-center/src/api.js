@@ -11,6 +11,7 @@ import {
   upsertPost, listPosts, listChecklist, listHabits, deleteChecklist,
 } from './db.js';
 import { mergeSnapshot } from './snapshot.js';
+import { listFunnel } from './webinar.js';
 import { overlayVideo } from './video.js';
 import { boardStageFor, mapColumn } from './sponsors.js';
 import { normalizePost } from './content.js';
@@ -74,6 +75,21 @@ function targetFor(kind, payload = {}) {
   return 'worker';
 }
 
+// Read-only view of the review portal's D1 (cloud-apps/review owns it). No keys or passcodes.
+async function listReviewPages(db) {
+  if (!db) return null;
+  try {
+    const { results } = await db.prepare(
+      `SELECT v.channel, v.video, v.version, v.slug, v.status, v.updated_at,
+        (SELECT count(*) FROM comments c WHERE c.slug = v.slug AND c.resolved = 0) AS open_comments
+       FROM videos v ORDER BY v.updated_at DESC LIMIT 200`,
+    ).all();
+    return results || [];
+  } catch {
+    return null;
+  }
+}
+
 function machineOf(request, env) {
   const auth = request.headers.get('Authorization') || '';
   const token = auth.startsWith('Bearer ') ? auth.slice(7) : '';
@@ -124,11 +140,46 @@ async function login(request, env) {
   return json({ ok: true }, 200, { 'Set-Cookie': sessionCookieHeader(token, SESSION_DAYS * 24 * 3600) });
 }
 
+// Pages built only from live feeds; they have no fixture numbers at all.
+const LIVE_PAGES = { videos: {}, webinar: {} };
+
 function filterSnapshot(pages) {
-  const want = pages ? pages.split(',').map((s) => s.trim()).filter(Boolean) : Object.keys(snapshot.pages);
+  const all = { ...snapshot.pages, ...LIVE_PAGES };
+  const want = pages ? pages.split(',').map((s) => s.trim()).filter(Boolean) : Object.keys(all);
   const out = {};
-  for (const id of want) if (snapshot.pages[id]) out[id] = snapshot.pages[id];
-  return JSON.parse(JSON.stringify({ pages: out, nav: snapshot.nav, goal: snapshot.goal, sources: snapshot.sources }));
+  for (const id of want) if (all[id]) out[id] = all[id];
+  return JSON.parse(JSON.stringify({ pages: out, nav: liveNav(snapshot.nav), goal: snapshot.goal, sources: snapshot.sources }));
+}
+
+// Nav for Jon's businesses now. Pages that no longer fit, or have no live feed, sit under a
+// collapsed Archive group: hidden from the main list, code kept, still reachable.
+export function liveNav(nav) {
+  return {
+    ...nav,
+    groups: [
+      { title: 'Overview', items: [{ id: 'home', label: 'Home', icon: 'home' }] },
+      { title: 'Right now', items: [
+        { id: 'agents', label: 'Machines & Agents', icon: 'bot' },
+        { id: 'videos', label: 'Videos', icon: 'film' },
+        { id: 'webinar', label: 'Webinar', icon: 'clock' },
+      ] },
+      { title: 'Business', items: [
+        { id: 'sponsors', label: 'Sponsors', icon: 'mail' },
+        { id: 'viral', label: 'Viral View', icon: 'chart' },
+        { id: 'money', label: 'Money', icon: 'wallet' },
+      ] },
+      { title: 'Life', items: [{ id: 'life', label: 'Life', icon: 'heart' }] },
+      { title: 'Archive', archive: true, items: [
+        { id: 'support', label: 'Support', icon: 'chat' },
+        { id: 'content', label: 'Content', icon: 'pen' },
+        { id: 'outreach', label: 'Cold outreach', icon: 'send' },
+        { id: 'youtube', label: 'YouTube (old)', icon: 'film' },
+        { id: 'video', label: 'Video editor (old)', icon: 'up' },
+        { id: 'markets', label: 'Markets', icon: 'trend' },
+        { id: 'mastermind', label: 'Mastermind', icon: 'bulb' },
+      ] },
+    ],
+  };
 }
 
 async function postAction(request, env, ctx) {
@@ -326,6 +377,8 @@ export async function handleApi(request, env, ctx) {
       extra.drafts = [];
       extra.draftsError = err.message || 'Drafts unavailable';
     }
+    extra.reviews = await listReviewPages(env.REVIEW_DB);
+    extra.funnel = await listFunnel(env.CLONE_DB);
     extra.platforms = configuredPlatforms(env);
     extra.unavailable = unavailablePlatforms(env);
     const merged = mergeSnapshot(base, await listSnapshots(env.DB), now, overrides, await listIdeas(env.DB), await listPosts(env.DB), await listVideoProjects(env.DB), extra);
@@ -351,7 +404,8 @@ export async function handleApi(request, env, ctx) {
     const source = String(body.source || '').trim();
     const collectedAt = String(body.collectedAt || '');
     if (!source || !Date.parse(collectedAt)) return json({ error: 'Bad ingest' }, 400);
-    if ((source === 'agents_mac' && who !== 'mac') || (source === 'agents_gpu2' && who !== 'gpu2')) {
+    if ((source === 'agents_mac' && who !== 'mac') || (source === 'agents_gpu2' && who !== 'gpu2')
+      || (source.startsWith('machine_') && source !== `machine_${who}`)) {
       return json({ error: 'Unauthorized' }, 401);
     }
     const data = body.data && typeof body.data === 'object' ? body.data : {};

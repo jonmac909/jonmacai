@@ -266,7 +266,7 @@ test('merge overlays pinned agents from both machines onto the agents page', () 
   assert.equal(out.pages.agents.tiles[1].value, '1');
   assert.equal(out.pages.agents.waiting.jobs[0].area, 'Finances');
   const names = out.pages.agents.all.rows.map((r) => r.agent);
-  assert.deepEqual(names, ['Sponsors', 'Finances', 'Meta Ads', 'Content Marketing']);
+  assert.deepEqual(names, ['Finances', 'Meta Ads', 'Sponsors', 'Content Marketing']); // waiting on Jon, working, idle, other
   const quiet = out.pages.agents.all.rows.find((r) => r.agent === 'Content Marketing');
   assert.equal(quiet.pill, 'Quiet too long');
   assert.equal(quiet.restart, 'Restart');
@@ -633,4 +633,27 @@ test('lifecycle writer is atomic and drops secrets', async () => {
   `], { encoding: 'utf8' });
   assert.equal(check.status, 0, check.stderr || check.stdout);
   assert.match(check.stdout, /ok/);
+});
+
+test('last meaningful line skips prompt, spinner and tool chrome', () => {
+  const lines = [
+    '● Pauses are removed.',
+    '● Monitor event: [15:29] build',
+    '● The graphics are ready and the',
+    '  timeline is building in Resolve.',
+    '  Ran 2 shell commands',
+    '✻ Crunched for 4s',
+    '────────',
+    '❯',
+    '  ⏵⏵ bypass permissions on',
+  ];
+  const shell = ['[15:08] pack: 7 clips', 'clips done: 63', 'PS C:\\Users\\partn\\kit>'];
+  const r = spawnSync(py, ['-c', 'import json, sys\nfrom agent_status import last_line\nprint(json.dumps([last_line(x) for x in json.load(sys.stdin)]))'], {
+    encoding: 'utf8', cwd: join(root, 'collectors/lib'), input: JSON.stringify([lines, shell, ['• mail a@b.com token=abc now']]),
+  });
+  assert.equal(r.status, 0, r.stderr);
+  const [claude, ps, secret] = JSON.parse(r.stdout);
+  assert.equal(claude, 'The graphics are ready and the timeline is building in Resolve.');
+  assert.equal(ps, 'clips done: 63');
+  assert.equal(secret.includes('a@b.com') || secret.includes('abc'), false);
 });

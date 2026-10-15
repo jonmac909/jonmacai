@@ -40,7 +40,7 @@ test('merge overlays live machine heartbeats and keeps fixture pages', () => {
   }];
   const out = mergeSnapshot(fixture, rows, now);
   assert.equal(out.pages.home.tiles[0].value, '$5,000');
-  assert.equal(out.pages.agents.title, 'Agents');
+  assert.equal(out.pages.agents.title, 'Machines & Agents');
   assert.equal(out.sources.sponsors.updatedAt, '2026-09-16T00:00:00-07:00');
   assert.equal(out.sources.agents_mac.updatedAt, '2026-09-18T17:58:00Z');
   assert.equal(out.sources.agents_mac.stale, false);

@@ -10,6 +10,11 @@ import { overlayViral, applyHomeViral } from './viral.js';
 import { overlayOutreach, blankOutreach } from './outreach.js';
 import { overlayLife } from './life.js';
 import { applyHome } from './home.js';
+import { buildMachines, HOSTS, MACHINE_INTERVAL_MS } from './machines.js';
+import { overlayVideos } from './videos.js';
+import { overlayWebinar } from './webinar.js';
+import { buildCash, usd, withoutExcluded } from './cash.js';
+import { buildNow } from './now.js';
 
 export const COLLECTOR_INTERVAL_MS = 5 * 60 * 1000;
 
@@ -29,6 +34,12 @@ export const INTERVALS = {
   instantly: DEFAULT_INTERVAL_MS,
   calendar: DEFAULT_INTERVAL_MS,
   bank_scan: COLLECTOR_INTERVAL_MS,
+  machine_gpu1: MACHINE_INTERVAL_MS,
+  machine_gpu2: MACHINE_INTERVAL_MS,
+  videos: MACHINE_INTERVAL_MS,
+  webinar: COLLECTOR_INTERVAL_MS,
+  sponsors_cash: COLLECTOR_INTERVAL_MS,
+  needs_jon: COLLECTOR_INTERVAL_MS,
 };
 
 const MACHINES = [
@@ -113,13 +124,13 @@ function homeChip(by, nowMs) {
   return `${head} · ${issues.join(' · ')}`;
 }
 
-function redactActivity(value) {
+function redactActivity(value, max = 80) {
   return String(value || '')
     .replace(/\S+@\S+/g, '')
     .replace(/\bsk-[A-Za-z0-9_-]{6,}\b/gi, '')
     .replace(/\s+/g, ' ')
     .trim()
-    .slice(0, 80);
+    .slice(0, max);
 }
 
 function overlayAgents(page, by, nowMs) {
@@ -143,6 +154,9 @@ function overlayAgents(page, by, nowMs) {
         runs: a.runs || m.label,
         machine: a.machine || m.id,
         now: redactActivity(a.now),
+        title: redactActivity(a.title),
+        workspace: redactActivity(a.workspace),
+        lastLine: redactActivity(a.lastLine, 160),
         feedStale: f.stale,
         asOf: row.collected_at,
         waiting: a.waiting ? { ...a.waiting, title: redactActivity(a.waiting.title), lines } : a.waiting,
@@ -174,18 +188,24 @@ function overlayAgents(page, by, nowMs) {
       btn: a.page ? 'Open' : '',
     })),
   };
+  const rank = (a) => (a.status === 'needs_you' || a.status === 'action_required' ? 0 : a.status === 'working' && !a.feedStale ? 1 : a.status === 'idle' ? 2 : 3);
+  const waitingOnJon = (a) => a.status === 'needs_you' || a.status === 'action_required';
   page.all = {
-    title: 'All agents',
-    rows: agents.map((a) => ({
+    title: 'Live terminals',
+    rows: [...agents].sort((x, y) => rank(x) - rank(y)).map((a) => ({
       id: a.id,
       agent: a.name,
+      title: a.title || '',
+      workspace: a.workspace || '',
+      lastLine: a.feedStale ? '' : (a.lastLine || ''),
+      status: a.feedStale ? 'stale' : a.status,
       runs: a.runs,
       now: a.now,
       asOf: a.asOf,
       job: a.feedStale ? 'Stale' : a.job,
       pct: a.feedStale ? 0 : a.pct,
       pg: a.feedStale ? '' : (a.pg || ''),
-      pill: a.feedStale ? 'Stale' : a.pill,
+      pill: a.feedStale ? 'Stale' : waitingOnJon(a) ? 'Waiting on Jon' : a.pill,
       pillCls: a.feedStale ? '' : (a.pillCls || ''),
       page: a.page || undefined,
       machine: a.machine,
@@ -305,17 +325,23 @@ export function mergeSnapshot(fixture, rows, nowMs = Date.now(), overrides = {},
   const by = {};
   const staleSources = [];
   for (const row of rows || []) {
-    by[row.source] = row;
+    by[row.source] = row.source === 'sponsors' || row.source === 'sponsors_cash'
+      ? { ...row, data: withoutExcluded(row.source, row.data) }
+      : row;
     if (row.source === 'google_oauth' || row.source === 'telegram_sent' || row.source === 'mastermind_group') continue;
     const interval = INTERVALS[row.source] ?? DEFAULT_INTERVAL_MS;
     const f = freshness(row.collected_at, nowMs, interval);
     out.sources[row.source] = { updatedAt: row.collected_at, stale: f.stale, ageLabel: f.label };
     if (f.stale) {
-      const m = MACHINES.find((x) => x.source === row.source);
+      const m = MACHINES.find((x) => x.source === row.source) || HOSTS.find((x) => x.source === row.source);
       staleSources.push({ source: row.source, label: m ? m.label : row.source, ageLabel: f.label });
     }
   }
+  const hosts = buildMachines(by, nowMs);
+  if (out.pages.home) out.pages.home.machines = hosts;
   if (out.pages.agents) {
+    out.pages.agents.hosts = hosts;
+    out.pages.agents.title = 'Machines & Agents';
     out.pages.agents.machines = MACHINES.map((m) => {
       const row = by[m.source];
       if (!row) return { ...m, hostname: '', ageLabel: 'No heartbeat yet', stale: false };
@@ -428,7 +454,24 @@ export function mergeSnapshot(fixture, rows, nowMs = Date.now(), overrides = {},
       out.pages.life.actions = [{ label: 'Connect calendar', href: '/dashboard/api/google/start' }, ...(out.pages.life.actions || [])];
     }
   }
+  if (out.pages.videos) {
+    const f = by.videos ? freshness(by.videos.collected_at, nowMs, INTERVALS.videos) : null;
+    overlayVideos(out.pages.videos, by.videos, extra.reviews, nowMs);
+    if (f?.stale) out.pages.videos.stale = true;
+  }
+  if (out.pages.webinar) {
+    const f = by.webinar ? freshness(by.webinar.collected_at, nowMs, INTERVALS.webinar) : null;
+    overlayWebinar(out.pages.webinar, by.webinar, extra.funnel, nowMs, f ? f.label : '');
+    if (f?.stale) out.pages.webinar.stale = true;
+  }
+  const cash = buildCash(by.sponsors_cash, by.sponsors, nowMs);
+  if (out.pages.sponsors) out.pages.sponsors.cash = cash;
+  if (out.pages.home) out.pages.home.sponsorsCash = cash;
   applyHome(out, by, extra, nowMs);
+  if (out.pages.home) buildNow(out, by, nowMs, INTERVALS);
+  if (cash.available && out.goal) {
+    out.goal = { ...out.goal, pct: cash.pct, sub: `Trailing 90-day avg ${usd(cash.trailing.avg)} a month` };
+  }
   const groupOk = groupScan(by)?.data?.access === 'ok';
   if (out.pages.home?.mastermindPick && !groupOk) {
     out.pages.home.mastermindPick = {
