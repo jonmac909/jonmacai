@@ -13,13 +13,15 @@ const now = Date.parse('2026-10-15T23:00:00Z');
 const at = new Date(now - 60000).toISOString();
 
 test('home now-block uses live slices and says no data when they are missing', () => {
-  const empty = mergeSnapshot(snapshot, [], now);
+  const empty = mergeSnapshot({ ...snapshot, pages: { ...snapshot.pages, videos: {}, webinar: {} } }, [], now);
   const n = empty.pages.home.now;
   assert.equal(n.needsJon.available, false);
   assert.equal(n.ready.available, false);
   assert.equal(n.tiles[1].value, 'no data');
   assert.equal(n.tiles[2].value, 'no data');
   assert.equal(n.tiles[3].value, 'no data');
+  assert.equal(n.ready.reason, 'GPU2 has not relayed the production feed yet');
+  assert.doesNotMatch(n.tiles[3].sub, /videos feed/i);
   const live = mergeSnapshot(snapshot, [
     { source: 'needs_jon', collected_at: at, data: JSON.stringify({ ok: true, updated: 'Updated today', items: [{ area: 'GitHub', ask: 'Confirm the charge' }] }) },
     { source: 'viralview', collected_at: at, data: JSON.stringify({ subscriptions: { current: { mrrCents: 28400, activeCustomers: 6 } } }) },

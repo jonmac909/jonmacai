@@ -147,7 +147,6 @@ snapshot.pages.sponsors = {
         { name: 'Seko AI', pill: 'Your move', pillCls: 'blue', amt: 0, amtLabel: 'Not priced', detail: 'Dedicated video · asked for rates', pct: 12, btn: 'Approve reply', msg: 'Reply sent to Seko AI' },
       ] },
       { stage: 'Negotiating', cards: [
-        { name: 'GoLogin', pill: 'Your move', pillCls: 'blue', amt: 0, amtLabel: 'Not priced', detail: 'Repeat placement · needs budget and dates', pct: 25, btn: 'Approve reply', msg: 'Reply sent to GoLogin' },
       ] },
       { stage: 'Waiting on deposit', cards: [
         { name: 'TopView', pill: '7 days late', pillCls: 'crit', amt: 1500, amtLabel: '$1,500', detail: '$750 deposit "sent" Sep 11 · not in the bank', pct: 37, pg: 'crit', btn: 'Ask for receipt', msg: 'Email to Dorothy sent' },
@@ -190,7 +189,6 @@ snapshot.pages.sponsors = {
     rows: [
       { title: 'Flova AI · dedicated video', sub: 'Asked for rates · reply drafted', send: 'Reply sent to Flova AI' },
       { title: 'Seko AI · dedicated video', sub: 'Asked for rates · reply drafted', send: 'Reply sent to Seko AI' },
-      { title: 'GoLogin · repeat placement', sub: 'Wants another placement · needs budget and dates confirmed', send: 'Reply sent to GoLogin' },
     ],
   },
   byMonth: {
