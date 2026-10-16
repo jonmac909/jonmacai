@@ -119,8 +119,10 @@ export const PRODUCTS = [
     headline: "When a stranger comes to the door, will your dog stand calm and steady, or will you be the one who is worried?",
     lede: "A guardian dog can make a home feel safe, but only if it is the right dog, raised the right way. These three short books help you choose well, raise your dog through the first two years, and know exactly what to do on the day something goes wrong.",
     price: 27,
-    format: "3 PDF books, with printable worksheets, checklists and first-hour cards",
+    format: "3 PDF books, 299 pages in all, with printable worksheets, checklists and first-hour cards",
     cover: { color: '#3b3226', accent: '#e9dcc0' },
+    coverImage: '/covers/freddy.jpg',
+    coverSet: true,
     promises: [
       ["Pick the right dog for your home", "Sixteen guardian breeds described fairly, ten honest questions to answer first, and a table that matches breed to home."],
       ["Raise it right, month by month", "The first two years in stages, from weeks 8 to 16 through the teenage months, with six foundation skills taught step by step."],
