@@ -162,8 +162,10 @@ export const PRODUCTS = [
     headline: "Find out what every hour behind the wheel really pays you.",
     lede: "The rate on the advert is not always what you take home for the hours you give. These three books show you how to work out your true hourly rate, what the hours and licence rules actually say, and how to choose or ask for better work. Written in plain English for UK lorry drivers.",
     price: 19.99,
-    format: "3 PDF books: a pay handbook, a plain-English rules guide and a fill-in workbook",
+    format: "3 PDF books, 278 pages in all: a pay handbook, a plain-English rules guide and a fill-in workbook",
     cover: { color: '#1f3550', accent: '#e8e2d2' },
+    coverImage: '/covers/gary.jpg',
+    coverSet: true,
     promises: [
       ["Find your true hourly rate", "A seven-day workbook turns one honest week on paper into the real figure your time is worth."],
       ["What the rules actually say", "Fifteen rules on driving hours, breaks, rest, working time, tachographs and your licence, one short chapter each."],
@@ -251,8 +253,10 @@ export const PRODUCTS = [
     headline: "Know what is in the bottle before you pay for what is on the label.",
     lede: "A lot of what you pay for in a bottle of whisky is the story on the label. These three books show you how to read any label in about thirty seconds, build a small shelf of bottles you will actually enjoy, and pour them well at home. No snobbery and no jargon.",
     price: 27,
-    format: "3 PDF books, with a wallet card, worksheets, 24 tasting-journal pages and 12 drink cards to print",
+    format: "3 PDF books, 326 pages in all, with a wallet card, worksheets, 24 tasting-journal pages and 12 drink cards to print",
     cover: { color: '#5a3415', accent: '#f1e2c4' },
+    coverImage: '/covers/delton.jpg',
+    coverSet: true,
     promises: [
       ["Read any label in five lines", "The Five-Line Label Check: five questions, asked in the same order, tell you what you are holding before you reach the till."],
       ["Six bottles you will actually drink", "One job per bottle, from the everyday pour to the special bottle, with what to look for at every price level."],
