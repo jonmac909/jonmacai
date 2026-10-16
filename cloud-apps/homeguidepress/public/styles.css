@@ -38,7 +38,7 @@ p { margin: 0 0 16px; }
 .buy.off { background: #8d8478; box-shadow: none; cursor: default; margin: 0 0 16px; }
 .guarantee { font-size: 18px; color: var(--muted); margin-top: 14px; }
 
-.cover { display: block; width: 100%; max-width: 200px; margin: 0 auto; aspect-ratio: 3 / 4; border-radius: 6px; box-shadow: 0 10px 30px rgba(35, 27, 20, .28); }
+.cover { display: block; width: 100%; max-width: 200px; margin: 0 auto; aspect-ratio: 3 / 4; border-radius: 6px; box-shadow: 0 10px 30px rgba(35, 27, 20, .28); object-fit: cover; height: auto; }
 .cover.art { background: var(--c); color: var(--a); padding: 12% 10%; display: flex; flex-direction: column; justify-content: space-between;
   border-left: 10px solid rgba(0, 0, 0, .25); font-family: var(--serif); }
 .cover.art .k { font: 700 10px/1.3 var(--sans); text-transform: uppercase; letter-spacing: .14em; opacity: .85; }

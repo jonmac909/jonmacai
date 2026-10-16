@@ -28,8 +28,9 @@ export const PRODUCTS = [
     headline: 'The Sunday cooking nobody ever wrote down. Now it is.',
     lede: 'The old cooks never measured. They knew by the look of the dough and the smell of the pot. This book puts it all on paper: the amounts, the heat, the timing, and the one small move that makes each dish come out right.',
     price: 19,
-    format: 'PDF cookbook, about 300 pages, 100 recipes in 10 chapters, a full-page photo of every dish',
+    format: 'PDF cookbook, 326 pages, 100 recipes in 10 chapters, a full-page photo of every dish',
     cover: { color: '#7a1f1f', accent: '#f3e3c3' },
+    coverImage: '/covers/angelo.jpg',
     promises: [
       ['One old trick for every recipe', 'Each dish comes with the single thing that makes it work, like when to salt or why you save a cup of pasta water.'],
       ['300 fixes for when it goes wrong', 'Every recipe lists the three things people get wrong with it, why it happens, and how to rescue it.'],

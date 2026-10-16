@@ -23,7 +23,7 @@ if (!base) {
     // Placeholder link so the buy button renders as it will once the ebook worker posts the real ones.
     CHECKOUT_URLS: JSON.stringify(Object.fromEntries(PRODUCTS.map(p => [p.key, 'https://commas.com/checkout/PLACEHOLDER']))) };
   server = createServer(async (req, res) => {
-    const asset = { '/styles.css': 'text/css', '/favicon.svg': 'image/svg+xml' }[req.url];
+    const asset = { '/styles.css': 'text/css', '/favicon.svg': 'image/svg+xml' }[req.url] || (req.url.startsWith('/covers/') && 'image/jpeg');
     if (asset) { res.writeHead(200, { 'content-type': asset }); return res.end(readFileSync(new URL('../public' + req.url, import.meta.url))); }
     const r = await worker.fetch(new Request('http://localhost' + req.url, { method: req.method }), env, { waitUntil() {} });
     res.writeHead(r.status, Object.fromEntries(r.headers));
