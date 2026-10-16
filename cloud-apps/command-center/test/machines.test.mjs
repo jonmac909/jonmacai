@@ -110,3 +110,21 @@ test('collector parses nvidia-smi and keeps only python script names', () => {
   assert.equal(r.docker, false);
   assert.equal(r.orca, true);
 });
+
+test('gaming mode uses gaming_mode.py lists on our own process names, and slow steps are cut off', () => {
+  const code = [
+    'import json, os, tempfile, time, machine_stats as m',
+    'd = tempfile.mkdtemp()',
+    'open(os.path.join(d, "gaming_mode.py"), "w").write(chr(10).join(["GAMES = {\'f1_25.exe\'}", "GAME_PREFIXES = (\'forzahorizon\',)", "def manual_on(): return False", "def gaming(): raise SystemExit(\'must not run tasklist\')"]))',
+    'errs = []',
+    'slow = m.bounded(lambda: time.sleep(5), 0.3, "fallback", errs, "slow step")',
+    'print(json.dumps([m.gaming(["explorer.exe", "forzahorizon6.exe"], d), m.gaming(["explorer.exe"], d), slow, errs]))',
+  ].join('\n');
+  const r = spawnSync(py, ['-c', code], { encoding: 'utf8', cwd: join(root, 'collectors/lib') });
+  assert.equal(r.status, 0, r.stderr);
+  const [on, off, slow, errs] = JSON.parse(r.stdout);
+  assert.deepEqual(on, { on: true, why: 'game running: forzahorizon6.exe' });
+  assert.deepEqual(off, { on: false, why: 'free' });
+  assert.equal(slow, 'fallback');
+  assert.deepEqual(errs, ['slow step timed out']);
+});

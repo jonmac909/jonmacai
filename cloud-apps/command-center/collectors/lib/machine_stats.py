@@ -1,6 +1,6 @@
 """Read-only machine heartbeat for GPU1 and GPU2.
 
-Only cheap reads: nvidia-smi, Win32 memory/disk calls, tasklist, one
+Only cheap reads: nvidia-smi, Win32 memory/disk calls, a Win32 process snapshot, one
 Get-CimInstance for python command lines, and window titles of DaVinci Resolve.
 Never opens, focuses, moves or resizes a window. Every child process runs with
 CREATE_NO_WINDOW so nothing flashes on screen.
@@ -13,10 +13,63 @@ import shutil
 import socket
 import subprocess
 import sys
+import threading
 from pathlib import Path
 
 NO_WINDOW = getattr(subprocess, 'CREATE_NO_WINDOW', 0)
 GB = 1024 ** 3
+
+
+def bounded(fn, secs, default, errors=None, label=''):
+    """Run fn in a daemon thread and give up after secs. A child process stuck inside Windows
+    (seen with tasklist on Oct 15) can't even be killed, so never wait on one."""
+    box = {}
+
+    def go():
+        try:
+            box['v'] = fn()
+        except Exception as e:
+            box['e'] = e
+
+    t = threading.Thread(target=go, daemon=True)
+    t.start()
+    t.join(secs)
+    if 'v' in box:
+        return box['v']
+    if errors is not None:
+        errors.append('%s %s' % (label or getattr(fn, '__name__', 'step'), 'timed out' if t.is_alive() else type(box.get('e')).__name__))
+    return default
+
+
+def process_snapshot():
+    """(name, pid) for every process via CreateToolhelp32Snapshot: names only, no tasklist, no WMI."""
+    if os.name != 'nt':
+        return []
+    import ctypes
+    from ctypes import wintypes
+
+    class PE(ctypes.Structure):
+        _fields_ = [('dwSize', wintypes.DWORD), ('cntUsage', wintypes.DWORD), ('th32ProcessID', wintypes.DWORD),
+                    ('th32DefaultHeapID', ctypes.c_void_p), ('th32ModuleID', wintypes.DWORD),
+                    ('cntThreads', wintypes.DWORD), ('th32ParentProcessID', wintypes.DWORD),
+                    ('pcPriClassBase', ctypes.c_long), ('dwFlags', wintypes.DWORD), ('szExeFile', ctypes.c_wchar * 260)]
+
+    k32 = ctypes.windll.kernel32
+    k32.CreateToolhelp32Snapshot.restype = wintypes.HANDLE
+    snap = k32.CreateToolhelp32Snapshot(2, 0)  # TH32CS_SNAPPROCESS
+    if not snap or snap == wintypes.HANDLE(-1).value:
+        return []
+    rows = []
+    try:
+        e = PE()
+        e.dwSize = ctypes.sizeof(PE)
+        ok = k32.Process32FirstW(snap, ctypes.byref(e))
+        while ok:
+            rows.append((e.szExeFile.lower(), int(e.th32ProcessID)))
+            ok = k32.Process32NextW(snap, ctypes.byref(e))
+    finally:
+        k32.CloseHandle(snap)
+    return rows
 
 
 def _run(args, timeout=15):
@@ -114,17 +167,6 @@ def uptime_hours():
     return round(ctypes.windll.kernel32.GetTickCount64() / 3600000, 1)
 
 
-def process_rows(text):
-    rows = []
-    for row in csv.reader(io.StringIO(text or '')):
-        if len(row) > 1:
-            try:
-                rows.append((row[0].strip().lower(), int(row[1])))
-            except ValueError:
-                continue
-    return rows
-
-
 def python_jobs():
     """Short labels for running python scripts. Only the script file name leaves the machine."""
     ps = ("Get-CimInstance Win32_Process -Filter \"Name='python.exe' OR Name='pythonw.exe'\" | "
@@ -185,15 +227,21 @@ def resolve_titles(pids):
     return titles
 
 
-def gaming(tools_dir=None):
+def gaming(names, tools_dir=None):
+    """gaming_mode.py's rule (its GAMES / GAME_PREFIXES lists and manual flag) applied to the
+    process names we already have, so it never runs its own tasklist."""
     tools = Path(tools_dir or os.environ.get('CC_GAMING_TOOLS') or (Path.home() / 'my-agent' / 'tools'))
     if not (tools / 'gaming_mode.py').is_file():
         return None
     sys.path.insert(0, str(tools))
     try:
         import gaming_mode
-        on, why = gaming_mode.gaming()
-        return {'on': bool(on), 'why': str(why)[:80]}
+        games = sorted({n for n in names if n in gaming_mode.GAMES or n.startswith(gaming_mode.GAME_PREFIXES)})
+        if games:
+            return {'on': True, 'why': ('game running: ' + ', '.join(games))[:80]}
+        if gaming_mode.manual_on():
+            return {'on': True, 'why': 'manual gaming mode on'}
+        return {'on': False, 'why': 'free'}
     except Exception:
         return None
     finally:
@@ -225,13 +273,9 @@ def summarize(names, pyjobs, titles):
 def collect(machine):
     errors = []
     data = {'machine': machine, 'hostname': socket.gethostname()}
-    try:
-        data['gpus'] = gpus()
-        if not data['gpus']:
-            errors.append('nvidia-smi gave no data')
-    except Exception as e:
-        data['gpus'] = []
-        errors.append('gpu %s' % type(e).__name__)
+    data['gpus'] = bounded(gpus, 15, [], errors, 'nvidia-smi')
+    if not data['gpus'] and not any(e.startswith('nvidia-smi') for e in errors):
+        errors.append('nvidia-smi gave no data')
     try:
         data['ram'], data['commit'] = memory()
     except Exception as e:
@@ -246,23 +290,24 @@ def collect(machine):
         data['uptimeH'] = uptime_hours()
     except Exception:
         data['uptimeH'] = None
-    rows = process_rows(_run(['tasklist', '/fo', 'csv', '/nh']))
+    rows = bounded(process_snapshot, 10, [], errors, 'process list')
     if not rows:
-        errors.append('tasklist gave no data')
+        errors.append('process list gave no data')
     names = [n for n, _ in rows]
-    pyjobs = python_jobs() if ('python.exe' in names or 'pythonw.exe' in names) else []
-    try:
-        titles = resolve_titles({pid for n, pid in rows if n == 'resolve.exe'})
-    except Exception:
-        titles = []
+    pyjobs = bounded(python_jobs, 20, [], errors, 'python list') if ('python.exe' in names or 'pythonw.exe' in names) else []
+    titles = bounded(lambda: resolve_titles({pid for n, pid in rows if n == 'resolve.exe'}), 5, [], errors, 'resolve titles')
     data['running'] = summarize(names, pyjobs, titles)
     if machine == 'gpu2':
-        data['gaming'] = gaming()
+        data['gaming'] = gaming(names)
     data['errors'] = errors
     return data
 
 
 def main(machine):
+    # Hard stop: a heartbeat must never outlive its 60 s slot or pile up behind a stuck child.
+    stop = threading.Timer(50, lambda: os._exit(3))
+    stop.daemon = True
+    stop.start()
     sys.path.insert(0, str(Path(__file__).resolve().parent))
     from cc import cfg, ingest
     data = collect(machine)
