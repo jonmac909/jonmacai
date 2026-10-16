@@ -220,8 +220,10 @@ needed. Keep the conservative cutoff unless Commas supplies a precise timestamp
 with timezone. Enable `CLONE_SUBSCRIPTIONS_ENABLED`
 only after confirming service-ID behavior in the sandbox end-to-end run. Jon
 has selected sandbox validation; do not prepare or run a live-card test.
-The free seven-day trial always uses its own hosted service `2J89z`: the charge
-API requires at least one cent and documents no free-trial enrollment mechanism.
+The trial is "$1 for 7 days, then $97/month": one click charges $1 and logs the
+sale for Jon to start the $97/month subscription on day 8. Its hosted fallback is
+`gq2yZ` ($97 every 30 days, $1 initial fee, 7 days before billing). The former
+free-trial product `2J89z` is no longer sold; its renewals still count.
 The $99 vault option uses `jJYvv`, three monthly payments, not an unlimited plan.
 
 [Commas API reference](https://commasdocs.com/#charge-customer) documents saved
@@ -265,7 +267,7 @@ Provision only inside the separate account at https://sandbox.commas.net:
 | --- | --- | --- |
 | `seat` | $47, one-time | `nmGzE` |
 | `software` | $97 every 30 days, no trial | `wg0E8` |
-| `trial` | $97 every 30 days, free seven-day trial | `2J89z` |
+| `trial` | $97 every 30 days, $1 initial fee, 7 days before billing | `gq2yZ` |
 | `audit` | $497, one-time | `XXYMA` |
 | `vault` | $297, one-time lifetime access | `O9gZr` |
 | `vault_plan` | $99 every 30 days, initial payment + two renewals | `jJYvv` |

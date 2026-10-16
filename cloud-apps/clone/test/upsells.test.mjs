@@ -54,7 +54,7 @@ function mockCommas(overrides = {}) {
     if (String(url).includes('/checkout-sessions/')) {
       const service = String(url).split('/').pop();
       const o = Object.values(OFFERS).find(o => o.service === service);
-      if (o) return overrides.product || response({ product: { id: { wg0E8: 1287855, XXYMA: 1382675, O9gZr: 1287825, jJYvv: 1287845, '2J89z': 1287835 }[service] },
+      if (o) return overrides.product || response({ product: { id: { wg0E8: 1287855, XXYMA: 1382675, O9gZr: 1287825, jJYvv: 1287845, gq2yZ: 2229088 }[service] },
         amount_cents: o.productCents ?? o.cents, type: o.recurring || o.trial ? 'subscription' : 'onetime_reusable', subscription: { frequency_days: 30, free_trial_days: null, auto_expire_after_x_periods: service === 'jJYvv' ? 2 : null,
           ...(o.trial ? { initial_fee: '1.00', initial_fee_days: 7 } : {}) } });
     }
@@ -115,7 +115,7 @@ test('Clone one-click payments: verified identity, durable claims and safe fallb
     assert.equal((await (await upsell(request('upsell', { offer: 'trial' }, await buyerCookie(e)), e)).json()).checkoutUrl, OFFERS.trial.hosted);
     assert.equal(calls.length, 0);
   });
-  await t.test('production activation charges only one-time offers after the confirmed purchase cutoff', async () => {
+  await t.test('production activation charges every offer only after the confirmed purchase cutoff', async () => {
     const config = readFileSync(new URL('../wrangler.jsonc', import.meta.url), 'utf8');
     const vars = JSON.parse(config.replace(/^\s*\/\/.*$/gm, '')).vars;
     const cutoff = Date.parse(vars.CLONE_REBILL_ENABLED_AT);
@@ -135,11 +135,13 @@ test('Clone one-click payments: verified identity, durable claims and safe fallb
         }
       }
     }
+    // Live config (approved Oct 15 2026): recurring offers and the $1 trial are one-click first payments.
+    assert.equal(vars.CLONE_SUBSCRIPTIONS_ENABLED, 'true'); assert.equal(vars.CLONE_TRIAL_ONECLICK, 'true');
     for (const offer of ['software', 'vault_plan', 'trial']) {
-      const e = { ...env(), ...vars }, calls = mockCommas();
+      const e = { ...env(), ...vars, CLONE_CHARGE_GAP_MS: '0' }, calls = mockCommas();
       const r = await (await upsell(request('upsell', { offer }, await buyerCookie(e, { purchased: cutoff + 1 })), e)).json();
-      assert.equal(r.fallback, true);
-      assert.equal(calls.length, 0);
+      assert.equal(r.ok, true, offer);
+      assert.equal(JSON.parse(calls.find(c => c.url.endsWith('/charge')).body).amount_cents, offer === 'trial' ? 100 : OFFERS[offer].cents);
     }
   });
   const oops = () => new Response(JSON.stringify({ status: 'error', message: 'Oops! Something went wrong. Please try again.', request_id: 'Root=1-mock',

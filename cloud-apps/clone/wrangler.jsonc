@@ -37,8 +37,10 @@
     // Use receipt of Ana's confirmation as a conservative, unambiguous UTC cutoff.
     "CLONE_REBILL_ENABLED_AT": "2026-10-04T21:14:20Z",
     // "true" = recurring offers become one-click first payments (Commas cannot create the
-    // subscription itself; Jon sets it up from the manual list). Live stays "false" until shipped.
-    "CLONE_SUBSCRIPTIONS_ENABLED": "false",
+    // subscription itself; Jon sets it up from the manual list). Approved for live Oct 15 2026 (Ana, option a).
+    "CLONE_SUBSCRIPTIONS_ENABLED": "true",
+    // $1 for 7 days, then $97/month (live product gq2yZ, created Oct 15 2026).
+    "CLONE_TRIAL_ONECLICK": "true",
     // Enables only the authenticated ?sandbox=1 path. Missing key/IDs fail closed.
     "COMMAS_ENV": "sandbox",
     // Sandbox business "Viral View Sandbox" (handle test-4), Stripe test mode since Oct 13.
