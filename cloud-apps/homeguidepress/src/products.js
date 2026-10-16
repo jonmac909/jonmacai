@@ -300,8 +300,11 @@ export const PRODUCTS = [
     headline: "Get your home ready for power cuts, storms and hard winters, without spending a fortune.",
     lede: "Being prepared is not about fear. It is ordinary good housekeeping for the weather and the power cuts we actually get in the UK. This calm, practical book shows you how to start with what you already have and build up a little at a time.",
     price: 47,
-    format: "PDF book in 11 parts plus an editable Word version, printable plans and checklists, and 4 short bonus guides",
+    format: "345-page PDF book in 11 parts, an editable Word version, printable plans and checklists, and 4 short bonus guides",
     cover: { color: '#3a4630', accent: '#ece6d3' },
+    coverImage: '/covers/prepared.jpg',
+    coverSet: true,
+    coverAlt: 'Covers of Ready at Home and its 4 bonus guides',
     promises: [
       ["Start with what you already have", "No big shop and no box of gadgets. Use what is in the house, use what is free, and add a little each week."],
       ["Sensible kit, used safely", "Torches, power banks and warm layers that earn their place, with clear safety rules on heaters, generators and carbon monoxide."],

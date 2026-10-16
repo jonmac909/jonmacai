@@ -32,7 +32,7 @@ ${product?.notice ? `<p class="notice">${esc(product.notice)}</p>` : ''}
 
 export function cover(p, size = '') {
   if (p.coverImage) return p.coverSet
-    ? `<img class="cover set ${size}" src="${esc(p.coverImage)}" alt="Covers of the ${p.files.length} books in ${esc(p.title)}" width="900" height="880">`
+    ? `<img class="cover set ${size}" src="${esc(p.coverImage)}" alt="${esc(p.coverAlt || `Covers of the 3 books in ${p.title}`)}" width="900" height="880">`
     : `<img class="cover ${size}" src="${esc(p.coverImage)}" alt="Cover of ${esc(p.title)}" width="680" height="880">`;
   return `<div class="cover art ${size}" style="--c:${p.cover.color};--a:${p.cover.accent}" role="img" aria-label="Cover of ${esc(p.title)}">
   <span class="k">${esc(p.kicker)}</span><span class="t">${esc(p.title)}</span><span class="b">${esc(byline(p))}</span></div>`;
