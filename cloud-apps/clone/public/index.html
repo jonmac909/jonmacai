@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
+<script src="meta-pixel.js"></script>
 <script src="/clone/schedule.js?v=1"></script>
 <script src="/clone/whop-pixel.js?v=1"></script>
 <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -961,7 +962,7 @@ a.presscite h3{text-decoration:underline;text-decoration-thickness:1px;text-unde
     meta.clone_session_date=sessionDay.slice(0,4)+'-'+sessionDay.slice(4,6)+'-'+sessionDay.slice(6,8);
     Object.keys(attr).forEach(function(k){ if(attr[k])meta[k]=String(attr[k]); });
     if(window.CloneWhop)Object.assign(meta,CloneWhop.metadata());
-    if(session.checkoutRef)meta.clone_checkout_ref=session.checkoutRef;
+    if(session.checkoutRef){ meta.clone_checkout_ref=session.checkoutRef; window.cloneCheckoutRef=session.checkoutRef; }
     try{
       checkout=PaymentCheckout.create({
         creatorId:session.creatorId,
@@ -988,7 +989,10 @@ a.presscite h3{text-decoration:underline;text-decoration-thickness:1px;text-unde
       resetGo();
       payError((d&&d.data&&d.data.errorMessage)||'Payment didn’t go through. Check your card details and try again.');
     });
-    checkout.on('form:validation',function(d){ if(d&&d.isValid===false)resetGo(); });
+    checkout.on('form:validation',function(d){
+      if(d&&d.isValid===true&&submitWhenValid){ trySubmit(); return; }
+      if(d&&d.isValid===false&&!submitWhenValid)resetGo();
+    });
     checkout.on('checkout:success',function(data){ CloneCheckout.succeeded(data); });
     Promise.resolve(checkout.init()).catch(function(e){ fail(e&&e.code||'init'); });
   }
@@ -999,9 +1003,17 @@ a.presscite h3{text-decoration:underline;text-decoration-thickness:1px;text-unde
     timer=setTimeout(function(){ fail('timeout'); },20000);
     preload().then(mount,fail);
   }
-  go.addEventListener('click',function(){
-    if(checkout&&checkout.isFormReady())checkout.submitForm();
-  });
+  var submitWhenValid=false,checkUntil=0,poll;
+  function trySubmit(){
+    if(!checkout)return;
+    clearTimeout(poll);
+    if(checkout.isFormReady()){ submitWhenValid=false; checkout.submitForm(); return; }
+    if(!submitWhenValid){ submitWhenValid=true; checkUntil=Date.now()+15000; payError(''); go.disabled=true; go.textContent='Checking card…'; }
+    if(Date.now()>checkUntil){ submitWhenValid=false; resetGo();
+      payError('Please check your card details, then press the button again.'); return; }
+    poll=setTimeout(trySubmit,400);
+  }
+  go.addEventListener('click',trySubmit);
 
   /* ---- open / close ---- */
   function open(){

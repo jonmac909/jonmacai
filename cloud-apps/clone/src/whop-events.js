@@ -7,7 +7,8 @@ const ATTR = new Set(['utm_source', 'utm_medium', 'utm_campaign', 'utm_content',
   'utm_meta_ad_id', 'utm_meta_adset_id', 'utm_meta_campaign_id', 'utm_placement', 'utm_adset', 'utm_whop',
   'wacid', 'wasid', 'waid', 'fbclid', 'gclid', 'twclid', 'ttclid', 'gbraid', 'wbraid', 'msclkid']);
 const EVENTS = new Set(['page', 'view_content', 'lead', 'complete_registration', 'add_to_cart', 'purchase']);
-const PRODUCTS = new Set(['nmGzE', ...Object.values(OFFERS).map(o => o.service)]);
+// 2J89z = the former free-trial product; its existing subscribers still renew.
+const PRODUCTS = new Set(['nmGzE', '2J89z', ...Object.values(OFFERS).map(o => o.service)]);
 
 export function normalizeWhopAnonymousId(value) {
   return typeof value === 'string' && /^wuid_[a-z0-9_-]{1,128}$/i.test(value.trim()) ? value.trim() : null;

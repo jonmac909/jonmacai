@@ -1,9 +1,19 @@
+// cents = what one click charges on the saved card; productCents = the Commas
+// product's own price (hosted fallback). Commas' charge endpoint cannot create a
+// subscription, so recurring one-click sales charge the first payment only and are
+// logged with a plan label and billing start for Jon to set up by hand.
 export const OFFERS = Object.freeze({
-  software: { group: 'software', service: 'wg0E8', cents: 9700, recurring: true, description: 'Viral View Pro — $97/month', next: '/clone/audit.html', hosted: 'https://commas.com/checkout/wg0E8nj4FjdaJ6L' },
-  trial: { group: 'software', service: '2J89z', cents: 0, trial: true, next: '/clone/audit.html', hosted: 'https://commas.com/checkout/2J89z1C1sozSM3' },
+  software: { group: 'software', service: 'wg0E8', cents: 9700, recurring: true, description: 'Viral View Pro — $97/month',
+    chargeDescription: 'Viral View Pro — first month ($97/month)', plan: 'VV Pro $97/mo (month 1 paid)', billingDays: 30,
+    next: '/clone/audit.html', hosted: 'https://commas.com/checkout/wg0E8nj4FjdaJ6L' },
+  trial: { group: 'software', service: 'gq2yZ', cents: 100, productCents: 9700, trial: true, description: 'Viral View Pro — $1 for 7 days, then $97/month',
+    chargeDescription: 'Viral View Pro — $1 for 7 days, then $97/month', plan: 'VV Pro $1 trial -> $97/mo', billingDays: 7,
+    next: '/clone/audit.html', hosted: 'https://commas.com/checkout/gq2yZSgXQi0eLEN' },
   audit: { group: 'audit', service: 'XXYMA', cents: 49700, description: 'TikTok Shop Audit — $497', next: '/clone/vault.html', hosted: 'https://commas.com/checkout/XXYMA1NymVQ5wpc' },
   vault: { group: 'vault', service: 'O9gZr', cents: 29700, description: 'The Vault — lifetime access — $297', next: '/clone/welcome.html', hosted: 'https://commas.com/checkout/O9gZrPCEazKZx1I' },
-  vault_plan: { group: 'vault', service: 'jJYvv', cents: 9900, recurring: true, description: 'The Vault — 3 monthly payments of $99', next: '/clone/welcome.html', hosted: 'https://commas.com/checkout/jJYvvwCNDeq7PMsh' },
+  vault_plan: { group: 'vault', service: 'jJYvv', cents: 9900, recurring: true, description: 'The Vault — 3 monthly payments of $99',
+    chargeDescription: 'The Vault — payment 1 of 3 ($99)', plan: 'Vault 3 x $99 (payment 1 of 3 paid)', billingDays: 30,
+    next: '/clone/welcome.html', hosted: 'https://commas.com/checkout/jJYvvwCNDeq7PMsh' },
 });
 
 // Only the Worker access gate may select this internal mode. COMMAS_ENV enables
