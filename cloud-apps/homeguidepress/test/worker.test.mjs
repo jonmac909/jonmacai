@@ -229,7 +229,7 @@ test('unknown Commas product stores the order but sends nothing', async t => {
 
 test('every public page renders', async () => {
   const f = fixture();
-  for (const path of ['/', '/finally-written-down', '/the-long-life-dog', '/guardian-dog-field-books', '/drivers-bundle', '/light-and-orderly', '/the-straight-pour', '/ready-at-home', '/thanks?p=angelo', '/privacy', '/terms', '/refunds']) {
+  for (const path of ['/', '/finally-written-down', '/the-long-life-dog', '/guardian-dog-field-books', '/drivers-bundle', '/light-and-orderly', '/grahams-whisky-shelf', '/ready-at-home', '/thanks?p=angelo', '/privacy', '/terms', '/refunds']) {
     const r = await get(f, path);
     assert.equal(r.status, 200, path);
   }
