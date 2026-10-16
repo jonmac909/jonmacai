@@ -73,8 +73,9 @@ export const PRODUCTS = [
     headline: "Give your dog the best chance of a long, healthy life, from the first day home to the grey-muzzle years.",
     lede: "Dogs can't tell you when something is wrong, so it helps to know what to look for. This manual walks you through every stage of your dog's life in short chapters, each answering one plain question. It tells you what to watch, what to do, and when to call the vet.",
     price: 34,
-    format: "PDF manual, about 900 pages, 190 short chapters in 19 parts, plus 12 printable cards",
+    format: "PDF manual, 952 pages, 191 short chapters in 19 parts, plus 12 printable cards",
     cover: { color: '#2f4a3a', accent: '#efe6cf' },
+    coverImage: '/covers/steve.jpg',
     promises: [
       ["Spot pain and illness early", "Dogs hide pain, so a whole part of the book shows the small signs to watch for and a simple weekly nose-to-tail check."],
       ["The Thirty-Day Settle-In Plan", "Three five-minute sessions a day that help a new dog or puppy settle into your home, step by step."],
