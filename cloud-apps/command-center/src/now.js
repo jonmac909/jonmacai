@@ -48,14 +48,14 @@ export function buildNow(out, by, nowMs, intervals) {
       updated: nj?.updated || '',
       items: (nj?.items || []).slice(0, 8),
     },
-    ready: { available: !!(videos && videos.rows && videos.rows.length), items: ready },
+    ready: { available: !!(videos && videos.rows && videos.rows.length), stale: !!videos?.stale, reason: videos ? videos.reason : 'Production feed not loaded', items: ready },
     tiles: [
       web?.tiles?.[0]
         ? { ...web.tiles[0], sub: `${web.tiles[0].sub} · ${web.green || ''} by Oct 19` }
         : { icon: 'clock', label: 'Webinar starts in', value: 'no data' },
       cash ? cashTile(cash) : { icon: 'dollar', label: 'Sponsors', value: 'no data' },
       mrrTile(by.viralview, nowMs, intervals.viralview),
-      { icon: 'film', label: 'Videos ready for Jon', value: videos?.rows?.length ? String(ready.length) : 'no data', sub: ready.map((r) => r.channel).join(' · ') || (videos?.rows?.length ? 'None right now' : 'Videos feed not reported') },
+      { icon: 'film', label: 'Videos ready for Jon', value: videos?.rows?.length ? String(ready.length) : 'no data', sub: ready.map((r) => r.channel).join(' · ') || (videos?.rows?.length ? 'None right now' : (videos?.reason || 'Production feed unavailable')) },
     ],
   };
   return home.now;

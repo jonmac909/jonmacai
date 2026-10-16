@@ -9,8 +9,8 @@ function needsJon(n) {
 }
 
 function ready(r) {
-  const head = '<div class="cardhead"><h2><svg class="ic"><use href="#i-film"/></svg>Videos ready for Jon</h2><button class="link" data-page="videos">All videos</button></div>';
-  if (!r.available) return `<div class="card pad">${head}<p class="muted">No data. The videos feed has not reported.</p></div>`;
+  const head = `<div class="cardhead"><h2><svg class="ic"><use href="#i-film"/></svg>Videos ready for Jon</h2>${r.stale ? pill('Stale') : ''}<button class="link" data-page="videos">All videos</button></div>`;
+  if (!r.available) return `<div class="card pad">${head}<p class="muted">No data. ${esc(r.reason || 'Production feed unavailable')}.</p></div>`;
   const items = r.items.map((v) => `<li><b>${esc(v.channel)}</b> · ${esc(v.video)}${v.slug ? ` · <a href="/review/${esc(v.slug)}" target="_blank" rel="noopener">open review</a>` : ''}</li>`).join('');
   return `<div class="card pad">${head}${items ? `<ul class="asks">${items}</ul>` : '<p>Nothing to review right now.</p>'}</div>`;
 }

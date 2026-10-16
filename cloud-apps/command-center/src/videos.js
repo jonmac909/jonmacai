@@ -63,6 +63,14 @@ export function overlayVideos(page, row, reviews, nowMs = Date.now()) {
       ? `No data · ${d.error || 'production feed unavailable'}`
       : `Production feed (avatar-studio) · updated ${Number.isFinite(feedAge) ? `${Math.round(feedAge / 60000)} min ago` : 'unknown'}${reviews ? ' · review pages live' : ' · review pages unavailable'}`;
   const rows = Array.isArray(d?.rows) ? d.rows : [];
+  // Why there is nothing to show, in words that name the real source (the production feed).
+  page.reason = !d
+    ? 'GPU2 has not relayed the production feed yet'
+    : !d.ok
+      ? `Production feed: ${d.error || 'unavailable'}`
+      : page.stale
+        ? `Production feed is stale (last updated ${Number.isFinite(feedAge) ? `${Math.round(feedAge / 60000)} min ago` : 'unknown'})`
+        : rows.length ? '' : 'Production feed has no rows';
   page.rows = rows.map((r) => {
     const idx = stageIndex(r.stage);
     const inStage = minutesSince(r.stage_started, nowMs);

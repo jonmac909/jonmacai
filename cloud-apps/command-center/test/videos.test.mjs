@@ -25,6 +25,7 @@ const reviews = [{ video: 'theo-1', version: 'v6', slug: 'theo-1-v6', status: 'n
 test('rows come straight from the production feed', () => {
   const p = overlayVideos({}, { data: feed }, reviews, now);
   assert.equal(p.stale, false);
+  assert.equal(p.reason, '');
   assert.equal(p.rows.length, 2);
   const theo = p.rows[0];
   assert.equal(theo.stageIdx, stageIndex('Ready for Jon'));
@@ -48,8 +49,11 @@ test('missing or old feed is stale with no data, never fixture numbers', () => {
   assert.equal(none.heygen.value, 'no data');
   const missing = overlayVideos({}, { data: { ok: false, error: 'production feed not written yet', rows: [] } }, null, now);
   assert.match(missing.sub, /not written yet/);
+  assert.equal(missing.reason, 'Production feed: production feed not written yet');
+  assert.equal(none.reason, 'GPU2 has not relayed the production feed yet');
   const old = overlayVideos({}, { data: { ...feed, updated: '2026-10-15T23:20:00Z' } }, null, now);
   assert.equal(old.stale, true);
+  assert.match(old.reason, /^Production feed is stale \(last updated 10 min ago\)$/);
   const merged = mergeSnapshot({ ...snapshot, pages: { ...snapshot.pages, videos: {} } }, [], now);
   assert.equal(merged.pages.videos.rows.length, 0);
 });
