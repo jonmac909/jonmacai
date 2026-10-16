@@ -202,7 +202,7 @@ test("comments: create, time order, open filter, resolve and reopen, via cookie 
   const listed = await (await fetchApp("/api/review/mina-1-v8/comments?status=open", { headers: agent })).json();
   assert.deepEqual(listed.comments.map((c) => c.text), ["early note", "later note"]);
   const first = listed.comments[0];
-  assert.deepEqual(Object.keys(first).sort(), ["author", "created_at", "id", "resolved", "resolved_at", "resolved_by", "slug", "t", "text"]);
+  assert.deepEqual(Object.keys(first).sort(), ["author", "created_at", "id", "resolved", "resolved_at", "resolved_by", "sent", "slug", "submission_id", "t", "text"]);
 
   const resolved = await (await fetchApp(`/api/review/mina-1-v8/comments/${first.id}/resolve`, jsonInit("POST", { by: "video-agent" }))).json();
   assert.equal(resolved.comment.resolved, true);
@@ -220,6 +220,132 @@ test("comments: create, time order, open filter, resolve and reopen, via cookie 
   const v8 = videos.videos.find((v) => v.slug === "mina-1-v8");
   assert.equal(v8.status, "changes_requested");
   assert.equal(v8.open_comments, 2);
+});
+
+test("Submit changes: blocked when empty, locks sent comments, double tap makes one submission", async () => {
+  const reviewer = { Cookie: cookie, Origin: runtime.url };
+  const page = await (await fetchApp("/review/mina-1-v9", { headers: { Cookie: cookie } })).text();
+  assert.match(page, /id="send-changes"[^>]*>Submit changes</);
+  assert.match(page, /id="approve"[^>]*>Approve</);
+
+  const empty = await fetchApp("/api/review/mina-1-v9/submit", jsonInit("POST", { kind: "changes" }, reviewer));
+  assert.equal(empty.status, 400);
+  assert.equal((await empty.json()).error, "Add a comment first");
+
+  for (const [t, text] of [[2.5, "cut the pause"], [0.5, "louder intro"]]) {
+    const response = await fetchApp("/api/review/mina-1-v9/comments", jsonInit("POST", { author: "Jon", t, text }, reviewer));
+    assert.equal(response.status, 201);
+    await response.arrayBuffer();
+  }
+  // Double tap: two presses at once still make exactly one submission.
+  const taps = await Promise.all([1, 2].map(() => fetchApp("/api/review/mina-1-v9/submit", jsonInit("POST", { kind: "changes" }, reviewer))));
+  const bodies = await Promise.all(taps.map((r) => r.json()));
+  assert.deepEqual(taps.map((r) => r.status).filter((s) => s === 201), [201], JSON.stringify(bodies));
+  const made = bodies.find((b) => b.submission && !b.duplicate);
+  assert.equal(made.status, "changes_requested");
+  assert.equal(made.submission.comment_count, 2);
+  for (const b of bodies) if (b.submission) assert.equal(b.submission.id, made.submission.id);
+  const again = await fetchApp("/api/review/mina-1-v9/submit", jsonInit("POST", {}, reviewer));
+  assert.equal(again.status, 400, "a later tap with nothing new is blocked");
+  await again.arrayBuffer();
+  const listed = await (await fetchApp("/api/review/mina-1-v9/submissions", { headers: { Cookie: cookie } })).json();
+  assert.equal(listed.submissions.length, 1);
+
+  const comments = (await (await fetchApp("/api/review/mina-1-v9/comments", { headers: agent })).json()).comments;
+  assert.ok(comments.every((c) => c.sent && c.submission_id === made.submission.id));
+  const locked = await fetchApp(`/api/review/mina-1-v9/comments/${comments[0].id}/resolve`, jsonInit("POST", {}, reviewer));
+  assert.equal(locked.status, 409, "sent comments are locked for the reviewer");
+  await locked.arrayBuffer();
+  const video = (await (await fetchApp("/api/review/mina-1-v9", { headers: agent })).json()).video;
+  assert.equal(video.status, "changes_requested");
+
+  // A comment added after submitting goes in the next submission only.
+  await fetchApp("/api/review/mina-1-v9/comments", jsonInit("POST", { author: "Jon", t: 3, text: "one more" }, reviewer)).then((r) => r.arrayBuffer());
+  const second = await (await fetchApp("/api/review/mina-1-v9/submit", jsonInit("POST", { kind: "changes" }, reviewer))).json();
+  assert.equal(second.submission.comment_count, 1);
+  assert.notEqual(second.submission.id, made.submission.id);
+});
+
+test("router API: token only, undelivered list with comment text, delivered, next version link", async () => {
+  for (const [headers, status] of [[{}, 401], [{ Cookie: cookie }, 403], [{ Authorization: "Bearer wrong-token-value" }, 401]]) {
+    const response = await fetchApp("/api/review/submissions?undelivered=1", { headers });
+    assert.equal(response.status, status, JSON.stringify(headers));
+    await response.arrayBuffer();
+  }
+  const noTokenDelivered = await fetchApp("/api/review/submissions/x/delivered", jsonInit("POST", { to: "x" }, {}));
+  assert.equal(noTokenDelivered.status, 401);
+  await noTokenDelivered.arrayBuffer();
+
+  const queue = (await (await fetchApp("/api/review/submissions?undelivered=1", { headers: agent })).json()).submissions;
+  assert.equal(queue.length, 2);
+  const [first] = queue;
+  assert.equal(first.slug, "mina-1-v9");
+  assert.equal(first.page_url, `${runtime.url}/review/mina-1-v9`);
+  assert.deepEqual(first.comments.map((c) => [c.t, c.text]), [[0.5, "louder intro"], [2.5, "cut the pause"]], "time order");
+
+  const delivered = await (await fetchApp(`/api/review/submissions/${first.id}/delivered`, jsonInit("POST", { to: "Davinci", at: "2026-10-15T21:52:00Z" }))).json();
+  assert.equal(delivered.submission.delivered_to, "Davinci");
+  assert.equal(delivered.submission.delivered_at, "2026-10-15T21:52:00.000Z");
+  const left = (await (await fetchApp("/api/review/submissions?undelivered=1", { headers: agent })).json()).submissions;
+  assert.deepEqual(left.map((s) => s.id), [queue[1].id]);
+  const missing = await fetchApp("/api/review/submissions/nope/delivered", jsonInit("POST", { to: "x" }));
+  assert.equal(missing.status, 404);
+  await missing.arrayBuffer();
+
+  const reviewerNext = await fetchApp("/api/review/mina-1-v9/next", jsonInit("POST", { result_slug: "mina-1-v8" }, { Cookie: cookie }));
+  assert.equal(reviewerNext.status, 403);
+  await reviewerNext.arrayBuffer();
+  const unpublished = await fetchApp("/api/review/mina-1-v9/next", jsonInit("POST", { result_slug: "mina-1-v10" }));
+  assert.equal(unpublished.status, 400);
+  await unpublished.arrayBuffer();
+  const next = await (await fetchApp("/api/review/mina-1-v9/next", jsonInit("POST", { result_slug: "mina-1-v8", submission_id: first.id }))).json();
+  assert.equal(next.submission.result_url, `${runtime.url}/review/mina-1-v8`);
+  const page = await (await fetchApp("/review/mina-1-v9", { headers: { Cookie: cookie } })).text();
+  const data = JSON.parse(/<script type="application\/json" id="review-data">([^<]+)<\/script>/.exec(page)[1]);
+  assert.equal(data.submissions.find((s) => s.id === first.id).result_slug, "mina-1-v8");
+});
+
+test("Approve: works with no open comments, sets approved, a second tap is the same submission", async () => {
+  const reviewer = { Cookie: cookie, Origin: runtime.url };
+  const first = await fetchApp("/api/review/mina-1-v9/submit", jsonInit("POST", { kind: "approve" }, reviewer));
+  assert.equal(first.status, 201);
+  const made = await first.json();
+  assert.equal(made.status, "approved");
+  assert.equal(made.submission.kind, "approve");
+  const twice = await fetchApp("/api/review/mina-1-v9/submit", jsonInit("POST", { kind: "approve" }, reviewer));
+  assert.equal(twice.status, 200);
+  const dup = await twice.json();
+  assert.equal(dup.duplicate, true);
+  assert.equal(dup.submission.id, made.submission.id);
+  const bad = await fetchApp("/api/review/mina-1-v9/submit", jsonInit("POST", { kind: "ship" }, reviewer));
+  assert.equal(bad.status, 400);
+  await bad.arrayBuffer();
+  const video = (await (await fetchApp("/api/review/mina-1-v9", { headers: agent })).json()).video;
+  assert.equal(video.status, "approved");
+});
+
+test("deleting a test video removes its comments, submissions, media and empty test channel", async () => {
+  const linked = publish(["--slug", "router-test-1", "--channel", "router-test", "--video", "router-test-1", "--version", "v1",
+    "--title", "Router test", "--file", clipPath, "--replaces", "mina-1-v9"]);
+  assert.equal(linked.replaces, "mina-1-v9", "--replaces links the new version from the old page");
+  const latest = (await (await fetchApp("/api/review/mina-1-v9/submissions", { headers: agent })).json()).submissions.find((s) => s.kind === "changes");
+  assert.equal(latest.result_slug, "router-test-1");
+  assert.equal(latest.id, linked.linked_submission);
+  await fetchApp("/api/review/router-test-1/comments", jsonInit("POST", { author: "Jon", t: 1, text: "x" })).then((r) => r.arrayBuffer());
+  await fetchApp("/api/review/router-test-1/submit", jsonInit("POST", {})).then((r) => r.arrayBuffer());
+  const reviewerDelete = await fetchApp("/api/review/router-test-1", { method: "DELETE", headers: { Cookie: cookie } });
+  assert.equal(reviewerDelete.status, 403);
+  await reviewerDelete.arrayBuffer();
+  const gone = await fetchApp("/api/review/router-test-1", { method: "DELETE", headers: agent });
+  assert.equal(gone.status, 200);
+  await gone.arrayBuffer();
+  assert.equal((await runtime.bucket.list({ prefix: "review/router-test-1/" })).objects.length, 0);
+  const left = await runtime.db.prepare(`SELECT (SELECT COUNT(*) FROM comments WHERE slug = 'router-test-1') AS c,
+    (SELECT COUNT(*) FROM submissions WHERE slug = 'router-test-1') AS s,
+    (SELECT COUNT(*) FROM channels WHERE slug = 'router-test') AS ch, (SELECT COUNT(*) FROM channels) AS all_ch`).first();
+  assert.deepEqual(left, { c: 0, s: 0, ch: 0, all_ch: 7 });
+  const unlinked = (await (await fetchApp("/api/review/mina-1-v9/submissions", { headers: agent })).json()).submissions.find((s) => s.id === latest.id);
+  assert.equal(unlinked.result_slug, null, "links to a deleted version are cleared");
 });
 
 test("API rejects bad input, foreign origins, reviewer publishing and wrong tokens", async () => {

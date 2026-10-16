@@ -87,3 +87,15 @@ video { display: block; width: 100%; max-height: 70vh; background: #000; border-
   .comment .resolve { grid-column: 2; justify-self: start; }
   .when { margin-left: 0; }
 }
+
+.send { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px; margin-top: 12px; }
+.send-btns { display: grid; grid-template-columns: 2fr 1fr; gap: 10px; }
+button.big { min-height: 52px; font-size: 18px; font-weight: 700; }
+button.approve { border-color: var(--green); color: var(--green); }
+.send-hint { margin: 10px 0 0; }
+.submissions { list-style: none; margin: 8px 0 0; padding: 0; }
+.submissions li { padding: 8px 0; border-top: 1px solid var(--line); overflow-wrap: anywhere; }
+.submissions li:first-child { font-weight: 600; }
+.submissions .ready { color: var(--green); }
+.comment .sent { color: var(--amber); }
+@media (max-width: 520px) { .send-btns { grid-template-columns: 1fr; } }

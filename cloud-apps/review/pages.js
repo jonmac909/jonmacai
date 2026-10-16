@@ -79,8 +79,8 @@ const extra = (id, label, url) => url ? `<details class="extra" id="${id}"><summ
     <video id="${id}-player" class="extra-player" controls playsinline webkit-playsinline muted preload="none" src="${escapeHtml(url)}" aria-label="${label}"></video>
   </details>` : "";
 
-export function renderVideo(video, versions, channelName) {
-  const data = JSON.stringify({ slug: video.slug, duration: video.duration, chapters: video.chapters, status: video.status, sync: video.sync })
+export function renderVideo(video, versions, channelName, submissions = []) {
+  const data = JSON.stringify({ slug: video.slug, duration: video.duration, chapters: video.chapters, status: video.status, sync: video.sync, submissions })
     .replace(/</g, "\\u003c");
   const versionLinks = versions.length > 1 ? `<nav class="version-nav" aria-label="Versions">${versions.map((v) =>
     v.slug === video.slug
@@ -133,6 +133,14 @@ export function renderVideo(video, versions, channelName) {
       <textarea id="note" name="text" rows="3" maxlength="4000" placeholder="Pause the video, then type what should change here"></textarea>
       <div class="actions"><button type="submit" class="primary" id="submit">Add comment</button><span class="muted" id="form-status" role="status"></span></div>
     </form>
+  </section>
+  <section class="send" id="send" aria-label="Send to the agent">
+    <div class="send-btns">
+      <button type="button" class="primary big" id="send-changes">Submit changes</button>
+      <button type="button" class="big approve" id="approve">Approve</button>
+    </div>
+    <p class="send-hint muted" id="send-status" role="status">When you are done commenting, press Submit changes. The agent that made this video gets your open comments.</p>
+    <ol class="submissions" id="submissions"></ol>
   </section>
   <section class="comments" aria-label="Comments">
     <h2>Comments <span class="muted" id="counts"></span></h2>

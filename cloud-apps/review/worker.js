@@ -10,7 +10,8 @@ const LINK_COOKIE = "review_link";
 const SESSION_DAYS = 30;
 const LINK_DAYS = 30;
 const SLUG = /^[a-z0-9](?:[a-z0-9-]{0,78}[a-z0-9])?$/;
-const RESERVED = new Set(["login", "media", "api"]);
+const RESERVED = new Set(["login", "media", "api", "submissions", "videos"]);
+const KINDS = { changes: "changes_requested", approve: "approved" };
 const enc = new TextEncoder();
 
 export const validSlug = (slug) => typeof slug === "string" && SLUG.test(slug) && !RESERVED.has(slug);
@@ -119,8 +120,22 @@ function publicComment(row) {
     id: row.id, slug: row.slug, author: row.author, t: row.t, text: row.text,
     created_at: row.created_at, resolved: Boolean(row.resolved),
     resolved_at: row.resolved_at || null, resolved_by: row.resolved_by || null,
+    sent: Boolean(row.submission_id), submission_id: row.submission_id || null,
   };
 }
+
+function publicSubmission(row, origin) {
+  let ids = [];
+  try { ids = JSON.parse(row.comment_ids || "[]"); } catch {}
+  return {
+    id: row.id, slug: row.slug, kind: row.kind, created_at: row.created_at,
+    comment_ids: ids, comment_count: ids.length,
+    delivered_at: row.delivered_at || null, delivered_to: row.delivered_to || null,
+    result_slug: row.result_slug || null, result_url: row.result_slug ? `${origin}/review/${row.result_slug}` : null,
+  };
+}
+const slugSubmissions = (env, slug, limit = 50) =>
+  env.DB.prepare("SELECT * FROM submissions WHERE slug = ? ORDER BY created_at DESC LIMIT ?").bind(slug, limit).all();
 
 function publicVideo(row, origin) {
   let chapters = [], sync = [];
@@ -243,7 +258,8 @@ async function pages(request, env, url) {
     "SELECT slug, version, status, created_at FROM videos WHERE channel = ? AND video = ? ORDER BY created_at DESC",
   ).bind(row.channel, row.video).all();
   const channel = await env.DB.prepare("SELECT name FROM channels WHERE slug = ?").bind(row.channel).first();
-  return html(renderVideo(publicVideo(row, ""), versions.results, channel?.name || row.channel));
+  const submissions = (await slugSubmissions(env, slug, 10)).results.map((s) => publicSubmission(s, ""));
+  return html(renderVideo(publicVideo(row, ""), versions.results, channel?.name || row.channel, submissions));
 }
 
 async function api(request, env, url) {
@@ -262,6 +278,10 @@ async function api(request, env, url) {
     const { channels, videos } = await listVideos(env);
     return json({ channels, videos: videos.map((row) => publicVideo(row, url.origin)) });
   }
+  if (parts[0] === "submissions") {
+    if (!agent) return fail(403, "agent_token_required");
+    return routerApi(request, env, url, parts.slice(1));
+  }
   const [slug, resource, id, action, extra] = parts;
   if (!validSlug(slug) || extra !== undefined) return fail(404, "not_found");
 
@@ -274,6 +294,19 @@ async function api(request, env, url) {
   if (!row) return fail(404, "video_not_found");
 
   if (resource === undefined && method === "GET") return json({ video: publicVideo(row, url.origin) });
+  if (resource === undefined && method === "DELETE") {
+    if (!agent) return fail(403, "agent_token_required");
+    return deleteVideo(env, row);
+  }
+
+  if (resource === "submit" && id === undefined && method === "POST") return submit(request, env, url, row);
+  if (resource === "submissions" && id === undefined && method === "GET") {
+    return json({ submissions: (await slugSubmissions(env, slug)).results.map((s) => publicSubmission(s, url.origin)) });
+  }
+  if (resource === "next" && id === undefined && method === "POST") {
+    if (!agent) return fail(403, "agent_token_required");
+    return nextVersion(request, env, url, slug);
+  }
 
   if (resource === "status" && id === undefined && method === "POST") {
     const body = await readJson(request);
@@ -312,6 +345,9 @@ async function api(request, env, url) {
     const body = (await readJson(request)) || {};
     const resolved = body.resolved !== false;
     const by = text(body.by, 60) || (agent ? "agent" : "reviewer");
+    // Comments sent to the agent are locked for reviewers; the agent resolves them when fixed.
+    const current = await env.DB.prepare("SELECT submission_id FROM comments WHERE id = ? AND slug = ?").bind(id, slug).first();
+    if (current?.submission_id && !agent) return fail(409, "This comment was already sent to the agent.");
     const result = await env.DB.prepare(
       "UPDATE comments SET resolved = ?, resolved_at = ?, resolved_by = ? WHERE id = ? AND slug = ?",
     ).bind(resolved ? 1 : 0, resolved ? now() : null, resolved ? by : null, id, slug).run();
@@ -327,6 +363,102 @@ async function api(request, env, url) {
   }
 
   return fail(405, "method_not_allowed");
+}
+
+// Submit changes / Approve (reviewer session or agent). Snapshots the open, unsent comments, locks
+// them to this submission and sets the video status, all in one transaction. The dedupe key
+// (slug, kind, sorted comment ids) is UNIQUE, so a double tap returns the first row, never a second.
+async function submit(request, env, url, row) {
+  const body = (await readJson(request)) || {};
+  const kind = body.kind === undefined ? "changes" : body.kind;
+  if (!Object.hasOwn(KINDS, kind)) return fail(400, "kind must be changes or approve");
+  const open = await env.DB.prepare(
+    "SELECT id FROM comments WHERE slug = ? AND resolved = 0 AND submission_id IS NULL ORDER BY t, created_at",
+  ).bind(row.slug).all();
+  const ids = open.results.map((c) => c.id);
+  if (kind === "changes" && !ids.length) return fail(400, "Add a comment first");
+  const dedupe = `${row.slug}|${kind}|${[...ids].sort().join(",")}`;
+  const id = crypto.randomUUID();
+  const stamp = now();
+  await env.DB.batch([
+    env.DB.prepare("INSERT OR IGNORE INTO submissions (id, slug, kind, created_at, comment_ids, dedupe_key) VALUES (?, ?, ?, ?, ?, ?)")
+      .bind(id, row.slug, kind, stamp, JSON.stringify(ids), dedupe),
+    env.DB.prepare(`UPDATE comments SET submission_id = ?1 WHERE slug = ?2 AND submission_id IS NULL
+        AND id IN (SELECT value FROM json_each(?3)) AND EXISTS (SELECT 1 FROM submissions WHERE id = ?1)`)
+      .bind(id, row.slug, JSON.stringify(ids)),
+    env.DB.prepare("UPDATE videos SET status = ?, updated_at = ? WHERE slug = ?").bind(KINDS[kind], stamp, row.slug),
+  ]);
+  const saved = await env.DB.prepare("SELECT * FROM submissions WHERE dedupe_key = ?").bind(dedupe).first();
+  const duplicate = saved.id !== id;
+  return json({ submission: publicSubmission(saved, url.origin), status: KINDS[kind], duplicate }, duplicate ? 200 : 201);
+}
+
+// The GPU2 router (agent token only):
+//   GET  /api/review/submissions?undelivered=1   oldest first, with each comment's time and text
+//   POST /api/review/submissions/<id>/delivered  {to, at}
+async function routerApi(request, env, url, [id, action, extra]) {
+  const method = request.method;
+  if (id === undefined && method === "GET") {
+    const undelivered = url.searchParams.get("undelivered") === "1";
+    const rows = (await env.DB.prepare(`SELECT s.*, v.title, v.channel, v.version, v.status FROM submissions s
+        JOIN videos v ON v.slug = s.slug ${undelivered ? "WHERE s.delivered_at IS NULL ORDER BY s.created_at" : "ORDER BY s.created_at DESC"} LIMIT 100`).all()).results;
+    const ids = rows.flatMap((r) => publicSubmission(r, url.origin).comment_ids);
+    const found = ids.length
+      ? (await env.DB.prepare("SELECT * FROM comments WHERE id IN (SELECT value FROM json_each(?))").bind(JSON.stringify(ids)).all()).results
+      : [];
+    const byId = new Map(found.map((c) => [c.id, c]));
+    return json({
+      submissions: rows.map((r) => {
+        const submission = publicSubmission(r, url.origin);
+        return {
+          ...submission, title: r.title, channel: r.channel, version: r.version, video_status: r.status,
+          page_url: `${url.origin}/review/${r.slug}`,
+          comments: submission.comment_ids.map((cid) => byId.get(cid)).filter(Boolean)
+            .map((c) => ({ id: c.id, t: c.t, text: c.text, author: c.author })),
+        };
+      }),
+    });
+  }
+  if (id !== undefined && action === "delivered" && extra === undefined && method === "POST") {
+    const body = await readJson(request);
+    const to = text(body?.to, 80);
+    if (!to) return fail(400, "to is required");
+    const at = typeof body.at === "string" && !Number.isNaN(Date.parse(body.at)) ? new Date(body.at).toISOString() : now();
+    const result = await env.DB.prepare("UPDATE submissions SET delivered_at = ?, delivered_to = ? WHERE id = ?").bind(at, to, id).run();
+    if (!result.meta.changes) return fail(404, "submission_not_found");
+    return json({ submission: publicSubmission(await env.DB.prepare("SELECT * FROM submissions WHERE id = ?").bind(id).first(), url.origin) });
+  }
+  return id === undefined ? fail(405, "method_not_allowed") : fail(404, "not_found");
+}
+
+// POST /api/review/<slug>/next {result_slug, submission_id?}: the agent links its new version to the
+// submission it answered (default: the latest "changes" one), so the old page shows the link.
+async function nextVersion(request, env, url, slug) {
+  const body = await readJson(request);
+  const result = text(body?.result_slug, 80);
+  if (!validSlug(result) || result === slug) return fail(400, "result_slug must be the new version's slug");
+  if (!await env.DB.prepare("SELECT 1 FROM videos WHERE slug = ?").bind(result).first()) return fail(400, "publish the new version first");
+  const target = body.submission_id
+    ? await env.DB.prepare("SELECT id FROM submissions WHERE id = ? AND slug = ?").bind(String(body.submission_id), slug).first()
+    : await env.DB.prepare("SELECT id FROM submissions WHERE slug = ? AND kind = 'changes' ORDER BY created_at DESC LIMIT 1").bind(slug).first();
+  if (!target) return fail(409, "no changes submission for this video");
+  await env.DB.prepare("UPDATE submissions SET result_slug = ? WHERE id = ?").bind(result, target.id).run();
+  return json({ submission: publicSubmission(await env.DB.prepare("SELECT * FROM submissions WHERE id = ?").bind(target.id).first(), url.origin) });
+}
+
+// DELETE /api/review/<slug> (agent token only): removes a test or mistaken video with its comments,
+// submissions and media; an auto-created channel left empty goes too (the seeded seven stay).
+async function deleteVideo(env, row) {
+  await env.DB.batch([
+    env.DB.prepare("UPDATE submissions SET result_slug = NULL WHERE result_slug = ?").bind(row.slug),
+    env.DB.prepare("DELETE FROM submissions WHERE slug = ?").bind(row.slug),
+    env.DB.prepare("DELETE FROM comments WHERE slug = ?").bind(row.slug),
+    env.DB.prepare("DELETE FROM videos WHERE slug = ?").bind(row.slug),
+    env.DB.prepare("DELETE FROM channels WHERE slug = ?1 AND sort >= 100 AND NOT EXISTS (SELECT 1 FROM videos WHERE channel = ?1)").bind(row.channel),
+  ]);
+  const keys = [row.video_key, row.source_key, row.compare_key].filter(Boolean);
+  if (keys.length) await env.MEDIA.delete(keys);
+  return json({ deleted: row.slug });
 }
 
 // Publishing (agent token only): chunked R2 multipart upload, then metadata.

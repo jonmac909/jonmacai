@@ -1,4 +1,4 @@
-// Video page: timestamped comments, seek-on-click, resolve, status. No autoplay.
+// Video page: timestamped comments, seek-on-click, resolve, status, Submit changes / Approve. No autoplay.
 (() => {
   "use strict";
   const $ = (id) => document.getElementById(id);
@@ -8,6 +8,7 @@
   const NAME_KEY = "review.author";
   let stamp = 0;
   let comments = [];
+  let submissions = Array.isArray(data.submissions) ? data.submissions : [];
 
   const store = {
     get() { try { return localStorage.getItem(NAME_KEY) || ""; } catch { return ""; } },
@@ -182,16 +183,100 @@
       const when = new Date(c.created_at);
       meta.textContent = `${c.author} · ${when.toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}` +
         (c.resolved ? ` · resolved${c.resolved_by ? ` by ${c.resolved_by}` : ""}` : "");
+      if (c.sent) {
+        const sent = document.createElement("span");
+        sent.className = "sent";
+        sent.textContent = " · sent to the agent";
+        meta.append(sent);
+      }
       body.append(textEl, meta);
-      const toggle = document.createElement("button");
-      toggle.type = "button";
-      toggle.className = "resolve";
-      toggle.textContent = c.resolved ? "Reopen" : "Resolve";
-      toggle.addEventListener("click", () => resolve(c, !c.resolved, toggle));
-      item.append(time, body, toggle);
+      item.append(time, body);
+      // Sent comments are locked: the agent resolves them when the fix is in.
+      if (!c.sent) {
+        const toggle = document.createElement("button");
+        toggle.type = "button";
+        toggle.className = "resolve";
+        toggle.textContent = c.resolved ? "Reopen" : "Resolve";
+        toggle.addEventListener("click", () => resolve(c, !c.resolved, toggle));
+        item.append(toggle);
+      }
       list.append(item);
     }
+    const unsent = comments.filter((c) => !c.resolved && !c.sent).length;
+    $("send-changes").textContent = unsent ? `Submit changes (${unsent})` : "Submit changes";
   }
+
+  // Submissions: newest first. The GPU2 router fills delivered_to/at; the agent adds result_slug.
+  const clock = (iso) => new Date(iso).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+  function renderSubmissions() {
+    const list = $("submissions");
+    list.textContent = "";
+    for (const s of submissions.slice(0, 5)) {
+      const item = document.createElement("li");
+      const count = `${s.comment_count} comment${s.comment_count === 1 ? "" : "s"}`;
+      if (s.result_slug) {
+        item.className = "ready";
+        item.append("New version ready: ");
+        const link = document.createElement("a");
+        link.href = `/review/${encodeURIComponent(s.result_slug)}`;
+        link.textContent = s.result_slug;
+        item.append(link, ` (from ${count} sent ${clock(s.created_at)})`);
+      } else if (s.kind === "approve") {
+        item.textContent = s.delivered_at
+          ? `Approved. Sent to ${s.delivered_to} at ${clock(s.delivered_at)}, starting the next video.`
+          : `Approved at ${clock(s.created_at)}. Telling the agent (within 2 minutes)…`;
+      } else {
+        item.textContent = s.delivered_at
+          ? `Sent to ${s.delivered_to} at ${clock(s.delivered_at)}, working on it (${count}).`
+          : `Submitted ${count} at ${clock(s.created_at)}. Sending to the agent (within 2 minutes)…`;
+      }
+      list.append(item);
+    }
+    schedulePoll();
+  }
+
+  // While a submission waits for the router, check every 20 s so "Sent to …" appears by itself.
+  let pollTimer = null;
+  function schedulePoll() {
+    clearTimeout(pollTimer);
+    if (submissions.some((s) => !s.delivered_at)) pollTimer = setTimeout(loadSubmissions, 20000);
+  }
+  async function loadSubmissions() {
+    try {
+      submissions = (await call("/submissions")).submissions;
+    } catch {}
+    renderSubmissions();
+  }
+
+  function setStatus(status) {
+    for (const b of $("status").querySelectorAll("button")) b.setAttribute("aria-pressed", String(b.dataset.status === status));
+  }
+
+  async function send(kind, button) {
+    const status = $("send-status");
+    if (kind === "changes" && !comments.some((c) => !c.resolved && !c.sent)) {
+      status.textContent = "Add a comment first.";
+      $("note").focus();
+      return;
+    }
+    if (kind === "approve" && !window.confirm("Approve this version? The agent will mark it approved and start this channel's next video.")) return;
+    for (const b of [$("send-changes"), $("approve")]) b.disabled = true;
+    status.textContent = "Sending…";
+    try {
+      const result = await call("/submit", { method: "POST", body: JSON.stringify({ kind }) });
+      setStatus(result.status);
+      submissions = [result.submission, ...submissions.filter((s) => s.id !== result.submission.id)];
+      status.textContent = kind === "approve" ? "Approved." : `Submitted ${result.submission.comment_count} comment${result.submission.comment_count === 1 ? "" : "s"}. You can keep commenting; new comments go in the next submission.`;
+      renderSubmissions();
+      await load();
+    } catch (error) {
+      status.textContent = error.message;
+    } finally {
+      for (const b of [$("send-changes"), $("approve")]) b.disabled = false;
+    }
+  }
+  $("send-changes").addEventListener("click", (event) => send("changes", event.currentTarget));
+  $("approve").addEventListener("click", (event) => send("approve", event.currentTarget));
 
   async function load() {
     try {
@@ -249,14 +334,15 @@
     if (!button || button.getAttribute("aria-pressed") === "true") return;
     try {
       const { status } = await call("/status", { method: "POST", body: JSON.stringify({ status: button.dataset.status }) });
-      for (const b of $("status").querySelectorAll("button")) b.setAttribute("aria-pressed", String(b.dataset.status === status));
+      setStatus(status);
     } catch (error) {
       $("form-status").textContent = error.message;
     }
   });
 
-  document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") load(); });
+  document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") { load(); loadSubmissions(); } });
   showName();
   setStamp(0);
+  renderSubmissions();
   load();
 })();

@@ -3,10 +3,13 @@
 // both past 3 s with exactly one audio track (ours), the sound switch moves it, sync keeps the
 // source on the cut map, Source only / Ours only / Pause both work, a comment is created and
 // resolved through the UI and the agent API, and ours still plays when the source fails.
+// Then Submit changes / Approve: empty submit is blocked, a double tap makes one submission, sent
+// comments lock, and the page shows the buttons at phone width (390 px).
 // Zero console errors allowed (outside the deliberate source-failure check).
 //   node test/browser.mjs                         local Miniflare + fixture clip
 //   node test/browser.mjs --live --slug mina-1-v9 live site; secrets from env or ~/.jonmac-review.env
-// Live runs delete their proof comments afterwards and never change the video status.
+//   ... --live --slug router-test-1 --submit [--wait-delivery]   also press Submit/Approve live (test slugs only)
+// Live runs delete their proof comments afterwards and never change a real video's status.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync } from "node:fs";
@@ -19,6 +22,8 @@ const argv = process.argv.slice(2);
 const live = argv.includes("--live");
 const arg = (name, fallback) => (argv.includes(name) ? argv[argv.indexOf(name) + 1] : fallback);
 const outDir = arg("--out", fileURLToPath(new URL("../.proof/", import.meta.url)));
+const pressSubmit = !live || argv.includes("--submit");
+const waitDelivery = argv.includes("--wait-delivery");
 
 function liveSecrets() {
   const file = arg("--env-file", join(homedir(), ".jonmac-review.env"));
@@ -73,6 +78,7 @@ async function signIn(page, url, passcode, base, slug) {
 
 async function main() {
   const { base, slug, secrets, done } = await setup();
+  if (live && pressSubmit) assert.ok(slug.startsWith("router-test-"), "live Submit/Approve only on router-test-* slugs");
   const api = async (path, init = {}) => {
     const response = await fetch(`${base}/api/review/${slug}${path}`, {
       ...init,
@@ -197,6 +203,40 @@ async function main() {
     await page.locator(`#comments li.resolved[data-id="${comment.id}"]`).waitFor();
     report.apiComment = { id: comment.id, resolved: resolved.comment.resolved, resolved_by: resolved.comment.resolved_by };
 
+    // 8. Submit changes / Approve.
+    if (pressSubmit) {
+      const before = (await api("/submissions")).submissions.length;
+      await page.click("#send-changes");
+      await page.waitForFunction(() => document.getElementById("send-status").textContent === "Add a comment first.");
+      for (const note of ["[proof] submit note A", "[proof] submit note B"]) {
+        await page.fill("#note", note);
+        await page.click("#submit");
+        await page.locator("#comments li", { hasText: note }).waitFor();
+      }
+      for (const c of (await api("/comments?status=open")).comments) if (!created.includes(c.id)) created.push(c.id);
+      assert.equal(await page.textContent("#send-changes"), "Submit changes (2)");
+      await page.dblclick("#send-changes"); // double tap
+      await page.locator("#submissions li").first().waitFor();
+      await page.waitForFunction(() => document.querySelectorAll("#comments .sent").length === 2);
+      const after = (await api("/submissions")).submissions;
+      assert.equal(after.length, before + 1, "double tap made exactly one submission");
+      assert.equal(after[0].comment_count, 2);
+      assert.equal(await page.locator("#comments li", { hasText: "[proof] submit note A" }).locator("button.resolve").count(), 0, "sent comments locked");
+      assert.equal(await page.getAttribute('#status button[data-status="changes_requested"]', "aria-pressed"), "true");
+      report.submit = { emptyBlocked: true, submissions: after.length - before, comments: after[0].comment_count, firstLine: await page.textContent("#submissions li") };
+      if (waitDelivery) {
+        const started = Date.now();
+        await page.waitForFunction(() => /^Sent to /.test(document.querySelector("#submissions li")?.textContent || ""), null, { timeout: 180000, polling: 1000 });
+        report.submit.delivered = { line: await page.textContent("#submissions li"), secondsOnPage: Math.round((Date.now() - started) / 1000) };
+      }
+      page.once("dialog", (dialog) => dialog.accept());
+      await page.click("#approve");
+      await page.waitForFunction(() => document.querySelector('#status button[data-status="approved"]').getAttribute("aria-pressed") === "true");
+      const approvals = (await api("/submissions")).submissions.filter((s) => s.kind === "approve");
+      assert.equal(approvals.length, 1);
+      report.approve = { status: "approved", submission: approvals[0].id };
+    }
+
     mkdirSync(outDir, { recursive: true });
     report.screenshot = join(outDir, `${slug}-chrome.png`);
     await page.screenshot({ path: report.screenshot, fullPage: true });
@@ -223,6 +263,20 @@ async function main() {
     await failPage.waitForFunction(() => document.getElementById("player").currentTime > 2 && !document.getElementById("player").paused, null, { timeout: 30000 });
     report.sourceFailure = { errorShown: true, playBothDisabled: await failPage.isDisabled("#play-both"), oursPlayedTo: await failPage.evaluate(() => document.getElementById("player").currentTime) };
     await failContext.close();
+
+    // 10. Phone width: Submit / Approve visible and tappable, no sideways scroll.
+    const phone = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, hasTouch: true });
+    const phonePage = await phone.newPage();
+    await signIn(phonePage, shareLink, secrets.REVIEW_PASSCODE, base, slug);
+    await phonePage.locator("#send").scrollIntoViewIfNeeded();
+    const fit = await phonePage.evaluate(() => {
+      const box = (id) => document.getElementById(id).getBoundingClientRect();
+      return { scrollWidth: document.documentElement.scrollWidth, submit: Math.round(box("send-changes").width), approve: Math.round(box("approve").width), submitHeight: Math.round(box("send-changes").height) };
+    });
+    assert.ok(fit.scrollWidth <= 390 && fit.submit >= 300 && fit.approve >= 300 && fit.submitHeight >= 48, `phone layout: ${JSON.stringify(fit)}`);
+    report.phone = { ...fit, screenshot: join(outDir, `${slug}-phone.png`) };
+    await phonePage.screenshot({ path: report.phone.screenshot });
+    await phone.close();
     report.pass = true;
   } finally {
     if (live) {

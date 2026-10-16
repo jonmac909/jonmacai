@@ -6,8 +6,10 @@
 //   node review_publish.mjs --slug mina-1-v9 --channel mina --video mina-1 --version v9 \
 //     --title "Mina: AI shorts tutorial" --file mina01_v9.mp4 [--source source_h264.mp4] \
 //     [--compare first60_side_by_side.mp4] [--chapters versions.json] [--sync versions.json]
-//     [--notes "what changed"] [--dry-run]
+//     [--notes "what changed"] [--replaces mina-1-v8] [--dry-run]
 //
+// --replaces <old slug>: after publishing, link this version from the old page ("New version ready")
+// via POST /api/review/<old slug>/next, answering Jon's latest Submit changes there.
 // --file/--source/--compare accept a local path or an http(s) URL. --chapters accepts a JSON array of
 // [seconds, label] pairs, or a GPU1 versions.json ({"chapters": {"<file name>": [...]}}).
 // --sync (defaults to the --chapters versions.json) reads the ours-to-source cut map: "timemap"
@@ -195,7 +197,7 @@ async function verify(url, token, size) {
 async function main() {
   const args = parseArgs(process.argv.slice(2));
   if (args.help) {
-    console.log(readFileSync(new URL(import.meta.url), "utf8").split("\n").slice(1, 13).join("\n").replace(/^\/\/ ?/gm, ""));
+    console.log(readFileSync(new URL(import.meta.url), "utf8").split("\n").slice(1, 16).join("\n").replace(/^\/\/ ?/gm, ""));
     return;
   }
   loadEnvFile(args["env-file"] || join(homedir(), ".jonmac-review.env"));
@@ -204,7 +206,9 @@ async function main() {
   for (const name of ["slug", "channel", "video", "version", "title", "file"]) {
     if (!args[name]) throw new Error(`--${name} is required (see --help)`);
   }
-  if (!/^[a-z0-9](?:[a-z0-9-]{0,78}[a-z0-9])?$/.test(args.slug)) throw new Error("--slug must be lowercase letters, digits and dashes");
+  const slugOk = (s) => /^[a-z0-9](?:[a-z0-9-]{0,78}[a-z0-9])?$/.test(s);
+  if (!slugOk(args.slug)) throw new Error("--slug must be lowercase letters, digits and dashes");
+  if (args.replaces !== undefined && (!slugOk(args.replaces) || args.replaces === args.slug)) throw new Error("--replaces must be the previous version's slug");
 
   const video = await inspect(await localFile(args.file, "video"), "video");
   const source = args.source ? await inspect(await localFile(args.source, "source"), "source") : null;
@@ -233,8 +237,12 @@ async function main() {
   await verify(published.video_url, token, video.size);
   if (source) await verify(published.source_url, token, source.size);
   if (compare) await verify(published.compare_url, token, compare.size);
+  const linked = args.replaces
+    ? (await call(`${args.replaces}/next`, { method: "POST", body: { result_slug: args.slug } })).submission
+    : null;
   console.log(JSON.stringify({ ok: true, page_url: published.page_url, video_url: published.video_url,
-    size: video.size, sha256: video.sha256, duration: video.duration, status: published.status }, null, 2));
+    size: video.size, sha256: video.sha256, duration: video.duration, status: published.status,
+    ...(linked ? { replaces: args.replaces, linked_submission: linked.id } : {}) }, null, 2));
 }
 
 if (process.argv[1] && basename(process.argv[1]) === basename(new URL(import.meta.url).pathname)) {
