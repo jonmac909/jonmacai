@@ -1,0 +1,14 @@
+{
+  "name": "homeguidepress",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test test/*.test.mjs",
+    "shots": "node scripts/screenshots.mjs",
+    "stats": "node scripts/stats.mjs",
+    "test-webhook": "node scripts/test-webhook.mjs"
+  },
+  "devDependencies": {
+    "playwright": "1.63.0"
+  }
+}
