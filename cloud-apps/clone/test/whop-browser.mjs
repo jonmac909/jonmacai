@@ -81,23 +81,21 @@ try {
   assert.equal(hosted.searchParams.get('whop_anonymous_id'), 'wuid_browser_fixture');
   assert.equal(hosted.searchParams.get('waid'), 'ad');
   console.log('PASS: hosted upsell fallback carries retained _wuid and Whop campaign parameters');
-  // After sales close (6:45 PM ET Oct 29) the lander only collects a waitlist: no checkout, no Lead event.
+  // After sales close (6:45 PM ET Oct 29) sales are closed: no popup, no checkout, no Lead or cart event.
   const closed = await context.newPage(); closed.on('pageerror', error => errors.push(closed.url() + ' ' + error.stack));
   await closed.clock.install({ time: new Date('2026-10-29T22:50:00Z') });
-  const checkoutCalls = []; closed.on('request', r => { if (r.url().includes('/clone/api/checkout-session')) checkoutCalls.push(r.url()); });
+  const apiCalls = []; closed.on('request', r => { if (/\/clone\/api\/(checkout-session|lead)/.test(r.url())) apiCalls.push(r.url()); });
   await closed.goto(new URL('/clone/', base).toString());
   await closed.waitForFunction(() => document.documentElement.classList.contains('sales-closed'));
-  assert.equal(await closed.locator('a.cta').first().innerText(), 'Registration Closed: Join the Waitlist');
-  await closed.locator('a.cta').first().click();
-  assert.equal(await closed.locator('#leadf .lead-go').innerText(), 'Join the Waitlist');
-  assert.equal(await closed.locator('#lead_phone').isVisible(), false);
-  await closed.locator('#lead_name').fill('Fixture Waitlist'); await closed.locator('#lead_email').fill('waitlist@example.test');
-  await closed.locator('#leadf').evaluate(form => form.requestSubmit());
-  await closed.waitForFunction(() => document.getElementById('lead').classList.contains('joined'));
-  assert.match(await closed.locator('#leadwl').innerText(), /on the list/);
-  assert.deepEqual(await closed.evaluate(() => window.whop.q.map(e => e[1]).filter(e => ['lead', 'complete_registration', 'add_to_cart'].includes(e))), [], 'Waitlist must not fire lead or cart events');
-  assert.deepEqual(checkoutCalls, [], 'Waitlist must not open a checkout session');
-  console.log('PASS: after sales close the lander shows the waitlist, with no checkout and no Lead event');
+  const cta = closed.locator('a.cta').first();
+  assert.equal(await cta.innerText(), 'Registration Closed');
+  assert.equal(await cta.getAttribute('href'), null);
+  await cta.dispatchEvent('click');
+  assert.equal(await closed.locator('#lead').evaluate(el => el.classList.contains('show')), false, 'No sign-up popup after close');
+  assert.ok(!(await closed.locator('body').innerText()).match(/waitlist/i), 'No waitlist copy');
+  assert.deepEqual(await closed.evaluate(() => window.whop.q.map(e => e[1]).filter(e => ['lead', 'complete_registration', 'add_to_cart'].includes(e))), []);
+  assert.deepEqual(apiCalls, [], 'No checkout or lead call after close');
+  console.log('PASS: after sales close the lander shows Registration Closed, with no popup, checkout or Lead event');
   assert.deepEqual(errors, []);
   console.log('PASS: no browser runtime errors');
 } finally { await browser.close(); await mf.dispose(); }

@@ -93,6 +93,7 @@ export default {
 };
 
 async function handleLead(request, env) {
+  if (salesClosed()) return json({ ok: false, error: 'sales_closed' }, 410);
   let data;
   try {
     data = await request.json();
@@ -123,17 +124,14 @@ async function handleLead(request, env) {
     whop: whopAttribution(data, request),
     meta: metaAttribution(data, request),
     sessionDate: sessionDate(),
-    // After sales close the lander collects a waitlist for the next live training.
-    ...(salesClosed() ? { waitlist: true } : {}),
   };
   await env.CLONE_LEADS.put(leadKey(env, email), JSON.stringify(record));
-  const waitlist = !!record.waitlist;
-  if (isSandbox(env)) return json({ ok: true, environment: 'sandbox', ...(waitlist ? { waitlist } : {}) });
+  if (isSandbox(env)) return json({ ok: true, environment: 'sandbox' });
   // The browser supplies the same IDs for deduplication. A server ID also covers
   // browsers whose pixel was blocked. Email delivery is independent of CAPI.
   const eventId = typeof data.eventId === 'string' && /^clone_lead_[a-z0-9-]{36}$/i.test(data.eventId)
     ? data.eventId : 'clone_lead_' + crypto.randomUUID();
-  for (const [eventName, id] of waitlist ? [] : [['lead', eventId], ['complete_registration', eventId + '_registration']]) {
+  for (const [eventName, id] of [['lead', eventId], ['complete_registration', eventId + '_registration']]) {
     const event = { eventName, eventId: id, url: record.whop.pageUrl, anonymousId: record.whop.anonymousId, email, eventTime: Date.now() };
     try {
       if (await enqueueWhopEvent(env, event)) await deliverWhopEvent(env, id);
@@ -157,8 +155,7 @@ async function handleLead(request, env) {
         }),
       }));
     }
-    // Waitlist sign-ups join the audience only: no seat email or lead automation.
-    if (!waitlist) jobs.push(fetch("https://api.resend.com/events/send", {
+    jobs.push(fetch("https://api.resend.com/events/send", {
       method: "POST",
       headers,
       body: JSON.stringify({
@@ -168,7 +165,7 @@ async function handleLead(request, env) {
       }),
     }));
     const checkout = env.CHECKOUT_URL || "https://jonmac.ai/clone/";
-    if (!waitlist) jobs.push(fetch("https://api.resend.com/emails", {
+    jobs.push(fetch("https://api.resend.com/emails", {
       method: "POST",
       headers,
       body: JSON.stringify({
@@ -192,7 +189,7 @@ If you hit any trouble checking out, just reply to this email.
       await Promise.allSettled(jobs);
     } catch {}
   }
-  return json({ ok: true, ...(waitlist ? { waitlist } : {}) });
+  return json({ ok: true });
 }
 
 // Commas embedded checkout for the $47 seat. The session secret is seller-scoped and

@@ -170,7 +170,7 @@ test('sandbox: Zoom and replay links set after booking reach the held reminders 
   assert.equal(sql.prepare('SELECT complete FROM clone_sandbox_webinar_sessions WHERE transaction_ref = ?').get(ref).complete, 1);
 });
 
-test('after sales close: no checkout session, and sign-ups join the waitlist without the seat email', async t => {
+test('after sales close: no checkout session and no sign-ups (no waitlist)', async t => {
   const sent = mockResend(t);
   const origin = 'https://jonmac.ai';
   const lead = email => new Request(origin + '/clone/api/lead', { method: 'POST',
@@ -188,7 +188,9 @@ test('after sales close: no checkout session, and sign-ups join the waitlist wit
   assert.equal(checkout.status, 410);
   assert.deepEqual(await checkout.json(), { ok: false, error: 'sales_closed' });
   sent.length = 0;
-  assert.deepEqual(await (await worker.fetch(lead('wait@example.test'), env)).json(), { ok: true, waitlist: true });
-  assert.deepEqual(sent.map(s => s.path), ['/audiences/mock-audience/contacts'], 'audience only, no seat email or lead automation');
-  assert.equal(JSON.parse(leads.get('lead:wait@example.test')).waitlist, true);
+  const late = await worker.fetch(lead('late@example.test'), env);
+  assert.equal(late.status, 410);
+  assert.deepEqual(await late.json(), { ok: false, error: 'sales_closed' });
+  assert.deepEqual(sent, [], 'no audience, seat email or lead automation after close');
+  assert.equal(leads.get('lead:late@example.test'), undefined);
 });
