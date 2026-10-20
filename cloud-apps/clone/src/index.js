@@ -6,6 +6,7 @@ import { buyerSession, checkoutContext, recordPurchaseProof, sameOrigin, upsell,
 import { deliverWhopEvent, enqueueWhopEvent, flushWhopEvents, whopAttribution, whopPurchaseFromVerifiedPayment } from './whop-events.js';
 import { deliverMetaEvent, enqueueMetaEvent, flushMetaEvents, metaAttribution, metaConfigured, metaPaymentFromWebhook, metaPurchase } from './meta-events.js';
 import { purchaseReminders, retryReminders, unsubscribeReminders } from './reminders.js';
+import { salesClosed } from './reminder-plan.js';
 import { consentEvidence, readinessConfig } from './readiness.js';
 import { recordScorecardPayment, recordVisit, sessionDate } from './scorecard.js';
 
@@ -122,14 +123,17 @@ async function handleLead(request, env) {
     whop: whopAttribution(data, request),
     meta: metaAttribution(data, request),
     sessionDate: sessionDate(),
+    // After sales close the lander collects a waitlist for the next live training.
+    ...(salesClosed() ? { waitlist: true } : {}),
   };
   await env.CLONE_LEADS.put(leadKey(env, email), JSON.stringify(record));
-  if (isSandbox(env)) return json({ ok: true, environment: 'sandbox' });
+  const waitlist = !!record.waitlist;
+  if (isSandbox(env)) return json({ ok: true, environment: 'sandbox', ...(waitlist ? { waitlist } : {}) });
   // The browser supplies the same IDs for deduplication. A server ID also covers
   // browsers whose pixel was blocked. Email delivery is independent of CAPI.
   const eventId = typeof data.eventId === 'string' && /^clone_lead_[a-z0-9-]{36}$/i.test(data.eventId)
     ? data.eventId : 'clone_lead_' + crypto.randomUUID();
-  for (const [eventName, id] of [['lead', eventId], ['complete_registration', eventId + '_registration']]) {
+  for (const [eventName, id] of waitlist ? [] : [['lead', eventId], ['complete_registration', eventId + '_registration']]) {
     const event = { eventName, eventId: id, url: record.whop.pageUrl, anonymousId: record.whop.anonymousId, email, eventTime: Date.now() };
     try {
       if (await enqueueWhopEvent(env, event)) await deliverWhopEvent(env, id);
@@ -153,7 +157,8 @@ async function handleLead(request, env) {
         }),
       }));
     }
-    jobs.push(fetch("https://api.resend.com/events/send", {
+    // Waitlist sign-ups join the audience only: no seat email or lead automation.
+    if (!waitlist) jobs.push(fetch("https://api.resend.com/events/send", {
       method: "POST",
       headers,
       body: JSON.stringify({
@@ -163,7 +168,7 @@ async function handleLead(request, env) {
       }),
     }));
     const checkout = env.CHECKOUT_URL || "https://jonmac.ai/clone/";
-    jobs.push(fetch("https://api.resend.com/emails", {
+    if (!waitlist) jobs.push(fetch("https://api.resend.com/emails", {
       method: "POST",
       headers,
       body: JSON.stringify({
@@ -171,7 +176,7 @@ async function handleLead(request, env) {
         to: email,
         reply_to: env.RESEND_REPLY_TO || undefined,
         subject: "Your seat isn't saved yet",
-        text: `${firstName ? firstName + " — " : ""}you're one step from your seat at The Clone Method live training (daily at 7:00 PM ET).
+        text: `${firstName ? firstName + " — " : ""}you're one step from your seat at The Clone Method live training (Thursday, October 29, 7:00 PM ET).
 
 Finish here, it takes under a minute:
 ${checkout}
@@ -187,7 +192,7 @@ If you hit any trouble checking out, just reply to this email.
       await Promise.allSettled(jobs);
     } catch {}
   }
-  return json({ ok: true });
+  return json({ ok: true, ...(waitlist ? { waitlist } : {}) });
 }
 
 // Commas embedded checkout for the $47 seat. The session secret is seller-scoped and
@@ -197,6 +202,7 @@ const cachedSessions = new Map();
 
 async function handleCheckoutSession(request, env) {
   if (!sameOrigin(request)) return json({ ok: false, error: 'origin' }, 403);
+  if (salesClosed()) return json({ ok: false, error: 'sales_closed' }, 410);
   const config = paymentConfig(env);
   if (!config.apiKey) return json({ ok: false, error: "checkout not configured" }, 503);
   const context = await checkoutContext(request, env);

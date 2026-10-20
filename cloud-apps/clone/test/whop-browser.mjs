@@ -55,9 +55,9 @@ try {
   await page.goto(new URL('/clone/welcome.html', base).toString());
   assert.deepEqual(errors, [], 'Browser runtime errors before calendar');
   const calendar = new URL(await page.locator('#cal').getAttribute('href'));
-  assert.equal(calendar.searchParams.get('recur'), 'RRULE:FREQ=DAILY');
+  assert.equal(calendar.searchParams.get('recur'), null, 'One live session: no recurring calendar');
   assert.equal(calendar.searchParams.get('ctz'), 'America/New_York');
-  assert.match(calendar.searchParams.get('dates'), /T190000\/\d{8}T210000$/);
+  assert.equal(calendar.searchParams.get('dates'), '20261029T190000/20261029T210000');
   await page.goto(new URL('/clone/?wacid=campaign&wasid=adset&waid=ad', base).toString());
   await page.locator('a.cta').first().click();
   await page.locator('#lead_name').fill('Fixture Buyer'); await page.locator('#lead_email').fill('fixture@example.test');
@@ -81,6 +81,23 @@ try {
   assert.equal(hosted.searchParams.get('whop_anonymous_id'), 'wuid_browser_fixture');
   assert.equal(hosted.searchParams.get('waid'), 'ad');
   console.log('PASS: hosted upsell fallback carries retained _wuid and Whop campaign parameters');
+  // After sales close (6:45 PM ET Oct 29) the lander only collects a waitlist: no checkout, no Lead event.
+  const closed = await context.newPage(); closed.on('pageerror', error => errors.push(closed.url() + ' ' + error.stack));
+  await closed.clock.install({ time: new Date('2026-10-29T22:50:00Z') });
+  const checkoutCalls = []; closed.on('request', r => { if (r.url().includes('/clone/api/checkout-session')) checkoutCalls.push(r.url()); });
+  await closed.goto(new URL('/clone/', base).toString());
+  await closed.waitForFunction(() => document.documentElement.classList.contains('sales-closed'));
+  assert.equal(await closed.locator('a.cta').first().innerText(), 'Registration Closed: Join the Waitlist');
+  await closed.locator('a.cta').first().click();
+  assert.equal(await closed.locator('#leadf .lead-go').innerText(), 'Join the Waitlist');
+  assert.equal(await closed.locator('#lead_phone').isVisible(), false);
+  await closed.locator('#lead_name').fill('Fixture Waitlist'); await closed.locator('#lead_email').fill('waitlist@example.test');
+  await closed.locator('#leadf').evaluate(form => form.requestSubmit());
+  await closed.waitForFunction(() => document.getElementById('lead').classList.contains('joined'));
+  assert.match(await closed.locator('#leadwl').innerText(), /on the list/);
+  assert.deepEqual(await closed.evaluate(() => window.whop.q.map(e => e[1]).filter(e => ['lead', 'complete_registration', 'add_to_cart'].includes(e))), [], 'Waitlist must not fire lead or cart events');
+  assert.deepEqual(checkoutCalls, [], 'Waitlist must not open a checkout session');
+  console.log('PASS: after sales close the lander shows the waitlist, with no checkout and no Lead event');
   assert.deepEqual(errors, []);
   console.log('PASS: no browser runtime errors');
 } finally { await browser.close(); await mf.dispose(); }

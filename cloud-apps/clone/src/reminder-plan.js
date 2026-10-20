@@ -25,24 +25,23 @@ export function easternTime(at, dayOffset, hour) {
   return guess;
 }
 
-// First live session: Thu Oct 22 2026, 7 PM ET. Buyers before 5 PM ET that day get
-// it (ads run Oct 20-22); after that, the next daily session at least 2 hours away.
-export const FIRST_SESSION = Date.UTC(2026, 9, 22, 23, 0, 0);
-export const LAUNCH_CUTOFF = FIRST_SESSION - 2 * HOUR;
-const LAUNCH_FROM = Date.UTC(2026, 9, 13); // pre-launch window start
+// One live session only (Jon, Oct 20): Thu Oct 29 2026, 7 PM ET. public/schedule.js
+// uses the same times. Sales close 15 minutes before the start; anyone whose payment
+// lands after that gets the recording and a refund offer (L1) instead of reminders.
+export const SESSION_AT = Date.UTC(2026, 9, 29, 23, 0, 0);
+export const SALES_CLOSE = SESSION_AT - 15 * 60 * 1000;
+export const salesClosed = (at = Date.now()) => at >= SALES_CLOSE;
 
 export function assignSession(purchasedAt) {
   const at = new Date(purchasedAt).getTime();
   if (!Number.isFinite(at)) throw new Error('invalid_purchase_time');
-  let session = easternTime(at, 0, 19);
-  if (session - at < 2 * HOUR) session = easternTime(at, 1, 19);
-  if (at >= LAUNCH_FROM && at < LAUNCH_CUTOFF) session = FIRST_SESSION;
   return {
-    session_at: new Date(session).toISOString(),
+    session_at: new Date(SESSION_AT).toISOString(),
     session_label: new Intl.DateTimeFormat('en-US', {
       timeZone: 'America/New_York', weekday: 'long', month: 'long', day: 'numeric',
       year: 'numeric', hour: 'numeric', minute: '2-digit', timeZoneName: 'short',
-    }).format(new Date(session)),
+    }).format(new Date(SESSION_AT)),
+    ...(salesClosed(at) ? { closed: true } : {}),
   };
 }
 
@@ -55,25 +54,37 @@ function configuredUrl(value, zoom = false) {
   } catch { return ''; }
 }
 
+// Read links at send time, so Zoom and replay URLs set after booking still reach buyers.
+export function reminderLinks(env) {
+  return { join: configuredUrl(env.CLONE_ZOOM_JOIN_URL, true), replay: configuredUrl(env.CLONE_REPLAY_URL) };
+}
+const NEEDS = { E4: 'join', E5: 'join', E6: 'join', E7: 'join', E8: 'replay', L1: 'replay' };
+export const replayStep = step => NEEDS[step] === 'replay';
+export function missingLink(step, links) {
+  return NEEDS[step] && !links[NEEDS[step]] ? `missing_${NEEDS[step]}_url` : null;
+}
+
 export function reminderPlan({ transaction_ref, purchased_at, session_at }, env, now = Date.now()) {
   const session = Date.parse(session_at);
   if (!Number.isFinite(session) || !Number.isFinite(purchased_at)) throw new Error('invalid_session');
-  const candidates = [
+  const links = reminderLinks(env);
+  const candidates = salesClosed(purchased_at) ? [['L1', purchased_at + (isSandbox(env) ? 3 * 60 * 1000 : 0)]] : [
     ['E1', purchased_at + (isSandbox(env) ? 3 * 60 * 1000 : 0)], ['E2', session - 24 * HOUR],
     ['E3', easternTime(session, 0, 9)], ['E4', session - HOUR],
     ['E5', session - 10 * 60 * 1000], ['E6', session],
     ['E7', session + 15 * 60 * 1000], ['E8', easternTime(session, 1, 9)],
   ];
-  const join = configuredUrl(env.CLONE_ZOOM_JOIN_URL, true);
-  const replay = configuredUrl(env.CLONE_REPLAY_URL);
-  return candidates.map(([step, at]) => ({
-    step, scheduled_at: step === 'E1' && !isSandbox(env) ? null : new Date(at).toISOString(),
-    idempotency_key: `${transaction_ref}-${step}`, join, replay,
-    skip: step === 'E2' && session - purchased_at <= 24 * HOUR ? 'within_24_hours' :
-      (step !== 'E1' || isSandbox(env)) && at <= now ? 'past' :
-      ['E4', 'E5', 'E6', 'E7'].includes(step) && !join ? 'missing_join_url' :
-      step === 'E8' && !replay ? 'missing_replay_url' : null,
-  }));
+  return candidates.map(([step, at]) => {
+    const immediate = ['E1', 'L1'].includes(step);
+    return {
+      step, scheduled_at: immediate && !isSandbox(env) ? null : new Date(at).toISOString(),
+      idempotency_key: `${transaction_ref}-${step}`, ...links,
+      skip: step === 'E2' && session - purchased_at <= 24 * HOUR ? 'within_24_hours' :
+        (!immediate || isSandbox(env)) && at <= now ? 'past' : null,
+      // Held, not skipped: the scheduler sends it once the link is configured.
+      awaiting: missingLink(step, links),
+    };
+  });
 }
 
 export function escapeHtml(value) {
@@ -92,7 +103,7 @@ export function calendarUrl(sessionAt) {
 }
 
 export function reminderMessage(session, plan, env) {
-  const reminder = plan.step === 'E8' ? `Your session was ${session.session_label}. The recording is yours to revisit.` :
+  const reminder = plan.step === 'L1' ? null : plan.step === 'E8' ? `Your session was ${session.session_label}. The recording is yours to revisit.` :
     `Your live training: ${session.session_label}. Join from a computer.`;
   const copy = {
     E1: ["You're in", `The answer key is public. You can see which products sell, which videos work, and what buyers respond to.\n\nThe work is choosing one, building it, and getting it in front of buyers. Winners are on a clock; they act while the opportunity is there. That's what we'll practice together.\n\nAdd it to your calendar:\n${calendarUrl(session.session_at)}`],
@@ -103,10 +114,11 @@ export function reminderMessage(session, plan, env) {
     E6: ["We're live", `We're starting. Bring your draft or follow along as we build the first one.\n\nJoin here:\n${plan.join}`],
     E7: ["Trouble joining?", `Here's the link again:\n${plan.join}\n\nIf you're stuck, reply to this email and tell me what you're seeing.`],
     E8: ["Your Clone Method replay", `Rewatch the part you need, then finish one draft before starting another. One completed test will teach you more than a folder of unfinished ideas.\n\nWatch the replay:\n${plan.replay}`],
+    L1: ['Your Clone Method recording', `Thanks for your order. Registration for the live Clone Method session on ${session.session_label} closed before your order came in, so there isn't a live seat to give you.\n\nHere's the full recording:\n${plan.replay}\n\nIf you'd rather not keep it, reply to this email and I'll refund your $47 in full.`],
   };
   const [subject, body] = copy[plan.step];
   const unsubscribe = `https://jonmac.ai/clone/api/reminders/unsubscribe?token=${encodeURIComponent(session.unsubscribe_token)}${isSandbox(env) ? '&sandbox=1' : ''}`;
-  const text = `${body}\n\n${reminder}\n\n— Jon\n\nUnsubscribe from webinar reminders:\n${unsubscribe}`;
+  const text = `${body}\n\n${reminder ? reminder + '\n\n' : ''}— Jon\n\nUnsubscribe from webinar reminders:\n${unsubscribe}`;
   const html = '<div style="font-family:Arial,sans-serif;font-size:16px;line-height:1.6;max-width:600px">' +
     text.split('\n\n').map(p => `<p>${escapeHtml(p).replace(/https:\/\/[^\s<]+/g, u => `<a href="${u}">${u}</a>`).replace(/\n/g, '<br>')}</p>`).join('') + '</div>';
   return {

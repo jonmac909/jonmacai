@@ -1,5 +1,6 @@
 import { isSandbox, leadKey, paymentConfig } from './payment-config.js';
-import { assignSession, escapeHtml, reminderMessage, reminderPlan, SANDBOX_REMINDER_RECIPIENT } from './reminder-plan.js';
+import { assignSession, escapeHtml, missingLink, reminderLinks, reminderMessage, reminderPlan, replayStep, salesClosed,
+  SANDBOX_REMINDER_RECIPIENT } from './reminder-plan.js';
 
 const DAY = 24 * 60 * 60 * 1000;
 const LOCK = 5 * 60 * 1000;
@@ -113,10 +114,29 @@ export async function scheduleSession(env, transactionRef) {
       return await stopSession(env, session);
     }
     const steps = await rows(db, 'SELECT * FROM clone_webinar_steps WHERE transaction_ref = ? ORDER BY step', transactionRef);
-    for (const step of steps) {
+    const links = reminderLinks(env);
+    let waiting = false;
+    for (let step of steps) {
       if (['submitted', 'skipped', 'cancelled'].includes(step.state)) continue;
       session = await first(db, 'SELECT * FROM clone_webinar_sessions WHERE transaction_ref = ?', transactionRef);
       if (session.state !== 'active' || await optedOut(db, session.email)) return await stopSession(env, session);
+      if (step.state === 'awaiting_link') {
+        if (missingLink(step.step, links)) { waiting = true; continue; }
+        // The link arrived after booking: render the stored email again with it.
+        // A late replay still goes out now; a late join link is pointless.
+        let scheduledAt = step.scheduled_at;
+        if (scheduledAt && Date.parse(scheduledAt) <= Date.now()) {
+          if (!replayStep(step.step)) {
+            await run(db, "UPDATE clone_webinar_steps SET state = 'skipped' WHERE transaction_ref = ? AND step = ?", transactionRef, step.step);
+            continue;
+          }
+          scheduledAt = null;
+        }
+        const payload = JSON.stringify(reminderMessage(session, { step: step.step, scheduled_at: scheduledAt, ...links }, env));
+        await run(db, "UPDATE clone_webinar_steps SET payload = ?, scheduled_at = ?, state = 'pending' WHERE transaction_ref = ? AND step = ? AND state = 'awaiting_link'",
+          payload, scheduledAt, transactionRef, step.step);
+        step = { ...step, payload, scheduled_at: scheduledAt, state: 'pending' };
+      }
       // Retrying an uncertain submission reuses the exact stored body and key.
       // After Resend forgets that key, stop for reconciliation rather than duplicate E1.
       if (step.attempted_at && Date.now() - step.attempted_at >= DAY - 60000) {
@@ -154,7 +174,7 @@ export async function scheduleSession(env, transactionRef) {
       // Stay below the default Resend account rate limit; 429s remain retriable.
       await new Promise(resolve => setTimeout(resolve, 250));
     }
-    await run(db, 'UPDATE clone_webinar_sessions SET complete = 1 WHERE transaction_ref = ?', transactionRef);
+    await run(db, 'UPDATE clone_webinar_sessions SET complete = ? WHERE transaction_ref = ?', waiting ? 0 : 1, transactionRef);
   } finally {
     await run(db, 'UPDATE clone_webinar_sessions SET locked_until = 0 WHERE transaction_ref = ? AND locked_until = ?', transactionRef, lockUntil);
   }
@@ -205,7 +225,8 @@ export async function purchaseReminders(payload, env) {
   const lead = raw ? JSON.parse(raw) : { email: seat.email };
   await env.CLONE_LEADS.put(leadKey(env, seat.email), JSON.stringify({ ...lead, purchased: true,
     purchasedAt: new Date(session.purchased_at).toISOString(), commas_txn: session.transaction_ref,
-    session_at: session.session_at, session_label: session.session_label }));
+    session_at: session.session_at, session_label: session.session_label,
+    ...(salesClosed(session.purchased_at) ? { late: true } : {}) }));
   await initializeSteps(env, session);
   await scheduleSession(env, session.transaction_ref);
   return { scheduled: true };
@@ -216,20 +237,30 @@ async function initializeSteps(env, session) {
   for (const plan of reminderPlan(session, env)) {
     await run(db, `INSERT INTO clone_webinar_steps(transaction_ref, step, scheduled_at, payload, state)
       VALUES (?, ?, ?, ?, ?) ON CONFLICT(transaction_ref, step) DO NOTHING`,
-    session.transaction_ref, plan.step, plan.scheduled_at, JSON.stringify(reminderMessage(session, plan, env)), plan.skip ? 'skipped' : 'pending');
+    session.transaction_ref, plan.step, plan.scheduled_at, JSON.stringify(reminderMessage(session, plan, env)),
+    plan.skip ? 'skipped' : plan.awaiting ? 'awaiting_link' : 'pending');
   }
   // Resend calls this event data "payload" in its current API contract.
   await run(db, `INSERT INTO clone_webinar_steps(transaction_ref, step, payload, state)
     VALUES (?, 'event', ?, ?) ON CONFLICT(transaction_ref, step) DO NOTHING`, session.transaction_ref, JSON.stringify({
     event: 'clone.purchase', email: session.email,
     payload: { session_at: session.session_at, session_label: session.session_label, commas_txn: session.transaction_ref },
-  }), isSandbox(env) ? 'skipped' : 'pending');
+  }), isSandbox(env) || salesClosed(session.purchased_at) ? 'skipped' : 'pending');
   await run(db, 'UPDATE clone_webinar_sessions SET initialized = 1 WHERE transaction_ref = ?', session.transaction_ref);
 }
 
 export async function retryReminders(env) {
   if (!env.CLONE_UPSELLS) return;
-  const sessions = await rows(reminderDb(env), 'SELECT transaction_ref FROM clone_webinar_sessions WHERE complete = 0 AND locked_until < ? LIMIT 50', Date.now());
+  // Skip sessions whose only open steps still wait for an unset link, so the
+  // per-minute cron does not call Resend for them until the link is configured.
+  const links = reminderLinks(env);
+  const held = ['E4', 'E5', 'E6', 'E7', 'E8', 'L1'].filter(step => missingLink(step, links));
+  const sessions = await rows(reminderDb(env), `SELECT transaction_ref FROM clone_webinar_sessions s
+    WHERE complete = 0 AND locked_until < ? AND (state != 'active' OR initialized = 0 OR EXISTS (
+      SELECT 1 FROM clone_webinar_steps t WHERE t.transaction_ref = s.transaction_ref
+        AND t.state NOT IN ('submitted', 'skipped', 'cancelled')
+        AND NOT (t.state = 'awaiting_link' AND t.step IN (${held.map(() => '?').join(', ') || "''"})))) LIMIT 50`,
+  Date.now(), ...held);
   for (const session of sessions) {
     try { await scheduleSession(env, session.transaction_ref); }
     catch { console.error('Clone reminder retry pending; inspect durable step records.'); }

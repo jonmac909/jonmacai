@@ -11,7 +11,7 @@ import { sandboxSettings } from './sandbox-fixture.mjs';
 
 const join = 'https://example.zoom.us/j/123456789?pwd=mock-only';
 const replay = 'https://example.com/replay';
-const purchaseTime = '2026-10-07T21:01:00Z';
+const purchaseTime = '2026-10-28T21:01:00Z';
 const ms = Date.parse(purchaseTime);
 
 function fixture() {
@@ -64,54 +64,37 @@ function provider(overrides = {}) {
   return { calls, accepted };
 }
 
-test('session assignment uses the two-hour cutoff and local dates across DST', () => {
-  const cases = [
-    ['2026-10-07T20:59:59Z', '2026-10-07T23:00:00.000Z'],
-    ['2026-10-07T21:00:00Z', '2026-10-07T23:00:00.000Z'],
-    ['2026-10-07T21:00:00.001Z', '2026-10-08T23:00:00.000Z'],
-    ['2026-10-08T01:00:00Z', '2026-10-08T23:00:00.000Z'],
-    ['2026-03-07T22:01:00Z', '2026-03-08T23:00:00.000Z'],
-    ['2026-03-08T21:00:00Z', '2026-03-08T23:00:00.000Z'],
-    ['2026-03-08T21:01:00Z', '2026-03-09T23:00:00.000Z'],
-    ['2026-10-31T21:01:00Z', '2026-11-02T00:00:00.000Z'],
-    ['2026-11-01T22:00:00Z', '2026-11-02T00:00:00.000Z'],
-    ['2026-11-01T22:01:00Z', '2026-11-03T00:00:00.000Z'],
-  ];
-  for (const [purchase, expected] of cases) assert.equal(assignSession(purchase).session_at, expected, purchase);
-  assert.match(assignSession('2026-03-08T21:00:00Z').session_label, /7:00 PM EDT/);
-  assert.match(assignSession('2026-11-01T22:00:00Z').session_label, /7:00 PM EST/);
+test('every purchase gets the single Oct 29 session; payments after close are flagged late', () => {
+  for (const purchase of ['2026-10-01T12:00:00Z', '2026-10-28T21:01:00Z', '2026-10-29T22:44:59Z']) {
+    const assigned = assignSession(purchase);
+    assert.equal(assigned.session_at, '2026-10-29T23:00:00.000Z', purchase);
+    assert.equal(assigned.closed, undefined, purchase);
+  }
+  assert.match(assignSession(ms).session_label, /Thursday, October 29, 2026.*7:00 PM EDT/);
+  assert.equal(assignSession('2026-10-29T22:45:00Z').closed, true);
+  assert.equal(assignSession('2026-11-03T12:00:00Z').session_at, '2026-10-29T23:00:00.000Z');
   assert.throws(() => assignSession('invalid'));
 });
 
-test('plans skip past steps, gate links, and keep keys stable', () => {
+test('plans skip past steps, hold steps awaiting links, and keep keys stable', () => {
   const session = { transaction_ref: 'ORD-mock', purchased_at: ms, ...assignSession(ms) };
   const env = { CLONE_ZOOM_JOIN_URL: join, CLONE_REPLAY_URL: replay };
   const plan = reminderPlan(session, env, ms);
-  assert.ok(plan.every(p => !p.skip));
-  assert.equal(plan[2].scheduled_at, '2026-10-08T13:00:00.000Z');
-  assert.equal(plan[7].scheduled_at, '2026-10-09T13:00:00.000Z');
+  assert.ok(plan.every(p => !p.skip && !p.awaiting));
   assert.equal(plan[0].scheduled_at, null);
+  assert.equal(plan[1].scheduled_at, '2026-10-28T23:00:00.000Z');
+  assert.equal(plan[2].scheduled_at, '2026-10-29T13:00:00.000Z');
+  assert.equal(plan[7].scheduled_at, '2026-10-30T13:00:00.000Z');
   assert.deepEqual(plan.map(p => p.idempotency_key), reminderPlan(session, env, ms + 1000).map(p => p.idempotency_key));
-  const late = reminderPlan(session, env, Date.parse('2026-10-08T22:55:00Z'));
+  const late = reminderPlan(session, env, Date.parse('2026-10-29T22:55:00Z'));
   assert.deepEqual(late.filter(p => !p.skip).map(p => p.step), ['E1', 'E6', 'E7', 'E8']);
   const noLinks = reminderPlan(session, {}, ms);
-  assert.deepEqual(noLinks.filter(p => p.skip).map(p => p.step), ['E4', 'E5', 'E6', 'E7', 'E8']);
-  assert.equal(reminderPlan(session, { CLONE_ZOOM_JOIN_URL: 'https://zoom.us.evil.example/j/1' }, ms)[3].skip, 'missing_join_url');
-  assert.equal(reminderPlan(session, { CLONE_REPLAY_URL: 'javascript:alert(1)' }, ms)[7].skip, 'missing_replay_url');
-  assert.equal(reminderPlan({ ...session, purchased_at: Date.parse('2026-10-07T21:00:00Z'), ...assignSession('2026-10-07T21:00:00Z') }, env, ms)[1].skip, 'within_24_hours');
-});
-
-test('morning reminders and E2 use the right DST offsets', () => {
-  for (const [at, morning, replayAt, e2] of [
-    ['2026-03-07T22:01:00Z', '2026-03-08T13:00:00.000Z', '2026-03-09T13:00:00.000Z', '2026-03-07T23:00:00.000Z'],
-    ['2026-10-31T21:01:00Z', '2026-11-01T14:00:00.000Z', '2026-11-02T14:00:00.000Z', '2026-11-01T00:00:00.000Z'],
-  ]) {
-    const session = { transaction_ref: 'ORD-mock', purchased_at: Date.parse(at), ...assignSession(at) };
-    const plan = reminderPlan(session, {}, Date.parse(at));
-    assert.equal(plan[1].scheduled_at, e2);
-    assert.equal(plan[2].scheduled_at, morning);
-    assert.equal(plan[7].scheduled_at, replayAt);
-  }
+  assert.ok(noLinks.every(p => !p.skip));
+  assert.deepEqual(noLinks.filter(p => p.awaiting).map(p => p.step), ['E4', 'E5', 'E6', 'E7', 'E8']);
+  assert.equal(reminderPlan(session, { CLONE_ZOOM_JOIN_URL: 'https://zoom.us.evil.example/j/1' }, ms)[3].awaiting, 'missing_join_url');
+  assert.equal(reminderPlan(session, { CLONE_REPLAY_URL: 'javascript:alert(1)' }, ms)[7].awaiting, 'missing_replay_url');
+  const close = Date.parse('2026-10-29T00:00:00Z');
+  assert.equal(reminderPlan({ ...session, purchased_at: close, ...assignSession(close) }, env, close)[1].skip, 'within_24_hours');
 });
 
 test('every email has simple HTML, text, unsubscribe and email-only join links', () => {
@@ -127,7 +110,7 @@ test('every email has simple HTML, text, unsubscribe and email-only join links',
     assert.equal((message.text.match(/Your live training:|Your session was/g) || []).length, 1);
   }
   const calendar = new URL(calendarUrl(session.session_at));
-  assert.equal(calendar.searchParams.get('dates'), '20261008T230000Z/20261009T010000Z');
+  assert.equal(calendar.searchParams.get('dates'), '20261029T230000Z/20261030T010000Z');
   assert.ok(!calendar.href.includes('zoom'));
 });
 
@@ -144,7 +127,7 @@ test('durable scheduling, authenticated hooks, retries and cancellation', async 
     const event = JSON.parse(p.calls.find(c => c.path === '/events/send').body);
     const lead = JSON.parse(f.leads.get('lead:test_user_mock@example.com'));
     assert.equal(event.payload.session_at, lead.session_at);
-    assert.equal(lead.session_at, '2026-10-08T23:00:00.000Z');
+    assert.equal(lead.session_at, '2026-10-29T23:00:00.000Z');
     assert.ok(lead.purchased);
     assert.equal(f.sql.prepare('SELECT COUNT(*) AS n FROM clone_webinar_steps WHERE email_id IS NOT NULL').get().n, 9);
   });
@@ -158,7 +141,7 @@ test('durable scheduling, authenticated hooks, retries and cancellation', async 
     Date.now = () => ms;
     assert.equal(p.calls.filter(c => c.path === '/emails').length, 8);
     assert.equal(p.calls.filter(c => c.path === '/events/send').length, 1);
-    assert.equal(JSON.parse(f.leads.get('lead:test_user_mock@example.com')).session_at, '2026-10-08T23:00:00.000Z');
+    assert.equal(JSON.parse(f.leads.get('lead:test_user_mock@example.com')).session_at, '2026-10-29T23:00:00.000Z');
   });
 
   await t.test('partial failure retries only unfinished steps with exact stored bodies', async () => {
@@ -212,17 +195,26 @@ test('durable scheduling, authenticated hooks, retries and cancellation', async 
       if (path === '/emails' && init.headers['Idempotency-Key'].endsWith('-E2')) return Response.json({}, { status: 429 });
     } });
     await assert.rejects(() => purchaseReminders(seat(), f.env));
-    Date.now = () => Date.parse('2026-10-08T22:55:00Z');
+    Date.now = () => Date.parse('2026-10-29T22:55:00Z');
     await purchaseReminders(seat(), f.env);
     Date.now = () => ms;
     assert.deepEqual(p.calls.filter(c => c.path === '/emails' && p.accepted.has(c.headers['Idempotency-Key'])).map(c => c.headers['Idempotency-Key'].split('-').pop()), ['E1', 'E6', 'E7', 'E8']);
   });
 
-  await t.test('missing links disable E4-E8', async () => {
+  await t.test('missing links hold E4-E8 until they are configured, then send them', async () => {
     const f = fixture(), p = provider();
     delete f.env.CLONE_ZOOM_JOIN_URL; delete f.env.CLONE_REPLAY_URL;
     await purchaseReminders(seat(), f.env);
-    assert.deepEqual(p.calls.filter(c => c.path === '/emails').map(c => JSON.parse(c.body).tags[1].value), ['E1', 'E2', 'E3']);
+    const sent = () => p.calls.filter(c => c.path === '/emails').map(c => JSON.parse(c.body).tags[1].value);
+    assert.deepEqual(sent(), ['E1', 'E2', 'E3']);
+    const before = p.calls.length;
+    await retryReminders(f.env);
+    assert.equal(p.calls.length, before, 'held steps must not call Resend every minute');
+    f.env.CLONE_ZOOM_JOIN_URL = join; f.env.CLONE_REPLAY_URL = replay;
+    await retryReminders(f.env);
+    assert.deepEqual(sent(), ['E1', 'E2', 'E3', 'E4', 'E5', 'E6', 'E7', 'E8']);
+    assert.ok(JSON.parse(p.calls.find(c => c.path === '/emails' && JSON.parse(c.body).tags[1].value === 'E5').body).text.includes(join));
+    assert.equal(f.sql.prepare('SELECT complete FROM clone_webinar_sessions').get().complete, 1);
   });
 
   await t.test('refunds cancel only the matching transaction and survive redelivery', async () => {
