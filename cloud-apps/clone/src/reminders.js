@@ -1,5 +1,5 @@
 import { isSandbox, leadKey, paymentConfig } from './payment-config.js';
-import { assignSession, escapeHtml, missingLink, reminderLinks, reminderMessage, reminderPlan, replayStep, salesClosed,
+import { assignSession, escapeHtml, missingLink, reminderLinks, reminderMessage, reminderPlan, replayStep, salesClosed, SALES_CLOSE,
   SANDBOX_REMINDER_RECIPIENT } from './reminder-plan.js';
 
 const DAY = 24 * 60 * 60 * 1000;
@@ -204,7 +204,9 @@ export async function purchaseReminders(payload, env) {
     }
     return { cancelled: true };
   }
-  const at = Date.now();
+  // A payment made before the close but delivered after it (slow or retried webhook) still gets the seat.
+  const paidAt = Date.parse(payload.data.created_at), received = Date.now();
+  const at = received >= SALES_CLOSE && paidAt < SALES_CLOSE ? SALES_CLOSE - 1 : received;
   const assigned = assignSession(at);
   const token = [...crypto.getRandomValues(new Uint8Array(32))].map(n => n.toString(16).padStart(2, '0')).join('');
   const refund = await first(db, 'SELECT transaction_ref FROM clone_webinar_refunds WHERE transaction_ref IN (?, ?)', seat.transaction_ref, seat.payment_ref);

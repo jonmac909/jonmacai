@@ -170,6 +170,19 @@ test('sandbox: Zoom and replay links set after booking reach the held reminders 
   assert.equal(sql.prepare('SELECT complete FROM clone_sandbox_webinar_sessions WHERE transaction_ref = ?').get(ref).complete, 1);
 });
 
+test('sandbox: a payment made at 6:44 PM ET but delivered after close still gets the live seat', async t => {
+  mockResend(t);
+  const paid = Date.parse('2026-10-29T22:44:00Z');
+  mock.timers.enable({ apis: ['Date'], now: oct29at650pm });
+  const { env, sql, leads } = fixture(), ref = 'SIM-SLOW-WEBHOOK';
+  Object.assign(env, { CLONE_ZOOM_JOIN_URL: join, CLONE_REPLAY_URL: replay });
+  assert.equal((await sandboxBuy(env, ref, paid)).status, 200);
+  const steps = stepsOf(sql, ref);
+  assert.equal(steps.L1, undefined, 'paid in time: no late-buyer email');
+  assert.equal(steps.E6.state, 'submitted');
+  assert.equal(JSON.parse(leads.get('sandbox:lead:launch@example.test')).late, undefined);
+});
+
 test('after sales close: no checkout session and no sign-ups (no waitlist)', async t => {
   const sent = mockResend(t);
   const origin = 'https://jonmac.ai';

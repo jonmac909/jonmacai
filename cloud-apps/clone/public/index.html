@@ -934,7 +934,9 @@ a.presscite h3{text-decoration:underline;text-decoration-thickness:1px;text-unde
     if(window.console)console.warn('[checkout] fallback:',why);
     var attr=read('jm_attr')||{},u=new URL(HOSTED);
     Object.keys(attr).forEach(function(k){ if(attr[k])u.searchParams.set(k,attr[k]); });
-    document.getElementById('leadhosted').href=window.CloneWhop?CloneWhop.decorate(u.toString()):u.toString();
+    var hosted=document.getElementById('leadhosted');
+    if(CloneSchedule.isClosed()){hosted.textContent='Registration Closed';hosted.removeAttribute('href');hosted.setAttribute('aria-disabled','true');}
+    else hosted.href=window.CloneWhop?CloneWhop.decorate(u.toString()):u.toString();
     lead.classList.add('failed');
   }
   /* buyer details go in through the SDK setters once the form is up, never in the iframe URL */
