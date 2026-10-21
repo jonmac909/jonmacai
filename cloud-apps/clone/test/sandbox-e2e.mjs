@@ -368,7 +368,7 @@ export async function runSandbox(options = {}) {
           if (outcome.ok) lastCharge = Date.now();
           stage = testCase.name + ': reconcile ' + name;
           const replay = () => context.request.post(apiUrl('upsell'), { headers: { origin: base.origin }, data: { offer: name } });
-          if (name === 'trial' || (OFFERS[name].recurring && !c.subscriptionsEnabled)) {
+          if (((name === 'trial' || OFFERS[name].recurring) && !c.subscriptionsEnabled)) {
             // Commas' saved-card charge cannot create a subscription (docs: no product
             // or plan field), so recurring offers and the trial always use hosted checkout.
             assert.equal(outcome.fallback, true); assert.equal(outcome.reason, name === 'trial' ? 'trial_hosted' : 'rebill_unavailable');
@@ -393,7 +393,7 @@ export async function runSandbox(options = {}) {
           // after the charge description, not under the configured product.
           const isNew = x => !recordsBefore.some(b => b.id === x.id);
           const charged = await until(async () => {
-            const rows = (await records()).filter(x => isNew(x) && x.product?.title === OFFERS[name].description); return rows.length ? rows : false;
+            const rows = (await records()).filter(x => isNew(x) && x.product?.title === (OFFERS[name].chargeDescription || OFFERS[name].description)); return rows.length ? rows : false;
           }, 'Upsell charge absent from sandbox records');
           assert.equal(charged.length, 1, 'More than one upsell charge');
           const adhoc = charged[0].product.id;
