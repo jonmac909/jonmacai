@@ -364,3 +364,38 @@ test('Clone one-click payments: verified identity, durable claims and safe fallb
     }
   });
 });
+
+test('after sales close an unverified visitor gets no checkout, a verified buyer still finishes the funnel', async t => {
+  const originalNow = Date.now, close = Date.parse('2026-10-29T22:45:00Z');
+  t.after(() => { Date.now = originalNow; globalThis.fetch = fetchBefore; });
+  const fetchBefore = globalThis.fetch;
+  await t.test('unverified visitors: 410 sales_closed, no hosted checkout URL, no Commas call', async () => {
+    for (const offerName of Object.keys(OFFERS)) {
+      for (const at of [close, close + 3600000]) {
+        const e = env(), calls = mockCommas();
+        Date.now = () => at;
+        for (const cookie of ['', await buyerCookie(e, { buyer: 'cus_123' })]) {
+          const r = await upsell(request('upsell', { offer: offerName }, cookie), e), body = await r.json();
+          assert.equal(r.status, 410, offerName); assert.equal(body.error, 'sales_closed'); assert.equal(body.closed, true);
+          assert.equal(body.checkoutUrl, undefined, 'No hosted checkout after close'); assert.equal(body.fallback, undefined);
+        }
+        assert.equal(calls.length, 0);
+      }
+    }
+    const e = { ...env(), CLONE_TOKEN_SECRET: undefined }; mockCommas(); Date.now = () => close;
+    assert.equal((await upsell(request('upsell', { offer: 'audit' }), e)).status, 410, 'Unconfigured identity also closes');
+  });
+  await t.test('one minute before close an unverified visitor still gets the hosted fallback', async () => {
+    const e = env(); mockCommas(); Date.now = () => close - 60000;
+    const body = await (await upsell(request('upsell', { offer: 'audit' }), e)).json();
+    assert.equal(body.reason, 'buyer_unverified'); assert.equal(body.fallback, true); assert.ok(body.checkoutUrl);
+  });
+  await t.test('a buyer verified before the cutoff still gets the one-click upsell after it', async () => {
+    Date.now = () => close - 5 * 60000;
+    const e = env(), cookie = await buyerCookie(e, { purchased: Date.now() }), calls = mockCommas();
+    Date.now = () => close + 10 * 60000;
+    const r = await upsell(request('upsell', { offer: 'audit' }, cookie), e), body = await r.json();
+    assert.equal(r.status, 200); assert.equal(body.ok, true);
+    assert.equal(calls.filter(c => c.url.endsWith('/charge')).length, 1);
+  });
+});

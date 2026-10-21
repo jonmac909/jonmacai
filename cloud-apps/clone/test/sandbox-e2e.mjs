@@ -7,6 +7,7 @@ import { pathToFileURL } from 'node:url';
 import { chromium } from 'playwright';
 import { OFFERS } from '../src/payment-config.js';
 import { customerId } from '../src/upsells.js';
+import { salesClosed } from '../src/reminder-plan.js';
 
 export const CASES = [
   { name: 'full funnel', offers: ['software', 'audit', 'vault'] },
@@ -188,6 +189,22 @@ export async function runSandbox(options = {}) {
     return c;
   }
   try {
+    if (salesClosed(options.now)) {
+      // After the Oct 29 6:45 PM ET cutoff the funnel cannot sell, so the live run checks the closed state instead.
+      stage = 'sales closed checks';
+      const context = await browser.newContext({ serviceWorkers: 'block', ignoreHTTPSErrors: ['localhost', '127.0.0.1'].includes(base.hostname) });
+      try {
+        await login(context);
+        const send = (route, data) => context.request.post(apiUrl(route), { headers: { origin: base.origin, ...(versionHeader || {}) }, data });
+        for (const [route, data] of [['checkout-session', {}], ['lead', { name: 'Closed Check', email: 'closed-check@example.test' }],
+          ...Object.keys(OFFERS).map(offer => ['upsell', { offer }])]) {
+          const r = await send(route, data), body = await r.json();
+          assert.equal(r.status(), 410, route); assert.equal(body.error, 'sales_closed'); assert.equal(body.checkoutUrl, undefined);
+        }
+      } finally { await context.close(); }
+      report.salesClosed = true; report.checkoutCount = 0;
+      return report;
+    }
     const runId = Date.now().toString(36);
     // Stress mode: N fresh buyers, each one-clicking every upsell at buyer speed.
     // Even buyers take $97/mo + $497 + $297; odd buyers take the $1 trial + $497 + 3 x $99.

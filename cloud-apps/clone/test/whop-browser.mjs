@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { Miniflare, Response as MFResponse } from 'miniflare';
 import { chromium } from 'playwright';
+import { preCloseClock, realClosed } from './clock.mjs';
 const publicRoot = new URL('../public/', import.meta.url);
 const serverEvents = [];
 const mf = new Miniflare({ modules: true, scriptPath: fileURLToPath(new URL('../src/index.js', import.meta.url)),
@@ -29,8 +30,7 @@ try {
   for (const name of ['0001_upsells.sql', '0002_sandbox.sql', '0003_whop_events.sql']) {
     for (const sql of readFileSync(new URL('../migrations/' + name, import.meta.url), 'utf8').split(';').filter(s => s.trim())) await db.prepare(sql).run();
   }
-  const context = await browser.newContext();
-  await context.route('**/*', async route => {
+  const proxy = async route => {
     const url = new URL(route.request().url());
     if (url.origin === base.origin) {
       const request = route.request();
@@ -39,9 +39,10 @@ try {
     }
     // The production queue remains available for assertions. The remote loader is mocked.
     return route.fulfill({ body: '', contentType: url.pathname.endsWith('.js') ? 'text/javascript' : 'text/html' });
-  });
+  };
+  const context = await browser.newContext(); await context.route('**/*', proxy);
   await context.addCookies([{ name: '_wuid', value: 'wuid_browser_fixture', url: base.origin }]);
-  const page = await context.newPage();
+  const page = await context.newPage(); await preCloseClock(page);
   const errors = []; page.on('pageerror', error => errors.push(page.url() + ' ' + error.stack));
   for (const name of ['index', 'software', 'audit', 'vault', 'welcome', 'survey', 'terms', 'privacy', 'refund']) {
     const response = await page.goto(new URL('/clone/' + name + '.html', base).toString());
@@ -58,18 +59,21 @@ try {
   assert.equal(calendar.searchParams.get('recur'), null, 'One live session: no recurring calendar');
   assert.equal(calendar.searchParams.get('ctz'), 'America/New_York');
   assert.equal(calendar.searchParams.get('dates'), '20261029T190000/20261029T210000');
-  await page.goto(new URL('/clone/?wacid=campaign&wasid=adset&waid=ad', base).toString());
-  await page.locator('a.cta').first().click();
-  await page.locator('#lead_name').fill('Fixture Buyer'); await page.locator('#lead_email').fill('fixture@example.test');
-  await page.locator('#lead_phone').fill('3055550100');
-  await page.locator('#leadf').evaluate(form => form.requestSubmit());
-  await page.waitForFunction(() => window.whop.q.some(e => e[1] === 'lead'));
-  for (let i = 0; i < 50 && serverEvents.length < 2; i++) await new Promise(r => setTimeout(r, 100));
-  const leadId = await page.evaluate(() => whop.q.find(e => e[1] === 'lead')[2].event_id);
-  assert.deepEqual(serverEvents.map(e => e.event_id), [leadId, leadId + '_registration']);
-  assert.equal(serverEvents[0].user.anonymous_id, 'wuid_browser_fixture');
-  assert.equal(serverEvents[0].context.ad_id, 'ad');
-  console.log('PASS: opt-in browser/server IDs match, with _wuid and Whop ad attribution; no email dispatch');
+  // The Worker's own clock decides sales; a real post-close run cannot take new leads.
+  if (!realClosed) {
+    await page.goto(new URL('/clone/?wacid=campaign&wasid=adset&waid=ad', base).toString());
+    await page.locator('a.cta').first().click();
+    await page.locator('#lead_name').fill('Fixture Buyer'); await page.locator('#lead_email').fill('fixture@example.test');
+    await page.locator('#lead_phone').fill('3055550100');
+    await page.locator('#leadf').evaluate(form => form.requestSubmit());
+    await page.waitForFunction(() => window.whop.q.some(e => e[1] === 'lead'));
+    for (let i = 0; i < 50 && serverEvents.length < 2; i++) await new Promise(r => setTimeout(r, 100));
+    const leadId = await page.evaluate(() => whop.q.find(e => e[1] === 'lead')[2].event_id);
+    assert.deepEqual(serverEvents.map(e => e.event_id), [leadId, leadId + '_registration']);
+    assert.equal(serverEvents[0].user.anonymous_id, 'wuid_browser_fixture');
+    assert.equal(serverEvents[0].context.ad_id, 'ad');
+    console.log('PASS: opt-in browser/server IDs match, with _wuid and Whop ad attribution; no email dispatch');
+  } else console.log('SKIP: opt-in lead flow needs the Worker clock before the Oct 29 6:45 PM ET close; unit tests cover it with a shifted clock');
   await page.goto(new URL('/clone/software.html', base).toString());
   await page.route('**/clone/api/upsell', route => route.fulfill({ contentType: 'application/json', body: JSON.stringify({
     ok: false, fallback: true, reason: 'buyer_unverified', checkoutUrl: 'https://commas.com/checkout/wg0E8nj4FjdaJ6L'
@@ -96,6 +100,46 @@ try {
   assert.deepEqual(await closed.evaluate(() => window.whop.q.map(e => e[1]).filter(e => ['lead', 'complete_registration', 'add_to_cart'].includes(e))), []);
   assert.deepEqual(apiCalls, [], 'No checkout or lead call after close');
   console.log('PASS: after sales close the lander shows Registration Closed, with no popup, checkout or Lead event');
+  // Post-purchase pages after close: unverified visitors see Registration Closed, verified buyers keep the page.
+  for (const buyer of [false, true]) {
+    const fresh = await browser.newContext(); await fresh.route('**/*', proxy);
+    if (buyer) await fresh.route('**/clone/api/buyer-session', route => route.fulfill({ contentType: 'application/json', body: '{"ok":true}' }));
+    const gated = await fresh.newPage(); gated.on('pageerror', error => errors.push(gated.url() + ' ' + error.stack));
+    await gated.clock.install({ time: new Date('2026-10-29T22:50:00Z') });
+    for (const name of ['welcome', 'survey', 'software', 'audit', 'vault']) {
+      await gated.goto(new URL('/clone/' + name + '.html', base).toString());
+      if (buyer) {
+        await gated.waitForFunction(() => !document.documentElement.classList.contains('jm-gate-pending'));
+        assert.equal(await gated.locator('#jm-closed').count(), 0, name + ' stays open for a verified buyer');
+        assert.notEqual(await gated.evaluate(() => getComputedStyle(document.body).display), 'none');
+      } else {
+        await gated.locator('#jm-closed').waitFor();
+        assert.equal(await gated.locator('#jm-closed h1').innerText(), 'Registration Closed');
+        assert.equal(await gated.evaluate(() => getComputedStyle(document.body).display), 'none');
+        assert.equal(await gated.locator('#jm-closed').evaluate(el => el.querySelectorAll('a[href]').length), 0, 'No checkout link');
+      }
+    }
+    await fresh.close();
+    console.log('PASS: after sales close the five buyer pages ' + (buyer ? 'stay open for a verified buyer' : 'show Registration Closed to an unverified visitor'));
+  }
+  {
+    // A remembered browser whose session lapsed still cannot reach a checkout: the Worker answers 410.
+    const fresh = await browser.newContext(); await fresh.route('**/*', proxy);
+    await fresh.addInitScript(() => localStorage.setItem('jm_clone_buyer_seen', '1'));
+    await fresh.route('**/clone/api/buyer-session', route => route.fulfill({ status: 401, contentType: 'application/json', body: '{"ok":false,"fallback":true}' }));
+    await fresh.route('**/clone/api/upsell', route => route.fulfill({ status: 410, contentType: 'application/json',
+      body: '{"ok":false,"error":"sales_closed","closed":true,"message":"Registration is closed for this session."}' }));
+    const lapsed = await fresh.newPage(); await lapsed.clock.install({ time: new Date('2026-10-29T22:50:00Z') });
+    const hostedHits = []; lapsed.on('request', r => { if (r.url().includes('commas.com/checkout')) hostedHits.push(r.url()); });
+    await lapsed.goto(new URL('/clone/software.html', base).toString());
+    await lapsed.locator('[data-upsell="software"]').first().click();
+    await lapsed.locator('.upsell-result').waitFor();
+    assert.match(await lapsed.locator('.upsell-result').innerText(), /closed/i);
+    assert.equal(await lapsed.locator('.upsell-result a').count(), 0);
+    assert.deepEqual(hostedHits, [], 'No hosted checkout after close');
+    await fresh.close();
+    console.log('PASS: after sales close an upsell click shows the closed message and never opens checkout');
+  }
   assert.deepEqual(errors, []);
   console.log('PASS: no browser runtime errors');
 } finally { await browser.close(); await mf.dispose(); }

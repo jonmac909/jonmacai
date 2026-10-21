@@ -78,6 +78,16 @@ unchanged by JON-15. CI additionally runs `npm run test:readiness:browser`, usin
 the actual Worker/KV/D1 with mocked external resources and no message/payment
 submission. Mobile screenshots are saved in the OS temp directory.
 
+## Sales close (Oct 29, 6:45 PM ET)
+
+After `SALES_CLOSE` the Worker returns 410 `sales_closed` from `/api/lead`, `/api/checkout-session`
+and `/api/upsell` for any visitor without a verified purchase (no hosted checkout URL either).
+A buyer verified before the cutoff can still finish the funnel. `public/closed-gate.js` shows
+"Registration Closed" on welcome, survey, software, audit and vault to browsers with no verified
+purchase. Tests: `npm test` shifts `Date` to Oct 28 once the real clock passes the cutoff
+(`test/clock-setup.mjs`); browser scripts fix the page clock (`test/clock.mjs`); the live sandbox
+runner switches to closed-state checks after the cutoff.
+
 ## Daily schedule and Whop measurement (JON-16)
 
 The training runs daily at 7 PM America/New_York. Lander, welcome, survey,

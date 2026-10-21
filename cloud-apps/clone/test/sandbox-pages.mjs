@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { Miniflare, Response as MFResponse } from 'miniflare';
 import { chromium } from 'playwright';
 import { sandboxSettings } from './sandbox-fixture.mjs';
+import { preCloseClock } from './clock.mjs';
 
 const live = process.argv.includes('--live-video');
 const proofFile = process.env.JON6_PURCHASE_PROOF;
@@ -28,7 +29,8 @@ try {
   for (const name of readdirSync(new URL('../migrations/', import.meta.url)).sort()) {
     for (const sql of readFileSync(new URL('../migrations/' + name, import.meta.url), 'utf8').split(';').filter(s => s.trim())) await db.prepare(sql).run();
   }
-  const context = await browser.newContext({ ignoreHTTPSErrors: true }), pixelRequests = [], errors = [], logs = [];
+  const context = await browser.newContext({ ignoreHTTPSErrors: true }); await preCloseClock(context);
+  const pixelRequests = [], errors = [], logs = [];
   await context.route('**/*', async route => {
     const request = route.request(), url = new URL(request.url());
     if (/whop\.(?:tw|com)$/.test(url.hostname)) { pixelRequests.push(url.origin); return route.abort(); }

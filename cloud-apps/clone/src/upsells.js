@@ -1,6 +1,7 @@
 import { cookieName, isSandbox, leadKey, paymentConfig, table, tokenKind } from './payment-config.js';
 import { deliverWhopEvent, enqueueWhopEvent, whopPurchaseFromVerifiedPayment } from './whop-events.js';
 import { recordScorecardPayment } from './scorecard.js';
+import { salesClosed } from './reminder-plan.js';
 import { deliverMetaEvent, enqueueMetaEvent, metaPurchase, metaPurchaseEventId } from './meta-events.js';
 export { OFFERS } from './payment-config.js';
 const TTL = 30 * 60;
@@ -204,6 +205,9 @@ function existingClaim(claim, env) {
   return pending();
 }
 
+const closed = () => json({ ok: false, error: 'sales_closed', closed: true,
+  message: 'Registration is closed for this session.' }, 410);
+
 export async function upsell(request, env) {
   if (!sameOrigin(request)) return json({ ok: false, error: 'origin' }, 403);
   let input;
@@ -211,7 +215,7 @@ export async function upsell(request, env) {
   const offers = paymentConfig(env).offers;
   const offer = Object.hasOwn(offers, input?.offer) ? offers[input.offer] : null;
   if (!offer) return json({ ok: false, error: 'invalid offer' }, 400);
-  if (!env.CLONE_UPSELLS || !env.CLONE_TOKEN_SECRET) return fallback(offer);
+  if (!env.CLONE_UPSELLS || !env.CLONE_TOKEN_SECRET) return salesClosed() ? closed() : fallback(offer);
   const buyer = await readCookie(request, cookieName(env, 'buyer'), env.CLONE_TOKEN_SECRET, tokenKind(env, 'buyer'));
   const db = env.CLONE_UPSELLS;
   const buyerId = customerId(buyer?.buyer);
@@ -226,7 +230,8 @@ export async function upsell(request, env) {
         if (prior) return existingClaim(prior, env);
       } catch { return pending(); }
     }
-    return fallback(offer, 'buyer_unverified');
+    // After the cutoff, a visitor without a verified purchase gets no checkout of any kind.
+    return salesClosed() ? closed() : fallback(offer, 'buyer_unverified');
   }
   let claimed = false, sent = false;
   try {
