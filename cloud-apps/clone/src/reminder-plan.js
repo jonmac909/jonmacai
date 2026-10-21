@@ -26,10 +26,11 @@ export function easternTime(at, dayOffset, hour) {
 }
 
 // One live session only (Jon, Oct 20): Thu Oct 29 2026, 7 PM ET. public/schedule.js
-// uses the same times. Sales close 15 minutes before the start; anyone whose payment
-// lands after that gets the recording and a refund offer (L1) instead of reminders.
+// uses the same times. Sales close at 5:30 PM PT / 8:30 PM ET (Jon, Oct 21), 90 minutes into
+// the session. Anyone who pays after that gets the recording and a refund offer (L1) instead of
+// reminders. Anyone who pays while the session is live gets the join link at once (E6).
 export const SESSION_AT = Date.UTC(2026, 9, 29, 23, 0, 0);
-export const SALES_CLOSE = SESSION_AT - 15 * 60 * 1000;
+export const SALES_CLOSE = Date.UTC(2026, 9, 30, 0, 30, 0);
 export const salesClosed = (at = Date.now()) => at >= SALES_CLOSE;
 
 export function assignSession(purchasedAt) {
@@ -68,19 +69,20 @@ export function reminderPlan({ transaction_ref, purchased_at, session_at }, env,
   const session = Date.parse(session_at);
   if (!Number.isFinite(session) || !Number.isFinite(purchased_at)) throw new Error('invalid_session');
   const links = reminderLinks(env);
+  const live = purchased_at >= session;
   const candidates = salesClosed(purchased_at) ? [['L1', purchased_at + (isSandbox(env) ? 3 * 60 * 1000 : 0)]] : [
     ['E1', purchased_at + (isSandbox(env) ? 3 * 60 * 1000 : 0)], ['E2', session - 24 * HOUR],
     ['E3', easternTime(session, 0, 9)], ['E4', session - HOUR],
-    ['E5', session - 10 * 60 * 1000], ['E6', session],
+    ['E5', session - 10 * 60 * 1000], ['E6', live ? purchased_at : session],
     ['E7', session + 15 * 60 * 1000], ['E8', easternTime(session, 1, 9)],
   ];
   return candidates.map(([step, at]) => {
-    const immediate = ['E1', 'L1'].includes(step);
+    const liveJoin = live && step === 'E6', immediate = ['E1', 'L1'].includes(step) || liveJoin;
     return {
-      step, scheduled_at: immediate && !isSandbox(env) ? null : new Date(at).toISOString(),
+      step, scheduled_at: liveJoin || (immediate && !isSandbox(env)) ? null : new Date(at).toISOString(),
       idempotency_key: `${transaction_ref}-${step}`, ...links,
       skip: step === 'E2' && session - purchased_at <= 24 * HOUR ? 'within_24_hours' :
-        (!immediate || isSandbox(env)) && at <= now ? 'past' : null,
+        !liveJoin && (!immediate || isSandbox(env)) && at <= now ? 'past' : null,
       // Held, not skipped: the scheduler sends it once the link is configured.
       awaiting: missingLink(step, links),
     };

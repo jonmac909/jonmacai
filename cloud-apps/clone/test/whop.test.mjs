@@ -34,15 +34,15 @@ function mockResend(url) {
   return Response.json(String(url).endsWith('/events/send') ? { object: 'event', event: 'clone.purchase' } :
     String(url).includes('/contacts/') ? { unsubscribed: false } : { id: 'fixture-resend-email' });
 }
-test('one live session: Thu Oct 29 7 PM ET, sales close 6:45 PM ET, no rollover and no recurring calendar', () => {
+test('one live session: Thu Oct 29 7 PM ET, sales close 5:30 PM PT (8:30 PM ET), no rollover and no recurring calendar', () => {
   const scope = { Intl, Date }; vm.createContext(scope);
   vm.runInContext(readFileSync(new URL('../public/schedule.js', import.meta.url), 'utf8'), scope);
   const s = scope.CloneSchedule;
   for (const now of ['2026-10-09T22:59:59Z', '2026-10-29T23:00:01Z', '2026-11-02T00:00:00Z', '2027-01-01T00:00:01Z']) {
     assert.equal(s.nextSession(new Date(now)).toISOString(), '2026-10-29T23:00:00.000Z', now);
   }
-  assert.equal(s.isClosed(new Date('2026-10-29T22:44:59Z')), false);
-  assert.equal(s.isClosed(new Date('2026-10-29T22:45:00Z')), true);
+  assert.equal(s.isClosed(new Date('2026-10-30T00:29:59Z')), false);
+  assert.equal(s.isClosed(new Date('2026-10-30T00:30:00Z')), true);
   assert.deepEqual(['2026-10-29T22:59:59Z', '2026-10-29T23:00:00Z', '2026-10-30T01:00:00Z'].map(at => s.phase(new Date(at))), ['before', 'live', 'ended']);
   assert.equal(s.calendarDates(s.nextSession()), '20261029T190000/20261029T210000');
 });

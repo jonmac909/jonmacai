@@ -1,4 +1,4 @@
-// Date-aware tests: the funnel stops selling at SALES_CLOSE (Oct 29, 6:45 PM ET).
+// Date-aware tests: the funnel stops selling at SALES_CLOSE (Oct 29, 5:30 PM PT / 8:30 PM ET).
 // Loaded with node --import. Once the real clock reaches the cutoff, shift Date so the
 // suite still sees a pre-close "now" (it keeps ticking, so elapsed-time checks hold).
 // Tests that need a post-close time set Date.now themselves, as reminders.test.mjs does.

@@ -10,17 +10,17 @@ import { retryReminders } from '../src/reminders.js';
 import { sandboxEnv } from '../src/sandbox.js';
 import '../public/schedule.js';
 
-// One live session only: Thu Oct 29 2026, 7 PM ET. Sales close at 6:45 PM ET.
+// One live session only: Thu Oct 29 2026, 7 PM ET. Sales close at 5:30 PM PT / 8:30 PM ET.
 const SESSION = '2026-10-29T23:00:00.000Z';
 const oct20 = Date.parse('2026-10-20T14:00:00Z');       // Tue Oct 20, 10 AM ET
 const oct29at4pm = Date.parse('2026-10-29T20:00:00Z');  // Thu Oct 29, 4 PM ET
-const oct29at650pm = Date.parse('2026-10-29T22:50:00Z'); // Thu Oct 29, 6:50 PM ET, after close
+const oct29at835pm = Date.parse('2026-10-30T00:35:00Z'); // Thu Oct 29, 8:35 PM ET / 5:35 PM PT, after close
 const join = 'https://us02web.zoom.us/j/123456789?pwd=mock';
 const replay = 'https://jonmac.ai/clone/replay-mock';
 
-test('every buyer before 6:45 PM ET Oct 29 gets the single Oct 29 session; there is no later session', () => {
+test('every buyer before 5:30 PM PT (8:30 PM ET) Oct 29 gets the single Oct 29 session; there is no later session', () => {
   assert.equal(new Date(SESSION_AT).toISOString(), SESSION);
-  assert.equal(new Date(SALES_CLOSE).toISOString(), '2026-10-29T22:45:00.000Z');
+  assert.equal(new Date(SALES_CLOSE).toISOString(), '2026-10-30T00:30:00.000Z');
   const page = globalThis.CloneSchedule;
   assert.equal(page.session.getTime(), SESSION_AT, 'page and worker share the session time');
   assert.equal(page.salesClose.getTime(), SALES_CLOSE, 'page and worker share the sales close');
@@ -32,7 +32,7 @@ test('every buyer before 6:45 PM ET Oct 29 gets the single Oct 29 session; there
     assert.equal(page.isClosed(new Date(at)), false);
   }
   assert.match(assignSession(oct20).session_label, /Thursday, October 29, 2026 at 7:00 PM EDT/);
-  for (const at of [SALES_CLOSE, oct29at650pm, Date.parse('2026-10-30T15:00:00Z'), Date.parse('2026-11-05T23:30:00Z')]) {
+  for (const at of [SALES_CLOSE, oct29at835pm, Date.parse('2026-10-30T15:00:00Z'), Date.parse('2026-11-05T23:30:00Z')]) {
     assert.deepEqual(assignSession(at), { ...assignSession(oct20), closed: true }, 'no Oct 30 or later session');
     assert.equal(page.isClosed(new Date(at)), true);
   }
@@ -53,10 +53,16 @@ test('an Oct 20 buyer gets the day-before email on Oct 28 and the morning-of ema
   assert.ok(Object.values(steps).every(s => s.awaiting === null));
   const dayOf = Object.fromEntries(reminderPlan({ transaction_ref: 'T', purchased_at: oct29at4pm, session_at: SESSION }, env, oct29at4pm).map(s => [s.step, s]));
   assert.equal(dayOf.E2.skip, 'within_24_hours'); assert.equal(dayOf.E3.skip, 'past'); assert.equal(dayOf.E4.skip, null);
-  const late = reminderPlan({ transaction_ref: 'T', purchased_at: oct29at650pm, session_at: SESSION }, env, oct29at650pm);
+  const late = reminderPlan({ transaction_ref: 'T', purchased_at: oct29at835pm, session_at: SESSION }, env, oct29at835pm);
   assert.deepEqual(late.map(s => [s.step, s.scheduled_at, s.skip, s.awaiting]), [['L1', null, null, null]]);
-  const lateNoReplay = reminderPlan({ transaction_ref: 'T', purchased_at: oct29at650pm, session_at: SESSION }, {}, oct29at650pm);
+  const lateNoReplay = reminderPlan({ transaction_ref: 'T', purchased_at: oct29at835pm, session_at: SESSION }, {}, oct29at835pm);
   assert.equal(lateNoReplay[0].awaiting, 'missing_replay_url');
+  // Paying while the session is live (7 PM to the 8:30 PM ET close) sends the join link at once.
+  const oct29at745pm = Date.parse('2026-10-29T23:45:00Z');
+  const liveBuyer = reminderPlan({ transaction_ref: 'T', purchased_at: oct29at745pm, session_at: SESSION }, env, oct29at745pm);
+  assert.deepEqual(liveBuyer.filter(s => !s.skip).map(s => [s.step, s.scheduled_at]), [['E1', null], ['E6', null], ['E8', '2026-10-30T13:00:00.000Z']]);
+  assert.equal(liveBuyer.find(s => s.step === 'E6').awaiting, null);
+  assert.equal(reminderPlan({ transaction_ref: 'T', purchased_at: oct29at745pm, session_at: SESSION }, {}, oct29at745pm).find(s => s.step === 'E6').awaiting, 'missing_join_url');
 });
 
 function fixture() {
@@ -117,9 +123,9 @@ test('sandbox: Oct 20 and Oct 29 4 PM ET buyers are booked into Oct 29 with emai
 
 test('sandbox: a buyer after sales close gets only the recording email, held until the replay link is set', async t => {
   const sent = mockResend(t);
-  mock.timers.enable({ apis: ['Date'], now: oct29at650pm });
+  mock.timers.enable({ apis: ['Date'], now: oct29at835pm });
   const { env, sql, leads } = fixture(), ref = 'SIM-LATE';
-  assert.equal((await sandboxBuy(env, ref, oct29at650pm)).status, 200);
+  assert.equal((await sandboxBuy(env, ref, oct29at835pm)).status, 200);
   const steps = stepsOf(sql, ref);
   assert.deepEqual(Object.keys(steps).sort(), ['L1', 'event']);
   assert.equal(steps.event.state, 'skipped');
@@ -170,10 +176,10 @@ test('sandbox: Zoom and replay links set after booking reach the held reminders 
   assert.equal(sql.prepare('SELECT complete FROM clone_sandbox_webinar_sessions WHERE transaction_ref = ?').get(ref).complete, 1);
 });
 
-test('sandbox: a payment made at 6:44 PM ET but delivered after close still gets the live seat', async t => {
+test('sandbox: a payment made at 8:29 PM ET but delivered after close still gets the live seat', async t => {
   mockResend(t);
-  const paid = Date.parse('2026-10-29T22:44:00Z');
-  mock.timers.enable({ apis: ['Date'], now: oct29at650pm });
+  const paid = Date.parse('2026-10-30T00:29:00Z');
+  mock.timers.enable({ apis: ['Date'], now: oct29at835pm });
   const { env, sql, leads } = fixture(), ref = 'SIM-SLOW-WEBHOOK';
   Object.assign(env, { CLONE_ZOOM_JOIN_URL: join, CLONE_REPLAY_URL: replay });
   assert.equal((await sandboxBuy(env, ref, paid)).status, 200);
@@ -196,7 +202,7 @@ test('after sales close: no checkout session and no sign-ups (no waitlist)', asy
   assert.ok(sent.some(s => s.path === '/emails'), 'seat email while open');
   mock.timers.reset();
 
-  mock.timers.enable({ apis: ['Date'], now: oct29at650pm });
+  mock.timers.enable({ apis: ['Date'], now: oct29at835pm });
   const checkout = await worker.fetch(new Request(origin + '/clone/api/checkout-session', { method: 'POST', headers: { origin } }), env);
   assert.equal(checkout.status, 410);
   assert.deepEqual(await checkout.json(), { ok: false, error: 'sales_closed' });

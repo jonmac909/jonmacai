@@ -65,13 +65,13 @@ function provider(overrides = {}) {
 }
 
 test('every purchase gets the single Oct 29 session; payments after close are flagged late', () => {
-  for (const purchase of ['2026-10-01T12:00:00Z', '2026-10-28T21:01:00Z', '2026-10-29T22:44:59Z']) {
+  for (const purchase of ['2026-10-01T12:00:00Z', '2026-10-28T21:01:00Z', '2026-10-30T00:29:59Z']) {
     const assigned = assignSession(purchase);
     assert.equal(assigned.session_at, '2026-10-29T23:00:00.000Z', purchase);
     assert.equal(assigned.closed, undefined, purchase);
   }
   assert.match(assignSession(ms).session_label, /Thursday, October 29, 2026.*7:00 PM EDT/);
-  assert.equal(assignSession('2026-10-29T22:45:00Z').closed, true);
+  assert.equal(assignSession('2026-10-30T00:30:00Z').closed, true);
   assert.equal(assignSession('2026-11-03T12:00:00Z').session_at, '2026-10-29T23:00:00.000Z');
   assert.throws(() => assignSession('invalid'));
 });
