@@ -74,6 +74,28 @@ try {
     assert.equal(serverEvents[0].context.ad_id, 'ad');
     console.log('PASS: opt-in browser/server IDs match, with _wuid and Whop ad attribution; no email dispatch');
   } else console.log('SKIP: opt-in lead flow needs the Worker clock before the Oct 29 5:30 PM PT close; unit tests cover it with a shifted clock');
+  // Lead events (Whop lead + complete_registration, Meta Lead) wait for a 2xx from /api/lead.
+  for (const [label, status, fires] of [['accepted 200', 200, true], ['closed 410', 410, false], ['server error 500', 500, false], ['network failure', 0, false]]) {
+    const fresh = await browser.newContext(); await fresh.route('**/*', proxy);
+    await fresh.addInitScript(() => { window.fbqCalls = []; window.fbq = function () { window.fbqCalls.push([].slice.call(arguments)); }; });
+    const lp = await fresh.newPage(); lp.on('pageerror', error => errors.push(lp.url() + ' ' + error.stack));
+    await preCloseClock(lp);
+    let leadCalls = 0;
+    await lp.route('**/clone/api/lead*', route => { leadCalls++; return status ? route.fulfill({ status, contentType: 'application/json',
+      body: JSON.stringify(status === 200 ? { ok: true } : { ok: false, error: status === 410 ? 'sales_closed' : 'server_error' }) }) : route.abort(); });
+    await lp.goto(new URL('/clone/', base).toString());
+    await lp.locator('a.cta').first().click();
+    await lp.locator('#lead_name').fill('Pixel Buyer'); await lp.locator('#lead_email').fill('pixel@example.test');
+    await lp.locator('#leadf').evaluate(form => form.requestSubmit());
+    for (let i = 0; i < 50 && !leadCalls; i++) await new Promise(r => setTimeout(r, 100));
+    assert.equal(leadCalls, 1, label);
+    await new Promise(r => setTimeout(r, 800));
+    const seen = await lp.evaluate(() => ({ whop: whop.q.map(e => e[1]).filter(e => ['lead', 'complete_registration'].includes(e)),
+      meta: fbqCalls.filter(c => c[0] === 'track' && c[1] === 'Lead').length, custom: fbqCalls.filter(c => c[0] === 'trackCustom' && c[1] === 'Lead').length }));
+    assert.deepEqual(seen, fires ? { whop: ['lead', 'complete_registration'], meta: 1, custom: 1 } : { whop: [], meta: 0, custom: 0 }, 'Lead events after ' + label);
+    await fresh.close();
+  }
+  console.log('PASS: Lead pixel and Whop lead events fire only on a 2xx from /api/lead, not on 410, 500 or a network failure');
   await page.goto(new URL('/clone/software.html', base).toString());
   await page.route('**/clone/api/upsell', route => route.fulfill({ contentType: 'application/json', body: JSON.stringify({
     ok: false, fallback: true, reason: 'buyer_unverified', checkoutUrl: 'https://commas.com/checkout/wg0E8nj4FjdaJ6L'

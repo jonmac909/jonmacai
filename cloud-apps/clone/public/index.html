@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <script src="meta-pixel.js"></script>
 <script src="/clone/schedule.js?v=2"></script>
-<script src="/clone/whop-pixel.js?v=1"></script>
+<script src="/clone/whop-pixel.js?v=2"></script>
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>The Clone Method — TikTok Shop live training, $47</title>
 <meta name="description" content="Get paid commissions from TikTok Shop by cloning the videos already selling. No followers, no camera, no inventory. 2-hour live training, Thursday, October 29, 7:00 PM ET. $47.">
@@ -1072,12 +1072,17 @@ a.presscite h3{text-decoration:underline;text-decoration-thickness:1px;text-unde
     try{sessionStorage.setItem(CHECKOUT_KEY,JSON.stringify({
       first_name:sp<0?name:name.slice(0,sp),last_name:sp<0?'':name.slice(sp+1),email:email,phone:phone}));}catch(e){}
     var utm=null; try{utm=JSON.parse(sessionStorage.getItem('jm_attr')||'null');}catch(e){}
-    if(window.jmTrack)jmTrack('Lead',{});
-    if(window.fbq)fbq('track','Lead');
+    var ids=window.CloneWhop?CloneWhop.lead(email):{};
+    /* Lead events fire only once the server accepts the lead (2xx), never on a 410 after close. */
     fetch('/clone/api/lead'+SUFFIX,{method:'POST',headers:{'content-type':'application/json'},
       body:JSON.stringify(Object.assign({name:name,email:email,phone:phone,utm:utm,
-        smsConsent:consent.checked,smsConsentVersion:consent.dataset.consentVersion},
-        window.CloneWhop?CloneWhop.lead(email):{})),keepalive:true}).catch(function(){});
+        smsConsent:consent.checked,smsConsentVersion:consent.dataset.consentVersion},ids)),keepalive:true})
+      .then(function(r){
+        if(!r.ok)return;
+        if(window.CloneWhop)CloneWhop.leadSent(email,ids);
+        if(window.jmTrack)jmTrack('Lead',{});
+        if(window.fbq)fbq('track','Lead');
+      }).catch(function(){});
     showPay();
   });
 })();
