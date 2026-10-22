@@ -57,7 +57,14 @@ async function stopSession(env, session) {
   await run(db, "UPDATE clone_webinar_sessions SET state = 'cancelled', complete = 0 WHERE transaction_ref = ?", session.transaction_ref);
   let needsReview = false, pendingFailure = false;
   const uncertain = await rows(db, "SELECT * FROM clone_webinar_steps WHERE transaction_ref = ? AND attempted_at IS NOT NULL AND email_id IS NULL AND scheduled_at IS NOT NULL AND state != 'cancelled'", session.transaction_ref);
+  const links = reminderLinks(env);
   for (const step of uncertain) {
+    // Never recover a link step into a blank-link email; hold it for review.
+    if (missingLink(step.step, links)) {
+      await run(db, "UPDATE clone_webinar_steps SET state = 'unknown' WHERE transaction_ref = ? AND step = ?", session.transaction_ref, step.step);
+      needsReview = true;
+      continue;
+    }
     // Recover a lost scheduling response while the original idempotency key is valid.
     // Never recreate an immediate/past email during refund or unsubscribe handling.
     if (Date.now() - step.attempted_at >= DAY - 60000 || Date.parse(step.scheduled_at) <= Date.now() + 60000) {

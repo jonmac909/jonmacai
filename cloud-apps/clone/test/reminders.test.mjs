@@ -95,6 +95,9 @@ test('plans skip past steps, hold steps awaiting links, and keep keys stable', (
   assert.equal(reminderPlan(session, { CLONE_REPLAY_URL: 'javascript:alert(1)' }, ms)[7].awaiting, 'missing_replay_url');
   const close = Date.parse('2026-10-29T00:00:00Z');
   assert.equal(reminderPlan({ ...session, purchased_at: close, ...assignSession(close) }, env, close)[1].skip, 'within_24_hours');
+  const latePurchase = Date.parse('2026-10-30T01:00:00Z');
+  const lateNoReplay = reminderPlan({ ...session, purchased_at: latePurchase, ...assignSession(latePurchase) }, {}, ms);
+  assert.deepEqual(lateNoReplay.map(p => [p.step, p.awaiting]), [['L1', 'missing_replay_url']]);
 });
 
 test('every email has simple HTML, text, unsubscribe and email-only join links', () => {
@@ -268,6 +271,22 @@ test('durable scheduling, authenticated hooks, retries and cancellation', async 
     assert.ok(p.calls.some(c => c.path === '/emails/mock-lost-schedule/cancel'));
     assert.equal(p.accepted.size, 2);
     assert.equal(JSON.parse(f.leads.get('lead:test_user_mock@example.com')).purchased, false);
+  });
+
+  await t.test('refund recovery never resends a link step after its link disappears', async () => {
+    const f = fixture(); let lost = true;
+    const p = provider({ intercept(path, init, accepted) {
+      if (path === '/emails' && init.headers['Idempotency-Key'].endsWith('-E4') && lost) {
+        lost = false; accepted.set(init.headers['Idempotency-Key'], { id: 'mock-lost-e4', payload: init.body }); throw new Error('mock timeout');
+      }
+    } });
+    await assert.rejects(() => purchaseReminders(seat(), f.env));
+    delete f.env.CLONE_ZOOM_JOIN_URL;
+    const e4Sends = () => p.calls.filter(c => c.path === '/emails' && JSON.parse(c.body).tags[1].value === 'E4').length;
+    assert.equal(e4Sends(), 1);
+    await assert.rejects(() => purchaseReminders({ type: 'refund.created', data: { payment_id: 'ORD-mock-seat' } }, f.env), /reconciliation/);
+    assert.equal(e4Sends(), 1, 'no blank or duplicate E4 may be recovered');
+    assert.equal(f.sql.prepare("SELECT state FROM clone_webinar_steps WHERE step = 'E4'").get().state, 'unknown');
   });
 
   await t.test('refund during submission cancels the newly accepted ID', async () => {
