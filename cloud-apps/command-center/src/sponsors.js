@@ -37,10 +37,12 @@ export function boardStageFor(column) {
   if (/^Paid in /.test(String(column))) return 'paid';
   return COLUMN_TO_BOARD[column] || 'new-lead';
 }
+// Whole dollars print bare, anything else keeps both cents digits: $8,888.75 and $3,500.50, never $3,500.5.
 export function usd(n) {
+  const x = Math.round((Number(n) || 0) * 100) / 100;
   return new Intl.NumberFormat('en-US', {
-    style: 'currency', currency: 'USD', minimumFractionDigits: 0, maximumFractionDigits: 2,
-  }).format(Number(n) || 0);
+    style: 'currency', currency: 'USD', minimumFractionDigits: Number.isInteger(x) ? 0 : 2, maximumFractionDigits: 2,
+  }).format(x);
 }
 
 function parts(ms) {
@@ -94,10 +96,13 @@ function pillFor(card, item, nowMs) {
   if (card.stage === 'paid' || card.stage === 'done') return { pill: 'Paid', pillCls: 'ok' };
   if (card.stage === 'production') return { pill: 'In progress', pillCls: '' };
   if (hasDraft(card)) return { pill: 'Your move', pillCls: 'blue' };
+  // An invoice that is fully paid is not late, whatever bucket the sheet still files it under.
+  const settled = !!item && Number(item.owed) <= 0 && Number(item.paid) > 0;
+  if (settled && card.stage === 'invoice-sent') return { pill: 'Paid', pillCls: 'ok' };
   const when = item?.lastEmail || card.latestDate;
   const t = parseWhen(when);
   const days = Number.isFinite(t) ? daysBetween(t, nowMs) : 0;
-  if (item?.bucket === 'collect-now' && days > 0) return { pill: `${days} days late`, pillCls: 'crit' };
+  if (item?.bucket === 'collect-now' && Number(item.owed) > 0 && days > 0) return { pill: `${days} days late`, pillCls: 'crit' };
   if (days >= 5) return { pill: `${days} days quiet`, pillCls: 'risk' };
   return { pill: 'Waiting on them', pillCls: 'risk' };
 }
@@ -123,12 +128,16 @@ export function sourceEditedAt(data) {
 }
 
 
-export function buildSponsorsPage(data, nowMs = Date.now(), overrides = {}) {
+// `cash` (buildCash) carries every deposit for the calendar month. When it has data, "collected" is that
+// total; otherwise it falls back to the hand-recorded collections.json month total.
+export function buildSponsorsPage(data, nowMs = Date.now(), overrides = {}, cash = null) {
   const col = data.collections || {};
   const items = col.items || [];
   const cards = (data.cards || []).map((c) => (overrides[c.id] ? { ...c, stage: overrides[c.id] } : c));
   const cal = parts(nowMs);
-  const collected = Number(col.incomeTotals?.[col.currentIncomeMonth] || 0);
+  const deposits = cash?.available ? cash : null;
+  const monthName = deposits ? deposits.month.label : col.currentIncomeMonth;
+  const collected = deposits ? deposits.month.usd : Number(col.incomeTotals?.[col.currentIncomeMonth] || 0);
   const owed = items.reduce((s, i) => s + (Number(i.owed) || 0), 0);
   const open = items.filter((i) => Number(i.owed) > 0);
   const completed = (col.completedIncomeMonths || []).map((m) => Number(col.incomeTotals?.[m] || 0));
@@ -200,25 +209,37 @@ export function buildSponsorsPage(data, nowMs = Date.now(), overrides = {}) {
     }
     columns[colIx[stage]].cards.push(k);
   }
-  const byMonth = Object.entries(col.incomeTotals || {}).map(([month, amount]) => {
+  const monthTotals = Object.entries(col.incomeTotals || {});
+  if (deposits) {
+    const at = monthTotals.findIndex(([month]) => month === monthName);
+    if (at >= 0) monthTotals[at] = [monthName, collected];
+    else monthTotals.push([monthName, collected]);
+  }
+  const byMonth = monthTotals.map(([month, amount]) => {
     const pct = Math.min(100, Math.round(Number(amount) / GOAL * 100));
     const hit = Number(amount) >= GOAL;
     return {
-      label: month === col.currentIncomeMonth ? `${month} so far` : month,
+      label: month === monthName ? `${month} so far` : month,
       value: hit ? `${usd(amount)} · goal hit` : usd(amount),
       pct,
       pg: hit ? 'ok' : 'risk',
     };
   });
+  const basis = deposits
+    ? `All deposits · ${deposits.source.label}${deposits.source.stale ? ' (stale)' : ''}`
+    : 'Recorded source total · unverified against deposit ledger';
   return {
     title: 'Sponsors',
-    sub: `Source edited ${sourceEditedAt(data) || 'unknown'} · not reconciled cash`,
+    month: monthName || cal.monthName,
+    basis: deposits ? 'deposits' : 'source',
+    basisLabel: basis,
+    sub: `Source edited ${sourceEditedAt(data) || 'unknown'} · ${deposits ? 'money from deposits' : 'not reconciled cash'}`,
     actions: [
       { label: 'Open collections page', href: 'https://collections.viralview.io/collections.html' },
       { label: 'Scan inbox now', kind: 'sponsor.scan_inbox', payload: { msg: 'Scanning sponsor inbox now' } },
     ],
     tiles: [
-      { icon: 'check', label: `Collected in ${col.currentIncomeMonth || cal.monthName}`, value: usd(collected), goal: '/ $10K', pct: Math.round(collected / GOAL * 100), sub: `Recorded source total · unverified against deposit ledger · day ${cal.day} of ${cal.dim} · pace ${usd(pace)}` },
+      { icon: 'check', label: `Collected in ${monthName || cal.monthName}`, value: usd(collected), goal: '/ $10K', pct: Math.round(collected / GOAL * 100), sub: `${basis} · day ${cal.day} of ${cal.dim} · pace ${usd(pace)}` },
       { icon: 'dollar', label: 'Owed to you', value: usd(owed), sub: `${open.length} sponsor${open.length === 1 ? '' : 's'}` },
       { icon: 'chart', label: averageMonthLabel(col.completedIncomeMonths), value: usd(avg), goal: '/ $10K', pct: Math.min(100, Math.round(avg / GOAL * 100)), pg: avg >= GOAL ? 'ok' : 'risk', sub: avg >= GOAL ? 'Goal hit' : `${usd(short)} a month short of goal` },
       { icon: 'mail', label: 'Sponsor emails waiting', value: String(emails.length), sub: emails.length === 1 ? '1 reply drafted' : `All ${emails.length} replies drafted` },
@@ -287,9 +308,10 @@ export function applyHomeSponsors(snap, page) {
   if (snap.pages?.home?.tiles?.[0]) {
     snap.pages.home.tiles[0] = {
       ...snap.pages.home.tiles[0],
+      label: `Sponsors · ${page.month} collected`,
       value: collected,
       pct,
-      sub: `${owed} more is owed · recorded source total, unverified against deposit ledger`,
+      sub: `${owed} more is owed · ${page.basis === 'deposits' ? page.basisLabel : 'recorded source total, unverified against deposit ledger'}`,
     };
   }
   if (snap.pages?.home?.glance?.rows?.[0]) {

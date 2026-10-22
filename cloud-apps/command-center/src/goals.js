@@ -1,7 +1,7 @@
 // Home (redesign V1): the three money goals, the asks waiting on Jon, what moved this
 // week, and the bottom strip. Every number is read from a collector snapshot; where a
 // source does not report, the card says "no data" and names what is missing.
-import { usd } from './cash.js';
+import { usd, usdExact } from './cash.js';
 import { WEBINAR_AT } from './webinar.js';
 
 const TZ = 'America/Vancouver';
@@ -67,16 +67,19 @@ function sponsorCard(cash, by, nowMs) {
   const paceUsd = target * m.elapsed;
   const status = got === 0 && m.elapsed > 0.05 ? { text: 'No payments', cls: 'crit' } : paceMeta(pct / Math.max(1, m.elapsed * 100) * 100);
   const owed = cash.unpaidAvailable && cash.owed ? ` · ${usd(cash.owed)} owed` : '';
+  const src = cash.source || {};
   return {
     key: 'sponsors', label: `Sponsors · ${m.label}`, owner: 'Daniel',
     value: money(got), goal: `/ ${money(target)}`, pct, pacePct: Math.round(m.elapsed * 100),
     status,
     metaLeft: `Pace says ${usd(paceUsd)} by today`, metaRight: `${m.left} days left`,
     drivers: [
-      { label: 'Payments this month', value: `${cash.month?.payments || 0}${owed}` },
+      { label: 'Deposits this month', value: `${cash.month?.payments || 0}${owed}` },
       { label: 'Trailing 90-day avg', value: `${usd(cash.trailing?.avg || 0)} / mo` },
+      { label: 'Counted from', value: `${src.label || 'no data'}${src.stale ? ' · stale' : ''}` },
       { label: 'Owner', value: 'Daniel' },
     ],
+    warn: src.stale ? src.note : '',
   };
 }
 
@@ -187,8 +190,7 @@ function waitingItems(out, by, extra) {
 function movedItems(by, cash, extra, nowMs) {
   const weekAgo = vanDate(nowMs - 6 * 86400000);
   const today = vanDate(nowMs);
-  const rows = by.sponsors_cash ? (parse(by.sponsors_cash.data).rows || []) : [];
-  const week = rows.filter((r) => r.date >= weekAgo && r.date <= today);
+  const week = (cash.available ? cash.recent : []).filter((r) => r.date >= weekAgo && r.date <= today);
   const weekSum = week.reduce((n, r) => n + (Number(r.usd) || 0), 0);
   const out = [];
   out.push({
@@ -235,7 +237,7 @@ export function buildGoalsHome(out, by, cash, extra, nowMs) {
       ? { label: 'Team', value: `${team.counts.working} working`, pill: team.counts.stuck ? `${team.counts.stuck} stuck` : `${team.counts.idle} idle`, cls: team.counts.stuck ? 'crit' : 'ok', sub: `${team.counts.waiting || 0} waiting on you` }
       : { label: 'Team', value: 'no data', pill: '', cls: 'idle', sub: team?.reason || 'Team collector has not reported' },
     cash.available
-      ? { label: `Cash in, ${cash.month.label}`, value: usd(cash.month.usd), pill: '', sub: `${cash.month.payments} payments · sponsor ledger` }
+      ? { label: `Cash in, ${cash.month.label}`, value: usdExact(cash.month.usd), pill: cash.source.stale ? 'Stale' : '', cls: cash.source.stale ? 'risk' : 'idle', sub: `${cash.month.payments} deposits · ${cash.source.label}` }
       : { label: 'Cash in this month', value: 'no data', pill: '', sub: 'Sponsor cash ledger has not reported' },
   ];
   home.waitingCount = waiting.length;

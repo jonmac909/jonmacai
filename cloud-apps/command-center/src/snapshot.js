@@ -388,14 +388,15 @@ export function mergeSnapshot(fixture, rows, nowMs = Date.now(), overrides = {},
     overlaySupport(out.pages.support, parseData(by.support.data), nowMs, f.label);
     if (out.nav?.badges) out.nav.badges.support = Number(out.pages.support.tiles?.[0]?.value || 0);
   }
+  const cash = buildCash(by.sponsors_cash, by.sponsors, nowMs, by.moneyclaw);
   const sponsors = by.sponsors;
   if (sponsors) {
     const data = parseData(sponsors.data);
     if (data.collections) {
-      const page = buildSponsorsPage(data, nowMs, overrides);
+      const page = buildSponsorsPage(data, nowMs, overrides, cash);
       const copiedMs = Date.parse(sponsors.collected_at);
       const copied = Number.isFinite(copiedMs) ? ageLabel(Math.max(0, nowMs - copiedMs)).replace(/^updated /, '') : 'unknown';
-      page.sub = `Source edited ${sourceEditedAt(data) || 'unknown'} · copied ${copied} · not reconciled cash`;
+      page.sub = `Source edited ${sourceEditedAt(data) || 'unknown'} · copied ${copied} · ${cash.available ? `money from deposits (${cash.source.label})` : 'not reconciled cash'}`;
       if (out.pages.sponsors) out.pages.sponsors = page;
       applyHomeSponsors(out, page);
     }
@@ -475,7 +476,6 @@ export function mergeSnapshot(fixture, rows, nowMs = Date.now(), overrides = {},
     overlayWebinar(out.pages.webinar, by.webinar, extra.funnel, nowMs, f ? f.label : '');
     if (f?.stale) out.pages.webinar.stale = true;
   }
-  const cash = buildCash(by.sponsors_cash, by.sponsors, nowMs);
   if (out.pages.sponsors) out.pages.sponsors.cash = cash;
   if (out.pages.home) out.pages.home.sponsorsCash = cash;
   applyHome(out, by, extra, nowMs);

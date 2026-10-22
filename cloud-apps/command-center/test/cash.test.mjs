@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { buildCash, cashTile } from '../src/cash.js';
+import { buildCash, cashTile, usdExact, LEDGER_STALE_DAYS } from '../src/cash.js';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const py = process.platform === 'win32' ? 'python' : 'python3';
@@ -67,4 +67,160 @@ test('Coursiv and GoLogin are never counted or shown', async () => {
   assert.deepEqual(c.unpaid.map((u) => [u.sponsor, u.owed]), [['InVideo', 4200], ['Viktor (Softstory)', 1000]]);
   assert.equal(c.month.usd, 734.37);
   assert.equal(/coursiv|gologin/i.test(JSON.stringify(out.pages)), false);
+});
+
+// Oct 22, 2026 11:00 Pacific. Jon's rule: sponsor income is every deposit into the RBC USD account.
+const oct22 = Date.parse('2026-10-22T18:00:00Z');
+const octoberDeposits = [
+  { date: '2026-09-16', sponsor: 'GetPoppy', usd: 2500 },
+  { date: '2026-10-02', sponsor: 'Topview', usd: 734.37 },
+  { date: '2026-10-16', sponsor: 'Topview', usd: 1984.38 },
+  { date: '2026-10-16', sponsor: 'InVideo', usd: 4200 },
+  { date: '2026-10-16', sponsor: 'Commas (Divisible payout)', usd: 970 },
+  { date: '2026-10-19', sponsor: 'Schalumov (Viktor)', usd: 1000 },
+];
+const ledgerRow = (rows, ledgerEditedAt) => ({ collected_at: new Date(oct22).toISOString(), data: JSON.stringify({ rows, ledgerEditedAt }) });
+const moneyRow = (income, collectedAt = new Date(oct22).toISOString()) => ({ collected_at: collectedAt, data: JSON.stringify({ asOf: '2026-10-21', income }) });
+
+test('October sponsor income is every deposit, cents kept, Commas payout included', () => {
+  const c = buildCash(ledgerRow(octoberDeposits, '2026-10-22T18:00:00Z'), null, oct22);
+  assert.equal(c.month.usd, 8888.75);
+  assert.equal(c.month.payments, 5);
+  assert.equal(c.pct, 38);
+  assert.equal(usdExact(c.month.usd), '$8,888.75');
+  assert.equal(usdExact(2500), '$2,500');
+  assert.match(cashTile(c).sub, /October: \$8,888\.75 received/);
+  assert.equal(c.recent[0].sponsor, 'Schalumov (Viktor)');
+});
+
+test('a ledger nobody has edited for days is flagged stale, a fresh one is not', () => {
+  const stale = buildCash(ledgerRow(octoberDeposits.slice(0, 2), '2026-10-15T18:00:00Z'), null, oct22);
+  assert.equal(stale.source.kind, 'ledger');
+  assert.equal(stale.source.stale, true);
+  assert.match(stale.source.label, /Oct 15/);
+  assert.match(stale.source.note, /not counted/);
+  assert.match(cashTile(stale).sub, /\(stale\)$/);
+  const fresh = buildCash(ledgerRow(octoberDeposits, new Date(oct22 - (LEDGER_STALE_DAYS - 1) * 86400000).toISOString()), null, oct22);
+  assert.equal(fresh.source.stale, false);
+  assert.equal(fresh.source.note, '');
+  const unknown = buildCash(ledgerRow(octoberDeposits, null), null, oct22);
+  assert.equal(unknown.source.stale, true);
+  assert.match(unknown.source.note, /did not report/);
+});
+
+test('the bank feed wins for the dates it covers and the ledger fills the rest', () => {
+  const ledger = ledgerRow([
+    ...octoberDeposits,
+    { date: '2026-10-22', sponsor: 'Hand entry', usd: 500 },
+  ], '2026-10-22T18:00:00Z');
+  const bank = moneyRow({
+    since: '2026-10-01',
+    asOf: '2026-10-21',
+    deposits: [
+      { date: '2026-10-02', amount: 734.37, description: 'TOPVIEW PTE. LTD. 123456789' },
+      { date: '2026-10-16', amount: 1984.38, description: 'TOPVIEW PTE. LTD.' },
+      { date: '2026-10-16', amount: 4200, description: 'INVIDEO INC' },
+      { date: '2026-10-16', amount: 970, description: 'DIVISIBLE' },
+      { date: '2026-10-19', amount: 1000, description: 'SCHALUMOV' },
+      { date: '2026-10-20', amount: 25, description: 'Unmatched credit' },
+      { date: '2026-10-21', amount: -40, description: 'A debit never counts' },
+      { date: '2026-09-30', amount: 99, description: 'Before the window' },
+    ],
+  });
+  const c = buildCash(ledger, null, oct22, bank);
+  assert.equal(c.source.kind, 'bank');
+  assert.match(c.source.label, /RBC USD feed through Oct 21/);
+  assert.equal(c.source.stale, false);
+  assert.equal(c.month.usd, 8888.75 + 25 + 500);
+  assert.equal(c.month.payments, 7);
+  assert.equal(c.recent.some((r) => /123456789/.test(r.sponsor)), false);
+  assert.equal(c.recent.find((r) => r.sponsor === 'Hand entry').date, '2026-10-22');
+  assert.equal(c.recent.filter((r) => r.usd === 4200).length, 1);
+});
+
+test('a bank feed with no coverage window is ignored, and a stale one is flagged', () => {
+  const ledger = ledgerRow(octoberDeposits, '2026-10-22T18:00:00Z');
+  const loose = buildCash(ledger, null, oct22, moneyRow({ deposits: [{ date: '2026-10-20', amount: 999, description: 'X' }] }));
+  assert.equal(loose.source.kind, 'ledger');
+  assert.equal(loose.month.usd, 8888.75);
+  const old = moneyRow({ since: '2026-10-01', asOf: '2026-10-14', deposits: [{ date: '2026-10-02', amount: 734.37, description: 'TOPVIEW' }] });
+  const c = buildCash(ledger, null, oct22, old);
+  assert.equal(c.source.kind, 'bank');
+  assert.equal(c.source.stale, true);
+  assert.match(c.source.note, /last synced Oct 14/);
+  assert.equal(c.month.usd, 8888.75);
+  const bankOnly = buildCash(null, null, oct22, old);
+  assert.equal(bankOnly.available, true);
+  assert.equal(bankOnly.month.usd, 734.37);
+});
+
+test('a bank feed cannot vouch for days that have not happened, and keeps excluded payers out', () => {
+  const ledger = ledgerRow(octoberDeposits, '2026-10-22T18:00:00Z');
+  const skewed = moneyRow({
+    since: '2026-10-01',
+    asOf: '2026-10-25',
+    deposits: [
+      { date: '2026-10-02', amount: 734.37, description: 'TOPVIEW PTE. LTD.' },
+      { date: '2026-10-05', amount: 650, description: `REF 1234567 ${'X'.repeat(70)} COURSIV` },
+      { date: '2026-10-23', amount: 5000, description: 'FUTURE DATED' },
+    ],
+  });
+  const c = buildCash(ledger, null, oct22, skewed);
+  assert.equal(c.source.kind, 'bank');
+  assert.match(c.source.label, /through Oct 22/);
+  assert.equal(c.month.usd, 734.37);
+  assert.equal(c.month.payments, 1);
+  const past = buildCash(ledger, null, oct22, moneyRow({ since: '2026-10-24', asOf: '2026-10-25', deposits: [] }));
+  assert.equal(past.source.kind, 'ledger');
+  assert.equal(past.month.usd, 8888.75);
+});
+
+test('the month table always holds every deposit of the month', () => {
+  const rows = Array.from({ length: 45 }, (_, i) => ({ date: `2026-10-${String((i % 22) + 1).padStart(2, '0')}`, sponsor: `Payer ${i}`, usd: 10 }));
+  const c = buildCash(ledgerRow(rows, '2026-10-22T18:00:00Z'), null, oct22);
+  assert.equal(c.month.payments, 45);
+  assert.equal(c.recent.filter((r) => r.date.startsWith(c.month.key)).length, 45);
+  assert.equal(c.recent.reduce((n, r) => n + r.usd, 0), c.month.usd);
+});
+
+test('what Jon saw on Oct 22 now says the ledger is stale', async () => {
+  const { mergeSnapshot } = await import('../src/snapshot.js');
+  const snap = (await import('../fixtures/snapshot.json', { with: { type: 'json' } })).default;
+  const stale = ledgerRow([
+    { date: '2026-10-02', sponsor: 'Topview', usd: 734.37 },
+    { date: '2026-10-15', sponsor: 'Commas payout', usd: 1000 },
+  ], '2026-10-15T20:00:00Z');
+  const out = mergeSnapshot(snap, [{ source: 'sponsors_cash', ...stale }], oct22);
+  const card = out.pages.home.goalCards.find((g) => g.key === 'sponsors');
+  assert.equal(card.value, '$1,734.37');
+  assert.match(card.warn, /Nobody has updated the deposit ledger since Oct 15/);
+  assert.match(card.drivers.find((d) => d.label === 'Counted from').value, /stale/);
+  const strip = out.pages.home.strip.find((s) => /^Cash in/.test(s.label));
+  assert.equal(strip.pill, 'Stale');
+  assert.equal(out.pages.sponsors.cash.source.stale, true);
+});
+
+test('every surface shows the same October total from the deposit ledger', async () => {
+  const { mergeSnapshot } = await import('../src/snapshot.js');
+  const snap = (await import('../fixtures/snapshot.json', { with: { type: 'json' } })).default;
+  const out = mergeSnapshot(snap, [
+    { source: 'sponsors_cash', ...ledgerRow(octoberDeposits, '2026-10-22T17:00:00Z') },
+    { source: 'sponsors', collected_at: new Date(oct22).toISOString(), data: JSON.stringify({
+      collections: { currentIncomeMonth: 'October', incomeTotals: { September: 6606.63, October: 750 }, completedIncomeMonths: ['September'], items: [
+        { sponsor: 'InVideo', total: 4200, paid: 4200, owed: 0, month: 'October', bucket: 'collect-now' },
+      ] },
+      cards: [],
+    }) },
+  ], oct22);
+  const card = out.pages.home.goalCards.find((g) => g.key === 'sponsors');
+  assert.equal(card.value, '$8,888.75');
+  assert.equal(card.pct, 89);
+  assert.equal(card.warn, '');
+  assert.equal(out.pages.sponsors.tiles[0].value, '$8,888.75');
+  assert.equal(out.pages.sponsors.tiles[0].label, 'Collected in October');
+  assert.equal(out.pages.sponsors.byMonth.rows.at(-1).label, 'October so far');
+  assert.equal(out.pages.sponsors.byMonth.rows.at(-1).value, '$8,888.75');
+  assert.equal(out.pages.home.strip.find((s) => /^Cash in/.test(s.label)).value, '$8,888.75');
+  assert.equal(out.pages.home.moved.items[0].pill, '+$8,154.38');
+  assert.match(out.pages.home.tiles[0].sub, /^\$0 more is owed · All deposits/);
 });
