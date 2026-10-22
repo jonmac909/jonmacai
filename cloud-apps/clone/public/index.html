@@ -3,25 +3,25 @@
 <head>
 <meta charset="utf-8">
 <script src="meta-pixel.js"></script>
-<script src="/clone/schedule.js?v=1"></script>
-<script src="/clone/whop-pixel.js?v=1"></script>
+<script src="/clone/schedule.js?v=2"></script>
+<script src="/clone/whop-pixel.js?v=2"></script>
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>The Clone Method — TikTok Shop live training, $47</title>
-<meta name="description" content="Get paid commissions from TikTok Shop by cloning the videos already selling. No followers, no camera, no inventory. 2-hour live training, daily at 7:00 PM ET. $47.">
+<title>The Clone Method: TikTok Shop live training, $47</title>
+<meta name="description" content="Get paid commissions from TikTok Shop by cloning the videos already selling. No followers, no camera, no inventory. 2-hour live training, Thursday, October 29, 7:00 PM ET. $47.">
 <link rel="canonical" href="https://jonmac.ai/clone/">
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://jonmac.ai/clone/">
 <meta property="og:title" content="Get Paid Commissions From TikTok Shop By Cloning The Videos Already Selling">
-<meta property="og:description" content="No followers. No camera. No inventory. A 2-hour live training with Jon Mac, daily at 7:00 PM ET. $47.">
+<meta property="og:description" content="No followers. No camera. No inventory. A 2-hour live training with Jon Mac, Thursday, October 29, 7:00 PM ET. $47.">
 <meta property="og:site_name" content="Jon Mac">
 <meta property="og:image" content="https://jonmac.ai/clone/assets/og.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
-<meta property="og:image:alt" content="Get paid commissions from TikTok Shop by cloning the videos already selling — a $47 live training with Jon Mac">
+<meta property="og:image:alt" content="Get paid commissions from TikTok Shop by cloning the videos already selling, a $47 live training with Jon Mac">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:image" content="https://jonmac.ai/clone/assets/og.png">
 <meta name="twitter:title" content="Get Paid Commissions From TikTok Shop By Cloning The Videos Already Selling">
-<meta name="twitter:description" content="No followers. No camera. No inventory. Live training, daily at 7:00 PM ET. $47.">
+<meta name="twitter:description" content="No followers. No camera. No inventory. Live training, Thursday, October 29, 7:00 PM ET. $47.">
 <style>
 :root{
   --paper:#fff;--ink:#111014;--ink-2:#33313A;--ink-3:#6E6B75;
@@ -127,7 +127,16 @@ a:focus-visible,summary:focus-visible{outline:3px solid var(--sig);outline-offse
   cursor:pointer;transition:transform .15s}
 .vv-fs:hover{transform:scale(1.06)}
 .vv-fs svg{width:19px;height:19px;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
-.vv-hero:fullscreen{border-radius:0}
+.vv-hero:fullscreen,.vv-hero:-webkit-full-screen{border-radius:0;background:#000}
+/* iPhone Safari has no element fullscreen: fill the viewport in-page instead */
+.vv-hero.vv-fs-fallback{position:fixed;inset:0;width:100vw;height:100vh;height:100dvh;max-width:none;
+  aspect-ratio:auto;border-radius:0;background:#000;box-shadow:none;z-index:2147483647}
+html.vv-fs-lock,body.vv-fs-lock{overflow:hidden;height:100%}
+.vv-hero.vv-fs-fallback .vv-fs,.vv-hero:fullscreen .vv-fs,.vv-hero:-webkit-full-screen .vv-fs{
+  bottom:calc(14px + env(safe-area-inset-bottom,0px));right:calc(14px + env(safe-area-inset-right,0px))}
+.vv-fs .vv-fs-close{display:none}
+.vv-fs[aria-pressed="true"] .vv-fs-open{display:none}
+.vv-fs[aria-pressed="true"] .vv-fs-close{display:block}
 .video .ph{position:absolute;left:0;right:0;bottom:16px;font-family:var(--util);font-size:12px;color:#B4AFBC;text-align:center;font-weight:600}
 .play{position:relative;width:80px;height:80px;border-radius:50%;background:var(--sig);display:grid;place-items:center;box-shadow:0 8px 22px rgba(0,0,0,.55)}
 .play svg{width:28px;height:28px;margin-left:5px;fill:#fff}
@@ -313,6 +322,7 @@ a.presscite h3{text-decoration:underline;text-decoration-thickness:1px;text-unde
 .lead{position:fixed;inset:0;z-index:80;display:none;overflow-y:auto;-webkit-overflow-scrolling:touch;background:rgba(10,9,16,.62);padding:28px 18px}
 .lead.show{display:flex}
 .lead .lead-consent{display:flex;align-items:flex-start;gap:10px;margin:12px 0 18px;font-size:12px;line-height:1.6;color:#555;text-align:left}
+.lead .lead-consent[hidden]{display:none}
 .lead .lead-consent input{width:18px;height:18px;min-width:18px;margin:3px 0 0;padding:0;accent-color:var(--sig)}
 .lead .lead-consent a{color:var(--sig)}
 .lead .lead-consent input:focus-visible{outline:2px solid var(--sig);outline-offset:3px}
@@ -325,6 +335,8 @@ a.presscite h3{text-decoration:underline;text-decoration-thickness:1px;text-unde
 .lead[data-step="1"] .lead-steps .s2 b,.lead[data-step="2"] .lead-steps .s1 b{color:#0A0910}
 .lead-steps .s1 i{display:none;font-style:normal}
 .lead[data-step="2"] .lead-steps .s1 i{display:inline}
+.sales-closed .cta-sub{display:none}
+.sales-closed a.cta{opacity:.55;cursor:default;pointer-events:none}
 .lead-bar{height:6px;background:var(--rule);border-radius:3px;margin:0 0 22px;position:relative}
 .lead-bar::before{content:"";position:absolute;left:0;top:0;bottom:0;width:50%;background:var(--sig);border-radius:3px;transition:width .25s}
 .lead-bar::after{content:"";position:absolute;top:6px;left:25%;transform:translateX(-50%);border:8px solid transparent;border-top-color:var(--sig);transition:left .25s}
@@ -379,10 +391,10 @@ a.presscite h3{text-decoration:underline;text-decoration-thickness:1px;text-unde
 </head>
 <body>
 <div class="bar"><div class="shell wide bar-in">
-  <span class="util"><span class="live" aria-hidden="true"></span>Training <span class="dw w">date</span>:</span>
-  <b id="when">Daily at 7:00 PM ET</b>
+  <span class="util"><span class="live" aria-hidden="true"></span><span class="w">Training</span> <span class="dw w">date</span>:</span>
+  <b id="when">Thursday, October 29 @ 7:00 PM ET</b>
   <span class="util"><span class="sep">|</span><span class="sep-m">-</span></span>
-  <span class="util">Starts in</span><b id="cd">00d : 00h : 00m : 00s</b>
+  <span class="util" id="cdl">Starts in</span><b id="cd">00d : 00h : 00m : 00s</b>
 </div></div>
 
 <main id="content">
@@ -391,7 +403,7 @@ a.presscite h3{text-decoration:underline;text-decoration-thickness:1px;text-unde
   <h1 class="h1clone">Get Paid Commissions From TikTok Shop<br>
     <span class="sig">By Cloning The Videos Already Selling</span></h1>
   <p class="letter"><b>No followers. No camera. No inventory.</b><br>
-    I ran the platform <b>10,000 stores</b> sold <b>half a billion dollars</b> on &mdash; and the
+    I ran the platform <b>10,000 stores</b> sold <b>half a billion dollars</b> on, and the
     signal I watched for 10 years is now <b>public and ranked</b> on TikTok Shop.<br>
     In 2 hours I'll show you <b>exactly how the money moves</b>.</p>
 </div></header>
@@ -399,7 +411,7 @@ a.presscite h3{text-decoration:underline;text-decoration-thickness:1px;text-unde
 <!-- Hero VSL. -->
 <div class="shell" id="vslwrap" style="margin-top:6px;margin-bottom:clamp(30px,4.5vw,52px)">
   <p class="point" style="margin-bottom:14px"><svg class="i" viewBox="0 0 18 18"><use href="#dn"/></svg>Click below to watch first!<svg class="i" viewBox="0 0 18 18"><use href="#dn"/></svg></p>
-  <div class="video vv-hero" data-state="muted"><iframe src="https://www.youtube-nocookie.com/embed/GP3NRg8NMY4?autoplay=1&amp;mute=1&amp;controls=0&amp;loop=1&amp;playlist=GP3NRg8NMY4&amp;playsinline=1&amp;rel=0&amp;modestbranding=1&amp;iv_load_policy=3&amp;disablekb=1&amp;fs=0&amp;cc_load_policy=3&amp;cc_lang_pref=invalid&amp;enablejsapi=1&amp;vq=hd1080&amp;start=0" title="Jon Mac — why cloning TikTok Shop winners pays" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen" allowfullscreen playsinline referrerpolicy="strict-origin-when-cross-origin"></iframe><button type="button" class="vv-toggle" aria-label="Watch Jon Mac — why cloning TikTok Shop winners pays"><span class="vv-label" aria-hidden="true">Watch</span></button><button type="button" class="vv-fs" aria-label="Full screen" title="Full screen"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M8 4H4v4M16 4h4v4M20 16v4h-4M4 16v4h4"/></svg></button></div>
+  <div class="video vv-hero" data-state="muted"><iframe src="https://www.youtube-nocookie.com/embed/GP3NRg8NMY4?autoplay=1&amp;mute=1&amp;controls=0&amp;loop=1&amp;playlist=GP3NRg8NMY4&amp;playsinline=1&amp;rel=0&amp;modestbranding=1&amp;iv_load_policy=3&amp;disablekb=1&amp;fs=0&amp;cc_load_policy=3&amp;cc_lang_pref=invalid&amp;enablejsapi=1&amp;vq=hd1080&amp;start=0" title="Jon Mac: why cloning TikTok Shop winners pays" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen" allowfullscreen playsinline referrerpolicy="strict-origin-when-cross-origin"></iframe><button type="button" class="vv-toggle" aria-label="Watch Jon Mac: why cloning TikTok Shop winners pays"><span class="vv-label" aria-hidden="true">Watch</span></button><button type="button" class="vv-fs" aria-label="Full screen" aria-pressed="false" title="Full screen"><svg class="vv-fs-open" aria-hidden="true" viewBox="0 0 24 24"><path d="M8 4H4v4M16 4h4v4M20 16v4h-4M4 16v4h4"/></svg><svg class="vv-fs-close" aria-hidden="true" viewBox="0 0 24 24"><path d="M4 9h5V4M20 9h-5V4M4 15h5v5M20 15h-5v5"/></svg></button></div>
 </div>
 
 <section style="padding-top:0"><div class="shell col g22 mid">
@@ -409,7 +421,7 @@ a.presscite h3{text-decoration:underline;text-decoration-thickness:1px;text-unde
     <div class="cbox"><b id="m">00</b><span>MINS</span></div><span class="csep">:</span>
     <div class="cbox"><b id="s">00</b><span>SECS</span></div>
   </div>
-  <a class="cta" href="https://commas.com/checkout/nmGzEY7RCWcGOKl">Grab My Seat &mdash; $47<svg class="i" viewBox="0 0 18 18" style="width:17px;height:17px;stroke:#fff;fill:none;stroke-width:2.4"><use href="#ar"/></svg></a>
+  <a class="cta" href="https://commas.com/checkout/nmGzEY7RCWcGOKl">Grab My Seat: $47<svg class="i" viewBox="0 0 18 18" style="width:17px;height:17px;stroke:#fff;fill:none;stroke-width:2.4"><use href="#ar"/></svg></a>
   <p class="cta-sub">Permanent recording access included. 30-day guarantee: apply one method,
     email us saying which one and what happened, and you're refunded in full.</p>
   <p class="cta-sub">2-hour live training &middot; attend on Zoom from anywhere &middot; recording included</p>
@@ -428,7 +440,7 @@ a.presscite h3{text-decoration:underline;text-decoration-thickness:1px;text-unde
   <p><b>Filming yourself 3 times a day?</b> Your face, your evenings, your ideas, forever. That's a
     job with worse hours than the one you have.</p>
   <p>So you did the sensible thing. Nothing. And here's what that actually cost: TikTok Shop kept
-    paying commissions the whole time &mdash; to people who were not better than you. They were just
+    paying commissions the whole time, to people who were not better than you. They were just
     in the room.</p>
   <p class="statement">The problem was never you. Every door you looked at was the wrong door.</p>
 </div></section>
@@ -443,8 +455,8 @@ a.presscite h3{text-decoration:underline;text-decoration-thickness:1px;text-unde
     collect a commission at closing. No inventory. No risk on the asset. And nobody asks a realtor
     to be famous.</p>
   <p>Now look at TikTok Shop with those eyes.</p>
-  <p>TikTok built a mall. Millions of products, checkout inside the app, and the sellers &mdash;
-    real companies with real warehouses &mdash; carry every unit of inventory. Then TikTok attached
+  <p>TikTok built a mall. Millions of products, checkout inside the app, and the sellers,
+    real companies with real warehouses, carry every unit of inventory. Then TikTok attached
     a program that pays <b>anybody</b> a commission on the video that causes a sale. Joining is
     free. If a product doesn't sell, that's their warehouse, not your garage.</p>
   <p class="reassure">Your video. Their checkout. Their warehouse. <b>Your commission.</b></p>
@@ -462,11 +474,11 @@ a.presscite h3{text-decoration:underline;text-decoration-thickness:1px;text-unde
         <tr><th>Dropshipping</th>
           <td class="no">Inventory + ad spend</td><td class="ok">No</td><td class="ok">No</td><td>Margin, if any survives</td></tr>
         <tr><th>Creator / influencer</th>
-          <td class="ok">None</td><td class="no">Yes &mdash; years of them</td><td class="no">Yes, daily</td><td>Brand deals, someday</td></tr>
+          <td class="ok">None</td><td class="no">Yes, years of them</td><td class="no">Yes, daily</td><td>Brand deals, someday</td></tr>
         <tr><th>Faceless theory channels</th>
           <td class="ok">None</td><td class="no">Yes, eventually</td><td class="ok">No</td><td>Ad pennies</td></tr>
         <tr class="me"><th>TikTok Shop affiliate</th>
-          <td class="ok">None</td><td class="ok">No &mdash; and I'll prove it</td><td class="ok">No</td><td class="ok">Commission per sale</td></tr>
+          <td class="ok">None</td><td class="ok">No, and I'll prove it</td><td class="ok">No</td><td class="ok">Commission per sale</td></tr>
       </tbody>
     </table>
   </div>
@@ -477,26 +489,26 @@ a.presscite h3{text-decoration:underline;text-decoration-thickness:1px;text-unde
 
 <section><div class="shell col g22">
   <h2>The Follower Myth Died And Nobody Told You</h2>
-  <p>Everyone thinks this game needs an audience first. On TikTok Shop, that's flat wrong &mdash;
-    and it's wrong <em>on purpose</em>.</p>
+  <p>Everyone thinks this game needs an audience first. On TikTok Shop, that's flat wrong.
+    And it's wrong <em>on purpose</em>.</p>
   <p>Shop videos are distributed by one thing: <b>conversion</b>. Every video you post gets handed
-    to a test batch of a few hundred viewers. Not your followers &mdash; strangers, picked by the
+    to a test batch of a few hundred viewers. Not your followers. Strangers, picked by the
     machine. If they tap the orange cart and buy, TikTok widens the circle. Buy again, wider again.
     A zero-follower account gets the same opening test batch as an account with a million.</p>
   <p>Why would TikTok build it that way? Because they take a cut of every sale. They watched Meta
     print a fortune in ad revenue and decided the videos that <em>sell</em> are the videos that
     surface. You're not building an audience. You're placing commission-bearing videos into a
     machine that gets paid when you get paid.</p>
-  <p>And the public data backs it. On the creator leaderboard right now, an account with
-    <b>223,800 followers</b> drove more product revenue in 30 days than an account with
-    <b>3.9 million</b>. Followers don't order that list. Conversions do.</p>
-  <img class="portcard" src="assets/3856d0df43.webp" alt="Top Shop affiliates, last 30 days: revenue driven next to follower counts — the top account has 223.8k followers, second place has 3.9 million" loading="lazy">
-  <p class="dim small">Source: Kalodata creator rankings, US, 30 days to 14 Aug 2026. Third-party
+  <p>And the public data backs it. On the creator leaderboard right now, <b>@cakedfinds</b> has
+    <b>74,600 followers</b> and drove <b>$1.15m</b> in product revenue in 30 days. <b>@based</b> has
+    <b>3.9 million</b> followers and drove $2.22m. Followers don't order that list. Conversions do.</p>
+  <img class="portcard" src="assets/3856d0df43.webp" alt="Top Shop affiliates, last 30 days: revenue driven next to follower counts: @cakedfinds is highlighted with 74.6k followers and $1.15m driven; @based has 3.9m followers and $2.22m" loading="lazy">
+  <p class="dim small">Source: Kalodata creator rankings, US, last 30 days. Third-party
     data anyone can subscribe to and check.</p>
 </div></section>
 
 <section style="padding-top:0"><div class="shell col g22 mid">
-  <a class="cta" href="https://commas.com/checkout/nmGzEY7RCWcGOKl">Grab My Seat &mdash; $47<svg class="i" viewBox="0 0 18 18" style="width:17px;height:17px;stroke:#fff;fill:none;stroke-width:2.4"><use href="#ar"/></svg></a>
+  <a class="cta" href="https://commas.com/checkout/nmGzEY7RCWcGOKl">Grab My Seat: $47<svg class="i" viewBox="0 0 18 18" style="width:17px;height:17px;stroke:#fff;fill:none;stroke-width:2.4"><use href="#ar"/></svg></a>
   <p class="cta-sub">2 hours with me, live. Permanent recording included.</p>
 </div></section>
 
@@ -507,8 +519,8 @@ a.presscite h3{text-decoration:underline;text-decoration-thickness:1px;text-unde
   <p>The winning videos for every product on TikTok Shop are <b>public and ranked</b>. You can see
     which videos are selling any product, right now, before you make anything. Which products are
     moving, how much revenue each one drove in the last 30 days, what commission it pays, how many
-    creators are on it &mdash; all of it sits in the open.</p>
-  <p>Real numbers from the current US leaderboard &mdash; and read them the way I'll teach you to,
+    creators are on it. All of it sits in the open.</p>
+  <p>Real numbers from the current US leaderboard. Read them the way I'll teach you to,
     because everyone else quoting these numbers is lying to you by omission:</p>
   <div class="optwrap" tabindex="0" role="region" aria-label="Top TikTok Shop products, last 30 days">
     <table class="opt">
@@ -523,12 +535,12 @@ a.presscite h3{text-decoration:underline;text-decoration-thickness:1px;text-unde
   </div>
   <p class="swipe" aria-hidden="true">Swipe the table sideways to see every column &rarr;</p>
   <p><b>The honest math, out loud:</b> "revenue driven" is product sold, not what creators earned.
-    At the commission rates on the same screen &mdash; 6% to 25% across the market &mdash; the
+    At the commission rates on the same screen, 6% to 25% across the market, the
     creators' cut of that blanket is roughly $167,000, split among the people whose videos sold it.
     Anyone who quotes you the big number as income is selling you something. I'll never do it, and
     after 2 hours with me you'll catch everyone who does.</p>
-  <p class="dim small">Source: Kalodata product rankings, US, 30 days to 14 Aug 2026. These are
-    rolling numbers &mdash; they'll have moved by the time you check, which is exactly the point of
+  <p class="dim small">Source: Kalodata product rankings, US, last 30 days. These are
+    rolling numbers. They'll have moved by the time you check, which is exactly the point of
     the next section.</p>
   <p>So the money is real, the answer key is public, and you don't need followers or a face. Which
     raises the only question that matters:</p>
@@ -579,9 +591,9 @@ a.presscite h3{text-decoration:underline;text-decoration-thickness:1px;text-unde
     <p class="src">Press release &middot; PR Newswire &middot; 26 September 2025</p>
     <h3>NameSilo Technologies subsidiary NameSilo LLC acquires CommerceHQ</h3>
     <p class="dim small">NameSilo Technologies Corp. trades as CSE: URL and OTC: URLOF.
-      Open it and check &mdash; you don't have to take my word for any of this.</p>
+      Open it and check. You don't have to take my word for any of this.</p>
   </a>
-  <p>The thing I watched for 10 years &mdash; which creative actually sells &mdash; used to be
+  <p>The thing I watched for 10 years, which creative actually sells, used to be
     private. You needed to own the platform to see it. TikTok Shop put that exact signal in public,
     ranked, refreshed daily. That's why I'm doing this now, and why the training is $47 instead of a
     sales call: my main business is software that only wins if you get results. Check the
@@ -594,7 +606,7 @@ a.presscite h3{text-decoration:underline;text-decoration-thickness:1px;text-unde
 <section><div class="shell col g22">
   <h2>Real Dashboards, With The Commission Column Showing</h2>
   <p>22 community members' TikTok Shop affiliate dashboards. Cropped to the earnings panel, nothing
-    else &mdash; and notice these show <em>estimated commission</em>, the money that reaches the
+    else. Notice these show <em>estimated commission</em>, the money that reaches the
     person, not just the sales number everyone else waves around.</p>
   <div class="proofwall">
     <figure><img src="assets/c423dcc86f.webp" alt="Affiliate dashboard: February: $48.1K estimated commission on $344.7K driven." loading="lazy"><figcaption>February: <b>$48.1K estimated commission</b> on $344.7K driven.</figcaption></figure>
@@ -622,7 +634,7 @@ a.presscite h3{text-decoration:underline;text-decoration-thickness:1px;text-unde
   </div>
   <p class="dim small">Individual results vary wildly and these are not typical. Most people who
     try affiliate content earn little or nothing. These are specific members' real panels, shown
-    with the flops left in their story &mdash; you'll hear that part live.</p>
+    with the flops left in their story. You'll hear that part live.</p>
 </div></section>
 
 <hr class="hr">
@@ -632,23 +644,23 @@ a.presscite h3{text-decoration:underline;text-decoration-thickness:1px;text-unde
   <p class="letter mid">The training was built for 4 specific people:</p>
   <div class="persons persons4">
     <div class="person"><p class="tag">TYPE 1</p><h3>Dropshipping ate you alive.</h3>
-      <p>You've done ecommerce the hard way &mdash; your money in inventory, your money in ad
+      <p>You've done ecommerce the hard way: your money in inventory, your money in ad
         spend, margins that evaporated. You don't need convincing that products sell online. You
         need the version where the seller carries the risk and you get paid on the transaction.
         That version exists, and it's this.</p></div>
     <div class="person"><p class="tag">TYPE 2</p><h3>You posted. The algorithm shrugged.</h3>
       <p>You did everything the gurus said and got 40 views and a cricket. Here's what nobody told
         you: you were playing the audience game on a platform that stopped counting audiences. Shop
-        videos are judged on whether strangers buy, not on who follows you &mdash; and the videos
+        videos are judged on whether strangers buy, not on who follows you, and the videos
         that make strangers buy are public. You were never bad at this. You were aiming at the
         wrong scoreboard.</p></div>
     <div class="person"><p class="tag">TYPE 3</p><h3>Brand new. Zero everything.</h3>
-      <p>No store, no audience, no idea where to start &mdash; just done watching other people win.
+      <p>No store, no audience, no idea where to start. Just done watching other people win.
         Good. You have nothing to unlearn. You'll learn the realtor model before anyone teaches you
         the builder model, which puts you ahead of every burned dropshipper in the room.</p></div>
     <div class="person"><p class="tag">TYPE 4</p><h3>You're on TikTok Shop. It's not converting.</h3>
       <p>You're posting shop videos and watching other people's blow up with the same products.
-        The difference usually isn't quality. It's ancestry and timing &mdash; theirs descend from
+        The difference usually isn't quality. It's ancestry and timing. Theirs descend from
         proven winners inside their window, yours were invented from scratch or cloned late.
         2 hours will show you which, on your own account.</p></div>
   </div>
@@ -666,14 +678,14 @@ a.presscite h3{text-decoration:underline;text-decoration-thickness:1px;text-unde
       <div><h3>The window, live</h3><p>Rankings on screen. The room picks a category. You tell an
         opening window from a closing one before you make anything.</p></div></div>
     <div class="irow"><span class="tick"><svg class="i" viewBox="0 0 18 18"><use href="#c"/></svg></span>
-      <div><h3>A clone built in front of you</h3><p>Hook, pain, proof, ask &mdash; rebuilt around a
+      <div><h3>A clone built in front of you</h3><p>Hook, pain, proof, ask: rebuilt around a
         different product with an AI creator. No camera in the room.</p></div></div>
     <div class="irow"><span class="tick"><svg class="i" viewBox="0 0 18 18"><use href="#c"/></svg></span>
       <div><h3>Your question, answered live</h3><p>Type it. I answer it. The replay does not get
         this.</p></div></div>
   </div>
-  <p>2 hours, live on Zoom, daily at 7:00 PM Eastern. Come this week,
-    come next week, come when you can &mdash; and the full HD recording lands in your inbox within 24 hours either way.</p>
+  <p>2 hours, live on Zoom, Thursday, October 29 at 7:00 PM Eastern. One session only,
+    spots are limited. Can't make it? The full HD recording lands in your inbox within 24 hours.</p>
 </div></section>
 
 <hr class="hr">
@@ -683,15 +695,15 @@ a.presscite h3{text-decoration:underline;text-decoration-thickness:1px;text-unde
   <div class="stack">
     <div class="srow"><h3>The Live Training</h3>
       <p>2 hours with me: the money path, the public answer key, the window, and a clone built live
-        on screen. Daily at 7:00 PM ET &mdash; pick any session.</p></div>
+        on screen. Thursday, October 29 at 7:00 PM ET. One live session.</p></div>
     <div class="srow"><h3>Permanent Recording Access</h3>
       <p>Full HD replay, yours to keep, delivered within 24 hours.</p></div>
     <div class="srow"><h3>The Live Exercise</h3>
       <p>You pull up the rankings yourself, in a category you pick, while I'm there to course-correct.
-        The part attendees say made it click &mdash; and the part a replay can't do.</p></div>
+        The part attendees say made it click, and the part a replay can't do.</p></div>
     <div class="srow"><h3>The 30-Day Guarantee</h3>
       <p>Apply one method from the training. Within 30 days, email my team one sentence saying which
-        method you used and what happened. That's the whole trigger &mdash; you don't have to prove
+        method you used and what happened. That's the whole trigger. You don't have to prove
         a result and we don't get to argue. Full refund, and you keep the recording.</p></div>
   </div>
   <div class="invest">
@@ -705,8 +717,8 @@ a.presscite h3{text-decoration:underline;text-decoration-thickness:1px;text-unde
   <div class="realtalk col g16">
     <p class="util sig">&#9733; REAL TALK ON WHY IT'S ONLY $47 &#9733;</p>
     <p>I sold a company to a publicly traded buyer. I do not need your $47.</p>
-    <p>The programs teaching TikTok Shop the hard way &mdash; your face, your evenings, a sales
-      call before they'll even tell you the price &mdash; quietly screen wallets for thousands.
+    <p>The programs teaching TikTok Shop the hard way, your face, your evenings, a sales
+      call before they'll even tell you the price, quietly screen wallets for thousands.
       I charge $47, price on the page, because a paid seat filters for people who show up, and
       because my main business is software that only wins if you actually get results. The webinar
       brings me the right people. That's the whole catch, stated out loud.</p>
@@ -718,8 +730,8 @@ a.presscite h3{text-decoration:underline;text-decoration-thickness:1px;text-unde
 <section><div class="shell col g16">
   <h2 style="margin-bottom:10px">Quick Answers Before You Grab Your Seat</h2>
   <details open><summary>Do I have to show my face?<svg class="i" viewBox="0 0 18 18"><use href="#pl"/></svg></summary>
-    <p class="ans">No. That's most of the point. Entire winning formats &mdash; product demos, AI
-    narrators, slideshows &mdash; never show a human who exists. In the training you'll watch a
+    <p class="ans">No. That's most of the point. Entire winning formats (product demos, AI
+    narrators, slideshows) never show a human who exists. In the training you'll watch a
     video get made and you'll see exactly whose face is in it. If camera fear killed content for
     you before, this is the version without the camera.</p></details>
   <details><summary>Does TikTok Shop cost anything to join?<svg class="i" viewBox="0 0 18 18"><use href="#pl"/></svg></summary>
@@ -727,7 +739,7 @@ a.presscite h3{text-decoration:underline;text-decoration-thickness:1px;text-unde
     never fund an ad account. Your only real costs are the training, whatever tools you choose to
     make videos with, and your time.</p></details>
   <details><summary>Is "cloning" allowed? Am I copying people's videos?<svg class="i" viewBox="0 0 18 18"><use href="#pl"/></svg></summary>
-    <p class="ans">You clone the skeleton &mdash; hook, pain, proof, ask &mdash; never the footage,
+    <p class="ans">You clone the skeleton (hook, pain, proof, ask), never the footage,
     the script, or the person. Fresh visuals, your product angle, and the AI-generated label on,
     every time. I teach the compliance rules on stage, proudly, because the accounts that play it
     clean are the ones that compound. Cowboys get buried.</p></details>
@@ -737,22 +749,21 @@ a.presscite h3{text-decoration:underline;text-decoration-thickness:1px;text-unde
     you get a cut. It's the same economics as a realtor's commission.</p></details>
   <details><summary>I have zero followers. Really none.<svg class="i" viewBox="0 0 18 18"><use href="#pl"/></svg></summary>
     <p class="ans">Perfect, you're the person the distribution system was built for. Shop videos get
-    tested on strangers and spread by conversion &mdash; a zero-follower account gets the same
+    tested on strangers and spread by conversion. A zero-follower account gets the same
     opening test batch as an account with a million. You'll see the public leaderboard data on this
     in the first half hour.</p></details>
   <details><summary>How much time does this take after the training?<svg class="i" viewBox="0 0 18 18"><use href="#pl"/></svg></summary>
     <p class="ans">This is a volume game played in short sessions, not a filming career. The method
-    is built for evenings-and-weekends operators &mdash; that's exactly why it leans on AI
+    is built for evenings-and-weekends operators. That's exactly why it leans on AI
     production instead of your face and a ring light. The honest answer on hours comes in the
     training, with the flops left in.</p></details>
   <details><summary>Will I make money?<svg class="i" viewBox="0 0 18 18"><use href="#pl"/></svg></summary>
     <p class="ans">I don't know, and nobody who says otherwise deserves your card. Most people who
-    try affiliate content earn little or nothing &mdash; usually because they create from scratch
+    try affiliate content earn little or nothing, usually because they create from scratch
     or clone late. The training exists to remove those two failure modes. The $47 is guaranteed;
     your results aren't, and can't be.</p></details>
-  <details><summary>What if I can't make the next session?<svg class="i" viewBox="0 0 18 18"><use href="#pl"/></svg></summary>
-    <p class="ans">It runs daily at 7:00 PM Eastern &mdash; come to whichever
-    one suits you. You also get the full HD recording within 24 hours. Come live if you can:
+  <details><summary>What if I can't make it live?<svg class="i" viewBox="0 0 18 18"><use href="#pl"/></svg></summary>
+    <p class="ans">You get the full HD recording within 24 hours. Come live if you can:
     the exercise and the Q&amp;A are the parts that don't record.</p></details>
 </div></section>
 
@@ -762,21 +773,21 @@ a.presscite h3{text-decoration:underline;text-decoration-thickness:1px;text-unde
     display. You've been in that car since the first time you thought about doing something like
     this and decided you'd start when things calmed down.</p>
   <p class="letter dim">Nobody reads the number out loud. That's the whole reason it keeps climbing.
-    And it never shows up as a bill &mdash; only as commissions that went to somebody who wasn't
+    And it never shows up as a bill, only as commissions that went to somebody who wasn't
     better than you. They were just in the room that week.</p>
   <p class="letter dim">$47 and 2 hours pulls the tape off. You'll see how the money moves, where
-    the answer key lives, and how to tell a window that's opening from one that already closed
-    &mdash; from a guy who spent 10 years watching what actually sells, and put his price on the
+    the answer key lives, and how to tell a window that's opening from one that already closed,
+    from a guy who spent 10 years watching what actually sells, and put his price on the
     page instead of behind a sales call.</p>
   <p class="letter dim">Worst case? You apply one method, email us what happened, get your $47 back,
     and keep the recording.</p>
   <p class="letter dim" style="font-weight:700;color:#fff">There is no version of this where $47 was
     the thing that stopped you.</p>
-  <a class="cta" href="https://commas.com/checkout/nmGzEY7RCWcGOKl">Grab My Seat &mdash; $47<svg class="i" viewBox="0 0 18 18" style="width:17px;height:17px;stroke:#fff;fill:none;stroke-width:2.4"><use href="#ar"/></svg></a>
-  <p class="cta-sub" style="color:#A9A5A0">Daily at 7:00 PM ET &middot; recording + 30-day
+  <a class="cta" href="https://commas.com/checkout/nmGzEY7RCWcGOKl">Grab My Seat: $47<svg class="i" viewBox="0 0 18 18" style="width:17px;height:17px;stroke:#fff;fill:none;stroke-width:2.4"><use href="#ar"/></svg></a>
+  <p class="cta-sub" style="color:#A9A5A0">Thu Oct 29 &middot; 7:00 PM ET &middot; recording + 30-day
     keep-everything guarantee.</p>
   <p class="letter dim">See you at the training.</p>
-  <p class="signoff">&mdash; Jon Mac &mdash;</p>
+  <p class="signoff">(Jon Mac)</p>
 </div></section>
 </main>
 <footer class="legal-wrap"><div class="legal"><div class="shell col g16">
@@ -804,7 +815,7 @@ a.presscite h3{text-decoration:underline;text-decoration-thickness:1px;text-unde
 
 <script>
 (function(){
-  /* Daily 19:00 America/New_York, including DST transitions. */
+  /* One live session: Thu Oct 29, 7 PM ET. Sales close at 5:30 PM PT / 8:30 PM ET, after the pitch. */
   var nextSession = CloneSchedule.nextSession;
   var target=nextSession();
   function p(v){return String(v).padStart(2,'0')}
@@ -819,13 +830,22 @@ a.presscite h3{text-decoration:underline;text-decoration-thickness:1px;text-unde
   }
   document.getElementById('when').innerHTML=whenLabel(target);
   var cd=document.getElementById('cd'),D=document.getElementById('d'),H=document.getElementById('h'),
-      M=document.getElementById('m'),S=document.getElementById('s');
+      M=document.getElementById('m'),S=document.getElementById('s'),closed=false;
+  function closedState(){
+    if(closed)return; closed=true;
+    document.documentElement.classList.add('sales-closed');
+    [].forEach.call(document.querySelectorAll('a.cta'),function(a){
+      // Off the checkout URL: no popup, no checkout, no add_to_cart.
+      if(!a.closest('#lead')){a.textContent='Registration Closed';a.removeAttribute('href');a.setAttribute('aria-disabled','true');}
+    });
+  }
   function tick(){
-    var ms=target-new Date();
-    if(ms<=0){target=nextSession();document.getElementById('when').innerHTML=whenLabel(target);ms=target-new Date();}
+    var ms=Math.max(0,target-new Date());
+    if(CloneSchedule.isClosed())closedState();
     var s=Math.floor(ms/1000),dd=Math.floor(s/86400),hh=Math.floor(s%86400/3600),
         mm=Math.floor(s%3600/60),ss=s%60;
-    cd.textContent=p(dd)+'d : '+p(hh)+'h : '+p(mm)+'m : '+p(ss)+'s';
+    if(ms>0)cd.textContent=p(dd)+'d : '+p(hh)+'h : '+p(mm)+'m : '+p(ss)+'s';
+    else{ document.getElementById('cdl').style.display='none'; cd.textContent=CloneSchedule.phase()==='live'?'Live now':'Ended'; }
     D.textContent=p(dd);H.textContent=p(hh);M.textContent=p(mm);S.textContent=p(ss);
   }
   tick();setInterval(tick,1000);
@@ -863,11 +883,11 @@ a.presscite h3{text-decoration:underline;text-decoration-thickness:1px;text-unde
         <input type="text" id="lead_name" name="name" placeholder="Full Name..." autocomplete="name">
         <input type="email" id="lead_email" name="email" placeholder="Email Address..." autocomplete="email">
         <input type="tel" id="lead_phone" name="phone" placeholder="Phone Number (optional)..." autocomplete="tel" aria-label="Phone number (optional)">
-        <label class="lead-consent" for="lead_sms_consent">
+        <label class="lead-consent" for="lead_sms_consent" hidden>
           <input type="checkbox" id="lead_sms_consent" name="smsConsent" value="yes" data-consent-version="clone-sms-2026-10-07-v1">
           <span>By checking this box, I agree to receive automated text reminders about The Clone Method from Jon Mac at the number above. Up to 7 messages per session. Message and data rates may apply. Reply STOP to opt out or HELP for help. Consent is not a condition of purchase. <a href="terms.html" target="_blank" rel="noopener">Terms</a> &amp; <a href="privacy.html" target="_blank" rel="noopener">Privacy</a>.</span>
         </label>
-        <p class="lead-err" id="leaderr" role="alert">Enter your name and a valid email. A valid phone number is required only if you request text reminders.</p>
+        <p class="lead-err" id="leaderr" role="alert">Enter your name and a valid email. If you add a phone number, it must be valid.</p>
         <button type="submit" class="lead-go">Go To Step #2 &rarr;</button>
       </form>
     </div>
@@ -878,14 +898,14 @@ a.presscite h3{text-decoration:underline;text-decoration-thickness:1px;text-unde
       </div>
       <div class="lead-sum">
         <div class="hd"><span>Item</span><span>Price</span></div>
-        <div><span>The Clone Method &mdash; Live Training</span><span>$47.00</span></div>
+        <div><span>The Clone Method: Live Training</span><span>$47.00</span></div>
         <div class="tot"><span>Total</span><span>$47.00</span></div>
       </div>
       <p class="lead-err" id="payerr" style="margin:0 0 12px"></p>
-      <button type="button" class="lead-go" id="paygo" disabled>Complete Order &mdash; $47</button>
+      <button type="button" class="lead-go" id="paygo" disabled>Complete Order: $47</button>
       <div class="lead-fb">
-        <p>The checkout didn&rsquo;t load here. Finish on the secure Commas page instead &mdash; it takes under a minute.</p>
-        <a class="cta" id="leadhosted" href="https://commas.com/checkout/nmGzEY7RCWcGOKl">Complete My Order &mdash; $47 &rarr;</a>
+        <p>The checkout didn&rsquo;t load here. Finish on the secure Commas page instead. It takes under a minute.</p>
+        <a class="cta" id="leadhosted" href="https://commas.com/checkout/nmGzEY7RCWcGOKl">Complete My Order: $47 &rarr;</a>
       </div>
       <button type="button" class="lead-back" id="leadback">&larr; Edit details</button>
     </div>
@@ -894,7 +914,7 @@ a.presscite h3{text-decoration:underline;text-decoration-thickness:1px;text-unde
 </div>
 
 <script src="/clone/checkout-handoff.js?v=2"></script>
-<script src="/clone/readiness.js?v=1"></script>
+<script src="/clone/readiness.js?v=2"></script>
 <script>
 (function(){
   var SDK='https://cdn.embedded.fanbasis.io/embed/index.js',
@@ -924,7 +944,9 @@ a.presscite h3{text-decoration:underline;text-decoration-thickness:1px;text-unde
     if(window.console)console.warn('[checkout] fallback:',why);
     var attr=read('jm_attr')||{},u=new URL(HOSTED);
     Object.keys(attr).forEach(function(k){ if(attr[k])u.searchParams.set(k,attr[k]); });
-    document.getElementById('leadhosted').href=window.CloneWhop?CloneWhop.decorate(u.toString()):u.toString();
+    var hosted=document.getElementById('leadhosted');
+    if(CloneSchedule.isClosed()){hosted.textContent='Registration Closed';hosted.removeAttribute('href');hosted.setAttribute('aria-disabled','true');}
+    else hosted.href=window.CloneWhop?CloneWhop.decorate(u.toString()):u.toString();
     lead.classList.add('failed');
   }
   /* buyer details go in through the SDK setters once the form is up, never in the iframe URL */
@@ -1018,6 +1040,7 @@ a.presscite h3{text-decoration:underline;text-decoration-thickness:1px;text-unde
   /* ---- open / close ---- */
   function open(){
     var b=read(CHECKOUT_KEY);
+    if(CloneSchedule.isClosed())return;
     lead.classList.add('show');
     document.documentElement.style.overflow='hidden';
     preload();
@@ -1053,18 +1076,23 @@ a.presscite h3{text-decoration:underline;text-decoration-thickness:1px;text-unde
         email=document.getElementById('lead_email').value.trim(),
         rawPhone=document.getElementById('lead_phone').value.trim(),phone=e164(rawPhone),
         consent=document.getElementById('lead_sms_consent');
-    if(!name||!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)||((rawPhone||consent.checked)&&!phone)){err.style.display='block';return;}
+    if(!name||!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)||(rawPhone&&!phone)){err.style.display='block';return;}
     err.style.display='none';
     var sp=name.indexOf(' ');
     try{sessionStorage.setItem(CHECKOUT_KEY,JSON.stringify({
       first_name:sp<0?name:name.slice(0,sp),last_name:sp<0?'':name.slice(sp+1),email:email,phone:phone}));}catch(e){}
     var utm=null; try{utm=JSON.parse(sessionStorage.getItem('jm_attr')||'null');}catch(e){}
-    if(window.jmTrack)jmTrack('Lead',{});
-    if(window.fbq)fbq('track','Lead');
+    var ids=window.CloneWhop?CloneWhop.lead(email):{};
+    /* Lead events fire only once the server accepts the lead (2xx), never on a 410 after close. */
     fetch('/clone/api/lead'+SUFFIX,{method:'POST',headers:{'content-type':'application/json'},
       body:JSON.stringify(Object.assign({name:name,email:email,phone:phone,utm:utm,
-        smsConsent:consent.checked,smsConsentVersion:consent.dataset.consentVersion},
-        window.CloneWhop?CloneWhop.lead(email):{})),keepalive:true}).catch(function(){});
+        smsConsent:consent.checked,smsConsentVersion:consent.dataset.consentVersion},ids)),keepalive:true})
+      .then(function(r){
+        if(!r.ok)return;
+        if(window.CloneWhop)CloneWhop.leadSent(email,ids);
+        if(window.jmTrack)jmTrack('Lead',{});
+        if(window.fbq)fbq('track','Lead');
+      }).catch(function(){});
     showPay();
   });
 })();
@@ -1160,7 +1188,7 @@ window.JM_CONFIG = {
     }, { once: true });
   });
 
-  /* scroll depth — tells you which section loses people */
+  /* scroll depth: tells you which section loses people */
   var marks = [25, 50, 75, 90], hit = {};
   addEventListener('scroll', function () {
     var d = document.documentElement;
@@ -1194,11 +1222,68 @@ window.JM_CONFIG = {
       else{cmd(f,'playVideo');set('playing','Pause');}
       noCC();setTimeout(noCC,600);
     });
-    if(fs)fs.addEventListener('click',function(){
-      if(document.fullscreenElement)document.exitFullscreen();
-      else if(h.requestFullscreen)h.requestFullscreen();
-      else if(h.webkitRequestFullscreen)h.webkitRequestFullscreen();
-    });
+    if(fs){
+      function fsEl(){
+        return document.fullscreenElement||document.webkitFullscreenElement||
+               document.mozFullScreenElement||document.msFullscreenElement||null;
+      }
+      function fsUi(){
+        var el=fsEl(),on=el===h||(!el&&h.classList.contains('vv-fs-fallback')),label=on?'Exit full screen':'Full screen';
+        fs.setAttribute('aria-pressed',on?'true':'false');
+        fs.setAttribute('aria-label',label);fs.setAttribute('title',label);
+      }
+      function exitNative(){
+        var d=document;
+        try{
+          if(d.exitFullscreen)return d.exitFullscreen();
+          if(d.webkitExitFullscreen)return d.webkitExitFullscreen();
+          if(d.mozCancelFullScreen)return d.mozCancelFullScreen();
+          if(d.msExitFullscreen)return d.msExitFullscreen();
+        }catch(e){}
+      }
+      function enterFallback(){
+        h.classList.add('vv-fs-fallback');
+        document.documentElement.classList.add('vv-fs-lock');
+        document.body.classList.add('vv-fs-lock');
+        fsUi();
+      }
+      function exitFallback(){
+        h.classList.remove('vv-fs-fallback');
+        document.documentElement.classList.remove('vv-fs-lock');
+        document.body.classList.remove('vv-fs-lock');
+        fsUi();
+      }
+      function enterNative(){
+        var req=h.requestFullscreen||h.webkitRequestFullscreen||h.mozRequestFullScreen||h.msRequestFullscreen;
+        if(!req)return false;
+        var p=null;
+        try{p=req.call(h);}catch(e){return false;}
+        if(p&&typeof p.then==='function'){
+          p.then(function(){fsEl()?fsUi():enterFallback();},function(){enterFallback();});
+        }else{
+          setTimeout(function(){fsEl()?fsUi():enterFallback();},300);
+        }
+        return true;
+      }
+      fs.addEventListener('click',function(e){
+        if(e){e.preventDefault();e.stopPropagation();}
+        if(fsEl()){exitNative();return;}
+        if(h.classList.contains('vv-fs-fallback')){exitFallback();return;}
+        /* iPhone Safari only allows webkitEnterFullscreen on a real video element */
+        var v=h.querySelector('video');
+        if(v&&v.webkitEnterFullscreen){
+          try{v.webkitEnterFullscreen();fsUi();return;}catch(err){}
+        }
+        if(!enterNative())enterFallback();
+      });
+      ['fullscreenchange','webkitfullscreenchange','mozfullscreenchange','MSFullscreenChange'].forEach(function(ev){
+        document.addEventListener(ev,fsUi);
+      });
+      document.addEventListener('keydown',function(e){
+        if((e.key==='Escape'||e.keyCode===27)&&h.classList.contains('vv-fs-fallback'))exitFallback();
+      });
+      fsUi();
+    }
   });
 })();
 </script>

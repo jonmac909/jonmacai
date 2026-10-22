@@ -21,20 +21,10 @@
 
   async function post(path, body) {
     var response = await fetch('/clone/api/' + path + suffix, { method: 'POST', credentials: 'same-origin',
-      headers: { 'content-type': 'application/json' }, body: JSON.stringify(body), signal: AbortSignal.timeout(path === 'upsell' ? 90000 : 20000) });
+      headers: { 'content-type': 'application/json' }, body: JSON.stringify(body), signal: AbortSignal.timeout(path === 'upsell' ? 180000 : 20000) });
     return response.json();
   }
-  async function verifyBuyer() {
-    var ref;
-    try { ref = sessionStorage.getItem(storagePrefix + 'transaction'); } catch (e) {}
-    for (var i = 0; i < 12; i++) {
-      var result = await post('buyer-session', { transactionId: ref || undefined });
-      if (!result.pending) return result.ok;
-      await new Promise(function (resolve) { setTimeout(resolve, 1000); });
-    }
-    return false;
-  }
-  buyerReady = verifyBuyer().catch(function () { return false; });
+  buyerReady = CloneGate.verify();
 
   function disable(value) {
     busy = value;
@@ -53,7 +43,7 @@
     disable(true);
     if (panel) panel.remove();
     var old = button.innerHTML;
-    button.innerHTML = '<span class="upsell-spinner" aria-hidden="true"></span>Processing your order…';
+    button.innerHTML = '<span class="upsell-spinner" aria-hidden="true"></span>Processing your order, about a minute…';
     button.setAttribute('aria-busy', 'true');
     var result;
     var group = ['software', 'trial'].includes(button.dataset.upsell) ? 'software' :
@@ -65,13 +55,18 @@
       // Persist BEFORE dispatch so a refresh during the charge also stays safe.
       try { sessionStorage.setItem(pendingKey, '1'); } catch (e) {}
       var slow = setTimeout(function () {
-        button.innerHTML = '<span class="upsell-spinner" aria-hidden="true"></span>Still processing — this can take up to a minute. Please don’t refresh.';
+        button.innerHTML = '<span class="upsell-spinner" aria-hidden="true"></span>Still processing. This can take up to two minutes. Please don’t refresh.';
       }, 6000);
       try { result = await post('upsell', { offer: button.dataset.upsell }); } finally { clearTimeout(slow); }
     } catch (e) {
       // A network failure can happen AFTER billing. A repeat checks the durable
       // claim and cannot submit a second charge; never expose hosted checkout here.
       result = { pending: true, message: 'We could not confirm your payment yet. Check its status before placing another order.' };
+    }
+    if (result.closed) {
+      // Sales are closed and this browser has no verified purchase: no checkout, no retry.
+      button.innerHTML = old; button.removeAttribute('aria-busy');
+      message(button, result.message || 'Registration is closed.'); return;
     }
     if (hadPending && result.fallback && ['buyer_unverified', 'unavailable'].includes(result.reason)) {
       result = { pending: true, message: 'Your earlier payment still needs confirmation. Contact support before placing another order.' };

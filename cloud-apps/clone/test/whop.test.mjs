@@ -34,18 +34,17 @@ function mockResend(url) {
   return Response.json(String(url).endsWith('/events/send') ? { object: 'event', event: 'clone.purchase' } :
     String(url).includes('/contacts/') ? { unsubscribed: false } : { id: 'fixture-resend-email' });
 }
-test('daily Eastern schedule and recurring calendar stay at 19:00 over DST, weekends and year boundaries', () => {
+test('one live session: Thu Oct 29 7 PM ET, sales close 5:30 PM PT (8:30 PM ET), no rollover and no recurring calendar', () => {
   const scope = { Intl, Date }; vm.createContext(scope);
   vm.runInContext(readFileSync(new URL('../public/schedule.js', import.meta.url), 'utf8'), scope);
-  for (const [now, expected] of [
-    ['2026-10-09T22:59:59Z', '2026-10-09T23:00:00Z'], // Friday
-    ['2026-10-09T23:00:00Z', '2026-10-10T23:00:00Z'], // Exact start -> Saturday
-    ['2026-10-10T23:00:01Z', '2026-10-11T23:00:00Z'],
-    ['2026-10-31T23:00:01Z', '2026-11-02T00:00:00Z'], // Fall DST tomorrow
-    ['2026-03-08T00:00:01Z', '2026-03-08T23:00:00Z'], // Spring DST tomorrow
-    ['2027-01-01T00:00:01Z', '2027-01-02T00:00:00Z'],
-  ]) assert.equal(scope.CloneSchedule.nextSession(new Date(now)).toISOString(), new Date(expected).toISOString(), now);
-  assert.equal(scope.CloneSchedule.calendarDates(new Date('2026-11-02T00:00:00Z')), '20261101T190000/20261101T210000');
+  const s = scope.CloneSchedule;
+  for (const now of ['2026-10-09T22:59:59Z', '2026-10-29T23:00:01Z', '2026-11-02T00:00:00Z', '2027-01-01T00:00:01Z']) {
+    assert.equal(s.nextSession(new Date(now)).toISOString(), '2026-10-29T23:00:00.000Z', now);
+  }
+  assert.equal(s.isClosed(new Date('2026-10-30T00:29:59Z')), false);
+  assert.equal(s.isClosed(new Date('2026-10-30T00:30:00Z')), true);
+  assert.deepEqual(['2026-10-29T22:59:59Z', '2026-10-29T23:00:00Z', '2026-10-30T01:00:00Z'].map(at => s.phase(new Date(at))), ['before', 'live', 'ended']);
+  assert.equal(s.calendarDates(s.nextSession()), '20261029T190000/20261029T210000');
 });
 test('Whop URL/identity normalisation excludes secrets and preserves Whop attribution', () => {
   assert.equal(normalizeWhopPageUrl('https://jonmac.ai/clone/?waid=a&wacid=c&wasid=s&email=private&token=private#hash'), 'https://jonmac.ai/clone/?waid=a&wacid=c&wasid=s');

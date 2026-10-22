@@ -6,7 +6,8 @@ import { buyerSession, checkoutContext, recordPurchaseProof, sameOrigin, upsell,
 import { deliverWhopEvent, enqueueWhopEvent, flushWhopEvents, whopAttribution, whopPurchaseFromVerifiedPayment } from './whop-events.js';
 import { deliverMetaEvent, enqueueMetaEvent, flushMetaEvents, metaAttribution, metaConfigured, metaPaymentFromWebhook, metaPurchase } from './meta-events.js';
 import { purchaseReminders, retryReminders, unsubscribeReminders } from './reminders.js';
-import { consentEvidence, readinessConfig } from './readiness.js';
+import { salesClosed } from './reminder-plan.js';
+import { consentEvidence, readinessConfig, smsSendingEnabled } from './readiness.js';
 import { recordScorecardPayment, recordVisit, sessionDate } from './scorecard.js';
 
 export default {
@@ -92,6 +93,7 @@ export default {
 };
 
 async function handleLead(request, env) {
+  if (salesClosed()) return json({ ok: false, error: 'sales_closed' }, 410);
   let data;
   try {
     data = await request.json();
@@ -102,7 +104,7 @@ async function handleLead(request, env) {
   const email = String(data.email || "").trim().toLowerCase();
   const name = String(data.name || "").trim().slice(0, 120);
   let consent;
-  try { consent = consentEvidence(data); }
+  try { consent = consentEvidence(data, Date.now(), smsSendingEnabled()); }
   catch (error) { return json({ ok: false, error: error.message }, 400); }
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) {
     return json({ ok: false, error: "invalid email" }, 400);
@@ -171,7 +173,7 @@ async function handleLead(request, env) {
         to: email,
         reply_to: env.RESEND_REPLY_TO || undefined,
         subject: "Your seat isn't saved yet",
-        text: `${firstName ? firstName + " — " : ""}you're one step from your seat at The Clone Method live training (daily at 7:00 PM ET).
+        text: `${firstName ? firstName + " — " : ""}you're one step from your seat at The Clone Method live training (Thursday, October 29, 7:00 PM ET).
 
 Finish here, it takes under a minute:
 ${checkout}
@@ -197,6 +199,7 @@ const cachedSessions = new Map();
 
 async function handleCheckoutSession(request, env) {
   if (!sameOrigin(request)) return json({ ok: false, error: 'origin' }, 403);
+  if (salesClosed()) return json({ ok: false, error: 'sales_closed' }, 410);
   const config = paymentConfig(env);
   if (!config.apiKey) return json({ ok: false, error: "checkout not configured" }, 503);
   const context = await checkoutContext(request, env);

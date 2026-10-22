@@ -7,6 +7,7 @@ import { pathToFileURL } from 'node:url';
 import { chromium } from 'playwright';
 import { OFFERS } from '../src/payment-config.js';
 import { customerId } from '../src/upsells.js';
+import { salesClosed } from '../src/reminder-plan.js';
 
 export const CASES = [
   { name: 'full funnel', offers: ['software', 'audit', 'vault'] },
@@ -188,6 +189,22 @@ export async function runSandbox(options = {}) {
     return c;
   }
   try {
+    if (salesClosed(options.now)) {
+      // After the Oct 29 5:30 PM PT cutoff the funnel cannot sell, so the live run checks the closed state instead.
+      stage = 'sales closed checks';
+      const context = await browser.newContext({ serviceWorkers: 'block', ignoreHTTPSErrors: ['localhost', '127.0.0.1'].includes(base.hostname) });
+      try {
+        await login(context);
+        const send = (route, data) => context.request.post(apiUrl(route), { headers: { origin: base.origin, ...(versionHeader || {}) }, data });
+        for (const [route, data] of [['checkout-session', {}], ['lead', { name: 'Closed Check', email: 'closed-check@example.test' }],
+          ...Object.keys(OFFERS).map(offer => ['upsell', { offer }])]) {
+          const r = await send(route, data), body = await r.json();
+          assert.equal(r.status(), 410, route); assert.equal(body.error, 'sales_closed'); assert.equal(body.checkoutUrl, undefined);
+        }
+      } finally { await context.close(); }
+      report.salesClosed = true; report.checkoutCount = 0;
+      return report;
+    }
     const runId = Date.now().toString(36);
     // Stress mode: N fresh buyers, each one-clicking every upsell at buyer speed.
     // Even buyers take $97/mo + $497 + $297; odd buyers take the $1 trial + $497 + 3 x $99.
@@ -251,12 +268,13 @@ export async function runSandbox(options = {}) {
         // Read the real response before the page's immediate success redirect
         // disposes it. Forward the unchanged response to the browser.
         await context.route(apiUrl('upsell'), async route => {
-          const response = await route.fetch({ maxRetries: 0, maxRedirects: 0, timeout: 120000,
+          // Same ceiling as the page, so the harness never outwaits the buyer's browser.
+          const response = await route.fetch({ maxRetries: 0, maxRedirects: 0, timeout: 180000,
             ...(versionHeader ? { headers: { ...route.request().headers(), ...versionHeader } } : {}) });
           upsellResults.push(await response.json());
           await route.fulfill({ response });
         });
-        const nextUpsell = () => until(() => upsellResults.shift(), 'Upsell response timed out', 120000);
+        const nextUpsell = () => until(() => upsellResults.shift(), 'Upsell response timed out', 180000);
         const email = `clone-sandbox-${runId}-${stressOffset + index}-${Math.random().toString(36).slice(2, 6)}@example.test`;
         await page.goto(pageUrl(''));
         assert.equal(await page.evaluate(() => window.CloneMode?.environment), 'sandbox');
@@ -368,7 +386,7 @@ export async function runSandbox(options = {}) {
           if (outcome.ok) lastCharge = Date.now();
           stage = testCase.name + ': reconcile ' + name;
           const replay = () => context.request.post(apiUrl('upsell'), { headers: { origin: base.origin }, data: { offer: name } });
-          if (name === 'trial' || (OFFERS[name].recurring && !c.subscriptionsEnabled)) {
+          if (((name === 'trial' || OFFERS[name].recurring) && !c.subscriptionsEnabled)) {
             // Commas' saved-card charge cannot create a subscription (docs: no product
             // or plan field), so recurring offers and the trial always use hosted checkout.
             assert.equal(outcome.fallback, true); assert.equal(outcome.reason, name === 'trial' ? 'trial_hosted' : 'rebill_unavailable');
@@ -393,7 +411,7 @@ export async function runSandbox(options = {}) {
           // after the charge description, not under the configured product.
           const isNew = x => !recordsBefore.some(b => b.id === x.id);
           const charged = await until(async () => {
-            const rows = (await records()).filter(x => isNew(x) && x.product?.title === OFFERS[name].description); return rows.length ? rows : false;
+            const rows = (await records()).filter(x => isNew(x) && x.product?.title === (OFFERS[name].chargeDescription || OFFERS[name].description)); return rows.length ? rows : false;
           }, 'Upsell charge absent from sandbox records');
           assert.equal(charged.length, 1, 'More than one upsell charge');
           const adhoc = charged[0].product.id;
