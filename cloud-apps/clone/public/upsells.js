@@ -55,7 +55,7 @@
       // Persist BEFORE dispatch so a refresh during the charge also stays safe.
       try { sessionStorage.setItem(pendingKey, '1'); } catch (e) {}
       var slow = setTimeout(function () {
-        button.innerHTML = '<span class="upsell-spinner" aria-hidden="true"></span>Still processing. This can take up to a minute. Please don’t refresh.';
+        button.innerHTML = '<span class="upsell-spinner" aria-hidden="true"></span>Still processing. This can take up to two minutes. Please don’t refresh.';
       }, 6000);
       try { result = await post('upsell', { offer: button.dataset.upsell }); } finally { clearTimeout(slow); }
     } catch (e) {

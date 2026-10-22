@@ -415,7 +415,7 @@ test('Commas duplicate-charge timing: 60 s retry and next-minute pacing', async 
     assert.equal(retryDelay({ CLONE_CHARGE_RETRY_MS: 'soon' }), 60000);
   });
   await t.test('pacing targets the first full minute after the last charge, plus 3 s', () => {
-    const last = 1700000000000; // 13 s past a minute boundary
+    const last = 1700000000000; // 20 s past a minute boundary
     const at = nextChargeAt(last, {});
     assert.equal(at, Math.floor(last / 60000) * 60000 + 63000);
     assert.equal(at % 60000, 3000, 'lands 3 s after the boundary');
