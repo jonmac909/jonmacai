@@ -4,7 +4,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { createHmac } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import worker from '../src/index.js';
-import { buyerSession, checkoutContext, customerId, hash, OFFERS, sign, upsell } from '../src/upsells.js';
+import { buyerSession, checkoutContext, customerId, hash, nextChargeAt, OFFERS, retryDelay, sign, upsell } from '../src/upsells.js';
 
 const origin = 'https://jonmac.ai';
 const now = () => Math.floor(Date.now() / 1000);
@@ -185,7 +185,12 @@ test('Clone one-click payments: verified identity, durable claims and safe fallb
       const e = { ...env(), CLONE_CHARGE_RETRY_MS: '0' }, cookie = await buyerCookie(e); let n = 0;
       const calls = mockCommas({ charge: (url, init) => replies[n++] || response({ status: 'succeeded', charge_id: 'mock-retry', amount: JSON.parse(init.body).amount_cents / 100 }) });
       const r = await (await upsell(request('upsell', { offer: 'audit' }, cookie), e)).json();
-      assert.equal(r.ok === true, ok); if (!ok) assert.equal(r.reason, 'payment_rejected');
+      assert.equal(r.ok === true, ok);
+      if (!ok) {
+        assert.equal(r.reason, 'payment_rejected');
+        // After the second refusal the buyer is told plainly nothing was charged.
+        assert.match(r.message, /after retrying, and your card was not charged/);
+      }
       const charges = calls.filter(c => c.url.endsWith('/charge'));
       assert.equal(charges.length, 2);
       assert.notEqual(charges[0].headers['Idempotency-Key'], charges[1].headers['Idempotency-Key']);
@@ -397,5 +402,32 @@ test('after sales close an unverified visitor gets no checkout, a verified buyer
     const r = await upsell(request('upsell', { offer: 'audit' }, cookie), e), body = await r.json();
     assert.equal(r.status, 200); assert.equal(body.ok, true);
     assert.equal(calls.filter(c => c.url.endsWith('/charge')).length, 1);
+  });
+});
+
+test('Commas duplicate-charge timing: 60 s retry and next-minute pacing', async t => {
+  await t.test('the retry waits 60 s by default and never more', () => {
+    assert.equal(retryDelay({}), 60000, 'default equals Phil Shaw recommendation');
+    assert.equal(retryDelay({ CLONE_CHARGE_RETRY_MS: '0' }), 0);
+    assert.equal(retryDelay({ CLONE_CHARGE_RETRY_MS: '60000' }), 60000);
+    assert.equal(retryDelay({ CLONE_CHARGE_RETRY_MS: '120000' }), 60000, 'above the cap falls back to 60 s');
+    assert.equal(retryDelay({ CLONE_CHARGE_RETRY_MS: '-1' }), 60000);
+    assert.equal(retryDelay({ CLONE_CHARGE_RETRY_MS: 'soon' }), 60000);
+  });
+  await t.test('pacing targets the first full minute after the last charge, plus 3 s', () => {
+    const last = 1700000000000; // 13 s past a minute boundary
+    const at = nextChargeAt(last, {});
+    assert.equal(at, Math.floor(last / 60000) * 60000 + 63000);
+    assert.equal(at % 60000, 3000, 'lands 3 s after the boundary');
+    assert.ok(at - last > 0 && at - last <= 63000, 'never waits more than 63 s');
+    // Already on the boundary still means the next minute, not this one.
+    assert.equal(nextChargeAt(1700000040000, {}), 1700000040000 + 63000);
+  });
+  await t.test('gap overrides stay test-only and cap at one minute', () => {
+    const last = 1700000000000;
+    assert.equal(nextChargeAt(last, { CLONE_CHARGE_GAP_MS: '0' }), last);
+    assert.equal(nextChargeAt(last, { CLONE_CHARGE_GAP_MS: '400' }), last + 400);
+    assert.equal(nextChargeAt(last, { CLONE_CHARGE_GAP_MS: '90000' }), last + 60000);
+    assert.equal(nextChargeAt(last, { CLONE_SANDBOX_CHARGE_GAP_MS: '5', CLONE_PAYMENT_MODE: 'sandbox' }), last + 5);
   });
 });

@@ -21,7 +21,7 @@
 
   async function post(path, body) {
     var response = await fetch('/clone/api/' + path + suffix, { method: 'POST', credentials: 'same-origin',
-      headers: { 'content-type': 'application/json' }, body: JSON.stringify(body), signal: AbortSignal.timeout(path === 'upsell' ? 90000 : 20000) });
+      headers: { 'content-type': 'application/json' }, body: JSON.stringify(body), signal: AbortSignal.timeout(path === 'upsell' ? 180000 : 20000) });
     return response.json();
   }
   buyerReady = CloneGate.verify();
@@ -43,7 +43,7 @@
     disable(true);
     if (panel) panel.remove();
     var old = button.innerHTML;
-    button.innerHTML = '<span class="upsell-spinner" aria-hidden="true"></span>Processing your order…';
+    button.innerHTML = '<span class="upsell-spinner" aria-hidden="true"></span>Processing your order, about a minute…';
     button.setAttribute('aria-busy', 'true');
     var result;
     var group = ['software', 'trial'].includes(button.dataset.upsell) ? 'software' :
@@ -55,7 +55,7 @@
       // Persist BEFORE dispatch so a refresh during the charge also stays safe.
       try { sessionStorage.setItem(pendingKey, '1'); } catch (e) {}
       var slow = setTimeout(function () {
-        button.innerHTML = '<span class="upsell-spinner" aria-hidden="true"></span>Still processing — this can take up to a minute. Please don’t refresh.';
+        button.innerHTML = '<span class="upsell-spinner" aria-hidden="true"></span>Still processing. This can take up to a minute. Please don’t refresh.';
       }, 6000);
       try { result = await post('upsell', { offer: button.dataset.upsell }); } finally { clearTimeout(slow); }
     } catch (e) {

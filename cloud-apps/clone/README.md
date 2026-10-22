@@ -196,10 +196,25 @@ to Commas, whose own duplicate protection lasts only ten minutes. An explicit
 rejection permits hosted checkout; timeout, HTTP 409/5xx, malformed success or
 failure to persist the successful charge stays locked. The page offers **Check
 Payment Status**, never another checkout for an uncertain payment. Such claims
-need manual reconciliation with Commas; no automatic charge retry exists. A
-browser pending marker survives refreshes and prevents an expired session from
-offering another checkout. An authentic expired buyer token can inspect an
-existing claim, but cannot authorize a new charge.
+need manual reconciliation with Commas. A browser pending marker survives
+refreshes and prevents an expired session from offering another checkout. An
+authentic expired buyer token can inspect an existing claim, but cannot
+authorize a new charge.
+
+Commas also blocks a second saved-card charge on the same card until the next
+full minute starts, so the wait is 0 to 60 s, not a fixed timer (Phil Shaw,
+Commas, Oct 22 2026; production and sandbox behave the same). Two things handle
+that block. Before the first attempt the Worker waits until the next wall-clock
+minute after the buyer's last charge, including the $47 seat purchase, plus a
+3 s buffer, so the first attempt normally succeeds. If Commas still refuses
+with "Oops! Something went wrong" and no payment intent, the Worker waits 60 s
+(`CLONE_CHARGE_RETRY_MS`, default and maximum 60000) and retries once with a new
+`-retry` Idempotency-Key. A second refusal returns `payment_rejected` with the
+message "your card was not charged" plus the hosted checkout, and the locked
+claim still prevents any further charge. Unknown outcomes never retry. The
+buyer sees "Processing your order, about a minute" from the first click, and the
+page waits up to 180 s for the response. `CLONE_CHARGE_GAP_MS` and
+`CLONE_SANDBOX_CHARGE_GAP_MS` override the minute-boundary pacing for tests only.
 
 The installed D1 database is `jonmacai-clone-upsells`. The production Worker
 and webhook remain in place; sandbox needs its own webhook subscription. Existing secrets remain on `jonmac-agency`; the release

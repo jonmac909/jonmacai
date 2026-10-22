@@ -268,12 +268,13 @@ export async function runSandbox(options = {}) {
         // Read the real response before the page's immediate success redirect
         // disposes it. Forward the unchanged response to the browser.
         await context.route(apiUrl('upsell'), async route => {
-          const response = await route.fetch({ maxRetries: 0, maxRedirects: 0, timeout: 120000,
+          // The Worker can wait out the minute boundary plus one 60 s retry.
+          const response = await route.fetch({ maxRetries: 0, maxRedirects: 0, timeout: 200000,
             ...(versionHeader ? { headers: { ...route.request().headers(), ...versionHeader } } : {}) });
           upsellResults.push(await response.json());
           await route.fulfill({ response });
         });
-        const nextUpsell = () => until(() => upsellResults.shift(), 'Upsell response timed out', 120000);
+        const nextUpsell = () => until(() => upsellResults.shift(), 'Upsell response timed out', 200000);
         const email = `clone-sandbox-${runId}-${stressOffset + index}-${Math.random().toString(36).slice(2, 6)}@example.test`;
         await page.goto(pageUrl(''));
         assert.equal(await page.evaluate(() => window.CloneMode?.environment), 'sandbox');

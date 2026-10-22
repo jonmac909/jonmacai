@@ -139,14 +139,20 @@ export async function buyerSession(request, env) {
   } catch { return json({ ok: false, fallback: true }, 503); }
 }
 
-function retryDelay(env) {
+// Commas clears its duplicate-charge block when the next full minute starts, so a
+// retry may have to wait up to 60 s. Phil Shaw (Commas) recommends a 60 s retry.
+export function retryDelay(env) {
   const value = Number(env.CLONE_CHARGE_RETRY_MS);
-  return Number.isFinite(value) && value >= 0 && value <= 20000 ? value : 20000;
+  return Number.isFinite(value) && value >= 0 && value <= 60000 ? value : 60000;
 }
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
-function chargeGap(env) {
+const MINUTE = 60000, MINUTE_BUFFER = 3000;
+// The provider blocks a second saved-card charge until the next wall-clock minute.
+// Unless a test overrides the gap, start the charge just after that boundary.
+export function nextChargeAt(lastAt, env) {
   const value = Number(isSandbox(env) ? env.CLONE_SANDBOX_CHARGE_GAP_MS : env.CLONE_CHARGE_GAP_MS);
-  return Number.isFinite(value) && value >= 0 ? Math.min(value, 60000) : 36000;
+  if (Number.isFinite(value) && value >= 0) return lastAt + Math.min(value, MINUTE);
+  return Math.floor(lastAt / MINUTE) * MINUTE + MINUTE + MINUTE_BUFFER;
 }
 function refusedBeforePayment(charge) {
   const result = charge.body?.data?.result;
@@ -191,9 +197,9 @@ export async function recordOneClickSale(env, { name, offer, buyerId, customer, 
   } catch { /* retried by the cron flush */ }
 }
 
-function fallback(offer, reason = 'unavailable') {
+function fallback(offer, reason = 'unavailable', message) {
   return json({ ok: false, fallback: true, reason, checkoutUrl: offer.hosted,
-    message: 'This offer needs secure checkout to finish. Continue with Commas below.' });
+    message: message || 'This offer needs secure checkout to finish. Continue with Commas below.' });
 }
 function pending() {
   return json({ ok: false, pending: true, message: 'Your payment is still being confirmed. Check again before placing another order.' }, 202);
@@ -279,12 +285,13 @@ export async function upsell(request, env) {
     if (!card) { await finish('fallback'); return fallback(offer, 'no_saved_card'); }
     const idempotency = (isSandbox(env) ? 'clone-sandbox-' : 'clone-') + await hash(`${buyerId}:${offer.group}`);
     // Commas refuses ("Oops! Something went wrong", no payment intent) a saved-card
-    // charge on a customer within ~32 s of that customer's previous successful charge
-    // (sandbox, Oct 15 2026: 14/15 refused inside 32 s, 36/36 accepted otherwise).
-    // Wait out that window from the buyer's last charge, including the $47 purchase.
+    // charge on the same card until the next full minute after that card's previous
+    // charge (Phil Shaw, Oct 22 2026: the window is 0 to 60 s, not a fixed timer).
+    // Start just after that boundary so the first attempt usually succeeds, and
+    // still fall back to one 60 s retry below.
     const last = await db.prepare(`SELECT MAX(charged_at) AS at FROM ${table(env, 'upsell_claims')} WHERE buyer_id = ? AND state = 'charged'`).bind(buyerId).first();
-    const wait = Math.max(buyer.purchased, Number(last?.at) || 0) + chargeGap(env) - Date.now();
-    if (wait > 0) await sleep(Math.min(wait, chargeGap(env)));
+    const wait = nextChargeAt(Math.max(buyer.purchased, Number(last?.at) || 0), env) - Date.now();
+    if (wait > 0) await sleep(Math.min(wait, MINUTE + MINUTE_BUFFER));
     const body = JSON.stringify({ payment_method_id: card.id, amount_cents: offer.cents, description: offer.chargeDescription || offer.description,
       service_id: p.product.id });
     const refusals = [];
@@ -295,7 +302,8 @@ export async function upsell(request, env) {
       charge = await commas(env, '/customers/' + buyerId + '/charge', {
         method: 'POST', headers: { 'Idempotency-Key': attempt === 1 ? idempotency : idempotency + '-retry' }, body });
       // Retry once, only when Commas says no payment was started. Unknown outcomes
-      // (timeouts, 409, 5xx, malformed) never retry.
+      // (timeouts, 409, 5xx, malformed) never retry. The retry waits out the full
+      // minute-long duplicate-charge window; a second refusal is a clear failure.
       if (attempt === 1 && refusedBeforePayment(charge) && env[(isSandbox(env) ? 'CLONE_SANDBOX_' : 'CLONE_') + 'CHARGE_RETRY'] !== 'false') {
         refusals.push(providerNote(charge)); await sleep(retryDelay(env)); continue;
       }
@@ -317,7 +325,11 @@ export async function upsell(request, env) {
       const unavailable = ['rebill_not_enabled', 'no_authorized_subscription', 'card_on_file_not_enabled'].includes(code) ||
         /no authorized subscription found|(?:manual\s+)?rebill(?:ing)?\b.{0,100}(?:not\s+(?:been\s+)?enabled|disabled)|card\s+on\s+file\b.{0,100}(?:not\s+enabled|disabled)/i.test(message);
       await finish('fallback');
-      const result = await fallback(offer, unavailable ? 'rebill_unavailable' : 'payment_rejected').json();
+      // Both attempts refused: say plainly that nothing was charged, so the buyer
+      // finishes on hosted checkout instead of clicking again.
+      const refusedTwice = !unavailable && refusals.length > 1;
+      const result = await fallback(offer, unavailable ? 'rebill_unavailable' : 'payment_rejected',
+        refusedTwice ? 'We could not complete this upgrade after retrying, and your card was not charged. Use the secure checkout below to finish.' : undefined).json();
       return json({ ...result, ...diagnostics, ...(isSandbox(env) ? { provider: providerNote(charge) } : {}) });
     }
     await finish('unknown'); return pending();
