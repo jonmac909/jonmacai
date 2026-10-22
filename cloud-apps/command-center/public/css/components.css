@@ -387,3 +387,36 @@ tfoot td{font-weight:600;color:var(--ink);border-top:1px solid var(--line)}
 .drafts[open]>summary::after{content:"Hide"}
 .drafts>summary h2{margin:0;font-size:1rem}
 .drafts[open]>summary{margin-bottom:.8rem;padding-bottom:.6rem;border-bottom:1px solid var(--line)}
+
+/* Jon's tasks: a clean phone-style list, tabs on top, no borders between rows */
+.jtcard{max-width:40rem;min-width:0;margin:0 auto 1.2rem;padding:1.1rem 1.25rem 1.4rem}
+.jttabs{display:flex;gap:1.7rem;border-bottom:1px solid var(--line)}
+.jttab{background:none;border:0;margin:0 0 -1px;padding:.15rem 0 .7rem;font:inherit;font-size:1.02rem;font-weight:700;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent}
+.jttab.on{color:var(--ink);border-bottom-color:var(--ink)}
+.jttab:hover{color:var(--ink-2)}
+.jtmeta{display:flex;justify-content:space-between;gap:1rem;margin:.65rem 0 .2rem;font-size:.79rem;color:var(--muted)}
+.jtlist{list-style:none;margin:0;padding:0}
+.jtrow{display:flex;align-items:flex-start;gap:.75rem;padding:.85rem 0;min-width:0;border-radius:.5rem}
+.jtrow.islink{cursor:pointer}
+.jtrow.islink:hover .jtt{color:var(--accent)}
+.jtbox{flex:0 0 1.15rem;width:1.15rem;height:1.15rem;margin-top:.1rem;border:1.5px solid var(--idle-line);border-radius:.35rem;display:grid;place-items:center;color:#fff;background:var(--card)}
+.jtrow.isdone .jtbox{background:var(--ok-fill);border-color:var(--ok-fill)}
+.jtbox .ic{width:.8rem;height:.8rem}
+.jtbody{display:flex;flex-direction:column;min-width:0;flex:1}
+.jtt{font-size:1rem;font-weight:650;line-height:1.3;color:var(--ink);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere}
+.jtrow.isdone .jtt{color:var(--muted);text-decoration:line-through;text-decoration-thickness:1px}
+.jts{display:flex;align-items:baseline;gap:.35rem;min-width:0;margin-top:.22rem;font-size:.82rem;color:var(--muted)}
+.jts i{font-style:normal;color:var(--idle-line)}
+.jtstat{font-weight:600;white-space:nowrap}
+.jtstat.ok{color:var(--ok-ink)} .jtstat.blue{color:var(--accent)} .jtstat.crit{color:var(--crit-ink)} .jtstat.idle{color:var(--muted)}
+.jtnote{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--muted)}
+.jtm{display:flex;align-items:center;gap:.4rem;margin-top:.3rem;font-size:.75rem;color:var(--muted)}
+.jtm i{font-style:normal;color:var(--idle-line)}
+.jttag{color:var(--ink-2)}
+.jtnone{margin:.8rem 0;font-size:.85rem;color:var(--muted)}
+.jtdone{margin-top:.9rem;border-top:1px solid var(--line);padding-top:.7rem}
+.jtdone summary{cursor:pointer;font-size:.85rem;font-weight:600;color:var(--muted);list-style:none}
+.jtdone summary::-webkit-details-marker{display:none}
+.jtdone summary::before{content:"+ ";color:var(--muted)}
+.jtdone[open] summary::before{content:"- "}
+.jtdone .jtrow{padding:.55rem 0}

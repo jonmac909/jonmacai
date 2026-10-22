@@ -407,6 +407,7 @@ export async function handleApi(request, env, ctx) {
     const collectedAt = String(body.collectedAt || '');
     if (!source || !Date.parse(collectedAt)) return json({ error: 'Bad ingest' }, 400);
     if ((source === 'agents_mac' && who !== 'mac') || (source === 'agents_gpu2' && who !== 'gpu2')
+      || (source === 'jon_tasks' && who !== 'gpu1')
       || (source.startsWith('machine_') && source !== `machine_${who}`)) {
       return json({ error: 'Unauthorized' }, 401);
     }

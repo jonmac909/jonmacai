@@ -199,6 +199,23 @@ export async function go(id, { refetch = false } = {}) {
   recount();
 }
 
+document.addEventListener('keydown', (e) => {
+  const row = e.target.closest('[role="link"][data-href]');
+  if (row && (e.key === 'Enter' || e.key === ' ')) {
+    e.preventDefault();
+    window.open(row.dataset.href, '_blank', 'noopener');
+    return;
+  }
+  const tab = e.target.closest('[data-jtab]');
+  if (tab && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
+    const tabs = [...tab.parentElement.querySelectorAll('[data-jtab]')];
+    const next = tabs[(tabs.indexOf(tab) + (e.key === 'ArrowRight' ? 1 : tabs.length - 1)) % tabs.length];
+    e.preventDefault();
+    next.focus();
+    next.click();
+  }
+});
+
 document.addEventListener('click', (e) => {
   if (e.target.id === 'nwbtn') {
     const el = document.getElementById('nw');
@@ -209,6 +226,18 @@ document.addEventListener('click', (e) => {
   }
   const th = e.target.closest('[data-theme-set]');
   if (th) { setTheme(th.dataset.themeSet); return; }
+  const jt = e.target.closest('[data-jtab]');
+  if (jt) {
+    const on = jt.dataset.jtab;
+    try { localStorage.setItem('cc-jt-tab', on); } catch {}
+    jt.parentElement.querySelectorAll('[data-jtab]').forEach((b) => {
+      const sel = b === jt;
+      b.classList.toggle('on', sel);
+      b.setAttribute('aria-selected', String(sel));
+    });
+    document.querySelectorAll('#page [data-jtpanel]').forEach((p) => { p.hidden = p.dataset.jtpanel !== on; });
+    return;
+  }
   const chip = e.target.closest('[data-chip]');
   if (chip) {
     const on = chip.dataset.chip || 'all';
