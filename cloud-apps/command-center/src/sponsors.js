@@ -2,7 +2,7 @@ const TZ = 'America/Vancouver';
 const GOAL = 10000;
 const COLUMNS = [
   'New inquiry', 'Negotiating', 'Waiting on deposit', 'Script approval',
-  'With editor', 'Video approval', 'Live · send invoice', 'Paid in September',
+  'With editor', 'Video approval', 'Live · send invoice', 'Paid',
 ];
 const STAGE_TO_COLUMN = {
   drafts: COLUMNS[0], 'new-lead': COLUMNS[0],
@@ -22,12 +22,11 @@ const COLUMN_TO_BOARD = {
   'With editor': 'production',
   'Video approval': 'video-approval',
   'Live · send invoice': 'publishing',
-  'Paid in September': 'paid',
   Paid: 'paid',
 };
 const COL_PCT = {
   'New inquiry': 12, Negotiating: 25, 'Waiting on deposit': 37, 'Script approval': 50,
-  'With editor': 62, 'Video approval': 75, 'Live · send invoice': 87, 'Paid in September': 100,
+  'With editor': 62, 'Video approval': 75, 'Live · send invoice': 87, Paid: 100,
 };
 const ACTIVE = new Set(['deposit-paid', 'script-approval', 'production', 'video-approval', 'publishing', 'paid']);
 
@@ -35,6 +34,7 @@ export function mapColumn(stage) {
   return STAGE_TO_COLUMN[stage] || 'New inquiry';
 }
 export function boardStageFor(column) {
+  if (/^Paid in /.test(String(column))) return 'paid';
   return COLUMN_TO_BOARD[column] || 'new-lead';
 }
 export function usd(n) {
@@ -150,7 +150,7 @@ export function buildSponsorsPage(data, nowMs = Date.now(), overrides = {}) {
     { key: 'Lock deal', amount: buckets['lock-deal'], fill: 'var(--risk-fill)' },
   ].map((p) => ({ pct: oneDec(p.amount / den * 100), fill: p.fill, tip: `${p.key} ${usd(p.amount)}`, legend: p.key, amount: usd(p.amount) }));
   const columns = COLUMNS.map((stage) => ({
-    stage,
+    stage: stage === 'Paid' ? `Paid in ${cal.monthName}` : stage,
     boardStage: boardStageFor(stage),
     empty: stage === 'Live · send invoice' ? 'Nothing here. Cards land here the moment a sponsor video goes live.' : '',
     cards: [],

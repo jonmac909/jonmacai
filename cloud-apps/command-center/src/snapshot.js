@@ -222,6 +222,9 @@ function monthOf(iso, nowMs) {
   return d.toLocaleString('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit' })
     === n.toLocaleString('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit' });
 }
+function monthNameFor(ms) {
+  return new Intl.DateTimeFormat('en-US', { timeZone: 'America/Vancouver', month: 'long' }).format(new Date(ms));
+}
 function groupScan(by) {
   for (const key of ['mastermind_group', 'mastermind']) {
     const row = by[key];
@@ -268,7 +271,7 @@ function overlayMastermind(page, data, ideas, nowMs) {
     { icon: 'chat', label: 'Messages read for you', value: unavailable ? '—' : String(scanned), sub: unavailable ? 'Not connected' : data.empty ? 'No messages in the last 24 hours' : `${kept} kept · ${Math.max(0, scanned - kept)} skipped` },
     { icon: 'bulb', label: 'Picks waiting on you', value: unavailable ? '—' : String(kept), sub: unavailable ? 'No group history' : `${picks.filter((p) => p.verdict === 'implement').length} worth doing · ${picks.filter((p) => p.verdict !== 'implement').length} maybe` },
     { icon: 'send', label: 'Sent to Planner this month', value: String(sentMonth.length), sub: `${builtMonth.length} already built` },
-    { icon: 'check', label: 'Ideas built · September', value: String(builtMonth.length), goal: '/ 5', pct: Math.round(builtMonth.length / 5 * 100), sub: `${building.filter((i) => i.status !== 'built').length} in progress` },
+    { icon: 'check', label: `Ideas built · ${monthNameFor(nowMs)}`, value: String(builtMonth.length), goal: '/ 5', pct: Math.round(builtMonth.length / 5 * 100), sub: `${building.filter((i) => i.status !== 'built').length} in progress` },
   ];
   page.picks = {
     title: "Today's picks",
