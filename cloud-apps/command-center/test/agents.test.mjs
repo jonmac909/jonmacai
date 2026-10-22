@@ -358,6 +358,9 @@ test('merge overlays mastermind picks from the digest, implement then park', () 
   assert.equal(out.pages.mastermind.picks.jobs[1].pill, 'Maybe');
   assert.equal(out.pages.mastermind.building.rows.length, 0);
   assert.equal(out.pages.mastermind.parked.rows.length, 0);
+  assert.equal(out.pages.mastermind.tiles[3].label, 'Ideas built · September');
+  const october = mergeSnapshot(fixture, rows, Date.parse('2026-10-22T13:00:00Z'), []);
+  assert.equal(october.pages.mastermind.tiles[3].label, 'Ideas built · October');
 });
 
 test('parked ideas from the dashboard replace the parked list', () => {

@@ -51,10 +51,20 @@ test('board stages map onto the eight dashboard columns', () => {
   assert.equal(mapColumn('production'), 'With editor');
   assert.equal(mapColumn('video-approval'), 'Video approval');
   assert.equal(mapColumn('publishing'), 'Live · send invoice');
-  assert.equal(mapColumn('paid'), 'Paid in September');
-  assert.equal(mapColumn('done'), 'Paid in September');
+  assert.equal(mapColumn('paid'), 'Paid');
+  assert.equal(mapColumn('done'), 'Paid');
   assert.equal(boardStageFor('Waiting on deposit'), 'invoice-sent');
   assert.equal(boardStageFor('New inquiry'), 'new-lead');
+  assert.equal(boardStageFor('Paid in October'), 'paid');
+});
+
+test('paid column and month labels follow the current month', () => {
+  const page = buildSponsorsPage(live, NOW);
+  assert.equal(page.board.columns[7].stage, 'Paid in September');
+  assert.equal(page.board.columns[7].boardStage, 'paid');
+  const later = buildSponsorsPage(live, Date.parse('2026-10-22T06:00:00-07:00'));
+  assert.equal(later.board.columns[7].stage, 'Paid in October');
+  assert.equal(later.board.columns[7].boardStage, 'paid');
 });
 
 test('sponsors page money matches collections.viralview.io', () => {
