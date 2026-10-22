@@ -1,8 +1,9 @@
-// Webinar page: countdown, Oct 19 readiness checklist from the JON-6 results files (GPU2 `webinar`
+// Webinar page: countdown, readiness checklist from the JON-6 results files (GPU2 `webinar`
 // source), and buyers/upsells from the clone funnel's D1 (read-only, counts only, no emails).
-export const WEBINAR_AT = '2026-10-22T23:00:00Z'; // Thu Oct 22, 7 PM ET
-export const WEBINAR_LABEL = 'Thu Oct 22 · 7 PM ET';
-export const DEADLINE_AT = '2026-10-20T06:59:59Z'; // end of Mon Oct 19 PT
+// Jon moved the event to Thu Oct 29: 7 PM ET = 4 PM PT. Zoom Meeting, so no registration list.
+export const WEBINAR_AT = '2026-10-29T23:00:00Z'; // Thu Oct 29, 4 PM PT / 7 PM ET
+export const WEBINAR_LABEL = 'Thu Oct 29 · 4 PM PT';
+export const DEADLINE_AT = '2026-10-27T06:59:59Z'; // end of Mon Oct 26 PT
 export const OFFERS = {
   software: '$97/mo software',
   trial: '$1 7-day trial',
@@ -61,13 +62,13 @@ export function overlayWebinar(page, row, funnel, nowMs, label) {
   page.deadlineAt = DEADLINE_AT;
   page.countdown = left(at - nowMs);
   page.deadlineLeft = left(due - nowMs);
-  const onOct22 = (funnel?.sessions || []).filter((s) => /October 22/.test(String(s.session_label))).reduce((n, s) => n + Number(s.n || 0), 0);
+  const onOct29 = (funnel?.sessions || []).filter((s) => /October 29/.test(String(s.session_label))).reduce((n, s) => n + Number(s.n || 0), 0);
   page.checklist = ITEMS.map(([id, name]) => {
     const it = items[id];
     if (id === 'stress' && it) return { id, name, status: it.status, note: stressNote(it), at: it.at };
     if (it) return { id, name, status: it.status, note: it.note || '', at: it.at };
     if (id === 'sessions' && funnel) {
-      return { id, name, status: 'pending', note: `No test result yet · ${onOct22} buyer${onOct22 === 1 ? '' : 's'} assigned to Oct 22 so far` };
+      return { id, name, status: 'pending', note: `No test result yet · ${onOct29} buyer${onOct29 === 1 ? '' : 's'} assigned to Oct 29 so far` };
     }
     return { id, name, status: 'none', note: 'No test result yet' };
   });
@@ -90,7 +91,7 @@ export function overlayWebinar(page, row, funnel, nowMs, label) {
   };
   page.tiles = [
     { icon: 'clock', label: 'Webinar starts in', value: page.countdown, sub: WEBINAR_LABEL },
-    { icon: 'check', label: 'Funnel green by Mon Oct 19', value: `${green} / ${page.checklist.length}`, pct: Math.round(green / page.checklist.length * 100), pg: green === page.checklist.length ? 'ok' : 'risk', sub: `${page.deadlineLeft} left` },
+    { icon: 'check', label: 'Funnel green by Mon Oct 26', value: `${green} / ${page.checklist.length}`, pct: Math.round(green / page.checklist.length * 100), pg: green === page.checklist.length ? 'ok' : 'risk', sub: `${page.deadlineLeft} left` },
     { icon: 'wallet', label: 'Live buyers ($47)', value: funnel ? String(funnel.buyers) : 'no data', sub: funnel ? 'Recorded by the clone funnel' : 'Funnel database unavailable' },
   ];
   return page;

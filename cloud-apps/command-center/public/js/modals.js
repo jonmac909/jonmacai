@@ -1,44 +1,9 @@
-import { esc } from './ui.js';
-
 const PREFIX = '/dashboard';
 let sending = false;
 
-function ymdNow() {
-  return new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'America/Vancouver', year: 'numeric', month: '2-digit', day: '2-digit',
-  }).format(new Date());
-}
-
-export function bindModals({ say, act, go, getData }) {
-  const morning = document.getElementById('morningModal');
+export function bindModals({ say, act, go }) {
   const draft = document.getElementById('draftModal');
-  if (!morning || !draft) return;
-
-  document.getElementById('startMorning')?.addEventListener('click', (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    fillMorning(getData());
-    morning.showModal();
-    morning.querySelector('[data-item]')?.focus();
-  });
-
-  morning.addEventListener('click', async (e) => {
-    const step = e.target.closest('[data-item]');
-    if (!step) return;
-    e.stopPropagation();
-    const item = step.dataset.item;
-    const done = step.getAttribute('aria-pressed') !== 'true';
-    await fetch(`${PREFIX}/api/checklist`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-CC': '1' },
-      body: JSON.stringify({ day: ymdNow(), item, done, how: 'manual' }),
-    });
-    step.setAttribute('aria-pressed', String(done));
-    say(done ? `${step.textContent.trim()} checked` : `${step.textContent.trim()} unchecked`);
-    const id = (location.hash || '#home').replace(/^#/, '') || 'home';
-    await go(id, { refetch: true });
-    fillMorning(getData());
-  });
+  if (!draft) return;
 
   draft.addEventListener('click', async (e) => {
     const b = e.target.closest('[data-draft-act]');
@@ -79,13 +44,4 @@ export function openDraft(payload = {}) {
   const sendBtn = draft.querySelector('[data-draft-act="send"]');
   if (sendBtn) sendBtn.disabled = false;
   draft.showModal();
-}
-
-function fillMorning(data) {
-  const box = document.getElementById('morningSteps');
-  if (!box) return;
-  const steps = data?.pages?.home?.runThrough?.steps || [];
-  box.innerHTML = steps.map((s) => (
-    `<button type="button" class="step" data-item="${esc(s.item)}" data-page="${esc(s.page)}" aria-pressed="${s.done ? 'true' : 'false'}">${esc(s.label)}</button>`
-  )).join('');
 }

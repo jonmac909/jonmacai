@@ -1,15 +1,8 @@
-import { tiles, pg, pill, btn, pgrow, head, esc } from '../ui.js';
+import { pg, pill, btn, esc } from '../ui.js';
 
 function actionBtn(a) {
   if (a.log) return `<button class="btn" data-log-post="1">${esc(a.label)}</button>`;
   return btn(a.label, { msg: a.msg, kind: a.kind, payload: a.payload });
-}
-
-function queueRow(r) {
-  const approve = r.kind
-    ? btn('Approve', { kind: r.kind, payload: r.payload, msg: r.msg, done: true })
-    : btn('Approve', { msg: r.msg, done: true });
-  return `<div class="r"><div><strong>${esc(r.title)}</strong><div class="quote">${esc(r.quote)}</div></div><div class="right">${btn('Edit', { msg: 'Post opened for editing', cls: 'line' })}${approve}</div></div>`;
 }
 
 function draftCard(d) {
@@ -33,52 +26,63 @@ function draftCard(d) {
   }).join('');
   const missing = (daily.unavailable || []).map((u) => `<div class="r"><div><strong>${esc(u.platform)}</strong><small>Unavailable · ${esc(u.reason)}</small></div></div>`).join('');
   const empty = rows ? '' : `<p class="note">${esc(daily.error || 'No drafts for this day yet. Fill uses connected product facts and does not post.')}</p>`;
-  return `<div class="card pad"><div class="cardhead"><h2>${esc(daily.title)}</h2><span class="meta">${esc(daily.meta)}</span></div><div class="dfilters">${filters}</div>${daily.error ? `<p class="note">${esc(daily.error)}</p>` : ''}<div class="rows">${rows}${missing}${empty}</div></div>`;
+  const n = daily.rows.length;
+  return `<details class="card pad drafts"><summary><h2>${esc(daily.title)}</h2><span class="meta">${n} draft${n === 1 ? '' : 's'} · ${esc(daily.meta)}</span></summary><div class="dfilters">${filters}</div>${daily.error ? `<p class="note">${esc(daily.error)}</p>` : ''}<div class="rows">${rows}${missing}${empty}</div></details>`;
 }
 
-export function render(d) {
-  const right = d.actions.map(actionBtn).join('');
-  const heatDays = d.heat.days.map((x) => `<span class="h">${esc(x)}</span>`).join('');
-  const heatRows = d.heat.rows.map((r) => {
-    const cells = r.cells.map((c) => c.future
-      ? '<span class="cell future">–</span>'
-      : `<span class="cell" data-n="${c.n}" data-tip="${esc(c.tip)}">${c.n}</span>`).join('');
-    return `<span class="p">${esc(r.p)}</span>${cells}`;
-  }).join('');
-  const queue = d.queue.rows.map(queueRow).join('');
-  const more = d.queue.more
-    ? `<div class="r"><div><strong>${esc(d.queue.more.title)}</strong><small>${esc(d.queue.more.sub)}</small></div><div class="right"><button class="link" data-msg="${esc(d.queue.more.msg)}">${esc(d.queue.more.btn)}</button></div></div>`
+function outputCard(o) {
+  const bar = o.pct == null
+    ? '<div class="pg idle"><i style="width:0"></i></div>'
+    : pg(o.pct, o.pct >= 80 ? 'ok' : o.pct >= 40 ? 'risk' : 'crit');
+  return `<div class="card fcard" data-fkind="${esc(o.key)}">
+    <div class="sm muted">${esc(o.label)} · ${esc(o.owner)}</div>
+    <div class="fnum"><b>${esc(o.value)}</b> <span class="muted">/ ${esc(o.target)}</span></div>
+    ${bar}
+    <div class="xs muted">${esc(o.sub)}</div>
+  </div>`;
+}
+
+function flow(f) {
+  const steps = (f.steps || []).map((s) => `<div><span class="sm muted">${esc(s.label)}</span><b>${esc(s.value)}</b><span class="xs muted">${esc(s.sub)}</span></div>`).join('');
+  return `<div class="card pad"><div class="cardhead"><h2>${esc(f.title)}</h2><span class="meta">${esc(f.note)}</span></div><div class="fflow">${steps}</div></div>`;
+}
+
+function boardItem(it) {
+  const blocked = it.blocked ? `<div class="xs bad">${esc(it.blocked)}</div>` : '';
+  const action = it.slug
+    ? `<a class="btn sm line" href="/review/${esc(it.slug)}" target="_blank" rel="noopener">Open</a>`
     : '';
-  const yt = d.ytWeek.rows.map((r) => `<div class="r"><div><strong>${esc(r.title)}</strong><small>${esc(r.sub)}</small>${pg(r.pct, r.pg || '')}</div><div class="right">${r.pill ? pill(r.pill, r.pillCls) : btn(r.btn, { msg: r.msg, cls: 'line' })}</div></div>`).join('');
-  const best = d.bestPosts.rows.map((r) => `<tr><td>${esc(r.post)}</td><td>${esc(r.platform)}</td><td class="num">${esc(r.views)}</td><td class="num">${esc(r.clicks)}</td><td class="num">${esc(r.sales)}</td><td class="num">${btn(d.bestPosts.btn, { msg: d.bestPosts.msg, kind: r.kind, payload: r.payload, cls: 'line', sm: true })}</td></tr>`).join('');
+  return `<article class="fit" data-fkind="${esc(it.kind)}">
+    <div class="ch">${esc(it.chip || it.kind)}</div>
+    <div class="t">${esc(it.title)}</div>
+    <div class="m"><span>${esc(it.stage || '')}</span><span>${esc(it.meta || '')}</span></div>
+    ${blocked}${action}
+  </article>`;
+}
+
+function board(b) {
+  const cols = (b || []).map((c) => `<div class="fcol">
+    <h3>${esc(c.title)} <span class="kn">${c.items.length}</span></h3>
+    ${c.items.map(boardItem).join('')}
+    ${c.items.length ? '' : `<p class="kempty">${esc(c.empty || 'Nothing here')}</p>`}
+    ${c.note ? `<p class="kempty">${esc(c.note)}</p>` : ''}
+  </div>`).join('');
+  return `<div class="fkan">${cols}</div>`;
+}
+
+export function render(d, data) {
+  const fm = d.factory || { title: d.title, sub: d.sub, chips: [], outputs: [], funnel: null, board: [] };
+  const right = `${(d.actions || []).map(actionBtn).join('')}${data?.pages?.home?.waiting?.count ? pill(`${data.pages.home.waiting.count} waiting on you`, 'risk') : ''}`;
+  const chips = (fm.chips || []).map((c, i) => `<button class="chip${i === 0 ? ' on' : ''}" data-chip="${esc(c.id)}">${esc(c.label)}</button>`).join('');
+  const best = (d.bestPosts?.rows || []).map((r) => `<tr><td>${esc(r.post)}</td><td>${esc(r.platform)}</td><td class="num">${esc(r.views)}</td><td class="num">${esc(r.clicks)}</td><td class="num">${esc(r.sales)}</td><td class="num">${btn(d.bestPosts.btn, { msg: d.bestPosts.msg, kind: r.kind, payload: r.payload, cls: 'line', sm: true })}</td></tr>`).join('');
   return `<div class="wrap">
-  ${head(d.title, d.sub, right)}
-  ${tiles(d.tiles)}
-  <div class="split even">
-    <div class="card pad">
-      <div class="cardhead"><h2>${d.todayPlatforms.title}</h2><span class="meta">${d.todayPlatforms.meta}</span></div>
-      <div class="pgs">${d.todayPlatforms.rows.map(pgrow).join('')}</div>
-    </div>
-    <div class="card pad">
-      <div class="cardhead"><h2>${d.heat.title}</h2><span class="meta">${d.heat.meta}</span></div>
-      <div class="tblwrap"><div class="heat tn"><span></span>${heatDays}${heatRows}</div></div>
-    </div>
-  </div>
+  <div class="head"><div><h1>${esc(fm.title || 'Content Factory')}</h1><p>${esc(fm.sub || '')}</p></div><div class="right">${right}</div></div>
+  <div class="chips">${chips}</div>
+  ${fm.note ? `<p class="note" style="text-align:left">${esc(fm.note)}</p>` : ''}
+  <div class="fout">${(fm.outputs || []).map(outputCard).join('')}</div>
+  ${fm.funnel ? flow(fm.funnel) : ''}
+  ${board(fm.board)}
   ${draftCard(d)}
-  <div class="split">
-    <div class="card pad">
-      <div class="cardhead"><h2>${d.queue.title}</h2><div class="right" style="display:flex;gap:.5rem"><span class="meta">${esc(d.queue.meta)}</span>${btn(d.queue.approveAll, { msg: d.queue.approveAllMsg, kind: d.queue.approveAllKind, payload: d.queue.approveAllPayload, sm: true })}</div></div>
-      <div class="rows">${queue}${more}</div>
-    </div>
-    <div class="card pad">
-      <div class="cardhead"><h2>${d.ytWeek.title}</h2></div>
-      <div class="rows">${yt}</div>
-      <p class="note" style="text-align:left;margin:.8rem 0 0">${d.ytWeek.note}</p>
-    </div>
-  </div>
-  <div class="card pad">
-    <div class="cardhead"><h2>${d.bestPosts.title}</h2><span class="meta">${d.bestPosts.meta}</span></div>
-    <div class="tblwrap"><table><thead><tr><th>Post</th><th>Platform</th><th class="num">Views</th><th class="num">Clicks</th><th class="num">Sales</th><th></th></tr></thead><tbody>${best}</tbody></table></div>
-  </div>
+  ${best ? `<div class="card pad"><div class="cardhead"><h2>${esc(d.bestPosts.title)}</h2><span class="meta">${esc(d.bestPosts.meta)}</span></div><div class="tblwrap"><table><thead><tr><th>Post</th><th>Platform</th><th class="num">Views</th><th class="num">Clicks</th><th class="num">Sales</th><th></th></tr></thead><tbody>${best}</tbody></table></div></div>` : ''}
 </div>`;
 }

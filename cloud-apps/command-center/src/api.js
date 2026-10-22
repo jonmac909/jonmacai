@@ -141,7 +141,7 @@ async function login(request, env) {
 }
 
 // Pages built only from live feeds; they have no fixture numbers at all.
-const LIVE_PAGES = { videos: {}, webinar: {} };
+const LIVE_PAGES = { videos: {}, webinar: {}, team: {} };
 
 function filterSnapshot(pages) {
   const all = { ...snapshot.pages, ...LIVE_PAGES };
@@ -153,25 +153,27 @@ function filterSnapshot(pages) {
 
 // Nav for Jon's businesses now. Pages that no longer fit, or have no live feed, sit under a
 // collapsed Archive group: hidden from the main list, code kept, still reachable.
-export function liveNav(nav) {
+export function liveNav(orig) {
+  // Drop the fixture's sidebar badges: they were mockup counts (85 sponsor emails,
+  // 4 money items). Counts now live on the pages themselves.
+  const { badges, ...nav } = orig;
   return {
     ...nav,
     groups: [
-      { title: 'Overview', items: [{ id: 'home', label: 'Home', icon: 'home' }] },
-      { title: 'Right now', items: [
-        { id: 'agents', label: 'Machines & Agents', icon: 'bot' },
-        { id: 'videos', label: 'Videos', icon: 'film' },
-        { id: 'webinar', label: 'Webinar', icon: 'clock' },
-      ] },
+      { title: 'Today', items: [{ id: 'home', label: 'Home', icon: 'home' }] },
       { title: 'Business', items: [
         { id: 'sponsors', label: 'Sponsors', icon: 'mail' },
         { id: 'viral', label: 'Viral View', icon: 'chart' },
+        { id: 'webinar', label: 'Webinar', icon: 'clock' },
+        { id: 'content', label: 'Content', icon: 'pen' },
+        { id: 'team', label: 'Team', icon: 'bot' },
         { id: 'money', label: 'Money', icon: 'wallet' },
       ] },
       { title: 'Life', items: [{ id: 'life', label: 'Life', icon: 'heart' }] },
       { title: 'Archive', archive: true, items: [
+        { id: 'agents', label: 'Machines & Agents (old)', icon: 'bot' },
+        { id: 'videos', label: 'Production feed', icon: 'film' },
         { id: 'support', label: 'Support', icon: 'chat' },
-        { id: 'content', label: 'Content', icon: 'pen' },
         { id: 'outreach', label: 'Cold outreach', icon: 'send' },
         { id: 'youtube', label: 'YouTube (old)', icon: 'film' },
         { id: 'video', label: 'Video editor (old)', icon: 'up' },

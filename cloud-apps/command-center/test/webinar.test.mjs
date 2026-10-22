@@ -16,12 +16,12 @@ const row = { collected_at: '2026-10-15T22:55:00Z', data: JSON.stringify({ ok: t
 
 test('countdown and checklist come from results, missing items say no result', () => {
   const p = overlayWebinar({}, row, { buyers: 0, upsells: [], sessions: [{ session_label: 'Wednesday, October 7, 2026 at 7:00 PM EDT', n: 1 }] }, now, 'updated 5 min ago');
-  assert.equal(p.countdown, '7d 0h');
+  assert.equal(p.countdown, '14d 0h');
   assert.equal(p.checklist[0].status, 'fail');
   assert.match(p.checklist[0].note, /11 of 30 one-click charges/);
   assert.equal(p.checklist[1].status, 'pass');
   assert.equal(p.checklist[2].status, 'pending');
-  assert.match(p.checklist[2].note, /0 buyers assigned to Oct 22/);
+  assert.match(p.checklist[2].note, /0 buyers assigned to Oct 29/);
   assert.equal(p.checklist[3].status, 'none');
   assert.equal(p.green, '1 of 5 green');
   assert.equal(p.sales.buyers, 0);

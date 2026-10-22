@@ -15,6 +15,9 @@ import { overlayVideos } from './videos.js';
 import { overlayWebinar } from './webinar.js';
 import { buildCash, usd, withoutExcluded } from './cash.js';
 import { buildNow } from './now.js';
+import { buildTeam } from './team.js';
+import { buildGoalsHome } from './goals.js';
+import { overlayFactory } from './factory.js';
 
 export const COLLECTOR_INTERVAL_MS = 5 * 60 * 1000;
 
@@ -40,6 +43,7 @@ export const INTERVALS = {
   webinar: COLLECTOR_INTERVAL_MS,
   sponsors_cash: COLLECTOR_INTERVAL_MS,
   needs_jon: COLLECTOR_INTERVAL_MS,
+  team: COLLECTOR_INTERVAL_MS,
 };
 
 const MACHINES = [
@@ -432,6 +436,10 @@ export function mergeSnapshot(fixture, rows, nowMs = Date.now(), overrides = {},
       out.nav.badges.content = out.pages.content.queueCount;
     }
   }
+  if (out.pages.team) {
+    buildTeam(out.pages.team, by, hosts, nowMs);
+    if (out.nav?.badges) out.nav.badges.team = (out.pages.team.counts?.waiting || 0) + (out.pages.team.counts?.stuck || 0);
+  }
   if (by.moneyclaw) {
     const data = parseData(by.moneyclaw.data);
     const f = freshness(by.moneyclaw.collected_at, nowMs, INTERVALS.moneyclaw);
@@ -472,6 +480,8 @@ export function mergeSnapshot(fixture, rows, nowMs = Date.now(), overrides = {},
   if (out.pages.home) out.pages.home.sponsorsCash = cash;
   applyHome(out, by, extra, nowMs);
   if (out.pages.home) buildNow(out, by, nowMs, INTERVALS);
+  if (out.pages.content) overlayFactory(out.pages.content, out, by, nowMs);
+  if (out.pages.home) buildGoalsHome(out, by, cash, extra, nowMs);
   if (cash.available && out.goal) {
     out.goal = { ...out.goal, pct: cash.pct, sub: `Trailing 90-day avg ${usd(cash.trailing.avg)} a month` };
   }
