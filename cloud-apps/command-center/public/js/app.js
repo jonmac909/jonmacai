@@ -1,4 +1,5 @@
 import { render as home } from './pages/home.js';
+import { render as tasks } from './pages/tasks.js';
 import { render as sponsors } from './pages/sponsors.js';
 import { render as viral } from './pages/viral.js';
 import { render as youtube } from './pages/youtube.js';
@@ -17,7 +18,7 @@ import { render as team } from './pages/team.js';
 import { formatJobResult } from './ui.js';
 import { bindModals, openDraft } from './modals.js';
 const PREFIX = '/dashboard';
-const pages = { home, sponsors, viral, youtube, content, outreach, support, video, money, markets, life, mastermind, agents, videos, webinar, team };
+const pages = { home, tasks, sponsors, viral, youtube, content, outreach, support, video, money, markets, life, mastermind, agents, videos, webinar, team };
 let data = null;
 
 const root = document.documentElement;
@@ -216,6 +217,25 @@ document.addEventListener('keydown', (e) => {
   }
 });
 
+function selectJtTab(card, on) {
+  card.querySelectorAll('[data-jtab]').forEach((b) => {
+    const sel = b.dataset.jtab === on;
+    b.classList.toggle('on', sel);
+    b.setAttribute('aria-selected', String(sel));
+  });
+  card.querySelectorAll('[data-jtpanel]').forEach((p) => { p.hidden = p.dataset.jtpanel !== on; });
+  try { localStorage.setItem('cc-jt-tab', on); } catch {}
+}
+
+function clearNeedsFilter(card) {
+  card.classList.remove('needs-only');
+  const nb = card.querySelector('[data-jneeds]');
+  if (nb) {
+    nb.setAttribute('aria-pressed', 'false');
+    nb.textContent = `Needs you ${nb.dataset.needs || '0'}`;
+  }
+}
+
 document.addEventListener('click', (e) => {
   if (e.target.id === 'nwbtn') {
     const el = document.getElementById('nw');
@@ -226,16 +246,21 @@ document.addEventListener('click', (e) => {
   }
   const th = e.target.closest('[data-theme-set]');
   if (th) { setTheme(th.dataset.themeSet); return; }
+  const need = e.target.closest('[data-jneeds]');
+  if (need) {
+    const card = need.closest('.jtcard');
+    const on = !card.classList.contains('needs-only');
+    card.classList.toggle('needs-only', on);
+    need.setAttribute('aria-pressed', String(on));
+    need.textContent = on ? 'Show all' : `Needs you ${need.dataset.needs || '0'}`;
+    if (on) selectJtTab(card, 'active');
+    return;
+  }
   const jt = e.target.closest('[data-jtab]');
   if (jt) {
-    const on = jt.dataset.jtab;
-    try { localStorage.setItem('cc-jt-tab', on); } catch {}
-    jt.parentElement.querySelectorAll('[data-jtab]').forEach((b) => {
-      const sel = b === jt;
-      b.classList.toggle('on', sel);
-      b.setAttribute('aria-selected', String(sel));
-    });
-    document.querySelectorAll('#page [data-jtpanel]').forEach((p) => { p.hidden = p.dataset.jtpanel !== on; });
+    const card = jt.closest('.jtcard') || document.getElementById('page');
+    clearNeedsFilter(card);
+    selectJtTab(card, jt.dataset.jtab);
     return;
   }
   const chip = e.target.closest('[data-chip]');

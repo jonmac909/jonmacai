@@ -141,7 +141,7 @@ async function login(request, env) {
 }
 
 // Pages built only from live feeds; they have no fixture numbers at all.
-const LIVE_PAGES = { videos: {}, webinar: {}, team: {} };
+const LIVE_PAGES = { videos: {}, webinar: {}, team: {}, tasks: {} };
 
 function filterSnapshot(pages) {
   const all = { ...snapshot.pages, ...LIVE_PAGES };
@@ -160,7 +160,10 @@ export function liveNav(orig) {
   return {
     ...nav,
     groups: [
-      { title: 'Today', items: [{ id: 'home', label: 'Home', icon: 'home' }] },
+      { title: 'Today', items: [
+        { id: 'home', label: 'Home', icon: 'home' },
+        { id: 'tasks', label: 'Tasks', icon: 'check' },
+      ] },
       { title: 'Business', items: [
         { id: 'sponsors', label: 'Sponsors', icon: 'mail' },
         { id: 'viral', label: 'Viral View', icon: 'chart' },

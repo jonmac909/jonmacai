@@ -8,11 +8,11 @@ const NOW = Date.parse('2026-10-22T23:30:00Z');
 const payload = {
   updated: '2026-10-22T16:24:57-07:00',
   tasks: [
-    { id: 'T1', asked: '2026-10-22 06:48', task: 'Done thing', owner: 'Ana', status: 'done', note: 'Shipped', link: '' },
-    { id: 'T2', asked: '2026-10-22 15:25', task: 'Needs Jon', owner: 'Paul', status: 'waiting_on_jon', note: 'Needs yes', link: 'https://jonmac.ai/x' },
-    { id: 'T3', asked: '2026-10-21 23:10', task: 'Blocked thing', owner: 'Joel', status: 'blocked', note: '', link: 'javascript:alert(1)' },
-    { id: 'T4', asked: 'bogus', task: 'Queued thing', owner: '', status: 'oops', note: '', link: '' },
-    { id: 'T5', asked: '2026-10-22 09:00', task: 'Running thing', owner: 'Ana / Paul', status: 'doing', note: 'Half done', link: '' },
+    { id: 'T1', asked: '2026-10-22 06:48', task: 'Done thing', owner: 'Ana', status: 'done', note: 'Shipped', link: '', project: 'Team & systems' },
+    { id: 'T2', asked: '2026-10-22 15:25', task: 'Needs Jon', owner: 'Paul', status: 'waiting_on_jon', note: 'Needs yes', link: 'https://jonmac.ai/x', project: 'Sponsors' },
+    { id: 'T3', asked: '2026-10-21 23:10', task: 'Blocked thing', owner: 'Joel', status: 'blocked', note: '', link: 'javascript:alert(1)', project: 'Funnels & webinar' },
+    { id: 'T4', asked: 'bogus', task: 'Queued thing', owner: '', status: 'oops', note: '', link: '', project: 'Team & systems' },
+    { id: 'T5', asked: '2026-10-22 09:00', task: 'Running thing', owner: 'Ana / Paul', status: 'doing', note: 'Half done', link: '', project: 'YouTube & video' },
   ],
 };
 
@@ -76,11 +76,27 @@ test('no em dashes anywhere in the panel data', () => {
   assert.equal(JSON.stringify(buildTasks(payload, NOW)).includes('—'), false);
 });
 
-test('mergeSnapshot puts the panel on the home page', () => {
+test('tasks group by project in the agreed order', () => {
+  const t = buildTasks(payload, NOW);
+  assert.deepEqual(t.projects.map((p) => p.name), ['YouTube & video', 'Funnels & webinar', 'Sponsors', 'Team & systems']);
+  const team = t.projects.find((p) => p.name === 'Team & systems');
+  assert.equal(team.activeCount, 0);
+  assert.equal(team.upNextCount, 1);
+  assert.equal(team.doneCount, 1);
+  assert.equal(team.needsYou, 0);
+  assert.equal(t.projects.find((p) => p.name === 'Sponsors').needsYou, 1);
+});
+
+test('a task with no project lands in Other', () => {
+  assert.equal(buildTasks({ tasks: [{ task: 'No project' }] }, NOW).projects[0].name, 'Other');
+});
+
+test('mergeSnapshot puts the panel on the tasks page, not Home', () => {
   const rows = [{ source: 'jon_tasks', data: JSON.stringify(payload), collected_at: '2026-10-22T23:24:57Z' }];
   const out = mergeSnapshot(snapshot, rows, NOW, {}, [], [], [], {});
-  assert.equal(out.pages.home.tasks.total, 5);
-  assert.equal(out.pages.home.tasks.updatedLabel, '5 min ago');
-  assert.equal(out.pages.home.tasks.active[0].task, 'Needs Jon');
-  assert.equal(out.pages.home.tasks.needsYou, 1);
+  assert.equal(out.pages.tasks.tasks.total, 5);
+  assert.equal(out.pages.tasks.title, 'Tasks');
+  assert.equal(out.pages.tasks.tasks.updatedLabel, '5 min ago');
+  assert.equal(out.pages.tasks.tasks.projects.find((p) => p.name === 'Sponsors').needsYou, 1);
+  assert.equal(out.pages.home.tasks, undefined);
 });
