@@ -51,7 +51,7 @@ export function buildNow(out, by, nowMs, intervals) {
     ready: { available: !!(videos && videos.rows && videos.rows.length), stale: !!videos?.stale, reason: videos ? videos.reason : 'Production feed not loaded', items: ready },
     tiles: [
       web?.tiles?.[0]
-        ? { ...web.tiles[0], sub: `${web.tiles[0].sub} · ${web.green || ''} by Oct 19` }
+        ? { ...web.tiles[0], sub: `${web.tiles[0].sub} · ${web.green || ''} by Oct 26` }
         : { icon: 'clock', label: 'Webinar starts in', value: 'no data' },
       cash ? cashTile(cash) : { icon: 'dollar', label: 'Sponsors', value: 'no data' },
       mrrTile(by.viralview, nowMs, intervals.viralview),

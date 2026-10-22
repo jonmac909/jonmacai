@@ -1,37 +1,54 @@
-import { tiles, pill, job, esc } from '../ui.js';
-import { machinesSection } from '../machines.js';
+import { pill, btn, esc } from '../ui.js';
 
-function needsJon(n) {
-  const head = `<div class="cardhead"><h2><svg class="ic"><use href="#i-clock"/></svg>Needs Jon</h2>${n.stale ? pill('Stale') : `<span class="muted">${esc(n.updated)}</span>`}</div>`;
-  if (!n.available) return `<div class="card pad">${head}<p class="muted">No data. Waiting On You.md has not reported from GPU2.</p></div>`;
-  const items = n.items.map((i) => `<li>${i.area ? `<b>${esc(i.area)}</b> · ` : ''}${esc(i.ask)}</li>`).join('');
-  return `<div class="card pad">${head}${items ? `<ol class="asks">${items}</ol>` : '<p>Nothing waiting on you.</p>'}</div>`;
+function goalCard(g) {
+  const width = g.pct == null ? 0 : Math.min(100, g.pct);
+  const pace = g.pacePct == null ? '' : `<span class="pacemark" style="left:${Math.min(100, g.pacePct)}%" title="${esc(g.paceTitle || 'Where the number should be today')}"></span>`;
+  const barCls = g.noData ? 'idle' : (g.status?.cls || '');
+  const drivers = (g.drivers || []).map((d) => `<div><span>${esc(d.label)}</span><b>${esc(d.value)}</b></div>`).join('');
+  return `<article class="card goal">
+    <div class="ghead"><h3>${esc(g.label)}</h3>${pill(g.status?.text || 'No data', g.status?.cls || 'idle')}</div>
+    <div class="big">${esc(g.value)} <span>${esc(g.goal)}</span></div>
+    <div class="gbar ${barCls}"><i style="width:${width}%"></i>${pace}</div>
+    <div class="gmeta"><span>${esc(g.metaLeft || '')}</span><span>${esc(g.metaRight || '')}</span></div>
+    <div class="drivers">${drivers}</div>
+  </article>`;
 }
 
-function ready(r) {
-  const head = `<div class="cardhead"><h2><svg class="ic"><use href="#i-film"/></svg>Videos ready for Jon</h2>${r.stale ? pill('Stale') : ''}<button class="link" data-page="videos">All videos</button></div>`;
-  if (!r.available) return `<div class="card pad">${head}<p class="muted">No data. ${esc(r.reason || 'Production feed unavailable')}.</p></div>`;
-  const items = r.items.map((v) => `<li><b>${esc(v.channel)}</b> · ${esc(v.video)}${v.slug ? ` · <a href="/review/${esc(v.slug)}" target="_blank" rel="noopener">open review</a>` : ''}</li>`).join('');
-  return `<div class="card pad">${head}${items ? `<ul class="asks">${items}</ul>` : '<p>Nothing to review right now.</p>'}</div>`;
+function askList(w) {
+  const items = (w.items || []).map((it) => {
+    const action = it.href
+      ? `<a class="btn sm" href="${esc(it.href)}" target="_blank" rel="noopener">${esc(it.btn || 'Open')}</a>`
+      : it.page
+        ? btn(it.btn || 'Open', { page: it.page, cls: 'sm line' })
+        : '';
+    return `<li class="ask"><span class="dot ${it.pillCls === 'crit' ? 'crit' : it.pillCls === 'risk' ? 'risk' : 'idle'}"></span>
+      <div class="grow"><div class="t">${esc(it.title)}</div><div class="s">${esc(it.detail || '')}</div></div>${action}</li>`;
+  }).join('');
+  const empty = items
+    ? ''
+    : w.available
+      ? '<li class="ask"><div class="grow"><div class="t">Nothing waiting on you.</div><div class="s">The Waiting On You list and the production feed are both clear.</div></div></li>'
+      : `<li class="ask"><div class="grow"><div class="t">No data.</div><div class="s">${esc(w.why || 'Neither source has reported.')}</div></div></li>`;
+  return `<div class="card pad"><div class="cardhead"><h2>${esc(w.title || 'Waiting on you')}</h2><span class="meta">${w.count === 1 ? '1 item' : `${w.count || 0} items`}</span></div><ul class="asks2">${items}${empty}</ul></div>`;
+}
+
+function movedList(m) {
+  const rows = (m.items || []).map((it) => `<li><span class="pill ${esc(it.cls || 'idle')}">${esc(it.pill)}</span><div class="grow">${esc(it.text)}</div></li>`).join('');
+  return `<div class="card pad"><div class="cardhead"><h2>${esc(m.title || 'What moved the goals this week')}</h2><span class="meta">Last 7 days</span></div><ul class="list2">${rows}</ul></div>`;
+}
+
+function stripCard(s) {
+  const p = s.pill ? `<span class="pill ${esc(s.cls || 'idle')}">${esc(s.pill)}</span>` : '';
+  return `<div class="card stripc"><small>${esc(s.label)}</small><div class="sv"><b>${esc(s.value)}</b>${p}</div><div class="s">${esc(s.sub || '')}</div></div>`;
 }
 
 export function render(d) {
-  const now = d.now || { tiles: [], needsJon: { available: false }, ready: { available: false } };
-  const steps = d.runThrough.steps.map((s) => `<button type="button" class="step" data-item="${esc(s.item || '')}" data-page="${esc(s.page || '')}" aria-pressed="${s.done ? 'true' : 'false'}">${esc(s.label)}</button>`).join('');
-  const jobs = d.needsYou.jobs.map(job).join('');
+  const g = d.goalCards || [];
+  const strip = d.strip || [];
   return `<div class="wrap">
-  <div class="head"><div><h1>${esc(d.greeting)}</h1><p id="date">${esc(d.date)}</p></div><span class="chip">${esc(d.chip)}</span></div>
-  ${tiles(now.tiles)}
-  <div class="split two">${needsJon(now.needsJon)}${ready(now.ready)}</div>
-  ${machinesSection(d.machines, { link: true })}
-  <div class="card pad run">
-    <div class="lab"><strong>${esc(d.runThrough.title)}</strong><span id="runcount">${d.runThrough.done} of ${d.runThrough.total} done</span></div>
-    <div class="pg tall ok"><i id="runbar" style="width:${d.runThrough.pct}%"></i></div>
-    <div class="steps">${steps}</div>
-  </div>
-  <div class="sec">
-    <div class="bar"><h2>${esc(d.needsYou.title)}</h2><button class="link" data-view-all="1">${esc(d.needsYou.viewAll)}</button></div>
-    <div class="todo">${jobs}</div>
-  </div>
+  <div class="head"><div><h1>${esc(d.goalTitle || 'Three goals, $30k a month')}</h1><p>${esc(d.date || '')}${d.clock ? ` · ${esc(d.clock)} PT` : ''}</p></div>${d.goalPill ? pill(d.goalPill.text, d.goalPill.cls) : ''}</div>
+  <div class="goals">${g.map(goalCard).join('') || '<div class="card pad"><p class="muted">No goal data. The sponsor ledger, Viral View feed and funnel database have not reported.</p></div>'}</div>
+  <div class="homelists">${askList(d.waiting || { items: [] })}${movedList(d.moved || { items: [] })}</div>
+  <div class="strip">${strip.map(stripCard).join('')}</div>
 </div>`;
 }

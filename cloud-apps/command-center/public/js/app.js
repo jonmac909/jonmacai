@@ -13,10 +13,11 @@ import { render as mastermind } from './pages/mastermind.js';
 import { render as agents } from './pages/agents.js';
 import { render as videos } from './pages/videos.js';
 import { render as webinar } from './pages/webinar.js';
+import { render as team } from './pages/team.js';
 import { formatJobResult } from './ui.js';
 import { bindModals, openDraft } from './modals.js';
 const PREFIX = '/dashboard';
-const pages = { home, sponsors, viral, youtube, content, outreach, support, video, money, markets, life, mastermind, agents, videos, webinar };
+const pages = { home, sponsors, viral, youtube, content, outreach, support, video, money, markets, life, mastermind, agents, videos, webinar, team };
 let data = null;
 
 const root = document.documentElement;
@@ -181,7 +182,7 @@ function recount() {
 export async function go(id, { refetch = false } = {}) {
   if (!pages[id]) id = 'home';
   if (location.hash !== `#${id}`) history.replaceState(null, '', `${PREFIX}/#${id}`);
-  if (refetch || id === 'agents') {
+  if (refetch || id === 'agents' || id === 'team') {
     const snap = await fetch(`${PREFIX}/api/snapshot`);
     if (snap.ok) data = await snap.json();
     document.getElementById('navs').innerHTML = navHtml();
@@ -208,10 +209,24 @@ document.addEventListener('click', (e) => {
   }
   const th = e.target.closest('[data-theme-set]');
   if (th) { setTheme(th.dataset.themeSet); return; }
+  const chip = e.target.closest('[data-chip]');
+  if (chip) {
+    const on = chip.dataset.chip || 'all';
+    chip.parentElement.querySelectorAll('[data-chip]').forEach((b) => b.classList.toggle('on', b === chip));
+    document.querySelectorAll('#page [data-fkind]').forEach((el) => {
+      el.hidden = on !== 'all' && el.dataset.fkind !== on;
+    });
+    document.querySelectorAll('#page .fcol').forEach((col) => {
+      const n = col.querySelectorAll('.fit:not([hidden])').length;
+      const kn = col.querySelector('.kn');
+      if (kn) kn.textContent = String(n);
+    });
+    return;
+  }
   const va = e.target.closest('[data-view-all]');
   if (va) {
-    const ny = data.pages.home.needsYou;
-    if (ny.all) {
+    const ny = data.pages.home?.needsYou;
+    if (ny?.all) {
       ny.jobs = ny.all;
       ny.viewAll = 'Show top 3';
       go('home');
@@ -336,7 +351,7 @@ document.addEventListener('drop', (e) => {
 });
 
 
-bindModals({ say, act, go, getData: () => data });
+bindModals({ say, act, go });
 
 window.addEventListener('hashchange', () => go(hashPage()));
 
@@ -344,14 +359,10 @@ const snap = await fetch(`${PREFIX}/api/snapshot`);
 if (snap.status === 401) { location.href = `${PREFIX}/`; throw new Error('auth'); }
 data = await snap.json();
 document.getElementById('navs').innerHTML = navHtml();
-document.getElementById('donutpct').textContent = `${data.goal.pct}%`;
-document.getElementById('donut').style.background = `conic-gradient(var(--accent) 0 ${data.goal.pct}%,var(--line) ${data.goal.pct}% 100%)`;
-document.getElementById('goallabel').textContent = data.goal.label;
-document.getElementById('goalsub').textContent = data.goal.sub;
-// Machines heartbeat every 60 s: refresh Home and Agents while visible.
+// Collector beats refresh these pages every 60 s while visible.
 setInterval(() => {
   const id = hashPage();
-  if (document.hidden || !['home', 'agents', 'videos', 'webinar'].includes(id)) return;
+  if (document.hidden || !['home', 'agents', 'videos', 'webinar', 'team', 'content'].includes(id)) return;
   if (document.activeElement && /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName)) return;
   const y = window.scrollY;
   go(id, { refetch: true }).then(() => window.scrollTo(0, y)).catch(() => {});
