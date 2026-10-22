@@ -10,6 +10,7 @@ import { overlayViral, applyHomeViral } from './viral.js';
 import { overlayOutreach, blankOutreach } from './outreach.js';
 import { overlayLife } from './life.js';
 import { applyHome } from './home.js';
+import { buildTasks } from './tasks.js';
 import { buildMachines, HOSTS, MACHINE_INTERVAL_MS } from './machines.js';
 import { overlayVideos } from './videos.js';
 import { overlayWebinar } from './webinar.js';
@@ -44,6 +45,7 @@ export const INTERVALS = {
   sponsors_cash: COLLECTOR_INTERVAL_MS,
   needs_jon: COLLECTOR_INTERVAL_MS,
   team: COLLECTOR_INTERVAL_MS,
+  jon_tasks: 6 * 60 * 60 * 1000,
 };
 
 const MACHINES = [
@@ -479,6 +481,14 @@ export function mergeSnapshot(fixture, rows, nowMs = Date.now(), overrides = {},
   if (out.pages.sponsors) out.pages.sponsors.cash = cash;
   if (out.pages.home) out.pages.home.sponsorsCash = cash;
   applyHome(out, by, extra, nowMs);
+  if (out.pages.home) {
+    const taskRow = by.jon_tasks;
+    out.pages.home.tasks = buildTasks(
+      taskRow ? parseData(taskRow.data) : null,
+      nowMs,
+      taskRow?.collected_at || '',
+    );
+  }
   if (out.pages.home) buildNow(out, by, nowMs, INTERVALS);
   if (out.pages.content) overlayFactory(out.pages.content, out, by, nowMs, cash);
   if (out.pages.home) buildGoalsHome(out, by, cash, extra, nowMs);

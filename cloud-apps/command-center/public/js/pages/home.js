@@ -38,6 +38,33 @@ function movedList(m) {
   return `<div class="card pad"><div class="cardhead"><h2>${esc(m.title || 'What moved the goals this week')}</h2><span class="meta">Last 7 days</span></div><ul class="list2">${rows}</ul></div>`;
 }
 
+function taskRow(t) {
+  const done = t.status === 'done';
+  const tick = done ? '<svg class="ic"><use href="#i-check"/></svg>' : '';
+  const meta = [t.owner, t.asked, t.note].filter(Boolean).join(' · ');
+  const link = t.link ? `<a class="btn sm line" href="${esc(t.link)}" target="_blank" rel="noopener">Open</a>` : '';
+  return `<li class="task${done ? ' isdone' : ''}">
+    <span class="tick" aria-hidden="true">${tick}</span>
+    <div class="grow"><div class="t">${esc(t.task)}</div>${meta ? `<div class="s">${esc(meta)}</div>` : ''}</div>${link}
+  </li>`;
+}
+
+function taskBoard(t) {
+  if (!t) return '';
+  const groups = (t.groups || []).map((g) => `<div class="tgroup">
+    <h3 class="tghead">${esc(g.label)} <span>${g.tasks.length}</span></h3>
+    <ul class="tasks">${g.tasks.map(taskRow).join('')}</ul>
+  </div>`).join('');
+  const meta = [
+    t.total ? `${t.done} of ${t.total} done` : '',
+    t.updatedLabel ? `updated ${t.updatedLabel}` : '',
+  ].filter(Boolean).join(' · ');
+  return `<div class="card pad taskboard">
+    <div class="cardhead"><h2>Jon's tasks</h2>${meta ? `<span class="meta">${esc(meta)}</span>` : ''}</div>
+    ${groups ? `<div class="taskgroups">${groups}</div>` : '<p class="muted">No tasks yet. Ana adds them as you assign work.</p>'}
+  </div>`;
+}
+
 function stripCard(s) {
   const p = s.pill ? `<span class="pill ${esc(s.cls || 'idle')}">${esc(s.pill)}</span>` : '';
   return `<div class="card stripc"><small>${esc(s.label)}</small><div class="sv"><b>${esc(s.value)}</b>${p}</div><div class="s">${esc(s.sub || '')}</div></div>`;
@@ -48,6 +75,7 @@ export function render(d) {
   const strip = d.strip || [];
   return `<div class="wrap">
   <div class="head"><div><h1>${esc(d.goalTitle || 'Three goals, $30k a month')}</h1><p>${esc(d.date || '')}${d.clock ? ` · ${esc(d.clock)} PT` : ''}</p></div>${d.goalPill ? pill(d.goalPill.text, d.goalPill.cls) : ''}</div>
+  ${taskBoard(d.tasks)}
   <div class="goals">${g.map(goalCard).join('') || '<div class="card pad"><p class="muted">No goal data. The sponsor ledger, Viral View feed and funnel database have not reported.</p></div>'}</div>
   <div class="homelists">${askList(d.waiting || { items: [] })}${movedList(d.moved || { items: [] })}</div>
   <div class="strip">${strip.map(stripCard).join('')}</div>

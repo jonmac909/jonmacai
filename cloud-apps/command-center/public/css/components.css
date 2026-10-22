@@ -387,3 +387,19 @@ tfoot td{font-weight:600;color:var(--ink);border-top:1px solid var(--line)}
 .drafts[open]>summary::after{content:"Hide"}
 .drafts>summary h2{margin:0;font-size:1rem}
 .drafts[open]>summary{margin-bottom:.8rem;padding-bottom:.6rem;border-bottom:1px solid var(--line)}
+
+/* tasks checklist */
+.taskboard{margin-bottom:1rem}
+.taskgroups{display:grid;grid-template-columns:repeat(auto-fit,minmax(17rem,1fr));gap:1.1rem 1.8rem;align-items:start}
+.tghead{margin:0 0 .5rem;font-size:.76rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);display:flex;align-items:center;gap:.45rem}
+.tghead span{font-size:.72rem;font-weight:600;letter-spacing:0;text-transform:none;color:var(--ink-2);background:var(--soft);border-radius:.6rem;padding:.05rem .45rem}
+.tasks{list-style:none;margin:0;padding:0;display:flex;flex-direction:column}
+.task{display:flex;gap:.6rem;align-items:flex-start;padding:.55rem 0;border-top:1px solid var(--line)}
+.task:first-child{border-top:0;padding-top:0}
+.tick{flex:0 0 1.05rem;width:1.05rem;height:1.05rem;margin-top:.12rem;border:1.5px solid var(--idle-line);border-radius:.3rem;display:grid;place-items:center;color:#fff;background:var(--card)}
+.task.isdone .tick{background:var(--ok-fill);border-color:var(--ok-fill)}
+.tick .ic{width:.75rem;height:.75rem}
+.task .t{font-size:.9rem;font-weight:500;line-height:1.35;overflow-wrap:anywhere}
+.task.isdone .t{color:var(--muted);text-decoration:line-through;text-decoration-thickness:1px}
+.task .s{color:var(--muted);font-size:.79rem;line-height:1.4;margin-top:.15rem;overflow-wrap:anywhere}
+.task .btn{margin-left:auto;flex:0 0 auto}
