@@ -127,7 +127,16 @@ a:focus-visible,summary:focus-visible{outline:3px solid var(--sig);outline-offse
   cursor:pointer;transition:transform .15s}
 .vv-fs:hover{transform:scale(1.06)}
 .vv-fs svg{width:19px;height:19px;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
-.vv-hero:fullscreen{border-radius:0}
+.vv-hero:fullscreen,.vv-hero:-webkit-full-screen{border-radius:0;background:#000}
+/* iPhone Safari has no element fullscreen: fill the viewport in-page instead */
+.vv-hero.vv-fs-fallback{position:fixed;inset:0;width:100vw;height:100vh;height:100dvh;max-width:none;
+  aspect-ratio:auto;border-radius:0;background:#000;box-shadow:none;z-index:2147483647}
+html.vv-fs-lock,body.vv-fs-lock{overflow:hidden;height:100%}
+.vv-hero.vv-fs-fallback .vv-fs,.vv-hero:fullscreen .vv-fs,.vv-hero:-webkit-full-screen .vv-fs{
+  bottom:calc(14px + env(safe-area-inset-bottom,0px));right:calc(14px + env(safe-area-inset-right,0px))}
+.vv-fs .vv-fs-close{display:none}
+.vv-fs[aria-pressed="true"] .vv-fs-open{display:none}
+.vv-fs[aria-pressed="true"] .vv-fs-close{display:block}
 .video .ph{position:absolute;left:0;right:0;bottom:16px;font-family:var(--util);font-size:12px;color:#B4AFBC;text-align:center;font-weight:600}
 .play{position:relative;width:80px;height:80px;border-radius:50%;background:var(--sig);display:grid;place-items:center;box-shadow:0 8px 22px rgba(0,0,0,.55)}
 .play svg{width:28px;height:28px;margin-left:5px;fill:#fff}
@@ -402,7 +411,7 @@ a.presscite h3{text-decoration:underline;text-decoration-thickness:1px;text-unde
 <!-- Hero VSL. -->
 <div class="shell" id="vslwrap" style="margin-top:6px;margin-bottom:clamp(30px,4.5vw,52px)">
   <p class="point" style="margin-bottom:14px"><svg class="i" viewBox="0 0 18 18"><use href="#dn"/></svg>Click below to watch first!<svg class="i" viewBox="0 0 18 18"><use href="#dn"/></svg></p>
-  <div class="video vv-hero" data-state="muted"><iframe src="https://www.youtube-nocookie.com/embed/GP3NRg8NMY4?autoplay=1&amp;mute=1&amp;controls=0&amp;loop=1&amp;playlist=GP3NRg8NMY4&amp;playsinline=1&amp;rel=0&amp;modestbranding=1&amp;iv_load_policy=3&amp;disablekb=1&amp;fs=0&amp;cc_load_policy=3&amp;cc_lang_pref=invalid&amp;enablejsapi=1&amp;vq=hd1080&amp;start=0" title="Jon Mac: why cloning TikTok Shop winners pays" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen" allowfullscreen playsinline referrerpolicy="strict-origin-when-cross-origin"></iframe><button type="button" class="vv-toggle" aria-label="Watch Jon Mac: why cloning TikTok Shop winners pays"><span class="vv-label" aria-hidden="true">Watch</span></button><button type="button" class="vv-fs" aria-label="Full screen" title="Full screen"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M8 4H4v4M16 4h4v4M20 16v4h-4M4 16v4h4"/></svg></button></div>
+  <div class="video vv-hero" data-state="muted"><iframe src="https://www.youtube-nocookie.com/embed/GP3NRg8NMY4?autoplay=1&amp;mute=1&amp;controls=0&amp;loop=1&amp;playlist=GP3NRg8NMY4&amp;playsinline=1&amp;rel=0&amp;modestbranding=1&amp;iv_load_policy=3&amp;disablekb=1&amp;fs=0&amp;cc_load_policy=3&amp;cc_lang_pref=invalid&amp;enablejsapi=1&amp;vq=hd1080&amp;start=0" title="Jon Mac: why cloning TikTok Shop winners pays" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen" allowfullscreen playsinline referrerpolicy="strict-origin-when-cross-origin"></iframe><button type="button" class="vv-toggle" aria-label="Watch Jon Mac: why cloning TikTok Shop winners pays"><span class="vv-label" aria-hidden="true">Watch</span></button><button type="button" class="vv-fs" aria-label="Full screen" aria-pressed="false" title="Full screen"><svg class="vv-fs-open" aria-hidden="true" viewBox="0 0 24 24"><path d="M8 4H4v4M16 4h4v4M20 16v4h-4M4 16v4h4"/></svg><svg class="vv-fs-close" aria-hidden="true" viewBox="0 0 24 24"><path d="M4 9h5V4M20 9h-5V4M4 15h5v5M20 15h-5v5"/></svg></button></div>
 </div>
 
 <section style="padding-top:0"><div class="shell col g22 mid">
@@ -1213,11 +1222,68 @@ window.JM_CONFIG = {
       else{cmd(f,'playVideo');set('playing','Pause');}
       noCC();setTimeout(noCC,600);
     });
-    if(fs)fs.addEventListener('click',function(){
-      if(document.fullscreenElement)document.exitFullscreen();
-      else if(h.requestFullscreen)h.requestFullscreen();
-      else if(h.webkitRequestFullscreen)h.webkitRequestFullscreen();
-    });
+    if(fs){
+      function fsEl(){
+        return document.fullscreenElement||document.webkitFullscreenElement||
+               document.mozFullScreenElement||document.msFullscreenElement||null;
+      }
+      function fsUi(){
+        var el=fsEl(),on=el===h||(!el&&h.classList.contains('vv-fs-fallback')),label=on?'Exit full screen':'Full screen';
+        fs.setAttribute('aria-pressed',on?'true':'false');
+        fs.setAttribute('aria-label',label);fs.setAttribute('title',label);
+      }
+      function exitNative(){
+        var d=document;
+        try{
+          if(d.exitFullscreen)return d.exitFullscreen();
+          if(d.webkitExitFullscreen)return d.webkitExitFullscreen();
+          if(d.mozCancelFullScreen)return d.mozCancelFullScreen();
+          if(d.msExitFullscreen)return d.msExitFullscreen();
+        }catch(e){}
+      }
+      function enterFallback(){
+        h.classList.add('vv-fs-fallback');
+        document.documentElement.classList.add('vv-fs-lock');
+        document.body.classList.add('vv-fs-lock');
+        fsUi();
+      }
+      function exitFallback(){
+        h.classList.remove('vv-fs-fallback');
+        document.documentElement.classList.remove('vv-fs-lock');
+        document.body.classList.remove('vv-fs-lock');
+        fsUi();
+      }
+      function enterNative(){
+        var req=h.requestFullscreen||h.webkitRequestFullscreen||h.mozRequestFullScreen||h.msRequestFullscreen;
+        if(!req)return false;
+        var p=null;
+        try{p=req.call(h);}catch(e){return false;}
+        if(p&&typeof p.then==='function'){
+          p.then(function(){fsEl()?fsUi():enterFallback();},function(){enterFallback();});
+        }else{
+          setTimeout(function(){fsEl()?fsUi():enterFallback();},300);
+        }
+        return true;
+      }
+      fs.addEventListener('click',function(e){
+        if(e){e.preventDefault();e.stopPropagation();}
+        if(fsEl()){exitNative();return;}
+        if(h.classList.contains('vv-fs-fallback')){exitFallback();return;}
+        /* iPhone Safari only allows webkitEnterFullscreen on a real video element */
+        var v=h.querySelector('video');
+        if(v&&v.webkitEnterFullscreen){
+          try{v.webkitEnterFullscreen();fsUi();return;}catch(err){}
+        }
+        if(!enterNative())enterFallback();
+      });
+      ['fullscreenchange','webkitfullscreenchange','mozfullscreenchange','MSFullscreenChange'].forEach(function(ev){
+        document.addEventListener(ev,fsUi);
+      });
+      document.addEventListener('keydown',function(e){
+        if((e.key==='Escape'||e.keyCode===27)&&h.classList.contains('vv-fs-fallback'))exitFallback();
+      });
+      fsUi();
+    }
   });
 })();
 </script>

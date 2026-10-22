@@ -104,4 +104,53 @@ try {
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
   assert.deepEqual(errors, []);
   console.log('PASS: four FAQ answers, hidden empty slots, validated video configuration, no browser errors');
+
+  // Fullscreen: the custom control must fill the viewport and exit at phone width.
+  const fsPage = await context.newPage();
+  fsPage.on('pageerror', error => errors.push(error.message));
+  await fsPage.setViewportSize({ width: 390, height: 844 });
+  await fsPage.goto('https://jonmac.ai/clone/');
+  await fsPage.locator('.vv-fs').scrollIntoViewIfNeeded();
+  await fsPage.locator('.vv-fs').click();
+  await fsPage.waitForFunction(() => document.fullscreenElement?.classList.contains('vv-hero'));
+  const nativeFs = await fsPage.evaluate(() => {
+    const hero = document.querySelector('.vv-hero'), rect = hero.getBoundingClientRect();
+    return { width: Math.round(rect.width), height: Math.round(rect.height), innerWidth, innerHeight,
+      pressed: document.querySelector('.vv-fs').getAttribute('aria-pressed') };
+  });
+  assert.deepEqual(nativeFs, { width: 390, height: 844, innerWidth: 390, innerHeight: 844, pressed: 'true' });
+  await fsPage.locator('.vv-fs').click();
+  await fsPage.waitForFunction(() => !document.fullscreenElement);
+  await fsPage.close();
+
+  // iPhone Safari has no element Fullscreen API: the same button fills the viewport in-page.
+  const iosPage = await context.newPage();
+  iosPage.on('pageerror', error => errors.push(error.message));
+  await iosPage.addInitScript(() => {
+    Object.defineProperty(Element.prototype, 'requestFullscreen', { value: undefined, configurable: true });
+    Object.defineProperty(Element.prototype, 'webkitRequestFullscreen', { value: undefined, configurable: true });
+  });
+  await iosPage.setViewportSize({ width: 390, height: 844 });
+  await iosPage.goto('https://jonmac.ai/clone/');
+  await iosPage.locator('.vv-fs').scrollIntoViewIfNeeded();
+  await iosPage.locator('.vv-fs').click();
+  assert.equal(await iosPage.locator('.vv-hero.vv-fs-fallback').count(), 1);
+  const fallbackFs = await iosPage.evaluate(() => {
+    const hero = document.querySelector('.vv-hero'), rect = hero.getBoundingClientRect();
+    return { width: Math.round(rect.width), height: Math.round(rect.height), innerWidth, innerHeight,
+      position: getComputedStyle(hero).position, pressed: document.querySelector('.vv-fs').getAttribute('aria-pressed') };
+  });
+  assert.deepEqual(fallbackFs, { width: 390, height: 844, innerWidth: 390, innerHeight: 844, position: 'fixed', pressed: 'true' });
+  await iosPage.locator('.vv-fs').click();
+  assert.equal(await iosPage.locator('.vv-hero.vv-fs-fallback').count(), 0);
+  await iosPage.evaluate(() => {
+    const video = document.createElement('video');
+    video.webkitEnterFullscreen = () => { window.__videoFullscreen = true; };
+    document.querySelector('.vv-hero').appendChild(video);
+  });
+  await iosPage.locator('.vv-fs').click();
+  assert.equal(await iosPage.evaluate(() => window.__videoFullscreen), true);
+  await iosPage.close();
+  assert.deepEqual(errors, []);
+  console.log('PASS: video fullscreen fills the viewport and exits; iPhone fallback and video fullscreen path work');
 } finally { await browser.close(); await mf.dispose(); }
