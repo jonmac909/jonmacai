@@ -57,7 +57,7 @@ function outputCards(videoRows) {
   ];
 }
 
-function funnel(by) {
+function funnel(by, cash = null) {
   const viral = by.viralview ? parse(by.viralview.data) : null;
   const sub = viral?.subscriptions || null;
   const clicks = (viral?.traffic || []).reduce((n, r) => n + (Number(r.clicks) || 0), 0);
@@ -65,7 +65,12 @@ function funnel(by) {
   const vvCash = Number(viral?.cashThisWeek?.netCents) || 0;
   const weekDays = new Set((viral?.cashThisWeek?.byDay || []).map((d) => d.date));
   const cashRow = by.sponsors_cash ? parse(by.sponsors_cash.data) : null;
-  const sponsorWeek = (cashRow?.rows || []).filter((r) => weekDays.has(r.date)).reduce((n, r) => n + (Number(r.usd) || 0), 0);
+  // A failed collector payload {ok:false, rows:[]} is no data, not a $0 feed.
+  const rawLedger = cashRow?.ok !== false && Array.isArray(cashRow?.rows) ? cashRow.rows : [];
+  // Same merged deposit list Home uses, so a bank-feed day is never counted twice or missed here.
+  const sponsorRows = cash?.available ? cash.recent || [] : rawLedger;
+  const sponsorWeek = sponsorRows.filter((r) => weekDays.has(r.date)).reduce((n, r) => n + (Number(r.usd) || 0), 0);
+  const hasCash = !!(viral || cash?.available || rawLedger.length);
   return {
     title: 'Views → clicks → sign-ups → trials → revenue',
     note: 'Each step keeps its own clock; a step with no feed says so.',
@@ -76,8 +81,8 @@ function funnel(by) {
       { label: 'Viral View trials', value: trials == null ? 'no data' : String(trials), sub: sub ? 'This month' : 'Viral View feed unavailable' },
       {
         label: 'New revenue this week',
-        value: viral || cashRow ? usd2(vvCash / 100 + sponsorWeek) : 'no data',
-        sub: viral || cashRow ? `Viral View ${usd2(vvCash / 100)} + sponsors ${usd2(sponsorWeek)}` : 'No cash feed',
+        value: hasCash ? usd2(vvCash / 100 + sponsorWeek) : 'no data',
+        sub: hasCash ? `Viral View ${usd2(vvCash / 100)} + sponsors ${usd2(sponsorWeek)}` : 'No cash feed',
       },
     ],
   };
@@ -118,7 +123,7 @@ function board(out) {
   ];
 }
 
-export function overlayFactory(page, out, by, nowMs = Date.now()) {
+export function overlayFactory(page, out, by, nowMs = Date.now(), cash = null) {
   const rows = out.pages?.videos?.rows || [];
   page.factory = {
     title: 'Content Factory',
@@ -133,7 +138,7 @@ export function overlayFactory(page, out, by, nowMs = Date.now()) {
       { id: 'social', label: 'Social queue' },
     ],
     outputs: outputCards(rows),
-    funnel: funnel(by),
+    funnel: funnel(by, cash),
     board: board(out),
   };
   return page;

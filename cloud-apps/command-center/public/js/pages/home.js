@@ -10,6 +10,7 @@ function goalCard(g) {
     <div class="big">${esc(g.value)} <span>${esc(g.goal)}</span></div>
     <div class="gbar ${barCls}"><i style="width:${width}%"></i>${pace}</div>
     <div class="gmeta"><span>${esc(g.metaLeft || '')}</span><span>${esc(g.metaRight || '')}</span></div>
+    ${g.warn ? `<p class="gwarn">${esc(g.warn)}</p>` : ''}
     <div class="drivers">${drivers}</div>
   </article>`;
 }

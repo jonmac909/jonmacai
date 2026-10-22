@@ -5,6 +5,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { handleApi } from '../src/api.js';
 import { mergeSnapshot } from '../src/snapshot.js';
+import { buildCash } from '../src/cash.js';
 import { signSession, COOKIE } from '../src/auth.js';
 import { memD1 } from './memd1.mjs';
 import {
@@ -291,4 +292,75 @@ print("unchanged", p.read_text(encoding="utf-8") == "{}")
   assert.equal(lines[0], 'missing None');
   assert.equal(lines[1], 'match True');
   assert.equal(lines[2], 'unchanged True');
+});
+
+const ledgerCash = (rows, ledgerEditedAt, nowMs = NOW) => buildCash({ collected_at: new Date(nowMs).toISOString(), data: JSON.stringify({ rows, ledgerEditedAt }) }, null, nowMs);
+
+test('with deposit data the collected tile, bar and by-month row use the deposit total', () => {
+  const cash = ledgerCash([
+    { date: '2026-09-02', sponsor: 'Topview', usd: 1000 },
+    { date: '2026-09-16', sponsor: 'Poppy', usd: 2500.5 },
+  ], '2026-09-18T19:00:00-07:00');
+  const page = buildSponsorsPage(live, NOW, {}, cash);
+  assert.equal(page.basis, 'deposits');
+  assert.equal(page.tiles[0].label, 'Collected in September');
+  assert.equal(page.tiles[0].value, '$3,500.50');
+  assert.equal(page.tiles[0].pct, 35);
+  assert.equal(page.tiles[0].sub, 'All deposits · Deposit ledger edited Sep 18 · day 18 of 30 · pace $6,000');
+  assert.equal(page.byMonth.rows[4].label, 'September so far');
+  assert.equal(page.byMonth.rows[4].value, '$3,500.50');
+  assert.equal(page.septemberBar.parts[0].amount, '$3,500.50');
+  assert.equal(page.septemberBar.meta, '$10,200.50 if everything owed comes in');
+  assert.equal(page.tiles[1].value, '$6,700');
+});
+
+test('the deposit total follows the calendar month when collections.json has not rolled over', () => {
+  const later = Date.parse('2026-11-03T12:00:00-08:00');
+  const cash = ledgerCash([{ date: '2026-11-02', sponsor: 'Topview', usd: 1200 }], '2026-11-03T08:00:00-08:00', later);
+  const page = buildSponsorsPage(live, later, {}, cash);
+  assert.equal(page.tiles[0].label, 'Collected in November');
+  assert.equal(page.tiles[0].value, '$1,200');
+  const last = page.byMonth.rows.at(-1);
+  assert.equal(last.label, 'November so far');
+  assert.equal(last.value, '$1,200');
+  assert.equal(page.byMonth.rows.some((r) => r.label === 'September so far'), false);
+});
+
+test('a stale deposit ledger is named on the collected tile', () => {
+  const cash = ledgerCash([{ date: '2026-09-02', sponsor: 'Topview', usd: 1000 }], '2026-09-10T12:00:00-07:00');
+  const page = buildSponsorsPage(live, NOW, {}, cash);
+  assert.match(page.tiles[0].sub, /^All deposits · Deposit ledger edited Sep 10 \(stale\) · day 18 of 30/);
+});
+
+test('no deposit data keeps the recorded source total, with the unverified note', () => {
+  const page = buildSponsorsPage(live, NOW, {}, buildCash(null, null, NOW));
+  assert.equal(page.basis, 'source');
+  assert.equal(page.tiles[0].value, '$5,000');
+  assert.match(page.tiles[0].sub, /unverified against deposit ledger/);
+});
+
+test('a fully paid invoice is not late, whatever bucket the sheet files it under', () => {
+  const paid = { ...live, collections: { ...live.collections, items: live.collections.items.map((i) => (i.sponsor === 'TopView' ? { ...i, paid: 1500, owed: 0 } : { ...i })) } };
+  const page = buildSponsorsPage(paid, NOW);
+  const waiting = page.board.columns.find((c) => c.stage === 'Waiting on deposit');
+  const topview = waiting.cards.find((k) => k.name === 'Topview AI');
+  assert.equal(topview.pill, 'Paid');
+  assert.equal(topview.pillCls, 'ok');
+  assert.equal(waiting.cards.find((k) => k.name === 'Invideo').pill, 'Waiting on them');
+  assert.equal(page.collect.rows.some((r) => r.sponsor === 'TopView'), false);
+  const unpaid = buildSponsorsPage(live, NOW);
+  assert.equal(unpaid.board.columns.find((c) => c.stage === 'Waiting on deposit').cards.find((k) => k.name === 'Topview AI').pill, '7 days late');
+});
+
+test('the legacy home tile follows the deposit month and basis', () => {
+  const cash = ledgerCash([{ date: '2026-09-02', sponsor: 'Topview', usd: 1000 }], '2026-09-18T19:00:00-07:00');
+  const fixture = { pages: { home: { tiles: [{ label: 'Sponsors · August collected', value: '$0' }], glance: { rows: [{}] } }, sponsors: { tiles: [] } }, sources: {} };
+  const out = mergeSnapshot(fixture, [
+    { source: 'sponsors', data: JSON.stringify(live), collected_at: new Date(NOW).toISOString() },
+    { source: 'sponsors_cash', data: JSON.stringify({ rows: [{ date: '2026-09-02', sponsor: 'Topview', usd: 1000 }], ledgerEditedAt: '2026-09-18T19:00:00-07:00' }), collected_at: new Date(NOW).toISOString() },
+  ], NOW);
+  assert.equal(cash.month.usd, 1000);
+  assert.equal(out.pages.home.tiles[0].label, 'Sponsors · September collected');
+  assert.equal(out.pages.home.tiles[0].value, '$1,000');
+  assert.match(out.pages.home.tiles[0].sub, /^\$6,700 more is owed · All deposits · Deposit ledger edited Sep 18$/);
 });

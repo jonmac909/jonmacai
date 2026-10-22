@@ -311,6 +311,8 @@ tfoot td{font-weight:600;color:var(--ink);border-top:1px solid var(--line)}
 .gmeta{display:flex;justify-content:space-between;gap:.6rem;font-size:.8rem;color:var(--muted)}
 .gmeta span{min-width:0}
 .gmeta span:last-child{white-space:nowrap}
+.gwarn{margin:0;padding:.4rem .6rem;border:1px solid var(--risk-line);border-radius:.5rem;background:var(--risk-bg);color:var(--risk-ink);font-size:.8rem}
+.sec .gwarn{margin:.4rem 0 .7rem}
 .drivers{margin-top:.4rem;border-top:1px solid var(--line);padding-top:.7rem;display:grid;gap:.3rem;font-size:.85rem}
 .drivers div{display:flex;justify-content:space-between;gap:1rem}
 .drivers span{color:var(--ink-2)}
