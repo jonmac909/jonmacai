@@ -260,7 +260,7 @@ test('a fresh bank feed still warns when a stale ledger supplies part of the mon
   assert.equal(c.source.stale, true);
   assert.match(c.source.note, /supplies this month through Oct 15/);
   assert.equal(c.month.usd, 4934.37);
-  const fromDayOne = moneyRow({ since: '2026-10-01', asOf: '2026-10-21', deposits: [{ date: '2026-10-02', amount: 734.37, description: 'TOPVIEW' }] });
+  const fromDayOne = moneyRow({ since: '2026-10-01', asOf: '2026-10-22', deposits: [{ date: '2026-10-02', amount: 734.37, description: 'TOPVIEW' }] });
   const fresh = buildCash(ledger, null, oct22, fromDayOne);
   assert.equal(fresh.source.stale, false);
   assert.equal(fresh.source.note, '');
@@ -270,6 +270,27 @@ test('a feed with an impossible date is ignored instead of printing Invalid Date
   const c = buildCash(ledgerRow(octoberDeposits, '2026-10-22T18:00:00Z'), null, oct22, moneyRow({ since: '2026-10-01', asOf: '2026-04-99', deposits: [] }));
   assert.equal(c.source.kind, 'ledger');
   assert.equal(c.month.usd, 8888.75);
+});
+
+test('days after the bank feed synced still need a ledger watching them', () => {
+  const bank = moneyRow({ since: '2026-10-01', asOf: '2026-10-20', deposits: [{ date: '2026-10-02', amount: 734.37, description: 'TOPVIEW' }] });
+  const none = buildCash({ collected_at: new Date(oct22).toISOString(), data: JSON.stringify({ ok: false, error: 'cash ledger not found', rows: [] }) }, null, oct22, bank);
+  assert.equal(none.source.kind, 'bank');
+  assert.equal(none.source.stale, true);
+  assert.match(none.source.note, /deposits after Oct 20 are not counted/);
+  const fresh = buildCash(ledgerRow([{ date: '2026-10-02', sponsor: 'Topview', usd: 734.37 }], '2026-10-22T17:00:00Z'), null, oct22, bank);
+  assert.equal(fresh.source.stale, false);
+  assert.equal(fresh.source.note, '');
+});
+
+test('the Content page says no data when only a failed ledger payload arrived', async () => {
+  const { mergeSnapshot } = await import('../src/snapshot.js');
+  const snap = (await import('../fixtures/snapshot.json', { with: { type: 'json' } })).default;
+  const out = mergeSnapshot(snap, [
+    { source: 'sponsors_cash', collected_at: new Date(oct22).toISOString(), data: JSON.stringify({ ok: false, error: 'cash ledger not found', rows: [] }) },
+  ], oct22);
+  const step = out.pages.content.factory.funnel.steps.find((s) => s.label === 'New revenue this week');
+  assert.equal(step.value, 'no data');
 });
 
 test('the Content page counts the same merged deposits as Home', async () => {

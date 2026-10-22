@@ -99,16 +99,25 @@ function sourceOf(feed, editedAt, nowMs, monthStart, hasLedger) {
     const day = shortDay(feed.asOfMs);
     const notes = [];
     if (feed.stale) notes.push(`The bank feed last synced ${day}. Deposits after that come only from the hand-kept ledger.`);
-    const gap = feed.since > monthStart;
-    const ledgerWarn = gap && (!hasLedger || led.stale);
-    if (ledgerWarn) {
+    // The ledger is the only source for the start of the month before `since` and for days after `asOf`.
+    const uncovered = !hasLedger || led.stale;
+    const gapStart = feed.since > monthStart;
+    const gapEnd = feed.asOf < vanDate(nowMs);
+    if (gapStart && uncovered) {
       const until = shortDay(Date.parse(`${feed.since}T12:00:00Z`));
       if (!hasLedger) notes.push(`No deposit ledger has reported, so deposits before ${until} are not counted.`);
       else notes.push(led.known
         ? `The hand-kept ledger supplies this month through ${until} and has not been edited since ${shortDay(led.editedMs)} (${led.days} days), so those deposits may be missing.`
         : `The hand-kept ledger supplies this month through ${until} but did not report when it was last edited, so those deposits may be missing.`);
     }
-    return { kind: 'bank', label: `RBC USD feed through ${day}`, stale: feed.stale || ledgerWarn, note: notes.join(' ') };
+    if (gapEnd && uncovered) {
+      if (!hasLedger) notes.push(`No deposit ledger has reported, so deposits after ${day} are not counted.`);
+      else notes.push(led.known
+        ? `The hand-kept ledger is the only source after ${day} and has not been edited since ${shortDay(led.editedMs)} (${led.days} days), so recent deposits may be missing.`
+        : `The hand-kept ledger is the only source after ${day} but did not report when it was last edited, so recent deposits may be missing.`);
+    }
+    const warn = feed.stale || (gapStart && uncovered) || (gapEnd && uncovered);
+    return { kind: 'bank', label: `RBC USD feed through ${day}`, stale: warn, note: notes.join(' ') };
   }
   if (!led.known) {
     return {

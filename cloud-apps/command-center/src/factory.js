@@ -65,10 +65,12 @@ function funnel(by, cash = null) {
   const vvCash = Number(viral?.cashThisWeek?.netCents) || 0;
   const weekDays = new Set((viral?.cashThisWeek?.byDay || []).map((d) => d.date));
   const cashRow = by.sponsors_cash ? parse(by.sponsors_cash.data) : null;
+  // A failed collector payload {ok:false, rows:[]} is no data, not a $0 feed.
+  const rawLedger = cashRow?.ok !== false && Array.isArray(cashRow?.rows) ? cashRow.rows : [];
   // Same merged deposit list Home uses, so a bank-feed day is never counted twice or missed here.
-  const sponsorRows = cash?.available ? cash.recent || [] : cashRow?.rows || [];
+  const sponsorRows = cash?.available ? cash.recent || [] : rawLedger;
   const sponsorWeek = sponsorRows.filter((r) => weekDays.has(r.date)).reduce((n, r) => n + (Number(r.usd) || 0), 0);
-  const hasCash = !!(viral || cash?.available || cashRow);
+  const hasCash = !!(viral || cash?.available || rawLedger.length);
   return {
     title: 'Views → clicks → sign-ups → trials → revenue',
     note: 'Each step keeps its own clock; a step with no feed says so.',
