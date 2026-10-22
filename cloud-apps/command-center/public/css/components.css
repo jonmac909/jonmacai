@@ -389,7 +389,7 @@ tfoot td{font-weight:600;color:var(--ink);border-top:1px solid var(--line)}
 .drafts[open]>summary{margin-bottom:.8rem;padding-bottom:.6rem;border-bottom:1px solid var(--line)}
 
 /* Jon's tasks: a clean phone-style list, tabs on top, no borders between rows */
-.jtcard{max-width:40rem;min-width:0;margin:0 auto 1.2rem;padding:1.1rem 1.25rem 1.4rem}
+.jtcard{width:100%;max-width:40rem;min-width:0;box-sizing:border-box;margin:0 auto 1.2rem;padding:1.1rem 1.25rem 1.4rem}
 .jttabs{display:flex;gap:1.7rem;border-bottom:1px solid var(--line)}
 .jttab{background:none;border:0;margin:0 0 -1px;padding:.15rem 0 .7rem;font:inherit;font-size:1.02rem;font-weight:700;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent}
 .jttab.on{color:var(--ink);border-bottom-color:var(--ink)}
