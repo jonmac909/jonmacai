@@ -14,9 +14,13 @@ export function normalizePhone(raw) {
   return /^[2-9]\d{2}[2-9]\d{6}$/.test(digits) ? '+1' + digits : '';
 }
 
-export function consentEvidence(data, at = Date.now()) {
+// No production SMS provider is installed, so text reminders stay off. While
+// they are off the checkout must not offer or record SMS consent (2026-10-22).
+export function smsSendingEnabled() { return false; }
+
+export function consentEvidence(data, at = Date.now(), smsEnabled = smsSendingEnabled()) {
   const phone = normalizePhone(data.phone);
-  const optedIn = data.smsConsent === true;
+  const optedIn = smsEnabled && data.smsConsent === true;
   if ((optedIn || String(data.phone || '').trim()) && !phone) throw new Error('invalid phone');
   if (optedIn && data.smsConsentVersion !== CONSENT_VERSION) throw new Error('consent version required');
   return {
@@ -34,7 +38,7 @@ export function readinessConfig(env) {
   const faqVideos = Object.fromEntries(FAQ_KEYS.map(key => [key,
     typeof configured?.[key] === 'string' && /^[A-Za-z0-9_-]{11}$/.test(configured[key]) ? configured[key] : null,
   ]));
-  return { consentVersion: CONSENT_VERSION, faqVideos, smsSendingEnabled: false,
+  return { consentVersion: CONSENT_VERSION, faqVideos, smsSendingEnabled: smsSendingEnabled(),
     metricsEnabled: !isSandbox(env) && env.CLONE_SCORECARD_ENABLED === 'true',
     version: env.CLONE_VERSION?.id || null, commit: env.CLONE_VERSION?.tag || null };
 }

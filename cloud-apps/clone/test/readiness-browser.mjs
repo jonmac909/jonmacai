@@ -59,6 +59,9 @@ try {
     console.log('PASS: sales closed, lead API answers 410 (lead and consent flow skipped; unit tests cover it with a shifted clock)');
   } else {
     await page.locator('a.cta').first().click();
+    // SMS is disabled, so the checkout must not offer or collect text consent.
+    assert.equal(await page.locator('#lead_sms_consent').isVisible(), false);
+    assert.equal(await page.locator('.lead-consent').isVisible(), false);
     assert.equal(await page.locator('#lead_sms_consent').isChecked(), false);
     await page.locator('#lead_name').fill('Fixture Buyer'); await page.locator('#lead_email').fill('optional@example.test');
     const leadSaved = page.waitForResponse(response => response.url().endsWith('/clone/api/lead'));
@@ -68,25 +71,23 @@ try {
     assert.match(await page.evaluate(() => mockCheckoutOptions.metadata.clone_session_date), /^\d{4}-\d{2}-\d{2}$/);
     const noPhone = JSON.parse(await kv.get('lead:optional@example.test'));
     assert.equal(noPhone.phone, ''); assert.equal(noPhone.smsConsent, false);
-    console.log('PASS: checkout without a phone, unchecked consent, and deduplicated first-party visits');
+    console.log('PASS: checkout without a phone or SMS consent, and deduplicated first-party visits');
   
-    await page.locator('#leadback').click(); await page.locator('#lead_sms_consent').check();
-    await page.locator('#leadf').evaluate(form => form.requestSubmit());
-    assert.equal(await page.locator('#lead').getAttribute('data-step'), '1');
-    assert.equal(await page.locator('#leaderr').isVisible(), true);
+    await page.locator('#leadback').click();
     await page.locator('#lead_phone').fill('3055550100');
-    const consentSaved = page.waitForResponse(response => response.url().endsWith('/clone/api/lead'));
-    await page.locator('#leadf').evaluate(form => form.requestSubmit()); assert.equal((await consentSaved).status(), 200);
-    const optedIn = JSON.parse(await kv.get('lead:optional@example.test'));
-    assert.equal(optedIn.smsConsent, true); assert.equal(optedIn.phone, '+13055550100');
-    assert.equal(optedIn.smsConsentStatus, 'pending_confirmation'); assert.ok(Date.parse(optedIn.smsConsentAt));
+    const phoneSaved = page.waitForResponse(response => response.url().endsWith('/clone/api/lead'));
+    await page.locator('#leadf').evaluate(form => form.requestSubmit()); assert.equal((await phoneSaved).status(), 200);
+    const withPhone = JSON.parse(await kv.get('lead:optional@example.test'));
+    assert.equal(withPhone.phone, '+13055550100'); assert.equal(withPhone.smsConsent, false);
+    assert.equal(withPhone.smsConsentStatus, 'not_requested'); assert.equal(withPhone.smsConsentAt, null);
     await page.setViewportSize({ width: 390, height: 844 });
     await page.locator('#leadback').click();
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
     await page.screenshot({ path: join(tmpdir(), 'clone-readiness-consent-mobile.png') });
     await page.reload(); await page.locator('a.cta').first().click();
+    assert.equal(await page.locator('.lead-consent').isVisible(), false);
     assert.equal(await page.locator('#lead_sms_consent').isChecked(), false);
-    console.log('PASS: phone required only for requested reminders, evidence persists, mobile fits, reload never opts in');
+    console.log('PASS: no SMS consent collected or shown, phone optional, mobile fits, reload never opts in');
   }
 
   await Promise.all([page.waitForResponse(response => response.url().endsWith('/clone/api/readiness')), page.goto('https://jonmac.ai/clone/welcome.html')]);

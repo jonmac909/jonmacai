@@ -137,6 +137,13 @@ export async function scheduleSession(env, transactionRef) {
           payload, scheduledAt, transactionRef, step.step);
         step = { ...step, payload, scheduled_at: scheduledAt, state: 'pending' };
       }
+      // Fail safe (2026-10-22): never submit E4-E8/L1 with a blank link, even
+      // from a row queued by an older build or after a link is removed.
+      if (missingLink(step.step, links)) {
+        await run(db, "UPDATE clone_webinar_steps SET state = 'awaiting_link' WHERE transaction_ref = ? AND step = ? AND state IN ('pending', 'processing') AND attempted_at IS NULL", transactionRef, step.step);
+        waiting = true;
+        continue;
+      }
       // Retrying an uncertain submission reuses the exact stored body and key.
       // After Resend forgets that key, stop for reconciliation rather than duplicate E1.
       if (step.attempted_at && Date.now() - step.attempted_at >= DAY - 60000) {

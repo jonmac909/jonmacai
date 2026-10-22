@@ -6,7 +6,7 @@ import { readFileSync } from 'node:fs';
 import worker from '../src/index.js';
 import testWorker from '../scripts/resend-test-worker.js';
 import { assignSession, calendarUrl, reminderMessage, reminderPlan } from '../src/reminder-plan.js';
-import { purchaseReminders, retryReminders, unsubscribeReminders } from '../src/reminders.js';
+import { purchaseReminders, retryReminders, scheduleSession, unsubscribeReminders } from '../src/reminders.js';
 import { sandboxSettings } from './sandbox-fixture.mjs';
 
 const join = 'https://example.zoom.us/j/123456789?pwd=mock-only';
@@ -215,6 +215,24 @@ test('durable scheduling, authenticated hooks, retries and cancellation', async 
     assert.deepEqual(sent(), ['E1', 'E2', 'E3', 'E4', 'E5', 'E6', 'E7', 'E8']);
     assert.ok(JSON.parse(p.calls.find(c => c.path === '/emails' && JSON.parse(c.body).tags[1].value === 'E5').body).text.includes(join));
     assert.equal(f.sql.prepare('SELECT complete FROM clone_webinar_sessions').get().complete, 1);
+  });
+
+  await t.test('a queued join step cannot send after its link disappears', async () => {
+    const f = fixture(), p = provider();
+    await purchaseReminders(seat(), f.env);
+    // Simulate a row queued by an older build or a link removed after queueing.
+    f.sql.prepare("UPDATE clone_webinar_steps SET state = 'pending', email_id = NULL, attempted_at = NULL WHERE step = 'E4'").run();
+    f.sql.prepare('UPDATE clone_webinar_sessions SET complete = 0, locked_until = 0').run();
+    delete f.env.CLONE_ZOOM_JOIN_URL;
+    const emails = () => p.calls.filter(c => c.path === '/emails').length;
+    const before = emails();
+    await scheduleSession(f.env, 'ORD-mock-seat');
+    assert.equal(emails(), before, 'no email may go out without a join link');
+    assert.equal(f.sql.prepare("SELECT state FROM clone_webinar_steps WHERE step = 'E4'").get().state, 'awaiting_link');
+    f.env.CLONE_ZOOM_JOIN_URL = join;
+    await retryReminders(f.env);
+    const e4 = p.calls.filter(c => c.path === '/emails' && JSON.parse(c.body).tags[1].value === 'E4').at(-1);
+    assert.ok(JSON.parse(e4.body).text.includes(join), 'the held step sends once the link is configured');
   });
 
   await t.test('refunds cancel only the matching transaction and survive redelivery', async () => {

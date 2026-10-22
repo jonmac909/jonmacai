@@ -4,7 +4,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { readFileSync } from 'node:fs';
 import { createHmac } from 'node:crypto';
 import worker from '../src/index.js';
-import { CONSENT_VERSION, readinessConfig } from '../src/readiness.js';
+import { CONSENT_VERSION, consentEvidence, readinessConfig, smsSendingEnabled } from '../src/readiness.js';
 import { createSmsAdapter, smsReminderPlan } from '../src/sms.js';
 import { recordScorecardPayment, recordVisit, sessionDate } from '../src/scorecard.js';
 
@@ -32,7 +32,7 @@ function payment(id = 'nmGzE', amount = 47, transaction = 'ORD-test-payment') {
     api_metadata: { data: { clone_session_date: '2026-10-29' } } } };
 }
 
-test('optional phone, explicit checkbox/version and server timestamps; opt-in never confirms a number', async () => {
+test('optional phone; the lead hook never records SMS consent while SMS is disabled', async () => {
   const env = environment(), originalFetch = globalThis.fetch;
   globalThis.fetch = async () => { throw new Error('No external requests permitted'); };
   try {
@@ -42,22 +42,25 @@ test('optional phone, explicit checkbox/version and server timestamps; opt-in ne
       assert.equal(saved.smsConsent, false); assert.equal(saved.smsConsentAt, null);
       assert.equal(saved.smsConsentVersion, null); assert.equal(saved.smsConsentStatus, 'not_requested');
     }
-    for (const data of [
-      { smsConsent: true }, { smsConsent: true, phone: '+13055550100' },
-      { smsConsent: true, phone: '+13055550100', smsConsentVersion: 'outdated' }, { phone: 'not a number' },
-    ]) assert.equal((await worker.fetch(post('lead', { email: 'test@example.test', ...data }), env)).status, 400);
-    const before = Date.now();
+    // A stale cached page or a hand-made request cannot turn consent on while SMS is off.
     assert.equal((await worker.fetch(post('lead', { email: 'test@example.test', phone: '3055550100',
       smsConsent: true, smsConsentVersion: CONSENT_VERSION, smsConsentAt: '1990-01-01', smsConsentStatus: 'confirmed' }), env)).status, 200);
     const saved = JSON.parse(env.leads.get('lead:test@example.test'));
-    assert.equal(saved.phone, '+13055550100'); assert.equal(saved.smsConsentPhone, saved.phone);
-    assert.equal(saved.smsConsent, true); assert.equal(saved.smsConsentVersion, CONSENT_VERSION);
-    assert.ok(Date.parse(saved.smsConsentAt) >= before); assert.equal(saved.smsConsentStatus, 'pending_confirmation');
-    assert.equal(saved.smsConsentPage, '/clone/'); assert.ok(saved.sessionDate);
-    // Legacy/string flags and a subsequent unchecked form never carry forward permission.
-    await worker.fetch(post('lead', { email: 'test@example.test', phone: '+13055550100', smsConsent: 'true' }), env);
-    assert.equal(JSON.parse(env.leads.get('lead:test@example.test')).smsConsent, false);
+    assert.equal(saved.phone, '+13055550100'); assert.equal(saved.smsConsent, false);
+    assert.equal(saved.smsConsentVersion, null); assert.equal(saved.smsConsentStatus, 'not_requested');
+    assert.ok(saved.sessionDate);
+    // An invalid phone is still rejected when one is supplied.
+    assert.equal((await worker.fetch(post('lead', { email: 'test@example.test', phone: 'not a number' }), env)).status, 400);
   } finally { globalThis.fetch = originalFetch; }
+  // The evidence path still records a versioned opt-in once SMS is actually enabled.
+  const before = Date.now();
+  const on = consentEvidence({ phone: '3055550100', smsConsent: true, smsConsentVersion: CONSENT_VERSION,
+    smsConsentAt: '1990-01-01', smsConsentStatus: 'confirmed' }, before, true);
+  assert.equal(on.phone, '+13055550100'); assert.equal(on.smsConsent, true);
+  assert.equal(on.smsConsentVersion, CONSENT_VERSION); assert.equal(on.smsConsentStatus, 'pending_confirmation');
+  assert.equal(on.smsConsentPage, '/clone/'); assert.equal(on.smsConsentAt, new Date(before).toISOString());
+  assert.throws(() => consentEvidence({ phone: '3055550100', smsConsent: true }, before, true), /consent version required/);
+  assert.equal(consentEvidence({ phone: '3055550100', smsConsent: true }, before, false).smsConsent, false);
 });
 
 test('SMS transport requires explicit activation, confirmed matching consent, STOP and no join links', async () => {
@@ -93,6 +96,7 @@ test('FAQ IDs are validated, absent videos stay hidden, and public configuration
   const config = readinessConfig({ CLONE_FAQ_VIDEO_IDS: JSON.stringify({ followers: 'GP3NRg8NMY4', camera: '<script>', shop: 'https://evil.test' }), SMS_ENABLED: 'true' });
   assert.equal(config.faqVideos.followers, 'GP3NRg8NMY4'); assert.equal(config.faqVideos.camera, null);
   assert.equal(config.faqVideos.shop, null); assert.equal(config.smsSendingEnabled, false);
+  assert.equal(smsSendingEnabled(), false, 'No production SMS provider is installed');
 });
 
 test('per-session ledger deduplicates visits and canonical payments, uses cents, and leaves unsupported sources null', async () => {

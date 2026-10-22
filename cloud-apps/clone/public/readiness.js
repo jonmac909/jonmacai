@@ -13,6 +13,9 @@
         frame.referrerPolicy = 'strict-origin-when-cross-origin';
         slot.appendChild(frame); slot.hidden = false;
       });
+      // The SMS consent row ships hidden and only appears when a provider is wired up.
+      var consentRow = document.querySelector('.lead-consent[for="lead_sms_consent"]');
+      if (config.smsSendingEnabled && consentRow) consentRow.hidden = false;
       if (!config.metricsEnabled || !document.getElementById('leadf') || !window.CloneSchedule) return;
       var date = CloneSchedule.calendarDates(CloneSchedule.nextSession()).slice(0, 8), key = 'clone_visit_' + date;
       var id;

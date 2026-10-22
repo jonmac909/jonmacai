@@ -7,7 +7,7 @@ import { deliverWhopEvent, enqueueWhopEvent, flushWhopEvents, whopAttribution, w
 import { deliverMetaEvent, enqueueMetaEvent, flushMetaEvents, metaAttribution, metaConfigured, metaPaymentFromWebhook, metaPurchase } from './meta-events.js';
 import { purchaseReminders, retryReminders, unsubscribeReminders } from './reminders.js';
 import { salesClosed } from './reminder-plan.js';
-import { consentEvidence, readinessConfig } from './readiness.js';
+import { consentEvidence, readinessConfig, smsSendingEnabled } from './readiness.js';
 import { recordScorecardPayment, recordVisit, sessionDate } from './scorecard.js';
 
 export default {
@@ -104,7 +104,7 @@ async function handleLead(request, env) {
   const email = String(data.email || "").trim().toLowerCase();
   const name = String(data.name || "").trim().slice(0, 120);
   let consent;
-  try { consent = consentEvidence(data); }
+  try { consent = consentEvidence(data, Date.now(), smsSendingEnabled()); }
   catch (error) { return json({ ok: false, error: error.message }, 400); }
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) {
     return json({ ok: false, error: "invalid email" }, 400);
