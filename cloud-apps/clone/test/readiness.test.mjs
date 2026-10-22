@@ -4,7 +4,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { readFileSync } from 'node:fs';
 import { createHmac } from 'node:crypto';
 import worker from '../src/index.js';
-import { CONSENT_VERSION, readinessConfig } from '../src/readiness.js';
+import { CONSENT_VERSION, consentEvidence, readinessConfig, smsSendingEnabled } from '../src/readiness.js';
 import { createSmsAdapter, smsReminderPlan } from '../src/sms.js';
 import { recordScorecardPayment, recordVisit, sessionDate } from '../src/scorecard.js';
 
@@ -29,10 +29,10 @@ function post(path, body, requestOrigin = origin) {
 function payment(id = 'nmGzE', amount = 47, transaction = 'ORD-test-payment') {
   return { type: 'payment.succeeded', data: { item: { id }, amount, currency: 'USD', status: 'succeeded',
     transaction_history_id: transaction, created_at: '2026-10-07T18:00:00Z',
-    api_metadata: { data: { clone_session_date: '2026-10-07' } } } };
+    api_metadata: { data: { clone_session_date: '2026-10-29' } } } };
 }
 
-test('optional phone, explicit checkbox/version and server timestamps; opt-in never confirms a number', async () => {
+test('optional phone; the lead hook never records SMS consent while SMS is disabled', async () => {
   const env = environment(), originalFetch = globalThis.fetch;
   globalThis.fetch = async () => { throw new Error('No external requests permitted'); };
   try {
@@ -42,22 +42,25 @@ test('optional phone, explicit checkbox/version and server timestamps; opt-in ne
       assert.equal(saved.smsConsent, false); assert.equal(saved.smsConsentAt, null);
       assert.equal(saved.smsConsentVersion, null); assert.equal(saved.smsConsentStatus, 'not_requested');
     }
-    for (const data of [
-      { smsConsent: true }, { smsConsent: true, phone: '+13055550100' },
-      { smsConsent: true, phone: '+13055550100', smsConsentVersion: 'outdated' }, { phone: 'not a number' },
-    ]) assert.equal((await worker.fetch(post('lead', { email: 'test@example.test', ...data }), env)).status, 400);
-    const before = Date.now();
+    // A stale cached page or a hand-made request cannot turn consent on while SMS is off.
     assert.equal((await worker.fetch(post('lead', { email: 'test@example.test', phone: '3055550100',
       smsConsent: true, smsConsentVersion: CONSENT_VERSION, smsConsentAt: '1990-01-01', smsConsentStatus: 'confirmed' }), env)).status, 200);
     const saved = JSON.parse(env.leads.get('lead:test@example.test'));
-    assert.equal(saved.phone, '+13055550100'); assert.equal(saved.smsConsentPhone, saved.phone);
-    assert.equal(saved.smsConsent, true); assert.equal(saved.smsConsentVersion, CONSENT_VERSION);
-    assert.ok(Date.parse(saved.smsConsentAt) >= before); assert.equal(saved.smsConsentStatus, 'pending_confirmation');
-    assert.equal(saved.smsConsentPage, '/clone/'); assert.ok(saved.sessionDate);
-    // Legacy/string flags and a subsequent unchecked form never carry forward permission.
-    await worker.fetch(post('lead', { email: 'test@example.test', phone: '+13055550100', smsConsent: 'true' }), env);
-    assert.equal(JSON.parse(env.leads.get('lead:test@example.test')).smsConsent, false);
+    assert.equal(saved.phone, '+13055550100'); assert.equal(saved.smsConsent, false);
+    assert.equal(saved.smsConsentVersion, null); assert.equal(saved.smsConsentStatus, 'not_requested');
+    assert.ok(saved.sessionDate);
+    // An invalid phone is still rejected when one is supplied.
+    assert.equal((await worker.fetch(post('lead', { email: 'test@example.test', phone: 'not a number' }), env)).status, 400);
   } finally { globalThis.fetch = originalFetch; }
+  // The evidence path still records a versioned opt-in once SMS is actually enabled.
+  const before = Date.now();
+  const on = consentEvidence({ phone: '3055550100', smsConsent: true, smsConsentVersion: CONSENT_VERSION,
+    smsConsentAt: '1990-01-01', smsConsentStatus: 'confirmed' }, before, true);
+  assert.equal(on.phone, '+13055550100'); assert.equal(on.smsConsent, true);
+  assert.equal(on.smsConsentVersion, CONSENT_VERSION); assert.equal(on.smsConsentStatus, 'pending_confirmation');
+  assert.equal(on.smsConsentPage, '/clone/'); assert.equal(on.smsConsentAt, new Date(before).toISOString());
+  assert.throws(() => consentEvidence({ phone: '3055550100', smsConsent: true }, before, true), /consent version required/);
+  assert.equal(consentEvidence({ phone: '3055550100', smsConsent: true }, before, false).smsConsent, false);
 });
 
 test('SMS transport requires explicit activation, confirmed matching consent, STOP and no join links', async () => {
@@ -93,6 +96,7 @@ test('FAQ IDs are validated, absent videos stay hidden, and public configuration
   const config = readinessConfig({ CLONE_FAQ_VIDEO_IDS: JSON.stringify({ followers: 'GP3NRg8NMY4', camera: '<script>', shop: 'https://evil.test' }), SMS_ENABLED: 'true' });
   assert.equal(config.faqVideos.followers, 'GP3NRg8NMY4'); assert.equal(config.faqVideos.camera, null);
   assert.equal(config.faqVideos.shop, null); assert.equal(config.smsSendingEnabled, false);
+  assert.equal(smsSendingEnabled(), false, 'No production SMS provider is installed');
 });
 
 test('per-session ledger deduplicates visits and canonical payments, uses cents, and leaves unsupported sources null', async () => {
@@ -104,13 +108,14 @@ test('per-session ledger deduplicates visits and canonical payments, uses cents,
     await Promise.all([recordScorecardPayment(p, env), recordScorecardPayment({ ...p, id: 'different-envelope' }, env)]);
   }
   await recordScorecardPayment(payment('2J89z', 0, 'ORD-free-trial'), env);
-  const row = env.db.prepare('SELECT * FROM clone_session_scorecard WHERE session_date = ?').get('2026-10-07');
+  const row = env.db.prepare('SELECT * FROM clone_session_scorecard WHERE session_date = ?').get('2026-10-29');
   assert.equal(row.lander_visits, 1); assert.equal(row.seat_purchases, 1);
   assert.equal(row.software_purchases, 1); assert.equal(row.audit_purchases, 1); assert.equal(row.vault_purchases, 1);
   assert.equal(row.gross_cash_cents, 103700); assert.equal(row.net_cash_cents, 103700);
   for (const key of ['ad_spend_cents', 'impressions', 'link_clicks', 'live_attendees', 'peak_concurrent', 'attendees_at_pitch']) assert.equal(row[key], null);
-  assert.equal(sessionDate(Date.parse('2026-10-31T23:01:00Z')), '2026-11-01');
-  assert.equal(sessionDate(Date.parse('2026-11-01T23:59:00Z')), '2026-11-01');
+  // One live session: every visit and payment, before or after it, belongs to Oct 29.
+  assert.equal(sessionDate(Date.parse('2026-10-31T23:01:00Z')), '2026-10-29');
+  assert.equal(sessionDate(Date.parse('2026-10-01T12:00:00Z')), '2026-10-29');
   await recordVisit({ ...env, CLONE_PAYMENT_MODE: 'sandbox' }, '11111111-1111-4111-8111-111111111111', at);
   assert.equal(env.db.prepare('SELECT COUNT(*) n FROM clone_session_events').get().n, 6);
   const columns = env.db.prepare('PRAGMA table_info(clone_session_events)').all().map(c => c.name);

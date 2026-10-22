@@ -1,6 +1,7 @@
 <meta charset="utf-8">
 <script src="meta-pixel.js"></script>
-<script src="/clone/schedule.js?v=1"></script>
+<script src="/clone/schedule.js?v=2"></script>
+<script src="/clone/closed-gate.js?v=1"></script>
 <script src="/clone/whop-pixel.js?v=1"></script>
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>You're in — The Clone Method</title>
@@ -383,8 +384,8 @@ h1{font-size:clamp(40px,5.4vw,60px);line-height:1.08}
   <h1>CONGRATS! <span class="acc">You're In.</span></h1>
   <p class="letter">Your seat for The Clone Method live training is booked. Here's how to make sure you
     actually get what you came for.</p>
-  <p class="qual" style="margin-top:6px">Live training: <span id="when">Daily at 7:00 PM ET</span></p>
-  <p class="qual">Training runs daily at 7:00 PM ET. Choose the session that works for you.</p>
+  <p class="qual" style="margin-top:6px">Live training: <span id="when">Thursday, October 29 @ 7:00 PM ET</span></p>
+  <p class="qual">One live session: Thursday, October 29, 7:00 PM ET. Your Zoom link arrives by email.</p>
 </div></section>
 
 <div class="shell vidwrap"><div class="vidstrip"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9v6h4l6 5V4L8 9H4zm13.5 3a3.5 3.5 0 0 0-2-3.15v6.3a3.5 3.5 0 0 0 2-3.15zm-2-7.7v2.1a5.9 5.9 0 0 1 0 11.2v2.1a8 8 0 0 0 0-15.4z"/></svg>CLICK BELOW TO WATCH FIRST!</div><div class="video vv-hero" data-state="muted">
@@ -462,10 +463,10 @@ h1{font-size:clamp(40px,5.4vw,60px);line-height:1.08}
   <p>&copy; 2026 Jon Mac &middot; Terms &middot; Privacy &middot; Refund policy &middot; jon@thejonmac.com</p>
 </div></div>
 
-<script src="/clone/readiness.js?v=1"></script>
+<script src="/clone/readiness.js?v=2"></script>
 <script>
 (function(){
-/* Daily 19:00 America/New_York, including DST transitions. */
+/* One live session: Thu Oct 29, 7 PM ET. */
 var nextSession = CloneSchedule.nextSession;
   var target=nextSession();
   var cal=document.getElementById('cal');
@@ -473,8 +474,7 @@ var nextSession = CloneSchedule.nextSession;
     cal.href='https://calendar.google.com/calendar/render?action=TEMPLATE'
       +'&text='+encodeURIComponent('The Clone Method \u2014 Live Training')
       +'&dates='+CloneSchedule.calendarDates(target)+'&ctz=America%2FNew_York'
-      +'&recur='+encodeURIComponent('RRULE:FREQ=DAILY')
-      +'&details='+encodeURIComponent('Your Zoom link is in your inbox. 2 hours live with Jon Mac. Runs daily at 7:00 PM ET \u2014 come to any session. Recording included.')
+      +'&details='+encodeURIComponent('Your Zoom link arrives by email. 2 hours live with Jon Mac, Thursday, October 29 at 7:00 PM ET. Recording included.')
       +'&location=Zoom';
   }
 })();

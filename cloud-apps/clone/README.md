@@ -78,6 +78,17 @@ unchanged by JON-15. CI additionally runs `npm run test:readiness:browser`, usin
 the actual Worker/KV/D1 with mocked external resources and no message/payment
 submission. Mobile screenshots are saved in the OS temp directory.
 
+## Sales close (Oct 29, 5:30 PM PT / 8:30 PM ET)
+
+`SALES_CLOSE` is 2026-10-30T00:30:00Z, 90 minutes into the 7 PM ET session, after the pitch. Buyers who
+pay while the session is live get the join link at once (reminder E6). After `SALES_CLOSE` the Worker returns 410 `sales_closed` from `/api/lead`, `/api/checkout-session`
+and `/api/upsell` for any visitor without a verified purchase (no hosted checkout URL either).
+A buyer verified before the cutoff can still finish the funnel. `public/closed-gate.js` shows
+"Registration Closed" on welcome, survey, software, audit and vault to browsers with no verified
+purchase. Tests: `npm test` shifts `Date` to Oct 28 once the real clock passes the cutoff
+(`test/clock-setup.mjs`); browser scripts fix the page clock (`test/clock.mjs`); the live sandbox
+runner switches to closed-state checks after the cutoff.
+
 ## Daily schedule and Whop measurement (JON-16)
 
 The training runs daily at 7 PM America/New_York. Lander, welcome, survey,
@@ -185,10 +196,25 @@ to Commas, whose own duplicate protection lasts only ten minutes. An explicit
 rejection permits hosted checkout; timeout, HTTP 409/5xx, malformed success or
 failure to persist the successful charge stays locked. The page offers **Check
 Payment Status**, never another checkout for an uncertain payment. Such claims
-need manual reconciliation with Commas; no automatic charge retry exists. A
-browser pending marker survives refreshes and prevents an expired session from
-offering another checkout. An authentic expired buyer token can inspect an
-existing claim, but cannot authorize a new charge.
+need manual reconciliation with Commas. A browser pending marker survives
+refreshes and prevents an expired session from offering another checkout. An
+authentic expired buyer token can inspect an existing claim, but cannot
+authorize a new charge.
+
+Commas also blocks a second saved-card charge on the same card until the next
+full minute starts, so the wait is 0 to 60 s, not a fixed timer (Phil Shaw,
+Commas, Oct 22 2026; production and sandbox behave the same). Two things handle
+that block. Before the first attempt the Worker waits until the next wall-clock
+minute after the buyer's last charge, including the $47 seat purchase, plus a
+3 s buffer, so the first attempt normally succeeds. If Commas still refuses
+with "Oops! Something went wrong" and no payment intent, the Worker waits 60 s
+(`CLONE_CHARGE_RETRY_MS`, default and maximum 60000) and retries once with a new
+`-retry` Idempotency-Key. A second refusal returns `payment_rejected` with the
+message "your card was not charged" plus the hosted checkout, and the locked
+claim still prevents any further charge. Unknown outcomes never retry. The
+buyer sees "Processing your order, about a minute" from the first click, and the
+page waits up to 180 s for the response. `CLONE_CHARGE_GAP_MS` and
+`CLONE_SANDBOX_CHARGE_GAP_MS` override the minute-boundary pacing for tests only.
 
 The installed D1 database is `jonmacai-clone-upsells`. The production Worker
 and webhook remain in place; sandbox needs its own webhook subscription. Existing secrets remain on `jonmac-agency`; the release
@@ -475,7 +501,7 @@ unsubscribe buyers. One-click POST records a durable preference and cancels
 scheduled reminders for every session belonging to that email. Existing Resend
 contact opt-outs also suppress the sequence. A later opt-in does not reset them.
 
-Set `CLONE_ZOOM_JOIN_URL` to the HTTPS Zoom Webinar join URL in Worker vars;
+Set `CLONE_ZOOM_JOIN_URL` to the HTTPS Zoom meeting join URL in Worker vars;
 set optional `CLONE_REPLAY_URL` to an HTTPS replay URL. Both are blank in the
 checked-in config. Missing/invalid Zoom URL skips E4-E7; missing/invalid replay
 URL skips E8. Already-past steps are skipped rather than sent immediately.
