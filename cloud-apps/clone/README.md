@@ -486,7 +486,7 @@ unsubscribe buyers. One-click POST records a durable preference and cancels
 scheduled reminders for every session belonging to that email. Existing Resend
 contact opt-outs also suppress the sequence. A later opt-in does not reset them.
 
-Set `CLONE_ZOOM_JOIN_URL` to the HTTPS Zoom Webinar join URL in Worker vars;
+Set `CLONE_ZOOM_JOIN_URL` to the HTTPS Zoom meeting join URL in Worker vars;
 set optional `CLONE_REPLAY_URL` to an HTTPS replay URL. Both are blank in the
 checked-in config. Missing/invalid Zoom URL skips E4-E7; missing/invalid replay
 URL skips E8. Already-past steps are skipped rather than sent immediately.

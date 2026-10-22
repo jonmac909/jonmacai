@@ -28,7 +28,7 @@
     "CHECKOUT_URL": "https://commas.com/checkout/nmGzEY7RCWcGOKl",
     "RESEND_FROM": "Jon Mac <support@viralview.io>",
     "RESEND_REPLY_TO": "jon@thejonmac.com",
-    // HTTPS Zoom Webinar URL. E4-E7 remain disabled while this is blank.
+    // HTTPS Zoom meeting join URL. E4-E7 remain disabled while this is blank.
     "CLONE_ZOOM_JOIN_URL": "",
     // E8 is skipped until an HTTPS replay URL is supplied.
     "CLONE_REPLAY_URL": "",
