@@ -224,3 +224,61 @@ test('every surface shows the same October total from the deposit ledger', async
   assert.equal(out.pages.home.moved.items[0].pill, '+$8,154.38');
   assert.match(out.pages.home.tiles[0].sub, /^\$0 more is owed · All deposits/);
 });
+
+test('a missing or empty ledger is no data, so the recorded totals still show', async () => {
+  const { mergeSnapshot } = await import('../src/snapshot.js');
+  const snap = (await import('../fixtures/snapshot.json', { with: { type: 'json' } })).default;
+  const out = mergeSnapshot(snap, [
+    { source: 'sponsors_cash', collected_at: new Date(oct22).toISOString(), data: JSON.stringify({ ok: false, error: 'cash ledger not found', rows: [] }) },
+    { source: 'sponsors', collected_at: new Date(oct22).toISOString(), data: JSON.stringify({
+      collections: { currentIncomeMonth: 'October', incomeTotals: { October: 750 }, completedIncomeMonths: [], items: [] },
+      cards: [],
+    }) },
+  ], oct22);
+  assert.equal(out.pages.sponsors.cash.available, false);
+  assert.equal(out.pages.sponsors.basis, 'source');
+  assert.equal(out.pages.sponsors.tiles[0].value, '$750');
+  assert.match(out.pages.sponsors.tiles[0].sub, /^Recorded source total/);
+  assert.notEqual(out.pages.home.goalCards.find((g) => g.key === 'sponsors').value, '$0');
+});
+
+test('a deposit dated later this month waits until it happens', () => {
+  const c = buildCash(ledgerRow([
+    { date: '2026-10-02', sponsor: 'Topview', usd: 734.37 },
+    { date: '2026-10-30', sponsor: 'Expected wire', usd: 1000 },
+  ], '2026-10-22T18:00:00Z'), null, oct22);
+  assert.equal(c.month.usd, 734.37);
+  assert.equal(c.month.payments, 1);
+  assert.equal(c.recent.filter((r) => r.date.startsWith(c.month.key)).length, 1);
+});
+
+test('a fresh bank feed still warns when a stale ledger supplies part of the month', () => {
+  const ledger = ledgerRow([{ date: '2026-10-02', sponsor: 'Topview', usd: 734.37 }], '2026-10-10T18:00:00Z');
+  const midMonth = moneyRow({ since: '2026-10-15', asOf: '2026-10-21', deposits: [{ date: '2026-10-16', amount: 4200, description: 'INVIDEO INC' }] });
+  const c = buildCash(ledger, null, oct22, midMonth);
+  assert.equal(c.source.kind, 'bank');
+  assert.equal(c.source.stale, true);
+  assert.match(c.source.note, /supplies this month through Oct 15/);
+  assert.equal(c.month.usd, 4934.37);
+  const fromDayOne = moneyRow({ since: '2026-10-01', asOf: '2026-10-21', deposits: [{ date: '2026-10-02', amount: 734.37, description: 'TOPVIEW' }] });
+  const fresh = buildCash(ledger, null, oct22, fromDayOne);
+  assert.equal(fresh.source.stale, false);
+  assert.equal(fresh.source.note, '');
+});
+
+test('a feed with an impossible date is ignored instead of printing Invalid Date', () => {
+  const c = buildCash(ledgerRow(octoberDeposits, '2026-10-22T18:00:00Z'), null, oct22, moneyRow({ since: '2026-10-01', asOf: '2026-04-99', deposits: [] }));
+  assert.equal(c.source.kind, 'ledger');
+  assert.equal(c.month.usd, 8888.75);
+});
+
+test('the Content page counts the same merged deposits as Home', async () => {
+  const { mergeSnapshot } = await import('../src/snapshot.js');
+  const snap = (await import('../fixtures/snapshot.json', { with: { type: 'json' } })).default;
+  const out = mergeSnapshot(snap, [
+    { source: 'sponsors_cash', ...ledgerRow(octoberDeposits, '2026-10-22T17:00:00Z') },
+    { source: 'viralview', collected_at: new Date(oct22).toISOString(), data: JSON.stringify({ cashThisWeek: { netCents: 0, byDay: [{ date: '2026-10-16' }, { date: '2026-10-19' }] } }) },
+  ], oct22);
+  const step = out.pages.content.factory.funnel.steps.find((s) => s.label === 'New revenue this week');
+  assert.equal(step.sub, 'Viral View $0.00 + sponsors $8,154.38');
+});

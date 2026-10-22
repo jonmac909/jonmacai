@@ -480,7 +480,7 @@ export function mergeSnapshot(fixture, rows, nowMs = Date.now(), overrides = {},
   if (out.pages.home) out.pages.home.sponsorsCash = cash;
   applyHome(out, by, extra, nowMs);
   if (out.pages.home) buildNow(out, by, nowMs, INTERVALS);
-  if (out.pages.content) overlayFactory(out.pages.content, out, by, nowMs);
+  if (out.pages.content) overlayFactory(out.pages.content, out, by, nowMs, cash);
   if (out.pages.home) buildGoalsHome(out, by, cash, extra, nowMs);
   if (cash.available && out.goal) {
     out.goal = { ...out.goal, pct: cash.pct, sub: `Trailing 90-day avg ${usd(cash.trailing.avg)} a month` };
