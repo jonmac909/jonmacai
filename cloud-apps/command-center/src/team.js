@@ -147,13 +147,26 @@ function normName(value) {
 }
 
 // A task owner may be "Ana / Paul"; a bot name "Paul Bocuse". Match on the first
-// name so accent and surname differences do not hide a bot already listed.
-function mentionsBot(owner, bot) {
+// name so accent and surname differences do not hide a bot already listed. When
+// two bots share a first name (Paul Bocuse and Paul Graham), only the full name
+// counts, so one bot is never hidden by the other's task.
+function mentionsBot(owner, bot, sharedFirstNames = new Set()) {
   const name = normName(bot.name);
   if (!name) return false;
-  const keys = [name, name.split(' ')[0]];
+  const first = name.split(' ')[0];
+  const keys = sharedFirstNames.has(first) ? [name] : [name, first];
   return String(owner || '').split('/').map(normName).filter(Boolean)
-    .some((tok) => keys.some((k) => k === tok || k.startsWith(`${tok} `)));
+    .some((tok) => keys.includes(tok));
+}
+
+// First names used by more than one bot in the roster.
+function sharedFirstNames(bots) {
+  const seen = new Map();
+  for (const b of bots) {
+    const first = normName(b.name).split(' ')[0];
+    if (first) seen.set(first, (seen.get(first) || 0) + 1);
+  }
+  return new Set([...seen].filter(([, n]) => n > 1).map(([first]) => first));
 }
 
 // Ana's tasks.json rows, kept only as far as a lane needs them. Times are
@@ -232,11 +245,12 @@ export function buildLanes(bots, tasksPayload, deliverableRows, nowMs = Date.now
 
   // Roster waiting/stuck bots are added only when no task already names them, so
   // one bot does not appear twice in the same lane.
+  const shared = sharedFirstNames(list);
   const waiting = [...waitingTasks.map(taskItem), ...list
-    .filter((b) => b.status === 'waiting' && !waitingTasks.some((t) => mentionsBot(t.owner, b)))
+    .filter((b) => b.status === 'waiting' && !waitingTasks.some((t) => mentionsBot(t.owner, b, shared)))
     .map((b) => botItem(b, nowMs))];
   const stuck = [...stuckTasks.map(taskItem), ...list
-    .filter((b) => b.status === 'stuck' && !stuckTasks.some((t) => mentionsBot(t.owner, b)))
+    .filter((b) => b.status === 'stuck' && !stuckTasks.some((t) => mentionsBot(t.owner, b, shared)))
     .map((b) => botItem(b, nowMs))];
 
   const deliverables = buildDeliverables(deliverableRows || [], nowMs);
@@ -245,7 +259,9 @@ export function buildLanes(bots, tasksPayload, deliverableRows, nowMs = Date.now
     .filter((r) => Number.isFinite(r.finishedMs) && ymd(r.finishedMs) === today)
     .map(deliverableItem);
   const doneItems = [...doneToday.map(taskItem), ...approvedToday];
-  const idle = list.filter((b) => b.status === 'idle')
+  // Anything not working, waiting or stuck is shown in the folded idle list, so a
+  // bot with a missing or unknown heartbeat cannot disappear from the page.
+  const idle = list.filter((b) => !['working', 'waiting', 'stuck'].includes(b.status))
     .sort((a, b) => String(a.name).localeCompare(String(b.name)))
     .map((b) => botItem(b, nowMs));
 
@@ -323,7 +339,7 @@ export function buildTeam(page, by, hosts, nowMs, roster = [], tasksPayload = nu
   }
   page.sub = `${n ? `${n} bots` : 'Bots · no data'} · ${counts.working} active · ${van(nowMs, { hour: 'numeric', minute: '2-digit' })} PT`;
   page.counts = counts;
-  page.pills = [
+  page.pills = !n ? [] : [
     counts.working ? { label: `${counts.working} active`, cls: 'ok' } : null,
     counts.waiting ? { label: `${counts.waiting} waiting`, cls: 'risk' } : null,
     counts.stuck ? { label: `${counts.stuck} stuck`, cls: 'crit' } : null,

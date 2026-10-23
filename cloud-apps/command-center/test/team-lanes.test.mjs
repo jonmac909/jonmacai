@@ -68,6 +68,25 @@ test('links are http only and a missing one falls back to the Tasks tab', () => 
   assert.equal(noUrl.href, '/dashboard/#tasks');
 });
 
+test('a shared first name never hides a bot from Waiting', () => {
+  const twoPauls = normalizeTeam([
+    { name: 'Paul Bocuse', role: 'Video', team: 'Content', task: 'A', status: 'waiting', updated: '2026-10-23T17:00:00Z' },
+    { name: 'Paul Graham (AI)', role: 'Board', team: 'General', task: 'B', status: 'waiting', updated: '2026-10-23T17:00:00Z' },
+  ], 'jon_tasks', '2026-10-23T18:10:00Z');
+  const lanes = buildLanes(twoPauls, {
+    tasks: [{ id: 'X', asked: '2026-10-23 09:00', task: 'Owned by Paul', owner: 'Paul', status: 'waiting_on_jon' }],
+  }, [], NOW);
+  assert.deepEqual(lanes[1].items.map((i) => i.name || i.id), ['X', 'Paul Bocuse', 'Paul Graham (AI)']);
+});
+
+test('a bot with an unknown status still shows in the idle fold', () => {
+  const lanes = buildLanes([
+    { id: 'ghost', name: 'Ghost Bot', role: '', section: 'General', task: 'No heartbeat', status: 'nodata', taskAt: null },
+  ], {}, [], NOW);
+  assert.equal(lanes[4].idleCount, 1);
+  assert.equal(lanes[4].idle[0].name, 'Ghost Bot');
+});
+
 test('empty lanes still come back with a zero count', () => {
   const lanes = buildLanes([], {}, [], NOW);
   assert.equal(lanes.length, 5);
