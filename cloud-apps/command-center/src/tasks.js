@@ -13,18 +13,18 @@ const STATUS = {
 
 const ACTIVE_ORDER = ['waiting_on_jon', 'doing', 'blocked'];
 
-// Section order on the Tasks page (Ana, 2026-10-22). A task whose project is
+// Section order on the Tasks page (Ana, 2026-10-22; names match tasks.json). A task whose project is
 // missing or new sorts after these, in the order it appears in tasks.json.
 export const PROJECT_ORDER = [
-  'YouTube & video',
-  'Funnels & webinar',
+  'YouTube & Video',
+  'Funnels & Webinar',
   'Viral View',
   'Sponsors',
   'Short form',
-  'Dashboard & tasks',
-  'Money & finance',
-  'Email & calendar',
-  'Team & systems',
+  'Dashboard',
+  'Money & Alerts',
+  'Email & Calendar',
+  'Team & Setup',
 ];
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
