@@ -141,8 +141,8 @@ export function buildTasks(payload, nowMs = Date.now(), collectedAt = '') {
   };
 }
 
-// Deliverables tab (2026-10-23): what finished in the last 24 hours and still
-// needs Jon's approval, plus a collapsed list of what he already approved.
+// Deliverables tab (2026-10-23): everything still waiting on Jon's approval,
+// however old, plus a collapsed list of what he approved in the last 24 hours.
 // Approving only records a row here; it publishes or sends nothing.
 const TYPE_LABELS = {
   video: 'Video',

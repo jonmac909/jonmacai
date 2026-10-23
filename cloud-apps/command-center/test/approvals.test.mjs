@@ -35,13 +35,14 @@ function memDb() {
           if (sql.includes('FROM approvals a')) return { results: [...approvals.entries()].map(([id, ap]) => ({ id, ...(deliverables.get(id) || {}), ...ap })) };
           // Pending read: unapproved rows, any age (listPendingDeliverables).
           if (sql.includes('FROM deliverables d') && !sql.includes('a.approved_by')) {
-            return { results: [...deliverables.values()].filter((d) => !approvals.has(d.id)) };
+            return { results: [...deliverables.values()].filter((d) => d.finished_at && !approvals.has(d.id)) };
           }
-          // Snapshot read: unapproved rows any age, approved rows only in the window.
+          // Snapshot read: unapproved rows any age, approved rows in the window.
           if (sql.includes('FROM deliverables d')) {
             const cutoff = a[0];
             return {
-              results: [...deliverables.values()].filter((d) => !approvals.has(d.id) || d.finished_at >= cutoff)
+              results: [...deliverables.values()]
+                .filter((d) => d.finished_at && (!approvals.has(d.id) || approvals.get(d.id).approved_at >= cutoff))
                 .map((d) => ({ ...d, ...(approvals.get(d.id) || {}) })),
             };
           }
@@ -94,7 +95,7 @@ test('deliverables: unapproved stay however old, approved kept in their own list
   assert.ok(bad.finished.length > 0, 'finished time has a label');
 });
 
-test('the Review lane keeps an old unapproved deliverable until Jon approves it', () => {
+test('the Review lane keeps an old unapproved deliverable until Jon approves it', async () => {
   const lanes = buildLanes(
     [],
     { tasks: [] },
@@ -102,13 +103,17 @@ test('the Review lane keeps an old unapproved deliverable until Jon approves it'
     NOW,
   );
   assert.deepEqual(lanes[3].items.map((i) => i.id), ['d-old']);
-  // Once approved and older than 24 h, the snapshot query stops returning it.
   const db = memDb();
   db.deliverables.set('d-old', { id: 'd-old', title: 'Old landing page', finished_at: '2026-10-10T10:00:00Z' });
+  const since = new Date(NOW - 24 * 60 * 60 * 1000).toISOString();
+  const ids = async () => (await listDeliverables(db, since)).map((r) => r.id);
+  assert.deepEqual(await ids(), ['d-old'], 'unapproved stays whatever its age');
+  // Approved just now: still returned, measured from the approval, not the finish.
   db.approvals.set('d-old', { approved_at: '2026-10-23T16:00:00Z', approved_by: 'Jon' });
-  return listDeliverables(db, new Date(NOW - 24 * 60 * 60 * 1000).toISOString()).then((rows) => {
-    assert.deepEqual(rows.map((r) => r.id), []);
-  });
+  assert.deepEqual(await ids(), ['d-old'], 'a just-approved old item does not vanish');
+  // Approved more than 24 h ago: past the window, so the snapshot no longer returns it.
+  db.approvals.set('d-old', { approved_at: '2026-10-20T16:00:00Z', approved_by: 'Jon' });
+  assert.deepEqual(await ids(), []);
 });
 
 test('deliverables: approved rows leave pending and show who and when', () => {

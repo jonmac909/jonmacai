@@ -225,7 +225,9 @@ export async function upsertDeliverables(db, rows) {
 }
 
 // 2026-10-23 (Ana, for Jon): an unapproved deliverable never ages out; it stays
-// on the Review lane until Jon approves it. Approved rows keep the 24 h window.
+// on the Review lane until Jon approves it. Approved rows keep the 24 h window,
+// measured from the approval so a just-approved old item does not vanish.
+// Unapproved rows are ordered first so the LIMIT can never hide one.
 export async function listDeliverables(db, sinceIso) {
   if (!db) return [];
   const { results } = await db.prepare(
@@ -233,8 +235,8 @@ export async function listDeliverables(db, sinceIso) {
             a.approved_at, a.approved_by
        FROM deliverables d LEFT JOIN approvals a ON a.deliverable_id = d.id
       WHERE d.finished_at IS NOT NULL
-        AND (a.approved_at IS NULL OR d.finished_at >= ?)
-      ORDER BY d.finished_at DESC LIMIT 200`,
+        AND (a.approved_at IS NULL OR a.approved_at >= ?)
+      ORDER BY (a.approved_at IS NULL) DESC, d.finished_at DESC LIMIT 200`,
   ).bind(sinceIso).all();
   return results || [];
 }
