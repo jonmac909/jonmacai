@@ -14,7 +14,7 @@ import { render as mastermind } from './pages/mastermind.js';
 import { render as agents } from './pages/agents.js';
 import { render as videos } from './pages/videos.js';
 import { render as webinar } from './pages/webinar.js';
-import { render as team } from './pages/team.js';
+import { render as team } from './pages/team.js?v=20261023f';
 import { formatJobResult } from './ui.js';
 import { bindModals, openDraft } from './modals.js';
 const PREFIX = '/dashboard';
