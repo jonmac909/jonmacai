@@ -10,7 +10,7 @@ import { overlayViral, applyHomeViral } from './viral.js';
 import { overlayOutreach, blankOutreach } from './outreach.js';
 import { overlayLife } from './life.js';
 import { applyHome } from './home.js';
-import { buildTasks, buildDeliverables } from './tasks.js';
+import { buildTasks, buildDeliverables, buildDaily } from './tasks.js';
 import { buildMachines, HOSTS, MACHINE_INTERVAL_MS } from './machines.js';
 import { overlayVideos } from './videos.js';
 import { overlayWebinar } from './webinar.js';
@@ -493,6 +493,7 @@ export function mergeSnapshot(fixture, rows, nowMs = Date.now(), overrides = {},
   {
     // Jon's checklist lives on its own page (Ana, 2026-10-22); Home no longer carries it.
     const taskRow = by.jon_tasks;
+    const taskData = taskRow ? parseData(taskRow.data) : null;
     out.pages.tasks = {
       ...(out.pages.tasks || {}),
       title: 'Tasks',
@@ -502,7 +503,8 @@ export function mergeSnapshot(fixture, rows, nowMs = Date.now(), overrides = {},
         nowMs,
         taskRow?.collected_at || '',
       ),
-      deliverables: buildDeliverables(extra.deliverables || [], nowMs),
+      deliverables: buildDeliverables(extra.deliverables || [], nowMs, taskData),
+      daily: buildDaily(taskData && taskData.daily, extra.dailyApprovals || [], nowMs),
       deliverablesError: extra.deliverablesError || '',
     };
   }

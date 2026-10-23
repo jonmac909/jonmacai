@@ -44,7 +44,7 @@ function deliverableCard(r) {
   return `<article class="tcard islink" data-href="${esc(r.href || '/dashboard/#tasks')}" role="link" tabindex="0">
     <div class="ttask strong">${esc(r.title)}</div>
     ${metaBits([r.type, r.owner, r.when])}
-    <div class="topen">Open review</div>
+    <div class="topen">${r.inProgress ? 'Open page' : 'Open review'}</div>
   </article>`;
 }
 

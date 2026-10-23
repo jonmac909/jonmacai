@@ -45,12 +45,38 @@ function deliverableRow(r) {
     <span class="jtbody"><span class="jtt">${esc(r.title)}</span><span class="jtm">${meta}</span></span>${action}</li>`;
 }
 
-function deliverablesPanel(dl) {
+// Daily checklist: three rows that reset each Pacific day. Count against target,
+// the items with their links, and one Approve button per row.
+function dailyItem(it) {
+  const label = esc(it.title || it.url);
+  const link = it.url ? `<a href="${esc(it.url)}" target="_blank" rel="noopener">${label}</a>` : label;
+  return `<li>${link}${it.text ? `<span class="dailytext">${esc(it.text)}</span>` : ''}</li>`;
+}
+
+function dailyRow(r) {
+  const action = r.approved
+    ? `<span class="dlvok">Approved by ${esc(r.approvedBy || 'Jon')}${r.approvedWhen ? ` · ${esc(r.approvedWhen)}` : ''}</span>`
+    : `<button type="button" class="btn dlvbtn" data-approve="${esc(r.id)}"${r.count ? '' : ' disabled'} aria-label="Approve ${esc(r.label)}">Approve</button>`;
+  const items = r.items.length ? `<ol class="dailyitems">${r.items.map(dailyItem).join('')}</ol>` : '<span class="dailyempty">Nothing delivered yet today</span>';
+  return `<li class="jtrow dlv daily${r.approved ? ' isapproved' : ''}${r.met ? ' met' : ''}">
+    <span class="jtbox" aria-hidden="true">${r.met ? '<svg class="ic"><use href="#i-check"/></svg>' : ''}</span>
+    <span class="jtbody"><span class="jtt">${esc(r.label)} <span class="dailycount">${r.count} / ${r.target}</span></span>
+    <span class="jtm"><span>${esc(r.hint)}</span></span>${items}</span>${action}</li>`;
+}
+
+function dailyPanel(daily) {
+  if (!daily || !daily.rows || !daily.rows.length) return '';
+  const note = daily.stale ? '<p class="dailynote">Today&#39;s list has not been pushed yet.</p>' : '';
+  return `<h2 class="jtprojh">Today</h2>${note}<ul class="jtlist">${daily.rows.map(dailyRow).join('')}</ul>`;
+}
+
+function deliverablesPanel(dl, daily) {
   const pending = dl && dl.pending ? dl.pending : [];
   const approved = dl && dl.approved ? dl.approved : [];
+  const today = dailyPanel(daily);
   if (!pending.length && !approved.length) {
-    if (dl && dl.error) return `<p class="jtnone">Deliverables unavailable: ${esc(dl.error || dl.debug)}</p>`;
-    return '<p class="jtnone">Nothing waiting on your approval.</p>';
+    if (dl && dl.error) return `${today}<p class="jtnone">Deliverables unavailable: ${esc(dl.error || dl.debug)}</p>`;
+    return `${today}<p class="jtnone">Nothing waiting on your approval.</p>`;
   }
   const list = pending.length
     ? `<ul class="jtlist">${pending.map(deliverableRow).join('')}</ul>`
@@ -58,11 +84,11 @@ function deliverablesPanel(dl) {
   const done = approved.length
     ? `<details class="jtdone"><summary>Approved ${approved.length}</summary><ul class="jtlist">${approved.map(deliverableRow).join('')}</ul></details>`
     : '';
-  return list + done;
+  return `${today}${today ? '<h2 class="jtprojh dailyother">Other deliverables</h2>' : ''}${list}${done}`;
 }
 
 function taskBoard(t) {
-  if (!t || !t.available) {
+  if ((!t || !t.available) && !(t && t.daily && t.daily.rows)) {
     return '<div class="card pad jtcard"><p class="muted">No tasks yet. Ana keeps the list and pushes it here.</p></div>';
   }
   let tab = 'active';
@@ -75,7 +101,7 @@ function taskBoard(t) {
   const active = `<div data-jtpanel="active"${tab === 'active' ? '' : ' hidden'}>${projects.map((p) => projectSection(p, 'active')).join('') || '<p class="jtnone">Nothing active.</p>'}</div>`;
   const next = `<div data-jtpanel="next"${tab === 'next' ? '' : ' hidden'}>${projects.map((p) => projectSection(p, 'next')).join('') || '<p class="jtnone">Nothing queued.</p>'}</div>`;
   const pendingBadge = dl.pendingCount ? `<span class="jtcount">${dl.pendingCount}</span>` : '';
-  const deliverables = `<div data-jtpanel="deliverables"${tab === 'deliverables' ? '' : ' hidden'}>${deliverablesPanel(dl)}</div>`;
+  const deliverables = `<div data-jtpanel="deliverables"${tab === 'deliverables' ? '' : ' hidden'}>${deliverablesPanel(dl, t.daily)}</div>`;
   return `<section class="card pad jtcard" aria-label="Jon's tasks">
     <div class="jttabs" role="tablist">
       <button type="button" class="jttab${tab === 'active' ? ' on' : ''}" data-jtab="active" role="tab" aria-selected="${tab === 'active'}">Active</button>
@@ -96,6 +122,7 @@ export function render(d) {
     ...tasks,
     deliverables: page.deliverables || tasks.deliverables,
     deliverablesError: page.deliverablesError || tasks.deliverablesError,
+    daily: page.daily || tasks.daily,
   };
   return `<div class="wrap">
   <div class="head"><div><h1>${esc(page.title || 'Tasks')}</h1><p>${esc(page.sub || '')}</p></div></div>

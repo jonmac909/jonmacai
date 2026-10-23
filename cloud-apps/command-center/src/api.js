@@ -10,7 +10,7 @@ import {
   listVideoProjects, replaceVideoProjects,
   upsertPost, listPosts, listChecklist, listHabits, deleteChecklist,
   replaceTeamBots, listTeamBots, upsertDeliverables, listDeliverables, listPendingDeliverables,
-  approveDeliverable, listApprovals,
+  approveDeliverable, listApprovals, listDailyApprovals,
 } from './db.js';
 import { mergeSnapshot } from './snapshot.js';
 import { listFunnel } from './webinar.js';
@@ -397,6 +397,7 @@ export async function handleApi(request, env, ctx) {
       extra.deliverablesError = err && err.message ? err.message : 'Deliverables unavailable';
     }
     extra.teamRoster = await listTeamBots(env.DB).catch(() => []);
+    extra.dailyApprovals = await listDailyApprovals(env.DB, ymd(now)).catch(() => []);
     const merged = mergeSnapshot(base, await listSnapshots(env.DB), now, overrides, await listIdeas(env.DB), await listPosts(env.DB), await listVideoProjects(env.DB), extra);
     if (merged.pages.outreach) {
       applyOutreachStatus(merged.pages.outreach, await latestAction(env.DB, 'outreach.refresh'), merged.sources?.instantly);
