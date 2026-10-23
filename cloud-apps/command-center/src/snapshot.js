@@ -441,7 +441,15 @@ export function mergeSnapshot(fixture, rows, nowMs = Date.now(), overrides = {},
   }
   {
     out.pages.team = out.pages.team || { title: 'Team' };
-    buildTeam(out.pages.team, by, hosts, nowMs, extra.teamRoster || []);
+    buildTeam(
+      out.pages.team,
+      by,
+      hosts,
+      nowMs,
+      extra.teamRoster || [],
+      by.jon_tasks ? parseData(by.jon_tasks.data) : null,
+      extra.deliverables || [],
+    );
     if (out.nav?.badges) out.nav.badges.team = (out.pages.team.counts?.waiting || 0) + (out.pages.team.counts?.stuck || 0);
   }
   if (by.moneyclaw) {

@@ -2,6 +2,14 @@
 // OpenMausBot bot grouped by its real section. Bot rows come from the `team` collector
 // on GPU1 (bots.json + thread event files); nothing here is guessed. Where a value is
 // not reported the page says "no data".
+//
+// 2026-10-23: the page now leads with status lanes (Jon picked Option A): Active
+// Agents, Waiting, Stuck, Review, Done. Lanes are built in code from the live
+// roster, Ana's tasks.json (pushed as source `jon_tasks`) and the deliverables
+// table. No hand-kept lists.
+import { askedLabel, buildDeliverables } from './tasks.js';
+import { ymd } from './life.js';
+
 const TZ = 'America/Vancouver';
 const SLOT_TIMES = ['02:50', '06:50', '10:50', '14:50', '18:50', '22:50'];
 const SECTION_ORDER = ['General', 'Content', 'Business', 'Viral View', 'Other'];
@@ -118,6 +126,162 @@ function stamp(value) {
   return Number.isFinite(ms) ? new Date(ms).toISOString() : '';
 }
 
+// --- Status lanes (Jon, 2026-10-23) -----------------------------------------
+// Active Agents: a bot working right now. Waiting: blocked on Jon. Stuck: failed,
+// stalled or blocked on something other than Jon. Review: a deliverable waiting on
+// Jon's approval with its review link. Done: finished work today, with the idle
+// bots folded to one line each.
+
+function httpLink(value) {
+  const s = String(value || '').trim();
+  return /^https?:\/\//i.test(s) ? s : '';
+}
+
+function normName(value) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+}
+
+// A task owner may be "Ana / Paul"; a bot name "Paul Bocuse". Match on the first
+// name so accent and surname differences do not hide a bot already listed. When
+// two bots share a first name (Paul Bocuse and Paul Graham), only the full name
+// counts, so one bot is never hidden by the other's task.
+function mentionsBot(owner, bot, sharedFirstNames = new Set()) {
+  const name = normName(bot.name);
+  if (!name) return false;
+  const first = name.split(' ')[0];
+  const keys = sharedFirstNames.has(first) ? [name] : [name, first];
+  return String(owner || '').split('/').map(normName).filter(Boolean)
+    .some((tok) => keys.includes(tok));
+}
+
+// First names used by more than one bot in the roster.
+function sharedFirstNames(bots) {
+  const seen = new Map();
+  for (const b of bots) {
+    const first = normName(b.name).split(' ')[0];
+    if (first) seen.set(first, (seen.get(first) || 0) + 1);
+  }
+  return new Set([...seen].filter(([, n]) => n > 1).map(([first]) => first));
+}
+
+// Ana's tasks.json rows, kept only as far as a lane needs them. Times are
+// Vancouver wall clock strings ("2026-10-23 11:12"); `day` drives "today".
+function taskRows(payload, nowMs) {
+  const raw = payload && Array.isArray(payload.tasks) ? payload.tasks : [];
+  const today = ymd(nowMs);
+  return raw.slice(0, 300).map((t) => {
+    const asked = String((t && t.asked) || '');
+    const m = asked.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    const sortAt = Date.parse(`${(m ? `${m[1]}-${m[2]}-${m[3]}` : '1970-01-01')}T${asked.slice(11, 16) || '00:00'}`);
+    return {
+      id: String((t && t.id) || ''),
+      title: String((t && t.task) || '').trim(),
+      owner: String((t && t.owner) || '').trim(),
+      status: String((t && t.status) || ''),
+      note: String((t && t.note) || '').trim(),
+      link: httpLink(t && t.link),
+      when: askedLabel(asked, today),
+      day: m ? `${m[1]}-${m[2]}-${m[3]}` : '',
+      sortAt: Number.isFinite(sortAt) ? sortAt : 0,
+    };
+  }).filter((t) => t.title);
+}
+
+function botItem(bot, nowMs) {
+  return {
+    kind: 'bot',
+    id: bot.id,
+    name: bot.name,
+    role: bot.role || '',
+    team: bot.section || bot.team || '',
+    title: bot.task || 'No current task',
+    when: agoLabel(bot.taskAt, nowMs),
+    status: bot.status || '',
+  };
+}
+
+function taskItem(t) {
+  return {
+    kind: 'task',
+    id: t.id,
+    title: t.title,
+    owner: t.owner,
+    note: t.note,
+    link: t.link,
+    when: t.when,
+  };
+}
+
+function deliverableItem(r) {
+  return {
+    kind: 'deliverable',
+    id: r.id,
+    title: r.title,
+    owner: r.owner,
+    type: r.typeLabel || 'File',
+    when: r.finished || '',
+    url: httpLink(r.url),
+    href: httpLink(r.url) || '/dashboard/#tasks',
+  };
+}
+
+export function buildLanes(bots, tasksPayload, deliverableRows, nowMs = Date.now()) {
+  const list = Array.isArray(bots) ? bots : [];
+  const tasks = taskRows(tasksPayload, nowMs);
+  const today = ymd(nowMs);
+  const byNewest = (a, b) => b.sortAt - a.sortAt;
+  const waitingTasks = tasks.filter((t) => t.status === 'waiting_on_jon').sort(byNewest);
+  const stuckTasks = tasks.filter((t) => t.status === 'blocked').sort(byNewest);
+  const doneToday = tasks.filter((t) => t.status === 'done' && t.day === today).sort(byNewest);
+
+  const active = list.filter((b) => b.status === 'working')
+    .sort((a, b) => String(a.name).localeCompare(String(b.name)))
+    .map((b) => botItem(b, nowMs));
+
+  // Roster waiting/stuck bots are added only when no task already names them, so
+  // one bot does not appear twice in the same lane.
+  const shared = sharedFirstNames(list);
+  const waiting = [...waitingTasks.map(taskItem), ...list
+    .filter((b) => b.status === 'waiting' && !waitingTasks.some((t) => mentionsBot(t.owner, b, shared)))
+    .map((b) => botItem(b, nowMs))];
+  const stuck = [...stuckTasks.map(taskItem), ...list
+    .filter((b) => b.status === 'stuck' && !stuckTasks.some((t) => mentionsBot(t.owner, b, shared)))
+    .map((b) => botItem(b, nowMs))];
+
+  const deliverables = buildDeliverables(deliverableRows || [], nowMs);
+  const review = deliverables.pending.map(deliverableItem);
+  const approvedToday = deliverables.approved
+    .filter((r) => Number.isFinite(r.finishedMs) && ymd(r.finishedMs) === today)
+    .map(deliverableItem);
+  const doneItems = [...doneToday.map(taskItem), ...approvedToday];
+  // Anything not working, waiting or stuck is shown in the folded idle list, so a
+  // bot with a missing or unknown heartbeat cannot disappear from the page.
+  const idle = list.filter((b) => !['working', 'waiting', 'stuck'].includes(b.status))
+    .sort((a, b) => String(a.name).localeCompare(String(b.name)))
+    .map((b) => botItem(b, nowMs));
+
+  return [
+    { key: 'active', title: 'Active Agents', note: 'Working right now', count: active.length, items: active },
+    { key: 'waiting', title: 'Waiting', note: 'Blocked on Jon', count: waiting.length, items: waiting },
+    { key: 'stuck', title: 'Stuck', note: 'Failed or blocked elsewhere', count: stuck.length, items: stuck },
+    { key: 'review', title: 'Review', note: 'Waiting on your approval', count: review.length, items: review },
+    {
+      key: 'done',
+      title: 'Done',
+      note: 'Finished today',
+      count: doneItems.length,
+      items: doneItems,
+      idle,
+      idleCount: idle.length,
+    },
+  ];
+}
+
 // Team roster pushed by Ana (2026-10-23): one row per bot, name, role, team,
 // the task it is on right now, working or idle, and when that was last updated.
 export function normalizeTeam(list, source, collectedAt) {
@@ -140,7 +304,7 @@ export function normalizeTeam(list, source, collectedAt) {
   }).filter((b) => b.id && b.name);
 }
 
-export function buildTeam(page, by, hosts, nowMs, roster = []) {
+export function buildTeam(page, by, hosts, nowMs, roster = [], tasksPayload = null, deliverableRows = []) {
   const row = by.team;
   const data = row ? parse(row.data) : null;
   const collected = Array.isArray(data?.bots) ? data.bots : [];
@@ -160,18 +324,27 @@ export function buildTeam(page, by, hosts, nowMs, roster = []) {
     : collected;
   page.title = 'Team';
   const n = bots.length;
-  page.sub = `${n ? `${n} bots` : 'Bots · no data'} · 2 GPUs · ${van(nowMs, { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}`;
-  const counts = { working: 0, idle: 0, waiting: 0, stuck: 0, unknown: 0 };
+  page.lanes = buildLanes(bots, tasksPayload, deliverableRows, nowMs);
+  const laneOf = (key) => page.lanes.find((l) => l.key === key) || { count: 0, items: [], idleCount: 0 };
+  const counts = {
+    working: laneOf('active').count,
+    waiting: laneOf('waiting').count,
+    stuck: laneOf('stuck').count,
+    review: laneOf('review').count,
+    idle: laneOf('done').idleCount || 0,
+    unknown: 0,
+  };
   for (const b of bots) {
-    const k = ['working', 'idle', 'waiting', 'stuck'].includes(b.status) ? b.status : 'unknown';
-    counts[k] += 1;
+    if (!['working', 'idle', 'waiting', 'stuck'].includes(b.status)) counts.unknown += 1;
   }
+  page.sub = `${n ? `${n} bots` : 'Bots · no data'} · ${counts.working} active · ${van(nowMs, { hour: 'numeric', minute: '2-digit' })} PT`;
   page.counts = counts;
-  page.pills = [
-    counts.working ? { label: `${counts.working} working`, cls: 'ok' } : null,
-    counts.waiting ? { label: `${counts.waiting} waiting on Jon`, cls: 'risk' } : null,
+  page.pills = !n ? [] : [
+    counts.working ? { label: `${counts.working} active`, cls: 'ok' } : null,
+    counts.waiting ? { label: `${counts.waiting} waiting`, cls: 'risk' } : null,
     counts.stuck ? { label: `${counts.stuck} stuck`, cls: 'crit' } : null,
-    counts.idle ? { label: `${counts.idle} idle`, cls: 'idle' } : null,
+    counts.review ? { label: `${counts.review} to review`, cls: 'blue' } : null,
+    !counts.waiting && !counts.stuck && !counts.review ? { label: 'Nothing needs you', cls: 'ok' } : null,
   ].filter(Boolean);
   page.available = pushed.length ? true : !!(data?.ok && bots.length);
   page.reason = pushed.length ? '' : !row
