@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import { handleApi } from '../src/api.js';
 import { signSession, COOKIE } from '../src/auth.js';
 import { buildDeliverables, normalizeDeliverables } from '../src/tasks.js';
-import { normalizeTeam } from '../src/team.js';
+import { buildLanes, normalizeTeam } from '../src/team.js';
+import { listDeliverables } from '../src/db.js';
 import { mergeSnapshot } from '../src/snapshot.js';
 import snapshot from '../fixtures/snapshot.json' with { type: 'json' };
 
@@ -32,14 +33,15 @@ function memDb() {
           const a = stmt.args;
           if (sql.includes('FROM team_bots')) return { results: [...team.values()] };
           if (sql.includes('FROM approvals a')) return { results: [...approvals.entries()].map(([id, ap]) => ({ id, ...(deliverables.get(id) || {}), ...ap })) };
-          if (sql.includes('FROM deliverables d') && sql.includes('a.approved_at IS NULL')) {
-            const cutoff = a[0];
-            return { results: [...deliverables.values()].filter((d) => !approvals.has(d.id) && d.finished_at >= cutoff) };
+          // Pending read: unapproved rows, any age (listPendingDeliverables).
+          if (sql.includes('FROM deliverables d') && !sql.includes('a.approved_by')) {
+            return { results: [...deliverables.values()].filter((d) => !approvals.has(d.id)) };
           }
+          // Snapshot read: unapproved rows any age, approved rows only in the window.
           if (sql.includes('FROM deliverables d')) {
             const cutoff = a[0];
             return {
-              results: [...deliverables.values()].filter((d) => (d.finished_at >= cutoff) || approvals.has(d.id))
+              results: [...deliverables.values()].filter((d) => !approvals.has(d.id) || d.finished_at >= cutoff)
                 .map((d) => ({ ...d, ...(approvals.get(d.id) || {}) })),
             };
           }
@@ -80,10 +82,10 @@ const deliverables = [
   { id: 'd-bad', title: 'Bad link', owner: 'Ana', type: 'page', url: 'javascript:alert(1)', finished: '2026-10-23T16:00:00Z' },
 ];
 
-test('deliverables: last 24 hours only, approved kept in their own list', () => {
+test('deliverables: unapproved stay however old, approved kept in their own list', () => {
   const rows = normalizeDeliverables(deliverables, 'jon_tasks', '2026-10-23T16:10:00Z');
   const d = buildDeliverables(rows, NOW);
-  assert.deepEqual(d.pending.map((r) => r.id).sort(), ['d-bad', 'd-new']);
+  assert.deepEqual(d.pending.map((r) => r.id).sort(), ['d-bad', 'd-new', 'd-old']);
   assert.equal(d.approvedCount, 0);
   const bad = d.pending.find((r) => r.id === 'd-bad');
   assert.equal(bad.url, '', 'javascript links are dropped');
@@ -92,11 +94,28 @@ test('deliverables: last 24 hours only, approved kept in their own list', () => 
   assert.ok(bad.finished.length > 0, 'finished time has a label');
 });
 
+test('the Review lane keeps an old unapproved deliverable until Jon approves it', () => {
+  const lanes = buildLanes(
+    [],
+    { tasks: [] },
+    [{ id: 'd-old', title: 'Old landing page', owner: 'Rene', finished_at: '2026-10-10T10:00:00Z' }],
+    NOW,
+  );
+  assert.deepEqual(lanes[3].items.map((i) => i.id), ['d-old']);
+  // Once approved and older than 24 h, the snapshot query stops returning it.
+  const db = memDb();
+  db.deliverables.set('d-old', { id: 'd-old', title: 'Old landing page', finished_at: '2026-10-10T10:00:00Z' });
+  db.approvals.set('d-old', { approved_at: '2026-10-23T16:00:00Z', approved_by: 'Jon' });
+  return listDeliverables(db, new Date(NOW - 24 * 60 * 60 * 1000).toISOString()).then((rows) => {
+    assert.deepEqual(rows.map((r) => r.id), []);
+  });
+});
+
 test('deliverables: approved rows leave pending and show who and when', () => {
   const rows = normalizeDeliverables(deliverables, 'jon_tasks', '2026-10-23T16:10:00Z')
     .map((r) => (r.id === 'd-new' ? { ...r, approved_at: '2026-10-23T16:12:00Z', approved_by: 'Jon' } : r));
   const d = buildDeliverables(rows, NOW);
-  assert.deepEqual(d.pending.map((r) => r.id), ['d-bad']);
+  assert.deepEqual(d.pending.map((r) => r.id).sort(), ['d-bad', 'd-old']);
   assert.deepEqual(d.approved.map((r) => r.id), ['d-new']);
   assert.equal(d.approved[0].approvedBy, 'Jon');
   assert.ok(d.approved[0].approvedWhen.length > 0);
@@ -123,7 +142,7 @@ test('team roster keeps name, role, team, task, status and updated time', () => 
 test('snapshot carries the deliverables tab', () => {
   const rows = normalizeDeliverables(deliverables, 'jon_tasks', '2026-10-23T16:10:00Z');
   const page = mergeSnapshot(snapshot, [], NOW, {}, [], [], [], { deliverables: rows });
-  assert.equal(page.pages.tasks.deliverables.pendingCount, 2);
+  assert.equal(page.pages.tasks.deliverables.pendingCount, 3);
   assert.equal(page.pages.tasks.deliverables.available, true);
 });
 

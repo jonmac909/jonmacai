@@ -224,27 +224,31 @@ export async function upsertDeliverables(db, rows) {
   }
 }
 
+// 2026-10-23 (Ana, for Jon): an unapproved deliverable never ages out; it stays
+// on the Review lane until Jon approves it. Approved rows keep the 24 h window.
 export async function listDeliverables(db, sinceIso) {
   if (!db) return [];
   const { results } = await db.prepare(
     `SELECT d.id, d.title, d.owner, d.kind, d.url, d.finished_at, d.updated_at,
             a.approved_at, a.approved_by
        FROM deliverables d LEFT JOIN approvals a ON a.deliverable_id = d.id
-      WHERE (d.finished_at IS NOT NULL AND d.finished_at >= ?) OR a.approved_at IS NOT NULL
+      WHERE d.finished_at IS NOT NULL
+        AND (a.approved_at IS NULL OR d.finished_at >= ?)
       ORDER BY d.finished_at DESC LIMIT 200`,
   ).bind(sinceIso).all();
   return results || [];
 }
 
-// Pending = finished in the window and not yet approved; mirrors the Deliverables tab.
-export async function listPendingDeliverables(db, sinceIso) {
+// Pending = every deliverable not yet approved, however old; mirrors the
+// Deliverables tab and the Review lane.
+export async function listPendingDeliverables(db) {
   if (!db) return [];
   const { results } = await db.prepare(
     `SELECT d.id, d.title, d.owner, d.kind, d.url, d.finished_at, d.updated_at
        FROM deliverables d LEFT JOIN approvals a ON a.deliverable_id = d.id
-      WHERE a.approved_at IS NULL AND d.finished_at IS NOT NULL AND d.finished_at >= ?
+      WHERE a.approved_at IS NULL AND d.finished_at IS NOT NULL
       ORDER BY d.finished_at DESC LIMIT 200`,
-  ).bind(sinceIso).all();
+  ).all();
   return results || [];
 }
 

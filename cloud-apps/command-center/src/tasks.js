@@ -209,7 +209,6 @@ function finishedLabel(ms, nowMs) {
 }
 
 export function buildDeliverables(rows, nowMs = Date.now()) {
-  const cutoff = nowMs - 24 * 60 * 60 * 1000;
   const all = (Array.isArray(rows) ? rows : []).map((r) => {
     const finishedMs = Date.parse(String(r.finished_at || r.finishedAt || ''));
     const approvedMs = Date.parse(String(r.approved_at || ''));
@@ -228,8 +227,10 @@ export function buildDeliverables(rows, nowMs = Date.now()) {
       approvedWhen: Number.isFinite(approvedMs) ? finishedLabel(approvedMs, nowMs) : '',
     };
   }).filter((r) => r.id && r.title);
+  // Unapproved work stays pending until Jon approves it, however old (Ana,
+  // 2026-10-23); only approved rows keep the 24 h window, applied in the query.
   const pending = all
-    .filter((r) => !r.approved && Number.isFinite(r.finishedMs) && r.finishedMs >= cutoff)
+    .filter((r) => !r.approved && Number.isFinite(r.finishedMs))
     .sort((a, b) => b.finishedMs - a.finishedMs);
   const approved = all.filter((r) => r.approved).sort((a, b) => b.finishedMs - a.finishedMs);
   return {

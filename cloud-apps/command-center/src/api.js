@@ -468,17 +468,16 @@ export async function handleApi(request, env, ctx) {
       })),
     });
   }
-  // Machine-token read for what still needs Jon: the team roster and the
-  // deliverables finished in the last 24 h that nobody has approved yet.
+  // Machine-token read for what still needs Jon: the team roster and every
+  // deliverable nobody has approved yet, however old.
   if (rest === '/pending' && method === 'GET') {
     const who = machineOf(request, env);
     if (!who) return json({ error: 'Unauthorized' }, 401);
-    const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-    const rows = env.DB ? await listPendingDeliverables(env.DB, since) : [];
+    const rows = env.DB ? await listPendingDeliverables(env.DB) : [];
     const team = env.DB ? await listTeamBots(env.DB) : [];
     return json({
       ok: true,
-      since,
+      since: null,
       team: team.map((b) => ({
         id: b.id, name: b.name, role: b.role || '', team: b.team || '',
         task: b.task || '', status: b.status || '', updatedAt: b.updated_at || null,

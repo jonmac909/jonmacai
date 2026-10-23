@@ -50,7 +50,7 @@ function deliverablesPanel(dl) {
   const approved = dl && dl.approved ? dl.approved : [];
   if (!pending.length && !approved.length) {
     if (dl && dl.error) return `<p class="jtnone">Deliverables unavailable: ${esc(dl.error || dl.debug)}</p>`;
-    return '<p class="jtnone">Nothing finished in the last 24 hours.</p>';
+    return '<p class="jtnone">Nothing waiting on your approval.</p>';
   }
   const list = pending.length
     ? `<ul class="jtlist">${pending.map(deliverableRow).join('')}</ul>`
