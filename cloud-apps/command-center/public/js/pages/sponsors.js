@@ -1,6 +1,21 @@
 import { tiles, pg, pill, btn, kanban, pgrow, head, esc } from '../ui.js';
 import { cashCard } from '../cash.js';
 
+function partnersCard(p) {
+  if (!p) return '';
+  if (!p.available) return `<div class="card pad"><div class="cardhead"><h2>${esc(p.title)}</h2></div><p>${esc(p.note)}</p></div>`;
+  const secs = p.sections.map((s) => `<div class="r"><div><strong>${esc(s.title)}</strong>${s.items.map((i) => `<small>${esc(i)}</small>`).join('')}</div></div>`).join('');
+  const deals = p.pipeline ? p.pipeline.deals.map((d) => `<tr><td>${esc(d.brand)}</td><td>${pill(d.stage, d.stage === 'Negotiating' ? 'risk' : 'ok')}</td><td class="num">${esc(d.value)}</td><td>${esc(d.next)}</td><td>${esc(d.nextDate)}</td></tr>`).join('') : '';
+  const pipe = p.pipeline ? `<div class="cardhead"><h2>Deal tracker</h2><span class="meta">${esc(p.pipeline.meta)} · ${esc(p.pipeline.counts)}</span></div>
+    <div class="tblwrap"><table><thead><tr><th>Brand</th><th>Stage</th><th class="num">Value</th><th>Next step</th><th>When</th></tr></thead><tbody>${deals}</tbody></table></div>` : '';
+  return `<div class="card pad">
+    <div class="cardhead"><h2>${esc(p.title)} · ${esc(p.date)}</h2><span class="meta">${pill(p.status, p.current ? 'ok' : 'crit')} ${esc(p.updated)}</span></div>
+    ${p.note ? `<p class="meta">${esc(p.note)}</p>` : ''}
+    <div class="rows">${secs}</div>
+    ${pipe}
+  </div>`;
+}
+
 export function render(d) {
   const right = d.actions.map((a) => btn(a.label, { msg: a.msg, cls: 'line', href: a.href, kind: a.kind, payload: a.payload })).join('');
   const parts = d.septemberBar.parts;
@@ -19,6 +34,7 @@ export function render(d) {
   }).join('');
   return `<div class="wrap">
   ${head(d.title, d.sub, right)}
+  ${partnersCard(d.partners)}
   ${cashCard(d.cash)}
   ${tiles(d.tiles)}
   <div class="card pad">
