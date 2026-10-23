@@ -30,7 +30,7 @@ import { normalizeDeliverables } from './tasks.js';
 
 const PREFIX = '/dashboard/api';
 const json = (data, status = 200, headers = {}) =>
-  new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json', ...headers } });
+  new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store', ...headers } });
 
 
 function safeName(name) {
@@ -390,7 +390,12 @@ export async function handleApi(request, env, ctx) {
     extra.funnel = await listFunnel(env.CLONE_DB);
     extra.platforms = configuredPlatforms(env);
     extra.unavailable = unavailablePlatforms(env);
-    extra.deliverables = await listDeliverables(env.DB, new Date(now - 24 * 60 * 60 * 1000).toISOString()).catch(() => []);
+    try {
+      extra.deliverables = await listDeliverables(env.DB, new Date(now - 24 * 60 * 60 * 1000).toISOString());
+    } catch (err) {
+      extra.deliverables = [];
+      extra.deliverablesError = err && err.message ? err.message : 'Deliverables unavailable';
+    }
     extra.teamRoster = await listTeamBots(env.DB).catch(() => []);
     const merged = mergeSnapshot(base, await listSnapshots(env.DB), now, overrides, await listIdeas(env.DB), await listPosts(env.DB), await listVideoProjects(env.DB), extra);
     if (merged.pages.outreach) {

@@ -1,5 +1,5 @@
 import { render as home } from './pages/home.js';
-import { render as tasks } from './pages/tasks.js';
+import { render as tasks } from './pages/tasks.js?v=20261023e';
 import { render as sponsors } from './pages/sponsors.js';
 import { render as viral } from './pages/viral.js';
 import { render as youtube } from './pages/youtube.js';
@@ -184,7 +184,7 @@ export async function go(id, { refetch = false } = {}) {
   if (!pages[id]) id = 'home';
   if (location.hash !== `#${id}`) history.replaceState(null, '', `${PREFIX}/#${id}`);
   if (refetch || id === 'agents' || id === 'team') {
-    const snap = await fetch(`${PREFIX}/api/snapshot`);
+    const snap = await fetch(`${PREFIX}/api/snapshot?v=${Date.now()}`);
     if (snap.ok) data = await snap.json();
     document.getElementById('navs').innerHTML = navHtml();
   }
@@ -255,7 +255,7 @@ document.addEventListener('click', (e) => {
         return;
       }
       say('Approved');
-      const fresh = await fetch(`${PREFIX}/api/snapshot`);
+      const fresh = await fetch(`${PREFIX}/api/snapshot?v=${Date.now()}`);
       if (fresh.ok) {
         data = await fresh.json();
         go('tasks');
@@ -352,7 +352,7 @@ document.addEventListener('click', (e) => {
       const j = await res.json().catch(() => ({}));
       say(res.ok ? 'Post logged' : (j.error || 'Could not log post'));
       if (!res.ok) return;
-      const snap = await fetch(`${PREFIX}/api/snapshot`);
+      const snap = await fetch(`${PREFIX}/api/snapshot?v=${Date.now()}`);
       if (snap.ok) { data = await snap.json(); go(hashPage()); }
     });
     return;
@@ -398,7 +398,7 @@ document.addEventListener('click', (e) => {
         if (r) r.classList.add('done');
       }
       if (kind.startsWith('mastermind.') || kind.startsWith('support.') || kind.startsWith('sponsor.') || kind.startsWith('video.') || kind.startsWith('content.') || kind.startsWith('money.') || kind.startsWith('outreach.') || kind.startsWith('life.') || kind === 'agent.restart' || kind === 'ping') {
-        const snap = await fetch(`${PREFIX}/api/snapshot`);
+        const snap = await fetch(`${PREFIX}/api/snapshot?v=${Date.now()}`);
         if (snap.ok) {
           data = await snap.json();
           go(hashPage());
@@ -438,7 +438,7 @@ bindModals({ say, act, go });
 
 window.addEventListener('hashchange', () => go(hashPage()));
 
-const snap = await fetch(`${PREFIX}/api/snapshot`);
+const snap = await fetch(`${PREFIX}/api/snapshot?v=${Date.now()}`);
 if (snap.status === 401) { location.href = `${PREFIX}/`; throw new Error('auth'); }
 data = await snap.json();
 document.getElementById('navs').innerHTML = navHtml();
