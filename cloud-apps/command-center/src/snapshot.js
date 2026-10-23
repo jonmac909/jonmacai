@@ -17,6 +17,7 @@ import { overlayWebinar } from './webinar.js';
 import { buildCash, usd, withoutExcluded } from './cash.js';
 import { buildNow } from './now.js';
 import { buildTeam } from './team.js';
+import { buildPartners } from './partners.js';
 import { buildGoalsHome } from './goals.js';
 import { overlayFactory } from './factory.js';
 
@@ -46,6 +47,7 @@ export const INTERVALS = {
   needs_jon: COLLECTOR_INTERVAL_MS,
   team: COLLECTOR_INTERVAL_MS,
   jon_tasks: 6 * 60 * 60 * 1000,
+  partners_report: 6 * 60 * 60 * 1000,
 };
 
 const MACHINES = [
@@ -487,7 +489,10 @@ export function mergeSnapshot(fixture, rows, nowMs = Date.now(), overrides = {},
     overlayWebinar(out.pages.webinar, by.webinar, extra.funnel, nowMs, f ? f.label : '');
     if (f?.stale) out.pages.webinar.stale = true;
   }
-  if (out.pages.sponsors) out.pages.sponsors.cash = cash;
+  if (out.pages.sponsors) {
+    out.pages.sponsors.cash = cash;
+    out.pages.sponsors.partners = buildPartners(by.partners_report, nowMs);
+  }
   if (out.pages.home) out.pages.home.sponsorsCash = cash;
   applyHome(out, by, extra, nowMs);
   {
