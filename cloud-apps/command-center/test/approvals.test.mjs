@@ -32,6 +32,10 @@ function memDb() {
           const a = stmt.args;
           if (sql.includes('FROM team_bots')) return { results: [...team.values()] };
           if (sql.includes('FROM approvals a')) return { results: [...approvals.entries()].map(([id, ap]) => ({ id, ...(deliverables.get(id) || {}), ...ap })) };
+          if (sql.includes('FROM deliverables d') && sql.includes('a.approved_at IS NULL')) {
+            const cutoff = a[0];
+            return { results: [...deliverables.values()].filter((d) => !approvals.has(d.id) && d.finished_at >= cutoff) };
+          }
           if (sql.includes('FROM deliverables d')) {
             const cutoff = a[0];
             return {
@@ -143,6 +147,34 @@ test('ingest accepts team and deliverables, approvals need the machine token', a
   const listed = await handleApi(req('/dashboard/api/approvals', { headers: { Authorization: 'Bearer gpu1-token-value' } }), env);
   assert.equal(listed.status, 200);
   assert.deepEqual((await listed.json()).approvals, []);
+});
+
+test('machine read returns the team roster and the pending deliverables', async () => {
+  const db = memDb();
+  const env = envWith(db);
+  const fresh = new Date(Date.now() - 30 * 60 * 1000).toISOString();
+  // Deliverables sent at the top level only must still be stored.
+  const body = JSON.stringify({
+    source: 'jon_tasks',
+    collectedAt: '2026-10-23T16:10:00Z',
+    data: { team: [{ name: 'Paul Bocuse', role: 'Long-form video', team: 'Content', task: 'Editing', status: 'working', updated: '2026-10-23T16:05:00Z' }] },
+    deliverables: [{ id: 'd-top', title: 'Top level page', owner: 'Rene', type: 'page', url: 'https://homeguidepress.com', finished: fresh }],
+  });
+  const ing = await handleApi(req('/dashboard/api/ingest', {
+    method: 'POST', headers: { Authorization: 'Bearer gpu1-token-value', 'Content-Type': 'application/json' }, body,
+  }), env);
+  assert.equal(ing.status, 200);
+  assert.equal(db.deliverables.size, 1, 'top-level deliverables are stored');
+
+  const denied = await handleApi(req('/dashboard/api/pending'), env);
+  assert.equal(denied.status, 401);
+  const res = await handleApi(req('/dashboard/api/pending', { headers: { Authorization: 'Bearer gpu1-token-value' } }), env);
+  assert.equal(res.status, 200);
+  const out = await res.json();
+  assert.equal(out.team.length, 1);
+  assert.equal(out.team[0].name, 'Paul Bocuse');
+  assert.deepEqual(out.deliverables.map((d) => d.id), ['d-top']);
+  assert.equal(out.deliverables[0].url, 'https://homeguidepress.com');
 });
 
 test('Approve records once for a signed-in session and never for a logged-out one', async () => {
