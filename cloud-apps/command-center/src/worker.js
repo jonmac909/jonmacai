@@ -10,7 +10,7 @@ async function asset(request, env, assetPath) {
   const response = await env.ASSETS.fetch(new Request(assetUrl, request));
   const headers = new Headers(response.headers);
   headers.set('X-Robots-Tag', 'noindex, nofollow');
-  if (assetPath.endsWith('.html')) headers.set('Cache-Control', 'no-cache');
+  if (/\.(html|js|css)$/.test(assetPath)) headers.set('Cache-Control', 'no-cache');
   return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
 }
 

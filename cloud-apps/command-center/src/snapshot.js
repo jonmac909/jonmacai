@@ -495,6 +495,7 @@ export function mergeSnapshot(fixture, rows, nowMs = Date.now(), overrides = {},
         taskRow?.collected_at || '',
       ),
       deliverables: buildDeliverables(extra.deliverables || [], nowMs),
+      deliverablesError: extra.deliverablesError || '',
     };
   }
   if (out.pages.home) buildNow(out, by, nowMs, INTERVALS);

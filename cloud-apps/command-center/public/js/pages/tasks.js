@@ -49,6 +49,7 @@ function deliverablesPanel(dl) {
   const pending = dl && dl.pending ? dl.pending : [];
   const approved = dl && dl.approved ? dl.approved : [];
   if (!pending.length && !approved.length) {
+    if (dl && dl.error) return `<p class="jtnone">Deliverables unavailable: ${esc(dl.error || dl.debug)}</p>`;
     return '<p class="jtnone">Nothing finished in the last 24 hours.</p>';
   }
   const list = pending.length
@@ -69,7 +70,7 @@ function taskBoard(t) {
     const saved = localStorage.getItem('cc-jt-tab');
     if (saved === 'next' || saved === 'deliverables') tab = saved;
   } catch {}
-  const dl = t.deliverables || { pending: [], approved: [], pendingCount: 0, approvedCount: 0 };
+  const dl = { ...(t.deliverables || { pending: [], approved: [], pendingCount: 0, approvedCount: 0 }), error: t.deliverablesError || '' };
   const projects = t.projects || [];
   const active = `<div data-jtpanel="active"${tab === 'active' ? '' : ' hidden'}>${projects.map((p) => projectSection(p, 'active')).join('') || '<p class="jtnone">Nothing active.</p>'}</div>`;
   const next = `<div data-jtpanel="next"${tab === 'next' ? '' : ' hidden'}>${projects.map((p) => projectSection(p, 'next')).join('') || '<p class="jtnone">Nothing queued.</p>'}</div>`;
@@ -88,8 +89,16 @@ function taskBoard(t) {
 
 export function render(d) {
   const page = d || {};
+  const tasks = page.tasks || {};
+  // The snapshot puts the Deliverables tab beside `tasks` on the page object,
+  // not inside it; accept either shape.
+  const board = {
+    ...tasks,
+    deliverables: page.deliverables || tasks.deliverables,
+    deliverablesError: page.deliverablesError || tasks.deliverablesError,
+  };
   return `<div class="wrap">
   <div class="head"><div><h1>${esc(page.title || 'Tasks')}</h1><p>${esc(page.sub || '')}</p></div></div>
-  ${taskBoard(page.tasks)}
+  ${taskBoard(board)}
 </div>`;
 }
