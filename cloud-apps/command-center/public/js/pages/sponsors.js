@@ -4,7 +4,7 @@ import { cashCard } from '../cash.js';
 function partnersCard(p) {
   if (!p) return '';
   if (!p.available) return `<div class="card pad"><div class="cardhead"><h2>${esc(p.title)}</h2></div><p>${esc(p.note)}</p></div>`;
-  const secs = p.sections.map((s) => `<div class="r"><div><strong>${esc(s.title)}</strong>${s.items.map((i) => `<small>${esc(i)}</small>`).join('')}</div></div>`).join('');
+  const secs = p.sections.map((s) => `<div class="r"><div><strong>${esc(s.title)}</strong>${s.items.map((i) => `<small style="display:block">${esc(i)}</small>`).join('')}</div></div>`).join('');
   const deals = p.pipeline ? p.pipeline.deals.map((d) => `<tr><td>${esc(d.brand)}</td><td>${pill(d.stage, d.stage === 'Negotiating' ? 'risk' : 'ok')}</td><td class="num">${esc(d.value)}</td><td>${esc(d.next)}</td><td>${esc(d.nextDate)}</td></tr>`).join('') : '';
   const pipe = p.pipeline ? `<div class="cardhead"><h2>Deal tracker</h2><span class="meta">${esc(p.pipeline.meta)} · ${esc(p.pipeline.counts)}</span></div>
     <div class="tblwrap"><table><thead><tr><th>Brand</th><th>Stage</th><th class="num">Value</th><th>Next step</th><th>When</th></tr></thead><tbody>${deals}</tbody></table></div>` : '';
