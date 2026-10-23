@@ -416,7 +416,7 @@ document.getElementById('navs').innerHTML = navHtml();
 // Collector beats refresh these pages every 60 s while visible.
 setInterval(() => {
   const id = hashPage();
-  if (document.hidden || !['home', 'agents', 'videos', 'webinar', 'team', 'content'].includes(id)) return;
+  if (document.hidden || !['home', 'tasks', 'agents', 'videos', 'webinar', 'team', 'content'].includes(id)) return;
   if (document.activeElement && /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName)) return;
   const y = window.scrollY;
   go(id, { refetch: true }).then(() => window.scrollTo(0, y)).catch(() => {});
