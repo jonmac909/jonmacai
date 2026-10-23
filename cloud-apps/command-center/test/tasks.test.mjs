@@ -8,11 +8,11 @@ const NOW = Date.parse('2026-10-22T23:30:00Z');
 const payload = {
   updated: '2026-10-22T16:24:57-07:00',
   tasks: [
-    { id: 'T1', asked: '2026-10-22 06:48', task: 'Done thing', owner: 'Ana', status: 'done', note: 'Shipped', link: '', project: 'Team & systems' },
+    { id: 'T1', asked: '2026-10-22 06:48', task: 'Done thing', owner: 'Ana', status: 'done', note: 'Shipped', link: '', project: 'Team & Setup' },
     { id: 'T2', asked: '2026-10-22 15:25', task: 'Needs Jon', owner: 'Paul', status: 'waiting_on_jon', note: 'Needs yes', link: 'https://jonmac.ai/x', project: 'Sponsors' },
-    { id: 'T3', asked: '2026-10-21 23:10', task: 'Blocked thing', owner: 'Joel', status: 'blocked', note: '', link: 'javascript:alert(1)', project: 'Funnels & webinar' },
-    { id: 'T4', asked: 'bogus', task: 'Queued thing', owner: '', status: 'oops', note: '', link: '', project: 'Team & systems' },
-    { id: 'T5', asked: '2026-10-22 09:00', task: 'Running thing', owner: 'Ana / Paul', status: 'doing', note: 'Half done', link: '', project: 'YouTube & video' },
+    { id: 'T3', asked: '2026-10-21 23:10', task: 'Blocked thing', owner: 'Joel', status: 'blocked', note: '', link: 'javascript:alert(1)', project: 'Funnels & Webinar' },
+    { id: 'T4', asked: 'bogus', task: 'Queued thing', owner: '', status: 'oops', note: '', link: '', project: 'Team & Setup' },
+    { id: 'T5', asked: '2026-10-22 09:00', task: 'Running thing', owner: 'Ana / Paul', status: 'doing', note: 'Half done', link: '', project: 'YouTube & Video' },
   ],
 };
 
@@ -78,8 +78,8 @@ test('no em dashes anywhere in the panel data', () => {
 
 test('tasks group by project in the agreed order', () => {
   const t = buildTasks(payload, NOW);
-  assert.deepEqual(t.projects.map((p) => p.name), ['YouTube & video', 'Funnels & webinar', 'Sponsors', 'Team & systems']);
-  const team = t.projects.find((p) => p.name === 'Team & systems');
+  assert.deepEqual(t.projects.map((p) => p.name), ['YouTube & Video', 'Funnels & Webinar', 'Sponsors', 'Team & Setup']);
+  const team = t.projects.find((p) => p.name === 'Team & Setup');
   assert.equal(team.activeCount, 0);
   assert.equal(team.upNextCount, 1);
   assert.equal(team.doneCount, 1);
