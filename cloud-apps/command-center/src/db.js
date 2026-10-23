@@ -1,3 +1,5 @@
+import { isDailyApprovalId } from './tasks.js';
+
 export function loginStore(db) {
   return {
     async get(ip) {
@@ -215,12 +217,13 @@ export async function listTeamBots(db) {
 export async function upsertDeliverables(db, rows) {
   for (const row of rows) {
     await db.prepare(
-      `INSERT INTO deliverables (id, title, owner, kind, url, finished_at, source, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `INSERT INTO deliverables (id, title, owner, kind, url, finished_at, source, updated_at, task_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT(id) DO UPDATE SET title = excluded.title, owner = excluded.owner,
          kind = excluded.kind, url = excluded.url, finished_at = excluded.finished_at,
-         source = excluded.source, updated_at = excluded.updated_at`,
-    ).bind(row.id, row.title, row.owner || '', row.kind || '', row.url || '', row.finished_at || '', row.source || '', row.updated_at).run();
+         source = excluded.source, updated_at = excluded.updated_at,
+         task_id = excluded.task_id`,
+    ).bind(row.id, row.title, row.owner || '', row.kind || '', row.url || '', row.finished_at || '', row.source || '', row.updated_at, row.task_id || '').run();
   }
 }
 
@@ -231,7 +234,7 @@ export async function upsertDeliverables(db, rows) {
 export async function listDeliverables(db, sinceIso) {
   if (!db) return [];
   const { results } = await db.prepare(
-    `SELECT d.id, d.title, d.owner, d.kind, d.url, d.finished_at, d.updated_at,
+    `SELECT d.id, d.title, d.owner, d.kind, d.url, d.finished_at, d.updated_at, d.task_id,
             a.approved_at, a.approved_by
        FROM deliverables d LEFT JOIN approvals a ON a.deliverable_id = d.id
       WHERE d.finished_at IS NOT NULL
@@ -256,18 +259,30 @@ export async function listPendingDeliverables(db) {
 
 // Records Jon's approval once; a second press keeps the first record.
 export async function approveDeliverable(db, id, by, now) {
-  const row = await db.prepare('SELECT id FROM deliverables WHERE id = ?').bind(id).first();
-  if (!row) return null;
+  // Daily checklist rows (`daily:<day>:<key>`) have no deliverables row.
+  if (!isDailyApprovalId(id)) {
+    const row = await db.prepare('SELECT id FROM deliverables WHERE id = ?').bind(id).first();
+    if (!row) return null;
+  }
   const prev = await db.prepare('SELECT approved_at, approved_by FROM approvals WHERE deliverable_id = ?').bind(id).first();
   if (prev) return { approved_at: prev.approved_at, approved_by: prev.approved_by, duplicate: true };
   await db.prepare('INSERT INTO approvals (deliverable_id, approved_at, approved_by) VALUES (?, ?, ?)').bind(id, now, by).run();
   return { approved_at: now, approved_by: by, duplicate: false };
 }
 
+// Approvals of one day's daily checklist rows.
+export async function listDailyApprovals(db, day) {
+  if (!db) return [];
+  const { results } = await db.prepare(
+    "SELECT deliverable_id, approved_at, approved_by FROM approvals WHERE deliverable_id LIKE 'daily:' || ? || ':%'",
+  ).bind(day).all();
+  return results || [];
+}
+
 export async function listApprovals(db) {
   if (!db) return [];
   const { results } = await db.prepare(
-    `SELECT a.deliverable_id AS id, d.title, d.owner, d.kind, d.url, d.finished_at,
+    `SELECT a.deliverable_id AS id, COALESCE(d.title, a.deliverable_id) AS title, d.owner, d.kind, d.url, d.finished_at,
             a.approved_at, a.approved_by
        FROM approvals a LEFT JOIN deliverables d ON d.id = a.deliverable_id
       ORDER BY a.approved_at DESC LIMIT 500`,

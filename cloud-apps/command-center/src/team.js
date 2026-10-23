@@ -239,9 +239,13 @@ export function buildLanes(bots, tasksPayload, deliverableRows, nowMs = Date.now
   const stuckTasks = tasks.filter((t) => t.status === 'blocked').sort(byNewest);
   const doneToday = tasks.filter((t) => t.status === 'done' && t.day === today).sort(byNewest);
 
-  const active = list.filter((b) => b.status === 'working')
+  const deliverables = buildDeliverables(deliverableRows || [], nowMs, tasksPayload);
+  // A deliverable whose tasks.json task is still doing is work in progress, not
+  // ready for review, whatever its bot says (Jon, 2026-10-23).
+  const active = [...list.filter((b) => b.status === 'working')
     .sort((a, b) => String(a.name).localeCompare(String(b.name)))
-    .map((b) => botItem(b, nowMs));
+    .map((b) => botItem(b, nowMs)),
+  ...deliverables.working.map((r) => ({ ...deliverableItem(r), inProgress: true, when: 'in progress' }))];
 
   // Roster waiting/stuck bots are added only when no task already names them, so
   // one bot does not appear twice in the same lane.
@@ -253,7 +257,6 @@ export function buildLanes(bots, tasksPayload, deliverableRows, nowMs = Date.now
     .filter((b) => b.status === 'stuck' && !stuckTasks.some((t) => mentionsBot(t.owner, b, shared)))
     .map((b) => botItem(b, nowMs))];
 
-  const deliverables = buildDeliverables(deliverableRows || [], nowMs);
   const review = deliverables.pending.map(deliverableItem);
   const approvedToday = deliverables.approved
     .filter((r) => Number.isFinite(r.finishedMs) && ymd(r.finishedMs) === today)

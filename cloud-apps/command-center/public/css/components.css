@@ -442,6 +442,20 @@ tfoot td{font-weight:600;color:var(--ink);border-top:1px solid var(--line)}
 .dlvbtn{flex:none;font-size:.8rem;padding:.4rem .85rem}
 .dlvok{flex:none;max-width:9rem;text-align:right;font-size:.75rem;line-height:1.25;color:var(--ok-ink)}
 .dlv.isapproved .jtt{color:var(--muted)}
+/* Daily checklist rows on the Deliverables tab */
+.daily{align-items:flex-start}
+.daily .dlvbtn{margin-top:.1rem}
+.dailycount{margin-left:.35rem;font-weight:600;font-size:.9rem;color:var(--muted)}
+.daily.met .dailycount{color:var(--ok-ink)}
+.dailyitems{margin:.45rem 0 0;padding-left:1.15rem;font-size:.85rem;line-height:1.4;color:var(--ink-2)}
+.dailyitems li{margin:.2rem 0;overflow-wrap:anywhere}
+.dailyitems a{color:var(--accent);text-decoration:none}
+.dailyitems a:hover{text-decoration:underline}
+.dailytext{display:block;margin-top:.1rem;font-size:.8rem;color:var(--muted);white-space:pre-wrap}
+.dailyempty,.dailynote{margin-top:.35rem;font-size:.82rem;color:var(--muted)}
+.dailynote{margin:.4rem 0 0}
+.dailyother{margin-top:1.4rem}
+.dlvbtn:disabled{opacity:.45;cursor:not-allowed}
 @media (max-width:520px){
   .dlv{flex-wrap:wrap}
   .dlv .jtbody{flex:1 1 100%}

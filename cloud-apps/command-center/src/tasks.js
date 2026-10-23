@@ -189,6 +189,7 @@ export function normalizeDeliverables(list, source, collectedAt) {
       kind: String(r.type || r.kind || '').trim().toLowerCase(),
       url: httpLink(r.url || r.link),
       finished_at: finished,
+      task_id: String(r.task || r.task_id || '').trim(),
       source: source || '',
       updated_at: new Date().toISOString(),
     };
@@ -208,10 +209,17 @@ function finishedLabel(ms, nowMs) {
   return ymd(ms) === ymd(nowMs) ? time : `${day} · ${time}`;
 }
 
-export function buildDeliverables(rows, nowMs = Date.now()) {
+// A deliverable naming a tasks.json task that is still doing (or queued or
+// blocked) is in progress, not ready for review: status comes from Ana's list.
+const NOT_READY = ['doing', 'todo', 'blocked'];
+
+export function buildDeliverables(rows, nowMs = Date.now(), tasksPayload = null) {
+  const taskStatus = new Map((tasksPayload && Array.isArray(tasksPayload.tasks) ? tasksPayload.tasks : [])
+    .map((t) => [String((t && t.id) || ''), String((t && t.status) || '')]));
   const all = (Array.isArray(rows) ? rows : []).map((r) => {
     const finishedMs = Date.parse(String(r.finished_at || r.finishedAt || ''));
     const approvedMs = Date.parse(String(r.approved_at || ''));
+    const taskId = String(r.task_id || '').trim();
     return {
       id: String(r.id || ''),
       title: String(r.title || '').trim(),
@@ -225,19 +233,77 @@ export function buildDeliverables(rows, nowMs = Date.now()) {
       approved: Number.isFinite(approvedMs),
       approvedBy: String(r.approved_by || (Number.isFinite(approvedMs) ? 'Jon' : '')).trim(),
       approvedWhen: Number.isFinite(approvedMs) ? finishedLabel(approvedMs, nowMs) : '',
+      taskId,
+      inProgress: !Number.isFinite(approvedMs) && NOT_READY.includes(taskStatus.get(taskId)),
     };
   }).filter((r) => r.id && r.title);
   // Unapproved work stays pending until Jon approves it, however old (Ana,
   // 2026-10-23); only approved rows keep the 24 h window, applied in the query.
   const pending = all
-    .filter((r) => !r.approved && Number.isFinite(r.finishedMs))
+    .filter((r) => !r.approved && !r.inProgress && Number.isFinite(r.finishedMs))
     .sort((a, b) => b.finishedMs - a.finishedMs);
+  const working = all.filter((r) => r.inProgress).sort((a, b) => b.finishedMs - a.finishedMs);
   const approved = all.filter((r) => r.approved).sort((a, b) => b.finishedMs - a.finishedMs);
   return {
     available: all.length > 0,
     pending,
+    working,
     approved,
     pendingCount: pending.length,
     approvedCount: approved.length,
   };
+}
+
+// Daily checklist (2026-10-23): three fixed rows that reset each Pacific day.
+// Ana pushes only the items done so far; targets live here. Jon approves a row
+// per day (approval id `daily:<day>:<key>`). A file dated for another day counts
+// as nothing delivered today.
+export const DAILY_ROWS = [
+  { key: 'paul', label: 'Paul videos', target: 6, hint: 'Affiliate or Viral View' },
+  { key: 'heston', label: 'Heston X posts', target: 3, hint: 'Review link and post text' },
+  { key: 'inbox', label: 'partners@ inbox report', target: 1, hint: 'Leads, deals, what you must do to get paid' },
+];
+
+export function dailyApprovalId(day, key) {
+  return `daily:${day}:${key}`;
+}
+
+export function isDailyApprovalId(id) {
+  const m = String(id || '').match(/^daily:(\d{4}-\d{2}-\d{2}):(\w+)$/);
+  return !!m && DAILY_ROWS.some((r) => r.key === m[2]);
+}
+
+export function buildDaily(payload, approvalRows = [], nowMs = Date.now()) {
+  const day = ymd(nowMs);
+  const fresh = !!payload && typeof payload === 'object' && String(payload.day || '') === day;
+  const data = fresh ? payload : {};
+  const approvals = new Map((Array.isArray(approvalRows) ? approvalRows : [])
+    .map((a) => [String(a.deliverable_id || a.id || ''), a]));
+  const rows = DAILY_ROWS.map((def) => {
+    const items = (Array.isArray(data[def.key]) ? data[def.key] : []).slice(0, 30).map((it) => {
+      const r = it && typeof it === 'object' ? it : { title: it };
+      return {
+        title: String(r.title || r.name || '').trim(),
+        url: httpLink(r.url || r.link),
+        text: String(r.text || '').trim().slice(0, 600),
+      };
+    }).filter((it) => it.title || it.url);
+    const id = dailyApprovalId(day, def.key);
+    const ap = approvals.get(id);
+    const approvedMs = Date.parse(String((ap && ap.approved_at) || ''));
+    return {
+      id,
+      key: def.key,
+      label: def.label,
+      hint: def.hint,
+      target: def.target,
+      count: items.length,
+      met: items.length >= def.target,
+      items,
+      approved: Number.isFinite(approvedMs),
+      approvedBy: String((ap && ap.approved_by) || '').trim() || (Number.isFinite(approvedMs) ? 'Jon' : ''),
+      approvedWhen: Number.isFinite(approvedMs) ? finishedLabel(approvedMs, nowMs) : '',
+    };
+  });
+  return { day, rows, stale: !fresh };
 }
