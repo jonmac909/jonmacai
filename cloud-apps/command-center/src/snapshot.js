@@ -481,13 +481,19 @@ export function mergeSnapshot(fixture, rows, nowMs = Date.now(), overrides = {},
   if (out.pages.sponsors) out.pages.sponsors.cash = cash;
   if (out.pages.home) out.pages.home.sponsorsCash = cash;
   applyHome(out, by, extra, nowMs);
-  if (out.pages.home) {
+  {
+    // Jon's checklist lives on its own page (Ana, 2026-10-22); Home no longer carries it.
     const taskRow = by.jon_tasks;
-    out.pages.home.tasks = buildTasks(
-      taskRow ? parseData(taskRow.data) : null,
-      nowMs,
-      taskRow?.collected_at || '',
-    );
+    out.pages.tasks = {
+      ...(out.pages.tasks || {}),
+      title: 'Tasks',
+      sub: out.pages.home?.date || '',
+      tasks: buildTasks(
+        taskRow ? parseData(taskRow.data) : null,
+        nowMs,
+        taskRow?.collected_at || '',
+      ),
+    };
   }
   if (out.pages.home) buildNow(out, by, nowMs, INTERVALS);
   if (out.pages.content) overlayFactory(out.pages.content, out, by, nowMs, cash);

@@ -13,6 +13,20 @@ const STATUS = {
 
 const ACTIVE_ORDER = ['waiting_on_jon', 'doing', 'blocked'];
 
+// Section order on the Tasks page (Ana, 2026-10-22). A task whose project is
+// missing or new sorts after these, in the order it appears in tasks.json.
+export const PROJECT_ORDER = [
+  'YouTube & video',
+  'Funnels & webinar',
+  'Viral View',
+  'Sponsors',
+  'Short form',
+  'Dashboard & tasks',
+  'Money & finance',
+  'Email & calendar',
+  'Team & systems',
+];
+
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 function clockTime(hh, mm) {
@@ -80,6 +94,8 @@ export function buildTasks(payload, nowMs = Date.now(), collectedAt = '') {
       statusLabel: STATUS[status].label,
       tone: STATUS[status].tone,
       tab: STATUS[status].tab,
+      project: String((t && t.project) || '').trim() || 'Other',
+      needs: status === 'waiting_on_jon',
       done: status === 'done',
       asked: askedLabel(t && t.asked, today),
       note: String((t && t.note) || '').trim(),
@@ -89,6 +105,27 @@ export function buildTasks(payload, nowMs = Date.now(), collectedAt = '') {
   const active = ACTIVE_ORDER.flatMap((key) => tasks.filter((t) => t.status === key));
   const upNext = tasks.filter((t) => t.status === 'todo');
   const doneToday = tasks.filter((t) => t.status === 'done');
+  const seen = [...new Set(tasks.map((t) => t.project))];
+  const names = [
+    ...PROJECT_ORDER.filter((p) => seen.includes(p)),
+    ...seen.filter((p) => !PROJECT_ORDER.includes(p)),
+  ];
+  const projects = names.map((name) => {
+    const mine = tasks.filter((t) => t.project === name);
+    const pActive = ACTIVE_ORDER.flatMap((key) => mine.filter((t) => t.status === key));
+    const pNext = mine.filter((t) => t.status === 'todo');
+    const pDone = mine.filter((t) => t.status === 'done');
+    return {
+      name,
+      active: pActive,
+      upNext: pNext,
+      done: pDone,
+      activeCount: pActive.length,
+      upNextCount: pNext.length,
+      doneCount: pDone.length,
+      needsYou: pActive.filter((t) => t.needs).length,
+    };
+  });
   const updated = String(data.updated || collectedAt || '');
   return {
     available: tasks.length > 0,
@@ -100,5 +137,6 @@ export function buildTasks(payload, nowMs = Date.now(), collectedAt = '') {
     active,
     upNext,
     doneToday,
+    projects,
   };
 }
