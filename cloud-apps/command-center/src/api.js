@@ -167,13 +167,13 @@ export function liveNav(orig) {
       { title: 'Today', items: [
         { id: 'home', label: 'Home', icon: 'home' },
         { id: 'tasks', label: 'Tasks', icon: 'check' },
+        { id: 'team', label: 'Team', icon: 'bot' },
       ] },
       { title: 'Business', items: [
         { id: 'sponsors', label: 'Sponsors', icon: 'mail' },
         { id: 'viral', label: 'Viral View', icon: 'chart' },
         { id: 'webinar', label: 'Webinar', icon: 'clock' },
         { id: 'content', label: 'Content', icon: 'pen' },
-        { id: 'team', label: 'Team', icon: 'bot' },
         { id: 'money', label: 'Money', icon: 'wallet' },
       ] },
       { title: 'Life', items: [{ id: 'life', label: 'Life', icon: 'heart' }] },
