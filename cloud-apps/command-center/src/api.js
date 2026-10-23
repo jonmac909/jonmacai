@@ -9,7 +9,8 @@ import {
   upsertChecklist, upsertHabit, upsertSnapshot, listSnapshots, upsertDealStage, listDealStages, listIdeas, upsertIdea,
   listVideoProjects, replaceVideoProjects,
   upsertPost, listPosts, listChecklist, listHabits, deleteChecklist,
-  replaceTeamBots, listTeamBots, upsertDeliverables, listDeliverables, approveDeliverable, listApprovals,
+  replaceTeamBots, listTeamBots, upsertDeliverables, listDeliverables, listPendingDeliverables,
+  approveDeliverable, listApprovals,
 } from './db.js';
 import { mergeSnapshot } from './snapshot.js';
 import { listFunnel } from './webinar.js';
@@ -420,11 +421,16 @@ export async function handleApi(request, env, ctx) {
       return json({ error: 'Unauthorized' }, 401);
     }
     const data = body.data && typeof body.data === 'object' ? body.data : {};
-    if (env.DB && Array.isArray(data.team)) {
-      try { await replaceTeamBots(env.DB, normalizeTeam(data.team, source, collectedAt)); } catch { /* table not migrated yet */ }
+    // Rows go inside "data"; top level is accepted too so a push that only sends
+    // body.team / body.deliverables is still stored instead of silently dropped.
+    const teamRows = Array.isArray(data.team) ? data.team : Array.isArray(body.team) ? body.team : null;
+    const deliverableRows = Array.isArray(data.deliverables) ? data.deliverables
+      : Array.isArray(body.deliverables) ? body.deliverables : null;
+    if (env.DB && teamRows) {
+      try { await replaceTeamBots(env.DB, normalizeTeam(teamRows, source, collectedAt)); } catch { /* table not migrated yet */ }
     }
-    if (env.DB && Array.isArray(data.deliverables)) {
-      try { await upsertDeliverables(env.DB, normalizeDeliverables(data.deliverables, source, collectedAt)); } catch { /* table not migrated yet */ }
+    if (env.DB && deliverableRows) {
+      try { await upsertDeliverables(env.DB, normalizeDeliverables(deliverableRows, source, collectedAt)); } catch { /* table not migrated yet */ }
     }
     if (source === 'post') {
       const items = Array.isArray(data) ? data : Array.isArray(data.posts) ? data.posts : [data];
@@ -454,6 +460,27 @@ export async function handleApi(request, env, ctx) {
         finishedAt: r.finished_at || null,
         approvedAt: r.approved_at || null,
         approvedBy: r.approved_by || 'Jon',
+      })),
+    });
+  }
+  // Machine-token read for what still needs Jon: the team roster and the
+  // deliverables finished in the last 24 h that nobody has approved yet.
+  if (rest === '/pending' && method === 'GET') {
+    const who = machineOf(request, env);
+    if (!who) return json({ error: 'Unauthorized' }, 401);
+    const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    const rows = env.DB ? await listPendingDeliverables(env.DB, since) : [];
+    const team = env.DB ? await listTeamBots(env.DB) : [];
+    return json({
+      ok: true,
+      since,
+      team: team.map((b) => ({
+        id: b.id, name: b.name, role: b.role || '', team: b.team || '',
+        task: b.task || '', status: b.status || '', updatedAt: b.updated_at || null,
+      })),
+      deliverables: rows.map((r) => ({
+        id: r.id, title: r.title || '', owner: r.owner || '', type: r.kind || '',
+        url: r.url || '', finishedAt: r.finished_at || null,
       })),
     });
   }

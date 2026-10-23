@@ -236,6 +236,18 @@ export async function listDeliverables(db, sinceIso) {
   return results || [];
 }
 
+// Pending = finished in the window and not yet approved; mirrors the Deliverables tab.
+export async function listPendingDeliverables(db, sinceIso) {
+  if (!db) return [];
+  const { results } = await db.prepare(
+    `SELECT d.id, d.title, d.owner, d.kind, d.url, d.finished_at, d.updated_at
+       FROM deliverables d LEFT JOIN approvals a ON a.deliverable_id = d.id
+      WHERE a.approved_at IS NULL AND d.finished_at IS NOT NULL AND d.finished_at >= ?
+      ORDER BY d.finished_at DESC LIMIT 200`,
+  ).bind(sinceIso).all();
+  return results || [];
+}
+
 // Records Jon's approval once; a second press keeps the first record.
 export async function approveDeliverable(db, id, by, now) {
   const row = await db.prepare('SELECT id FROM deliverables WHERE id = ?').bind(id).first();
