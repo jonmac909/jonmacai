@@ -34,22 +34,55 @@ function projectSection(p, tab) {
   </section>`;
 }
 
+function deliverableRow(r) {
+  const meta = [r.typeLabel, r.owner, r.finished].filter(Boolean)
+    .map((x) => `<span>${esc(x)}</span>`).join('<i>·</i>');
+  const action = r.approved
+    ? `<span class="dlvok">Approved by ${esc(r.approvedBy || 'Jon')}${r.approvedWhen ? ` · ${esc(r.approvedWhen)}` : ''}</span>`
+    : `<button type="button" class="btn dlvbtn" data-approve="${esc(r.id)}" aria-label="Approve ${esc(r.title)}">Approve</button>`;
+  const open = r.url ? ` data-href="${esc(r.url)}" role="link" tabindex="0"` : '';
+  return `<li class="jtrow dlv${r.approved ? ' isapproved' : ''}${r.url ? ' islink' : ''}"${open}>
+    <span class="jtbody"><span class="jtt">${esc(r.title)}</span><span class="jtm">${meta}</span></span>${action}</li>`;
+}
+
+function deliverablesPanel(dl) {
+  const pending = dl && dl.pending ? dl.pending : [];
+  const approved = dl && dl.approved ? dl.approved : [];
+  if (!pending.length && !approved.length) {
+    return '<p class="jtnone">Nothing finished in the last 24 hours.</p>';
+  }
+  const list = pending.length
+    ? `<ul class="jtlist">${pending.map(deliverableRow).join('')}</ul>`
+    : '<p class="jtnone">Nothing waiting on you.</p>';
+  const done = approved.length
+    ? `<details class="jtdone"><summary>Approved ${approved.length}</summary><ul class="jtlist">${approved.map(deliverableRow).join('')}</ul></details>`
+    : '';
+  return list + done;
+}
+
 function taskBoard(t) {
   if (!t || !t.available) {
     return '<div class="card pad jtcard"><p class="muted">No tasks yet. Ana keeps the list and pushes it here.</p></div>';
   }
   let tab = 'active';
-  try { if (localStorage.getItem('cc-jt-tab') === 'next') tab = 'next'; } catch {}
+  try {
+    const saved = localStorage.getItem('cc-jt-tab');
+    if (saved === 'next' || saved === 'deliverables') tab = saved;
+  } catch {}
+  const dl = t.deliverables || { pending: [], approved: [], pendingCount: 0, approvedCount: 0 };
   const projects = t.projects || [];
   const active = `<div data-jtpanel="active"${tab === 'active' ? '' : ' hidden'}>${projects.map((p) => projectSection(p, 'active')).join('') || '<p class="jtnone">Nothing active.</p>'}</div>`;
   const next = `<div data-jtpanel="next"${tab === 'next' ? '' : ' hidden'}>${projects.map((p) => projectSection(p, 'next')).join('') || '<p class="jtnone">Nothing queued.</p>'}</div>`;
+  const pendingBadge = dl.pendingCount ? `<span class="jtcount">${dl.pendingCount}</span>` : '';
+  const deliverables = `<div data-jtpanel="deliverables"${tab === 'deliverables' ? '' : ' hidden'}>${deliverablesPanel(dl)}</div>`;
   return `<section class="card pad jtcard" aria-label="Jon's tasks">
     <div class="jttabs" role="tablist">
       <button type="button" class="jttab${tab === 'active' ? ' on' : ''}" data-jtab="active" role="tab" aria-selected="${tab === 'active'}">Active</button>
       <button type="button" class="jttab${tab === 'next' ? ' on' : ''}" data-jtab="next" role="tab" aria-selected="${tab === 'next'}">Up next</button>
+      <button type="button" class="jttab${tab === 'deliverables' ? ' on' : ''}" data-jtab="deliverables" role="tab" aria-selected="${tab === 'deliverables'}">Deliverables${pendingBadge}</button>
     </div>
     <p class="jtmeta"><button type="button" class="jtneed" data-jneeds data-needs="${Number(t.needsYou) || 0}" aria-pressed="false">Needs you ${Number(t.needsYou) || 0}</button><span>${t.updatedLabel ? `Updated ${esc(t.updatedLabel)}` : 'Not updated yet'}</span></p>
-    ${active}${next}
+    ${active}${next}${deliverables}
   </section>`;
 }
 

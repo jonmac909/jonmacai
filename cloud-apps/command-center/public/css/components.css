@@ -433,3 +433,17 @@ tfoot td{font-weight:600;color:var(--ink);border-top:1px solid var(--line)}
 .jtcard.needs-only .jtrow:not(.needs){display:none}
 .jtcard.needs-only .jtproj:not(.has-needs){display:none}
 .jtcard.needs-only .jtdone{display:none}
+
+/* Deliverables tab (2026-10-23): approve in place, approved rows collapse below */
+.jttabs{flex-wrap:wrap;gap:1.1rem 1.5rem}
+.jtcount{display:inline-grid;place-items:center;min-width:1.15rem;height:1.15rem;margin-left:.35rem;padding:0 .3rem;border-radius:1rem;background:var(--ok-fill);color:#fff;font-size:.68rem;font-weight:700;vertical-align:.1rem}
+.dlv{align-items:center}
+.dlv .jtbody{gap:.18rem}
+.dlvbtn{flex:none;font-size:.8rem;padding:.4rem .85rem}
+.dlvok{flex:none;max-width:9rem;text-align:right;font-size:.75rem;line-height:1.25;color:var(--ok-ink)}
+.dlv.isapproved .jtt{color:var(--muted)}
+@media (max-width:520px){
+  .dlv{flex-wrap:wrap}
+  .dlv .jtbody{flex:1 1 100%}
+  .dlvbtn,.dlvok{margin-left:auto;max-width:none}
+}

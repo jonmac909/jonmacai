@@ -237,6 +237,35 @@ function clearNeedsFilter(card) {
 }
 
 document.addEventListener('click', (e) => {
+  const approveBtn = e.target.closest('[data-approve]');
+  if (approveBtn) {
+    e.preventDefault();
+    e.stopPropagation();
+    if (approveBtn.disabled) return;
+    approveBtn.disabled = true;
+    fetch(`${PREFIX}/api/approvals/${encodeURIComponent(approveBtn.dataset.approve)}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CC': '1' },
+      body: '{}',
+    }).then(async (res) => {
+      const row = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        approveBtn.disabled = false;
+        say(row.error || 'Could not approve');
+        return;
+      }
+      say('Approved');
+      const fresh = await fetch(`${PREFIX}/api/snapshot`);
+      if (fresh.ok) {
+        data = await fresh.json();
+        go('tasks');
+      }
+    }).catch(() => {
+      approveBtn.disabled = false;
+      say('Could not approve');
+    });
+    return;
+  }
   if (e.target.id === 'nwbtn') {
     const el = document.getElementById('nw');
     const hid = el.textContent.indexOf('•') > -1;

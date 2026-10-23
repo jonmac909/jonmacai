@@ -140,3 +140,103 @@ export function buildTasks(payload, nowMs = Date.now(), collectedAt = '') {
     projects,
   };
 }
+
+// Deliverables tab (2026-10-23): what finished in the last 24 hours and still
+// needs Jon's approval, plus a collapsed list of what he already approved.
+// Approving only records a row here; it publishes or sends nothing.
+const TYPE_LABELS = {
+  video: 'Video',
+  page: 'Landing page',
+  email: 'Email',
+  clip: 'X clip',
+  post: 'Post',
+  doc: 'Document',
+  report: 'Report',
+  design: 'Design',
+  image: 'Image',
+};
+
+export function typeLabel(kind) {
+  const k = String(kind || '').trim().toLowerCase();
+  if (!k) return 'File';
+  return TYPE_LABELS[k] || k.charAt(0).toUpperCase() + k.slice(1);
+}
+
+function slugId(title, owner, finished) {
+  const base = `${owner || ''} ${title || ''} ${finished || ''}`
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 60);
+  return base || '';
+}
+
+function stamp(value) {
+  const ms = Date.parse(String(value || ''));
+  return Number.isFinite(ms) ? new Date(ms).toISOString() : '';
+}
+
+// Shapes one pushed deliverable for storage. Bad rows (no title) are dropped.
+export function normalizeDeliverables(list, source, collectedAt) {
+  return (Array.isArray(list) ? list : []).slice(0, 200).map((raw) => {
+    const r = raw && typeof raw === 'object' ? raw : {};
+    const title = String(r.title || '').trim();
+    const finished = stamp(r.finished || r.finishedAt || r.finished_at || r.at || collectedAt);
+    return {
+      id: String(r.id || '').trim() || slugId(title, r.owner, finished),
+      title,
+      owner: String(r.owner || '').trim(),
+      kind: String(r.type || r.kind || '').trim().toLowerCase(),
+      url: httpLink(r.url || r.link),
+      finished_at: finished,
+      source: source || '',
+      updated_at: new Date().toISOString(),
+    };
+  }).filter((r) => r.id && r.title);
+}
+
+function finishedLabel(ms, nowMs) {
+  if (!Number.isFinite(ms)) return '';
+  let time = '';
+  let day = '';
+  try {
+    time = new Intl.DateTimeFormat('en-US', { timeZone: TZ, hour: 'numeric', minute: '2-digit' }).format(new Date(ms));
+    day = new Intl.DateTimeFormat('en-US', { timeZone: TZ, month: 'short', day: 'numeric' }).format(new Date(ms));
+  } catch {
+    return '';
+  }
+  return ymd(ms) === ymd(nowMs) ? time : `${day} · ${time}`;
+}
+
+export function buildDeliverables(rows, nowMs = Date.now()) {
+  const cutoff = nowMs - 24 * 60 * 60 * 1000;
+  const all = (Array.isArray(rows) ? rows : []).map((r) => {
+    const finishedMs = Date.parse(String(r.finished_at || r.finishedAt || ''));
+    const approvedMs = Date.parse(String(r.approved_at || ''));
+    return {
+      id: String(r.id || ''),
+      title: String(r.title || '').trim(),
+      owner: String(r.owner || '').trim(),
+      type: String(r.kind || r.type || '').trim(),
+      typeLabel: typeLabel(r.kind || r.type),
+      url: httpLink(r.url || r.link),
+      finished: finishedLabel(finishedMs, nowMs),
+      finishedAt: Number.isFinite(finishedMs) ? new Date(finishedMs).toISOString() : '',
+      finishedMs,
+      approved: Number.isFinite(approvedMs),
+      approvedBy: String(r.approved_by || (Number.isFinite(approvedMs) ? 'Jon' : '')).trim(),
+      approvedWhen: Number.isFinite(approvedMs) ? finishedLabel(approvedMs, nowMs) : '',
+    };
+  }).filter((r) => r.id && r.title);
+  const pending = all
+    .filter((r) => !r.approved && Number.isFinite(r.finishedMs) && r.finishedMs >= cutoff)
+    .sort((a, b) => b.finishedMs - a.finishedMs);
+  const approved = all.filter((r) => r.approved).sort((a, b) => b.finishedMs - a.finishedMs);
+  return {
+    available: all.length > 0,
+    pending,
+    approved,
+    pendingCount: pending.length,
+    approvedCount: approved.length,
+  };
+}

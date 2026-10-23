@@ -113,10 +113,51 @@ function gpuCard(host) {
   };
 }
 
-export function buildTeam(page, by, hosts, nowMs) {
+function stamp(value) {
+  const ms = Date.parse(String(value || ''));
+  return Number.isFinite(ms) ? new Date(ms).toISOString() : '';
+}
+
+// Team roster pushed by Ana (2026-10-23): one row per bot, name, role, team,
+// the task it is on right now, working or idle, and when that was last updated.
+export function normalizeTeam(list, source, collectedAt) {
+  const received = new Date().toISOString();
+  return (Array.isArray(list) ? list : []).slice(0, 200).map((raw) => {
+    const b = raw && typeof raw === 'object' ? raw : {};
+    const name = String(b.name || b.bot || '').trim();
+    const status = String(b.status || '').trim().toLowerCase();
+    return {
+      id: String(b.id || '').trim() || name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, ''),
+      name,
+      role: String(b.role || '').trim(),
+      team: String(b.team || b.section || '').trim(),
+      task: String(b.task || '').trim(),
+      status: ['working', 'idle', 'waiting', 'stuck'].includes(status) ? status : 'idle',
+      updated_at: stamp(b.updated || b.updatedAt || b.at || collectedAt),
+      source: source || '',
+      received_at: received,
+    };
+  }).filter((b) => b.id && b.name);
+}
+
+export function buildTeam(page, by, hosts, nowMs, roster = []) {
   const row = by.team;
   const data = row ? parse(row.data) : null;
-  const bots = Array.isArray(data?.bots) ? data.bots : [];
+  const collected = Array.isArray(data?.bots) ? data.bots : [];
+  const pushed = Array.isArray(roster) ? roster : [];
+  const bots = pushed.length
+    ? pushed.map((b) => ({
+      id: b.id,
+      short: b.name,
+      name: b.name,
+      role: b.role,
+      section: b.team || 'Team',
+      task: b.task,
+      status: b.status || 'idle',
+      taskAt: Number.isFinite(Date.parse(b.updated_at || '')) ? Date.parse(b.updated_at) : null,
+      model: '',
+    }))
+    : collected;
   page.title = 'Team';
   const n = bots.length;
   page.sub = `${n ? `${n} bots` : 'Bots · no data'} · 2 GPUs · ${van(nowMs, { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}`;
@@ -132,8 +173,8 @@ export function buildTeam(page, by, hosts, nowMs) {
     counts.stuck ? { label: `${counts.stuck} stuck`, cls: 'crit' } : null,
     counts.idle ? { label: `${counts.idle} idle`, cls: 'idle' } : null,
   ].filter(Boolean);
-  page.available = !!(data?.ok && bots.length);
-  page.reason = !row
+  page.available = pushed.length ? true : !!(data?.ok && bots.length);
+  page.reason = pushed.length ? '' : !row
     ? 'The team collector has not reported from GPU1 yet.'
     : data?.ok === false
       ? `Team collector: ${data.error || 'unavailable'}`
@@ -145,7 +186,9 @@ export function buildTeam(page, by, hosts, nowMs) {
   page.gpus = gp;
   const sections = new Map();
   for (const b of bots) {
-    const sec = SECTION_ORDER.includes(b.section) ? b.section : b.section ? 'Other' : 'General';
+    const sec = pushed.length
+      ? (b.section || 'Team')
+      : SECTION_ORDER.includes(b.section) ? b.section : b.section ? 'Other' : 'General';
     if (!sections.has(sec)) sections.set(sec, []);
     const meta = statusMeta(b.status);
     sections.get(sec).push({
@@ -173,12 +216,21 @@ export function buildTeam(page, by, hosts, nowMs) {
         : null,
     });
   }
-  page.sections = SECTION_ORDER.filter((s) => sections.has(s)).map((s) => ({
-    title: s === 'General' ? "General · Ana's office" : s,
-    note: s === 'General' ? '' : '',
+  const present = [...sections.keys()];
+  const ordered = [
+    ...SECTION_ORDER.filter((s) => present.includes(s)),
+    ...present.filter((s) => !SECTION_ORDER.includes(s)).sort(),
+  ];
+  page.sections = ordered.map((s) => ({
+    title: s === 'General' && !pushed.length ? "General · Ana's office" : s,
+    note: '',
     bots: sections.get(s),
   }));
-  page.stale = row ? nowMs - Date.parse(row.collected_at) > 3 * 5 * 60 * 1000 : false;
-  page.asOf = row?.collected_at || null;
+  page.stale = pushed.length
+    ? false
+    : row ? nowMs - Date.parse(row.collected_at) > 3 * 5 * 60 * 1000 : false;
+  page.asOf = pushed.length
+    ? (pushed.map((b) => b.received_at).filter(Boolean).sort().pop() || null)
+    : (row?.collected_at || null);
   return page;
 }

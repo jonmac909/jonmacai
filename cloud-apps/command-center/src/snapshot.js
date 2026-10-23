@@ -10,7 +10,7 @@ import { overlayViral, applyHomeViral } from './viral.js';
 import { overlayOutreach, blankOutreach } from './outreach.js';
 import { overlayLife } from './life.js';
 import { applyHome } from './home.js';
-import { buildTasks } from './tasks.js';
+import { buildTasks, buildDeliverables } from './tasks.js';
 import { buildMachines, HOSTS, MACHINE_INTERVAL_MS } from './machines.js';
 import { overlayVideos } from './videos.js';
 import { overlayWebinar } from './webinar.js';
@@ -439,8 +439,9 @@ export function mergeSnapshot(fixture, rows, nowMs = Date.now(), overrides = {},
       out.nav.badges.content = out.pages.content.queueCount;
     }
   }
-  if (out.pages.team) {
-    buildTeam(out.pages.team, by, hosts, nowMs);
+  {
+    out.pages.team = out.pages.team || { title: 'Team' };
+    buildTeam(out.pages.team, by, hosts, nowMs, extra.teamRoster || []);
     if (out.nav?.badges) out.nav.badges.team = (out.pages.team.counts?.waiting || 0) + (out.pages.team.counts?.stuck || 0);
   }
   if (by.moneyclaw) {
@@ -493,6 +494,7 @@ export function mergeSnapshot(fixture, rows, nowMs = Date.now(), overrides = {},
         nowMs,
         taskRow?.collected_at || '',
       ),
+      deliverables: buildDeliverables(extra.deliverables || [], nowMs),
     };
   }
   if (out.pages.home) buildNow(out, by, nowMs, INTERVALS);

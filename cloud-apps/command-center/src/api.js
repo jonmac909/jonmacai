@@ -9,6 +9,7 @@ import {
   upsertChecklist, upsertHabit, upsertSnapshot, listSnapshots, upsertDealStage, listDealStages, listIdeas, upsertIdea,
   listVideoProjects, replaceVideoProjects,
   upsertPost, listPosts, listChecklist, listHabits, deleteChecklist,
+  replaceTeamBots, listTeamBots, upsertDeliverables, listDeliverables, approveDeliverable, listApprovals,
 } from './db.js';
 import { mergeSnapshot } from './snapshot.js';
 import { listFunnel } from './webinar.js';
@@ -23,6 +24,8 @@ import {
   approveDraft, configuredPlatforms, fillFromEnv, listDrafts, saveDraft, tenantOf, unavailablePlatforms, vancouverDay,
 } from './daily-drafts.js';
 import { REVIEW_SOURCE, draftId, isIsolated, parseReview, plannerDestination, reviewMutate, upsertReview } from './review.js';
+import { normalizeTeam } from './team.js';
+import { normalizeDeliverables } from './tasks.js';
 
 const PREFIX = '/dashboard/api';
 const json = (data, status = 200, headers = {}) =>
@@ -386,6 +389,8 @@ export async function handleApi(request, env, ctx) {
     extra.funnel = await listFunnel(env.CLONE_DB);
     extra.platforms = configuredPlatforms(env);
     extra.unavailable = unavailablePlatforms(env);
+    extra.deliverables = await listDeliverables(env.DB, new Date(now - 24 * 60 * 60 * 1000).toISOString()).catch(() => []);
+    extra.teamRoster = await listTeamBots(env.DB).catch(() => []);
     const merged = mergeSnapshot(base, await listSnapshots(env.DB), now, overrides, await listIdeas(env.DB), await listPosts(env.DB), await listVideoProjects(env.DB), extra);
     if (merged.pages.outreach) {
       applyOutreachStatus(merged.pages.outreach, await latestAction(env.DB, 'outreach.refresh'), merged.sources?.instantly);
@@ -415,6 +420,12 @@ export async function handleApi(request, env, ctx) {
       return json({ error: 'Unauthorized' }, 401);
     }
     const data = body.data && typeof body.data === 'object' ? body.data : {};
+    if (env.DB && Array.isArray(data.team)) {
+      try { await replaceTeamBots(env.DB, normalizeTeam(data.team, source, collectedAt)); } catch { /* table not migrated yet */ }
+    }
+    if (env.DB && Array.isArray(data.deliverables)) {
+      try { await upsertDeliverables(env.DB, normalizeDeliverables(data.deliverables, source, collectedAt)); } catch { /* table not migrated yet */ }
+    }
     if (source === 'post') {
       const items = Array.isArray(data) ? data : Array.isArray(data.posts) ? data.posts : [data];
       if (env.DB) {
@@ -427,6 +438,24 @@ export async function handleApi(request, env, ctx) {
     }
     if (env.DB) await upsertSnapshot(env.DB, source, JSON.stringify(data), collectedAt, new Date().toISOString());
     return json({ ok: true });
+  }
+  if (rest === '/approvals' && method === 'GET') {
+    const who = machineOf(request, env);
+    if (!who) return json({ error: 'Unauthorized' }, 401);
+    const rows = env.DB ? await listApprovals(env.DB) : [];
+    return json({
+      ok: true,
+      approvals: rows.map((r) => ({
+        id: r.id,
+        title: r.title || '',
+        owner: r.owner || '',
+        type: r.kind || '',
+        url: r.url || '',
+        finishedAt: r.finished_at || null,
+        approvedAt: r.approved_at || null,
+        approvedBy: r.approved_by || 'Jon',
+      })),
+    });
   }
   if (rest === '/actions/claim' && method === 'POST') {
     const who = machineOf(request, env);
@@ -570,6 +599,14 @@ export async function handleApi(request, env, ctx) {
   }
 
   if (rest === '/actions' && method === 'POST') return postAction(request, env, ctx);
+  const approve = rest.match(/^\/approvals\/([^/]+)$/);
+  if (approve && method === 'POST') {
+    if (!env.DB) return json({ error: 'Unavailable' }, 503);
+    const id = decodeURIComponent(approve[1]);
+    const row = await approveDeliverable(env.DB, id, 'Jon', new Date().toISOString());
+    if (!row) return json({ error: 'Not found' }, 404);
+    return json({ ok: true, id, approvedAt: row.approved_at, approvedBy: row.approved_by, duplicate: !!row.duplicate });
+  }
   const one = rest.match(/^\/actions\/([^/]+)$/);
   if (one && method === 'GET') {
     if (!env.DB) return json({ id: one[1], status: 'done', result: 'Done' });
