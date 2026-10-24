@@ -1,6 +1,7 @@
 import { render as home } from './pages/home.js';
 import { render as tasks } from './pages/tasks.js?v=20261023e';
 import { render as projects } from './pages/projects.js';
+import { render as questions } from './pages/questions.js';
 import { render as sponsors } from './pages/sponsors.js';
 import { render as viral } from './pages/viral.js';
 import { render as youtube } from './pages/youtube.js';
@@ -19,7 +20,7 @@ import { render as team } from './pages/team.js?v=20261023f';
 import { formatJobResult } from './ui.js';
 import { bindModals, openDraft } from './modals.js';
 const PREFIX = '/dashboard';
-const pages = { home, tasks, projects, sponsors, viral, youtube, content, outreach, support, video, money, markets, life, mastermind, agents, videos, webinar, team };
+const pages = { home, tasks, projects, questions, sponsors, viral, youtube, content, outreach, support, video, money, markets, life, mastermind, agents, videos, webinar, team };
 let data = null;
 
 const root = document.documentElement;
@@ -184,7 +185,7 @@ function recount() {
 export async function go(id, { refetch = false } = {}) {
   if (!pages[id]) id = 'home';
   if (location.hash !== `#${id}`) history.replaceState(null, '', `${PREFIX}/#${id}`);
-  if (refetch || id === 'agents' || id === 'team' || id === 'projects') {
+  if (refetch || id === 'agents' || id === 'team' || id === 'projects' || id === 'questions') {
     const snap = await fetch(`${PREFIX}/api/snapshot?v=${Date.now()}`);
     if (snap.ok) data = await snap.json();
     document.getElementById('navs').innerHTML = navHtml();
@@ -284,6 +285,33 @@ document.addEventListener('click', (e) => {
     need.setAttribute('aria-pressed', String(on));
     need.textContent = on ? 'Show all' : `Needs you ${need.dataset.needs || '0'}`;
     if (on) selectJtTab(card, 'active');
+    return;
+  }
+  const qopt = e.target.closest('[data-qopt]');
+  if (qopt) {
+    const card = qopt.closest('.qcard');
+    card.querySelectorAll('[data-qopt]').forEach((b) => b.classList.toggle('on', b === qopt));
+    const box = card.querySelector('.qtext');
+    box.value = qopt.dataset.qopt;
+    box.focus();
+    return;
+  }
+  const qsend = e.target.closest('[data-qsend]');
+  if (qsend) {
+    const answer = qsend.closest('.qcard').querySelector('.qtext').value.trim();
+    if (!answer) { say('Type an answer first'); return; }
+    if (qsend.disabled) return;
+    qsend.disabled = true;
+    fetch(`${PREFIX}/api/questions/${encodeURIComponent(qsend.dataset.qsend)}/answer`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CC': '1' },
+      body: JSON.stringify({ answer }),
+    }).then(async (res) => {
+      const row = await res.json().catch(() => ({}));
+      if (!res.ok) { qsend.disabled = false; say(row.error || 'Could not send'); return; }
+      say('Sent');
+      go('questions', { refetch: true });
+    }).catch(() => { qsend.disabled = false; say('Could not send'); });
     return;
   }
   const pj = e.target.closest('[data-proj]');

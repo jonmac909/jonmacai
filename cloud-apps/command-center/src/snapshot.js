@@ -12,6 +12,7 @@ import { overlayLife } from './life.js';
 import { applyHome } from './home.js';
 import { buildTasks, buildDeliverables, buildDaily } from './tasks.js';
 import { buildProjects } from './projects.js';
+import { buildQuestions } from './questions.js';
 import { buildMachines, HOSTS, MACHINE_INTERVAL_MS } from './machines.js';
 import { overlayVideos } from './videos.js';
 import { overlayWebinar } from './webinar.js';
@@ -519,6 +520,12 @@ export function mergeSnapshot(fixture, rows, nowMs = Date.now(), overrides = {},
       sub: out.pages.home?.date || '',
       board: buildProjects(taskData, nowMs, taskRow?.collected_at || '', out.pages.tasks.daily, extra.deliverables || []),
     };
+  }
+  {
+    const q = buildQuestions(extra.questions || [], nowMs);
+    out.pages.questions = { ...(out.pages.questions || {}), title: 'Questions', sub: out.pages.home?.date || '', ...q };
+    out.nav = out.nav || {};
+    out.nav.badges = { ...(out.nav.badges || {}), questions: q.openCount };
   }
   if (out.pages.home) buildNow(out, by, nowMs, INTERVALS);
   if (out.pages.content) overlayFactory(out.pages.content, out, by, nowMs, cash);
