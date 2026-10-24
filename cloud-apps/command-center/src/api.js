@@ -9,7 +9,7 @@ import {
   upsertChecklist, upsertHabit, upsertSnapshot, listSnapshots, upsertDealStage, listDealStages, listIdeas, upsertIdea,
   listVideoProjects, replaceVideoProjects,
   upsertPost, listPosts, listChecklist, listHabits, deleteChecklist,
-  replaceTeamBots, listTeamBots, upsertDeliverables, listDeliverables, listPendingDeliverables,
+  replaceTeamBots, listTeamBots, upsertDeliverables, removeMissingDeliverables, listDeliverables, listPendingDeliverables,
   approveDeliverable, listApprovals, listDailyApprovals,
 } from './db.js';
 import { mergeSnapshot } from './snapshot.js';
@@ -437,7 +437,11 @@ export async function handleApi(request, env, ctx) {
       try { await replaceTeamBots(env.DB, normalizeTeam(teamRows, source, collectedAt)); } catch { /* table not migrated yet */ }
     }
     if (env.DB && deliverableRows) {
-      try { await upsertDeliverables(env.DB, normalizeDeliverables(deliverableRows, source, collectedAt)); } catch { /* table not migrated yet */ }
+      try {
+        const rows = normalizeDeliverables(deliverableRows, source, collectedAt);
+        await upsertDeliverables(env.DB, rows);
+        await removeMissingDeliverables(env.DB, source, rows.map((r) => r.id));
+      } catch { /* table not migrated yet */ }
     }
     if (source === 'post') {
       const items = Array.isArray(data) ? data : Array.isArray(data.posts) ? data.posts : [data];

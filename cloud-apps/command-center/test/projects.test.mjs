@@ -83,5 +83,28 @@ test('mergeSnapshot puts the board and checklist on the projects page', async ()
   const out = mergeSnapshot(snapshot, rows, NOW, {}, [], [], [], {});
   assert.equal(out.pages.projects.title, 'Projects');
   assert.equal(out.pages.projects.board.projects[0].name, 'Sponsors');
-  assert.deepEqual([out.pages.projects.checklist.done, out.pages.projects.checklist.total], [1, 10]);
+  assert.equal(out.pages.projects.checklist, undefined);
+});
+
+test('each project gets its own sidebar: claimed daily slots, deliveries by task id, open tasks', () => {
+  const daily = buildDaily({
+    day: '2026-10-24',
+    paul: [], heston: [{ title: 'Clip b04', url: 'https://gpu2.test/c1' }], inbox: [{ title: 'Report', url: 'https://gpu2.test/r' }],
+  }, [], NOW);
+  const dels = [
+    { task_id: 'T1', title: 'Sponsor page', url: 'https://x.test/sp', finished_at: '2026-10-24T08:00:00-07:00' },
+    { task_id: 'T1', title: 'Yesterday', url: 'https://x.test/y', finished_at: '2026-10-23T08:00:00-07:00' },
+    { task_id: 'T7', title: 'Other', url: 'https://x.test/o', finished_at: '2026-10-24T08:00:00-07:00' },
+  ];
+  const b = buildProjects({ ...payload, tasks: [...payload.tasks, { id: 'T8', asked: '2026-10-24 09:00', task: 'Video job', owner: 'Paul', status: 'doing', project: 'YouTube & Video' }] }, NOW, '', daily, dels);
+  const sp = b.projects.find((p) => p.name === 'Sponsors').checklist;
+  assert.deepEqual(sp.groups.map((g) => g.key), ['inbox', 'delivered']);
+  assert.deepEqual([sp.done, sp.total], [2, 2]);
+  assert.equal(sp.open.count, 5);
+  assert.equal(sp.open.items.some((i) => i.title === 'Shipped'), false);
+  const yt = b.projects.find((p) => p.name === 'YouTube & Video').checklist;
+  assert.deepEqual(yt.groups.map((g) => g.key), ['paul', 'heston']);
+  assert.deepEqual([yt.done, yt.total], [1, 9]);
+  const other = b.projects.find((p) => p.name === 'Brand new').checklist;
+  assert.deepEqual([other.groups.length, other.total, other.open.count], [1, 1, 0]);
 });

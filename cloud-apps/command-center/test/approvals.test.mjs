@@ -24,6 +24,8 @@ function memDb() {
         async run() {
           const a = stmt.args;
           if (sql.includes('DELETE FROM team_bots')) team.clear();
+          else if (sql.includes('DELETE FROM approvals')) approvals.delete(a[0]);
+          else if (sql.includes('DELETE FROM deliverables')) deliverables.delete(a[0]);
           else if (sql.includes('INSERT OR REPLACE INTO team_bots')) team.set(a[0], { id: a[0], name: a[1], role: a[2], team: a[3], task: a[4], status: a[5], updated_at: a[6], source: a[7], received_at: a[8] });
           else if (sql.includes('INSERT INTO deliverables')) deliverables.set(a[0], { id: a[0], title: a[1], owner: a[2], kind: a[3], url: a[4], finished_at: a[5], source: a[6], updated_at: a[7] });
           else if (sql.includes('INSERT INTO approvals')) approvals.set(a[0], { approved_at: a[1], approved_by: a[2] });
@@ -32,6 +34,7 @@ function memDb() {
         async all() {
           const a = stmt.args;
           if (sql.includes('FROM team_bots')) return { results: [...team.values()] };
+          if (sql.includes('SELECT id FROM deliverables WHERE source')) return { results: [...deliverables.values()].filter((d) => d.source === a[0]).map((d) => ({ id: d.id })) };
           if (sql.includes('FROM approvals a')) return { results: [...approvals.entries()].map(([id, ap]) => ({ id, ...(deliverables.get(id) || {}), ...ap })) };
           // Pending read: unapproved rows, any age (listPendingDeliverables).
           if (sql.includes('FROM deliverables d') && !sql.includes('a.approved_by')) {
@@ -171,6 +174,24 @@ test('ingest accepts team and deliverables, approvals need the machine token', a
   const listed = await handleApi(req('/dashboard/api/approvals', { headers: { Authorization: 'Bearer gpu1-token-value' } }), env);
   assert.equal(listed.status, 200);
   assert.deepEqual((await listed.json()).approvals, []);
+});
+
+test('a push removes rows of its own source that are missing, with their approvals', async () => {
+  const db = memDb();
+  const env = envWith(db);
+  const push = (source, rows) => handleApi(req('/dashboard/api/ingest', {
+    method: 'POST', headers: { Authorization: 'Bearer gpu1-token-value', 'Content-Type': 'application/json' },
+    body: JSON.stringify({ source, collectedAt: '2026-10-24T16:10:00Z', data: { deliverables: rows } }),
+  }), env);
+  const row = (id) => ({ id, title: `Item ${id}`, owner: 'Heston', type: 'video', finished: '2026-10-24T08:00:00-07:00' });
+  await push('jon_tasks', [row('a'), row('b')]);
+  db.deliverables.set('other', { id: 'other', title: 'Other', source: 'review_link', finished_at: '2026-10-24T08:00:00-07:00', updated_at: 'x' });
+  db.approvals.set('b', { approved_at: '2026-10-24T09:00:00Z', approved_by: 'jon' });
+  db.approvals.set('daily:2026-10-24:paul1', { approved_at: '2026-10-24T09:00:00Z', approved_by: 'jon' });
+  await push('jon_tasks', [row('a')]);
+  assert.deepEqual([...db.deliverables.keys()].sort(), ['a', 'other']);
+  assert.equal(db.approvals.has('b'), false);
+  assert.equal(db.approvals.has('daily:2026-10-24:paul1'), true);
 });
 
 test('machine read returns the team roster and the pending deliverables', async () => {

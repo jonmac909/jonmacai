@@ -1,7 +1,7 @@
 import { esc } from '../ui.js';
 
 // Projects page (2026-10-24): a project picker with progress bars, one Kanban board per
-// project, and today's checklist in a right sidebar. Data comes from tasks.json and
+// project, and a right sidebar checklist that follows the selected project. Data comes from tasks.json and
 // deliverables-today.json only; the page never writes anything back.
 const DONE_SHOWN = 6;
 
@@ -44,7 +44,7 @@ function picker(projects, sel) {
 function boards(projects, sel) {
   return projects.map((p, i) => `<div class="pjboard" data-pjpanel="${i}"${i === sel ? '' : ' hidden'}>
     <div class="pjhead"><h2>${esc(p.name)}</h2><span class="pjsum">${p.done} of ${p.total} done${p.needsYou ? ` · ${p.needsYou} need${p.needsYou === 1 ? 's' : ''} you` : ''}</span></div>
-    <div class="pjkan">${p.columns.map(column).join('')}</div>
+    <div class="pjlayout"><div class="pjmain"><div class="pjkan">${p.columns.map(column).join('')}</div></div>${checklist(p.checklist, p.name)}</div>
   </div>`).join('');
 }
 
@@ -53,16 +53,20 @@ function checkItem(it) {
   return `<li class="${it.done ? 'done' : ''}"><span class="jtbox" aria-hidden="true">${it.done ? '<svg class="ic"><use href="#i-check"/></svg>' : ''}</span><span class="pjci">${label}</span></li>`;
 }
 
-function checklist(c) {
-  if (!c || !c.groups || !c.groups.length) return '';
+function checklist(c, name) {
+  if (!c) return '';
+  const open = c.open || { count: 0, items: [], more: 0 };
   const pct = c.total ? Math.round(c.done / c.total * 100) : 0;
   const note = c.stale ? '<p class="dailynote">Today&#39;s list has not been pushed yet.</p>' : '';
-  const groups = c.groups.map((g) => `<h4 class="pjgh">${esc(g.label)}<span>${Math.min(g.done, g.target)} / ${g.target}</span></h4><ul class="pjchecks">${g.items.map(checkItem).join('')}</ul>`).join('');
-  return `<aside class="pjside card pad" aria-label="Daily checklist">
-    <div class="pjhead"><h2>Today</h2><span class="pjsum">${c.done} of ${c.total}</span></div>
+  const today = c.groups.length
+    ? `<div class="pjhead"><h2>Today</h2><span class="pjsum">${c.done} of ${c.total}</span></div>
     <span class="pjbar big" role="img" aria-label="${c.done} of ${c.total} done today"><i style="width:${pct}%"></i></span>
-    ${note}${groups}
-  </aside>`;
+    ${note}${c.groups.map((g) => `<h4 class="pjgh">${esc(g.label)}<span>${Math.min(g.done, g.target)} / ${g.target}</span></h4><ul class="pjchecks">${g.items.map(checkItem).join('')}</ul>`).join('')}`
+    : '<div class="pjhead"><h2>Today</h2></div><p class="pjempty">Nothing due today for this project.</p>';
+  const left = open.count
+    ? `<h4 class="pjgh">Open tasks<span>${open.count}</span></h4><ul class="pjchecks">${open.items.map(checkItem).join('')}</ul>${open.more ? `<p class="pjempty">+ ${open.more} more on the board</p>` : ''}`
+    : '<h4 class="pjgh">Open tasks<span>0</span></h4><p class="pjempty">All clear.</p>';
+  return `<aside class="pjside card pad" aria-label="${esc(name)} checklist">${today}${left}</aside>`;
 }
 
 export function render(d) {
@@ -80,6 +84,6 @@ export function render(d) {
     : '<div class="card pad"><p class="muted">No tasks yet. Ana keeps the list and pushes it here.</p></div>';
   return `<div class="wrap">
   <div class="head"><div><h1>${esc(page.title || 'Projects')}</h1><p>${board.updatedLabel ? `Updated ${esc(board.updatedLabel)}` : esc(page.sub || '')}</p></div></div>
-  <div class="pjlayout"><div class="pjmain">${main}</div>${checklist(page.checklist)}</div>
+  ${main}
 </div>`;
 }

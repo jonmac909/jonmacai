@@ -11,7 +11,7 @@ import { overlayOutreach, blankOutreach } from './outreach.js';
 import { overlayLife } from './life.js';
 import { applyHome } from './home.js';
 import { buildTasks, buildDeliverables, buildDaily } from './tasks.js';
-import { buildProjects, buildChecklist } from './projects.js';
+import { buildProjects } from './projects.js';
 import { buildMachines, HOSTS, MACHINE_INTERVAL_MS } from './machines.js';
 import { overlayVideos } from './videos.js';
 import { overlayWebinar } from './webinar.js';
@@ -517,8 +517,7 @@ export function mergeSnapshot(fixture, rows, nowMs = Date.now(), overrides = {},
       ...(out.pages.projects || {}),
       title: 'Projects',
       sub: out.pages.home?.date || '',
-      board: buildProjects(taskData, nowMs, taskRow?.collected_at || ''),
-      checklist: buildChecklist(out.pages.tasks.daily),
+      board: buildProjects(taskData, nowMs, taskRow?.collected_at || '', out.pages.tasks.daily, extra.deliverables || []),
     };
   }
   if (out.pages.home) buildNow(out, by, nowMs, INTERVALS);
