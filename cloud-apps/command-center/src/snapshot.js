@@ -12,6 +12,7 @@ import { overlayLife } from './life.js';
 import { applyHome } from './home.js';
 import { buildTasks, buildDeliverables, buildDaily } from './tasks.js';
 import { buildProjects } from './projects.js';
+import { buildChannels } from './channels.js';
 import { buildQuestions } from './questions.js';
 import { buildMachines, HOSTS, MACHINE_INTERVAL_MS } from './machines.js';
 import { overlayVideos } from './videos.js';
@@ -519,6 +520,15 @@ export function mergeSnapshot(fixture, rows, nowMs = Date.now(), overrides = {},
       title: 'Projects',
       sub: out.pages.home?.date || '',
       board: buildProjects(taskData, nowMs, taskRow?.collected_at || '', out.pages.tasks.daily, extra.deliverables || []),
+    };
+  }
+  {
+    const taskRow = by.jon_tasks;
+    out.pages.channels = {
+      ...(out.pages.channels || {}),
+      title: 'YouTube',
+      sub: out.pages.home?.date || '',
+      board: buildChannels(taskRow ? parseData(taskRow.data).youtube : null, nowMs, taskRow?.collected_at || ''),
     };
   }
   {
