@@ -549,3 +549,23 @@ tfoot td{font-weight:600;color:var(--ink);border-top:1px solid var(--line)}
 @media (max-width:820px){
   .pjkan{grid-template-columns:none;grid-auto-flow:column;grid-auto-columns:minmax(78%,1fr)}
 }
+
+/* Questions page (2026-10-24) */
+.qlist{list-style:none;margin:0 0 1rem;padding:0;display:flex;flex-direction:column;gap:.8rem;max-width:46rem}
+.qcard{display:flex;flex-direction:column;gap:.5rem}
+.qmeta{display:flex;flex-wrap:wrap;align-items:center;gap:.35rem;font-size:.78rem;color:var(--muted)}
+.qmeta i{font-style:normal;opacity:.6}
+.qq{margin:0;font-size:1rem;font-weight:650;line-height:1.35}
+.qctx{margin:0;font-size:.88rem;color:var(--muted);line-height:1.45;white-space:pre-wrap}
+.qopts{display:flex;flex-wrap:wrap;gap:.4rem}
+.qopt{background:var(--card);color:var(--ink);border:1px solid var(--line);box-shadow:none;white-space:normal;text-align:left}
+.qopt.on{background:var(--accent-soft);border-color:var(--accent)}
+.qform{display:flex;gap:.5rem;align-items:flex-end}
+.qtext{flex:1;min-width:0;font:inherit;font-size:.92rem;color:var(--ink);background:var(--card);border:1px solid var(--line);border-radius:.6rem;padding:.5rem .65rem;resize:vertical}
+.qsend:disabled{opacity:.5;cursor:not-allowed}
+.qanswered{max-width:46rem}
+.qanswered summary{cursor:pointer;font-weight:600;margin:.4rem 0 .7rem}
+.qdone{padding:.7rem .85rem;border:1px solid var(--line);border-radius:.75rem;background:var(--card);display:flex;flex-direction:column;gap:.25rem}
+.qdone .qq{font-weight:600;font-size:.92rem}
+.qans{margin:0;font-size:.9rem;white-space:pre-wrap}
+.qans b{color:var(--ok-ink);margin-right:.3rem}

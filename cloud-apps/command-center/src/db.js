@@ -303,3 +303,63 @@ export async function listApprovals(db) {
   ).all();
   return results || [];
 }
+
+// Questions for Jon (2026-10-24). A push is the full list for its source, but a question
+// Jon already answered is kept until pull_answers.py has collected the answer.
+export async function upsertQuestions(db, rows) {
+  for (const q of rows) {
+    await db.prepare(
+      `INSERT INTO questions (id, asked_at, asker, project, question, context, options, status, source, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(id) DO UPDATE SET asked_at = excluded.asked_at, asker = excluded.asker,
+         project = excluded.project, question = excluded.question, context = excluded.context,
+         options = excluded.options, source = excluded.source, updated_at = excluded.updated_at,
+         status = CASE WHEN questions.answer IS NOT NULL THEN 'answered' ELSE excluded.status END`,
+    ).bind(q.id, q.asked_at, q.asker, q.project, q.question, q.context, q.options, q.status, q.source, q.updated_at).run();
+  }
+}
+
+export async function removeMissingQuestions(db, source, keepIds) {
+  if (!source) return [];
+  const { results } = await db.prepare('SELECT id, answer, collected_at FROM questions WHERE source = ?').bind(source).all();
+  const keep = new Set(keepIds);
+  const gone = (results || []).filter((r) => !keep.has(r.id) && !(r.answer && !r.collected_at)).map((r) => r.id);
+  for (const id of gone) await db.prepare('DELETE FROM questions WHERE id = ?').bind(id).run();
+  return gone;
+}
+
+export async function listQuestions(db) {
+  if (!db) return [];
+  const { results } = await db.prepare(
+    `SELECT id, asked_at, asker, project, question, context, options, status, answer, answered_at
+       FROM questions ORDER BY asked_at DESC LIMIT 300`,
+  ).all();
+  return results || [];
+}
+
+// First answer wins, like an approval. Returns null for an unknown id.
+export async function answerQuestion(db, id, answer, now) {
+  const row = await db.prepare('SELECT id, answer, answered_at FROM questions WHERE id = ?').bind(id).first();
+  if (!row) return null;
+  if (row.answer) return { answered_at: row.answered_at, duplicate: true };
+  await db.prepare("UPDATE questions SET answer = ?, answered_at = ?, status = 'answered' WHERE id = ?").bind(answer, now, id).run();
+  return { answered_at: now, duplicate: false };
+}
+
+export async function listUncollectedAnswers(db) {
+  if (!db) return [];
+  const { results } = await db.prepare(
+    `SELECT id, asker, project, question, answer, answered_at FROM questions
+      WHERE answer IS NOT NULL AND collected_at IS NULL ORDER BY answered_at`,
+  ).all();
+  return results || [];
+}
+
+export async function markAnswersCollected(db, ids, now) {
+  let n = 0;
+  for (const id of ids) {
+    const r = await db.prepare('UPDATE questions SET collected_at = ? WHERE id = ? AND answer IS NOT NULL AND collected_at IS NULL').bind(now, id).run();
+    n += r && r.meta ? Number(r.meta.changes) || 0 : 0;
+  }
+  return n;
+}

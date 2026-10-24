@@ -9,7 +9,7 @@ import {
   upsertChecklist, upsertHabit, upsertSnapshot, listSnapshots, upsertDealStage, listDealStages, listIdeas, upsertIdea,
   listVideoProjects, replaceVideoProjects,
   upsertPost, listPosts, listChecklist, listHabits, deleteChecklist,
-  replaceTeamBots, listTeamBots, upsertDeliverables, removeMissingDeliverables, listDeliverables, listPendingDeliverables,
+  replaceTeamBots, listTeamBots, upsertDeliverables, removeMissingDeliverables, listDeliverables, upsertQuestions, removeMissingQuestions, listQuestions, answerQuestion, listUncollectedAnswers, markAnswersCollected, listPendingDeliverables,
   approveDeliverable, listApprovals, listDailyApprovals,
 } from './db.js';
 import { mergeSnapshot } from './snapshot.js';
@@ -27,6 +27,7 @@ import {
 import { REVIEW_SOURCE, draftId, isIsolated, parseReview, plannerDestination, reviewMutate, upsertReview } from './review.js';
 import { normalizeTeam } from './team.js';
 import { normalizeDeliverables } from './tasks.js';
+import { normalizeQuestions, cleanAnswer } from './questions.js';
 
 const PREFIX = '/dashboard/api';
 const json = (data, status = 200, headers = {}) =>
@@ -145,7 +146,7 @@ async function login(request, env) {
 }
 
 // Pages built only from live feeds; they have no fixture numbers at all.
-const LIVE_PAGES = { videos: {}, webinar: {}, team: {}, tasks: {}, projects: {} };
+const LIVE_PAGES = { videos: {}, webinar: {}, team: {}, tasks: {}, projects: {}, questions: {} };
 
 function filterSnapshot(pages) {
   const all = { ...snapshot.pages, ...LIVE_PAGES };
@@ -168,6 +169,7 @@ export function liveNav(orig) {
         { id: 'home', label: 'Home', icon: 'home' },
         { id: 'tasks', label: 'Tasks', icon: 'check' },
         { id: 'projects', label: 'Projects', icon: 'board' },
+        { id: 'questions', label: 'Questions', icon: 'chat' },
         { id: 'team', label: 'Team', icon: 'bot' },
       ] },
       { title: 'Business', items: [
@@ -397,6 +399,7 @@ export async function handleApi(request, env, ctx) {
       extra.deliverables = [];
       extra.deliverablesError = err && err.message ? err.message : 'Deliverables unavailable';
     }
+    extra.questions = await listQuestions(env.DB).catch(() => []);
     extra.teamRoster = await listTeamBots(env.DB).catch(() => []);
     extra.dailyApprovals = await listDailyApprovals(env.DB, ymd(now)).catch(() => []);
     const merged = mergeSnapshot(base, await listSnapshots(env.DB), now, overrides, await listIdeas(env.DB), await listPosts(env.DB), await listVideoProjects(env.DB), extra);
@@ -443,6 +446,15 @@ export async function handleApi(request, env, ctx) {
         await removeMissingDeliverables(env.DB, source, rows.map((r) => r.id));
       } catch { /* table not migrated yet */ }
     }
+    const questionRows = Array.isArray(data.questions) ? data.questions
+      : Array.isArray(body.questions) ? body.questions : null;
+    if (env.DB && questionRows) {
+      try {
+        const rows = normalizeQuestions(questionRows, source);
+        await upsertQuestions(env.DB, rows);
+        await removeMissingQuestions(env.DB, source, rows.map((r) => r.id));
+      } catch { /* table not migrated yet */ }
+    }
     if (source === 'post') {
       const items = Array.isArray(data) ? data : Array.isArray(data.posts) ? data.posts : [data];
       if (env.DB) {
@@ -455,6 +467,27 @@ export async function handleApi(request, env, ctx) {
     }
     if (env.DB) await upsertSnapshot(env.DB, source, JSON.stringify(data), collectedAt, new Date().toISOString());
     return json({ ok: true });
+  }
+  // Jon's answers for Ana: fetch the ones nobody collected yet, then mark them collected.
+  if (rest === '/answers' && method === 'GET') {
+    const who = machineOf(request, env);
+    if (!who) return json({ error: 'Unauthorized' }, 401);
+    const rows = env.DB ? await listUncollectedAnswers(env.DB).catch(() => []) : [];
+    return json({
+      ok: true,
+      answers: rows.map((r) => ({
+        id: r.id, from: r.asker || '', project: r.project || '', question: r.question,
+        answer: r.answer, answeredAt: r.answered_at,
+      })),
+    });
+  }
+  if (rest === '/answers/collect' && method === 'POST') {
+    const who = machineOf(request, env);
+    if (!who) return json({ error: 'Unauthorized' }, 401);
+    const body = await request.json().catch(() => ({}));
+    const ids = Array.isArray(body.ids) ? body.ids.map((i) => String(i)).slice(0, 200) : [];
+    const n = env.DB && ids.length ? await markAnswersCollected(env.DB, ids, new Date().toISOString()) : 0;
+    return json({ ok: true, collected: n });
   }
   if (rest === '/approvals' && method === 'GET') {
     const who = machineOf(request, env);
@@ -643,6 +676,16 @@ export async function handleApi(request, env, ctx) {
     const row = await approveDeliverable(env.DB, id, 'Jon', new Date().toISOString());
     if (!row) return json({ error: 'Not found' }, 404);
     return json({ ok: true, id, approvedAt: row.approved_at, approvedBy: row.approved_by, duplicate: !!row.duplicate });
+  }
+  const reply = rest.match(/^\/questions\/([^/]+)\/answer$/);
+  if (reply && method === 'POST') {
+    if (!env.DB) return json({ error: 'Unavailable' }, 503);
+    const body = await request.json().catch(() => ({}));
+    const answer = cleanAnswer(body.answer);
+    if (!answer) return json({ error: 'Type an answer first' }, 400);
+    const row = await answerQuestion(env.DB, decodeURIComponent(reply[1]), answer, new Date().toISOString());
+    if (!row) return json({ error: 'Not found' }, 404);
+    return json({ ok: true, answeredAt: row.answered_at, duplicate: row.duplicate });
   }
   const one = rest.match(/^\/actions\/([^/]+)$/);
   if (one && method === 'GET') {
