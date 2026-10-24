@@ -52,8 +52,8 @@ test('nav lists the redesigned pages and hides the rest under Archive', async ()
   const { liveNav } = await import('../src/api.js');
   const nav = liveNav(snapshot.nav);
   const main = nav.groups.filter((g) => !g.archive).flatMap((g) => g.items.map((i) => i.label));
-  assert.deepEqual(main, ['Home', 'Tasks', 'Projects', 'Questions', 'Team', 'Sponsors', 'Viral View', 'Webinar', 'Content', 'Money', 'Life']);
+  assert.deepEqual(main, ['Home', 'Tasks', 'Projects', 'YouTube', 'Questions', 'Team', 'Sponsors', 'Viral View', 'Webinar', 'Content', 'Money', 'Life']);
   const archived = nav.groups.find((g) => g.archive).items.map((i) => i.id);
   for (const id of ['mastermind', 'markets', 'outreach', 'youtube', 'video', 'support', 'agents', 'videos']) assert.ok(archived.includes(id), id);
-  for (const g of nav.groups) for (const i of g.items) assert.ok(snapshot.pages[i.id] || ['videos', 'webinar', 'team', 'tasks', 'projects', 'questions'].includes(i.id), i.id);
+  for (const g of nav.groups) for (const i of g.items) assert.ok(snapshot.pages[i.id] || ['videos', 'webinar', 'team', 'tasks', 'projects', 'questions', 'channels'].includes(i.id), i.id);
 });
