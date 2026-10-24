@@ -227,6 +227,20 @@ export async function upsertDeliverables(db, rows) {
   }
 }
 
+// 2026-10-24: a push is the full list for its source, so rows that source no
+// longer sends are removed along with their approvals. Other sources are kept.
+export async function removeMissingDeliverables(db, source, keepIds) {
+  if (!source) return [];
+  const { results } = await db.prepare('SELECT id FROM deliverables WHERE source = ?').bind(source).all();
+  const keep = new Set(keepIds);
+  const gone = (results || []).map((r) => r.id).filter((id) => !keep.has(id));
+  for (const id of gone) {
+    await db.prepare('DELETE FROM approvals WHERE deliverable_id = ?').bind(id).run();
+    await db.prepare('DELETE FROM deliverables WHERE id = ?').bind(id).run();
+  }
+  return gone;
+}
+
 // 2026-10-23 (Ana, for Jon): an unapproved deliverable never ages out; it stays
 // on the Review lane until Jon approves it. Approved rows keep the 24 h window,
 // measured from the approval so a just-approved old item does not vanish.
