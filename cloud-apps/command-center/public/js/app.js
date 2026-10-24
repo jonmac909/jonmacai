@@ -1,5 +1,6 @@
 import { render as home } from './pages/home.js';
 import { render as tasks } from './pages/tasks.js?v=20261023e';
+import { render as projects } from './pages/projects.js';
 import { render as sponsors } from './pages/sponsors.js';
 import { render as viral } from './pages/viral.js';
 import { render as youtube } from './pages/youtube.js';
@@ -18,7 +19,7 @@ import { render as team } from './pages/team.js?v=20261023f';
 import { formatJobResult } from './ui.js';
 import { bindModals, openDraft } from './modals.js';
 const PREFIX = '/dashboard';
-const pages = { home, tasks, sponsors, viral, youtube, content, outreach, support, video, money, markets, life, mastermind, agents, videos, webinar, team };
+const pages = { home, tasks, projects, sponsors, viral, youtube, content, outreach, support, video, money, markets, life, mastermind, agents, videos, webinar, team };
 let data = null;
 
 const root = document.documentElement;
@@ -183,7 +184,7 @@ function recount() {
 export async function go(id, { refetch = false } = {}) {
   if (!pages[id]) id = 'home';
   if (location.hash !== `#${id}`) history.replaceState(null, '', `${PREFIX}/#${id}`);
-  if (refetch || id === 'agents' || id === 'team') {
+  if (refetch || id === 'agents' || id === 'team' || id === 'projects') {
     const snap = await fetch(`${PREFIX}/api/snapshot?v=${Date.now()}`);
     if (snap.ok) data = await snap.json();
     document.getElementById('navs').innerHTML = navHtml();
@@ -283,6 +284,18 @@ document.addEventListener('click', (e) => {
     need.setAttribute('aria-pressed', String(on));
     need.textContent = on ? 'Show all' : `Needs you ${need.dataset.needs || '0'}`;
     if (on) selectJtTab(card, 'active');
+    return;
+  }
+  const pj = e.target.closest('[data-proj]');
+  if (pj) {
+    const page = pj.closest('#page');
+    page.querySelectorAll('[data-proj]').forEach((b) => {
+      const on = b === pj;
+      b.classList.toggle('on', on);
+      b.setAttribute('aria-selected', String(on));
+    });
+    page.querySelectorAll('[data-pjpanel]').forEach((p) => { p.hidden = p.dataset.pjpanel !== pj.dataset.proj; });
+    try { localStorage.setItem('cc-pj', pj.querySelector('.pjtn').textContent); } catch {}
     return;
   }
   const jt = e.target.closest('[data-jtab]');
