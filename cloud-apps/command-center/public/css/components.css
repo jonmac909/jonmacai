@@ -548,5 +548,4 @@ tfoot td{font-weight:600;color:var(--ink);border-top:1px solid var(--line)}
 .pjci a:hover{text-decoration:underline}
 @media (max-width:820px){
   .pjkan{grid-template-columns:none;grid-auto-flow:column;grid-auto-columns:minmax(78%,1fr)}
-  .pjside{order:-1}
 }
