@@ -92,6 +92,7 @@ function monthDays(nowMs) {
 export function overlayLife(page, { connected = false, events = [], habits = [], nowMs = Date.now() } = {}) {
   if (!page) return page;
   const real = connected || events.length > 0 || habits.length > 0;
+  page.actions = [];  // the fixture's "Add a habit" button only showed a message
   const today = ymd(nowMs);
   const week = weekStartYmd(nowMs);
   const month = today.slice(0, 7);
