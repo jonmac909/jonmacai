@@ -410,10 +410,7 @@ export async function handleApi(request, env, ctx) {
     extra.teamRoster = await listTeamBots(env.DB).catch(() => []);
     extra.dailyApprovals = await listDailyApprovals(env.DB, ymd(now)).catch(() => []);
     if (!url.searchParams.get('pages') || url.searchParams.get('pages').split(',').includes('today')) {
-      [extra.today, extra.pendingDeliverables] = await Promise.all([
-        todayData(env.DB, now, monthWindow(now).key),
-        listPendingDeliverables(env.DB).catch(() => []),
-      ]);
+      extra.today = await todayData(env.DB, now, monthWindow(now).key);
     }
     const merged = mergeSnapshot(base, await listSnapshots(env.DB), now, overrides, await listIdeas(env.DB), await listPosts(env.DB), await listVideoProjects(env.DB), extra);
     if (merged.pages.outreach) {

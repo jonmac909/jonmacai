@@ -152,19 +152,19 @@ test('Today: four goals with sources, stale marks, and an honest total', () => {
   assert.equal(broken.out.pages.today.goals[3].why, 'The feeds table could not be read.');
 });
 
-test('Today: Needs you puts alerts first, then approvals, then questions oldest first', () => {
+test('Today: Needs you is alerts, then bot approvals, then bot questions; the old feeds stay off it', () => {
   const { out, by, cash, extra } = fixture();
   buildToday(out, by, cash, extra, NOW);
   const items = out.pages.today.needs.items;
-  assert.deepEqual(items.map((i) => i.kind), ['alert', 'approval', 'deliverable', 'question', 'question', 'review', 'waiting']);
+  // The fixture still carries Ana's old questions, deliverables, Waiting On You and a review-ready video.
+  assert.deepEqual(items.map((i) => i.kind), ['alert', 'approval', 'question']);
   assert.equal(items[0].title, 'Bank code needed: RBC');
   assert.equal(items[1].decideUrl, '/dashboard/api/v1/approvals/a_1/decide');
   assert.equal(items[1].payloadPreview, '{\n  "count": 20\n}', 'Jon sees the values the bot will run with');
   assert.equal('payload' in items[1], false, 'the full payload is not sent to the page');
-  assert.deepEqual(items.filter((i) => i.kind === 'question').map((i) => i.answerUrl), ['/dashboard/api/questions/aq1/answer', '/dashboard/api/v1/questions/q_1/answer']);
-  assert.deepEqual(items[3].options, ['Yes', 'No']);
-  assert.equal(items.some((i) => i.title === 'Answered one'), false);
-  assert.equal(out.pages.today.needs.sources[1].stale, true, "Ana's push is 5 days old");
+  assert.deepEqual([items[2].answerUrl, items[2].options], ['/dashboard/api/v1/questions/q_1/answer', ['A']]);
+  assert.deepEqual(out.pages.today.needs.sources.map((s) => [s.label, s.stale]), [['Bot questions and approvals', false]],
+    'no Stale pill for the old feeds; the only stale ledger note is on the Sponsors card');
 });
 
 test('approval payloads stay short enough for Jon to read all of them; ingest cannot fake the funnel', async () => {
