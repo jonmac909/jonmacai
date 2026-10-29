@@ -520,8 +520,9 @@ tfoot td{font-weight:600;color:var(--ink);border-top:1px solid var(--line)}
 .pjsum{font-size:.8rem;color:var(--muted);font-variant-numeric:tabular-nums}
 .pjkan{display:grid;grid-template-columns:repeat(5,minmax(11.5rem,1fr));gap:.7rem;align-items:start;overflow-x:auto;padding-bottom:.5rem;scroll-snap-type:x proximity}
 .pjcol{scroll-snap-align:start;background:var(--kcol-bg);border-radius:.9rem;padding:.65rem;display:flex;flex-direction:column;gap:.55rem;min-width:0;min-height:7rem}
-.pjcol h3{margin:0;display:flex;justify-content:space-between;align-items:baseline;gap:.5rem;padding:.1rem .2rem;font-size:.84rem;font-weight:650}
-.pjcol h3 .n{font-weight:500;font-size:.78rem;color:var(--muted)}
+.pjcol h3,.pjgrp{margin:0;display:flex;justify-content:space-between;align-items:baseline;gap:.5rem;padding:.1rem .2rem;font-size:.84rem;font-weight:650}
+.pjcol h3 .n,.pjgrp .n{font-weight:500;font-size:.78rem;color:var(--muted)}
+.pjtodo+.pjgrp{margin-top:.8rem}
 .pjcards{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:.5rem}
 .pjcard{display:flex;flex-direction:column;gap:.3rem;min-width:0;padding:.7rem .75rem;background:var(--card);border:1px solid var(--line);border-radius:.75rem;box-shadow:var(--shadow)}
 .pjcard.needs{border-left:3px solid var(--ok-fill)}

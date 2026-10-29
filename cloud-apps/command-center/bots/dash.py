@@ -27,7 +27,7 @@ TASK_STATUSES = ['todo', 'doing', 'waiting_on_jon', 'qc', 'done', 'cancelled']
 PROOF_KINDS = ['render', 'url', 'pdf', 'test']
 FEEDS = ['morning_summary', 'calendar_today', 'claude_usage', 'ebook_sales']
 # Same slugs, same order as PROJECTS in src/projects.js. "unsorted" means no project.
-PROJECTS = ['sponsors', 'jon-mac', 'jonmacai', 'viral-view', 'home-guide-press', 'short-form', 'accounting']
+PROJECTS = ['sponsors', 'jon-mac', 'jonmacai', 'viral-view', 'home-guide-press', 'short-form', 'accounting', 'coding']
 
 
 class Fail(Exception):

@@ -293,13 +293,19 @@ const snap = await fetch(`${PREFIX}/api/snapshot?v=${Date.now()}`);
 if (snap.status === 401) { location.href = `${PREFIX}/`; throw new Error('auth'); }
 data = await snap.json();
 document.getElementById('navs').innerHTML = navHtml();
-// Today and Webinar refresh every 60 s while visible.
+// Today, Projects and Webinar refresh every 60 s while visible, keeping the sub-path (the chosen project).
 setInterval(() => {
   const id = hashPage();
-  if (document.hidden || !['today', 'webinar'].includes(id)) return;
-  if (document.activeElement && /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName)) return;
+  if (document.hidden || !['today', 'projects', 'webinar'].includes(id.split('/')[0])) return;
+  const el = document.activeElement;
+  if (el && (/^(TEXTAREA|SELECT)$/.test(el.tagName) || (el.tagName === 'INPUT' && el.type !== 'checkbox'))) return;
   const y = window.scrollY;
-  go(id, { refetch: true }).then(() => window.scrollTo(0, y)).catch(() => {});
+  const x = document.querySelector('#page .pjkan')?.scrollLeft || 0;  // keep the board where Jon scrolled it
+  go(id, { refetch: true }).then(() => {
+    window.scrollTo(0, y);
+    const board = document.querySelector('#page .pjkan');
+    if (board) board.scrollLeft = x;
+  }).catch(() => {});
 }, 60000);
 let last = hashPage();
 try { if (!location.hash) last = localStorage.getItem('cc-page') || last; } catch {}

@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { handleApi } from '../src/api.js';
 import { sha256Hex, todayData } from '../src/bots.js';
 import { buildProjects, PROJECTS } from '../src/projects.js';
+import { render as renderProjects } from '../public/js/pages/projects.js';
 import { signSession, COOKIE } from '../src/auth.js';
 import { sqliteD1 } from './sqlited1.mjs';
 
@@ -151,7 +152,8 @@ test('projects page: lanes, counts, board columns, Unsorted, checklist and goal 
   const lane = (slug) => p.projects.find((x) => x.slug === slug);
   const col = (slug, key) => lane(slug).columns.find((c) => c.key === key).items.map((i) => i.id);
   assert.deepEqual(p.projects.map((x) => x.slug), [...PROJECTS.map((x) => x.slug), 'unsorted']);
-  assert.deepEqual(p.projects.map((x) => x.waiting), [3, 0, 0, 2, 1, 0, 0, 1], 'questions + approvals + waiting_on_jon tasks + open jon tasks');
+  assert.deepEqual(p.projects.map((x) => [x.label, x.waiting]), [['Sponsors', 3], ['YT-JM', 0], ['YT-AI UGC', 0], ['Viral View', 2], ['Home Guide Press', 1],
+    ['Short-form', 0], ['Accounting', 0], ['Coding', 0], ['Unsorted', 1]], 'questions + approvals + waiting_on_jon tasks + open jon tasks');
   assert.deepEqual(lane('sponsors').columns.map((c) => c.label), ['To do', 'Doing', 'Waiting on Jon', 'QC', 'Done']);
   assert.deepEqual([col('sponsors', 'todo'), col('sponsors', 'waiting_on_jon')], [['t1', 't2'], ['t3', 'q1']]);
   assert.deepEqual([col('viral-view', 'waiting_on_jon'), col('viral-view', 'done'), col('jon-mac', 'qc'), col('unsorted', 'doing')], [['t4', 'a1'], ['t5'], ['t9'], ['t8']]);
@@ -161,14 +163,15 @@ test('projects page: lanes, counts, board columns, Unsorted, checklist and goal 
   const a1 = lane('viral-view').columns[2].items[1];
   assert.deepEqual([a1.kind, a1.decideUrl, a1.payloadPreview], ['approval', '/dashboard/api/v1/approvals/a1/decide', '{\n  "n": 3\n}'], "Today's approval item");
 
-  assert.deepEqual(p.today.items.map((i) => [i.id, i.project, i.minutes]),
+  const [jon] = p.today.groups;
+  assert.deepEqual(jon.items.map((i) => [i.id, i.project, i.minutes]),
     [['t2', 'Sponsors', 15], ['q1', 'Sponsors', 5], ['a1', 'Viral View', 2], ['q2', 'Home Guide Press', 2], ['t8', 'Unsorted', 30]],
     'questions, approvals, and jon tasks due today or undated (not t3, due later)');
   assert.deepEqual([p.today.minutes, p.today.total], [54, '54 min']);
-  assert.deepEqual([p.today.items[0].tickUrl, p.today.items[1].tickUrl, p.today.items[1].page, p.today.items[1].card],
+  assert.deepEqual([jon.items[0].tickUrl, jon.items[1].tickUrl, jon.items[1].page, jon.items[1].card],
     ['/dashboard/api/v1/tasks/t2', undefined, 'projects/sponsors', '/dashboard/api/v1/questions/q1/answer']);
 
-  assert.deepEqual(p.projects.map((x) => x.goals.map((g) => g.key)), [['sponsors'], [], [], ['viral', 'webinar'], ['ebooks'], [], [], []]);
+  assert.deepEqual(p.projects.map((x) => x.goals.map((g) => g.key)), [['sponsors'], [], [], ['viral', 'webinar'], ['ebooks'], [], [], [], []]);
   assert.deepEqual([p.summary.text, p.calendar.events, p.available], ['All good', [{ time: '09:30-10:00', title: 'Call' }], true]);
 
   const quiet = fixture();
@@ -179,6 +182,48 @@ test('projects page: lanes, counts, board columns, Unsorted, checklist and goal 
   const q = quiet.out.pages.projects;
   assert.equal(q.projects.some((x) => x.slug === 'unsorted'), false, 'Unsorted only when it has items');
   assert.deepEqual([q.calendar.missing, q.today.total], ["Ana posts today's calendar each morning.", '1 hr 49 min']);
+});
+
+test("Today checklist: Jon first, then one group per bot, with the day's work and what got done today", () => {
+  const f = fixture();
+  f.extra.today.tasks.push(
+    task('t10', 'sponsors', 'sponsors', 'done', { doneAt: '2026-10-29T08:00:00Z', minutes: 20 }), // 01:00 PT today
+    task('t11', 'sponsors', 'sponsors', 'done', { doneAt: '2026-10-29T06:30:00Z' }), // 23:30 PT yesterday
+    task('t12', 'sponsors', 'sponsors', 'todo', { due: '2026-10-29' }),
+    task('t13', 'accounting', 'accounting', 'todo', { due: '2026-10-27' }),
+    task('t14', 'sponsors', 'sponsors', 'todo', { due: '2026-10-30' }),
+    task('t15', 'coding', 'jon', 'done', { doneAt: '2026-10-29T18:00:00Z', minutes: 10 }),
+    task('t16', 'coding', 'developer', 'cancelled', { due: '2026-10-29' }),
+    task('t17', 'coding', 'developer', 'doing', { due: '2026-11-05' }),
+  );
+  buildProjects(f.out, f.by, f.cash, f.extra, NOW);
+  const p = f.out.pages.projects;
+  assert.deepEqual(p.today.groups.map((g) => [g.label, `${g.done}/${g.total}`, g.items.map((i) => i.id)]), [
+    ['Jon', '1/6', ['t2', 'q1', 'a1', 'q2', 't15', 't8']],
+    ['accounting', '0/1', ['t13']],
+    ['developer', '0/1', ['t17']],
+    ['sponsors', '1/2', ['t10', 't12']],
+    ['video-editor', '0/1', ['t9']],
+    ['viral-view', '0/1', ['t4']],
+  ], 'due today, overdue open, in progress, done today; not undated todo t1, due later t3/t14, done yesterday t5/t11/t6, cancelled t7/t16');
+  const item = (id) => p.today.groups.flatMap((g) => g.items).find((i) => i.id === id);
+  assert.deepEqual([item('t10').done, item('t10').tickUrl, item('t10').card, item('t10').project, item('t10').minutes], [true, undefined, undefined, 'Sponsors', 20], 'auto-ticked, no tick action');
+  assert.deepEqual([item('t15').done, item('t15').tickUrl, item('t12').done, item('t9').project], [true, undefined, false, 'YT-JM']);
+  assert.equal(p.today.minutes, 54, "Jon's open items only");
+
+  // The renderer: Jon's open tasks tick; team, done and question/approval boxes are disabled and send nothing.
+  const side = renderProjects(p, {}, 'sponsors').split('pjright')[1];
+  const row = (text) => side.split('<li').find((x) => x.includes(text));
+  assert.match(row('Task t2</label>'), /<input type="checkbox" data-ttick="\/dashboard\/api\/v1\/tasks\/t2">/);
+  assert.match(row('Task t8</label>'), /data-ttick="\/dashboard\/api\/v1\/tasks\/t8"/);
+  assert.equal((side.match(/data-ttick|data-tsend|data-tdecide/g) || []).length, 2, "only Jon's two open tasks send anything");
+  assert.match(row('Task t10</label>'), /<input type="checkbox" disabled checked>/);
+  assert.match(row('Task t15</label>'), /<input type="checkbox" disabled checked>/);
+  for (const t of ['Task t12</label>', 'Task t13</label>', 'Task t9</label>']) assert.match(row(t), /<input type="checkbox" disabled>/, t);
+  assert.match(row('Send today?'), /<input type="checkbox" disabled aria-label="Send today\?">.*data-page="projects\/sponsors" data-card="\/dashboard\/api\/v1\/questions\/q1\/answer"/s);
+  assert.match(row('Post 3 clips'), /<input type="checkbox" disabled aria-label="Post 3 clips">.*data-page="projects\/viral-view" data-card="\/dashboard\/api\/v1\/approvals\/a1\/decide"/s);
+  assert.match(side, /class="pjgrp">Jon<span class="n">1\/6<\/span>[\s\S]*class="pjgrp">sponsors<span class="n">1\/2<\/span>/);
+  assert.match(row('Task t10</label>'), /<span class="jttag">Sponsors<\/span> Task t10<\/label><span class="pjest">20 min<\/span>/);
 });
 
 test('snapshot serves Projects from the bot tables, and Jon ticks his task from it', async () => {
@@ -192,9 +237,16 @@ test('snapshot serves Projects from the bot tables, and Jon ticks his task from 
   const sponsors = p.projects[0];
   assert.deepEqual([sponsors.slug, sponsors.waiting, sponsors.goals.map((g) => g.key)], ['sponsors', 1, ['sponsors']]);
   assert.deepEqual(sponsors.columns[1].items.map((i) => [i.title, i.proof]), [['Draft pitches', 'https://jonmac.ai/review/p1']], 'newest web proof');
-  assert.deepEqual(p.today.items.map((i) => [i.title, i.minutes]), [['Sign it', 10]]);
-  const tick = await call(env, 'PATCH', p.today.items[0].tickUrl.replace('/dashboard/api', ''), { jon: true, body: { status: 'done' } });
+  const list = (x) => x.today.groups.map((g) => [g.label, g.items.map((i) => [i.title, i.minutes, i.done])]);
+  assert.deepEqual(list(p), [['Jon', [['Sign it', 10, false]]], ['sponsors', [['Draft pitches', 15, false]]]]);
+  const tick = await call(env, 'PATCH', p.today.groups[0].items[0].tickUrl.replace('/dashboard/api', ''), { jon: true, body: { status: 'done' } });
   assert.equal(tick.body.task.id, mine.id);
   const after = await snap();
-  assert.deepEqual([after.today.items, after.projects[0].columns[4].items.map((i) => i.title), after.projects[0].waiting], [[], ['Sign it'], 0]);
+  assert.deepEqual([list(after), after.today.minutes, after.projects[0].columns[4].items.map((i) => i.title), after.projects[0].waiting],
+    [[['Jon', [['Sign it', 10, true]]], ['sponsors', [['Draft pitches', 15, false]]]], 0, ['Sign it'], 0]);
+  // The bot's own move to done (QC-passed proof) ticks its box.
+  const web = (await call(env, 'GET', `/v1/tasks/${work.id}`, { bot: 'sponsors' })).body.task.proofs.find((x) => x.link.startsWith('https://'));
+  assert.equal((await call(env, 'POST', `/v1/proofs/${web.id}/check`, { bot: 'qc', body: { result: 'passed' } })).status, 200);
+  assert.equal((await call(env, 'PATCH', `/v1/tasks/${work.id}`, { bot: 'sponsors', body: { status: 'done' } })).status, 200);
+  assert.deepEqual(list(await snap())[1], ['sponsors', [['Draft pitches', 15, true]]]);
 });
