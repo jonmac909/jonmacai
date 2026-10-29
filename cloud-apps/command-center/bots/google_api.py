@@ -88,6 +88,9 @@ class Google:
             raise Fail(1, 'Google unreachable: %s' % err)
 
 
+imaplib._MAXLINE = 50_000_000  # a big mailbox's SEARCH reply is one line of every matching id
+
+
 class Imap:
     """Gmail over IMAP: headers read with BODY.PEEK (stays unread), labels changed with X-GM-LABELS.
     No send, no \\Deleted, no expunge. Message ids are Gmail's hex ids, the same as the Gmail API's."""
