@@ -308,6 +308,9 @@ test('token script: slugs come from BOTS.md rules files; issued tokens pass the 
   assert.throws(() => parseArgs(['--enviro', 'preview']));
   assert.throws(() => parseArgs(['preview']));
   assert.throws(() => parseArgs(['--env']));
+  assert.throws(() => parseArgs(['--rotate', 'qc', '--env', 'preview']));
+  assert.throws(() => parseArgs(['--out', 'C:\\tmp\\t']));
+  assert.equal(parseArgs(['--out', 'C:\\tmp\\t', '--dry-run']).out, 'C:\\tmp\\t');
 });
 
 test('workers.dev answers only on the preview Worker', async () => {

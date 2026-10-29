@@ -33,6 +33,9 @@ export function parseArgs(argv) {
     } else throw new Error(`Unknown option --${name}`);
   }
   if (out.env && out.env !== 'preview') throw new Error('--env can only be preview');
+  // Each run revokes hashes that don't match the token files, so only the real folder may write.
+  if (out.out !== 'D:\\AgentTeam\\secrets\\bot-tokens' && !out['dry-run']) throw new Error('--out needs --dry-run');
+  if (out.rotate && out.env) throw new Error('Rotate in production first (no --env), then re-run with --env preview');
   return out;
 }
 

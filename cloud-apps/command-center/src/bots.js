@@ -247,8 +247,13 @@ async function updateTask(db, who, id, body, now) {
     args.push(status, status === 'done' ? (row.status === 'done' ? row.done_at : now) : null);
   }
   if (!sets.length) throw new Bad(400, 'Nothing to change: send title, owner, status or note');
-  await db.prepare(`UPDATE bot_tasks SET ${sets.join(', ')}, updated_by = ?, updated_at = ? WHERE id = ?`)
+  // Re-check the proof inside the UPDATE so a QC fail landing in between can't be skipped.
+  const moving = 'status' in body && body.status !== row.status ? String(body.status).trim().toLowerCase() : '';
+  const guard = moving === 'done' ? " AND EXISTS (SELECT 1 FROM bot_proofs WHERE task_id = bot_tasks.id AND status = 'passed')"
+    : moving === 'qc' ? " AND EXISTS (SELECT 1 FROM bot_proofs WHERE task_id = bot_tasks.id AND status != 'failed')" : '';
+  const r = await db.prepare(`UPDATE bot_tasks SET ${sets.join(', ')}, updated_by = ?, updated_at = ? WHERE id = ?${guard}`)
     .bind(...args, who.bot, now, id).run();
+  if (guard && !changed(r)) throw new Bad(409, 'QC failed the proof just now; add new proof first');
   return json({ ok: true, task: taskOut(await taskRow(db, id)) });
 }
 

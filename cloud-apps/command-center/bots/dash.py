@@ -48,13 +48,17 @@ def bots_table():
 
 
 def which_bot():
-    if os.environ.get('DASH_BOT'):
-        return os.environ['DASH_BOT'].strip().lower()
+    """The workspace folder decides; DASH_BOT is only for scripts that run outside every workspace."""
+    env_bot = os.environ.get('DASH_BOT', '').strip().lower()
     cwd = os.path.normcase(os.path.abspath(os.getcwd()))
     for slug, workspace in bots_table():
         ws = os.path.normcase(os.path.abspath(workspace))
         if cwd == ws or cwd.startswith(ws + os.sep):
+            if env_bot and env_bot != slug:
+                raise Fail(2, 'DASH_BOT=%s but this is the %s workspace.' % (env_bot, slug))
             return slug
+    if env_bot:
+        return env_bot
     raise Fail(2, 'Which bot? Run from your OpenBot workspace, or set DASH_BOT to your slug (areas/<slug>.md in BOTS.md).')
 
 

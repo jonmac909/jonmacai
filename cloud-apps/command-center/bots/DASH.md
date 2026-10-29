@@ -3,7 +3,7 @@
 `python D:\AgentTeam\tools\dash.py COMMAND ...` (Python stdlib only). It prints JSON.
 Exit codes: 0 = ok. 1 = the dashboard refused (the reason is on stderr). 2 = a local problem (usage, unknown bot, no token, bad payload). 3 = the dashboard can't be reached or failed.
 
-**Who you are:** run it from your own OpenBot workspace (BOTS.md maps the folder to your bot). Scripts that run elsewhere set `DASH_BOT=<your slug>`.
+**Who you are:** run it from your own OpenBot workspace (BOTS.md maps the folder to your bot). Scripts that run outside every workspace set `DASH_BOT=<your slug>`. Inside a workspace, the folder wins, and a different `DASH_BOT` is refused.
 Slugs are your rules file names: `ana`, `sponsors`, `viral-view`, `video-editor`, `jon-mac-youtube`, `home-guide-press`, `short-form`, `developer`, `qc`, `accounting`, `inbox`, `spotify`, `moneyclaw`, `historient`.
 Your token is `D:\AgentTeam\secrets\bot-tokens\<slug>.token`. Never print, paste, commit or copy it. Never use another bot's slug or token. Every row records the bot whose token wrote it, and QC's checks count only from QC's token.
 `dash.py whoami` checks your token.
@@ -55,6 +55,7 @@ dash.py approval-cancel a_…       (withdraw your own pending or approved reque
 - Only Jon approves or rejects.
 - Only the bot that asked can claim, finish, release or cancel its request.
 - Claim before you act. Never act on a request you didn't claim successfully.
+- At the start of each session, run `dash.py approvals --status running --requested-by me`. A claim left `running` by a session that stopped part way must be finished (`approval-done`) or given back (`approval-release`). Check what was already sent before you try again.
 - Use `--key` so a retry can't ask twice.
 
 ## Runs
