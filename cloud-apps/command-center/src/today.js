@@ -22,13 +22,14 @@ function agoLabel(ms) {
 }
 
 // { label, at, ageLabel, stale }: stale when older than 24 hours or never reported.
-export function sourceOf(label, at, nowMs, { live = false } = {}) {
+export function sourceOf(label, at, nowMs) {
   const t = Date.parse(at);
-  if (!Number.isFinite(t)) return { label, at: null, ageLabel: live ? 'live · no activity yet' : 'never reported', stale: !live };
+  if (!Number.isFinite(t)) return { label, at: null, ageLabel: 'never reported', stale: true };
   const age = Math.max(0, nowMs - t);
-  if (live) return { label, at, ageLabel: `live · last activity ${agoLabel(age)}`, stale: false };
   return { label, at, ageLabel: `updated ${agoLabel(age)}`, stale: age > DAY_MS };
 }
+
+const UNREADABLE = 'The feeds table could not be read.';
 
 function vanParts(ms) {
   const p = new Intl.DateTimeFormat('en-CA', {
@@ -89,10 +90,16 @@ function sponsorsCard(cash, by, win, nowMs) {
   if (!cash?.available) return noData('sponsors', label, 'The sponsor cash ledger has not reported.', sourceOf('Sponsor cash ledger', null, nowMs));
   const row = cash.source?.kind === 'bank' ? by.moneyclaw : by.sponsors_cash;
   const owed = cash.unpaidAvailable && cash.owed ? ` · ${money(cash.owed)} owed` : '';
+  const unknown = Number(cash.month?.unknown) || 0;
+  const src = sourceOf(`Sponsor cash · ${cash.source?.label || 'ledger'}`, row?.collected_at, nowMs);
+  // The collector re-sends the same ledger every few minutes; the ledger's own age decides staleness.
+  if (cash.source?.stale) src.stale = true;
+  const warn = [cash.source?.stale ? cash.source.note : '', unknown ? `${unknown} deposit${unknown === 1 ? ' has no amount yet and counts' : 's have no amount yet and count'} as $0.` : '']
+    .filter(Boolean).join(' ');
   return monthlyCard('sponsors', label, Number(cash.month?.usd) || 0, win, [
     { label: 'Deposits this month', value: `${cash.month?.payments || 0}${owed}` },
     { label: 'Counted from', value: cash.source?.label || 'ledger' },
-  ], sourceOf(`Sponsor cash · ${cash.source?.label || 'ledger'}`, row?.collected_at, nowMs), cash.source?.stale ? cash.source.note || '' : '');
+  ], src, warn);
 }
 
 function viralCard(by, nowMs) {
@@ -115,21 +122,26 @@ function viralCard(by, nowMs) {
   };
 }
 
-function webinarCard(funnel, win, nowMs) {
+// From the cron's `webinar_funnel` snapshot (clone D1, read every 10 minutes).
+function webinarCard(row, win, nowMs) {
   const label = `Webinar funnel · ${win.label}`;
-  if (!funnel) return noData('webinar', label, 'The clone funnel database could not be read.', sourceOf('Clone funnel database', null, nowMs));
-  return monthlyCard('webinar', label, funnel.netCents / 100, win, [
-    { label: 'Payments this month', value: String(funnel.payments) },
-    { label: 'Lander visits this month', value: String(funnel.visits) },
-  ], sourceOf('Clone funnel database (verified payments minus refunds)', funnel.lastEventAt, nowMs, { live: true }));
+  const src = sourceOf('Clone funnel database (verified payments minus refunds, every 10 min)', row?.collected_at, nowMs);
+  const f = row ? parse(row.data) : null;
+  if (!f || f.month !== win.key) return noData('webinar', label, `The funnel figure for ${win.label} has not been read yet.`, src);
+  const last = Date.parse(f.lastEventAt);
+  return monthlyCard('webinar', label, (Number(f.netCents) || 0) / 100, win, [
+    { label: 'Payments this month', value: String(f.payments ?? 0) },
+    { label: 'Lander visits this month', value: String(f.visits ?? 0) },
+    { label: 'Last funnel activity', value: Number.isFinite(last) ? agoLabel(Math.max(0, nowMs - last)) : 'none this month' },
+  ], src);
 }
 
 function ebooksCard(feed, win, nowMs) {
   const label = `Home Guide Press ebooks · ${win.label}`;
   const src = sourceOf('Home Guide Press · ebook_sales feed', feed?.createdAt, nowMs);
-  if (!feed) return noData('ebooks', label, 'No ebook sales posted yet. Home Guide Press posts them with dash.py feed-put ebook_sales.', src);
+  if (feed === null) return noData('ebooks', label, UNREADABLE, src);
+  if (!feed) return noData('ebooks', label, `No ebook sales posted for ${win.label} yet. Home Guide Press posts them with dash.py feed-put ebook_sales.`, src);
   const d = feed.data || {};
-  if (d.month !== win.key) return noData('ebooks', label, `No figure posted for ${win.label} yet; the last one is for ${d.month}.`, src);
   const drivers = [{ label: 'Orders this month', value: d.orders == null ? 'not posted' : String(d.orders) }, { label: 'Posted by', value: feed.bot }];
   if (d.note) drivers.push({ label: 'Note', value: d.note });
   return monthlyCard('ebooks', label, Number(d.usd) || 0, win, drivers, src);
@@ -150,16 +162,18 @@ function needsList(out, by, extra, nowMs) {
     });
   }
   for (const a of t?.approvals || []) {
-    const keys = Object.keys(a.payload || {});
+    // Jon must see exactly what the bot will run, not just its own title for it.
+    const full = JSON.stringify(a.payload || {}, null, 2);
     items.push({
       id: a.id, kind: 'approval', rank: 1, cls: 'risk', title: a.title, from: a.requestedBy, at: a.createdAt,
-      detail: `Unlocks ${a.action}${keys.length ? ` · ${keys.slice(0, 4).join(', ')}` : ''}`,
-      payload: a.payload, decideUrl: `/dashboard/api/v1/approvals/${a.id}/decide`,
+      detail: `Runs ${a.action}`, action: a.action,
+      payloadPreview: full.length > 4000 ? `${full.slice(0, 4000)}\n… (${full.length - 4000} more characters)` : full,
+      decideUrl: `/dashboard/api/v1/approvals/${a.id}/decide`,
     });
   }
   for (const d of extra.pendingDeliverables || []) {
     items.push({
-      id: `deliverable:${d.id}`, kind: 'deliverable', rank: 1, cls: 'risk', title: d.title || d.id, from: d.owner || 'Ana', at: d.finished_at,
+      id: `deliverable:${d.id}`, kind: 'deliverable', rank: 1.5, cls: 'risk', title: d.title || d.id, from: d.owner || 'Ana', at: d.finished_at,
       detail: `${d.kind || 'Deliverable'} on Ana's list`, href: d.url || '',
       approveUrl: `/dashboard/api/approvals/${encodeURIComponent(d.id)}`,
     });
@@ -195,18 +209,19 @@ function needsList(out, by, extra, nowMs) {
     it.ageLabel = Number.isFinite(at) ? agoLabel(Math.max(0, nowMs - at)) : '';
   }
   items.sort((a, b) => a.rank - b.rank || itemAt(a.at) - itemAt(b.at));
+  const live = t?.questions && t?.approvals;
   const sources = [
-    sourceOf('Bot questions and approvals', t ? new Date(nowMs).toISOString() : null, nowMs),
+    { label: 'Bot questions and approvals', at: null, ageLabel: live ? 'live' : 'could not be read', stale: !live },
     sourceOf("Ana's questions and deliverables (hourly push)", by.jon_tasks?.collected_at, nowMs),
     sourceOf("Ana's Waiting On You", by.needs_jon?.collected_at, nowMs),
     sourceOf('Review pages', by.videos?.collected_at, nowMs),
   ];
-  if (t) sources[0] = { ...sources[0], ageLabel: 'live' };
-  return { count: items.length, items, sources, available: !!t };
+  return { count: items.length, items, sources, available: !!live };
 }
 
 function summaryCard(feed, nowMs) {
   const source = sourceOf("Ana's morning summary", feed?.createdAt, nowMs);
+  if (feed === null) return { source, missing: UNREADABLE };
   if (!feed) return { source, missing: 'No summary yet. Ana posts it each morning at 08:15 PT with dash.py feed-put morning_summary.' };
   return { source, text: feed.data?.text || '', date: feed.data?.date || '', by: feed.bot };
 }
@@ -220,9 +235,10 @@ export const USAGE_LEVELS = [
 function usageCard(feed, runs, nowMs) {
   const source = sourceOf("Ana's Claude usage check", feed?.createdAt, nowMs);
   const bots = runs ? { tokens: runs.tokens, runs: runs.runs } : null;
+  if (feed === null) return { source, bots, missing: UNREADABLE };
   if (!feed) return { source, bots, missing: 'No usage posted yet. Ana posts the weekly figure with dash.py feed-put claude_usage.' };
   const pct = Number(feed.data?.weekPct) || 0;
-  const level = USAGE_LEVELS.find((l) => pct >= l.min);
+  const level = USAGE_LEVELS.find((l) => pct > l.min || l.min === 0);
   const resets = Date.parse(feed.data?.resetsAt);
   return {
     source, bots, pct, level,
@@ -238,7 +254,7 @@ export function buildToday(out, by, cash, extra = {}, nowMs = Date.now()) {
   const goals = [
     sponsorsCard(cash, by, win, nowMs),
     viralCard(by, nowMs),
-    webinarCard(extra.funnelMonth, win, nowMs),
+    webinarCard(by.webinar_funnel, win, nowMs),
     ebooksCard(feeds.ebook_sales, win, nowMs),
   ];
   const reporting = goals.filter((g) => g.usd != null);

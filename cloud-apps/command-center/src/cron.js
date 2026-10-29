@@ -6,6 +6,8 @@ import { mergeSnapshot } from './snapshot.js';
 import { pushCriticalTelegram } from './home.js';
 import { fillFromEnv } from './daily-drafts.js';
 import { syncGroup } from './mastermind-scan.js';
+import { funnelMonth } from './webinar.js';
+import { monthWindow } from './today.js';
 
 const VIRAL_URL = 'https://app.viralview.io/api/internal/dashboard-summary';
 const MONEY_URL = 'https://moneyclaw.jonmac.ai/api/internal/dashboard-summary';
@@ -30,6 +32,15 @@ async function pull(env, source, url, headers) {
   await upsertSnapshot(env.DB, source, JSON.stringify(data), sourceCollectedAt(source, data, fetchedAt), fetchedAt);
 }
 
+// Webinar funnel money this month for the Today page, read every 10 minutes instead of per page load.
+export async function pullWebinarMonth(env, nowMs = Date.now()) {
+  const win = monthWindow(nowMs);
+  const f = await funnelMonth(env.CLONE_DB, win.start, win.end);
+  if (!f) return;
+  const at = new Date(nowMs).toISOString();
+  await upsertSnapshot(env.DB, 'webinar_funnel', JSON.stringify({ ...f, month: win.key }), at, at);
+}
+
 export async function handleCron(env) {
   if (!env?.DB) return;
   const jobs = [];
@@ -45,6 +56,7 @@ export async function handleCron(env) {
     }));
   }
   jobs.push(pull(env, 'youtube', YT_URL, {}));
+  jobs.push(pullWebinarMonth(env));
   if (env.INSTANTLY_API_KEY) jobs.push(pullInstantly(env));
   jobs.push(pullCalendar(env));
   if (env.TELEGRAM_GROUP_BOT_TOKEN && env.TELEGRAM_GROUP_CHAT_ID && env.TELEGRAM_GROUP_BOT_TOKEN !== env.TELEGRAM_BOT_TOKEN) {

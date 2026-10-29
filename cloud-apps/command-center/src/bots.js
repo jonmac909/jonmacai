@@ -587,29 +587,32 @@ async function getFeed(db, name) {
   return json({ ok: true, feed: row ? feedOut(row) : null });
 }
 
-// What the Today page needs from the bot tables, in one read. Null when the tables are missing.
-export async function todayData(db, nowMs = Date.now()) {
+const FAILED = Symbol('failed');
+async function tryRead(work) {
+  try { return await work; } catch (err) { console.error('todayData', err); return FAILED; }
+}
+
+// What the Today page needs from the bot tables. Each part is null on its own when its table is
+// missing, so one unapplied migration can't hide the rest. `month` picks the ebook_sales entry.
+export async function todayData(db, nowMs, month) {
   if (!db) return null;
-  try {
-    const q = await db.prepare("SELECT * FROM bot_questions WHERE status = 'open' ORDER BY created_at LIMIT 200").all();
-    const a = await db.prepare("SELECT * FROM bot_approvals WHERE status = 'pending' ORDER BY created_at LIMIT 200").all();
-    const feeds = {};
-    for (const name of Object.keys(FEEDS)) {
-      const row = await latestFeed(db, name);
-      feeds[name] = row ? feedOut(row) : null;
-    }
-    const since = new Date(nowMs - 7 * 86400000).toISOString();
-    const t = await db.prepare('SELECT COALESCE(SUM(tokens), 0) AS tokens, COUNT(*) AS runs FROM bot_runs WHERE started_at >= ?').bind(since).first();
-    return {
-      questions: (q.results || []).map(questionOut),
-      approvals: (a.results || []).map(approvalOut),
-      feeds,
-      runs7d: { tokens: Number(t?.tokens) || 0, runs: Number(t?.runs) || 0, since },
-    };
-  } catch (err) {
-    console.error('todayData', err);
-    return null;
-  }
+  const since = new Date(nowMs - 7 * 86400000).toISOString();
+  const [q, a, summary, usage, ebooks, runs] = await Promise.all([
+    tryRead(db.prepare("SELECT * FROM bot_questions WHERE status = 'open' ORDER BY created_at LIMIT 200").all()),
+    tryRead(db.prepare("SELECT * FROM bot_approvals WHERE status = 'pending' ORDER BY created_at LIMIT 200").all()),
+    tryRead(latestFeed(db, 'morning_summary')),
+    tryRead(latestFeed(db, 'claude_usage')),
+    tryRead(db.prepare("SELECT * FROM bot_feed_entries WHERE name = 'ebook_sales' AND json_extract(data, '$.month') = ? ORDER BY created_at DESC LIMIT 1").bind(month).first()),
+    tryRead(db.prepare('SELECT COALESCE(SUM(tokens), 0) AS tokens, COUNT(*) AS runs FROM bot_runs WHERE started_at >= ?').bind(since).first()),
+  ]);
+  // A feed is null when its table could not be read, undefined when nothing was posted yet.
+  const feed = (row) => (row === FAILED ? null : row ? feedOut(row) : undefined);
+  return {
+    questions: q === FAILED ? null : (q.results || []).map(questionOut),
+    approvals: a === FAILED ? null : (a.results || []).map(approvalOut),
+    feeds: { morning_summary: feed(summary), claude_usage: feed(usage), ebook_sales: feed(ebooks) },
+    runs7d: runs === FAILED || !runs ? null : { tokens: Number(runs.tokens) || 0, runs: Number(runs.runs) || 0, since },
+  };
 }
 
 // ---- router ----

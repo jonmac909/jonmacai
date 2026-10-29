@@ -108,21 +108,33 @@ function hashPage() {
 
 // Today's answer and approve buttons post to the URL the server put on the button.
 function todayPost(url, body, okText, button) {
-  if (!String(url).startsWith(`${PREFIX}/api/`)) return;
+  if (!String(url).startsWith(`${PREFIX}/api/`)) { button.disabled = false; say('Could not send'); return; }
   fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CC': '1' }, body: JSON.stringify(body) })
     .then(async (res) => {
       const row = await res.json().catch(() => ({}));
       if (!res.ok) {
         button.disabled = false;
         say(row.error || 'Could not send');
-        if (res.status === 409) go('today', { refetch: true });
+        if (res.status === 409) go(hashPage(), { refetch: true });
         return;
       }
       say(okText);
-      go('today', { refetch: true });
+      go(hashPage(), { refetch: true });
     })
     .catch(() => { button.disabled = false; say('Could not send'); });
 }
+
+// Half-typed answers survive a re-render of the same page (refresh, or after another item is sent).
+function typedAnswers() {
+  const out = {};
+  document.querySelectorAll('#page .qcard').forEach((c) => {
+    const box = c.querySelector('.qtext');
+    const key = c.querySelector('[data-tsend],[data-qsend]');
+    if (box && box.value && key) out[key.dataset.tsend || key.dataset.qsend] = box.value;
+  });
+  return out;
+}
+let shownPage = null;
 
 function navHtml() {
   const badges = data.nav.badges || {};
@@ -215,8 +227,17 @@ export async function go(id, { refetch = false } = {}) {
     else n.removeAttribute('aria-current');
   });
   const page = data.pages[id];
+  const same = shownPage === id;
+  const typed = same ? typedAnswers() : {};
   document.getElementById('page').innerHTML = pages[id](page, data);
-  window.scrollTo(0, 0);
+  shownPage = id;
+  document.querySelectorAll('#page .qcard').forEach((c) => {
+    const key = c.querySelector('[data-tsend],[data-qsend]');
+    const box = c.querySelector('.qtext');
+    const text = key && typed[key.dataset.tsend || key.dataset.qsend];
+    if (box && text) box.value = text;
+  });
+  if (!same) window.scrollTo(0, 0);
   try { localStorage.setItem('cc-page', id); } catch {}
   bindKanban();
   recount();

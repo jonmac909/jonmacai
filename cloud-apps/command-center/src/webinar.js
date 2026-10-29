@@ -58,15 +58,15 @@ export async function funnelMonth(db, startMs, endMs) {
     const m = await db.prepare(
       `SELECT COALESCE(SUM(CASE WHEN kind = 'payment' THEN amount_cents ELSE 0 END), 0) AS gross,
               COALESCE(SUM(CASE WHEN kind = 'refund' THEN amount_cents ELSE 0 END), 0) AS refunds,
-              COALESCE(SUM(kind = 'payment'), 0) AS payments, COALESCE(SUM(kind = 'visit'), 0) AS visits
+              COALESCE(SUM(kind = 'payment'), 0) AS payments, COALESCE(SUM(kind = 'visit'), 0) AS visits,
+              MAX(occurred_at) AS last
          FROM clone_session_events WHERE occurred_at >= ? AND occurred_at < ?`,
     ).bind(startMs, endMs).first();
-    const last = await db.prepare('SELECT MAX(occurred_at) AS at FROM clone_session_events').first();
     return {
       netCents: (Number(m?.gross) || 0) - (Number(m?.refunds) || 0),
       payments: Number(m?.payments) || 0,
       visits: Number(m?.visits) || 0,
-      lastEventAt: Number.isFinite(Number(last?.at)) && last?.at != null ? new Date(Number(last.at)).toISOString() : null,
+      lastEventAt: m?.last == null ? null : new Date(Number(m.last)).toISOString(),
     };
   } catch {
     return null;

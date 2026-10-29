@@ -13,7 +13,7 @@ import {
   approveDeliverable, listApprovals, listDailyApprovals,
 } from './db.js';
 import { mergeSnapshot } from './snapshot.js';
-import { listFunnel, funnelMonth } from './webinar.js';
+import { listFunnel } from './webinar.js';
 import { overlayVideo } from './video.js';
 import { boardStageFor, mapColumn } from './sponsors.js';
 import { normalizePost } from './content.js';
@@ -410,10 +410,10 @@ export async function handleApi(request, env, ctx) {
     extra.teamRoster = await listTeamBots(env.DB).catch(() => []);
     extra.dailyApprovals = await listDailyApprovals(env.DB, ymd(now)).catch(() => []);
     if (!url.searchParams.get('pages') || url.searchParams.get('pages').split(',').includes('today')) {
-      const win = monthWindow(now);
-      extra.today = await todayData(env.DB, now);
-      extra.funnelMonth = await funnelMonth(env.CLONE_DB, win.start, win.end);
-      extra.pendingDeliverables = await listPendingDeliverables(env.DB).catch(() => []);
+      [extra.today, extra.pendingDeliverables] = await Promise.all([
+        todayData(env.DB, now, monthWindow(now).key),
+        listPendingDeliverables(env.DB).catch(() => []),
+      ]);
     }
     const merged = mergeSnapshot(base, await listSnapshots(env.DB), now, overrides, await listIdeas(env.DB), await listPosts(env.DB), await listVideoProjects(env.DB), extra);
     if (merged.pages.outreach) {

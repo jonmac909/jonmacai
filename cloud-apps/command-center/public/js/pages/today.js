@@ -23,7 +23,7 @@ function goalCard(g) {
 }
 
 // Links come from pushed data: only web links and same-site paths become clickable.
-const safeHref = (h) => (/^(https?:\/\/|\/(?!\/))/i.test(String(h || '')) ? h : '');
+const safeHref = (h) => (/^(https?:\/\/|\/(?![/\\]))/i.test(String(h || '')) ? h : '');
 
 function needItem(it) {
   it = { ...it, href: safeHref(it.href) };
@@ -36,8 +36,11 @@ function needItem(it) {
       <textarea class="qtext" rows="2" maxlength="4000" placeholder="Type your answer" aria-label="Your answer to: ${esc(it.title)}"></textarea>
       <button type="button" class="btn qsend" data-tsend="${esc(it.answerUrl)}">Send</button></div>`;
   } else if (it.kind === 'approval') {
-    act = `<div class="qopts">
-      <button type="button" class="btn" data-tdecide="${esc(it.decideUrl)}" data-decision="approve" data-confirm="Approve: ${esc(it.title)}? The bot will carry it out.">Approve</button>
+    const preview = it.payloadPreview || '{}';
+    const confirm = `Approve "${it.title}"? The bot will run ${it.action} with:\n${preview.slice(0, 600)}`;
+    act = `<details class="payload"${preview.length <= 600 ? ' open' : ''}><summary>What it will run</summary><pre>${esc(preview)}</pre></details>
+    <div class="qopts">
+      <button type="button" class="btn" data-tdecide="${esc(it.decideUrl)}" data-decision="approve" data-confirm="${esc(confirm)}">Approve</button>
       <button type="button" class="btn line" data-tdecide="${esc(it.decideUrl)}" data-decision="reject">Reject</button></div>`;
   } else if (it.kind === 'deliverable') {
     act = `<div class="qopts">${it.href ? `<a class="btn line" href="${esc(it.href)}" target="_blank" rel="noopener">Open</a>` : ''}
