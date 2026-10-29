@@ -266,7 +266,15 @@ async function updateTask(db, who, id, body, now) {
   const sets = [];
   const args = [];
   if ('title' in body) { sets.push('title = ?'); args.push(text(body, 'title', 300, true)); }
-  if ('owner' in body) { sets.push('owner = ?'); args.push(await ownerOf(db, who, body.owner)); }
+  if ('owner' in body) {
+    const owner = await ownerOf(db, who, body.owner);
+    // Jon's tick skips the proof rule, so a task can't move into or out of Jon's hands; create it as his.
+    if (owner !== row.owner && (owner === 'jon' || row.owner === 'jon')) {
+      throw new Bad(400, 'A task cannot be moved to or from jon; create a new task with owner jon');
+    }
+    sets.push('owner = ?');
+    args.push(owner);
+  }
   if ('note' in body) { sets.push('note = ?'); args.push(text(body, 'note', 4000)); }
   if ('project' in body) { sets.push('project = ?'); args.push(projectOf(body.project)); }
   if ('minutes' in body) { sets.push('minutes = ?'); args.push(minutesOf(body)); }

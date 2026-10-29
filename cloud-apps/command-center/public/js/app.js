@@ -62,7 +62,7 @@ export async function act(kind, payload = {}) {
 
 function hashPage() {
   const id = (location.hash || '#today').replace(/^#/, '') || 'today';
-  return pages[id.split('/')[0]] ? id : 'today';
+  return Object.hasOwn(pages, id.split('/')[0]) ? id : 'today';
 }
 
 // Today's answer and approve buttons (and the Projects tick) send to the URL the server put on the button.
@@ -160,7 +160,7 @@ function bindKanban() {
 }
 
 export async function go(id, { refetch = false } = {}) {
-  if (!pages[id.split('/')[0]]) id = 'today';
+  if (!Object.hasOwn(pages, id.split('/')[0])) id = 'today';
   const [name, sub] = id.split('/');
   if (location.hash !== `#${id}`) history.replaceState(null, '', `${PREFIX}/#${id}`);
   if (refetch || name === 'today') {

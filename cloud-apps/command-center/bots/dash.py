@@ -199,6 +199,11 @@ def project_of(value):
 def run(args, ctx):
     c = args.cmd
     q = urllib.parse.quote
+    minutes, due = getattr(args, 'minutes', None), getattr(args, 'due', None)
+    if minutes is not None and not 1 <= minutes <= 480:
+        raise Fail(2, '--minutes must be 1 to 480.')
+    if due is not None and not re.fullmatch(r'\d{4}-\d{2}-\d{2}', due):
+        raise Fail(2, '--due must be a date like 2026-10-30.')
     project = project_of(getattr(args, 'project', None))
     if c == 'whoami':
         return call(ctx, 'GET', '/me')

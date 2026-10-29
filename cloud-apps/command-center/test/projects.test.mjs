@@ -88,6 +88,9 @@ test('owner jon: bots assign it, only Jon ticks it done, and only on jon-owned t
   assert.deepEqual([tick.status, tick.body.task.status, tick.body.task.updatedBy, tick.body.task.title, !!tick.body.task.doneAt], [200, 'done', 'jon', 'Sign the contract', true]);
   assert.equal((await call(env, 'PATCH', `/v1/tasks/${mine.id}`, { jon: true, body: { status: 'done' } })).status, 409, 'once');
   assert.equal((await call(env, 'GET', `/v1/tasks/${bots.id}`, { jon: true })).body.task.status, 'todo');
+  // A bot task can't be handed to Jon to tick and taken back as done with no proof (review, 2026-10-29).
+  assert.equal((await call(env, 'PATCH', `/v1/tasks/${bots.id}`, { bot: 'sponsors', body: { owner: 'jon' } })).status, 400);
+  assert.equal((await call(env, 'PATCH', `/v1/tasks/${mine.id}`, { bot: 'sponsors', body: { owner: 'me' } })).status, 400);
 });
 
 test('calendar_today: Ana only, checked and trimmed, and todayData returns it', async () => {
