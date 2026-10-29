@@ -12,7 +12,7 @@ function parse(raw, fallback = {}) {
   try { return JSON.parse(raw || ''); } catch { return fallback; }
 }
 
-function agoLabel(ms) {
+export function agoLabel(ms) {
   const m = Math.floor(ms / 60000);
   if (m < 1) return 'just now';
   if (m < 60) return `${m} min ago`;
@@ -152,6 +152,25 @@ function itemAt(at) {
   return Number.isFinite(t) ? t : Infinity;
 }
 
+// One bot approval or question as Jon acts on it; the Projects board shows the same items.
+export function approvalItem(a) {
+  // Jon must see exactly what the bot will run, not just its own title for it (payloads are
+  // capped at 4000 formatted characters when requested, so this is always the whole thing).
+  return {
+    id: a.id, kind: 'approval', rank: 1, cls: 'risk', title: a.title, from: a.requestedBy, at: a.createdAt,
+    detail: `Runs ${a.action}`, action: a.action,
+    payloadPreview: JSON.stringify(a.payload || {}, null, 2),
+    decideUrl: `/dashboard/api/v1/approvals/${a.id}/decide`,
+  };
+}
+
+export function questionItem(q) {
+  return {
+    id: q.id, kind: 'question', rank: 2, cls: 'risk', title: q.question, context: q.context || '', options: q.options || [],
+    from: q.askedBy, at: q.createdAt, answerUrl: `/dashboard/api/v1/questions/${q.id}/answer`,
+  };
+}
+
 function needsList(out, extra, nowMs) {
   const t = extra.today;
   const items = [];
@@ -161,22 +180,8 @@ function needsList(out, extra, nowMs) {
       page: a.key.startsWith('bank') ? 'money' : 'sponsors', btn: a.key.startsWith('bank') ? 'Open Money' : 'Open Sponsors',
     });
   }
-  for (const a of t?.approvals || []) {
-    // Jon must see exactly what the bot will run, not just its own title for it (payloads are
-    // capped at 4000 formatted characters when requested, so this is always the whole thing).
-    items.push({
-      id: a.id, kind: 'approval', rank: 1, cls: 'risk', title: a.title, from: a.requestedBy, at: a.createdAt,
-      detail: `Runs ${a.action}`, action: a.action,
-      payloadPreview: JSON.stringify(a.payload || {}, null, 2),
-      decideUrl: `/dashboard/api/v1/approvals/${a.id}/decide`,
-    });
-  }
-  for (const q of t?.questions || []) {
-    items.push({
-      id: q.id, kind: 'question', rank: 2, cls: 'risk', title: q.question, context: q.context || '', options: q.options || [],
-      from: q.askedBy, at: q.createdAt, answerUrl: `/dashboard/api/v1/questions/${q.id}/answer`,
-    });
-  }
+  for (const a of t?.approvals || []) items.push(approvalItem(a));
+  for (const q of t?.questions || []) items.push(questionItem(q));
   // The old MausBot feeds (Ana's hourly push, Waiting On You, the GPU2 review tracker) left Today on
   // 2026-10-29: their open items were closed or moved into the bot tables, which are the one source.
   for (const it of items) {
@@ -189,7 +194,7 @@ function needsList(out, extra, nowMs) {
   return { count: items.length, items, sources, available: !!live };
 }
 
-function summaryCard(feed, nowMs) {
+export function summaryCard(feed, nowMs) {
   const source = sourceOf("Ana's morning summary", feed?.createdAt, nowMs);
   if (feed === null) return { source, missing: UNREADABLE };
   if (!feed) return { source, missing: 'No summary yet. Ana posts it each morning at 08:15 PT with dash.py feed-put morning_summary.' };
@@ -217,16 +222,21 @@ function usageCard(feed, runs, nowMs) {
   };
 }
 
-export function buildToday(out, by, cash, extra = {}, nowMs = Date.now()) {
-  if (!out.pages?.today) return;
+// The four goal cards, keyed sponsors, viral, webinar, ebooks. Projects shows them per project.
+export function goalCards(by, cash, feeds, nowMs) {
   const win = monthWindow(nowMs);
-  const feeds = extra.today?.feeds || {};
-  const goals = [
+  return [
     sponsorsCard(cash, by, win, nowMs),
     viralCard(by, nowMs),
     webinarCard(by.webinar_funnel, win, nowMs),
     ebooksCard(feeds.ebook_sales, win, nowMs),
   ];
+}
+
+export function buildToday(out, by, cash, extra = {}, nowMs = Date.now()) {
+  if (!out.pages?.today) return;
+  const feeds = extra.today?.feeds || {};
+  const goals = goalCards(by, cash, feeds, nowMs);
   const reporting = goals.filter((g) => g.usd != null);
   const total = reporting.reduce((n, g) => n + g.usd, 0);
   out.pages.today = {

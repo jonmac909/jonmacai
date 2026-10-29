@@ -1,4 +1,5 @@
 import { render as today } from './pages/today.js';
+import { render as projects } from './pages/projects.js';
 import { render as sponsors } from './pages/sponsors.js';
 import { render as viral } from './pages/viral.js';
 import { render as webinar } from './pages/webinar.js';
@@ -7,8 +8,9 @@ import { render as life } from './pages/life.js';
 import { formatJobResult } from './ui.js';
 import { bindModals, openDraft } from './modals.js';
 const PREFIX = '/dashboard';
-// Any other #page (old bookmarks to removed pages) falls back to Today.
-const pages = { today, sponsors, viral, webinar, money, life };
+// Any other #page (old bookmarks to removed pages) falls back to Today. A page may have a
+// sub-path, like #projects/sponsors; the page itself decides what an unknown one shows.
+const pages = { today, projects, sponsors, viral, webinar, money, life };
 let data = null;
 
 const root = document.documentElement;
@@ -60,17 +62,18 @@ export async function act(kind, payload = {}) {
 
 function hashPage() {
   const id = (location.hash || '#today').replace(/^#/, '') || 'today';
-  return pages[id] ? id : 'today';
+  return pages[id.split('/')[0]] ? id : 'today';
 }
 
-// Today's answer and approve buttons post to the URL the server put on the button.
-function todayPost(url, body, okText, button) {
-  if (!String(url).startsWith(`${PREFIX}/api/`)) { button.disabled = false; say('Could not send'); return; }
-  fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CC': '1' }, body: JSON.stringify(body) })
+// Today's answer and approve buttons (and the Projects tick) send to the URL the server put on the button.
+function todayPost(url, body, okText, button, method = 'POST') {
+  const failed = () => { button.disabled = false; button.checked = false; };
+  if (!String(url).startsWith(`${PREFIX}/api/`)) { failed(); say('Could not send'); return; }
+  fetch(url, { method, headers: { 'Content-Type': 'application/json', 'X-CC': '1' }, body: JSON.stringify(body) })
     .then(async (res) => {
       const row = await res.json().catch(() => ({}));
       if (!res.ok) {
-        button.disabled = false;
+        failed();
         say(row.error || 'Could not send');
         if (res.status === 409) go(hashPage(), { refetch: true });
         return;
@@ -78,7 +81,7 @@ function todayPost(url, body, okText, button) {
       say(okText);
       go(hashPage(), { refetch: true });
     })
-    .catch(() => { button.disabled = false; say('Could not send'); });
+    .catch(() => { failed(); say('Could not send'); });
 }
 
 // Half-typed answers survive a re-render of the same page (refresh, or after another item is sent).
@@ -157,21 +160,22 @@ function bindKanban() {
 }
 
 export async function go(id, { refetch = false } = {}) {
-  if (!pages[id]) id = 'today';
+  if (!pages[id.split('/')[0]]) id = 'today';
+  const [name, sub] = id.split('/');
   if (location.hash !== `#${id}`) history.replaceState(null, '', `${PREFIX}/#${id}`);
-  if (refetch || id === 'today') {
+  if (refetch || name === 'today') {
     const snap = await fetch(`${PREFIX}/api/snapshot?v=${Date.now()}`);
     if (snap.ok) data = await snap.json();
     document.getElementById('navs').innerHTML = navHtml();
   }
   document.querySelectorAll('.nav').forEach((n) => {
-    if (n.dataset.page === id) n.setAttribute('aria-current', 'page');
+    if (n.dataset.page === name) n.setAttribute('aria-current', 'page');
     else n.removeAttribute('aria-current');
   });
-  const page = data.pages[id];
+  const page = data.pages[name];
   const same = shownPage === id;
   const typed = same ? typedAnswers() : {};
-  document.getElementById('page').innerHTML = pages[id](page, data);
+  document.getElementById('page').innerHTML = pages[name](page, data, sub);
   shownPage = id;
   document.querySelectorAll('#page .qcard').forEach((c) => {
     const key = c.querySelector('[data-tsend]');
@@ -192,6 +196,13 @@ document.addEventListener('click', (e) => {
     if (tsend.disabled) return;
     tsend.disabled = true;
     todayPost(tsend.dataset.tsend, { answer }, 'Sent', tsend);
+    return;
+  }
+  const tick = e.target.closest('[data-ttick]');
+  if (tick) {
+    if (tick.disabled) return;
+    tick.disabled = true;
+    todayPost(tick.dataset.ttick, { status: 'done' }, 'Done', tick, 'PATCH');
     return;
   }
   const tdec = e.target.closest('[data-tdecide]');
@@ -256,7 +267,14 @@ document.addEventListener('click', (e) => {
     return;
   }
   const nav = e.target.closest('[data-page]');
-  if (nav) { go(nav.dataset.page); return; }
+  if (nav) {
+    // A Projects checklist entry opens its project and scrolls to the card with that answer/decide URL.
+    const url = nav.dataset.card;
+    go(nav.dataset.page).then(() => {
+      if (url) document.querySelector(`#page .pjkan [data-tsend="${url}"], #page .pjkan [data-tdecide="${url}"]`)?.closest('li')?.scrollIntoView({ block: 'center' });
+    });
+    return;
+  }
   const b = e.target.closest('[data-msg]');
   if (b) {
     act('ui.toast', { msg: b.dataset.msg });

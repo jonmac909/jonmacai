@@ -25,7 +25,9 @@ TOKEN_DIR = Path(os.environ.get('DASH_TOKEN_DIR', r'D:\AgentTeam\secrets\bot-tok
 BOTS_MD = Path(os.environ.get('DASH_BOTS_MD', r'D:\AgentTeam\rules\BOTS.md'))
 TASK_STATUSES = ['todo', 'doing', 'waiting_on_jon', 'qc', 'done', 'cancelled']
 PROOF_KINDS = ['render', 'url', 'pdf', 'test']
-FEEDS = ['morning_summary', 'claude_usage', 'ebook_sales']
+FEEDS = ['morning_summary', 'calendar_today', 'claude_usage', 'ebook_sales']
+# Same slugs, same order as PROJECTS in src/projects.js. "unsorted" means no project.
+PROJECTS = ['sponsors', 'jon-mac', 'jonmacai', 'viral-view', 'home-guide-press', 'short-form', 'accounting']
 
 
 class Fail(Exception):
@@ -185,21 +187,34 @@ def wake_qc(out, task_id, bot):
         print('dash.py: proof saved, but QC was not woken (%s); QC will see it in its queue.' % bad, file=sys.stderr)
 
 
+def project_of(value):
+    if value is None:
+        return None
+    s = value.strip().lower()
+    if s not in PROJECTS + ['unsorted']:
+        raise Fail(2, 'Unknown project %r. Use one of: %s (or unsorted).' % (value, ', '.join(PROJECTS)))
+    return s
+
+
 def run(args, ctx):
     c = args.cmd
     q = urllib.parse.quote
+    project = project_of(getattr(args, 'project', None))
     if c == 'whoami':
         return call(ctx, 'GET', '/me')
     if c == 'task-add':
         return call(ctx, 'POST', '/tasks', only({'title': args.title, 'owner': args.owner, 'status': args.status,
-                                                 'note': args.note, 'key': args.key}))
+                                                 'note': args.note, 'project': project, 'minutes': args.minutes,
+                                                 'due': args.due, 'key': args.key}))
     if c == 'task-update':
-        body = only({'title': args.title, 'owner': args.owner, 'status': args.status, 'note': args.note})
+        body = only({'title': args.title, 'owner': args.owner, 'status': args.status, 'note': args.note,
+                     'project': project, 'minutes': args.minutes, 'due': args.due})
         if not body:
-            raise Fail(2, 'Nothing to change: pass --status, --owner, --note or --title.')
+            raise Fail(2, 'Nothing to change: pass --status, --owner, --note, --title, --project, --minutes or --due.')
         return call(ctx, 'PATCH', '/tasks/%s' % q(args.id, safe=''), body)
     if c == 'tasks':
-        return call(ctx, 'GET', '/tasks', query={'owner': args.owner, 'status': args.status, 'limit': args.limit})
+        return call(ctx, 'GET', '/tasks', query={'owner': args.owner, 'status': args.status, 'project': project,
+                                                 'limit': args.limit})
     if c == 'task':
         return call(ctx, 'GET', '/tasks/%s' % q(args.id, safe=''))
     if c == 'proof-add':
@@ -213,19 +228,23 @@ def run(args, ctx):
         return call(ctx, 'POST', '/proofs/%s/check' % q(args.id, safe=''), only({'result': args.result, 'note': args.note}))
     if c == 'ask':
         return call(ctx, 'POST', '/questions', only({'question': args.question, 'options': args.option or None,
-                                                    'context': args.context, 'task': args.task, 'key': args.key}))
+                                                    'context': args.context, 'task': args.task, 'project': project,
+                                                    'minutes': args.minutes, 'key': args.key}))
     if c == 'question':
         return call(ctx, 'GET', '/questions/%s' % q(args.id, safe=''))
     if c == 'questions':
-        return call(ctx, 'GET', '/questions', query={'status': args.status, 'asked_by': args.asked_by, 'limit': args.limit})
+        return call(ctx, 'GET', '/questions', query={'status': args.status, 'asked_by': args.asked_by, 'project': project,
+                                                     'limit': args.limit})
     if c == 'question-close':
         return call(ctx, 'POST', '/questions/%s/close' % q(args.id, safe=''), {})
     if c == 'approval-request':
         return call(ctx, 'POST', '/approvals', only({'action': args.action, 'title': args.title, 'payload': payload_of(args),
-                                                    'task': args.task, 'key': args.key}))
+                                                    'task': args.task, 'project': project, 'minutes': args.minutes,
+                                                    'key': args.key}))
     if c == 'approvals':
         return call(ctx, 'GET', '/approvals', query={'status': args.status, 'action': args.action,
-                                                     'requested_by': args.requested_by, 'limit': args.limit})
+                                                     'requested_by': args.requested_by, 'project': project,
+                                                     'limit': args.limit})
     if c == 'approval':
         return call(ctx, 'GET', '/approvals/%s' % q(args.id, safe=''))
     if c == 'approval-claim':
@@ -249,6 +268,12 @@ def run(args, ctx):
     raise Fail(2, 'Unknown command %s' % c)
 
 
+def project_args(a, filter_only=False):
+    a.add_argument('--project', help='one of: %s (or unsorted)' % ', '.join(PROJECTS))
+    if not filter_only:
+        a.add_argument('--minutes', type=int, help='minutes of Jon time it takes, 1 to 480')
+
+
 def parser():
     p = argparse.ArgumentParser(prog='dash.py', description='Talk to the jonmac.ai dashboard as one bot. See DASH.md.')
     p.add_argument('--base', default=BASE, help='API base, https only (default %(default)s)')
@@ -258,9 +283,11 @@ def parser():
 
     a = s.add_parser('task-add', help='create a task')
     a.add_argument('title')
-    a.add_argument('--owner', help='bot slug that owns it (default: you)')
+    a.add_argument('--owner', help='bot slug that owns it, or jon for something only Jon can do (default: you)')
     a.add_argument('--status', choices=['todo', 'doing', 'waiting_on_jon'])
     a.add_argument('--note')
+    project_args(a)
+    a.add_argument('--due', help='YYYY-MM-DD, with --owner jon')
     a.add_argument('--key', help='your own unique key; repeating it returns the first task instead of a copy')
 
     a = s.add_parser('task-update', help='change one task')
@@ -270,10 +297,13 @@ def parser():
     a.add_argument('--owner')
     a.add_argument('--note')
     a.add_argument('--title')
+    project_args(a)
+    a.add_argument('--due', help='YYYY-MM-DD')
 
     a = s.add_parser('tasks', help='list tasks')
-    a.add_argument('--owner', help='bot slug or "me"')
+    a.add_argument('--owner', help='bot slug, jon or "me"')
     a.add_argument('--status', help='one status or a comma list, e.g. todo,doing')
+    project_args(a, filter_only=True)
     a.add_argument('--limit', type=int)
 
     a = s.add_parser('task', help='one task with its proof')
@@ -300,6 +330,7 @@ def parser():
     a.add_argument('--option', action='append', help='an answer button; repeat for each (max 10)')
     a.add_argument('--context')
     a.add_argument('--task')
+    project_args(a)
     a.add_argument('--key')
 
     a = s.add_parser('question', help='read one question and its answer')
@@ -308,6 +339,7 @@ def parser():
     a = s.add_parser('questions', help='list questions')
     a.add_argument('--status', help='open, answered or closed (comma list ok)')
     a.add_argument('--asked-by', help='bot slug or "me"')
+    project_args(a, filter_only=True)
     a.add_argument('--limit', type=int)
 
     a = s.add_parser('question-close', help='close your own question (after reading the answer, or to withdraw it)')
@@ -319,12 +351,14 @@ def parser():
     a.add_argument('--payload', help='JSON object the action needs')
     a.add_argument('--payload-file', help='file holding that JSON object')
     a.add_argument('--task')
+    project_args(a)
     a.add_argument('--key')
 
     a = s.add_parser('approvals', help='list approvals (to act on: --status approved --requested-by me)')
     a.add_argument('--status', help='pending, approved, rejected, running, done or cancelled (comma list ok)')
     a.add_argument('--action')
     a.add_argument('--requested-by', help='bot slug or "me"')
+    project_args(a, filter_only=True)
     a.add_argument('--limit', type=int)
 
     a = s.add_parser('approval', help='one approval')
@@ -360,7 +394,7 @@ def parser():
     a.add_argument('--since', help='ISO time')
     a.add_argument('--limit', type=int)
 
-    a = s.add_parser('feed-put', help='post a Today-page feed: morning_summary, claude_usage, ebook_sales')
+    a = s.add_parser('feed-put', help='post a feed: morning_summary, calendar_today, claude_usage, ebook_sales')
     a.add_argument('name', choices=FEEDS)
     a.add_argument('--data', help='JSON object, e.g. \'{"weekPct": 62}\'')
     a.add_argument('--data-file', help='file holding that JSON object')
