@@ -1,4 +1,4 @@
-﻿# Command Center
+# Command Center
 
 Live: [https://jonmac.ai/dashboard](https://jonmac.ai/dashboard)
 
@@ -26,7 +26,7 @@ This file is the data contract. Later tasks replace a page's slice with live dat
 }
 ```
 
-Every page object is render-ready copy from the mockup: tiles (`icon, label, value, goal?, pct?, pg?, sub?`), jobs, tables, pills, button labels and `msg` strings. Progress percents are 0â€“100. Money strings keep `$` and commas as shown.
+Every page object is render-ready copy from the mockup: tiles (`icon, label, value, goal?, pct?, pg?, sub?`), jobs, tables, pills, button labels and `msg` strings. Progress percents are 0–100. Money strings keep `$` and commas as shown.
 
 | Page | Main fields |
 |---|---|
@@ -52,11 +52,11 @@ Regenerate compact JSON: `node scripts/build-snapshot.mjs`
 
 Cookie `__Host-cc_session` = `{unixExpiry}.{HMAC-SHA256(expiry)}` under `SESSION_SECRET`. HttpOnly, Secure, SameSite=Strict, Path=/, 30 days. Password compared in constant time. 10 failures / IP / 15 min locks that IP 15 min. 51 failures across IPs / hour locks everyone 1 hour.
 
-Machine ingest is `POST /dashboard/api/ingest` with `Authorization: Bearer` (`MACHINE_TOKEN_MAC` / `MACHINE_TOKEN_GPU2`) and `{source, collectedAt, data}`. Source `post` inserts into the `posts` table (one publish at a time). Source `content_queue` is the Content Marketing agent's scheduled posts (`~/.command-center/content-queue.json` on GPU2). Approve writes `~/.command-center/content-approvals.jsonl` and pings that agent's Orca terminal. Log a post is `POST /dashboard/api/posts`. Runners poll `POST /dashboard/api/actions/claim` every 15s. A source older than 3Ã— its schedule (collectors: 5 min â†’ stale after 15 min) gets a grey Stale pill. Collectors live in `collectors/mac` and `collectors/gpu2`; add a source as one `sources/*.py` module with `source(machine)` and `collect(machine)`.
+Machine ingest is `POST /dashboard/api/ingest` with `Authorization: Bearer` (`MACHINE_TOKEN_MAC` / `MACHINE_TOKEN_GPU2`) and `{source, collectedAt, data}`. Source `post` inserts into the `posts` table (one publish at a time). Source `content_queue` is the Content Marketing agent's scheduled posts (`~/.command-center/content-queue.json` on GPU2). Approve writes `~/.command-center/content-approvals.jsonl` and pings that agent's Orca terminal. Log a post is `POST /dashboard/api/posts`. Runners poll `POST /dashboard/api/actions/claim` every 15s. A source older than 3× its schedule (collectors: 5 min → stale after 15 min) gets a grey Stale pill. Collectors live in `collectors/mac` and `collectors/gpu2`; add a source as one `sources/*.py` module with `source(machine)` and `collect(machine)`.
 
 ## Bot API (`/dashboard/api/v1`)
 
-Each of the 14 bots (D:\AgentTeam\rules\BOTS.md) writes one row at a time with its own token: `Authorization: Bearer ccb_â€¦`. D1 keeps only the SHA-256 of each token (`bot_tokens`); raw tokens live in `D:\AgentTeam\secrets\bot-tokens\<slug>.token` on GPU1. `node scripts/bot-tokens.mjs [--env preview] [--rotate <slug>]` issues missing tokens, registers their hashes and revokes any other hash for that bot; it reuses existing token files. After a rotate, run it again with `--env preview`. Machine tokens and `/api/ingest` are separate and unchanged. Tables (migration `0007_bot_access.sql`, additive): `bot_tasks`, `bot_proofs`, `bot_questions`, `bot_approvals`, `bot_runs`; every row names the bot that wrote it. Client: `bots/dash.py` (installed to `D:\AgentTeam\tools\dash.py`, usage in `bots/DASH.md`).
+Each of the 14 bots (D:\AgentTeam\rules\BOTS.md) writes one row at a time with its own token: `Authorization: Bearer ccb_…`. D1 keeps only the SHA-256 of each token (`bot_tokens`); raw tokens live in `D:\AgentTeam\secrets\bot-tokens\<slug>.token` on GPU1. `node scripts/bot-tokens.mjs [--env preview] [--rotate <slug>]` issues missing tokens, registers their hashes and revokes any other hash for that bot; it reuses existing token files. After a rotate, run it again with `--env preview`. Machine tokens and `/api/ingest` are separate and unchanged. Tables (migration `0007_bot_access.sql`, additive): `bot_tasks`, `bot_proofs`, `bot_questions`, `bot_approvals`, `bot_runs`; every row names the bot that wrote it. Client: `bots/dash.py` (installed to `D:\AgentTeam\tools\dash.py`, usage in `bots/DASH.md`).
 
 | Method and path | Who | What |
 |---|---|---|
@@ -68,17 +68,17 @@ Each of the 14 bots (D:\AgentTeam\rules\BOTS.md) writes one row at a time with i
 | `POST /v1/tasks/:id/proofs` | bot | `{kind: render\|url\|pdf\|test, link, note?}`; link is http(s) or a file path |
 | `GET /v1/proofs?status=pending&task=` | bot or Jon | QC's queue |
 | `POST /v1/proofs/:id/check` | `qc` only | `{result: passed\|failed, note?}`; failing the last supporting proof sends a `qc`/`done` task back to `doing` |
-| `POST /v1/questions` | bot | `{question, options?[â‰¤10], context?, task?, key?}` |
+| `POST /v1/questions` | bot | `{question, options?[≤10], context?, task?, key?}` |
 | `GET /v1/questions[/:id]?status=&asked_by=` | bot or Jon | read the answer |
 | `POST /v1/questions/:id/close` | the asking bot | after reading the answer, or to withdraw |
 | `POST /v1/questions/:id/answer` | Jon (session + `X-CC: 1`) | `{answer}`; first answer wins |
 | `POST /v1/approvals` | bot | `{action (snake_case), title, payload?{} (max 4000 chars as formatted JSON, all shown to Jon), task?, key?}` |
 | `GET /v1/approvals[/:id]?status=approved&action=&requested_by=` | bot or Jon | approved = approved, not yet claimed |
 | `POST /v1/approvals/:id/decide` | Jon (session + `X-CC: 1`) | `{decision: approve\|reject, note?}`; pending only |
-| `POST /v1/approvals/:id/claim` | the requesting bot | approved â†’ running; one claimer wins (409 for the rest) |
-| `POST /v1/approvals/:id/done` | the requesting bot | running â†’ done |
-| `POST /v1/approvals/:id/release` | the requesting bot | running â†’ approved, to retry later |
-| `POST /v1/approvals/:id/cancel` | the requesting bot | pending or approved â†’ cancelled |
+| `POST /v1/approvals/:id/claim` | the requesting bot | approved → running; one claimer wins (409 for the rest) |
+| `POST /v1/approvals/:id/done` | the requesting bot | running → done |
+| `POST /v1/approvals/:id/release` | the requesting bot | running → approved, to retry later |
+| `POST /v1/approvals/:id/cancel` | the requesting bot | pending or approved → cancelled |
 | `POST /v1/runs` | bot | `{status: running\|ok\|failed, started?, ended?, tokens?, error?, task?, note?}`; own runs only |
 | `GET /v1/runs?bot=&status=&since=` | bot or Jon | newest first |
 | `PUT /v1/feeds/:name` | named bots | append one entry: `morning_summary {text, date?}` and `claude_usage {weekPct, resetsAt?, note?}` (ana); `ebook_sales {month, usd, orders?, note?}` (home-guide-press, accounting) |
@@ -118,12 +118,12 @@ Three slots per configured platform per America/Vancouver day, stored in `conten
 
 Worker cron (every 10 min) pulls Instantly API v2 with `INSTANTLY_API_KEY` as `Authorization: Bearer`. Endpoints used:
 
-- `GET https://api.instantly.ai/api/v2/accounts` â€” `email`, `status` (1 = Active), `daily_limit`, `warmup_status` (1 = Active)
-- `POST https://api.instantly.ai/api/v2/accounts/warmup-analytics` â€” `aggregate_data[email].health_score`
-- `GET https://api.instantly.ai/api/v2/campaigns` â€” `id`, `name`, `status` (0 Draft, 1 Active, 2 Paused, 3 Completed, 4 Running Subsequences), `sequences[0].steps`
-- `GET https://api.instantly.ai/api/v2/campaigns/analytics` â€” `leads_count`, `emails_sent_count`, `open_count`, `reply_count` (today via `start_date` / `end_date`)
-- `GET https://api.instantly.ai/api/v2/campaigns/analytics/overview` â€” `total_interested`
-- `POST https://api.instantly.ai/api/v2/campaigns/{id}/activate` â€” Launch, only after confirm
+- `GET https://api.instantly.ai/api/v2/accounts` — `email`, `status` (1 = Active), `daily_limit`, `warmup_status` (1 = Active)
+- `POST https://api.instantly.ai/api/v2/accounts/warmup-analytics` — `aggregate_data[email].health_score`
+- `GET https://api.instantly.ai/api/v2/campaigns` — `id`, `name`, `status` (0 Draft, 1 Active, 2 Paused, 3 Completed, 4 Running Subsequences), `sequences[0].steps`
+- `GET https://api.instantly.ai/api/v2/campaigns/analytics` — `leads_count`, `emails_sent_count`, `open_count`, `reply_count` (today via `start_date` / `end_date`)
+- `GET https://api.instantly.ai/api/v2/campaigns/analytics/overview` — `total_interested`
+- `POST https://api.instantly.ai/api/v2/campaigns/{id}/activate` — Launch, only after confirm
 
 Daily max = sum of `daily_limit` on accounts with `status === 1`. Setup steps tick from that snapshot. Test-sent is manual.
 
