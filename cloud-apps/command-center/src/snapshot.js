@@ -80,9 +80,8 @@ export function mergeSnapshot(fixture, rows, nowMs = Date.now(), overrides = {},
   }
   if (out.pages.viral && by.viralview) overlayViral(out.pages.viral, parseData(by.viralview.data), nowMs);
   if (out.pages.life) {
-    if (by.calendar) {
-      overlayLife(out.pages.life, { ...parseData(by.calendar.data), habits: extra.habits || [], nowMs });
-    } else {
+    overlayLife(out.pages.life, { ...(by.calendar ? parseData(by.calendar.data) : {}), habits: extra.habits || [], nowMs });
+    if (!by.calendar) {
       out.pages.life.actions = [{ label: 'Connect calendar', href: '/dashboard/api/google/start' }, ...(out.pages.life.actions || [])];
     }
   }

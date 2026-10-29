@@ -87,17 +87,20 @@ function monthDays(nowMs) {
   return n;
 }
 
+// Every card is built from the calendar and the habit marks only, so the fixture's September mockup
+// never shows; without either, the cards say so (2026-10-29).
 export function overlayLife(page, { connected = false, events = [], habits = [], nowMs = Date.now() } = {}) {
   if (!page) return page;
-  if (!connected && !events.length) return page;
+  const real = connected || events.length > 0 || habits.length > 0;
   const today = ymd(nowMs);
   const week = weekStartYmd(nowMs);
   const month = today.slice(0, 7);
+  const monthName = new Date(nowMs).toLocaleString('en-US', { month: 'long', timeZone: TZ });
   const todays = events.filter((e) => ymd(Date.parse(e.start)) === today)
     .sort((a, b) => Date.parse(a.start) - Date.parse(b.start));
   page.today = {
     title: 'Today',
-    meta: 'From your calendar',
+    meta: connected ? 'From your calendar' : 'Connect your calendar to see today here',
     rows: todays.map((e, i) => ({
       title: `${clock(e.start)} · ${e.title}`,
       sub: e.end ? `Until ${clock(e.end)}` : '',
@@ -113,14 +116,27 @@ export function overlayLife(page, { connected = false, events = [], habits = [],
   const goal = monthDays(nowMs) || 1;
   const nights = events.filter((e) => isDateNight(e.title) && ymd(Date.parse(e.start)).startsWith(month)).length
     + habits.filter((h) => h.kind === 'date_night' && Number(h.done) && String(h.day).startsWith(month)).length;
-  page.tiles[0] = { ...page.tiles[0], value: String(weekN), goal: '/ 3', pct: Math.round(weekN / 3 * 100), pg: weekN >= 2 ? 'ok' : 'risk' };
-  page.tiles[1] = { ...page.tiles[1], value: String(monthN), goal: `/ ${goal} so far`, pct: Math.round(monthN / goal * 100) };
-  page.tiles[2] = { ...page.tiles[2], value: String(nights), goal: '/ 4', pct: Math.round(nights / 4 * 100), pg: nights >= 4 ? 'ok' : 'risk' };
-  page.workouts.weeks = [
-    { title: 'This week', sub: `${week}–${addDays(week, 6)}`, dots: thisDots },
-    { title: 'Last week', sub: `${addDays(week, -7)}–${addDays(week, -1)}`, dots: lastDots },
-    { title: 'Two weeks ago', sub: `${addDays(week, -14)}–${addDays(week, -8)}`, dots: twoDots },
-  ];
+  const none = (icon, label) => ({ icon, label, value: 'no data', sub: 'Connect your calendar' });
+  page.tiles = real ? [
+    { icon: 'heart', label: 'Workouts this week', value: String(weekN), goal: '/ 3', pct: Math.round(weekN / 3 * 100), pg: weekN >= 2 ? 'ok' : 'risk', sub: '' },
+    { icon: 'chart', label: `Workouts in ${monthName}`, value: String(monthN), goal: `/ ${goal} so far`, pct: Math.round(monthN / goal * 100), sub: '' },
+    { icon: 'check', label: `Date nights in ${monthName}`, value: String(nights), goal: '/ 4', pct: Math.round(nights / 4 * 100), pg: nights >= 4 ? 'ok' : 'risk', sub: '' },
+  ] : [none('heart', 'Workouts this week'), none('chart', `Workouts in ${monthName}`), none('check', `Date nights in ${monthName}`)];
+  page.workouts = {
+    title: 'Workouts with your wife',
+    meta: 'Mon · Wed · Fri at 11:00',
+    weeks: real ? [
+      { title: 'This week', sub: `${week}–${addDays(week, 6)}`, dots: thisDots },
+      { title: 'Last week', sub: `${addDays(week, -7)}–${addDays(week, -1)}`, dots: lastDots },
+      { title: 'Two weeks ago', sub: `${addDays(week, -14)}–${addDays(week, -8)}`, dots: twoDots },
+    ] : [],
+    box: connected ? '' : 'Connect your calendar to track workouts here.',
+  };
+  page.dateNight = { title: 'Date night in Kelowna', pill: connected ? '' : 'No data', pillCls: '', rows: [], ideasTitle: '', ideas: '' };
+  if (!connected) {
+    page.sub = 'The things that matter outside work';
+    return page;
+  }
   const hasSeries = events.some((e) => isWorkout(e.title));
   if (hasSeries) {
     page.workouts.btn = 'Mark today done';

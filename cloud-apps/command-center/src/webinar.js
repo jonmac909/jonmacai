@@ -1,7 +1,7 @@
 // Webinar page: countdown, and buyers/upsells from the clone funnel's D1 (read-only, counts only, no emails).
-// Jon moved the event to Thu Oct 29: 7 PM ET = 4 PM PT. Zoom Meeting, so no registration list.
-export const WEBINAR_AT = '2026-10-29T23:00:00Z'; // Thu Oct 29, 4 PM PT / 7 PM ET
-export const WEBINAR_LABEL = 'Thu Oct 29 · 4 PM PT';
+// No date set (Jon, 2026-10-29). When Jon picks one, set WEBINAR_AT (ISO, UTC) and WEBINAR_LABEL.
+export const WEBINAR_AT = null;
+export const WEBINAR_LABEL = 'Date not set';
 export const OFFERS = {
   software: '$97/mo software',
   trial: '$1 7-day trial',
@@ -52,13 +52,14 @@ export async function funnelMonth(db, startMs, endMs) {
   }
 }
 
-export function overlayWebinar(page, funnel, nowMs) {
-  const at = Date.parse(WEBINAR_AT);
+export function overlayWebinar(page, funnel, nowMs, when = WEBINAR_AT, label = WEBINAR_LABEL) {
+  const at = Date.parse(when);
+  const dated = Number.isFinite(at);
   page.title = 'Webinar';
-  page.sub = `${WEBINAR_LABEL} · jonmac.ai/clone`;
-  page.webinarAt = WEBINAR_AT;
-  page.countdown = left(at - nowMs);
-  const live = nowMs >= at - 6 * 3600000 || (funnel && funnel.buyers > 0);
+  page.sub = `${label} · jonmac.ai/clone`;
+  page.webinarAt = dated ? when : null;
+  page.countdown = dated ? left(at - nowMs) : 'Date not set';
+  const live = (dated && nowMs >= at - 6 * 3600000) || !!(funnel && funnel.buyers > 0);
   const charged = {};
   const fallback = {};
   for (const u of funnel?.upsells || []) {
@@ -74,7 +75,8 @@ export function overlayWebinar(page, funnel, nowMs) {
     sessions: (funnel?.sessions || []).map((s) => ({ label: String(s.session_label).slice(0, 60), n: Number(s.n) || 0 })),
   };
   page.tiles = [
-    { icon: 'clock', label: 'Webinar starts in', value: page.countdown, sub: WEBINAR_LABEL },
+    dated ? { icon: 'clock', label: 'Webinar starts in', value: page.countdown, sub: label }
+      : { icon: 'clock', label: 'Webinar date', value: 'Date not set', sub: 'The countdown starts when Jon picks a date' },
     { icon: 'wallet', label: 'Live buyers ($47)', value: funnel ? String(funnel.buyers) : 'no data', sub: funnel ? 'Recorded by the clone funnel' : 'Funnel database unavailable' },
   ];
   return page;

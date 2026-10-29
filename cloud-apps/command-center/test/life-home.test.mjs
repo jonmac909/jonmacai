@@ -95,6 +95,17 @@ test('workout dots and tiles follow habits this week', () => {
   assert.equal(page.workouts.weeks[0].dots.join(' '), 'on:M on:W next:F');
 });
 
+test('without a calendar or habit marks, none of the mockup shows', () => {
+  const page = JSON.parse(JSON.stringify(snapshot.pages.life));
+  overlayLife(page, { nowMs: NOW });
+  const shown = JSON.stringify([page.tiles, page.workouts, page.dateNight, page.today]);
+  assert.deepEqual(page.tiles.map((t) => t.value), ['no data', 'no data', 'no data']);
+  assert.deepEqual([page.workouts.weeks, page.dateNight.rows, page.today.rows, page.dateNight.ideas], [[], [], [], '']);
+  for (const mock of ['Sep 14', 'winery', 'Morning run-through', 'Record Video 3', 'Missed one', 'Lakefront']) {
+    assert.equal(shown.includes(mock), false, mock);
+  }
+});
+
 test('date night suggests the first free evening 18:00–21:00', () => {
   const suggestion = suggestDateNight([
     { title: 'Call', start: '2026-09-18T14:00:00-07:00', end: '2026-09-18T15:00:00-07:00' },

@@ -9,8 +9,16 @@ const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const py = process.platform === 'win32' ? 'python' : 'python3';
 const now = Date.parse('2026-10-15T23:00:00Z');
 
+test('without a date the page says so instead of counting down', () => {
+  const p = overlayWebinar({}, null, now);
+  assert.equal(p.sub, 'Date not set · jonmac.ai/clone');
+  assert.deepEqual([p.tiles[0].label, p.tiles[0].value, p.webinarAt], ['Webinar date', 'Date not set', null]);
+  assert.equal(p.sales.live, false);
+});
+
 test('countdown, buyers and upsells come from the clone funnel', () => {
-  const p = overlayWebinar({}, { buyers: 2, upsells: [{ offer: 'audit', state: 'charged', n: 1 }, { offer: 'audit', state: 'fallback', n: 2 }], sessions: [{ session_label: 'Wednesday, October 7, 2026 at 7:00 PM EDT', n: 1 }] }, now);
+  const p = overlayWebinar({}, { buyers: 2, upsells: [{ offer: 'audit', state: 'charged', n: 1 }, { offer: 'audit', state: 'fallback', n: 2 }], sessions: [{ session_label: 'Wednesday, October 7, 2026 at 7:00 PM EDT', n: 1 }] }, now,
+    '2026-10-29T23:00:00Z', 'Thu Oct 29 · 4 PM PT');
   assert.equal(p.sub, 'Thu Oct 29 · 4 PM PT · jonmac.ai/clone');
   assert.deepEqual(p.tiles.map((t) => t.value), ['14d 0h', '2']);
   assert.deepEqual(p.sales.rows, [{ name: '$497 audit', charged: 1, hosted: 2 }]);

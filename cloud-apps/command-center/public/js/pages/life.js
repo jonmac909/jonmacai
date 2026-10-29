@@ -17,17 +17,17 @@ export function render(d) {
     <div class="card pad">
       <div class="cardhead"><h2>${d.workouts.title}</h2><span class="meta">${d.workouts.meta}</span></div>
       <div class="pgs">${weeks}</div>
-      <div class="box"><p>${d.workouts.box}</p>${btn(d.workouts.btn, { msg: d.workouts.msg, cls: 'wide', kind: d.workouts.kind, payload: d.workouts.payload, confirm: d.workouts.confirm })}</div>
+      ${d.workouts.box || d.workouts.btn ? `<div class="box">${d.workouts.box ? `<p>${d.workouts.box}</p>` : ''}${d.workouts.btn ? btn(d.workouts.btn, { msg: d.workouts.msg, cls: 'wide', kind: d.workouts.kind, payload: d.workouts.payload, confirm: d.workouts.confirm }) : ''}</div>` : ''}
     </div>
     <div class="card pad">
-      <div class="cardhead"><h2>${d.dateNight.title}</h2>${pill(d.dateNight.pill, d.dateNight.pillCls)}</div>
-      <div class="rows">${nights}</div>
-      <div class="box"><h4>${d.dateNight.ideasTitle}</h4><p>${d.dateNight.ideas}</p></div>
+      <div class="cardhead"><h2>${d.dateNight.title}</h2>${d.dateNight.pill ? pill(d.dateNight.pill, d.dateNight.pillCls) : ''}</div>
+      <div class="rows">${nights || '<p class="muted">Nothing on the calendar yet.</p>'}</div>
+      ${d.dateNight.ideas ? `<div class="box"><h4>${d.dateNight.ideasTitle}</h4><p>${d.dateNight.ideas}</p></div>` : ''}
     </div>
   </div>
   <div class="card pad">
     <div class="cardhead"><h2>${d.today.title}</h2><span class="meta">${d.today.meta}</span></div>
-    <div class="rows">${today}</div>
+    <div class="rows">${today || '<p class="muted">No events.</p>'}</div>
   </div>
 </div>`;
 }
