@@ -22,6 +22,7 @@ import { buildNow } from './now.js';
 import { buildTeam } from './team.js';
 import { buildPartners } from './partners.js';
 import { buildGoalsHome } from './goals.js';
+import { buildToday } from './today.js';
 import { overlayFactory } from './factory.js';
 
 export const COLLECTOR_INTERVAL_MS = 5 * 60 * 1000;
@@ -562,5 +563,6 @@ export function mergeSnapshot(fixture, rows, nowMs = Date.now(), overrides = {},
   if (chip && out.pages?.home) out.pages.home.chip = chip;
   const review = by.cc_review_drafts ? parseData(by.cc_review_drafts.data) : [];
   applyReviewDrafts(out, review);
+  buildToday(out, by, cash, extra, nowMs);
   return out;
 }

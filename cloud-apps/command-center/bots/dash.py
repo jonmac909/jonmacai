@@ -25,6 +25,7 @@ TOKEN_DIR = Path(os.environ.get('DASH_TOKEN_DIR', r'D:\AgentTeam\secrets\bot-tok
 BOTS_MD = Path(os.environ.get('DASH_BOTS_MD', r'D:\AgentTeam\rules\BOTS.md'))
 TASK_STATUSES = ['todo', 'doing', 'waiting_on_jon', 'qc', 'done', 'cancelled']
 PROOF_KINDS = ['render', 'url', 'pdf', 'test']
+FEEDS = ['morning_summary', 'claude_usage', 'ebook_sales']
 
 
 class Fail(Exception):
@@ -146,6 +147,27 @@ def payload_of(args):
     return value
 
 
+def read_file(path):
+    try:
+        return Path(path).read_text(encoding='utf-8-sig')
+    except OSError as err:
+        raise Fail(2, 'Cannot read %s: %s' % (path, err))
+
+
+def feed_data(args):
+    data = {}
+    if args.data or args.data_file:
+        try:
+            data = json.loads(args.data or read_file(args.data_file))
+        except ValueError as err:
+            raise Fail(2, 'Feed data is not JSON: %s' % err)
+        if not isinstance(data, dict):
+            raise Fail(2, 'Feed data must be a JSON object.')
+    if args.text or args.text_file:
+        data['text'] = args.text or read_file(args.text_file)
+    return data
+
+
 def run(args, ctx):
     c = args.cmd
     q = urllib.parse.quote
@@ -201,6 +223,10 @@ def run(args, ctx):
                                                'note': args.note}))
     if c == 'runs':
         return call(ctx, 'GET', '/runs', query={'bot': args.of, 'status': args.status, 'since': args.since, 'limit': args.limit})
+    if c == 'feed-put':
+        return call(ctx, 'PUT', '/feeds/%s' % q(args.name, safe=''), feed_data(args))
+    if c == 'feed':
+        return call(ctx, 'GET', '/feeds/%s' % q(args.name, safe=''))
     raise Fail(2, 'Unknown command %s' % c)
 
 
@@ -314,6 +340,16 @@ def parser():
     a.add_argument('--status')
     a.add_argument('--since', help='ISO time')
     a.add_argument('--limit', type=int)
+
+    a = s.add_parser('feed-put', help='post a Today-page feed: morning_summary, claude_usage, ebook_sales')
+    a.add_argument('name', choices=FEEDS)
+    a.add_argument('--data', help='JSON object, e.g. \'{"weekPct": 62}\'')
+    a.add_argument('--data-file', help='file holding that JSON object')
+    a.add_argument('--text', help='sets "text" (morning_summary)')
+    a.add_argument('--text-file', help='file whose contents become "text"')
+
+    a = s.add_parser('feed', help='read the newest entry of a feed')
+    a.add_argument('name', choices=FEEDS)
     return p
 
 

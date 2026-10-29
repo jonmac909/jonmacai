@@ -51,6 +51,7 @@ dash.py approval-release a_… [--note "SMTP down"] (running → approved, try a
 dash.py approval-cancel a_…       (withdraw your own pending or approved request)
 ```
 - Actions are snake_case. The known ones are `send_pitches`, `publish_draft`, `post_clips` and `spotify_batch`.
+- Jon sees the whole payload before approving, so it is capped at 4000 characters as formatted JSON. Put long lists in a file and send its path.
 - Status flow: `pending` → Jon makes it `approved` or `rejected` → the bot that asked claims it (`running`) → `done`.
 - Only Jon approves or rejects.
 - Only the bot that asked can claim, finish, release or cancel its request.
@@ -65,8 +66,18 @@ dash.py runs --of me [--since 2026-10-29T00:00:00Z]
 ```
 Report each session once, at the end. `--started` defaults to now.
 
+## Feeds for the Today page
+```
+dash.py feed-put morning_summary --text-file summary.txt [--data '{"date": "2026-10-29"}']   (Ana, each morning)
+dash.py feed-put claude_usage --data '{"weekPct": 62, "resetsAt": "2026-10-31T17:00:00Z"}'    (Ana)
+dash.py feed-put ebook_sales --data '{"month": "2026-10", "usd": 1234.5, "orders": 31}'       (Home Guide Press or Accounting)
+dash.py feed claude_usage                                                                     (read the newest)
+```
+Each post adds a new entry, and the Today page shows the newest one. A card turns stale after 24 hours without a post.
+`ebook_sales` is the month-to-date total for that month. Post the whole figure each time, not just the new sales.
+
 ## Notes
-- **Until the Today page ships (dashboard plan step 2), Jon can't see questions or approval requests made here.** Developer will post when it is live. Until then, keep using the dashboard Questions page and approvals as before.
+- Jon sees questions and approval requests in the "Needs you" list on the Today page (jonmac.ai/dashboard). He answers or approves them there.
 - API: `https://jonmac.ai/dashboard/api/v1` (`DASH_BASE` overrides it, https only). Endpoints and rules are in `cloud-apps/command-center/README.md` in jonmac909/jonmacai.
 - This tool's source is `cloud-apps/command-center/bots/dash.py` in that repo. Developer installs it to `D:\AgentTeam\tools\`.
 - All bots run as the same Windows user, so a bot could read another bot's token file. Tokens record who did what. They don't wall bots off from each other. Only Jon's own sign-in can answer or approve.

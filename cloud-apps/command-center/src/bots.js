@@ -11,7 +11,7 @@ const QUESTION_STATUSES = ['open', 'answered', 'closed'];
 const APPROVAL_STATUSES = ['pending', 'approved', 'rejected', 'running', 'done', 'cancelled'];
 const RUN_STATUSES = ['running', 'ok', 'failed'];
 const MAX_BODY = 256 * 1024;
-const MAX_PAYLOAD = 64 * 1024;
+const MAX_PAYLOAD = 4000;
 const TOKEN_RE = /^ccb_[A-Za-z0-9_-]{32,128}$/;
 const SLUG_RE = /^[a-z0-9][a-z0-9-]{0,39}$/;
 const ACTION_RE = /^[a-z][a-z0-9_]{1,39}$/;
@@ -387,9 +387,11 @@ async function answerQuestion(db, id, body, now) {
 function payloadOf(value) {
   if (value == null) return '{}';
   if (typeof value !== 'object' || Array.isArray(value)) throw new Bad(400, 'payload must be a JSON object');
-  const s = JSON.stringify(value);
-  if (s.length > MAX_PAYLOAD) throw new Bad(400, `payload is larger than ${MAX_PAYLOAD} characters`);
-  return s;
+  // Jon must be able to read all of it before approving, so it is capped at what the page shows.
+  if (JSON.stringify(value, null, 2).length > MAX_PAYLOAD) {
+    throw new Bad(400, `payload is longer than ${MAX_PAYLOAD} characters as formatted JSON; put long lists in a file and send its path`);
+  }
+  return JSON.stringify(value);
 }
 
 async function approvalRow(db, id) {
@@ -521,6 +523,100 @@ function changed(result) {
   return Number(result?.meta?.changes || 0) > 0;
 }
 
+// ---- feeds (step 2): small documents for the Today page, append-only, newest wins ----
+
+function numberOf(body, key, min, max, required = false) {
+  const v = body[key];
+  if (v == null || v === '') {
+    if (required) throw new Bad(400, `${key} is required`);
+    return null;
+  }
+  const n = Number(v);
+  if (typeof v === 'boolean' || !Number.isFinite(n) || n < min || n > max) throw new Bad(400, `${key} must be a number from ${min} to ${max}`);
+  return n;
+}
+
+function matchOf(body, key, re, hint, required = false) {
+  const s = text(body, key, 40, required);
+  if (s && !re.test(s)) throw new Bad(400, `${key} must look like ${hint}`);
+  return s;
+}
+
+export const FEEDS = {
+  morning_summary: {
+    writers: ['ana'],
+    parse: (b) => ({ text: text(b, 'text', 8000, true), date: matchOf(b, 'date', /^\d{4}-\d{2}-\d{2}$/, '2026-10-29') }),
+  },
+  claude_usage: {
+    writers: ['ana'],
+    parse: (b) => ({ weekPct: numberOf(b, 'weekPct', 0, 1000, true), resetsAt: isoOf(b.resetsAt, 'resetsAt'), note: text(b, 'note', 500) }),
+  },
+  ebook_sales: {
+    writers: ['home-guide-press', 'accounting'],
+    parse: (b) => {
+      const orders = numberOf(b, 'orders', 0, 1e7);
+      if (orders != null && !Number.isInteger(orders)) throw new Bad(400, 'orders must be a whole number');
+      return { month: matchOf(b, 'month', /^\d{4}-(0[1-9]|1[0-2])$/, '2026-10', true), usd: numberOf(b, 'usd', 0, 1e9, true), orders, note: text(b, 'note', 500) };
+    },
+  },
+};
+
+function feedSpec(name) {
+  const spec = Object.hasOwn(FEEDS, name) ? FEEDS[name] : null;
+  if (!spec) throw new Bad(404, `Unknown feed. Feeds: ${Object.keys(FEEDS).join(', ')}`);
+  return spec;
+}
+
+const feedOut = (r) => ({ id: r.id, name: r.name, bot: r.bot, data: parseJson(r.data, {}), createdAt: r.created_at });
+
+async function latestFeed(db, name) {
+  return db.prepare('SELECT * FROM bot_feed_entries WHERE name = ? ORDER BY created_at DESC LIMIT 1').bind(name).first();
+}
+
+async function putFeed(db, who, name, body, now) {
+  const spec = feedSpec(name);
+  if (!spec.writers.includes(who.bot)) throw new Bad(403, `Only ${spec.writers.join(' or ')} can post ${name}`);
+  const data = Object.fromEntries(Object.entries(spec.parse(body)).filter(([, v]) => v != null));
+  const id = newId('f');
+  await db.prepare('INSERT INTO bot_feed_entries (id, name, bot, data, created_at) VALUES (?, ?, ?, ?, ?)')
+    .bind(id, name, who.bot, JSON.stringify(data), now).run();
+  return json({ ok: true, feed: feedOut(await db.prepare('SELECT * FROM bot_feed_entries WHERE id = ?').bind(id).first()) }, 201);
+}
+
+async function getFeed(db, name) {
+  feedSpec(name);
+  const row = await latestFeed(db, name);
+  return json({ ok: true, feed: row ? feedOut(row) : null });
+}
+
+const FAILED = Symbol('failed');
+async function tryRead(work) {
+  try { return await work; } catch (err) { console.error('todayData', err); return FAILED; }
+}
+
+// What the Today page needs from the bot tables. Each part is null on its own when its table is
+// missing, so one unapplied migration can't hide the rest. `month` picks the ebook_sales entry.
+export async function todayData(db, nowMs, month) {
+  if (!db) return null;
+  const since = new Date(nowMs - 7 * 86400000).toISOString();
+  const [q, a, summary, usage, ebooks, runs] = await Promise.all([
+    tryRead(db.prepare("SELECT * FROM bot_questions WHERE status = 'open' ORDER BY created_at LIMIT 200").all()),
+    tryRead(db.prepare("SELECT * FROM bot_approvals WHERE status = 'pending' ORDER BY created_at LIMIT 200").all()),
+    tryRead(latestFeed(db, 'morning_summary')),
+    tryRead(latestFeed(db, 'claude_usage')),
+    tryRead(db.prepare("SELECT * FROM bot_feed_entries WHERE name = 'ebook_sales' AND json_extract(data, '$.month') = ? ORDER BY created_at DESC LIMIT 1").bind(month).first()),
+    tryRead(db.prepare('SELECT COALESCE(SUM(tokens), 0) AS tokens, COUNT(*) AS runs FROM bot_runs WHERE started_at >= ?').bind(since).first()),
+  ]);
+  // A feed is null when its table could not be read, undefined when nothing was posted yet.
+  const feed = (row) => (row === FAILED ? null : row ? feedOut(row) : undefined);
+  return {
+    questions: q === FAILED ? null : (q.results || []).map(questionOut),
+    approvals: a === FAILED ? null : (a.results || []).map(approvalOut),
+    feeds: { morning_summary: feed(summary), claude_usage: feed(usage), ebook_sales: feed(ebooks) },
+    runs7d: runs === FAILED || !runs ? null : { tokens: Number(runs.tokens) || 0, runs: Number(runs.runs) || 0, since },
+  };
+}
+
 // ---- router ----
 
 function needBot(who) {
@@ -546,8 +642,13 @@ async function route(request, db, who, rest) {
   const seg = rest.split('/').filter(Boolean);
   if (seg.length > 3) throw new Bad(404, 'Not found');
   const [kind, rawId, verb] = seg;
-  const id = rawId ? idOf(rawId) : null;
   const now = new Date().toISOString();
+  if (kind === 'feeds' && rawId && !verb) {
+    if (method === 'GET') return getFeed(db, rawId);
+    if (method === 'PUT') { needBot(who); return putFeed(db, who, rawId, await readBody(request), now); }
+    throw new Bad(404, 'Not found');
+  }
+  const id = rawId ? idOf(rawId) : null;
   const body = method === 'POST' || method === 'PATCH' ? await readBody(request) : {};
 
   switch (`${method} ${kind || ''}${rawId ? '/:id' : ''}${verb ? `/${verb}` : ''}`) {
