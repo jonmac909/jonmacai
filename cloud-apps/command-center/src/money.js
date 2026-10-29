@@ -243,11 +243,12 @@ export function overlayBankScan(page, row, nowMs) {
   const rows = accounts.map((a) => {
     const scanned = a.status === 'scanned' && ymd(Date.parse(a.scannedAt || row.collected_at) || nowMs) === today;
     const need = a.status === 'needs_code';
+    const failed = a.status === 'failed';
     return {
-      title: a.name,
+      title: a.title || a.name || a.id || 'Account',
       sub: need ? 'Sent you a code' : (scanned ? 'Scanned' : a.status || ''),
-      pill: need ? 'Needs code' : scanned ? 'Scanned' : 'Waiting',
-      pillCls: need ? 'risk' : scanned ? 'ok' : '',
+      pill: need ? 'Needs code' : scanned ? 'Scanned' : failed ? 'Failed' : 'Waiting',
+      pillCls: need ? 'risk' : scanned ? 'ok' : failed ? 'crit' : '',
       btn: need ? 'Enter code' : '',
       msg: need ? 'Code box opened' : '',
     };
