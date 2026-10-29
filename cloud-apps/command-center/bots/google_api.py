@@ -6,7 +6,8 @@
   google_api.py archive ACCOUNT MSG_ID                          take a message out of the inbox
   google_api.py draft ACCOUNT --to ADDR --subject S (--body B | --body-file F)   save a draft; never sends
   google_api.py draft-delete ACCOUNT DRAFT_ID                   delete a draft this tool made
-  google_api.py events ACCOUNT [--date YYYY-MM-DD]              that day's events on the primary calendar
+  google_api.py events ACCOUNT [--date YYYY-MM-DD] [--calendar jonstagger@gmail.com]
+                                                                that day's events (primary calendar by default)
 
 Who you are comes from dash.py (your OpenBot workspace, or DASH_BOT outside every workspace). ALLOWED
 says which bot may run which command on which account; nothing here sends mail, deletes mail, marks
@@ -36,6 +37,7 @@ import dash  # noqa: E402  (which_bot)
 DIR = Path(os.environ.get('GOOGLE_SECRETS', r'D:\AgentTeam\secrets\google'))
 GMAIL = 'https://gmail.googleapis.com/gmail/v1/users/me'
 CAL = 'https://www.googleapis.com/calendar/v3/calendars/primary/events'
+CALENDARS = ['primary', 'jonstagger@gmail.com']  # readable calendars; jonstagger@'s is shared to jon@
 ALLOWED = {
     'inbox': {'jon': {'subjects', 'label', 'archive'}, 'jonstagger': {'subjects', 'label', 'archive'}},
     'sponsors': {'partners': {'subjects', 'draft', 'draft-delete'}},
@@ -211,10 +213,11 @@ def draft_delete(g, draft_id):
     return {'deleted': draft_id}
 
 
-def events(g, day):
+def events(g, day, calendar='primary'):
     d = datetime.strptime(day, '%Y-%m-%d') if day else datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
     start, end = d.astimezone(), (d + timedelta(days=1)).astimezone()  # each midnight gets its own UTC offset (DST)
-    items = g.call('GET', CAL, query={'timeMin': start.isoformat(), 'timeMax': end.isoformat(),
+    url = CAL.replace('/primary/', '/%s/' % urllib.parse.quote(calendar, safe=''))
+    items = g.call('GET', url, query={'timeMin': start.isoformat(), 'timeMax': end.isoformat(),
                                       'singleEvents': 'true', 'orderBy': 'startTime', 'maxResults': 100}).get('items') or []
     return [{'start': e['start'].get('dateTime') or e['start'].get('date'),
              'end': e['end'].get('dateTime') or e['end'].get('date'), 'summary': e.get('summary', '(no title)')}
@@ -248,6 +251,8 @@ def parser():
     a = s.add_parser('events')
     a.add_argument('account')
     a.add_argument('--date')
+    a.add_argument('--calendar', default='primary', choices=CALENDARS,
+                   help="primary, or a calendar shared to that account (jonstagger@'s is shared to jon@)")
     return ap
 
 
@@ -282,7 +287,7 @@ def run(args):
         return draft(g, args.to, args.subject, body)
     if args.cmd == 'draft-delete':
         return draft_delete(g, args.draft_id)
-    return events(g, args.date)
+    return events(g, args.date, args.calendar)
 
 
 def main(argv=None):

@@ -4,16 +4,16 @@
 
 | Bot | Account | Commands |
 |---|---|---|
-| Inbox | jon | `subjects`, `label`, `archive` |
+| Inbox | jon, jonstagger | `subjects`, `label`, `archive` |
 | Sponsors | partners | `subjects`, `draft`, `draft-delete` (only drafts it made) |
-| Accounting | jon | `subjects` |
-| Ana | jon | `events` (calendar read) |
+| Accounting | jon, jonstagger | `subjects` |
+| Ana | jon | `events` (calendar read; jon@'s own, or `--calendar jonstagger@gmail.com`, which is shared to jon@) |
 
 ```
 google_api.py subjects jon -n 5 --query "from:jennifer@gdbookkeeping.com"
 google_api.py label jon MSG_ID "Receipts"        google_api.py archive jon MSG_ID
 google_api.py draft partners --to a@b.com --subject "Re: rates" --body-file reply.txt
-google_api.py events jon --date 2026-10-30
+google_api.py events jon --date 2026-10-30        google_api.py events jon --calendar jonstagger@gmail.com
 ```
 - Nothing here sends mail, deletes mail, marks it read or writes the calendar. Only the approval script sends, after Jon approves. Calendar writes will need Jon's approval each time.
 - Exit codes: 0 ok, 1 Google refused, 2 local problem or not allowed.
