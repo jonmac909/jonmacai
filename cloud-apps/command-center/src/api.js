@@ -255,7 +255,7 @@ export async function handleApi(request, env, ctx) {
     try { body = await request.json(); } catch { body = {}; }
     if (!who || (body.machine && body.machine !== who)) return json({ error: 'Unauthorized' }, 401);
     const source = String(body.source || '').trim();
-    if (RETIRED_SOURCES.has(source)) return json({ ok: true, ignored: true });
+    if (RETIRED_SOURCES.has(source) || source.startsWith('agents_')) return json({ ok: true, ignored: true });
     const collectedAt = String(body.collectedAt || '');
     if (!source || !Date.parse(collectedAt)) return json({ error: 'Bad ingest' }, 400);
     if (source === 'webinar_funnel' // written only by the Worker's own cron
