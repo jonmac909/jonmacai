@@ -82,21 +82,14 @@ test('funnelMonth counts verified payments minus refunds inside the window', asy
 });
 
 function fixture() {
-  const out = { pages: { today: {}, videos: { ready: [{ video: 'Ep 4', channel: 'Jon Mac', slug: 'ep4' }] }, money: { bankScan: { rows: [{ title: 'RBC', pill: 'Needs code' }] } } }, sources: { bank_scan: {} } };
+  const out = { pages: { today: {}, money: { bankScan: { rows: [{ title: 'RBC', pill: 'Needs code' }] } } }, sources: { bank_scan: {} } };
   const by = {
     viralview: { collected_at: '2026-10-29T14:00:00Z', data: JSON.stringify({ subscriptions: { current: { mrrCents: 360000, activeCustomers: 40 }, customers: { newThisMonth: 6 }, trials: { newTrials: 9 } } }) },
     sponsors_cash: { collected_at: '2026-10-29T18:55:00Z' },
     webinar_funnel: { collected_at: '2026-10-29T18:50:00Z', data: JSON.stringify({ month: '2026-10', netCents: 0, payments: 0, visits: 37, lastEventAt: '2026-10-23T08:00:00Z' }) },
-    jon_tasks: { collected_at: '2026-10-24T21:15:41-07:00' },
-    needs_jon: { collected_at: '2026-10-29T18:00:00Z', data: JSON.stringify({ ok: true, items: [{ area: 'Domains', ask: 'Renew jonmac.ai' }] }) },
   };
   const cash = { available: true, month: { usd: 4500, payments: 2, unknown: 1 }, source: { kind: 'ledger', label: 'cash_ledger.csv', stale: true, note: 'Ledger is 5 days old.' } };
   const extra = {
-    pendingDeliverables: [{ id: 'd1', title: 'Paul ep 3 cut', owner: 'Video Editor', kind: 'video', url: 'javascript:alert(1)', finished_at: '2026-10-28T04:16:32Z' }],
-    questions: [
-      { id: 'aq1', asked_at: '2026-10-24T09:00:00-07:00', asker: 'Ana', project: 'Sponsors', question: 'Old Ana question?', options: '["Yes","No"]', status: 'open', answer: null },
-      { id: 'aq2', asked_at: '2026-10-25T09:00:00-07:00', asker: 'Ana', question: 'Answered one', options: '[]', status: 'answered', answer: 'ok' },
-    ],
     today: {
       questions: [{ id: 'q_1', askedBy: 'sponsors', question: 'Bot question?', options: ['A'], createdAt: '2026-10-29T10:00:00Z' }],
       approvals: [{ id: 'a_1', action: 'send_pitches', title: 'Send 20 pitches', requestedBy: 'sponsors', payload: { count: 20 }, createdAt: '2026-10-29T11:00:00Z' }],
@@ -152,11 +145,10 @@ test('Today: four goals with sources, stale marks, and an honest total', () => {
   assert.equal(broken.out.pages.today.goals[3].why, 'The feeds table could not be read.');
 });
 
-test('Today: Needs you is alerts, then bot approvals, then bot questions; the old feeds stay off it', () => {
+test('Today: Needs you is alerts, then bot approvals, then bot questions', () => {
   const { out, by, cash, extra } = fixture();
   buildToday(out, by, cash, extra, NOW);
   const items = out.pages.today.needs.items;
-  // The fixture still carries Ana's old questions, deliverables, Waiting On You and a review-ready video.
   assert.deepEqual(items.map((i) => i.kind), ['alert', 'approval', 'question']);
   assert.equal(items[0].title, 'Bank code needed: RBC');
   assert.equal(items[1].decideUrl, '/dashboard/api/v1/approvals/a_1/decide');
@@ -164,7 +156,7 @@ test('Today: Needs you is alerts, then bot approvals, then bot questions; the ol
   assert.equal('payload' in items[1], false, 'the full payload is not sent to the page');
   assert.deepEqual([items[2].answerUrl, items[2].options], ['/dashboard/api/v1/questions/q_1/answer', ['A']]);
   assert.deepEqual(out.pages.today.needs.sources.map((s) => [s.label, s.stale]), [['Bot questions and approvals', false]],
-    'no Stale pill for the old feeds; the only stale ledger note is on the Sponsors card');
+    'one source line; the only stale ledger note is on the Sponsors card');
 });
 
 test('approval payloads stay short enough for Jon to read all of them; ingest cannot fake the funnel', async () => {

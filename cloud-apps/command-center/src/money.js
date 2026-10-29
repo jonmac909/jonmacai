@@ -1,6 +1,5 @@
 const TZ = 'America/Vancouver';
 const HIDDEN = '$ • • • • • •';
-const SMALL = { VOO: 'S&P 500', QQQ: 'Nasdaq 100', DIA: 'Dow', XAU: 'Gold', XAG: 'Silver', IBIT: 'Bitcoin fund' };
 const ACTION = 'https://moneyclaw.jonmac.ai/api/internal/dashboard-action';
 
 export function usd(n, digits) {
@@ -101,42 +100,6 @@ export function monthVerified(month) {
   const sum = settled.reduce((s, c) => s + Number(c.amount || 0), 0);
   const posted = Number(month.posted);
   return Number.isFinite(posted) && Math.round(sum * 100) === Math.round(posted * 100);
-}
-
-function fixed(n, digits) {
-  const x = Number(n);
-  if (!Number.isFinite(x)) return '';
-  const neg = x < 0;
-  let text = Math.abs(x).toString();
-  if (/e/i.test(text)) text = Math.abs(x).toFixed(digits + 8);
-  const [whole, frac = ''] = text.split('.');
-  const pad = frac.padEnd(digits + 1, '0');
-  if (pad[digits] >= '5') {
-    const next = String(BigInt(whole + pad.slice(0, digits)) + 1n).padStart(whole.length + digits, '0');
-    return `${neg ? '-' : ''}${next.slice(0, next.length - digits) || '0'}.${next.slice(next.length - digits)}`;
-  }
-  return `${neg ? '-' : ''}${whole || '0'}.${pad.slice(0, digits)}`;
-}
-
-export function quoteStamp(data) {
-  const pulse = data?.markets?.pulse || {};
-  const vix = pulse.vix || {};
-  const voo = pulse.voo || {};
-  return pulse.quoteAt || pulse.quotedAt || pulse.refreshedAt || pulse.asOf
-    || data?.markets?.quoteAt || data?.markets?.quotedAt || data?.markets?.refreshedAt || data?.markets?.asOf
-    || vix.quoteAt || vix.asOf || voo.quoteAt || voo.asOf
-    || null;
-}
-
-function quoteWhen(value) {
-  if (value == null || value === '') return '';
-  const raw = String(value);
-  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return shortDate(raw);
-  const ms = typeof value === 'number' && Number.isFinite(value) ? value : Date.parse(raw);
-  if (!Number.isFinite(ms)) return '';
-  return new Intl.DateTimeFormat('en-US', {
-    timeZone: 'America/Vancouver', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
-  }).format(new Date(ms));
 }
 
 function block(title, group, nowMs) {
@@ -267,94 +230,36 @@ export function overlayMoney(page, data, nowMs) {
   return page;
 }
 
-function signedPct(n) {
-  const x = Number(n) || 0;
-  const sign = x < 0 ? '−' : '+';
-  return `${sign}${Math.abs(x).toFixed(1)}%`;
-}
-
-function oneDec(n) {
-  return Number(n).toFixed(1);
-}
-
-function readOf(off) {
-  if (off < 5) return { read: 'Near its high' };
-  if (off < 15) return { read: 'Small discount', readCls: 'risk', pg: 'risk' };
-  return { read: 'Big discount', readCls: 'ok', pg: 'ok' };
-}
-
-function coreRows(core) {
-  return (core || []).map((r) => {
-    const off = Number(r.pctOffHigh) || 0;
-    const today = Number(r.todayPct) || 0;
+// Bank scan card from the `bank_scan` snapshot (one row per account, scanned today or not).
+export function overlayBankScan(page, row, nowMs) {
+  if (!row) {
+    const bs = page.bankScan;
+    if (bs?.rows?.length) page.bankScan = { ...bs, meta: 'No scan yet', pct: 0, pg: '', rows: [] };
+    return;
+  }
+  let accounts = [];
+  try { accounts = JSON.parse(row.data).accounts || []; } catch { accounts = []; }
+  const today = ymd(nowMs);
+  const rows = accounts.map((a) => {
+    const scanned = a.status === 'scanned' && ymd(Date.parse(a.scannedAt || row.collected_at) || nowMs) === today;
+    const need = a.status === 'needs_code';
     return {
-      fund: r.label || r.symbol,
-      small: SMALL[r.label] || SMALL[r.symbol] || r.label || '',
-      price: usd(r.price, 2),
-      ath: usd(r.allTimeHigh, 2),
-      today: signedPct(today),
-      todayCls: today < 0 ? 'down' : 'up',
-      pct: Math.min(100, (off / 50) * 100),
-      off: `${oneDec(off)}%`,
-      rise: `${oneDec(r.pctToRecover ?? 0)}%`,
-      ...readOf(off),
+      title: a.name,
+      sub: need ? 'Sent you a code' : (scanned ? 'Scanned' : a.status || ''),
+      pill: need ? 'Needs code' : scanned ? 'Scanned' : 'Waiting',
+      pillCls: need ? 'risk' : scanned ? 'ok' : '',
+      btn: need ? 'Enter code' : '',
+      msg: need ? 'Code box opened' : '',
     };
   });
-}
-
-export function overlayMarkets(page, data, nowMs) {
-  if (!page || !data?.markets) return page;
-  const pulse = data.markets.pulse || {};
-  const vix = pulse.vix || {};
-  const voo = pulse.voo || {};
-  const vixN = Number(vix.price) || 0;
-  const newsPending = String(pulse.newsLevel || '') === 'Pending';
-  const quoted = quoteWhen(quoteStamp(data));
-  page.sub = quoted
-    ? `From MoneyClaw Market · USD · quoted ${quoted}`
-    : 'From MoneyClaw Market · USD · quote time unavailable';
-  page.actions = [{ label: 'Open MoneyClaw', href: 'https://moneyclaw.jonmac.ai', msg: 'Opens moneyclaw.jonmac.ai market page' }];
-  page.tiles = [
-    { icon: 'trend', label: 'Market mood', value: pulse.mood || '—', sub: '' },
-    {
-      icon: 'chart', label: 'Fear gauge (VIX)', value: vixN ? fixed(vixN, 2) : '—',
-      goal: 'low', pct: Math.min(100, Math.round((vixN / 50) * 100)),
-      pg: vixN >= 30 ? 'crit' : vixN >= 20 ? 'risk' : 'ok',
-      sub: `${signedPct(vix.changePct)} today · above 30 means panic`,
-    },
-    {
-      icon: 'dollar', label: 'VOO', value: voo.price ? usd(voo.price, 2) : '—',
-      subHtml: `<span class="${(voo.changePct || 0) < 0 ? 'down' : 'up'}">${signedPct(voo.changePct)}</span> today`,
-    },
-    { icon: 'mail', label: 'News', value: newsPending ? 'Pending' : (pulse.newsLevel || 'Unavailable'), sub: '' },
-  ];
-  const rows = coreRows(data.markets.core);
-  page.discount = {
-    title: 'How big is the discount?',
-    meta: 'Bar fills as the price falls from its all-time high · full bar is 50% off',
+  const done = rows.filter((r) => r.pill === 'Scanned').length;
+  page.bankScan = {
+    title: 'Bank scan',
+    meta: `${done} of ${accounts.length} accounts done`,
+    pct: accounts.length ? Math.round(done / accounts.length * 100) : 0,
+    pg: done === accounts.length ? 'ok' : 'risk',
     rows,
   };
-  const near = rows.filter((r) => /VOO|QQQ/.test(r.fund));
-  page.read = {
-    pill: 'No stock sale today',
-    heading: near.length ? `The big index funds are within ${Math.ceil(Math.max(...near.map((r) => Number.parseFloat(r.off))))}% of their highs` : 'Distance from the high',
-    body: rows.slice(0, 3).map((r) => `${r.fund} is ${r.off} off`).join('. ') + '. Gold, silver and the bitcoin fund are further below their highs.',
-    boxTitle: 'This is a read, not advice',
-    box: 'The page only measures distance from the high. What counts as "buy" comes from rules you set on the right.',
-  };
-  const vooRow = rows.find((r) => r.fund === 'VOO');
-  const qqqRow = rows.find((r) => r.fund === 'QQQ');
-  page.rules = {
-    title: 'Your alert rules',
-    meta: 'Live distance against the numbers you set',
-    rows: [
-      { label: 'Tell me when VOO is 10% off', value: `${vooRow ? vooRow.off.replace('%', '') : '0'} of 10`, pct: Math.min(100, ((Number.parseFloat(vooRow?.off) || 0) / 10) * 100) },
-      { label: 'Tell me when QQQ is 10% off', value: `${qqqRow ? qqqRow.off.replace('%', '') : '0'} of 10`, pct: Math.min(100, ((Number.parseFloat(qqqRow?.off) || 0) / 10) * 100) },
-      { label: 'Tell me when the fear gauge passes 30', value: `${vixN ? fixed(vixN, 2) : '0'} of 30`, pct: Math.min(100, (vixN / 30) * 100) },
-    ],
-    box: 'When a rule fires you get a Telegram message and a card on the home screen.',
-  };
-  return page;
 }
 
 export async function runMoneyMove(env, payload, fetchFn = globalThis.fetch) {

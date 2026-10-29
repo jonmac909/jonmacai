@@ -24,7 +24,7 @@ export function bindModals({ say, act, go }) {
     draft.close();
     try {
       await act(kind, payload);
-      const id = (location.hash || '#home').replace(/^#/, '') || 'home';
+      const id = (location.hash || '#today').replace(/^#/, '') || 'today';
       await go(id, { refetch: true });
     } finally {
       sending = false;

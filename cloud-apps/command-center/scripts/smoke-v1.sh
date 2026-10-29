@@ -37,7 +37,7 @@ expect() { # expect LABEL STATUS [PYEXPR EXPECTED]
 code=$(curl -s -o /dev/null -w '%{http_code}' "$origin/dashboard/"); body=""; expect "GET /dashboard/ (login page)" 200
 code=$(curl -s -o /dev/null -w '%{http_code}' -X POST -H 'Content-Type: application/json' --data '{}' "$origin/dashboard/api/ingest"); expect "POST /api/ingest without machine token" 401
 code=$(curl -s -o /dev/null -w '%{http_code}' "$origin/dashboard/api/snapshot"); expect "GET /api/snapshot without session" 401
-code=$(curl -s -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $(tok developer)" "$origin/dashboard/api/pending"); expect "GET /api/pending with a bot token" 401
+code=$(curl -s -o /dev/null -w '%{http_code}' -X POST -H "Authorization: Bearer $(tok developer)" --data '{"machine":"gpu1"}' "$origin/dashboard/api/actions/claim"); expect "POST /api/actions/claim with a bot token" 401
 
 req GET /me none; expect "GET /me no token" 401
 req GET /me bad; expect "GET /me wrong token" 401

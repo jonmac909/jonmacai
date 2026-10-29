@@ -32,7 +32,7 @@ async function cookie() {
 
 test('ingest rejects a missing or wrong machine token', async () => {
   const env = envWith(memD1());
-  const body = JSON.stringify({ source: 'agents_mac', collectedAt: '2026-09-18T18:00:00Z', data: { ok: true } });
+  const body = JSON.stringify({ source: 'bank_scan', collectedAt: '2026-09-18T18:00:00Z', data: { ok: true } });
   const noTok = await handleApi(req('/dashboard/api/ingest', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body }), env);
   assert.equal(noTok.status, 401);
   const bad = await handleApi(req('/dashboard/api/ingest', {
@@ -50,42 +50,38 @@ test('ingest upserts a snapshot and snapshot route overlays it', async () => {
   const res = await handleApi(req('/dashboard/api/ingest', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${MAC}` },
-    body: JSON.stringify({ source: 'agents_mac', collectedAt, data: { machine: 'mac', hostname: 'mini.local', ok: true } }),
+    body: JSON.stringify({ source: 'bank_scan', collectedAt, data: { accounts: [{ name: 'RBC', status: 'scanned', scannedAt: collectedAt }] } }),
   }), env);
   assert.equal(res.status, 200);
   assert.equal((await res.json()).ok, true);
-  const row = db.snapshots.get('agents_mac');
+  const row = db.snapshots.get('bank_scan');
   assert.equal(row.collected_at, collectedAt);
-  assert.match(row.data, /mini.local/);
+  assert.match(row.data, /RBC/);
 
-  const snap = await handleApi(req('/dashboard/api/snapshot?pages=home,agents', { cookie: await cookie() }), env);
+  const snap = await handleApi(req('/dashboard/api/snapshot?pages=money', { cookie: await cookie() }), env);
   assert.equal(snap.status, 200);
   const json = await snap.json();
-  assert.equal(json.pages.home.tiles[0].value, snapshot.pages.home.tiles[0].value);
-  assert.equal(json.sources.agents_mac.updatedAt, collectedAt);
-  assert.equal(json.sources.agents_mac.stale, false);
-  const mac = json.pages.agents.machines.find((m) => m.id === 'mac');
-  assert.equal(mac.hostname, 'mini.local');
-  assert.equal(mac.stale, false);
+  assert.equal(json.pages.money.title, snapshot.pages.money.title);
+  assert.equal(json.sources.bank_scan.updatedAt, collectedAt);
+  assert.equal(json.sources.bank_scan.stale, false);
+  assert.deepEqual(json.pages.money.bankScan.rows.map((r) => [r.title, r.pill]), [['RBC', 'Scanned']]);
 });
 
-test('stale GPU2 heartbeat shows Stale on the agents machine card', async () => {
+test('a 20-minute-old GPU2 heartbeat is marked stale', async () => {
   const db = memD1();
   const env = envWith(db);
   const collectedAt = new Date(Date.now() - 20 * 60 * 1000).toISOString();
   await handleApi(req('/dashboard/api/ingest', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${GPU}` },
-    body: JSON.stringify({ source: 'agents_gpu2', collectedAt, data: { machine: 'gpu2', hostname: 'gpu2', ok: true } }),
+    body: JSON.stringify({ source: 'machine_gpu2', collectedAt, data: { host: 'gpu2' } }),
   }), env);
-  const snap = await handleApi(req('/dashboard/api/snapshot?pages=agents', { cookie: await cookie() }), env);
+  const snap = await handleApi(req('/dashboard/api/snapshot?pages=money', { cookie: await cookie() }), env);
   const json = await snap.json();
-  const gpu = json.pages.agents.machines.find((m) => m.id === 'gpu2');
-  assert.equal(gpu.stale, true);
-  assert.ok(json.pages.agents.staleSources.some((s) => s.source === 'agents_gpu2'));
+  assert.deepEqual([json.sources.machine_gpu2.updatedAt, json.sources.machine_gpu2.stale], [collectedAt, true]);
 });
 
-test('ping queues for the named machine and only that runner can claim it', async () => {
+test('a sponsor action queues for the Mac and only that runner can claim it', async () => {
   const db = memD1();
   const env = envWith(db);
   const ck = await cookie();
@@ -93,7 +89,7 @@ test('ping queues for the named machine and only that runner can claim it', asyn
     method: 'POST',
     cookie: ck,
     headers: { 'Content-Type': 'application/json', 'X-CC': '1' },
-    body: JSON.stringify({ kind: 'ping', payload: { machine: 'mac' }, idemKey: 'ping-1' }),
+    body: JSON.stringify({ kind: 'sponsor.nudge', payload: { id: 'deal-1' }, idemKey: 'nudge-1' }),
   }), env);
   assert.equal(created.status, 200);
   const { id, status } = await created.json();
@@ -123,20 +119,20 @@ test('ping queues for the named machine and only that runner can claim it', asyn
   assert.equal(claim.status, 200);
   const claimed = await claim.json();
   assert.equal(claimed.actions.length, 1);
-  assert.equal(claimed.actions[0].kind, 'ping');
+  assert.equal(claimed.actions[0].kind, 'sponsor.nudge');
   assert.equal(claimed.actions[0].target, 'mac');
 
   const done = await handleApi(req(`/dashboard/api/actions/${id}/complete`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${MAC}` },
-    body: JSON.stringify({ ok: true, result: 'Mac mini is up' }),
+    body: JSON.stringify({ ok: true, result: 'Nudge sent' }),
   }), env);
   assert.equal(done.status, 200);
 
   const got = await handleApi(req(`/dashboard/api/actions/${id}`, { cookie: ck }), env);
   const row = await got.json();
   assert.equal(row.status, 'done');
-  assert.equal(row.result, 'Mac mini is up');
+  assert.equal(row.result, 'Nudge sent');
 });
 
 test('gpu2 token cannot complete a mac action', async () => {
@@ -146,7 +142,7 @@ test('gpu2 token cannot complete a mac action', async () => {
     method: 'POST',
     cookie: await cookie(),
     headers: { 'Content-Type': 'application/json', 'X-CC': '1' },
-    body: JSON.stringify({ kind: 'ping', payload: { machine: 'mac' }, idemKey: 'ping-2' }),
+    body: JSON.stringify({ kind: 'sponsor.nudge', payload: { id: 'deal-2' }, idemKey: 'nudge-2' }),
   }), env);
   const { id } = await created.json();
   const res = await handleApi(req(`/dashboard/api/actions/${id}/complete`, {

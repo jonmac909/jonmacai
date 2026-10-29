@@ -2,11 +2,11 @@
 
 Live: [https://jonmac.ai/dashboard](https://jonmac.ai/dashboard)
 
-Cloudflare Worker `jonmac-command-center`. Routes `jonmac.ai/dashboard` and `jonmac.ai/dashboard/*`. Pages render from `GET /dashboard/api/snapshot`, which starts from `fixtures/snapshot.json` and overlays live D1 snapshots. Live slices: Agents (`agents_mac`, `agents_gpu2` pinned Orca status), Sponsors (`sponsors` from the Mac collector), Mastermind (`mastermind` digest picks), Support (`support` Gmail drafts from the GPU2 collector), Content (`posts` table + `content_queue`; best posts from `viralview`), YouTube (`video_projects` in D1 plus `youtube` outliers from yt2), Video editor (`video` queue from the GPU2 collector), Finances and Markets (`moneyclaw` cron every 10 min), Viral View (`viralview` cron every 10 min), Cold outreach (`instantly` cron every 10 min), Review pages (`videos` and open comment counts from the review D1, shown on Video), Life (Google Calendar + habits), and Home (run-through, Needs you, glance, Telegram critical-only).
+Cloudflare Worker `jonmac-command-center`. Routes `jonmac.ai/dashboard` and `jonmac.ai/dashboard/*`. Pages render from `GET /dashboard/api/snapshot`, which starts from `fixtures/snapshot.json` and overlays live D1 snapshots. Six pages: Today (below), Sponsors (`sponsors` from the Mac collector, `sponsors_cash` deposits), Viral View (`viralview` cron every 10 min), Webinar (clone funnel D1), Money (`moneyclaw` cron every 10 min, `bank_scan`) and Life (Google Calendar + habits). Critical alerts (bank code needed, payment over 7 days late) go to Today and, once each, to Telegram from the cron. Any other `#page` opens Today.
 
 ## Snapshot shape (`fixtures/snapshot.json`)
 
-This file is the data contract. Later tasks replace a page's slice with live data. Do not hard-code numbers in HTML.
+This file is the mockup data contract. The API serves only the six pages' slices of it (`PAGES` in `src/api.js`); the other mockup pages in it are never served. Do not hard-code numbers in HTML.
 
 ```
 {
@@ -30,21 +30,12 @@ Every page object is render-ready copy from the mockup: tiles (`icon, label, val
 
 | Page | Main fields |
 |---|---|
-| `home` | `greeting, chip, tiles, runThrough, needsYou, glance, mastermindPick, life` |
 | `sponsors` | `tiles, septemberBar, board.columns[], collect, emails, byMonth` |
 | `viral` | `tiles, pieces, byMonthChart, check, plans, keeping, customersByMonth, cohort, monthTable, traffic, dropoff, ads` |
-| `youtube` | `tiles, pipeline, remake` |
-| `content` | `tiles, todayPlatforms, heat, queue, ytWeek, bestPosts` |
-| `outreach` | `setup, inboxes, live` |
-| `support` | `tiles, drafts, money, topics` |
-| `video` | `editing, ready, finished, upload, target` |
 | `money` | `personal, business, categories, fix, bankScan, netWorth, charges` |
-| `markets` | `tiles, discount, read, rules` |
 | `life` | `tiles, workouts, dateNight, today` |
-| `mastermind` | `tiles, picks, building, parked` |
-| `agents` | `tiles, waiting, all, machines[], staleSources[]` |
 
-`GET /dashboard/api/snapshot?pages=home,sponsors` returns `{ pages, nav, goal, sources }` with only the asked-for page keys.
+`GET /dashboard/api/snapshot?pages=today,sponsors` returns `{ pages, nav, sources }` with only the asked-for page keys; the nav lists exactly the six pages.
 
 Regenerate compact JSON: `node scripts/build-snapshot.mjs`
 
@@ -52,7 +43,7 @@ Regenerate compact JSON: `node scripts/build-snapshot.mjs`
 
 Cookie `__Host-cc_session` = `{unixExpiry}.{HMAC-SHA256(expiry)}` under `SESSION_SECRET`. HttpOnly, Secure, SameSite=Strict, Path=/, 30 days. Password compared in constant time. 10 failures / IP / 15 min locks that IP 15 min. 51 failures across IPs / hour locks everyone 1 hour.
 
-Machine ingest is `POST /dashboard/api/ingest` with `Authorization: Bearer` (`MACHINE_TOKEN_MAC` / `MACHINE_TOKEN_GPU2`) and `{source, collectedAt, data}`. Source `post` inserts into the `posts` table (one publish at a time). Source `content_queue` is the Content Marketing agent's scheduled posts (`~/.command-center/content-queue.json` on GPU2). Approve writes `~/.command-center/content-approvals.jsonl` and pings that agent's Orca terminal. Log a post is `POST /dashboard/api/posts`. Runners poll `POST /dashboard/api/actions/claim` every 15s. A source older than 3× its schedule (collectors: 5 min → stale after 15 min) gets a grey Stale pill. Collectors live in `collectors/mac` and `collectors/gpu2`; add a source as one `sources/*.py` module with `source(machine)` and `collect(machine)`.
+Machine ingest is `POST /dashboard/api/ingest` with `Authorization: Bearer` (`MACHINE_TOKEN_MAC` / `MACHINE_TOKEN_GPU2`) and `{source, collectedAt, data}`. Sources retired on 2026-10-29 with the old MausBot team (`RETIRED_SOURCES` in `src/api.js`: `team`, `agents_gpu2`, `agents_mac`, `jon_tasks`, `needs_jon`, `partners_report`, `content_queue`, `support`, `video`, `videos`, `mastermind`, `youtube`, `cc_review_drafts`, `health`, `probe`, `webinar`, `post`) get `200 {ok: true, ignored: true}` and nothing is stored. Runners poll `POST /dashboard/api/actions/claim` every 15s. A source older than 3× its schedule (collectors: 5 min → stale after 15 min) gets a grey Stale pill. Collectors live in `collectors/mac` and `collectors/gpu2`; add a source as one `sources/*.py` module with `source(machine)` and `collect(machine)`.
 
 ## Bot API (`/dashboard/api/v1`)
 
@@ -86,7 +77,7 @@ Each of the 14 bots (D:\AgentTeam\rules\BOTS.md) writes one row at a time with i
 
 ### Today page
 
-Default page (`#today`; the old Home is under Archive). Built by `src/today.js` from the snapshot. Each card shows its source and its age, and anything older than 24 h is marked stale.
+Default page (`#today`). Built by `src/today.js` from the snapshot. Each card shows its source and its age, and anything older than 24 h is marked stale.
 - Four $10k goals, $40k in total:
   - Sponsors: the sponsor cash ledger or bank feed.
   - Viral View MRR: the `viralview` snapshot.
@@ -94,9 +85,8 @@ Default page (`#today`; the old Home is under Archive). Built by `src/today.js` 
   - Ebooks: the `ebook_sales` feed.
 - One "Needs you" list:
   - Critical alerts.
-  - Bot approvals (Approve / Reject call `/v1/approvals/:id/decide`) and Ana's pending deliverables.
-  - Bot questions and Ana's open questions, answered in place, oldest first.
-  - Videos ready for review, and Ana's Waiting On You.
+  - Bot approvals (Approve / Reject call `/v1/approvals/:id/decide`).
+  - Bot questions, answered in place, oldest first.
 - The morning summary and Claude usage come from the feeds.
 
 `key` makes a create safe to retry: the same bot and key return the first row (`duplicate: true`). Errors are `{ok: false, error}` with 400/401/403/404/409/413.
@@ -104,28 +94,6 @@ Default page (`#today`; the old Home is under Archive). Built by `src/today.js` 
 ### Preview
 
 `wrangler deploy --env preview` deploys `jonmac-command-center-preview` on workers.dev with its own D1 (`command_center_preview`), no routes, no cron, no review/funnel D1s, no R2 and no production secrets. Its only secret is a preview-only `SESSION_SECRET` (kept in `D:\AgentTeam\secrets\preview-session-secret`) so `scripts/smoke-v1.sh preview` can test Jon's answer/approve endpoints. Only that Worker (`PREVIEW=1`) answers on workers.dev. Set it up once with `wrangler d1 migrations apply command_center_preview --env preview --remote` and `node scripts/bot-tokens.mjs --env preview`. `scripts/smoke-v1.sh live https://jonmac.ai` runs the read-only checks against production.
-
-## Review pages
-
-The Video page lists each review-ready cut with its review status and open comment count. Rows come from the review portal's D1 (`REVIEW_DB`, the `videos` and `comments` tables) and link to `https://jonmac.ai/review/<slug>`. The portal is private: a signed-out visitor lands on the passcode page and then continues to the page they opened, so a passcode prompt there is expected on first open.
-
-## Daily drafts
-
-Three slots per configured platform per America/Vancouver day, stored in `content_drafts` and keyed by tenant (`CONTENT_TENANT`, default `jon`). `CONTENT_PLATFORMS` overrides the grid. Cron and **Fill today's drafts** insert missing slots only. A human edit or approval is never overwritten. No connected product fact means status `failed`, not invented copy. Unconfigured grid platforms show as unavailable. Approve stays on the worker and does not publish.
-
-
-## Instantly (Cold outreach)
-
-Worker cron (every 10 min) pulls Instantly API v2 with `INSTANTLY_API_KEY` as `Authorization: Bearer`. Endpoints used:
-
-- `GET https://api.instantly.ai/api/v2/accounts` — `email`, `status` (1 = Active), `daily_limit`, `warmup_status` (1 = Active)
-- `POST https://api.instantly.ai/api/v2/accounts/warmup-analytics` — `aggregate_data[email].health_score`
-- `GET https://api.instantly.ai/api/v2/campaigns` — `id`, `name`, `status` (0 Draft, 1 Active, 2 Paused, 3 Completed, 4 Running Subsequences), `sequences[0].steps`
-- `GET https://api.instantly.ai/api/v2/campaigns/analytics` — `leads_count`, `emails_sent_count`, `open_count`, `reply_count` (today via `start_date` / `end_date`)
-- `GET https://api.instantly.ai/api/v2/campaigns/analytics/overview` — `total_interested`
-- `POST https://api.instantly.ai/api/v2/campaigns/{id}/activate` — Launch, only after confirm
-
-Daily max = sum of `daily_limit` on accounts with `status === 1`. Setup steps tick from that snapshot. Test-sent is manual.
 
 ## Runners
 

@@ -44,27 +44,18 @@ export function card(inner, cls = 'pad') {
   return `<div class="card ${cls}">${inner}</div>`;
 }
 
-export function btn(label, { page, msg, done, cls = '', sm, kind, payload, href, edit, confirm, readDraft, draft } = {}) {
+export function btn(label, { page, msg, done, cls = '', sm, kind, payload, href, edit, confirm, draft } = {}) {
   const bits = [`class="btn${cls ? ` ${cls}` : ''}${sm ? ' sm' : ''}"`];
   if (page) bits.push(`data-page="${esc(page)}"`);
   if (kind) bits.push(`data-kind="${esc(kind)}"`);
   if (payload) bits.push(`data-payload="${esc(JSON.stringify(payload))}"`);
   if (href) bits.push(`data-href="${esc(href)}"`);
   if (edit) bits.push('data-edit="1"');
-  if (readDraft) bits.push('data-read-draft="1"');
   if (draft) bits.push('data-draft="1"');
   if (confirm) bits.push(`data-confirm="${esc(confirm)}"`);
   if (msg) bits.push(`data-msg="${esc(msg)}"`);
   if (done) bits.push('data-done');
   return `<button ${bits.join(' ')}>${label}</button>`;
-}
-
-export function job(j) {
-  const foot = [
-    j.lineBtn ? btn(j.lineBtn, { page: j.linePage, msg: j.lineMsg, kind: j.lineKind, payload: j.linePayload, cls: 'line', done: j.done }) : '',
-    j.btn ? btn(j.btn, { page: j.page, msg: j.msg, kind: j.kind, payload: j.payload, done: j.done, cls: j.btnCls || '', href: j.href }) : '',
-  ].join('');
-  return `<article class="card job"><div class="top"><span class="area">${esc(j.area)}</span>${pill(j.pill, j.pillCls || '')}</div><h3>${esc(j.title)}</h3><ul>${(j.lines || []).map((l) => `<li>${esc(l)}</li>`).join('')}</ul><div class="foot">${foot}</div></article>`;
 }
 
 export function table(headers, rows, foot) {
@@ -109,7 +100,6 @@ export function formatJobResult(kind, result) {
     if (r && typeof r === 'object') {
       if (r.access === 'unavailable' || r.error) return `Scan failed: ${r.error || r.connector || 'source unavailable'}`;
       if (r.empty) return `No messages in the last 24 hours${r.scannedAt ? ` · ${r.scannedAt}` : ''}`;
-      if (kind === 'mastermind.scan') return `Scanned ${r.scanned ?? 0} · ${r.picks ?? 0} ideas`;
       if (kind === 'sponsor.scan_inbox') return `Scanned ${r.scanned ?? 0} · ${r.drafts ?? r.picks ?? 0} drafts`;
     }
   } catch { /* plain text */ }

@@ -77,9 +77,8 @@ test('snapshot route returns fixture pages for a valid session', async () => {
   const res = await handleApi(req('/dashboard/api/snapshot?pages=home,sponsors', { cookie }), env);
   assert.equal(res.status, 200);
   const json = await res.json();
-  assert.equal(json.pages.home.tiles[0].value, snapshot.pages.home.tiles[0].value);
-  assert.ok(json.pages.sponsors);
-  assert.equal(json.pages.viral, undefined);
+  assert.deepEqual(Object.keys(json.pages), ['sponsors'], 'a removed page is not served');
+  assert.equal(json.pages.sponsors.tiles[0].value, snapshot.pages.sponsors.tiles[0].value);
   assert.ok(json.sources.sponsors.updatedAt);
 });
 
@@ -167,11 +166,37 @@ test('workers.dev is not a login surface', async () => {
   assert.equal(res.status, 404);
 });
 
-test('gpu2 token cannot ingest a mac heartbeat', async () => {
+test('gpu2 token cannot ingest another machine\'s heartbeat', async () => {
   const res = await handleApi(req('/dashboard/api/ingest', {
     method: 'POST',
     headers: { Authorization: 'Bearer gpu2-token-value', 'Content-Type': 'application/json' },
-    body: JSON.stringify({ source: 'agents_mac', collectedAt: '2026-09-18T18:00:00Z', data: { ok: true } }),
+    body: JSON.stringify({ source: 'machine_gpu1', collectedAt: '2026-09-18T18:00:00Z', data: { ok: true } }),
   }), { ...env, ...TOKENS, DB: memDb() });
   assert.equal(res.status, 401);
+});
+
+test('ingest accepts a retired source and stores nothing; a kept source is still stored', async () => {
+  const writes = [];
+  const DB = { prepare: (sql) => ({ bind: (...args) => ({ run: async () => { writes.push([sql.split(' (')[0], args[0]]); return { meta: { changes: 1 } }; } }) }) };
+  const send = (source) => handleApi(req('/dashboard/api/ingest', {
+    method: 'POST',
+    headers: { Authorization: 'Bearer gpu2-token-value', 'Content-Type': 'application/json' },
+    body: JSON.stringify({ source, collectedAt: '2026-10-29T18:00:00Z', data: { team: [{ name: 'Old bot' }], deliverables: [{ id: 'd1' }], questions: [{ id: 'q1' }] } }),
+  }), { ...env, ...TOKENS, DB });
+  for (const source of ['jon_tasks', 'team', 'agents_gpu2', 'partners_report', 'webinar']) {
+    const res = await send(source);
+    assert.deepEqual([res.status, await res.json()], [200, { ok: true, ignored: true }], source);
+  }
+  assert.deepEqual(writes, [], 'nothing is written for a retired source, not even its team, deliverables or questions');
+  const kept = await send('sponsors_cash');
+  assert.deepEqual([kept.status, await kept.json()], [200, { ok: true }]);
+  assert.deepEqual(writes, [['INSERT OR REPLACE INTO snapshots', 'sponsors_cash']]);
+});
+
+test('the nav holds exactly the six kept pages, and those are the pages served', async () => {
+  const cookie = `${COOKIE}=${await signSession(SECRET, Math.floor(Date.now() / 1000) + 3600)}`;
+  const json = await (await handleApi(req('/dashboard/api/snapshot', { cookie }), env)).json();
+  const ids = json.nav.groups.flatMap((g) => g.items.map((i) => i.id));
+  assert.deepEqual(ids, ['today', 'sponsors', 'viral', 'webinar', 'money', 'life']);
+  assert.deepEqual(Object.keys(json.pages), ids);
 });

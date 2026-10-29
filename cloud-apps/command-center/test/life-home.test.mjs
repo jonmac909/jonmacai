@@ -6,7 +6,7 @@ import { handleCron } from '../src/cron.js';
 import { handleApi } from '../src/api.js';
 import { signSession, COOKIE } from '../src/auth.js';
 import { overlayLife, suggestDateNight } from '../src/life.js';
-import { criticalAlerts, nextMorningStep, unsentCritical } from '../src/home.js';
+import { criticalAlerts, unsentCritical } from '../src/alerts.js';
 import { memD1 } from './memd1.mjs';
 
 const NOW = Date.parse('2026-09-18T20:00:00-07:00');
@@ -40,18 +40,6 @@ function req(path, { method = 'GET', cookie, headers = {}, body } = {}) {
 async function cookie() {
   const exp = Math.floor(Date.now() / 1000) + 3600;
   return `${COOKIE}=${await signSession(SECRET, exp)}`;
-}
-
-function cleanSponsors() {
-  return {
-    collections: {
-      currentIncomeMonth: 'September',
-      incomeTotals: { September: 5000 },
-      completedIncomeMonths: [],
-      items: [],
-    },
-    cards: [],
-  };
 }
 
 function lateSponsors(days) {
@@ -115,89 +103,18 @@ test('date night suggests the first free evening 18:00–21:00', () => {
   assert.equal(suggestion.start.endsWith('T18:00:00'), true);
 });
 
-test('morning run-through stays blank until a manual checklist click', () => {
-  const posts = Array.from({ length: 12 }, (_, i) => ({
-    id: `p${i}`, platform: 'X', posted_at: '2026-09-18T12:00:00-07:00', first_line: 'hi', source: 'agent',
-  }));
-  const out = mergeSnapshot(snapshot, [
-    row('sponsors', cleanSponsors()),
-    row('bank_scan', { accounts: [
-      { name: 'RBC', status: 'scanned', scannedAt: '2026-09-18T08:12:00-07:00' },
-      { name: 'Personal', status: 'scanned', scannedAt: '2026-09-18T08:12:00-07:00' },
-    ] }),
-    row('mastermind', { picks: [], scanned: 41 }),
-    row('support', { tickets: [], answeredToday: 3, inboundToday: 3 }),
-  ], NOW, {}, [], posts, [], {
-    habits: [{ day: TODAY, kind: 'workout', done: 1 }],
-    checklist: [{ day: TODAY, item: 'market_check', how: 'auto' }],
-  });
-  const steps = Object.fromEntries(out.pages.home.runThrough.steps.map((s) => [s.label, s.done]));
-  assert.equal(steps['Sponsor emails'], false);
-  assert.equal(steps['Bank scan'], false);
-  assert.equal(steps['Market check'], false);
-  assert.equal(steps['Mastermind digest'], false);
-  assert.equal(steps['Support replies'], false);
-  assert.equal(steps['Posts out'], false);
-  assert.equal(steps['Workout 11:00'], false);
-  assert.equal(out.pages.home.runThrough.done, 0);
-});
-
-test('Needs you ranks overdue money, then blocked, then oldest drafts', () => {
-  const last = new Date(NOW - 8 * 86400000).toISOString();
-  const out = mergeSnapshot(snapshot, [
-    row('sponsors', lateSponsors(8)),
-    row('bank_scan', { accounts: [
-      { name: 'Business card', status: 'needs_code', since: '2026-09-18T08:12:00-07:00' },
-      { name: 'Personal', status: 'scanned', scannedAt: '2026-09-18T08:12:00-07:00' },
-    ] }),
-    row('agents_mac', { agents: [{
-      name: 'Planner', status: 'needs_you', now: 'Pick a model',
-      waiting: { title: 'Pick a model', lines: ['Waiting on you'], waitLabel: 'Needs you' },
-    }] }),
-    row('support', { tickets: [
-      { id: 'old', uid: '1', subject: 'Old', money: false, waitedMs: 5 * 3600000, body: 'draft' },
-      { id: 'new', uid: '2', subject: 'New', money: false, waitedMs: 10 * 60000, body: 'draft' },
-    ] }),
-  ], NOW, {}, [], [], [], {});
-  const titles = out.pages.home.needsYou.all.map((j) => j.title);
-  assert.match(titles[0], /TopView/);
-  assert.match(titles[1], /bank text code|Enter bank/i);
-  assert.equal(titles[2].includes('Planner') || titles[2].includes('model'), true);
-  assert.equal(out.pages.home.needsYou.jobs.length, 3);
-  assert.ok(out.pages.home.needsYou.all.length > 3);
-  const draftIx = titles.findIndex((t) => t.includes('Old') || t.includes('Export') || t.includes('Approve') || t.toLowerCase().includes('old'));
-  const newIx = titles.findIndex((t) => t.includes('New'));
-  assert.ok(draftIx >= 0 && newIx >= 0 && draftIx < newIx);
-});
-
-test('Start my morning walks the first undone run-through step', () => {
-  const run = {
-    steps: [
-      { label: 'Sponsor emails', done: true, page: 'sponsors' },
-      { label: 'Bank scan', done: false, page: 'money' },
-      { label: 'Market check', done: false, page: 'markets' },
-    ],
-  };
-  assert.deepEqual(nextMorningStep(run), { label: 'Bank scan', done: false, page: 'money' });
-  run.steps.forEach((s) => { s.done = true; });
-  assert.equal(nextMorningStep(run), null);
-});
-
 test('Telegram critical list is only bank code or payment more than 7 days late', () => {
   const out = mergeSnapshot(snapshot, [
     row('sponsors', lateSponsors(8)),
     row('bank_scan', { accounts: [{ name: 'Business card', status: 'needs_code', since: lastNow() }] }),
-    row('support', { tickets: [{ id: 'd', uid: '1', subject: 'Help', money: false, waitedMs: 1000, body: 'hi' }] }),
   ], NOW);
   const keys = criticalAlerts(out).map((a) => a.key);
   assert.ok(keys.some((k) => k.startsWith('bank_code:')));
   assert.ok(keys.some((k) => k.startsWith('late:')));
-  assert.equal(keys.some((k) => k.includes('support') || k.includes('draft')), false);
   const seven = mergeSnapshot(snapshot, [row('sponsors', lateSponsors(7))], NOW);
   assert.equal(criticalAlerts(seven).some((a) => a.key.startsWith('late:')), false);
   const fixtureOnly = mergeSnapshot(snapshot, [], NOW);
   assert.equal(criticalAlerts(fixtureOnly).length, 0);
-  assert.equal((fixtureOnly.pages.home.needsYou.all || []).some((j) => /bank text code/i.test(j.title)), false);
 });
 
 test('already-sent critical alerts are not sent again', () => {
@@ -242,7 +159,7 @@ test('merge overlays Life from the calendar snapshot and strips oauth', () => {
       events: [{ id: 'e1', title: 'Workout with your wife', start: '2026-09-18T11:00:00-07:00', end: '2026-09-18T12:15:00-07:00' }],
     }),
     row('google_oauth', { refreshToken: 'secret-refresh' }),
-  ], NOW, {}, [], [], [], { habits: [] });
+  ], NOW, {}, { habits: [] });
   assert.equal(out.pages.life.today.rows.some((r) => r.title.includes('Workout')), true);
   assert.equal(out.sources.google_oauth, undefined);
   assert.equal(JSON.stringify(out).includes('secret-refresh'), false);
@@ -285,39 +202,10 @@ test('Telegram push sends only new critical items', async () => {
   assert.equal(sent.some((t) => /support/i.test(t)), false);
 });
 
-test('an unrelated snapshot does not clear the mockup chip', () => {
-  assert.match(snapshot.pages.home.chip, /Mockup/);
-  const out = mergeSnapshot(snapshot, [row('agents_mac', { hostname: 'x' })], NOW);
-  assert.match(out.pages.home.chip, /Mockup/);
-});
-
 test('fixture bank scan Enter code is gone without a live bank_scan', () => {
-  const out = mergeSnapshot(snapshot, [row('agents_mac', { hostname: 'x' })], NOW);
+  const out = mergeSnapshot(snapshot, [], NOW);
   const rows = out.pages.money.bankScan?.rows || [];
   assert.equal(rows.some((r) => r.btn === 'Enter code' || r.pill === 'Needs code'), false);
-});
-
-test('Home greeting follows America/Vancouver hour', () => {
-  const live = [row('agents_mac', { hostname: 'x' })];
-  const evening = mergeSnapshot(snapshot, live, Date.parse('2026-09-18T20:00:00-07:00'));
-  assert.equal(evening.pages.home.greeting, 'Good evening, Jon 👋');
-  const morning = mergeSnapshot(snapshot, live, Date.parse('2026-09-18T08:00:00-07:00'));
-  assert.equal(morning.pages.home.greeting, 'Good morning, Jon 👋');
-  const afternoon = mergeSnapshot(snapshot, live, Date.parse('2026-09-18T14:00:00-07:00'));
-  assert.equal(afternoon.pages.home.greeting, 'Good afternoon, Jon 👋');
-});
-
-test('Home date is America/Vancouver not the worker clock', () => {
-  const out = mergeSnapshot(snapshot, [row('agents_mac', { hostname: 'x' })], Date.parse('2026-09-20T06:30:00Z'));
-  assert.equal(out.pages.home.date, 'Saturday, September 19 · Kelowna');
-});
-
-test('goal ring days left is the rest of this Vancouver month', () => {
-  const live = [row('agents_mac', { hostname: 'x' })];
-  const mid = mergeSnapshot(snapshot, live, Date.parse('2026-09-18T20:00:00-07:00'));
-  assert.equal(mid.goal.sub, '12 days left in September');
-  const late = mergeSnapshot(snapshot, live, Date.parse('2026-09-29T12:00:00-07:00'));
-  assert.equal(late.goal.sub, '1 day left in September');
 });
 
 function lastNow() {

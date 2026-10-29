@@ -1,28 +1,14 @@
 import { render as today } from './pages/today.js';
-import { render as home } from './pages/home.js';
-import { render as tasks } from './pages/tasks.js?v=20261023e';
-import { render as projects } from './pages/projects.js';
-import { render as questions } from './pages/questions.js';
-import { render as channels } from './pages/channels.js';
 import { render as sponsors } from './pages/sponsors.js';
 import { render as viral } from './pages/viral.js';
-import { render as youtube } from './pages/youtube.js';
-import { render as content } from './pages/content.js';
-import { render as outreach } from './pages/outreach.js';
-import { render as support } from './pages/support.js';
-import { render as video } from './pages/video.js';
-import { render as money } from './pages/money.js';
-import { render as markets } from './pages/markets.js';
-import { render as life } from './pages/life.js';
-import { render as mastermind } from './pages/mastermind.js';
-import { render as agents } from './pages/agents.js';
-import { render as videos } from './pages/videos.js';
 import { render as webinar } from './pages/webinar.js';
-import { render as team } from './pages/team.js?v=20261023f';
+import { render as money } from './pages/money.js';
+import { render as life } from './pages/life.js';
 import { formatJobResult } from './ui.js';
 import { bindModals, openDraft } from './modals.js';
 const PREFIX = '/dashboard';
-const pages = { today, home, tasks, projects, channels, questions, sponsors, viral, youtube, content, outreach, support, video, money, markets, life, mastermind, agents, videos, webinar, team };
+// Any other #page (old bookmarks to removed pages) falls back to Today.
+const pages = { today, sponsors, viral, webinar, money, life };
 let data = null;
 
 const root = document.documentElement;
@@ -48,17 +34,7 @@ export function say(m) {
 
 export async function act(kind, payload = {}) {
   const idemKey = crypto.randomUUID();
-  if (kind === 'video.resume') {
-    const res = await fetch(`${PREFIX}/api/actions/${payload.actionId}/resume`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-CC': '1' },
-      body: JSON.stringify({ keepers: payload.keepers || [], expectedLines: payload.expectedLines || [] }),
-    });
-    const row = await res.json().catch(() => ({}));
-    say(res.ok ? 'Keepers sent' : (row.error || 'Resume failed'));
-    return row;
-  }
-  const scan = kind === 'sponsor.scan_inbox' || kind === 'mastermind.scan';
+  const scan = kind === 'sponsor.scan_inbox';
   const polls = scan ? 300 : 75; // ponytail: 10 min matches collector refresh timeout
   const wait = scan ? 2000 : 400;
   const res = await fetch(`${PREFIX}/api/actions`, {
@@ -81,25 +57,6 @@ export async function act(kind, payload = {}) {
   say(scan ? 'Scan has not finished yet. It is still running.' : 'Still working…');
   return row;
 }
-
-async function uploadFile(file) {
-  say('Uploading…');
-  try {
-    const created = await fetch(`${PREFIX}/api/uploads`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-CC': '1' },
-      body: JSON.stringify({ filename: file.name, contentType: file.type || 'video/mp4', title: file.name.replace(/\.[^.]+$/, '') }),
-    });
-    const row = await created.json().catch(() => ({}));
-    if (!row.putUrl) { say(row.error || 'Upload failed'); return; }
-    const put = await fetch(row.putUrl, { method: 'PUT', body: file });
-    const done = await put.json().catch(() => ({}));
-    say(done.result || (put.ok ? 'Edit started' : 'Upload failed'));
-  } catch {
-    say('Upload failed');
-  }
-}
-
 
 function hashPage() {
   const id = (location.hash || '#today').replace(/^#/, '') || 'today';
@@ -129,8 +86,8 @@ function typedAnswers() {
   const out = {};
   document.querySelectorAll('#page .qcard').forEach((c) => {
     const box = c.querySelector('.qtext');
-    const key = c.querySelector('[data-tsend],[data-qsend]');
-    if (box && box.value && key) out[key.dataset.tsend || key.dataset.qsend] = box.value;
+    const key = c.querySelector('[data-tsend]');
+    if (box && box.value && key) out[key.dataset.tsend] = box.value;
   });
   return out;
 }
@@ -144,10 +101,6 @@ function navHtml() {
       const badge = n ? `<span class="n">${n}</span>` : '';
       return `<button class="nav" data-page="${it.id}"><svg class="ic"><use href="#i-${it.icon}"/></svg>${it.label}${badge}</button>`;
     }).join('');
-    if (g.archive) {
-      const open = g.items.some((it) => it.id === hashPage()) ? ' open' : '';
-      return `<details class="navgrp archive"${open}><summary>${g.title}</summary>${items}</details>`;
-    }
     return `<div class="navgrp"><h4>${g.title}</h4>${items}</div>`;
   }).join('');
 }
@@ -203,21 +156,10 @@ function bindKanban() {
   ktotals();
 }
 
-function recount() {
-  const s = document.querySelectorAll('.steps .step');
-  if (!s.length) return;
-  let n = 0;
-  s.forEach((x) => { if (x.getAttribute('aria-pressed') === 'true') n++; });
-  const count = document.getElementById('runcount');
-  const bar = document.getElementById('runbar');
-  if (count) count.textContent = `${n} of ${s.length} done`;
-  if (bar) bar.style.width = `${Math.round(n / s.length * 100)}%`;
-}
-
 export async function go(id, { refetch = false } = {}) {
   if (!pages[id]) id = 'today';
   if (location.hash !== `#${id}`) history.replaceState(null, '', `${PREFIX}/#${id}`);
-  if (refetch || id === 'today' || id === 'agents' || id === 'team' || id === 'projects' || id === 'questions' || id === 'channels') {
+  if (refetch || id === 'today') {
     const snap = await fetch(`${PREFIX}/api/snapshot?v=${Date.now()}`);
     if (snap.ok) data = await snap.json();
     document.getElementById('navs').innerHTML = navHtml();
@@ -232,51 +174,14 @@ export async function go(id, { refetch = false } = {}) {
   document.getElementById('page').innerHTML = pages[id](page, data);
   shownPage = id;
   document.querySelectorAll('#page .qcard').forEach((c) => {
-    const key = c.querySelector('[data-tsend],[data-qsend]');
+    const key = c.querySelector('[data-tsend]');
     const box = c.querySelector('.qtext');
-    const text = key && typed[key.dataset.tsend || key.dataset.qsend];
+    const text = key && typed[key.dataset.tsend];
     if (box && text) box.value = text;
   });
   if (!same) window.scrollTo(0, 0);
   try { localStorage.setItem('cc-page', id); } catch {}
   bindKanban();
-  recount();
-}
-
-document.addEventListener('keydown', (e) => {
-  const row = e.target.closest('[role="link"][data-href]');
-  if (row && (e.key === 'Enter' || e.key === ' ')) {
-    e.preventDefault();
-    window.open(row.dataset.href, '_blank', 'noopener');
-    return;
-  }
-  const tab = e.target.closest('[data-jtab]');
-  if (tab && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
-    const tabs = [...tab.parentElement.querySelectorAll('[data-jtab]')];
-    const next = tabs[(tabs.indexOf(tab) + (e.key === 'ArrowRight' ? 1 : tabs.length - 1)) % tabs.length];
-    e.preventDefault();
-    next.focus();
-    next.click();
-  }
-});
-
-function selectJtTab(card, on) {
-  card.querySelectorAll('[data-jtab]').forEach((b) => {
-    const sel = b.dataset.jtab === on;
-    b.classList.toggle('on', sel);
-    b.setAttribute('aria-selected', String(sel));
-  });
-  card.querySelectorAll('[data-jtpanel]').forEach((p) => { p.hidden = p.dataset.jtpanel !== on; });
-  try { localStorage.setItem('cc-jt-tab', on); } catch {}
-}
-
-function clearNeedsFilter(card) {
-  card.classList.remove('needs-only');
-  const nb = card.querySelector('[data-jneeds]');
-  if (nb) {
-    nb.setAttribute('aria-pressed', 'false');
-    nb.textContent = `Needs you ${nb.dataset.needs || '0'}`;
-  }
 }
 
 document.addEventListener('click', (e) => {
@@ -297,35 +202,6 @@ document.addEventListener('click', (e) => {
     todayPost(tdec.dataset.tdecide, { decision: tdec.dataset.decision }, tdec.dataset.decision === 'reject' ? 'Rejected' : 'Approved', tdec);
     return;
   }
-  const approveBtn = e.target.closest('[data-approve]');
-  if (approveBtn) {
-    e.preventDefault();
-    e.stopPropagation();
-    if (approveBtn.disabled) return;
-    approveBtn.disabled = true;
-    fetch(`${PREFIX}/api/approvals/${encodeURIComponent(approveBtn.dataset.approve)}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-CC': '1' },
-      body: '{}',
-    }).then(async (res) => {
-      const row = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        approveBtn.disabled = false;
-        say(row.error || 'Could not approve');
-        return;
-      }
-      say('Approved');
-      const fresh = await fetch(`${PREFIX}/api/snapshot?v=${Date.now()}`);
-      if (fresh.ok) {
-        data = await fresh.json();
-        go('tasks');
-      }
-    }).catch(() => {
-      approveBtn.disabled = false;
-      say('Could not approve');
-    });
-    return;
-  }
   if (e.target.id === 'nwbtn') {
     const el = document.getElementById('nw');
     const hid = el.textContent.indexOf('•') > -1;
@@ -335,16 +211,6 @@ document.addEventListener('click', (e) => {
   }
   const th = e.target.closest('[data-theme-set]');
   if (th) { setTheme(th.dataset.themeSet); return; }
-  const need = e.target.closest('[data-jneeds]');
-  if (need) {
-    const card = need.closest('.jtcard');
-    const on = !card.classList.contains('needs-only');
-    card.classList.toggle('needs-only', on);
-    need.setAttribute('aria-pressed', String(on));
-    need.textContent = on ? 'Show all' : `Needs you ${need.dataset.needs || '0'}`;
-    if (on) selectJtTab(card, 'active');
-    return;
-  }
   const qopt = e.target.closest('[data-qopt]');
   if (qopt) {
     const card = qopt.closest('.qcard');
@@ -354,114 +220,8 @@ document.addEventListener('click', (e) => {
     box.focus();
     return;
   }
-  const qsend = e.target.closest('[data-qsend]');
-  if (qsend) {
-    const answer = qsend.closest('.qcard').querySelector('.qtext').value.trim();
-    if (!answer) { say('Type an answer first'); return; }
-    if (qsend.disabled) return;
-    qsend.disabled = true;
-    fetch(`${PREFIX}/api/questions/${encodeURIComponent(qsend.dataset.qsend)}/answer`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-CC': '1' },
-      body: JSON.stringify({ answer }),
-    }).then(async (res) => {
-      const row = await res.json().catch(() => ({}));
-      if (!res.ok) { qsend.disabled = false; say(row.error || 'Could not send'); return; }
-      say('Sent');
-      go('questions', { refetch: true });
-    }).catch(() => { qsend.disabled = false; say('Could not send'); });
-    return;
-  }
-  const pj = e.target.closest('[data-proj]');
-  if (pj) {
-    const page = pj.closest('#page');
-    page.querySelectorAll('[data-proj]').forEach((b) => {
-      const on = b === pj;
-      b.classList.toggle('on', on);
-      b.setAttribute('aria-selected', String(on));
-    });
-    page.querySelectorAll('[data-pjpanel]').forEach((p) => { p.hidden = p.dataset.pjpanel !== pj.dataset.proj; });
-    try { localStorage.setItem('cc-pj', pj.querySelector('.pjtn').textContent); } catch {}
-    return;
-  }
-  const jt = e.target.closest('[data-jtab]');
-  if (jt) {
-    const card = jt.closest('.jtcard') || document.getElementById('page');
-    clearNeedsFilter(card);
-    selectJtTab(card, jt.dataset.jtab);
-    return;
-  }
-  const chip = e.target.closest('[data-chip]');
-  if (chip) {
-    const on = chip.dataset.chip || 'all';
-    chip.parentElement.querySelectorAll('[data-chip]').forEach((b) => b.classList.toggle('on', b === chip));
-    document.querySelectorAll('#page [data-fkind]').forEach((el) => {
-      el.hidden = on !== 'all' && el.dataset.fkind !== on;
-    });
-    document.querySelectorAll('#page .fcol').forEach((col) => {
-      const n = col.querySelectorAll('.fit:not([hidden])').length;
-      const kn = col.querySelector('.kn');
-      if (kn) kn.textContent = String(n);
-    });
-    return;
-  }
-  const va = e.target.closest('[data-view-all]');
-  if (va) {
-    const ny = data.pages.home?.needsYou;
-    if (ny?.all) {
-      ny.jobs = ny.all;
-      ny.viewAll = 'Show top 3';
-      go('home');
-    }
-    return;
-  }
-  const st = e.target.closest('.step');
-  if (st?.dataset.item) {
-    const done = st.getAttribute('aria-pressed') !== 'true';
-    const day = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Vancouver' });
-    st.setAttribute('aria-pressed', String(done));
-    recount();
-    fetch(`${PREFIX}/api/checklist`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-CC': '1' },
-      body: JSON.stringify({ day, item: st.dataset.item, done, how: 'manual' }),
-    }).then(() => go(hashPage(), { refetch: true })).catch(() => {});
-    return;
-  }
-  const up = e.target.closest('[data-upload]');
-  if (up && e.target.id !== 'cc-upload') {
-    document.getElementById('cc-upload')?.click();
-    return;
-  }
-
   const href = e.target.closest('[data-href]');
   if (href) { window.open(href.dataset.href, '_blank', 'noopener'); return; }
-  const logBtn = e.target.closest('[data-log-post]');
-  if (logBtn) {
-    const platform = prompt('Platform (X, Instagram, Facebook, LinkedIn)', 'X');
-    if (platform == null) return;
-    const first = prompt('First line of the post');
-    if (first == null || !String(first).trim()) return;
-    const url = prompt('Link (optional)', '') ?? '';
-    fetch(`${PREFIX}/api/posts`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-CC': '1' },
-      body: JSON.stringify({ platform, first_line: String(first).trim(), url }),
-    }).then(async (res) => {
-      const j = await res.json().catch(() => ({}));
-      say(res.ok ? 'Post logged' : (j.error || 'Could not log post'));
-      if (!res.ok) return;
-      const snap = await fetch(`${PREFIX}/api/snapshot?v=${Date.now()}`);
-      if (snap.ok) { data = await snap.json(); go(hashPage()); }
-    });
-    return;
-  }
-  const filt = e.target.closest('[data-draft-filter]');
-  if (filt && data?.pages?.content?.dailyDrafts) {
-    data.pages.content.dailyDrafts.filter = filt.dataset.draftFilter || 'all';
-    go('content');
-    return;
-  }
   const draftBtn = e.target.closest('[data-draft]');
   if (draftBtn) {
     let payload = {};
@@ -473,10 +233,6 @@ document.addEventListener('click', (e) => {
   if (actBtn) {
     let payload = {};
     try { payload = JSON.parse(actBtn.dataset.payload || '{}'); } catch { payload = {}; }
-    if (actBtn.dataset.readDraft) {
-      const box = actBtn.closest('.r')?.querySelector('[data-draft-body]');
-      if (box) payload = { ...payload, body: box.value };
-    }
     if (actBtn.dataset.edit) {
       const body = prompt('Edit draft', payload.body || '');
       if (body == null) return;
@@ -484,19 +240,12 @@ document.addEventListener('click', (e) => {
     }
     if (actBtn.dataset.confirm && !window.confirm(actBtn.dataset.confirm)) return;
     const kind = actBtn.dataset.kind;
-    if (kind === 'outreach.refresh') {
-      say('Checking Instantly…');
-      if (data?.pages?.outreach) {
-        data.pages.outreach.check = { status: 'pending', label: 'Checking Instantly…' };
-        go('outreach');
-      }
-    }
     act(kind, payload).then(async () => {
       if (actBtn.hasAttribute('data-done')) {
         const r = actBtn.closest('.r, .job');
         if (r) r.classList.add('done');
       }
-      if (kind.startsWith('mastermind.') || kind.startsWith('support.') || kind.startsWith('sponsor.') || kind.startsWith('video.') || kind.startsWith('content.') || kind.startsWith('money.') || kind.startsWith('outreach.') || kind.startsWith('life.') || kind === 'agent.restart' || kind === 'ping') {
+      if (kind.startsWith('mastermind.') || kind.startsWith('sponsor.') || kind.startsWith('money.') || kind.startsWith('life.')) {
         const snap = await fetch(`${PREFIX}/api/snapshot?v=${Date.now()}`);
         if (snap.ok) {
           data = await snap.json();
@@ -518,21 +267,6 @@ document.addEventListener('click', (e) => {
   }
 });
 
-document.addEventListener('change', (e) => {
-  if (e.target.id === 'cc-upload' && e.target.files?.[0]) uploadFile(e.target.files[0]);
-});
-document.addEventListener('dragover', (e) => {
-  if (e.target.closest('[data-upload]')) e.preventDefault();
-});
-document.addEventListener('drop', (e) => {
-  const z = e.target.closest('[data-upload]');
-  if (!z) return;
-  e.preventDefault();
-  const file = e.dataTransfer.files?.[0];
-  if (file) uploadFile(file);
-});
-
-
 bindModals({ say, act, go });
 
 window.addEventListener('hashchange', () => go(hashPage()));
@@ -541,15 +275,14 @@ const snap = await fetch(`${PREFIX}/api/snapshot?v=${Date.now()}`);
 if (snap.status === 401) { location.href = `${PREFIX}/`; throw new Error('auth'); }
 data = await snap.json();
 document.getElementById('navs').innerHTML = navHtml();
-// Collector beats refresh these pages every 60 s while visible.
+// Today and Webinar refresh every 60 s while visible.
 setInterval(() => {
   const id = hashPage();
-  if (document.hidden || !['today', 'home', 'tasks', 'agents', 'videos', 'webinar', 'team', 'content'].includes(id)) return;
+  if (document.hidden || !['today', 'webinar'].includes(id)) return;
   if (document.activeElement && /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName)) return;
   const y = window.scrollY;
   go(id, { refetch: true }).then(() => window.scrollTo(0, y)).catch(() => {});
 }, 60000);
 let last = hashPage();
 try { if (!location.hash) last = localStorage.getItem('cc-page') || last; } catch {}
-if (last === 'home') last = 'today'; // Today replaced Home (2026-10-29); old Home is under Archive
 go(last);

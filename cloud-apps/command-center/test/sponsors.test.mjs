@@ -117,18 +117,10 @@ test('deal board hides archived and old done, keeps money and drafts', () => {
   assert.equal(page.tiles[3].value, '1');
 });
 
-test('mergeSnapshot replaces the sponsors page and home sponsor numbers', () => {
+test('mergeSnapshot replaces the sponsors page', () => {
   const fixture = {
-    nav: { badges: { sponsors: 3 } },
-    goal: { label: '$10K SPONSOR GOAL', sub: '12 days left in September', pct: 50, see: 'See sponsors' },
     sources: { sponsors: { updatedAt: 'old' } },
-    pages: {
-      home: {
-        tiles: [{ value: '$5,000', sub: 'fixture' }, { value: '$0' }],
-        glance: { rows: [{ area: 'Sponsors', today: 'fixture', pct: 50, pill: '50%', page: 'sponsors' }] },
-      },
-      sponsors: { tiles: [{ value: '$5,000' }] },
-    },
+    pages: { sponsors: { tiles: [{ value: '$5,000' }] } },
   };
   const data = { ...live, collections: { ...live.collections, incomeTotals: { ...live.collections.incomeTotals, September: 1234 } } };
   data.collections.items = live.collections.items.map((x) => ({ ...x }));
@@ -139,10 +131,7 @@ test('mergeSnapshot replaces the sponsors page and home sponsor numbers', () => 
     received_at: '2026-09-18T17:05:00Z',
   }], NOW);
   assert.equal(out.pages.sponsors.tiles[0].value, '$1,234');
-  assert.equal(out.pages.home.tiles[0].value, '$1,234');
-  assert.match(out.pages.home.glance.rows[0].today, /\$1,234/);
-  assert.equal(out.goal.pct, 12);
-  assert.equal(out.nav.badges.sponsors, 1);
+  assert.equal(out.sources.sponsors.updatedAt, '2026-09-18T17:04:33.939Z');
 });
 
 test('sponsor actions queue for the Mac runner', async () => {
@@ -243,7 +232,7 @@ test('September collected is the recorded source total, not open-item paid', () 
 
 test('copy time is not the source edit time, and a missing edit time stays unknown', () => {
   const fixture = {
-    pages: { home: { chip: 'Mockup', tiles: [{}] }, sponsors: { tiles: [] } },
+    pages: { sponsors: { tiles: [] } },
     sources: {},
   };
   const board = '2026-09-22T05:13:49.589Z';
@@ -258,7 +247,6 @@ test('copy time is not the source edit time, and a missing edit time stays unkno
   assert.match(out.pages.sponsors.sub, /not reconciled cash/);
   assert.equal(out.pages.sponsors.sub.includes(board), false);
   assert.equal(out.pages.sponsors.sub.includes(copied), false);
-  assert.match(out.pages.home.chip, /sponsors source time unavailable/i);
   const edited = '2026-09-21T09:06:01.000Z';
   const stamped = mergeSnapshot(fixture, [{
     source: 'sponsors',
@@ -350,17 +338,4 @@ test('a fully paid invoice is not late, whatever bucket the sheet files it under
   assert.equal(page.collect.rows.some((r) => r.sponsor === 'TopView'), false);
   const unpaid = buildSponsorsPage(live, NOW);
   assert.equal(unpaid.board.columns.find((c) => c.stage === 'Waiting on deposit').cards.find((k) => k.name === 'Topview AI').pill, '7 days late');
-});
-
-test('the legacy home tile follows the deposit month and basis', () => {
-  const cash = ledgerCash([{ date: '2026-09-02', sponsor: 'Topview', usd: 1000 }], '2026-09-18T19:00:00-07:00');
-  const fixture = { pages: { home: { tiles: [{ label: 'Sponsors · August collected', value: '$0' }], glance: { rows: [{}] } }, sponsors: { tiles: [] } }, sources: {} };
-  const out = mergeSnapshot(fixture, [
-    { source: 'sponsors', data: JSON.stringify(live), collected_at: new Date(NOW).toISOString() },
-    { source: 'sponsors_cash', data: JSON.stringify({ rows: [{ date: '2026-09-02', sponsor: 'Topview', usd: 1000 }], ledgerEditedAt: '2026-09-18T19:00:00-07:00' }), collected_at: new Date(NOW).toISOString() },
-  ], NOW);
-  assert.equal(cash.month.usd, 1000);
-  assert.equal(out.pages.home.tiles[0].label, 'Sponsors · September collected');
-  assert.equal(out.pages.home.tiles[0].value, '$1,000');
-  assert.match(out.pages.home.tiles[0].sub, /^\$6,700 more is owed · All deposits · Deposit ledger edited Sep 18$/);
 });

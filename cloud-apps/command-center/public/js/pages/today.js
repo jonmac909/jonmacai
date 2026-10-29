@@ -42,9 +42,6 @@ function needItem(it) {
     <div class="qopts">
       <button type="button" class="btn" data-tdecide="${esc(it.decideUrl)}" data-decision="approve" data-confirm="${esc(confirm)}">Approve</button>
       <button type="button" class="btn line" data-tdecide="${esc(it.decideUrl)}" data-decision="reject">Reject</button></div>`;
-  } else if (it.kind === 'deliverable') {
-    act = `<div class="qopts">${it.href ? `<a class="btn line" href="${esc(it.href)}" target="_blank" rel="noopener">Open</a>` : ''}
-      <button type="button" class="btn" data-tdecide="${esc(it.approveUrl)}" data-decision="approve">Approve</button></div>`;
   } else if (it.href) {
     act = `<div class="qopts"><a class="btn line" href="${esc(it.href)}" target="_blank" rel="noopener">${esc(it.btn || 'Open')}</a></div>`;
   } else if (it.page) {

@@ -56,9 +56,10 @@ test('v1 needs a valid, unrevoked bot token or Jon\'s session', async () => {
 
 test('existing machine-token endpoints are unchanged', async () => {
   const { env } = await setup();
-  const r = await handleApi(new Request('https://jonmac.ai/dashboard/api/pending', { headers: { Authorization: 'Bearer gpu1-machine-token' } }), env);
+  const claim = (token) => handleApi(new Request('https://jonmac.ai/dashboard/api/actions/claim', { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: JSON.stringify({ machine: 'gpu1' }) }), env);
+  const r = await claim('gpu1-machine-token');
   assert.equal(r.status, 200);
-  const bot = await handleApi(new Request('https://jonmac.ai/dashboard/api/pending', { headers: { Authorization: `Bearer ${TOKENS.developer}` } }), env);
+  const bot = await claim(TOKENS.developer);
   assert.equal(bot.status, 401, 'bot tokens do not open machine endpoints');
 });
 
