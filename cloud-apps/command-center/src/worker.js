@@ -17,7 +17,8 @@ async function asset(request, env, assetPath) {
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
-    if (url.hostname.endsWith('.workers.dev')) return new Response('Not found', { status: 404 });
+    // Only the separate preview Worker (wrangler --env preview, its own D1) answers on workers.dev.
+    if (url.hostname.endsWith('.workers.dev') && env.PREVIEW !== '1') return new Response('Not found', { status: 404 });
     if (url.pathname === PREFIX) {
       url.pathname = `${PREFIX}/`;
       return Response.redirect(url.toString(), 308);
