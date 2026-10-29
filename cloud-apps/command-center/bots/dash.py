@@ -168,6 +168,23 @@ def feed_data(args):
     return data
 
 
+def wake_qc(out, task_id, bot):
+    """Wake QC through its webhook routine (hook.py beside this file). The proof is saved either way."""
+    proof = out.get('proof') or {}
+    if out.get('duplicate') or not proof.get('id'):
+        return
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    try:
+        import hook
+        res = hook.fire('proof_posted', {'proof': proof['id'], 'task': task_id, 'kind': proof.get('kind'),
+                                         'link': proof.get('link'), 'by': bot}, key=proof['id'])
+        bad = {r: s for r, s in res.items() if s not in (200, 202)}
+    except Exception as err:  # never fail a saved proof because QC couldn't be woken
+        bad = str(err)
+    if bad:
+        print('dash.py: proof saved, but QC was not woken (%s); QC will see it in its queue.' % bad, file=sys.stderr)
+
+
 def run(args, ctx):
     c = args.cmd
     q = urllib.parse.quote
@@ -186,8 +203,10 @@ def run(args, ctx):
     if c == 'task':
         return call(ctx, 'GET', '/tasks/%s' % q(args.id, safe=''))
     if c == 'proof-add':
-        return call(ctx, 'POST', '/tasks/%s/proofs' % q(args.task_id, safe=''),
-                    only({'kind': args.kind, 'link': args.link, 'note': args.note}))
+        out = call(ctx, 'POST', '/tasks/%s/proofs' % q(args.task_id, safe=''),
+                   only({'kind': args.kind, 'link': args.link, 'note': args.note}))
+        wake_qc(out, args.task_id, ctx['bot'])
+        return out
     if c == 'proofs':
         return call(ctx, 'GET', '/proofs', query={'status': args.status, 'task': args.task, 'limit': args.limit})
     if c == 'proof-check':

@@ -1,0 +1,32 @@
+# hook.py: wake a bot when something happens
+
+`python -I D:\AgentTeam\tools\hook.py fire EVENT --data "{...}" [--key ID]` sends a signed event to the OpenBot webhook routine of each bot below. Each wake costs that bot a full session, so send only real events. `--key` (your own id for the event) makes a retry safe: it is delivered once.
+
+| Event | Wakes | Sent by |
+|---|---|---|
+| `script_failure` | Developer, Ana | every team script, when it fails |
+| `proof_posted` | QC | `dash.py proof-add`, automatically |
+| `raw_footage` | Video Editor | `watch_footage.ps1`, when files land in `D:\AgentTeam\footage` |
+| `sponsor_email` | Sponsors, Ana | partners@ mail watcher (not built: needs the Google consent helper) |
+| `accounting_email` | Accounting | jon@ mail watcher for Jennifer and Max (not built: same) |
+| `cancellation_spike` | Viral View, Ana | Viral View numbers (not built: needs the Commas API key) |
+
+`hook.py test [ROUTE ...]` wakes each routine once with a "nothing to do" event, to check it works.
+
+Exit codes: 0 delivered (202, or 200 for a repeat). 1 refused (401: wrong secret) or unreachable after 3 tries. 2 local problem (bad JSON, no secrets file, no secret for that routine).
+
+## Script failures
+Every script reports its own failure, for example from PowerShell:
+`'{"script":"upload","error":"YouTube 403 on Zane #4"}' | python -I D:\AgentTeam\tools\hook.py fire script_failure --data -`
+Pipe the JSON on stdin in PowerShell 5.1; it breaks quotes in command-line arguments.
+
+## Raw footage
+Drop raw files for a video (any subfolder) into `D:\AgentTeam\footage`. After 60 s with no changes and no file still copying, Video Editor gets one `raw_footage` event listing the new video and audio files. A missed-events error or a stop sends `script_failure`. Log: `D:\AgentTeam\logs\watch_footage.log`.
+
+Start at logon (only after Jon approves `start_watchers`; hidden, no console window):
+`schtasks /Create /TN AgentTeam-watch-footage /SC ONLOGON /RL LIMITED /TR "conhost.exe --headless powershell.exe -NoProfile -ExecutionPolicy Bypass -File D:\AgentTeam\tools\watch_footage.ps1"`
+
+## Secrets
+`D:\AgentTeam\secrets\webhooks.json` holds each routine's URL and signing secret: `{"qc": {"url": "...", "secret": "..."}, ...}`. Only Jon makes the secrets (OpenBot Routines settings). Never print, paste, commit or copy this file, its secrets or its URLs.
+
+Tests: `python -I bots/test_hook.py` (a local receiver checks the signature format; the footage test runs the watcher for a few seconds).

@@ -30,6 +30,7 @@ dash.py proof-add t_… --kind render|url|pdf|test --link "https://…" or "D:\p
 dash.py proofs --status pending                      (QC's queue)
 dash.py proof-check p_… passed|failed [--note ..]     (QC only)
 ```
+`proof-add` also wakes QC (HOOKS.md). If that fails, the proof is still saved and QC finds it in its queue.
 
 ## Questions for Jon
 ```
