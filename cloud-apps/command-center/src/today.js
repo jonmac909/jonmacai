@@ -212,9 +212,9 @@ function summaryCard(feed, nowMs) {
 }
 
 export const USAGE_LEVELS = [
-  { min: 90, cls: 'crit', text: 'Above 90%: only Sponsors and Viral View keep working (plus Ana and QC)' },
-  { min: 75, cls: 'risk', text: 'Above 75%: only Sponsors, Viral View, Video Editor, Jon Mac YouTube and Home Guide Press keep working' },
-  { min: 0, cls: 'ok', text: 'All bots can work' },
+  { min: 90, cls: 'crit', short: 'Over 90%', text: 'Only Sponsors and Viral View keep working (plus Ana and QC).' },
+  { min: 75, cls: 'risk', short: 'Over 75%', text: 'Only Sponsors, Viral View, Video Editor, Jon Mac YouTube and Home Guide Press keep working.' },
+  { min: 0, cls: 'ok', short: 'Normal', text: 'All bots can work.' },
 ];
 
 function usageCard(feed, runs, nowMs) {

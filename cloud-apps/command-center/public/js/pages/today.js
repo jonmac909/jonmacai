@@ -76,7 +76,7 @@ function usageCard(u) {
     ? `<p class="muted">${esc(u.missing)}</p>`
     : `<div class="big">${esc(u.pct)}% <span>of the weekly limit</span></div>
       <div class="gbar ${esc(u.level.cls)}"><i style="width:${Math.min(100, u.pct)}%"></i><span class="pacemark" style="left:75%" title="75%"></span><span class="pacemark" style="left:90%" title="90%"></span></div>
-      <p>${pill(u.level.text, u.level.cls)}</p>${u.resets ? `<p class="qctx">Resets ${esc(u.resets)} PT</p>` : ''}${u.note ? `<p class="qctx">${esc(u.note)}</p>` : ''}`;
+      <p class="qctx">${pill(u.level.short, u.level.cls)} ${esc(u.level.text)}</p>${u.resets ? `<p class="qctx">Resets ${esc(u.resets)} PT</p>` : ''}${u.note ? `<p class="qctx">${esc(u.note)}</p>` : ''}`;
   return `<div class="card pad goal"><div class="cardhead"><h2>Claude usage this week</h2></div>${body}${bots}${src(u.source)}</div>`;
 }
 
@@ -86,7 +86,7 @@ export function render(d) {
   return `<div class="wrap">
   <div class="head"><div><h1>Today</h1><p>${esc(t.date)} · ${esc(t.clock)} PT</p></div>
     <div class="right">${pill(`${t.total.value} of ${t.total.goal} this month`, t.total.pct >= 100 ? 'ok' : 'idle')} <span class="muted">${esc(t.total.reporting)}</span></div></div>
-  <div class="goals">${t.goals.map(goalCard).join('')}</div>
+  <div class="goals four">${t.goals.map(goalCard).join('')}</div>
   <div class="homelists">${needsCard(t.needs)}<div class="todayside">${summaryCard(t.summary)}${usageCard(t.usage)}</div></div>
 </div>`;
 }

@@ -597,3 +597,5 @@ tfoot td{font-weight:600;color:var(--ink);border-top:1px solid var(--line)}
 .todayside{display:grid;gap:.9rem;align-content:start}
 .nylist{max-width:none}
 .nyi.crit{border-left:3px solid var(--crit-fill);padding-left:.7rem}
+.goals.four{grid-template-columns:repeat(auto-fit,minmax(min(100%,15rem),1fr))}
+.nylist{gap:0}.nylist .nyi{padding:.8rem 0}.nylist .nyi+.nyi{border-top:1px solid var(--line)}
