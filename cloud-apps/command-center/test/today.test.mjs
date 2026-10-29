@@ -167,6 +167,20 @@ test('Today: Needs you puts alerts first, then approvals, then questions oldest 
   assert.equal(out.pages.today.needs.sources[1].stale, true, "Ana's push is 5 days old");
 });
 
+test('approval payloads stay short enough for Jon to read all of them; ingest cannot fake the funnel', async () => {
+  const { env } = await setup();
+  const big = { recipients: Array.from({ length: 200 }, (_, i) => `person${i}@example.com`) };
+  const r = await call(env, 'POST', '/v1/approvals', { bot: 'sponsors', body: { action: 'send_pitches', title: 'Too long', payload: big } });
+  assert.deepEqual([r.status, /4000 characters/.test(r.body.error)], [400, true]);
+  const ok = await call(env, 'POST', '/v1/approvals', { bot: 'sponsors', body: { action: 'send_pitches', title: 'Fits', payload: { list: 'D:\\pitches\\2026-10-29.csv', count: 20 } } });
+  assert.equal(ok.status, 201);
+  const ingest = await handleApi(new Request('https://jonmac.ai/dashboard/api/ingest', {
+    method: 'POST', headers: { Authorization: 'Bearer gpu1-token', 'Content-Type': 'application/json' },
+    body: JSON.stringify({ source: 'webinar_funnel', collectedAt: new Date().toISOString(), data: { month: '2026-10', netCents: 999999 } }),
+  }), { ...env, MACHINE_TOKEN_GPU1: 'gpu1-token' });
+  assert.equal(ingest.status, 401);
+});
+
 test('snapshot serves Today end to end and Jon can answer and approve from it', async () => {
   const { env } = await setup();
   await call(env, 'POST', '/v1/questions', { bot: 'sponsors', body: { question: 'Live question?', options: ['Yes'] } });

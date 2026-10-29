@@ -37,8 +37,8 @@ function needItem(it) {
       <button type="button" class="btn qsend" data-tsend="${esc(it.answerUrl)}">Send</button></div>`;
   } else if (it.kind === 'approval') {
     const preview = it.payloadPreview || '{}';
-    const confirm = `Approve "${it.title}"? The bot will run ${it.action} with:\n${preview.slice(0, 600)}`;
-    act = `<details class="payload"${preview.length <= 600 ? ' open' : ''}><summary>What it will run</summary><pre>${esc(preview)}</pre></details>
+    const confirm = `Approve "${it.title}"? The bot will run ${it.action} with:\n${preview.length > 600 ? `${preview.slice(0, 600)}\n… (see the full list on the card)` : preview}`;
+    act = `<details class="payload" open><summary>What it will run</summary><pre>${esc(preview)}</pre></details>
     <div class="qopts">
       <button type="button" class="btn" data-tdecide="${esc(it.decideUrl)}" data-decision="approve" data-confirm="${esc(confirm)}">Approve</button>
       <button type="button" class="btn line" data-tdecide="${esc(it.decideUrl)}" data-decision="reject">Reject</button></div>`;

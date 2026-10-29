@@ -162,12 +162,12 @@ function needsList(out, by, extra, nowMs) {
     });
   }
   for (const a of t?.approvals || []) {
-    // Jon must see exactly what the bot will run, not just its own title for it.
-    const full = JSON.stringify(a.payload || {}, null, 2);
+    // Jon must see exactly what the bot will run, not just its own title for it (payloads are
+    // capped at 4000 formatted characters when requested, so this is always the whole thing).
     items.push({
       id: a.id, kind: 'approval', rank: 1, cls: 'risk', title: a.title, from: a.requestedBy, at: a.createdAt,
       detail: `Runs ${a.action}`, action: a.action,
-      payloadPreview: full.length > 4000 ? `${full.slice(0, 4000)}\n… (${full.length - 4000} more characters)` : full,
+      payloadPreview: JSON.stringify(a.payload || {}, null, 2),
       decideUrl: `/dashboard/api/v1/approvals/${a.id}/decide`,
     });
   }

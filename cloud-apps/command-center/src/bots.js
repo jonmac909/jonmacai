@@ -11,7 +11,7 @@ const QUESTION_STATUSES = ['open', 'answered', 'closed'];
 const APPROVAL_STATUSES = ['pending', 'approved', 'rejected', 'running', 'done', 'cancelled'];
 const RUN_STATUSES = ['running', 'ok', 'failed'];
 const MAX_BODY = 256 * 1024;
-const MAX_PAYLOAD = 64 * 1024;
+const MAX_PAYLOAD = 4000;
 const TOKEN_RE = /^ccb_[A-Za-z0-9_-]{32,128}$/;
 const SLUG_RE = /^[a-z0-9][a-z0-9-]{0,39}$/;
 const ACTION_RE = /^[a-z][a-z0-9_]{1,39}$/;
@@ -387,9 +387,11 @@ async function answerQuestion(db, id, body, now) {
 function payloadOf(value) {
   if (value == null) return '{}';
   if (typeof value !== 'object' || Array.isArray(value)) throw new Bad(400, 'payload must be a JSON object');
-  const s = JSON.stringify(value);
-  if (s.length > MAX_PAYLOAD) throw new Bad(400, `payload is larger than ${MAX_PAYLOAD} characters`);
-  return s;
+  // Jon must be able to read all of it before approving, so it is capped at what the page shows.
+  if (JSON.stringify(value, null, 2).length > MAX_PAYLOAD) {
+    throw new Bad(400, `payload is longer than ${MAX_PAYLOAD} characters as formatted JSON; put long lists in a file and send its path`);
+  }
+  return JSON.stringify(value);
 }
 
 async function approvalRow(db, id) {
