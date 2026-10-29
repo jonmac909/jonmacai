@@ -152,7 +152,7 @@ function itemAt(at) {
   return Number.isFinite(t) ? t : Infinity;
 }
 
-function needsList(out, by, extra, nowMs) {
+function needsList(out, extra, nowMs) {
   const t = extra.today;
   const items = [];
   for (const a of criticalAlerts(out)) {
@@ -171,51 +171,21 @@ function needsList(out, by, extra, nowMs) {
       decideUrl: `/dashboard/api/v1/approvals/${a.id}/decide`,
     });
   }
-  for (const d of extra.pendingDeliverables || []) {
-    items.push({
-      id: `deliverable:${d.id}`, kind: 'deliverable', rank: 1.5, cls: 'risk', title: d.title || d.id, from: d.owner || 'Ana', at: d.finished_at,
-      detail: `${d.kind || 'Deliverable'} on Ana's list`, href: d.url || '',
-      approveUrl: `/dashboard/api/approvals/${encodeURIComponent(d.id)}`,
-    });
-  }
   for (const q of t?.questions || []) {
     items.push({
       id: q.id, kind: 'question', rank: 2, cls: 'risk', title: q.question, context: q.context || '', options: q.options || [],
       from: q.askedBy, at: q.createdAt, answerUrl: `/dashboard/api/v1/questions/${q.id}/answer`,
     });
   }
-  for (const q of extra.questions || []) {
-    if (q.answer || q.status !== 'open') continue;
-    items.push({
-      id: `ana:${q.id}`, kind: 'question', rank: 2, cls: 'risk', title: q.question, context: q.context || '',
-      options: parse(q.options, []), from: q.asker || 'Ana', project: q.project || '', at: q.asked_at,
-      answerUrl: `/dashboard/api/questions/${encodeURIComponent(q.id)}/answer`,
-    });
-  }
-  for (const v of out.pages.videos?.ready || []) {
-    items.push({
-      id: `video:${v.slug || v.video}`, kind: 'review', rank: 3, cls: 'idle', title: `${v.video || 'Video'} · ready for review`,
-      from: v.channel || 'Video', href: v.slug ? `/review/${v.slug}` : '', page: v.slug ? '' : 'videos', btn: 'Review',
-    });
-  }
-  const nj = by.needs_jon ? parse(by.needs_jon.data) : null;
-  if (nj?.ok && Array.isArray(nj.items)) {
-    for (const [i, it] of nj.items.entries()) {
-      items.push({ id: `waiting:${i}`, kind: 'waiting', rank: 3, cls: 'idle', title: it.ask || 'Needs you', from: it.area || 'Ana', detail: "Ana's Waiting On You list" });
-    }
-  }
+  // The old MausBot feeds (Ana's hourly push, Waiting On You, the GPU2 review tracker) left Today on
+  // 2026-10-29: their open items were closed or moved into the bot tables, which are the one source.
   for (const it of items) {
     const at = itemAt(it.at);
     it.ageLabel = Number.isFinite(at) ? agoLabel(Math.max(0, nowMs - at)) : '';
   }
   items.sort((a, b) => a.rank - b.rank || itemAt(a.at) - itemAt(b.at));
   const live = t?.questions && t?.approvals;
-  const sources = [
-    { label: 'Bot questions and approvals', at: null, ageLabel: live ? 'live' : 'could not be read', stale: !live },
-    sourceOf("Ana's questions and deliverables (hourly push)", by.jon_tasks?.collected_at, nowMs),
-    sourceOf("Ana's Waiting On You", by.needs_jon?.collected_at, nowMs),
-    sourceOf('Review pages', by.videos?.collected_at, nowMs),
-  ];
+  const sources = [{ label: 'Bot questions and approvals', at: null, ageLabel: live ? 'live' : 'could not be read', stale: !live }];
   return { count: items.length, items, sources, available: !!live };
 }
 
@@ -268,7 +238,7 @@ export function buildToday(out, by, cash, extra = {}, nowMs = Date.now()) {
       reporting: `${reporting.length} of ${goals.length} goals reporting`,
     },
     goals,
-    needs: needsList(out, by, extra, nowMs),
+    needs: needsList(out, extra, nowMs),
     summary: summaryCard(feeds.morning_summary, nowMs),
     usage: usageCard(feeds.claude_usage, extra.today?.runs7d, nowMs),
   };
