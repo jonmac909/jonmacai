@@ -54,6 +54,38 @@ Cookie `__Host-cc_session` = `{unixExpiry}.{HMAC-SHA256(expiry)}` under `SESSION
 
 Machine ingest is `POST /dashboard/api/ingest` with `Authorization: Bearer` (`MACHINE_TOKEN_MAC` / `MACHINE_TOKEN_GPU2`) and `{source, collectedAt, data}`. Source `post` inserts into the `posts` table (one publish at a time). Source `content_queue` is the Content Marketing agent's scheduled posts (`~/.command-center/content-queue.json` on GPU2). Approve writes `~/.command-center/content-approvals.jsonl` and pings that agent's Orca terminal. Log a post is `POST /dashboard/api/posts`. Runners poll `POST /dashboard/api/actions/claim` every 15s. A source older than 3× its schedule (collectors: 5 min → stale after 15 min) gets a grey Stale pill. Collectors live in `collectors/mac` and `collectors/gpu2`; add a source as one `sources/*.py` module with `source(machine)` and `collect(machine)`.
 
+## Bot API (`/dashboard/api/v1`)
+
+Each of the 14 bots (D:\AgentTeam\rules\BOTS.md) writes one row at a time with its own token: `Authorization: Bearer ccb_…`. D1 keeps only the SHA-256 of each token (`bot_tokens`); raw tokens live in `D:\AgentTeam\secrets\bot-tokens\<slug>.token` on GPU1. `node scripts/bot-tokens.mjs [--env preview]` issues missing tokens and registers their hashes; it reuses existing token files. Machine tokens and `/api/ingest` are separate and unchanged. Tables (migration `0007_bot_access.sql`, additive): `bot_tasks`, `bot_proofs`, `bot_questions`, `bot_approvals`, `bot_runs`; every row names the bot that wrote it. Client: `bots/dash.py` (installed to `D:\AgentTeam\tools\dash.py`, usage in `bots/DASH.md`).
+
+| Method and path | Who | What |
+|---|---|---|
+| `GET /v1/me` | bot or Jon | who the token or session belongs to |
+| `POST /v1/tasks` | bot | `{title, owner?, status?, note?, key?}`; owner defaults to the caller |
+| `GET /v1/tasks?owner=me\|slug&status=a,b&limit=` | bot or Jon | newest change first |
+| `GET /v1/tasks/:id` | bot or Jon | task with its proof |
+| `PATCH /v1/tasks/:id` | bot | `{status?, owner?, note?, title?}`; `qc`/`done` need a proof not failed |
+| `POST /v1/tasks/:id/proofs` | bot | `{kind: render\|url\|pdf\|test, link, note?}`; link is http(s) or a file path |
+| `GET /v1/proofs?status=pending&task=` | bot or Jon | QC's queue |
+| `POST /v1/proofs/:id/check` | `qc` only | `{result: passed\|failed, note?}` |
+| `POST /v1/questions` | bot | `{question, options?[≤10], context?, task?, key?}` |
+| `GET /v1/questions[/:id]?status=&asked_by=` | bot or Jon | read the answer |
+| `POST /v1/questions/:id/close` | the asking bot | after reading the answer, or to withdraw |
+| `POST /v1/questions/:id/answer` | Jon (session + `X-CC: 1`) | `{answer}`; first answer wins |
+| `POST /v1/approvals` | bot | `{action (snake_case), title, payload?{}, task?, key?}` |
+| `GET /v1/approvals[/:id]?status=approved&action=&requested_by=` | bot or Jon | approved = approved, not yet carried out |
+| `POST /v1/approvals/:id/decide` | Jon (session + `X-CC: 1`) | `{decision: approve\|reject, note?}`; pending only |
+| `POST /v1/approvals/:id/done` | bot | approved only; marks it carried out |
+| `POST /v1/approvals/:id/cancel` | the requesting bot | pending or approved |
+| `POST /v1/runs` | bot | `{status: running\|ok\|failed, started?, ended?, tokens?, error?, task?, note?}`; own runs only |
+| `GET /v1/runs?bot=&status=&since=` | bot or Jon | newest first |
+
+`key` makes a create safe to retry: the same bot and key return the first row (`duplicate: true`). Errors are `{ok: false, error}` with 400/401/403/404/409/413.
+
+### Preview
+
+`wrangler deploy --env preview` deploys `jonmac-command-center-preview` on workers.dev with its own D1 (`command_center_preview`), no routes, no cron, no secrets. Only that Worker (`PREVIEW=1`) answers on workers.dev. Set it up once with `wrangler d1 migrations apply command_center_preview --env preview --remote` and `node scripts/bot-tokens.mjs --env preview`.
+
 ## Review pages
 
 The Video page lists each review-ready cut with its review status and open comment count. Rows come from the review portal's D1 (`REVIEW_DB`, the `videos` and `comments` tables) and link to `https://jonmac.ai/review/<slug>`. The portal is private: a signed-out visitor lands on the passcode page and then continues to the page they opened, so a passcode prompt there is expected on first open.

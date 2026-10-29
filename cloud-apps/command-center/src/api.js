@@ -28,6 +28,7 @@ import { REVIEW_SOURCE, draftId, isIsolated, parseReview, plannerDestination, re
 import { normalizeTeam } from './team.js';
 import { normalizeDeliverables } from './tasks.js';
 import { normalizeQuestions, cleanAnswer } from './questions.js';
+import { handleV1 } from './bots.js';
 
 const PREFIX = '/dashboard/api';
 const json = (data, status = 200, headers = {}) =>
@@ -360,6 +361,9 @@ export async function handleApi(request, env, ctx) {
 
   const rest = path.slice(PREFIX.length) || '/';
   const method = request.method;
+
+  // Per-bot API (bot tokens or Jon's session); see src/bots.js.
+  if (rest === '/v1' || rest.startsWith('/v1/')) return handleV1(request, env, rest.slice(3));
 
   if (rest === '/login' && method === 'POST') {
     const cc = needCc(request);

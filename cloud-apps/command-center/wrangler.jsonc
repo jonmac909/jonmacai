@@ -39,5 +39,24 @@
   "routes": [
     { "pattern": "jonmac.ai/dashboard", "zone_name": "jonmac.ai" },
     { "pattern": "jonmac.ai/dashboard/*", "zone_name": "jonmac.ai" }
-  ]
+  ],
+  // Preview: `wrangler deploy --env preview`. Separate Worker on workers.dev with its own D1,
+  // no routes, no cron, no secrets, no review/funnel D1s and no R2. Live data is never touched.
+  "env": {
+    "preview": {
+      "name": "jonmac-command-center-preview",
+      "workers_dev": true,
+      "preview_urls": false,
+      "routes": [],
+      "triggers": { "crons": [] },
+      "vars": { "PREVIEW": "1" },
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "command_center_preview",
+          "database_id": "cf929245-7de2-4fc6-85bf-e3f02c187e6a"
+        }
+      ]
+    }
+  }
 }

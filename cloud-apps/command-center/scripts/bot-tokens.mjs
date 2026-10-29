@@ -1,0 +1,76 @@
+// Issues one dashboard token per bot listed in BOTS.md and registers its SHA-256 hash in D1.
+// Raw tokens go only to <out>/<slug>.token (never to git, D1, chat or logs); an existing token
+// file is reused, so re-running is safe. The slug is the bot's rules file name (areas/<slug>.md).
+//
+//   node scripts/bot-tokens.mjs [--env preview] [--dry-run]
+//     --bots  D:\AgentTeam\rules\BOTS.md          --out D:\AgentTeam\secrets\bot-tokens
+//     WRANGLER=<path to wrangler(.cmd)>            (default: npx wrangler)
+import { randomBytes, createHash } from 'node:crypto';
+import { existsSync, mkdirSync, readFileSync, writeFileSync, rmSync, mkdtempSync } from 'node:fs';
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
+import { pathToFileURL } from 'node:url';
+import { spawnSync } from 'node:child_process';
+
+const arg = (name, fallback) => {
+  const i = process.argv.indexOf(`--${name}`);
+  return i > 0 ? process.argv[i + 1] : fallback;
+};
+const flag = (name) => process.argv.includes(`--${name}`);
+
+export function botsFrom(markdown) {
+  const out = [];
+  for (const line of markdown.split(/\r?\n/)) {
+    const m = line.match(/^\|\s*([^|]+?)\s*\|\s*areas\/([a-z0-9-]+)\.md\s*\|/);
+    if (m && !out.some((b) => b.slug === m[2])) out.push({ name: m[1], slug: m[2] });
+  }
+  return out;
+}
+
+export const newToken = () => `ccb_${randomBytes(32).toString('base64url')}`;
+export const hashOf = (token) => createHash('sha256').update(token, 'utf8').digest('hex');
+
+function main() {
+  const botsFile = arg('bots', 'D:\\AgentTeam\\rules\\BOTS.md');
+  const outDir = arg('out', 'D:\\AgentTeam\\secrets\\bot-tokens');
+  const env = arg('env', '');
+  const database = env === 'preview' ? 'command_center_preview' : 'command_center';
+  const bots = botsFrom(readFileSync(botsFile, 'utf8'));
+  if (!bots.length) throw new Error(`No bots found in ${botsFile}`);
+  mkdirSync(outDir, { recursive: true });
+
+  const now = new Date().toISOString();
+  const rows = [];
+  for (const { name, slug } of bots) {
+    const file = join(outDir, `${slug}.token`);
+    let created = false;
+    if (!existsSync(file)) {
+      writeFileSync(file, `${newToken()}\n`, { flag: 'wx' });
+      created = true;
+    }
+    const token = readFileSync(file, 'utf8').trim();
+    if (!/^ccb_[A-Za-z0-9_-]{32,128}$/.test(token)) throw new Error(`${file} does not hold a valid token`);
+    const hash = hashOf(token);
+    rows.push(`INSERT OR IGNORE INTO bot_tokens (token_hash, bot, created_at) VALUES ('${hash}', '${slug}', '${now}');`);
+    console.log(`${slug.padEnd(18)} ${name.padEnd(18)} ${created ? 'new token' : 'existing token'}  sha256 ${hash.slice(0, 8)}…`);
+  }
+  if (flag('dry-run')) return;
+
+  const dir = mkdtempSync(join(tmpdir(), 'bot-tokens-'));
+  const sqlFile = join(dir, 'bot-tokens.sql');
+  try {
+    writeFileSync(sqlFile, `${rows.join('\n')}\n`);
+    const wrangler = process.env.WRANGLER ? `"${process.env.WRANGLER}"` : 'npx wrangler';
+    const cmd = `${wrangler} d1 execute ${database} --remote --file "${sqlFile}"${env ? ` --env ${env}` : ''}`;
+    const r = spawnSync(cmd, { shell: true, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+    if (r.status !== 0) {
+      console.error((r.stdout || '').slice(-1500), (r.stderr || '').slice(-1500));
+      throw new Error(`wrangler d1 execute failed (${r.status})`);
+    }
+    console.log(`Registered ${rows.length} token hashes in ${database}.`);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) main();
