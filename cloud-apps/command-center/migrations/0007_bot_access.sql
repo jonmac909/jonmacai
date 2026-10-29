@@ -13,7 +13,7 @@ CREATE TABLE IF NOT EXISTS bot_tasks (
   id TEXT PRIMARY KEY,
   title TEXT NOT NULL,
   owner TEXT NOT NULL,
-  status TEXT NOT NULL DEFAULT 'todo', -- todo | doing | waiting_on_jon | qc | done
+  status TEXT NOT NULL DEFAULT 'todo', -- todo | doing | waiting_on_jon | qc | done | cancelled
   note TEXT,
   created_by TEXT NOT NULL,
   updated_by TEXT NOT NULL,
@@ -69,10 +69,12 @@ CREATE TABLE IF NOT EXISTS bot_approvals (
   payload TEXT NOT NULL DEFAULT '{}', -- JSON object
   task_id TEXT,
   requested_by TEXT NOT NULL,
-  status TEXT NOT NULL DEFAULT 'pending', -- pending | approved | rejected | done | cancelled
+  status TEXT NOT NULL DEFAULT 'pending', -- pending | approved | rejected | running | done | cancelled
   decided_by TEXT,
   decided_at TEXT,
   decision_note TEXT,
+  claimed_by TEXT, -- the bot carrying it out (approved → running)
+  claimed_at TEXT,
   done_by TEXT, -- done_* records who closed it: carried out (done) or withdrawn (cancelled)
   done_at TEXT,
   done_note TEXT,

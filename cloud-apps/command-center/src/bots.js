@@ -3,11 +3,12 @@
 // (answer a question, approve or reject) needs the dashboard session and is never open to a bot.
 import { readSession } from './auth.js';
 
-export const TASK_STATUSES = ['todo', 'doing', 'waiting_on_jon', 'qc', 'done'];
+export const TASK_STATUSES = ['todo', 'doing', 'waiting_on_jon', 'qc', 'done', 'cancelled'];
+const OPEN_STATUSES = ['todo', 'doing', 'waiting_on_jon'];
 export const PROOF_KINDS = ['render', 'url', 'pdf', 'test'];
 export const QC_BOT = 'qc';
 const QUESTION_STATUSES = ['open', 'answered', 'closed'];
-const APPROVAL_STATUSES = ['pending', 'approved', 'rejected', 'done', 'cancelled'];
+const APPROVAL_STATUSES = ['pending', 'approved', 'rejected', 'running', 'done', 'cancelled'];
 const RUN_STATUSES = ['running', 'ok', 'failed'];
 const MAX_BODY = 256 * 1024;
 const MAX_PAYLOAD = 64 * 1024;
@@ -171,7 +172,8 @@ const questionOut = (r) => ({
 const approvalOut = (r) => ({
   id: r.id, action: r.action, title: r.title, payload: parseJson(r.payload, {}), taskId: r.task_id ?? null,
   requestedBy: r.requested_by, status: r.status, decidedBy: r.decided_by ?? null, decidedAt: r.decided_at ?? null,
-  decisionNote: r.decision_note ?? null, doneBy: r.done_by ?? null, doneAt: r.done_at ?? null, doneNote: r.done_note ?? null,
+  decisionNote: r.decision_note ?? null, claimedBy: r.claimed_by ?? null, claimedAt: r.claimed_at ?? null,
+  doneBy: r.done_by ?? null, doneAt: r.done_at ?? null, doneNote: r.done_note ?? null,
   createdAt: r.created_at, updatedAt: r.updated_at,
 });
 const runOut = (r) => ({
@@ -207,7 +209,7 @@ async function createTask(db, who, body, now) {
   const title = text(body, 'title', 300, true);
   const owner = body.owner == null || body.owner === '' ? who.bot : await ownerOf(db, who, body.owner);
   const status = body.status == null ? 'todo' : oneOf(body.status, TASK_STATUSES, 'status');
-  if (status === 'qc' || status === 'done') throw new Bad(400, 'A new task cannot start in qc or done; add proof first');
+  if (!OPEN_STATUSES.includes(status)) throw new Bad(400, `A new task starts as ${OPEN_STATUSES.join(', ')}`);
   const note = text(body, 'note', 4000);
   const key = text(body, 'key', 200);
   const id = newId('t');
@@ -218,8 +220,12 @@ async function createTask(db, who, body, now) {
   return json({ ok: true, duplicate, task: taskOut(row) }, duplicate ? 200 : 201);
 }
 
-async function usableProof(db, taskId) {
-  return !!(await db.prepare("SELECT 1 AS ok FROM bot_proofs WHERE task_id = ? AND status != 'failed' LIMIT 1").bind(taskId).first());
+// Done means proof: qc needs a proof QC hasn't failed, done needs one QC passed.
+async function hasProof(db, taskId, status) {
+  const sql = status === 'done'
+    ? "SELECT 1 AS ok FROM bot_proofs WHERE task_id = ? AND status = 'passed' LIMIT 1"
+    : "SELECT 1 AS ok FROM bot_proofs WHERE task_id = ? AND status != 'failed' LIMIT 1";
+  return !!(await db.prepare(sql).bind(taskId).first());
 }
 
 async function updateTask(db, who, id, body, now) {
@@ -232,8 +238,10 @@ async function updateTask(db, who, id, body, now) {
   if ('note' in body) { sets.push('note = ?'); args.push(text(body, 'note', 4000)); }
   if ('status' in body) {
     const status = oneOf(body.status, TASK_STATUSES, 'status');
-    if ((status === 'qc' || status === 'done') && status !== row.status && !(await usableProof(db, id))) {
-      throw new Bad(409, `Add proof before moving a task to ${status}`);
+    if (status !== row.status) {
+      if (status === 'qc' && !(await hasProof(db, id, 'qc'))) throw new Bad(409, 'Add proof before moving a task to qc');
+      if (status === 'done' && !(await hasProof(db, id, 'done'))) throw new Bad(409, 'A task is done only when QC has passed one of its proofs');
+      if (status === 'cancelled' && !text(body, 'note', 4000)) throw new Bad(400, 'Say why in note when cancelling a task');
     }
     sets.push('status = ?', 'done_at = ?');
     args.push(status, status === 'done' ? (row.status === 'done' ? row.done_at : now) : null);
@@ -284,7 +292,14 @@ async function checkProof(db, who, id, body, now) {
     .bind(result, who.bot, now, note, id).run();
   if (!changed(r)) throw new Bad(404, 'Proof not found');
   const row = await db.prepare('SELECT * FROM bot_proofs WHERE id = ?').bind(id).first();
-  return json({ ok: true, proof: proofOut(row) });
+  // A failed check takes a qc or done task back to doing when no proof still supports it.
+  let task = await taskRow(db, row.task_id);
+  if (result === 'failed' && task && (task.status === 'qc' || task.status === 'done') && !(await hasProof(db, task.id, task.status))) {
+    await db.prepare("UPDATE bot_tasks SET status = 'doing', done_at = NULL, updated_by = ?, updated_at = ? WHERE id = ? AND status = ?")
+      .bind(who.bot, now, task.id, task.status).run();
+    task = await taskRow(db, task.id);
+  }
+  return json({ ok: true, proof: proofOut(row), task: task ? taskOut(task) : null });
 }
 
 async function listProofs(db, q) {
@@ -415,18 +430,39 @@ async function moveApproval(db, id, fromStatuses, sql, args, gone) {
   return json({ ok: true, approval: approvalOut(row) });
 }
 
-// Only an approved request can be marked done, so nothing is carried out before Jon says yes.
-async function finishApproval(db, who, id, body, now) {
-  const note = text(body, 'note', 4000);
+async function ownApproval(db, who, id, verb) {
+  const row = await approvalRow(db, id);
+  if (!row) throw new Bad(404, 'Approval not found');
+  if (row.requested_by !== who.bot) throw new Bad(403, `Only the bot that asked can ${verb} this approval`);
+}
+
+// Carrying out an approval: claim (approved → running, one claimer wins), then done, or release
+// to try again later. Nothing can run before Jon approves, and only the bot that asked runs it.
+async function claimApproval(db, who, id, now) {
+  await ownApproval(db, who, id, 'claim');
   return moveApproval(db, id, ['approved'],
+    "UPDATE bot_approvals SET status = 'running', claimed_by = ?, claimed_at = ?, updated_at = ?",
+    [who.bot, now, now], (s) => `Approval is ${s}, not approved`);
+}
+
+async function finishApproval(db, who, id, body, now) {
+  await ownApproval(db, who, id, 'finish');
+  const note = text(body, 'note', 4000);
+  return moveApproval(db, id, ['running'],
     "UPDATE bot_approvals SET status = 'done', done_by = ?, done_at = ?, done_note = ?, updated_at = ?",
-    [who.bot, now, note, now], (s) => `Approval is ${s}, not approved`);
+    [who.bot, now, note, now], (s) => `Approval is ${s}; claim it before marking it done`);
+}
+
+async function releaseApproval(db, who, id, body, now) {
+  await ownApproval(db, who, id, 'release');
+  const note = text(body, 'note', 4000);
+  return moveApproval(db, id, ['running'],
+    "UPDATE bot_approvals SET status = 'approved', claimed_by = NULL, claimed_at = NULL, done_note = ?, updated_at = ?",
+    [note, now], (s) => `Approval is ${s}, not running`);
 }
 
 async function cancelApproval(db, who, id, body, now) {
-  const row = await approvalRow(db, id);
-  if (!row) throw new Bad(404, 'Approval not found');
-  if (row.requested_by !== who.bot) throw new Bad(403, 'Only the bot that asked can cancel this approval');
+  await ownApproval(db, who, id, 'cancel');
   const note = text(body, 'note', 4000);
   return moveApproval(db, id, ['pending', 'approved'],
     "UPDATE bot_approvals SET status = 'cancelled', done_by = ?, done_at = ?, done_note = ?, updated_at = ?",
@@ -534,7 +570,9 @@ async function route(request, db, who, rest) {
       if (!row) throw new Bad(404, 'Approval not found');
       return json({ ok: true, approval: approvalOut(row) });
     }
+    case 'POST approvals/:id/claim': needBot(who); return claimApproval(db, who, id, now);
     case 'POST approvals/:id/done': needBot(who); return finishApproval(db, who, id, body, now);
+    case 'POST approvals/:id/release': needBot(who); return releaseApproval(db, who, id, body, now);
     case 'POST approvals/:id/cancel': needBot(who); return cancelApproval(db, who, id, body, now);
     case 'POST approvals/:id/decide': needJon(who); return decideApproval(db, id, body, now);
     case 'GET runs': return listRuns(db, who, q);

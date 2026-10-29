@@ -41,7 +41,8 @@
     { "pattern": "jonmac.ai/dashboard/*", "zone_name": "jonmac.ai" }
   ],
   // Preview: `wrangler deploy --env preview`. Separate Worker on workers.dev with its own D1,
-  // no routes, no cron, no secrets, no review/funnel D1s and no R2. Live data is never touched.
+  // no routes, no cron, no review/funnel D1s, no R2 and no production secrets (only a
+  // preview-only SESSION_SECRET for the smoke test). Live data is never touched.
   "env": {
     "preview": {
       "name": "jonmac-command-center-preview",

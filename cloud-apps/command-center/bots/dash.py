@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
 """dash.py - talk to the jonmac.ai dashboard as one bot (Python stdlib only).
 
-Which bot: --bot SLUG, else env DASH_BOT, else the bot whose OpenBot workspace (BOTS.md)
-contains the current folder. The token is read from D:\\AgentTeam\\secrets\\bot-tokens\\<slug>.token
-(override the folder with DASH_TOKEN_DIR). Never print or paste the token.
+Which bot: the one whose OpenBot workspace (BOTS.md) contains the current folder, or env
+DASH_BOT for scripts that run elsewhere. The token is read from
+D:\\AgentTeam\\secrets\\bot-tokens\\<slug>.token (override the folder with DASH_TOKEN_DIR).
+Never print or paste the token.
 
-Prints the JSON reply. Exit code 0 on success, 1 when the dashboard refuses (message on
-stderr), 2 when it cannot be reached or the bot/token is missing. See DASH.md.
+Prints the JSON reply. Exit codes: 0 ok; 1 the dashboard refused (reason on stderr);
+2 a local problem (usage, unknown bot, no token, bad payload); 3 the dashboard could not be
+reached or failed (network, 5xx, redirect, not JSON). See DASH.md.
 """
 import argparse
 import json
@@ -21,7 +23,7 @@ from pathlib import Path
 BASE = os.environ.get('DASH_BASE', 'https://jonmac.ai/dashboard/api/v1')
 TOKEN_DIR = Path(os.environ.get('DASH_TOKEN_DIR', r'D:\AgentTeam\secrets\bot-tokens'))
 BOTS_MD = Path(os.environ.get('DASH_BOTS_MD', r'D:\AgentTeam\rules\BOTS.md'))
-TASK_STATUSES = ['todo', 'doing', 'waiting_on_jon', 'qc', 'done']
+TASK_STATUSES = ['todo', 'doing', 'waiting_on_jon', 'qc', 'done', 'cancelled']
 PROOF_KINDS = ['render', 'url', 'pdf', 'test']
 
 
@@ -45,9 +47,7 @@ def bots_table():
     return rows
 
 
-def which_bot(explicit):
-    if explicit:
-        return explicit.strip().lower()
+def which_bot():
     if os.environ.get('DASH_BOT'):
         return os.environ['DASH_BOT'].strip().lower()
     cwd = os.path.normcase(os.path.abspath(os.getcwd()))
@@ -55,7 +55,23 @@ def which_bot(explicit):
         ws = os.path.normcase(os.path.abspath(workspace))
         if cwd == ws or cwd.startswith(ws + os.sep):
             return slug
-    raise Fail(2, 'Which bot? Pass --bot <slug> or set DASH_BOT (slugs are the areas/<slug>.md names in BOTS.md).')
+    raise Fail(2, 'Which bot? Run from your OpenBot workspace, or set DASH_BOT to your slug (areas/<slug>.md in BOTS.md).')
+
+
+def check_base(base):
+    u = urllib.parse.urlsplit(base)
+    local = u.hostname in ('localhost', '127.0.0.1')
+    if u.scheme != 'https' and not (u.scheme == 'http' and local):
+        raise Fail(2, 'DASH_BASE must be https:// (http only for localhost): %s' % base)
+    return base
+
+
+class NoRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        raise Fail(3, 'Dashboard answered with a redirect (%s) to %s; not following it with the token' % (code, newurl))
+
+
+OPENER = urllib.request.build_opener(NoRedirect)
 
 
 def read_token(slug):
@@ -85,17 +101,21 @@ def call(ctx, method, path, body=None, query=None):
     if data is not None:
         req.add_header('Content-Type', 'application/json')
     try:
-        with urllib.request.urlopen(req, timeout=30) as res:
-            return json.loads(res.read().decode('utf-8') or '{}')
+        with OPENER.open(req, timeout=30) as res:
+            raw = res.read().decode('utf-8', 'replace')
     except urllib.error.HTTPError as err:
         raw = err.read().decode('utf-8', 'replace')
         try:
-            msg = json.loads(raw).get('error') or raw
-        except ValueError:
+            msg = json.loads(raw).get('error') or raw[:300]
+        except (ValueError, AttributeError):
             msg = raw[:300]
-        raise Fail(1, 'HTTP %s: %s' % (err.code, msg))
+        raise Fail(1 if 400 <= err.code < 500 else 3, 'HTTP %s: %s' % (err.code, msg))
     except (urllib.error.URLError, TimeoutError, OSError) as err:
-        raise Fail(2, 'Dashboard not reachable: %s' % getattr(err, 'reason', err))
+        raise Fail(3, 'Dashboard not reachable: %s' % getattr(err, 'reason', err))
+    try:
+        return json.loads(raw or '{}')
+    except ValueError:
+        raise Fail(3, 'Dashboard reply is not JSON: %s' % raw[:200])
 
 
 def only(d):
@@ -107,7 +127,10 @@ def payload_of(args):
         raise Fail(2, 'Use --payload or --payload-file, not both.')
     raw = args.payload
     if args.payload_file:
-        raw = Path(args.payload_file).read_text(encoding='utf-8')
+        try:
+            raw = Path(args.payload_file).read_text(encoding='utf-8-sig')
+        except OSError as err:
+            raise Fail(2, 'Cannot read payload file: %s' % err)
     if not raw:
         return {}
     try:
@@ -160,8 +183,12 @@ def run(args, ctx):
                                                      'requested_by': args.requested_by, 'limit': args.limit})
     if c == 'approval':
         return call(ctx, 'GET', '/approvals/%s' % q(args.id, safe=''))
+    if c == 'approval-claim':
+        return call(ctx, 'POST', '/approvals/%s/claim' % q(args.id, safe=''), {})
     if c == 'approval-done':
         return call(ctx, 'POST', '/approvals/%s/done' % q(args.id, safe=''), only({'note': args.note}))
+    if c == 'approval-release':
+        return call(ctx, 'POST', '/approvals/%s/release' % q(args.id, safe=''), only({'note': args.note}))
     if c == 'approval-cancel':
         return call(ctx, 'POST', '/approvals/%s/cancel' % q(args.id, safe=''), only({'note': args.note}))
     if c == 'run-report':
@@ -175,8 +202,7 @@ def run(args, ctx):
 
 def parser():
     p = argparse.ArgumentParser(prog='dash.py', description='Talk to the jonmac.ai dashboard as one bot. See DASH.md.')
-    p.add_argument('--bot', help='bot slug, e.g. video-editor (default: DASH_BOT or the current workspace)')
-    p.add_argument('--base', default=BASE, help='API base (default %(default)s)')
+    p.add_argument('--base', default=BASE, help='API base, https only (default %(default)s)')
     s = p.add_subparsers(dest='cmd', required=True, metavar='COMMAND')
 
     s.add_parser('whoami', help='check the token: prints your bot name')
@@ -190,7 +216,8 @@ def parser():
 
     a = s.add_parser('task-update', help='change one task')
     a.add_argument('id')
-    a.add_argument('--status', choices=TASK_STATUSES, help='qc and done need proof first')
+    a.add_argument('--status', choices=TASK_STATUSES,
+                   help='qc needs proof; done needs proof QC passed; cancelled needs --note')
     a.add_argument('--owner')
     a.add_argument('--note')
     a.add_argument('--title')
@@ -245,8 +272,8 @@ def parser():
     a.add_argument('--task')
     a.add_argument('--key')
 
-    a = s.add_parser('approvals', help='list approvals (to act on: --status approved)')
-    a.add_argument('--status', help='pending, approved, rejected, done or cancelled (comma list ok)')
+    a = s.add_parser('approvals', help='list approvals (to act on: --status approved --requested-by me)')
+    a.add_argument('--status', help='pending, approved, rejected, running, done or cancelled (comma list ok)')
     a.add_argument('--action')
     a.add_argument('--requested-by', help='bot slug or "me"')
     a.add_argument('--limit', type=int)
@@ -254,7 +281,14 @@ def parser():
     a = s.add_parser('approval', help='one approval')
     a.add_argument('id')
 
-    a = s.add_parser('approval-done', help='mark an approved action carried out')
+    a = s.add_parser('approval-claim', help='take your approved request before carrying it out (approved -> running)')
+    a.add_argument('id')
+
+    a = s.add_parser('approval-done', help='mark your claimed request carried out (running -> done)')
+    a.add_argument('id')
+    a.add_argument('--note')
+
+    a = s.add_parser('approval-release', help='give a claimed request back to try later (running -> approved)')
     a.add_argument('id')
     a.add_argument('--note')
 
@@ -287,8 +321,8 @@ def main(argv=None):
             pass
     args = parser().parse_args(argv)
     try:
-        bot = which_bot(args.bot)
-        ctx = {'bot': bot, 'token': read_token(bot), 'base': args.base}
+        bot = which_bot()
+        ctx = {'bot': bot, 'token': read_token(bot), 'base': check_base(args.base)}
         out = run(args, ctx)
     except Fail as err:
         print('dash.py: %s' % err, file=sys.stderr)

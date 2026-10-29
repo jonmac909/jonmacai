@@ -5,7 +5,7 @@ import { handleApi } from '../src/api.js';
 import { sha256Hex } from '../src/bots.js';
 import { signSession, COOKIE } from '../src/auth.js';
 import { sqliteD1 } from './sqlited1.mjs';
-import { botsFrom, newToken, hashOf } from '../scripts/bot-tokens.mjs';
+import { botsFrom, newToken, hashOf, parseArgs, tokenSql } from '../scripts/bot-tokens.mjs';
 
 const SECRET = 'test-session-secret-32-bytes-ok!';
 const TOKENS = {
@@ -127,19 +127,30 @@ test('proof: kinds and links, QC-only checks, and qc/done need usable proof', as
   assert.equal((await call(env, 'POST', `/proofs/${p1.body.proof.id}/check`, { cookie: await jonCookie(), body: { result: 'passed' } })).status, 403);
   assert.equal((await call(env, 'POST', `/proofs/${p1.body.proof.id}/check`, { bot: 'qc', body: { result: 'ok' } })).status, 400);
   assert.equal((await call(env, 'POST', '/proofs/p_0000000000000000/check', { bot: 'qc', body: { result: 'passed' } })).status, 404);
+  assert.equal((await call(env, 'PATCH', `/tasks/${task.id}`, { bot: 'video-editor', body: { status: 'done' } })).status, 409, 'pending proof is not enough for done');
   const failed = await call(env, 'POST', `/proofs/${p1.body.proof.id}/check`, { bot: 'qc', body: { result: 'failed', note: 'audio drops at 3:10' } });
   assert.deepEqual([failed.status, failed.body.proof.status, failed.body.proof.checkedBy, failed.body.proof.checkNote], [200, 'failed', 'qc', 'audio drops at 3:10']);
+  assert.deepEqual([failed.body.task.status, failed.body.task.updatedBy], ['doing', 'qc'], 'failing the only proof sends the task back to doing');
 
-  assert.equal((await call(env, 'PATCH', `/tasks/${task.id}`, { bot: 'qc', body: { status: 'done' } })).status, 409, 'only failed proof left');
-  await call(env, 'POST', `/tasks/${task.id}/proofs`, { bot: 'video-editor', body: { kind: 'url', link: 'https://jonmac.ai/review/ep4-v2' } });
+  assert.equal((await call(env, 'PATCH', `/tasks/${task.id}`, { bot: 'video-editor', body: { status: 'qc' } })).status, 409, 'only failed proof left');
+  const p2 = (await call(env, 'POST', `/tasks/${task.id}/proofs`, { bot: 'video-editor', body: { kind: 'url', link: 'https://jonmac.ai/review/ep4-v2' } })).body.proof;
+  assert.equal((await call(env, 'PATCH', `/tasks/${task.id}`, { bot: 'video-editor', body: { status: 'qc' } })).body.task.status, 'qc');
+  const passed = await call(env, 'POST', `/proofs/${p2.id}/check`, { bot: 'qc', body: { result: 'passed' } });
+  assert.equal(passed.body.task.status, 'qc', 'passing does not move the task by itself');
   const done = await call(env, 'PATCH', `/tasks/${task.id}`, { bot: 'qc', body: { status: 'done' } });
   assert.equal(done.body.task.status, 'done');
   assert.ok(done.body.task.doneAt);
-  const reopened = await call(env, 'PATCH', `/tasks/${task.id}`, { bot: 'qc', body: { status: 'doing' } });
-  assert.equal(reopened.body.task.doneAt, null);
+  const refailed = await call(env, 'POST', `/proofs/${p2.id}/check`, { bot: 'qc', body: { result: 'failed', note: 'link 404s' } });
+  assert.deepEqual([refailed.body.task.status, refailed.body.task.doneAt], ['doing', null], 'a done task without passed proof reopens');
 
   const full = await call(env, 'GET', `/tasks/${task.id}`, { bot: 'sponsors' });
-  assert.deepEqual(full.body.task.proofs.map((p) => [p.kind, p.status]), [['render', 'failed'], ['url', 'pending']]);
+  assert.deepEqual(full.body.task.proofs.map((p) => [p.kind, p.status]), [['render', 'failed'], ['url', 'failed']]);
+
+  const drop = (await call(env, 'POST', '/tasks', { bot: 'video-editor', body: { title: 'Test row' } })).body.task;
+  assert.equal((await call(env, 'PATCH', `/tasks/${drop.id}`, { bot: 'video-editor', body: { status: 'cancelled' } })).status, 400, 'cancel needs a reason');
+  const cancelled = await call(env, 'PATCH', `/tasks/${drop.id}`, { bot: 'video-editor', body: { status: 'cancelled', note: 'test row' } });
+  assert.deepEqual([cancelled.status, cancelled.body.task.status, cancelled.body.task.note], [200, 'cancelled', 'test row']);
+  assert.equal((await call(env, 'POST', '/tasks', { bot: 'video-editor', body: { title: 'x', status: 'cancelled' } })).status, 400);
 });
 
 test('questions: bots ask, only Jon answers (once), the asker reads and closes', async () => {
@@ -194,8 +205,9 @@ test('approvals: nothing is done before Jon approves; bots never decide', async 
   assert.deepEqual([a.status, a.requestedBy, a.payload], ['pending', 'sponsors', { count: 20, list: 'D:\\x.csv' }]);
   assert.equal((await call(env, 'POST', '/approvals', { bot: 'sponsors', body: { action: 'send_pitches', title: 'again', key: 'pitch-1029' } })).body.approval.id, a.id);
 
-  const early = await call(env, 'POST', `/approvals/${a.id}/done`, { bot: 'sponsors' });
+  const early = await call(env, 'POST', `/approvals/${a.id}/claim`, { bot: 'sponsors' });
   assert.deepEqual([early.status, early.body.approval.status], [409, 'pending']);
+  assert.equal((await call(env, 'POST', `/approvals/${a.id}/done`, { bot: 'sponsors' })).status, 409);
   assert.equal((await call(env, 'POST', `/approvals/${a.id}/decide`, { bot: 'sponsors', body: { decision: 'approve' } })).status, 403);
   assert.equal((await call(env, 'POST', `/approvals/${a.id}/decide`, { bot: 'qc', body: { decision: 'approve' } })).status, 403);
   assert.equal((await call(env, 'GET', '/approvals?status=approved', { bot: 'sponsors' })).body.approvals.length, 0);
@@ -207,11 +219,23 @@ test('approvals: nothing is done before Jon approves; bots never decide', async 
   assert.deepEqual([ok.status, ok.body.approval.status, ok.body.approval.decidedBy], [200, 'approved', 'jon']);
   assert.equal((await call(env, 'POST', `/approvals/${a.id}/decide`, { cookie: ck, body: { decision: 'reject' } })).status, 409);
 
-  const ready = await call(env, 'GET', '/approvals?status=approved&action=send_pitches', { bot: 'sponsors' });
+  const ready = await call(env, 'GET', '/approvals?status=approved&action=send_pitches&requested_by=me', { bot: 'sponsors' });
   assert.deepEqual(ready.body.approvals.map((x) => x.id), [a.id]);
+  assert.equal((await call(env, 'POST', `/approvals/${a.id}/done`, { bot: 'sponsors' })).status, 409, 'claim first');
+  assert.equal((await call(env, 'POST', `/approvals/${a.id}/claim`, { bot: 'developer' })).status, 403, 'only the bot that asked carries it out');
+  const claims = await Promise.all([1, 2, 3].map(() => call(env, 'POST', `/approvals/${a.id}/claim`, { bot: 'sponsors' })));
+  assert.deepEqual(claims.map((c) => c.status).sort(), [200, 409, 409], 'one claimer wins');
+  const won = claims.find((c) => c.status === 200).body.approval;
+  assert.deepEqual([won.status, won.claimedBy], ['running', 'sponsors']);
+  assert.equal((await call(env, 'POST', `/approvals/${a.id}/cancel`, { bot: 'sponsors' })).status, 409, 'running cannot be cancelled');
+  const released = await call(env, 'POST', `/approvals/${a.id}/release`, { bot: 'sponsors', body: { note: 'SMTP down' } });
+  assert.deepEqual([released.body.approval.status, released.body.approval.claimedBy], ['approved', null]);
+  await call(env, 'POST', `/approvals/${a.id}/claim`, { bot: 'sponsors' });
+  assert.equal((await call(env, 'POST', `/approvals/${a.id}/done`, { bot: 'developer' })).status, 403);
   const done = await call(env, 'POST', `/approvals/${a.id}/done`, { bot: 'sponsors', body: { note: 'sent 20' } });
   assert.deepEqual([done.status, done.body.approval.status, done.body.approval.doneBy, done.body.approval.doneNote], [200, 'done', 'sponsors', 'sent 20']);
   assert.equal((await call(env, 'POST', `/approvals/${a.id}/done`, { bot: 'sponsors' })).status, 409, 'done once');
+  assert.equal((await call(env, 'POST', `/approvals/${a.id}/release`, { bot: 'sponsors' })).status, 409);
   assert.equal((await call(env, 'GET', '/approvals?status=approved', { bot: 'sponsors' })).body.approvals.length, 0);
 
   const other = (await call(env, 'POST', '/approvals', { bot: 'sponsors', body: { action: 'publish_draft', title: 'Publish ep 4' } })).body.approval;
@@ -267,8 +291,23 @@ test('token script: slugs come from BOTS.md rules files; issued tokens pass the 
   assert.match(token, /^ccb_[A-Za-z0-9_-]{43}$/);
   assert.equal(hashOf(token), await sha256Hex(token));
   const db = sqliteD1();
-  await db.prepare('INSERT INTO bot_tokens (token_hash, bot, created_at) VALUES (?, ?, ?)').bind(hashOf(token), 'viral-view', 'now').run();
+  for (const sql of tokenSql('viral-view', hashOf(token), '2026-10-29T00:00:00.000Z')) db.sqlite.exec(sql);
   assert.equal((await call({ DB: db }, 'GET', '/me', { token })).body.bot, 'viral-view');
+  // Rotation: registering a new token file revokes the old hash.
+  const next = newToken();
+  for (const sql of tokenSql('viral-view', hashOf(next), '2026-10-29T01:00:00.000Z')) db.sqlite.exec(sql);
+  assert.equal((await call({ DB: db }, 'GET', '/me', { token })).status, 401);
+  assert.equal((await call({ DB: db }, 'GET', '/me', { token: next })).body.bot, 'viral-view');
+  for (const sql of tokenSql('viral-view', hashOf(next), '2026-10-29T02:00:00.000Z')) db.sqlite.exec(sql);
+  assert.equal((await call({ DB: db }, 'GET', '/me', { token: next })).status, 200, 're-running keeps the current token');
+
+  assert.equal(parseArgs(['--env=preview']).env, 'preview');
+  assert.equal(parseArgs(['--env', 'preview', '--dry-run'])['dry-run'], true);
+  assert.equal(parseArgs(['--rotate', 'qc']).rotate, 'qc');
+  assert.throws(() => parseArgs(['--env=prod']));
+  assert.throws(() => parseArgs(['--enviro', 'preview']));
+  assert.throws(() => parseArgs(['preview']));
+  assert.throws(() => parseArgs(['--env']));
 });
 
 test('workers.dev answers only on the preview Worker', async () => {
