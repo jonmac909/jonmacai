@@ -8,10 +8,8 @@ import { handleApi } from '../src/api.js';
 import { signSession, COOKIE } from '../src/auth.js';
 import { mergeSnapshot } from '../src/snapshot.js';
 import { buildSponsorsPage } from '../src/sponsors.js';
-import { overlaySupport } from '../src/support.js';
 import { plannerDestination } from '../src/review.js';
 import { render as renderSponsors } from '../public/js/pages/sponsors.js';
-import { render as renderSupport } from '../public/js/pages/support.js';
 import { formatJobResult } from '../public/js/ui.js';
 import { memD1 } from './memd1.mjs';
 
@@ -34,42 +32,7 @@ function post(env, path, body) {
   }), env);
 }
 
-test('morning stays at zero until a manual click', () => {
-  const snap = mergeSnapshot(structuredClone(fixture), [
-    { source: 'sponsors', data: JSON.stringify({ cards: [] }), collected_at: new Date(NOW).toISOString() },
-    { source: 'support', data: JSON.stringify({ tickets: [] }), collected_at: new Date(NOW).toISOString() },
-  ], NOW, {}, [], [], [], {
-    habits: [{ day: '2026-09-19', kind: 'workout', done: 1 }],
-    checklist: [{ day: '2026-09-19', item: 'market_check', how: 'auto', done_at: '2026-09-19T19:45:55.853Z' }],
-  });
-  assert.equal(snap.pages.home.runThrough.done, 0);
-  assert.ok(snap.pages.home.runThrough.steps.every((s) => s.done === false && s.item));
-});
-
-test('manual checklist click persists and the next Kelowna day is zero', async () => {
-  const env = { DB: memD1(), SESSION_SECRET: SECRET };
-  env._ck = await cookie();
-  assert.equal((await post(env, '/dashboard/api/checklist', { day: '2026-09-19', item: 'bank_scan', how: 'manual' })).status, 200);
-  assert.equal((await post(env, '/dashboard/api/checklist', { day: '2026-09-19', item: 'market_check', how: 'auto' })).status, 200);
-  const morning = mergeSnapshot(structuredClone(fixture), [], NOW, {}, [], [], [], {
-    checklist: [...env.DB.checklist.values()],
-  });
-  const items = Object.fromEntries(morning.pages.home.runThrough.steps.map((s) => [s.item, s.done]));
-  assert.equal(items.bank_scan, true);
-  assert.equal(items.market_check, false);
-  assert.equal(morning.pages.home.runThrough.done, 1);
-  assert.equal((await post(env, '/dashboard/api/checklist', { day: '2026-09-19', item: 'bank_scan', done: false })).status, 200);
-  const cleared = mergeSnapshot(structuredClone(fixture), [], NOW, {}, [], [], [], {
-    checklist: [...env.DB.checklist.values()],
-  });
-  assert.equal(cleared.pages.home.runThrough.done, 0);
-  const next = mergeSnapshot(structuredClone(fixture), [], Date.parse('2026-09-20T17:00:00Z'), {}, [], [], [], {
-    checklist: [{ day: '2026-09-19', item: 'sponsor_emails', how: 'manual' }],
-  });
-  assert.equal(next.pages.home.runThrough.done, 0);
-});
-
-test('sponsor, support, and kanban review open an editable draft instead of sending', () => {
+test('sponsor and kanban review open an editable draft instead of sending', () => {
   const page = buildSponsorsPage({
     cards: [{
       id: 'c1', sponsor: 'Flova', stage: 'negotiating', to: 'ada@example.com', subject: 'Rates',
@@ -93,19 +56,6 @@ test('sponsor, support, and kanban review open an editable draft instead of send
   assert.match(html, /data-draft="1"/);
   assert.match(html, /ada@example.com/);
   assert.doesNotMatch(html, /data-kind="sponsor.send_draft"/);
-
-  const support = structuredClone(fixture.pages.support);
-  overlaySupport(support, {
-    tickets: [{ uid: '9', to: 'bea@example.com', subject: 'Export', body: 'Restarted it.', money: false }],
-  });
-  const row = support.drafts.rows[0];
-  assert.equal(row.to, 'bea@example.com');
-  assert.equal(row.subject, 'Export');
-  assert.equal(row.body, 'Restarted it.');
-  assert.equal(row.discardKind, 'support.discard_draft');
-  const supportHtml = renderSupport(support);
-  assert.match(supportHtml, /data-draft="1"/);
-  assert.doesNotMatch(supportHtml, /data-kind="support.send"/);
 });
 
 test('isolated draft save and discard persist without queueing mail', async () => {
@@ -155,11 +105,7 @@ test('Send to Planner explains the Orca destination and does not queue twice', a
   const again = await (await post(env, '/dashboard/api/actions', { ...body, idemKey: 'p2' })).json();
   assert.match(again.result, /under Planner in Orca/);
   assert.equal(env.DB.actions.filter((a) => a.kind === 'mastermind.send_to_planner').length, 1);
-  const snap = mergeSnapshot(structuredClone(fixture), [
-    { source: 'mastermind', data: JSON.stringify({ picks: [], scanned: 1 }), collected_at: new Date(NOW).toISOString() },
-  ], NOW, {}, [...env.DB.ideas.values()]);
-  const built = snap.pages.mastermind.building.rows.find((r) => r.title === 'QA-TEST daily review');
-  assert.match(built.sub, /Planner/);
+  assert.equal([...env.DB.ideas.values()].find((i) => i.id === 'qa-plan').status, 'sent');
 });
 
 test('collector scan finishes with counts and refuses isolated sends', () => {

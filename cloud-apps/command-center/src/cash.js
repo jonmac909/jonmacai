@@ -42,12 +42,6 @@ export function usd(n) {
 
 const cents = (n) => Math.round((Number(n) || 0) * 100) / 100;
 
-// Deposit totals keep their cents: $8,888.75 is not $8,889.
-export function usdExact(n) {
-  const x = cents(n);
-  return `$${x.toLocaleString('en-US', Number.isInteger(x) ? {} : { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-}
-
 function vanDate(ms) {
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Vancouver', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(ms));
 }
@@ -173,18 +167,4 @@ export function buildCash(cashRow, sponsorsRow, nowMs, moneyRow = null) {
   })).sort((a, b) => b.owed - a.owed);
   out.owed = out.unpaid.reduce((n, i) => n + i.owed, 0);
   return out;
-}
-
-export function cashTile(c) {
-  if (!c.available) return { icon: 'dollar', label: 'Sponsors · trailing 90-day avg', value: 'no data', sub: 'No deposit feed or cash_ledger.csv has reported' };
-  const unknown = c.trailing.unknown ? ` · ${c.trailing.unknown} payment${c.trailing.unknown === 1 ? '' : 's'} with unknown amount` : '';
-  return {
-    icon: 'dollar',
-    label: 'Sponsors · trailing 90-day avg',
-    value: usd(c.trailing.avg),
-    goal: `/ ${usd(c.target).replace('$10,000', '$10k')} a month`,
-    pct: c.pct,
-    pg: c.pct >= 100 ? 'ok' : c.pct >= 50 ? 'risk' : 'crit',
-    sub: `${c.month.label}: ${usdExact(c.month.usd)} received${unknown} · ${usd(c.owed)} unpaid · ${c.source.label}${c.source.stale ? ' (stale)' : ''}`,
-  };
 }

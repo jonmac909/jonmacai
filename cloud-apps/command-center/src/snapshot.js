@@ -1,63 +1,28 @@
-import { CONNECTOR, ORIGIN } from './mastermind-source.js';
-import { buildSponsorsPage, applyHomeSponsors, sourceEditedAt } from './sponsors.js';
-import { overlaySupport } from './support.js';
-import { applyReviewDrafts, plannerDestination } from './review.js';
-import { overlayYoutube } from './youtube.js';
-import { overlayVideo } from './video.js';
-import { overlayContent } from './content.js';
-import { overlayMoney, overlayMarkets, monthVerified, quoteStamp } from './money.js';
-import { overlayViral, applyHomeViral } from './viral.js';
-import { overlayOutreach, blankOutreach } from './outreach.js';
+import { buildSponsorsPage, sourceEditedAt } from './sponsors.js';
+import { applyReviewDrafts } from './review.js';
+import { overlayMoney, overlayBankScan } from './money.js';
+import { overlayViral } from './viral.js';
 import { overlayLife } from './life.js';
-import { applyHome } from './home.js';
-import { buildTasks, buildDeliverables, buildDaily } from './tasks.js';
-import { buildProjects } from './projects.js';
-import { buildChannels } from './channels.js';
-import { buildQuestions } from './questions.js';
-import { buildMachines, HOSTS, MACHINE_INTERVAL_MS } from './machines.js';
-import { overlayVideos } from './videos.js';
 import { overlayWebinar } from './webinar.js';
-import { buildCash, usd, withoutExcluded } from './cash.js';
-import { buildNow } from './now.js';
-import { buildTeam } from './team.js';
-import { buildPartners } from './partners.js';
-import { buildGoalsHome } from './goals.js';
+import { buildCash, withoutExcluded } from './cash.js';
 import { buildToday } from './today.js';
-import { overlayFactory } from './factory.js';
 
 export const COLLECTOR_INTERVAL_MS = 5 * 60 * 1000;
 
 export const DEFAULT_INTERVAL_MS = 10 * 60 * 1000;
 
+const MACHINE_INTERVAL_MS = 60 * 1000; // GPU1 and GPU2 heartbeats
+
 export const INTERVALS = {
-  agents_mac: COLLECTOR_INTERVAL_MS,
-  agents_gpu2: COLLECTOR_INTERVAL_MS,
   sponsors: COLLECTOR_INTERVAL_MS,
-  mastermind: COLLECTOR_INTERVAL_MS,
-  support: COLLECTOR_INTERVAL_MS,
-  video: COLLECTOR_INTERVAL_MS,
-  youtube: DEFAULT_INTERVAL_MS,
-  content_queue: COLLECTOR_INTERVAL_MS,
   viralview: DEFAULT_INTERVAL_MS,
   moneyclaw: DEFAULT_INTERVAL_MS,
-  instantly: DEFAULT_INTERVAL_MS,
   calendar: DEFAULT_INTERVAL_MS,
   bank_scan: COLLECTOR_INTERVAL_MS,
   machine_gpu1: MACHINE_INTERVAL_MS,
   machine_gpu2: MACHINE_INTERVAL_MS,
-  videos: MACHINE_INTERVAL_MS,
-  webinar: COLLECTOR_INTERVAL_MS,
   sponsors_cash: COLLECTOR_INTERVAL_MS,
-  needs_jon: COLLECTOR_INTERVAL_MS,
-  team: COLLECTOR_INTERVAL_MS,
-  jon_tasks: 6 * 60 * 60 * 1000,
-  partners_report: 6 * 60 * 60 * 1000,
 };
-
-const MACHINES = [
-  { id: 'mac', label: 'Mac mini', source: 'agents_mac' },
-  { id: 'gpu2', label: 'GPU2', source: 'agents_gpu2' },
-];
 
 export function ageLabel(ageMs) {
   const m = Math.floor(ageMs / 60000);
@@ -83,399 +48,37 @@ function parseData(raw) {
   try { return JSON.parse(raw || '{}'); } catch { return {}; }
 }
 
-function names(list) {
-  return list.filter(Boolean).join(' · ');
-}
-
-function vanDate(nowMs) {
-  return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Vancouver', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(nowMs));
-}
-
-function dayBefore(iso) {
-  const [y, m, d] = iso.split('-').map(Number);
-  return new Date(Date.UTC(y, m - 1, d - 1)).toISOString().slice(0, 10);
-}
-
-function stampMs(value) {
-  if (typeof value === 'number' && Number.isFinite(value)) return value;
-  const parsed = Date.parse(value);
-  return Number.isFinite(parsed) ? parsed : NaN;
-}
-
-function homeChip(by, nowMs) {
-  const tracked = ['sponsors', 'moneyclaw', 'viralview'];
-  if (!tracked.some((name) => by[name])) return null;
-  const issues = [];
-  const sponsors = by.sponsors ? parseData(by.sponsors.data) : null;
-  if (!sponsors) issues.push('sponsors missing');
-  else {
-    const ms = stampMs(sponsors.sourceEditedAt || sponsors.collections?.sourceEditedAt);
-    if (!Number.isFinite(ms)) issues.push('sponsors source time unavailable');
-    else if (nowMs - ms > 3 * INTERVALS.sponsors) issues.push('sponsors source stale');
-  }
-  const money = by.moneyclaw ? parseData(by.moneyclaw.data) : null;
-  if (!money) issues.push('MoneyClaw missing');
-  else {
-    const asOf = String(money.asOf || '');
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(asOf)) issues.push('expense as-of unavailable');
-    else if (asOf < dayBefore(vanDate(nowMs))) issues.push('expenses stale');
-    if (!quoteStamp(money)) issues.push('markets quote time unavailable');
-    if (!monthVerified(money.expenses?.business?.month)) issues.push('month totals unverified');
-  }
-  const viral = by.viralview ? parseData(by.viralview.data) : null;
-  if (!viral) issues.push('Viral View missing');
-  else {
-    const ms = stampMs(viral.lastSyncAt);
-    if (!Number.isFinite(ms)) issues.push('Viral View sync time unavailable');
-    else if (nowMs - ms > 3 * INTERVALS.viralview) issues.push('Viral View sync stale');
-  }
-  if (!issues.length) return 'Live · numbers from your pages';
-  const stale = issues.some((issue) => /stale/i.test(issue));
-  const other = issues.some((issue) => !/stale/i.test(issue));
-  const head = stale && other ? 'Partial' : stale ? 'Stale' : 'Unavailable';
-  return `${head} · ${issues.join(' · ')}`;
-}
-
-function redactActivity(value, max = 80) {
-  return String(value || '')
-    .replace(/\S+@\S+/g, '')
-    .replace(/\bsk-[A-Za-z0-9_-]{6,}\b/gi, '')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .slice(0, max);
-}
-
-function overlayAgents(page, by, nowMs) {
-  const agents = [];
-  let live = false;
-  for (const m of MACHINES) {
-    const row = by[m.source];
-    if (!row) continue;
-    const data = parseData(row.data);
-    if (data.ok === false || data.unreachable) {
-      live = true;
-      continue;
-    }
-    if (!Array.isArray(data.agents)) continue;
-    live = true;
-    const f = freshness(row.collected_at, nowMs, INTERVALS[m.source]);
-    for (const a of data.agents) {
-      const lines = ((a.waiting && a.waiting.lines) || []).map(redactActivity).filter(Boolean);
-      agents.push({
-        ...a,
-        runs: a.runs || m.label,
-        machine: a.machine || m.id,
-        now: redactActivity(a.now),
-        title: redactActivity(a.title),
-        workspace: redactActivity(a.workspace),
-        lastLine: redactActivity(a.lastLine, 160),
-        feedStale: f.stale,
-        asOf: row.collected_at,
-        waiting: a.waiting ? { ...a.waiting, title: redactActivity(a.waiting.title), lines } : a.waiting,
-      });
-    }
-  }
-  if (!live) return;
-  const freshWork = (a) => !(a.feedStale && a.status === 'working');
-  const need = agents.filter((a) => a.status === 'needs_you' || a.status === 'action_required');
-  const work = agents.filter((a) => freshWork(a) && a.status === 'working');
-  const idle = agents.filter((a) => a.status === 'idle');
-  const stopped = agents.filter((a) => a.status === 'error' || a.status === 'exited');
-  page.sub = agents.length ? `${agents.length} live · Mac mini and GPU2` : 'No live agents in this feed';
-  page.tiles = [
-    { icon: 'clock', label: 'Need you', value: String(need.length), sub: names(need.map((a) => a.name)) || 'None' },
-    { icon: 'bot', label: 'Working now', value: String(work.length), sub: names(work.map((a) => a.name)) || 'None' },
-    { icon: 'check', label: 'Idle', value: String(idle.length), sub: names(idle.map((a) => a.name)) || 'None' },
-    { icon: 'fire', label: 'Stopped', value: String(stopped.length), sub: names(stopped.map((a) => a.name)) || 'None' },
-  ];
-  page.waiting = {
-    title: 'Waiting on you',
-    jobs: need.map((a) => ({
-      area: a.name,
-      pill: (a.waiting && a.waiting.waitLabel) || 'Action required',
-      pillCls: 'risk',
-      title: (a.waiting && a.waiting.title) || a.now,
-      lines: (a.waiting && a.waiting.lines) || [a.now],
-      page: a.page || undefined,
-      btn: a.page ? 'Open' : '',
-    })),
-  };
-  const rank = (a) => (a.status === 'needs_you' || a.status === 'action_required' ? 0 : a.status === 'working' && !a.feedStale ? 1 : a.status === 'idle' ? 2 : 3);
-  const waitingOnJon = (a) => a.status === 'needs_you' || a.status === 'action_required';
-  page.all = {
-    title: 'Live terminals',
-    rows: [...agents].sort((x, y) => rank(x) - rank(y)).map((a) => ({
-      id: a.id,
-      agent: a.name,
-      title: a.title || '',
-      workspace: a.workspace || '',
-      lastLine: a.feedStale ? '' : (a.lastLine || ''),
-      status: a.feedStale ? 'stale' : a.status,
-      runs: a.runs,
-      now: a.now,
-      asOf: a.asOf,
-      job: a.feedStale ? 'Stale' : a.job,
-      pct: a.feedStale ? 0 : a.pct,
-      pg: a.feedStale ? '' : (a.pg || ''),
-      pill: a.feedStale ? 'Stale' : waitingOnJon(a) ? 'Waiting on Jon' : a.pill,
-      pillCls: a.feedStale ? '' : (a.pillCls || ''),
-      page: a.page || undefined,
-      machine: a.machine,
-      restart: a.restart || '',
-      restartMsg: a.restartMsg || '',
-    })),
-  };
-}
-
-function monthOf(iso, nowMs) {
-  const tz = 'America/Vancouver';
-  const d = new Date(Number.isFinite(Date.parse(iso)) ? iso : nowMs);
-  const n = new Date(nowMs);
-  return d.toLocaleString('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit' })
-    === n.toLocaleString('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit' });
-}
-function monthNameFor(ms) {
-  return new Intl.DateTimeFormat('en-US', { timeZone: 'America/Vancouver', month: 'long' }).format(new Date(ms));
-}
-function groupScan(by) {
-  for (const key of ['mastermind_group', 'mastermind']) {
-    const row = by[key];
-    if (!row) continue;
-    const data = parseData(row.data);
-    if (data?.origin === ORIGIN) return { row, data };
-  }
-  return null;
-}
-
-function missingGroup() {
-  return { origin: ORIGIN, access: 'unavailable', connector: CONNECTOR, scanned: 0, picks: [], empty: false };
-}
-
-function clockLabel(iso, verb) {
-  const t = Date.parse(iso);
-  if (!Number.isFinite(t)) return '';
-  const clock = new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'America/Vancouver', year: 'numeric', month: '2-digit', day: '2-digit',
-    hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
-  }).format(new Date(t));
-  return ` · ${verb} ${clock} PT`;
-}
-
-
-function overlayMastermind(page, data, ideas, nowMs) {
-  const decided = new Set((ideas || []).filter((i) => i.status && i.status !== 'new').map((i) => i.id));
-  const picks = (data.picks || []).filter((p) => !decided.has(p.id));
-  const scanned = Number(data.scanned || 0);
-  const kept = picks.length;
-  const parked = (ideas || []).filter((i) => i.status === 'parked');
-  const building = (ideas || []).filter((i) => i.status === 'sent' || i.status === 'building' || i.status === 'built');
-  const sentMonth = (ideas || []).filter((i) => ['sent', 'building', 'built'].includes(i.status) && monthOf(i.created_at, nowMs));
-  const builtMonth = (ideas || []).filter((i) => i.status === 'built' && monthOf(i.created_at, nowMs));
-  page.actions = [{ label: 'Scan now', kind: 'mastermind.scan', msg: 'Scanning the group now' }];
-  const unavailable = data.access !== 'ok';
-  page.access = unavailable ? 'unavailable' : 'ok';
-  page.sub = unavailable
-    ? `Built With AI - Advanced · group history unavailable${clockLabel(data.scannedAt, 'checked')}`
-    : data.sourceForwarding
-      ? `Built With AI - Advanced · messages this bot received in the last 24 hours${clockLabel(data.scannedAt, 'scanned')}${data.empty ? ' · none in that window' : ''}`
-      : `Private mirror · new channel posts only · Advanced source forwarding is not connected${clockLabel(data.scannedAt, 'scanned')}${data.empty ? ' · none in that window' : ''}`;
-  page.tiles = [
-    { icon: 'chat', label: 'Messages read for you', value: unavailable ? '—' : String(scanned), sub: unavailable ? 'Not connected' : data.empty ? 'No messages in the last 24 hours' : `${kept} kept · ${Math.max(0, scanned - kept)} skipped` },
-    { icon: 'bulb', label: 'Picks waiting on you', value: unavailable ? '—' : String(kept), sub: unavailable ? 'No group history' : `${picks.filter((p) => p.verdict === 'implement').length} worth doing · ${picks.filter((p) => p.verdict !== 'implement').length} maybe` },
-    { icon: 'send', label: 'Sent to Planner this month', value: String(sentMonth.length), sub: `${builtMonth.length} already built` },
-    { icon: 'check', label: `Ideas built · ${monthNameFor(nowMs)}`, value: String(builtMonth.length), goal: '/ 5', pct: Math.round(builtMonth.length / 5 * 100), sub: `${building.filter((i) => i.status !== 'built').length} in progress` },
-  ];
-  page.picks = {
-    title: "Today's picks",
-    note: unavailable ? (data.connector || data.error || CONNECTOR) : data.empty ? 'No messages in the last 24 hours.' : '',
-    jobs: (unavailable ? [] : picks).map((p) => ({
-      id: p.id,
-      area: p.area || 'Mastermind',
-      pill: p.verdict === 'implement' ? 'Worth doing' : 'Maybe',
-      pillCls: p.verdict === 'implement' ? 'ok' : 'risk',
-      title: p.title,
-      lines: p.lines || [p.text].filter(Boolean),
-      lineBtn: 'Park',
-      lineKind: 'mastermind.park',
-      linePayload: { id: p.id, title: p.title, body: p.text, area: p.area, msg: 'Parked for later' },
-      btn: 'Send to Planner',
-      kind: 'mastermind.send_to_planner',
-      payload: { id: p.id, title: p.title, body: p.text, area: p.area, verdict: p.verdict, msg: plannerDestination(p.title) },
-      done: true,
-    })),
-  };
-  page.building = {
-    title: 'Being built',
-    meta: 'Ideas you sent to Planner',
-    rows: building.map((i) => ({
-      title: i.title,
-      sub: `${i.area || 'Planner'} · Orca worktree under Planner`,
-      pct: i.status === 'built' ? 100 : i.status === 'building' ? 75 : 25,
-      pg: i.status === 'built' ? 'ok' : '',
-      pill: i.status === 'built' ? 'Built' : 'Building',
-      pillCls: i.status === 'built' ? 'ok' : 'blue',
-    })),
-  };
-  page.parked = {
-    title: 'Parked',
-    meta: parked.length ? `${parked.length} saved for later` : 'None saved',
-    rows: parked.map((i) => ({
-      title: i.title,
-      sub: i.area || '',
-      id: i.id,
-      body: i.body,
-      area: i.area,
-    })),
-    more: { title: '', sub: '', btn: '', msg: '' },
-  };
-}
-
-export function mergeSnapshot(fixture, rows, nowMs = Date.now(), overrides = {}, ideas = [], posts = [], projects = [], extra = {}) {
-  if (Array.isArray(overrides)) {
-    ideas = overrides;
-    overrides = {};
-  }
+export function mergeSnapshot(fixture, rows, nowMs = Date.now(), overrides = {}, extra = {}) {
   extra = extra || {};
   const out = JSON.parse(JSON.stringify(fixture));
   const by = {};
-  const staleSources = [];
   for (const row of rows || []) {
     by[row.source] = row.source === 'sponsors' || row.source === 'sponsors_cash'
       ? { ...row, data: withoutExcluded(row.source, row.data) }
       : row;
-    if (row.source === 'google_oauth' || row.source === 'telegram_sent' || row.source === 'mastermind_group') continue;
+    if (row.source === 'google_oauth' || row.source === 'telegram_sent') continue;
     const interval = INTERVALS[row.source] ?? DEFAULT_INTERVAL_MS;
     const f = freshness(row.collected_at, nowMs, interval);
     out.sources[row.source] = { updatedAt: row.collected_at, stale: f.stale, ageLabel: f.label };
-    if (f.stale) {
-      const m = MACHINES.find((x) => x.source === row.source) || HOSTS.find((x) => x.source === row.source);
-      staleSources.push({ source: row.source, label: m ? m.label : row.source, ageLabel: f.label });
-    }
-  }
-  const hosts = buildMachines(by, nowMs);
-  if (out.pages.home) out.pages.home.machines = hosts;
-  if (out.pages.agents) {
-    out.pages.agents.hosts = hosts;
-    out.pages.agents.title = 'Machines & Agents';
-    out.pages.agents.machines = MACHINES.map((m) => {
-      const row = by[m.source];
-      if (!row) return { ...m, hostname: '', ageLabel: 'No heartbeat yet', stale: false };
-      const data = parseData(row.data);
-      const f = freshness(row.collected_at, nowMs, INTERVALS[m.source]);
-      return {
-        ...m,
-        hostname: data.hostname || m.label,
-        ageLabel: data.ok === false || data.unreachable ? 'Unreachable' : f.label,
-        stale: f.stale,
-        unreachable: data.ok === false || data.unreachable === true,
-        updatedAt: row.collected_at,
-      };
-    });
-    out.pages.agents.staleSources = staleSources;
-    overlayAgents(out.pages.agents, by, nowMs);
-    if (out.nav?.badges) {
-      const need = (out.pages.agents.waiting?.jobs || []).length;
-      out.nav.badges.agents = need;
-    }
-  }
-  const group = groupScan(by);
-  if (out.sources) {
-    if (group) {
-      const f = freshness(group.row.collected_at, nowMs, INTERVALS.mastermind);
-      out.sources.mastermind = { updatedAt: group.row.collected_at, stale: f.stale, ageLabel: f.label };
-    } else {
-      out.sources.mastermind = { updatedAt: null, stale: true, ageLabel: 'Group history unavailable' };
-    }
-  }
-  if (out.pages.mastermind) {
-    overlayMastermind(out.pages.mastermind, group?.data || missingGroup(), ideas, nowMs);
-    if (out.nav?.badges) out.nav.badges.mastermind = (out.pages.mastermind.picks?.jobs || []).length;
-  }
-  if (out.pages.support && by.support) {
-    const f = freshness(by.support.collected_at, nowMs, INTERVALS.support);
-    overlaySupport(out.pages.support, parseData(by.support.data), nowMs, f.label);
-    if (out.nav?.badges) out.nav.badges.support = Number(out.pages.support.tiles?.[0]?.value || 0);
   }
   const cash = buildCash(by.sponsors_cash, by.sponsors, nowMs, by.moneyclaw);
   const sponsors = by.sponsors;
-  if (sponsors) {
+  if (sponsors && out.pages.sponsors) {
     const data = parseData(sponsors.data);
     if (data.collections) {
       const page = buildSponsorsPage(data, nowMs, overrides, cash);
       const copiedMs = Date.parse(sponsors.collected_at);
       const copied = Number.isFinite(copiedMs) ? ageLabel(Math.max(0, nowMs - copiedMs)).replace(/^updated /, '') : 'unknown';
       page.sub = `Source edited ${sourceEditedAt(data) || 'unknown'} · copied ${copied} · ${cash.available ? `money from deposits (${cash.source.label})` : 'not reconciled cash'}`;
-      if (out.pages.sponsors) out.pages.sponsors = page;
-      applyHomeSponsors(out, page);
+      out.pages.sponsors = page;
     }
   }
-  if (out.pages.youtube) {
-    const yt = by.youtube ? parseData(by.youtube.data) : {};
-    overlayYoutube(out.pages.youtube, {
-      projects,
-      outliers: yt.outliers,
-      channels: yt.channels,
-      ranked: yt.ranked,
-      sponsors: by.sponsors ? parseData(by.sponsors.data) : undefined,
-      nowMs,
-      syncedAt: yt.generatedAt || by.youtube?.collected_at,
-    });
+  if (out.pages.sponsors) out.pages.sponsors.cash = cash;
+  if (out.pages.money) {
+    if (by.moneyclaw) overlayMoney(out.pages.money, parseData(by.moneyclaw.data), nowMs);
+    overlayBankScan(out.pages.money, by.bank_scan, nowMs);
   }
-  if (out.pages.video && by.video) {
-    overlayVideo(out.pages.video, {
-      ...parseData(by.video.data),
-      live: Number(out.pages.youtube?.tiles?.[0]?.value) || 0,
-    });
-  }
-
-  if (out.pages.content) {
-    const qRow = by.content_queue;
-    const vRow = by.viralview;
-    overlayContent(out.pages.content, {
-      posts,
-      queue: qRow ? parseData(qRow.data) : null,
-      viral: vRow ? parseData(vRow.data) : null,
-      video: by.video ? parseData(by.video.data) : null,
-      nowMs,
-      drafts: extra.drafts || [],
-      draftsError: extra.draftsError || '',
-      unavailable: extra.unavailable || [],
-    });
-    if (out.nav?.badges && out.pages.content.queueCount != null) {
-      out.nav.badges.content = out.pages.content.queueCount;
-    }
-  }
-  {
-    out.pages.team = out.pages.team || { title: 'Team' };
-    buildTeam(
-      out.pages.team,
-      by,
-      hosts,
-      nowMs,
-      extra.teamRoster || [],
-      by.jon_tasks ? parseData(by.jon_tasks.data) : null,
-      extra.deliverables || [],
-    );
-    if (out.nav?.badges) out.nav.badges.team = (out.pages.team.counts?.waiting || 0) + (out.pages.team.counts?.stuck || 0);
-  }
-  if (by.moneyclaw) {
-    const data = parseData(by.moneyclaw.data);
-    const f = freshness(by.moneyclaw.collected_at, nowMs, INTERVALS.moneyclaw);
-    if (out.pages.money) overlayMoney(out.pages.money, data, nowMs, f.label);
-    if (out.pages.markets) overlayMarkets(out.pages.markets, data, nowMs, f.label);
-  }
-  if (by.viralview) {
-    const data = parseData(by.viralview.data);
-    const f = freshness(by.viralview.collected_at, nowMs, INTERVALS.viralview);
-    const page = out.pages.viral || { tiles: [], ads: { rows: [] } };
-    overlayViral(page, data, nowMs, f.label);
-    if (out.pages.viral) out.pages.viral = page;
-    applyHomeViral(out, page);
-  }
-  if (out.pages.outreach) {
-    if (by.instantly) overlayOutreach(out.pages.outreach, parseData(by.instantly.data));
-    else blankOutreach(out.pages.outreach);
-  }
+  if (out.pages.viral && by.viralview) overlayViral(out.pages.viral, parseData(by.viralview.data), nowMs);
   if (out.pages.life) {
     if (by.calendar) {
       overlayLife(out.pages.life, { ...parseData(by.calendar.data), habits: extra.habits || [], nowMs });
@@ -483,86 +86,8 @@ export function mergeSnapshot(fixture, rows, nowMs = Date.now(), overrides = {},
       out.pages.life.actions = [{ label: 'Connect calendar', href: '/dashboard/api/google/start' }, ...(out.pages.life.actions || [])];
     }
   }
-  if (out.pages.videos) {
-    const f = by.videos ? freshness(by.videos.collected_at, nowMs, INTERVALS.videos) : null;
-    overlayVideos(out.pages.videos, by.videos, extra.reviews, nowMs);
-    if (f?.stale) out.pages.videos.stale = true;
-  }
-  if (out.pages.webinar) {
-    const f = by.webinar ? freshness(by.webinar.collected_at, nowMs, INTERVALS.webinar) : null;
-    overlayWebinar(out.pages.webinar, by.webinar, extra.funnel, nowMs, f ? f.label : '');
-    if (f?.stale) out.pages.webinar.stale = true;
-  }
-  if (out.pages.sponsors) {
-    out.pages.sponsors.cash = cash;
-    out.pages.sponsors.partners = buildPartners(by.partners_report, nowMs);
-  }
-  if (out.pages.home) out.pages.home.sponsorsCash = cash;
-  applyHome(out, by, extra, nowMs);
-  {
-    // Jon's checklist lives on its own page (Ana, 2026-10-22); Home no longer carries it.
-    const taskRow = by.jon_tasks;
-    const taskData = taskRow ? parseData(taskRow.data) : null;
-    out.pages.tasks = {
-      ...(out.pages.tasks || {}),
-      title: 'Tasks',
-      sub: out.pages.home?.date || '',
-      tasks: buildTasks(
-        taskRow ? parseData(taskRow.data) : null,
-        nowMs,
-        taskRow?.collected_at || '',
-      ),
-      deliverables: buildDeliverables(extra.deliverables || [], nowMs, taskData),
-      daily: buildDaily(taskData && taskData.daily, extra.dailyApprovals || [], nowMs),
-      deliverablesError: extra.deliverablesError || '',
-    };
-    out.pages.projects = {
-      ...(out.pages.projects || {}),
-      title: 'Projects',
-      sub: out.pages.home?.date || '',
-      board: buildProjects(taskData, nowMs, taskRow?.collected_at || '', out.pages.tasks.daily, extra.deliverables || []),
-    };
-  }
-  {
-    const taskRow = by.jon_tasks;
-    out.pages.channels = {
-      ...(out.pages.channels || {}),
-      title: 'YouTube',
-      sub: out.pages.home?.date || '',
-      board: buildChannels(taskRow ? parseData(taskRow.data).youtube : null, nowMs, taskRow?.collected_at || ''),
-    };
-  }
-  {
-    const q = buildQuestions(extra.questions || [], nowMs);
-    out.pages.questions = { ...(out.pages.questions || {}), title: 'Questions', sub: out.pages.home?.date || '', ...q };
-    out.nav = out.nav || {};
-    out.nav.badges = { ...(out.nav.badges || {}), questions: q.openCount };
-  }
-  if (out.pages.home) buildNow(out, by, nowMs, INTERVALS);
-  if (out.pages.content) overlayFactory(out.pages.content, out, by, nowMs, cash);
-  if (out.pages.home) buildGoalsHome(out, by, cash, extra, nowMs);
-  if (cash.available && out.goal) {
-    out.goal = { ...out.goal, pct: cash.pct, sub: `Trailing 90-day avg ${usd(cash.trailing.avg)} a month` };
-  }
-  const groupOk = groupScan(by)?.data?.access === 'ok';
-  if (out.pages.home?.mastermindPick && !groupOk) {
-    out.pages.home.mastermindPick = {
-      pill: 'Unavailable',
-      heading: 'Group history is not connected',
-      body: 'Scan now checks Built With AI - Advanced. The webpage digest is not group history.',
-      fitTitle: 'Connector',
-      fit: out.pages.mastermind?.picks?.note || CONNECTOR,
-      effort: 'One-time bot setup',
-      btn: 'Scan now',
-      kind: 'mastermind.scan',
-      payload: { msg: 'Scanning the group now' },
-      pager: 'No ideas until the group is connected',
-    };
-  }
-  const chip = homeChip(by, nowMs);
-  if (chip && out.pages?.home) out.pages.home.chip = chip;
-  const review = by.cc_review_drafts ? parseData(by.cc_review_drafts.data) : [];
-  applyReviewDrafts(out, review);
+  if (out.pages.webinar) overlayWebinar(out.pages.webinar, extra.funnel, nowMs);
+  applyReviewDrafts(out, by.cc_review_drafts ? parseData(by.cc_review_drafts.data) : []);
   buildToday(out, by, cash, extra, nowMs);
   return out;
 }

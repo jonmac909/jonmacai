@@ -1,7 +1,7 @@
 // Today page (dashboard plan step 2, 2026-10-29): the four $10k/month goals, one "Needs you"
 // list Jon can act on in place, Ana's morning summary and this week's Claude usage. Every card
 // names its source and when it last changed; anything older than 24 hours is marked stale.
-import { criticalAlerts } from './home.js';
+import { criticalAlerts } from './alerts.js';
 
 const TZ = 'America/Vancouver';
 const DAY_MS = 86400000;

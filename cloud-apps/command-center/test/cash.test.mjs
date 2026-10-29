@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { buildCash, cashTile, usdExact, LEDGER_STALE_DAYS } from '../src/cash.js';
+import { buildCash, LEDGER_STALE_DAYS } from '../src/cash.js';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const py = process.platform === 'win32' ? 'python' : 'python3';
@@ -37,7 +37,6 @@ test('month cash and trailing 90-day average come from the ledger only', () => {
 test('no ledger means no data, not a number', () => {
   const c = buildCash(null, null, now);
   assert.equal(c.available, false);
-  assert.equal(cashTile(c).value, 'no data');
   assert.equal(c.unpaidAvailable, false);
 });
 
@@ -87,9 +86,6 @@ test('October sponsor income is every deposit, cents kept, Commas payout include
   assert.equal(c.month.usd, 8888.75);
   assert.equal(c.month.payments, 5);
   assert.equal(c.pct, 38);
-  assert.equal(usdExact(c.month.usd), '$8,888.75');
-  assert.equal(usdExact(2500), '$2,500');
-  assert.match(cashTile(c).sub, /October: \$8,888\.75 received/);
   assert.equal(c.recent[0].sponsor, 'Schalumov (Viktor)');
 });
 
@@ -99,7 +95,6 @@ test('a ledger nobody has edited for days is flagged stale, a fresh one is not',
   assert.equal(stale.source.stale, true);
   assert.match(stale.source.label, /Oct 15/);
   assert.match(stale.source.note, /not counted/);
-  assert.match(cashTile(stale).sub, /\(stale\)$/);
   const fresh = buildCash(ledgerRow(octoberDeposits, new Date(oct22 - (LEDGER_STALE_DAYS - 1) * 86400000).toISOString()), null, oct22);
   assert.equal(fresh.source.stale, false);
   assert.equal(fresh.source.note, '');
@@ -190,20 +185,18 @@ test('what Jon saw on Oct 22 now says the ledger is stale', async () => {
     { date: '2026-10-02', sponsor: 'Topview', usd: 734.37 },
     { date: '2026-10-15', sponsor: 'Commas payout', usd: 1000 },
   ], '2026-10-15T20:00:00Z');
-  const out = mergeSnapshot(snap, [{ source: 'sponsors_cash', ...stale }], oct22);
-  const card = out.pages.home.goalCards.find((g) => g.key === 'sponsors');
+  const out = mergeSnapshot({ ...snap, pages: { ...snap.pages, today: {} } }, [{ source: 'sponsors_cash', ...stale }], oct22);
+  const card = out.pages.today.goals.find((g) => g.key === 'sponsors');
   assert.equal(card.value, '$1,734.37');
   assert.match(card.warn, /Nobody has updated the deposit ledger since Oct 15/);
-  assert.match(card.drivers.find((d) => d.label === 'Counted from').value, /stale/);
-  const strip = out.pages.home.strip.find((s) => /^Cash in/.test(s.label));
-  assert.equal(strip.pill, 'Stale');
+  assert.equal(card.source.stale, true);
   assert.equal(out.pages.sponsors.cash.source.stale, true);
 });
 
 test('every surface shows the same October total from the deposit ledger', async () => {
   const { mergeSnapshot } = await import('../src/snapshot.js');
   const snap = (await import('../fixtures/snapshot.json', { with: { type: 'json' } })).default;
-  const out = mergeSnapshot(snap, [
+  const out = mergeSnapshot({ ...snap, pages: { ...snap.pages, today: {} } }, [
     { source: 'sponsors_cash', ...ledgerRow(octoberDeposits, '2026-10-22T17:00:00Z') },
     { source: 'sponsors', collected_at: new Date(oct22).toISOString(), data: JSON.stringify({
       collections: { currentIncomeMonth: 'October', incomeTotals: { September: 6606.63, October: 750 }, completedIncomeMonths: ['September'], items: [
@@ -212,7 +205,7 @@ test('every surface shows the same October total from the deposit ledger', async
       cards: [],
     }) },
   ], oct22);
-  const card = out.pages.home.goalCards.find((g) => g.key === 'sponsors');
+  const card = out.pages.today.goals.find((g) => g.key === 'sponsors');
   assert.equal(card.value, '$8,888.75');
   assert.equal(card.pct, 89);
   assert.equal(card.warn, '');
@@ -220,9 +213,6 @@ test('every surface shows the same October total from the deposit ledger', async
   assert.equal(out.pages.sponsors.tiles[0].label, 'Collected in October');
   assert.equal(out.pages.sponsors.byMonth.rows.at(-1).label, 'October so far');
   assert.equal(out.pages.sponsors.byMonth.rows.at(-1).value, '$8,888.75');
-  assert.equal(out.pages.home.strip.find((s) => /^Cash in/.test(s.label)).value, '$8,888.75');
-  assert.equal(out.pages.home.moved.items[0].pill, '+$8,154.38');
-  assert.match(out.pages.home.tiles[0].sub, /^\$0 more is owed · All deposits/);
 });
 
 test('a missing or empty ledger is no data, so the recorded totals still show', async () => {
@@ -239,7 +229,6 @@ test('a missing or empty ledger is no data, so the recorded totals still show', 
   assert.equal(out.pages.sponsors.basis, 'source');
   assert.equal(out.pages.sponsors.tiles[0].value, '$750');
   assert.match(out.pages.sponsors.tiles[0].sub, /^Recorded source total/);
-  assert.notEqual(out.pages.home.goalCards.find((g) => g.key === 'sponsors').value, '$0');
 });
 
 test('a deposit dated later this month waits until it happens', () => {
@@ -281,25 +270,4 @@ test('days after the bank feed synced still need a ledger watching them', () => 
   const fresh = buildCash(ledgerRow([{ date: '2026-10-02', sponsor: 'Topview', usd: 734.37 }], '2026-10-22T17:00:00Z'), null, oct22, bank);
   assert.equal(fresh.source.stale, false);
   assert.equal(fresh.source.note, '');
-});
-
-test('the Content page says no data when only a failed ledger payload arrived', async () => {
-  const { mergeSnapshot } = await import('../src/snapshot.js');
-  const snap = (await import('../fixtures/snapshot.json', { with: { type: 'json' } })).default;
-  const out = mergeSnapshot(snap, [
-    { source: 'sponsors_cash', collected_at: new Date(oct22).toISOString(), data: JSON.stringify({ ok: false, error: 'cash ledger not found', rows: [] }) },
-  ], oct22);
-  const step = out.pages.content.factory.funnel.steps.find((s) => s.label === 'New revenue this week');
-  assert.equal(step.value, 'no data');
-});
-
-test('the Content page counts the same merged deposits as Home', async () => {
-  const { mergeSnapshot } = await import('../src/snapshot.js');
-  const snap = (await import('../fixtures/snapshot.json', { with: { type: 'json' } })).default;
-  const out = mergeSnapshot(snap, [
-    { source: 'sponsors_cash', ...ledgerRow(octoberDeposits, '2026-10-22T17:00:00Z') },
-    { source: 'viralview', collected_at: new Date(oct22).toISOString(), data: JSON.stringify({ cashThisWeek: { netCents: 0, byDay: [{ date: '2026-10-16' }, { date: '2026-10-19' }] } }) },
-  ], oct22);
-  const step = out.pages.content.factory.funnel.steps.find((s) => s.label === 'New revenue this week');
-  assert.equal(step.sub, 'Viral View $0.00 + sponsors $8,154.38');
 });

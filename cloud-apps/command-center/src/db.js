@@ -1,5 +1,3 @@
-import { isDailyApprovalId } from './tasks.js';
-
 export function loginStore(db) {
   return {
     async get(ip) {
@@ -28,13 +26,6 @@ export async function actionByIdem(db, key) {
 
 export async function actionById(db, id) {
   return db.prepare('SELECT * FROM actions WHERE id = ?').bind(id).first();
-}
-
-export async function latestAction(db, kind) {
-  const { results } = await db.prepare(
-    'SELECT id, kind, status, result, created_at, finished_at FROM actions WHERE kind = ? ORDER BY created_at DESC LIMIT 1',
-  ).bind(kind).all();
-  return results?.[0] || null;
 }
 
 export async function claimQueued(db, machine, now) {
@@ -72,28 +63,6 @@ export async function completeAction(db, id, status, result, now) {
 export async function reportAction(db, id, status, result) {
   await db.prepare(`UPDATE actions SET status = ?, result = ?, finished_at = NULL WHERE id = ?`)
     .bind(status, result, id).run();
-}
-
-export async function requeueAction(db, id, payload, result) {
-  await db.prepare(`UPDATE actions SET status = 'queued', payload = ?, result = ?, finished_at = NULL WHERE id = ?`)
-    .bind(payload, result, id).run();
-}
-
-export async function listVideoJobs(db) {
-  const { results } = await db.prepare(
-    `SELECT id, payload, status, result FROM actions WHERE kind = ? AND target = ? ORDER BY created_at`,
-  ).bind('video.start_edit', 'gpu1').all();
-  return results || [];
-}
-
-export async function upsertChecklist(db, day, item, doneAt, how) {
-  await db.prepare(
-    'INSERT OR REPLACE INTO checklist (day, item, done_at, how) VALUES (?, ?, ?, ?)',
-  ).bind(day, item, doneAt, how).run();
-}
-
-export async function deleteChecklist(db, day, item) {
-  await db.prepare('DELETE FROM checklist WHERE day = ? AND item = ?').bind(day, item).run();
 }
 
 export async function upsertHabit(db, day, kind, done, note) {
@@ -150,216 +119,8 @@ export async function upsertIdea(db, row) {
   ).run();
 }
 
-export async function listVideoProjects(db) {
-  if (!db) return [];
-  try {
-    const { results } = await db.prepare('SELECT id, data, updated_at FROM video_projects').all();
-    return (results || []).map((r) => {
-      try { return JSON.parse(r.data); } catch { return null; }
-    }).filter(Boolean);
-  } catch {
-    return [];
-  }
-}
-
-export async function replaceVideoProjects(db, list, now) {
-  await db.prepare('DELETE FROM video_projects').run();
-  for (const p of list || []) {
-    if (!p || !p.id) continue;
-    await db.prepare('INSERT INTO video_projects (id, data, updated_at) VALUES (?, ?, ?)')
-      .bind(String(p.id), JSON.stringify(p), now).run();
-  }
-}
-
-export async function upsertPost(db, row) {
-  await db.prepare(
-    'INSERT OR REPLACE INTO posts (id, platform, posted_at, url, first_line, source) VALUES (?, ?, ?, ?, ?, ?)',
-  ).bind(row.id, row.platform, row.posted_at, row.url || '', row.first_line || '', row.source || 'agent').run();
-}
-
-export async function listPosts(db) {
-  if (!db) return [];
-  const { results } = await db.prepare('SELECT id, platform, posted_at, url, first_line, source FROM posts ORDER BY posted_at').all();
-  return results || [];
-}
-
-export async function listChecklist(db, day) {
-  if (!db) return [];
-  const { results } = await db.prepare('SELECT day, item, done_at, how FROM checklist WHERE day = ?').bind(day).all();
-  return results || [];
-}
-
 export async function listHabits(db) {
   if (!db) return [];
   const { results } = await db.prepare('SELECT day, kind, done, note FROM habits').all();
   return results || [];
-}
-
-// Team roster and deliverables pushed by Ana (2026-10-23). Display only.
-export async function replaceTeamBots(db, rows) {
-  await db.prepare('DELETE FROM team_bots').run();
-  for (const row of rows) {
-    await db.prepare(
-      `INSERT OR REPLACE INTO team_bots (id, name, role, team, task, status, updated_at, source, received_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    ).bind(row.id, row.name, row.role || '', row.team || '', row.task || '', row.status || '', row.updated_at || '', row.source || '', row.received_at).run();
-  }
-}
-
-export async function listTeamBots(db) {
-  if (!db) return [];
-  const { results } = await db.prepare(
-    'SELECT id, name, role, team, task, status, updated_at, received_at FROM team_bots ORDER BY team, name',
-  ).all();
-  return results || [];
-}
-
-export async function upsertDeliverables(db, rows) {
-  for (const row of rows) {
-    await db.prepare(
-      `INSERT INTO deliverables (id, title, owner, kind, url, finished_at, source, updated_at, task_id)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-       ON CONFLICT(id) DO UPDATE SET title = excluded.title, owner = excluded.owner,
-         kind = excluded.kind, url = excluded.url, finished_at = excluded.finished_at,
-         source = excluded.source, updated_at = excluded.updated_at,
-         task_id = excluded.task_id`,
-    ).bind(row.id, row.title, row.owner || '', row.kind || '', row.url || '', row.finished_at || '', row.source || '', row.updated_at, row.task_id || '').run();
-  }
-}
-
-// 2026-10-24: a push is the full list for its source, so rows that source no
-// longer sends are removed along with their approvals. Other sources are kept.
-export async function removeMissingDeliverables(db, source, keepIds) {
-  if (!source) return [];
-  const { results } = await db.prepare('SELECT id FROM deliverables WHERE source = ?').bind(source).all();
-  const keep = new Set(keepIds);
-  const gone = (results || []).map((r) => r.id).filter((id) => !keep.has(id));
-  for (const id of gone) {
-    await db.prepare('DELETE FROM approvals WHERE deliverable_id = ?').bind(id).run();
-    await db.prepare('DELETE FROM deliverables WHERE id = ?').bind(id).run();
-  }
-  return gone;
-}
-
-// 2026-10-23 (Ana, for Jon): an unapproved deliverable never ages out; it stays
-// on the Review lane until Jon approves it. Approved rows keep the 24 h window,
-// measured from the approval so a just-approved old item does not vanish.
-// Unapproved rows are ordered first so the LIMIT can never hide one.
-export async function listDeliverables(db, sinceIso) {
-  if (!db) return [];
-  const { results } = await db.prepare(
-    `SELECT d.id, d.title, d.owner, d.kind, d.url, d.finished_at, d.updated_at, d.task_id,
-            a.approved_at, a.approved_by
-       FROM deliverables d LEFT JOIN approvals a ON a.deliverable_id = d.id
-      WHERE d.finished_at IS NOT NULL
-        AND (a.approved_at IS NULL OR a.approved_at >= ?)
-      ORDER BY (a.approved_at IS NULL) DESC, d.finished_at DESC LIMIT 200`,
-  ).bind(sinceIso).all();
-  return results || [];
-}
-
-// Pending = every deliverable not yet approved, however old; mirrors the
-// Deliverables tab and the Review lane.
-export async function listPendingDeliverables(db) {
-  if (!db) return [];
-  const { results } = await db.prepare(
-    `SELECT d.id, d.title, d.owner, d.kind, d.url, d.finished_at, d.updated_at
-       FROM deliverables d LEFT JOIN approvals a ON a.deliverable_id = d.id
-      WHERE a.approved_at IS NULL AND d.finished_at IS NOT NULL
-      ORDER BY d.finished_at DESC LIMIT 200`,
-  ).all();
-  return results || [];
-}
-
-// Records Jon's approval once; a second press keeps the first record.
-export async function approveDeliverable(db, id, by, now) {
-  // Daily checklist rows (`daily:<day>:<key>`) have no deliverables row.
-  if (!isDailyApprovalId(id)) {
-    const row = await db.prepare('SELECT id FROM deliverables WHERE id = ?').bind(id).first();
-    if (!row) return null;
-  }
-  const prev = await db.prepare('SELECT approved_at, approved_by FROM approvals WHERE deliverable_id = ?').bind(id).first();
-  if (prev) return { approved_at: prev.approved_at, approved_by: prev.approved_by, duplicate: true };
-  await db.prepare('INSERT INTO approvals (deliverable_id, approved_at, approved_by) VALUES (?, ?, ?)').bind(id, now, by).run();
-  return { approved_at: now, approved_by: by, duplicate: false };
-}
-
-// Approvals of one day's daily checklist rows.
-export async function listDailyApprovals(db, day) {
-  if (!db) return [];
-  const { results } = await db.prepare(
-    "SELECT deliverable_id, approved_at, approved_by FROM approvals WHERE deliverable_id LIKE 'daily:' || ? || ':%'",
-  ).bind(day).all();
-  return results || [];
-}
-
-export async function listApprovals(db) {
-  if (!db) return [];
-  const { results } = await db.prepare(
-    `SELECT a.deliverable_id AS id, COALESCE(d.title, a.deliverable_id) AS title, d.owner, d.kind, d.url, d.finished_at,
-            a.approved_at, a.approved_by
-       FROM approvals a LEFT JOIN deliverables d ON d.id = a.deliverable_id
-      ORDER BY a.approved_at DESC LIMIT 500`,
-  ).all();
-  return results || [];
-}
-
-// Questions for Jon (2026-10-24). A push is the full list for its source, but a question
-// Jon already answered is kept until pull_answers.py has collected the answer.
-export async function upsertQuestions(db, rows) {
-  for (const q of rows) {
-    await db.prepare(
-      `INSERT INTO questions (id, asked_at, asker, project, question, context, options, status, source, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-       ON CONFLICT(id) DO UPDATE SET asked_at = excluded.asked_at, asker = excluded.asker,
-         project = excluded.project, question = excluded.question, context = excluded.context,
-         options = excluded.options, source = excluded.source, updated_at = excluded.updated_at,
-         status = CASE WHEN questions.answer IS NOT NULL THEN 'answered' ELSE excluded.status END`,
-    ).bind(q.id, q.asked_at, q.asker, q.project, q.question, q.context, q.options, q.status, q.source, q.updated_at).run();
-  }
-}
-
-export async function removeMissingQuestions(db, source, keepIds) {
-  if (!source) return [];
-  const { results } = await db.prepare('SELECT id, answer, collected_at FROM questions WHERE source = ?').bind(source).all();
-  const keep = new Set(keepIds);
-  const gone = (results || []).filter((r) => !keep.has(r.id) && !(r.answer && !r.collected_at)).map((r) => r.id);
-  for (const id of gone) await db.prepare('DELETE FROM questions WHERE id = ?').bind(id).run();
-  return gone;
-}
-
-export async function listQuestions(db) {
-  if (!db) return [];
-  const { results } = await db.prepare(
-    `SELECT id, asked_at, asker, project, question, context, options, status, answer, answered_at
-       FROM questions ORDER BY asked_at DESC LIMIT 300`,
-  ).all();
-  return results || [];
-}
-
-// First answer wins, like an approval. Returns null for an unknown id.
-export async function answerQuestion(db, id, answer, now) {
-  const row = await db.prepare('SELECT id, answer, answered_at FROM questions WHERE id = ?').bind(id).first();
-  if (!row) return null;
-  if (row.answer) return { answered_at: row.answered_at, duplicate: true };
-  await db.prepare("UPDATE questions SET answer = ?, answered_at = ?, status = 'answered' WHERE id = ?").bind(answer, now, id).run();
-  return { answered_at: now, duplicate: false };
-}
-
-export async function listUncollectedAnswers(db) {
-  if (!db) return [];
-  const { results } = await db.prepare(
-    `SELECT id, asker, project, question, answer, answered_at FROM questions
-      WHERE answer IS NOT NULL AND collected_at IS NULL ORDER BY answered_at`,
-  ).all();
-  return results || [];
-}
-
-export async function markAnswersCollected(db, ids, now) {
-  let n = 0;
-  for (const id of ids) {
-    const r = await db.prepare('UPDATE questions SET collected_at = ? WHERE id = ? AND answer IS NOT NULL AND collected_at IS NULL').bind(now, id).run();
-    n += r && r.meta ? Number(r.meta.changes) || 0 : 0;
-  }
-  return n;
 }

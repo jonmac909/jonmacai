@@ -299,28 +299,3 @@ export function buildSponsorsPage(data, nowMs = Date.now(), overrides = {}, cash
     byMonth: { title: 'Collected by month', meta: 'Against $10K', rows: byMonth },
   };
 }
-
-export function applyHomeSponsors(snap, page) {
-  const collected = page.tiles[0].value;
-  const owed = page.tiles[1].value;
-  const n = page.collect.rows.length;
-  const pct = page.tiles[0].pct;
-  if (snap.pages?.home?.tiles?.[0]) {
-    snap.pages.home.tiles[0] = {
-      ...snap.pages.home.tiles[0],
-      label: `Sponsors · ${page.month} collected`,
-      value: collected,
-      pct,
-      sub: `${owed} more is owed · ${page.basis === 'deposits' ? page.basisLabel : 'recorded source total, unverified against deposit ledger'}`,
-    };
-  }
-  if (snap.pages?.home?.glance?.rows?.[0]) {
-    const row = snap.pages.home.glance.rows[0];
-    row.today = `${collected} in · ${owed} owed by ${n} sponsor${n === 1 ? '' : 's'}`;
-    row.pct = pct;
-    row.pill = `${pct}%`;
-    row.pillCls = pct >= 100 ? 'ok' : pct >= 50 ? 'risk' : 'crit';
-  }
-  if (snap.goal) snap.goal.pct = pct;
-  if (snap.nav?.badges) snap.nav.badges.sponsors = Number(page.tiles[3].value) || 0;
-}

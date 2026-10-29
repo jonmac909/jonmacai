@@ -1,21 +1,14 @@
 import snapshot from '../fixtures/snapshot.json' with { type: 'json' };
 import { listSnapshots, upsertSnapshot } from './db.js';
-import { pullInstantly } from './outreach.js';
 import { pullCalendar } from './life.js';
 import { mergeSnapshot } from './snapshot.js';
-import { pushCriticalTelegram } from './home.js';
-import { fillFromEnv } from './daily-drafts.js';
-import { syncGroup } from './mastermind-scan.js';
+import { pushCriticalTelegram } from './alerts.js';
 import { funnelMonth } from './webinar.js';
 import { monthWindow } from './today.js';
 
 const VIRAL_URL = 'https://app.viralview.io/api/internal/dashboard-summary';
 const MONEY_URL = 'https://moneyclaw.jonmac.ai/api/internal/dashboard-summary';
-const YT_URL = 'https://jonmac.ai/yt2/api/outliers';
 export function sourceCollectedAt(source, data, fetchedAt) {
-  if (source === 'youtube' && data?.generatedAt && Number.isFinite(Date.parse(data.generatedAt))) {
-    return new Date(Date.parse(data.generatedAt)).toISOString();
-  }
   if (source !== 'viralview') return fetchedAt;
   const raw = data?.lastSyncAt;
   const ms = typeof raw === 'number' && Number.isFinite(raw) ? raw : Date.parse(raw);
@@ -55,16 +48,9 @@ export async function handleCron(env) {
       authorization: `Bearer ${env.MONEYCLAW_DASHBOARD_TOKEN}`,
     }));
   }
-  jobs.push(pull(env, 'youtube', YT_URL, {}));
   jobs.push(pullWebinarMonth(env));
-  if (env.INSTANTLY_API_KEY) jobs.push(pullInstantly(env));
   jobs.push(pullCalendar(env));
-  if (env.TELEGRAM_GROUP_BOT_TOKEN && env.TELEGRAM_GROUP_CHAT_ID && env.TELEGRAM_GROUP_BOT_TOKEN !== env.TELEGRAM_BOT_TOKEN) {
-    jobs.push(syncGroup(env));
-  }
   await Promise.allSettled(jobs);
-  const nowMs = Date.now();
-  try { await fillFromEnv(env, nowMs); } catch { /* page shows the ensure error */ }
-  const snap = mergeSnapshot(snapshot, await listSnapshots(env.DB), nowMs);
+  const snap = mergeSnapshot(snapshot, await listSnapshots(env.DB), Date.now());
   await pushCriticalTelegram(env, snap);
 }

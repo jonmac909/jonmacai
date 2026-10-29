@@ -9,30 +9,18 @@ const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const py = process.platform === 'win32' ? 'python' : 'python3';
 const now = Date.parse('2026-10-15T23:00:00Z');
 
-const row = { collected_at: '2026-10-15T22:55:00Z', data: JSON.stringify({ ok: true, items: {
-  stress: { status: 'fail', at: '2026-10-15T22:52:07Z', buyers: 10, charges: 30, charged: 11, offers: [{ offer: 'audit', firstTry: 0, retried: 0, refused: 10 }] },
-  trial: { status: 'pass', at: '2026-10-15T22:52:07Z', note: '$1 trial charged one-click 5 of 5 in the stress run' },
-} }) };
-
-test('countdown and checklist come from results, missing items say no result', () => {
-  const p = overlayWebinar({}, row, { buyers: 0, upsells: [], sessions: [{ session_label: 'Wednesday, October 7, 2026 at 7:00 PM EDT', n: 1 }] }, now, 'updated 5 min ago');
-  assert.equal(p.countdown, '14d 0h');
-  assert.equal(p.checklist[0].status, 'fail');
-  assert.match(p.checklist[0].note, /11 of 30 one-click charges/);
-  assert.equal(p.checklist[1].status, 'pass');
-  assert.equal(p.checklist[2].status, 'pending');
-  assert.match(p.checklist[2].note, /0 buyers assigned to Oct 29/);
-  assert.equal(p.checklist[3].status, 'none');
-  assert.equal(p.green, '1 of 5 green');
-  assert.equal(p.sales.buyers, 0);
+test('countdown, buyers and upsells come from the clone funnel', () => {
+  const p = overlayWebinar({}, { buyers: 2, upsells: [{ offer: 'audit', state: 'charged', n: 1 }, { offer: 'audit', state: 'fallback', n: 2 }], sessions: [{ session_label: 'Wednesday, October 7, 2026 at 7:00 PM EDT', n: 1 }] }, now);
+  assert.equal(p.sub, 'Thu Oct 29 · 4 PM PT · jonmac.ai/clone');
+  assert.deepEqual(p.tiles.map((t) => t.value), ['14d 0h', '2']);
+  assert.deepEqual(p.sales.rows, [{ name: '$497 audit', charged: 1, hosted: 2 }]);
+  assert.equal('checklist' in p, false);
 });
 
-test('no feed and no funnel database show no data', () => {
-  const p = overlayWebinar({}, null, null, now, '');
-  assert.equal(p.stale, true);
+test('no funnel database shows no data', () => {
+  const p = overlayWebinar({}, null, now);
   assert.equal(p.sales.available, false);
-  assert.equal(p.tiles[2].value, 'no data');
-  assert.ok(p.checklist.every((c) => c.status === 'none'));
+  assert.equal(p.tiles[1].value, 'no data');
 });
 
 test('funnel reader only asks for counts', async () => {

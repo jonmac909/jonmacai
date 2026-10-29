@@ -1,33 +1,18 @@
 import snapshot from '../fixtures/snapshot.json' with { type: 'json' };
 import {
   SESSION_DAYS, timingSafeEqualString, signSession, readSession,
-  sessionCookieHeader, checkLockout, recordLoginFailure, clientIp, hmacHex,
+  sessionCookieHeader, checkLockout, recordLoginFailure, clientIp,
 } from './auth.js';
 import {
-  loginStore, insertAction, actionByIdem, actionById, claimQueued, claimedVideo, completeAction, latestAction,
-  reportAction, requeueAction, listVideoJobs,
-  upsertChecklist, upsertHabit, upsertSnapshot, listSnapshots, upsertDealStage, listDealStages, listIdeas, upsertIdea,
-  listVideoProjects, replaceVideoProjects,
-  upsertPost, listPosts, listChecklist, listHabits, deleteChecklist,
-  replaceTeamBots, listTeamBots, upsertDeliverables, removeMissingDeliverables, listDeliverables, upsertQuestions, removeMissingQuestions, listQuestions, answerQuestion, listUncollectedAnswers, markAnswersCollected, listPendingDeliverables,
-  approveDeliverable, listApprovals, listDailyApprovals,
+  loginStore, insertAction, actionByIdem, actionById, claimQueued, claimedVideo, completeAction,
+  reportAction, upsertHabit, upsertSnapshot, listSnapshots, upsertDealStage, listDealStages, listIdeas, upsertIdea, listHabits,
 } from './db.js';
 import { mergeSnapshot } from './snapshot.js';
 import { listFunnel } from './webinar.js';
-import { overlayVideo } from './video.js';
 import { boardStageFor, mapColumn } from './sponsors.js';
-import { normalizePost } from './content.js';
 import { runMoneyMove } from './money.js';
-import { finishMastermindScan } from './mastermind-scan.js';
-import { applyOutreachStatus, finishOutreachCheck, runOutreach } from './outreach.js';
-import { exchangeGoogleCode, googleAuthUrl, runLife, ymd } from './life.js';
-import {
-  approveDraft, configuredPlatforms, fillFromEnv, listDrafts, saveDraft, tenantOf, unavailablePlatforms, vancouverDay,
-} from './daily-drafts.js';
+import { exchangeGoogleCode, googleAuthUrl, runLife } from './life.js';
 import { REVIEW_SOURCE, draftId, isIsolated, parseReview, plannerDestination, reviewMutate, upsertReview } from './review.js';
-import { normalizeTeam } from './team.js';
-import { normalizeDeliverables } from './tasks.js';
-import { normalizeQuestions, cleanAnswer } from './questions.js';
 import { handleV1, todayData } from './bots.js';
 import { monthWindow } from './today.js';
 
@@ -43,58 +28,14 @@ function safeName(name) {
 function uploadKey(id, filename) {
   return `uploads/${id}/${filename}`;
 }
-function keepersOk(keepers) {
-  return Array.isArray(keepers) && keepers.length > 0 && keepers.every((k) =>
-    k && Number.isFinite(Number(k.cs)) && Number.isFinite(Number(k.ce)) && Number(k.ce) > Number(k.cs)
-    && typeof k.label === 'string' && k.label.trim());
-}
 function ownedOutputKey(payload) {
   const id = payload && payload.id;
   return id && !String(id).includes('/') && !String(id).includes('..') ? `uploads/${id}/out.mp4` : null;
 }
-function videoQueueItem(row) {
-  let payload = {};
-  let result = {};
-  try { payload = JSON.parse(row.payload || '{}'); } catch { payload = {}; }
-  try { result = row.result ? JSON.parse(row.result) : {}; } catch { result = {}; }
-  const stage = row.status === 'queued' && payload.keepers ? 'resume' : (result.stage || row.status);
-  const saved = row.status === 'done' && result.validated && result.outputKey && result.stage !== 'failed' && result.stage !== 'quality-failure';
-  return {
-    id: payload.id || row.id,
-    actionId: row.id,
-    title: payload.title || 'Upload',
-    status: saved ? 'ready' : row.status === 'waiting' ? 'waiting' : 'queued',
-    host: result.host || 'gpu1',
-    stage,
-    failure: result.failure || (row.status === 'done' && !saved ? 'not validated' : ''),
-    segments: result.segments || [],
-    readyPath: saved ? `/dashboard/api/uploads/${payload.id}/output` : '',
-  };
-}
-function targetFor(kind, payload = {}) {
-  if (kind === 'ping') return payload.machine === 'mac' || payload.machine === 'gpu2' ? payload.machine : null;
-  if (kind === 'mastermind.park' || kind === 'mastermind.scan') return 'worker';
-  if (kind === 'content.save_draft' || kind === 'content.approve_draft' || kind === 'content.generate_drafts') return 'worker';
-  if (kind === 'agent.restart') return payload.machine === 'mac' ? 'mac' : 'gpu2';
+function targetFor(kind) {
   if (kind.startsWith('sponsor.') || kind.startsWith('bank.')) return 'mac';
-  if (kind === 'video.start_edit') return 'gpu1';
-  if (kind.startsWith('support.') || kind.startsWith('mastermind.') || kind.startsWith('content.') || kind.startsWith('video.') || kind.startsWith('agent.')) return 'gpu2';
+  if (kind === 'mastermind.send_to_planner') return 'gpu2'; // Viral View's "Send to Planner"
   return 'worker';
-}
-
-// Read-only view of the review portal's D1 (cloud-apps/review owns it). No keys or passcodes.
-async function listReviewPages(db) {
-  if (!db) return null;
-  try {
-    const { results } = await db.prepare(
-      `SELECT v.channel, v.video, v.version, v.slug, v.status, v.updated_at,
-        (SELECT count(*) FROM comments c WHERE c.slug = v.slug AND c.resolved = 0) AS open_comments
-       FROM videos v ORDER BY v.updated_at DESC LIMIT 200`,
-    ).all();
-    return results || [];
-  } catch {
-    return null;
-  }
 }
 
 function machineOf(request, env) {
@@ -147,19 +88,23 @@ async function login(request, env) {
   return json({ ok: true }, 200, { 'Set-Cookie': sessionCookieHeader(token, SESSION_DAYS * 24 * 3600) });
 }
 
-// Pages built only from live feeds; they have no fixture numbers at all.
-const LIVE_PAGES = { today: {}, videos: {}, webinar: {}, team: {}, tasks: {}, projects: {}, questions: {}, channels: {} };
+// The dashboard's pages, in nav order. Today and Webinar have no fixture numbers at all.
+export const PAGES = ['today', 'sponsors', 'viral', 'webinar', 'money', 'life'];
 
 function filterSnapshot(pages) {
-  const all = { ...snapshot.pages, ...LIVE_PAGES };
-  const want = pages ? pages.split(',').map((s) => s.trim()).filter(Boolean) : Object.keys(all);
+  const want = pages ? pages.split(',').map((s) => s.trim()).filter((id) => PAGES.includes(id)) : PAGES;
   const out = {};
-  for (const id of want) if (all[id]) out[id] = all[id];
-  return JSON.parse(JSON.stringify({ pages: out, nav: liveNav(snapshot.nav), goal: snapshot.goal, sources: snapshot.sources }));
+  for (const id of want) out[id] = snapshot.pages[id] || {};
+  return JSON.parse(JSON.stringify({ pages: out, nav: liveNav(snapshot.nav), sources: snapshot.sources }));
 }
 
-// Nav for Jon's businesses now. Pages that no longer fit, or have no live feed, sit under a
-// collapsed Archive group: hidden from the main list, code kept, still reachable.
+// Retired 2026-10-29: the old MausBot team's feeds and the pages they fed. A collector still
+// running somewhere gets 200 so it stops retrying, and nothing is stored.
+export const RETIRED_SOURCES = new Set([
+  'team', 'agents_gpu2', 'agents_mac', 'jon_tasks', 'needs_jon', 'partners_report', 'content_queue', 'support',
+  'video', 'videos', 'mastermind', 'youtube', 'cc_review_drafts', 'health', 'probe', 'webinar', 'post',
+]);
+
 export function liveNav(orig) {
   // Drop the fixture's sidebar badges: they were mockup counts (85 sponsor emails,
   // 4 money items). Counts now live on the pages themselves.
@@ -167,38 +112,19 @@ export function liveNav(orig) {
   return {
     ...nav,
     groups: [
-      { title: 'Today', items: [
-        { id: 'today', label: 'Today', icon: 'home' },
-        { id: 'tasks', label: 'Tasks', icon: 'check' },
-        { id: 'projects', label: 'Projects', icon: 'board' },
-        { id: 'channels', label: 'YouTube', icon: 'film' },
-        { id: 'questions', label: 'Questions', icon: 'chat' },
-        { id: 'team', label: 'Team', icon: 'bot' },
-      ] },
+      { title: 'Today', items: [{ id: 'today', label: 'Today', icon: 'home' }] },
       { title: 'Business', items: [
         { id: 'sponsors', label: 'Sponsors', icon: 'mail' },
         { id: 'viral', label: 'Viral View', icon: 'chart' },
         { id: 'webinar', label: 'Webinar', icon: 'clock' },
-        { id: 'content', label: 'Content', icon: 'pen' },
         { id: 'money', label: 'Money', icon: 'wallet' },
       ] },
       { title: 'Life', items: [{ id: 'life', label: 'Life', icon: 'heart' }] },
-      { title: 'Archive', archive: true, items: [
-        { id: 'home', label: 'Home (old)', icon: 'home' },
-        { id: 'agents', label: 'Machines & Agents (old)', icon: 'bot' },
-        { id: 'videos', label: 'Production feed', icon: 'film' },
-        { id: 'support', label: 'Support', icon: 'chat' },
-        { id: 'outreach', label: 'Cold outreach', icon: 'send' },
-        { id: 'youtube', label: 'YouTube (old)', icon: 'film' },
-        { id: 'video', label: 'Video editor (old)', icon: 'up' },
-        { id: 'markets', label: 'Markets', icon: 'trend' },
-        { id: 'mastermind', label: 'Mastermind', icon: 'bulb' },
-      ] },
     ],
   };
 }
 
-async function postAction(request, env, ctx) {
+async function postAction(request, env) {
   let body = {};
   try { body = await request.json(); } catch { body = {}; }
   const kind = String(body.kind || 'ui.toast');
@@ -208,21 +134,13 @@ async function postAction(request, env, ctx) {
     const existing = await actionByIdem(env.DB, idem);
     if (existing) return json({ id: existing.id, status: existing.status, result: existing.result });
   }
-  let target = targetFor(kind, payload);
-  if (!target) return json({ error: 'Bad target' }, 400);
+  let target = targetFor(kind);
   const id = crypto.randomUUID();
   const now = new Date().toISOString();
   let result = payload.msg || 'Done';
   let status = target === 'worker' ? 'done' : 'queued';
   if (kind === 'sponsor.move_stage' && env.DB && payload.id && payload.stage) {
     await upsertDealStage(env.DB, String(payload.id), asBoardStage(payload.stage), now);
-  }
-  if (kind === 'mastermind.park') {
-    result = 'Parked for later';
-    status = 'done';
-    if (env.DB && payload.id) {
-      await upsertIdea(env.DB, { id: payload.id, title: payload.title, body: payload.body, area: payload.area, verdict: 'park', status: 'parked' });
-    }
   }
   if (kind === 'mastermind.send_to_planner' && env.DB && payload.id) {
     const ideas = await listIdeas(env.DB);
@@ -264,70 +182,9 @@ async function postAction(request, env, ctx) {
       status = 'failed';
     }
   }
-  if (kind === 'mastermind.scan') {
-    if (!env.DB) return json({ error: 'Scan store is not available' }, 500);
-    const id = crypto.randomUUID();
-    await insertAction(env.DB, {
-      id, kind, target: 'worker', payload: '{}', status: 'running',
-      result: null, idem_key: idem, created_at: now, finished_at: null,
-    });
-    const work = finishMastermindScan(env, id);
-    if (ctx?.waitUntil) ctx.waitUntil(work);
-    else await work;
-    if (ctx?.waitUntil) return json({ id, status: 'running', result: null });
-    const row = await actionById(env.DB, id);
-    return json({ id, status: row?.status || 'failed', result: row?.result ?? null });
-  }
-  if (kind === 'outreach.refresh') {
-    if (!env.DB) return json({ error: 'Instantly store is not available' }, 500);
-    const id = crypto.randomUUID();
-    await insertAction(env.DB, {
-      id, kind, target: 'worker', payload: '{}', status: 'running',
-      result: null, idem_key: idem, created_at: now, finished_at: null,
-    });
-    const work = finishOutreachCheck(env, id);
-    if (ctx?.waitUntil) ctx.waitUntil(work);
-    else await work;
-    if (ctx?.waitUntil) return json({ id, status: 'running', result: null });
-    const row = await actionById(env.DB, id);
-    return json({ id, status: row?.status || 'failed', result: row?.result ?? null });
-  }
-  if (kind.startsWith('outreach.')) {
-    try {
-      result = await runOutreach(env, kind, payload);
-      status = 'done';
-    } catch (err) {
-      result = err.message || 'Failed';
-      status = 'failed';
-    }
-  }
   if (kind.startsWith('life.')) {
     try {
       result = await runLife(env, kind, payload);
-      status = 'done';
-    } catch (err) {
-      result = err.message || 'Failed';
-      status = 'failed';
-    }
-  }
-  if (kind === 'content.save_draft' || kind === 'content.approve_draft' || kind === 'content.generate_drafts') {
-    const tenant = tenantOf(env);
-    if (payload.tenant && payload.tenant !== tenant) return json({ error: 'Wrong tenant' }, 403);
-    try {
-      if (kind === 'content.generate_drafts') {
-        const out = await fillFromEnv(env);
-        result = out.failed
-          ? `Filled ${out.inserted} slots for ${out.day}. ${out.failed} failed — no connected product facts. Nothing posted.`
-          : `Filled ${out.inserted} drafts for ${out.day}. Nothing posted.`;
-      } else if (kind === 'content.save_draft') {
-        const saved = await saveDraft(env.DB, tenant, payload);
-        if (!saved) return json({ error: 'Draft not found' }, 404);
-        result = 'Edit saved · not published';
-      } else {
-        const saved = await approveDraft(env.DB, tenant, payload.id);
-        if (!saved) return json({ error: 'Draft not found' }, 404);
-        result = 'Approved · not published';
-      }
       status = 'done';
     } catch (err) {
       result = err.message || 'Failed';
@@ -387,44 +244,9 @@ export async function handleApi(request, env, ctx) {
     const base = filterSnapshot(url.searchParams.get('pages'));
     if (!env.DB) return json(base);
     const now = Date.now();
-    const overrides = await listDealStages(env.DB);
-    const extra = { habits: await listHabits(env.DB), checklist: await listChecklist(env.DB, ymd(now)) };
-    const tenant = tenantOf(env);
-    try {
-      extra.drafts = await listDrafts(env.DB, tenant, vancouverDay(now));
-    } catch (err) {
-      extra.drafts = [];
-      extra.draftsError = err.message || 'Drafts unavailable';
-    }
-    extra.reviews = await listReviewPages(env.REVIEW_DB);
-    extra.funnel = await listFunnel(env.CLONE_DB);
-    extra.platforms = configuredPlatforms(env);
-    extra.unavailable = unavailablePlatforms(env);
-    try {
-      extra.deliverables = await listDeliverables(env.DB, new Date(now - 24 * 60 * 60 * 1000).toISOString());
-    } catch (err) {
-      extra.deliverables = [];
-      extra.deliverablesError = err && err.message ? err.message : 'Deliverables unavailable';
-    }
-    extra.questions = await listQuestions(env.DB).catch(() => []);
-    extra.teamRoster = await listTeamBots(env.DB).catch(() => []);
-    extra.dailyApprovals = await listDailyApprovals(env.DB, ymd(now)).catch(() => []);
-    if (!url.searchParams.get('pages') || url.searchParams.get('pages').split(',').includes('today')) {
-      extra.today = await todayData(env.DB, now, monthWindow(now).key);
-    }
-    const merged = mergeSnapshot(base, await listSnapshots(env.DB), now, overrides, await listIdeas(env.DB), await listPosts(env.DB), await listVideoProjects(env.DB), extra);
-    if (merged.pages.outreach) {
-      applyOutreachStatus(merged.pages.outreach, await latestAction(env.DB, 'outreach.refresh'), merged.sources?.instantly);
-    }
-    if (merged.pages.video) {
-      const jobs = await listVideoJobs(env.DB);
-      if (jobs.length) overlayVideo(merged.pages.video, { queue: jobs.map(videoQueueItem) });
-      const beat = merged.sources?.video_gpu1;
-      const runner = !beat || beat.stale ? 'GPU1 disconnected' : 'GPU1 connected';
-      const steps = merged.pages.video.editing.meta || '';
-      merged.pages.video.editing.meta = steps && steps !== 'GPU1 disconnected' ? `${runner} · ${steps}` : runner;
-    }
-    return json(merged);
+    const extra = { habits: await listHabits(env.DB), funnel: await listFunnel(env.CLONE_DB) };
+    if (base.pages.today) extra.today = await todayData(env.DB, now, monthWindow(now).key);
+    return json(mergeSnapshot(base, await listSnapshots(env.DB), now, await listDealStages(env.DB), extra));
   }
 
   if (rest === '/ingest' && method === 'POST') {
@@ -433,110 +255,16 @@ export async function handleApi(request, env, ctx) {
     try { body = await request.json(); } catch { body = {}; }
     if (!who || (body.machine && body.machine !== who)) return json({ error: 'Unauthorized' }, 401);
     const source = String(body.source || '').trim();
+    if (RETIRED_SOURCES.has(source) || source.startsWith('agents_')) return json({ ok: true, ignored: true });
     const collectedAt = String(body.collectedAt || '');
     if (!source || !Date.parse(collectedAt)) return json({ error: 'Bad ingest' }, 400);
-    if ((source === 'agents_mac' && who !== 'mac') || (source === 'agents_gpu2' && who !== 'gpu2')
-      || (source === 'jon_tasks' && who !== 'gpu1')
-      || source === 'webinar_funnel' // written only by the Worker's own cron
+    if (source === 'webinar_funnel' // written only by the Worker's own cron
       || (source.startsWith('machine_') && source !== `machine_${who}`)) {
       return json({ error: 'Unauthorized' }, 401);
     }
     const data = body.data && typeof body.data === 'object' ? body.data : {};
-    // Rows go inside "data"; top level is accepted too so a push that only sends
-    // body.team / body.deliverables is still stored instead of silently dropped.
-    const teamRows = Array.isArray(data.team) ? data.team : Array.isArray(body.team) ? body.team : null;
-    const deliverableRows = Array.isArray(data.deliverables) ? data.deliverables
-      : Array.isArray(body.deliverables) ? body.deliverables : null;
-    if (env.DB && teamRows) {
-      try { await replaceTeamBots(env.DB, normalizeTeam(teamRows, source, collectedAt)); } catch { /* table not migrated yet */ }
-    }
-    if (env.DB && deliverableRows) {
-      try {
-        const rows = normalizeDeliverables(deliverableRows, source, collectedAt);
-        await upsertDeliverables(env.DB, rows);
-        await removeMissingDeliverables(env.DB, source, rows.map((r) => r.id));
-      } catch { /* table not migrated yet */ }
-    }
-    const questionRows = Array.isArray(data.questions) ? data.questions
-      : Array.isArray(body.questions) ? body.questions : null;
-    if (env.DB && questionRows) {
-      try {
-        const rows = normalizeQuestions(questionRows, source);
-        await upsertQuestions(env.DB, rows);
-        await removeMissingQuestions(env.DB, source, rows.map((r) => r.id));
-      } catch { /* table not migrated yet */ }
-    }
-    if (source === 'post') {
-      const items = Array.isArray(data) ? data : Array.isArray(data.posts) ? data.posts : [data];
-      if (env.DB) {
-        for (const item of items) {
-          const row = normalizePost(item, 'agent', collectedAt);
-          if (row.platform && (row.first_line || row.url)) await upsertPost(env.DB, row);
-        }
-      }
-      return json({ ok: true });
-    }
     if (env.DB) await upsertSnapshot(env.DB, source, JSON.stringify(data), collectedAt, new Date().toISOString());
     return json({ ok: true });
-  }
-  // Jon's answers for Ana: fetch the ones nobody collected yet, then mark them collected.
-  if (rest === '/answers' && method === 'GET') {
-    const who = machineOf(request, env);
-    if (!who) return json({ error: 'Unauthorized' }, 401);
-    const rows = env.DB ? await listUncollectedAnswers(env.DB).catch(() => []) : [];
-    return json({
-      ok: true,
-      answers: rows.map((r) => ({
-        id: r.id, from: r.asker || '', project: r.project || '', question: r.question,
-        answer: r.answer, answeredAt: r.answered_at,
-      })),
-    });
-  }
-  if (rest === '/answers/collect' && method === 'POST') {
-    const who = machineOf(request, env);
-    if (!who) return json({ error: 'Unauthorized' }, 401);
-    const body = await request.json().catch(() => ({}));
-    const ids = Array.isArray(body.ids) ? body.ids.map((i) => String(i)).slice(0, 200) : [];
-    const n = env.DB && ids.length ? await markAnswersCollected(env.DB, ids, new Date().toISOString()) : 0;
-    return json({ ok: true, collected: n });
-  }
-  if (rest === '/approvals' && method === 'GET') {
-    const who = machineOf(request, env);
-    if (!who) return json({ error: 'Unauthorized' }, 401);
-    const rows = env.DB ? await listApprovals(env.DB) : [];
-    return json({
-      ok: true,
-      approvals: rows.map((r) => ({
-        id: r.id,
-        title: r.title || '',
-        owner: r.owner || '',
-        type: r.kind || '',
-        url: r.url || '',
-        finishedAt: r.finished_at || null,
-        approvedAt: r.approved_at || null,
-        approvedBy: r.approved_by || 'Jon',
-      })),
-    });
-  }
-  // Machine-token read for what still needs Jon: the team roster and every
-  // deliverable nobody has approved yet, however old.
-  if (rest === '/pending' && method === 'GET') {
-    const who = machineOf(request, env);
-    if (!who) return json({ error: 'Unauthorized' }, 401);
-    const rows = env.DB ? await listPendingDeliverables(env.DB) : [];
-    const team = env.DB ? await listTeamBots(env.DB) : [];
-    return json({
-      ok: true,
-      since: null,
-      team: team.map((b) => ({
-        id: b.id, name: b.name, role: b.role || '', team: b.team || '',
-        task: b.task || '', status: b.status || '', updatedAt: b.updated_at || null,
-      })),
-      deliverables: rows.map((r) => ({
-        id: r.id, title: r.title || '', owner: r.owner || '', type: r.kind || '',
-        url: r.url || '', finishedAt: r.finished_at || null,
-      })),
-    });
   }
   if (rest === '/actions/claim' && method === 'POST') {
     const who = machineOf(request, env);
@@ -573,26 +301,6 @@ export async function handleApi(request, env, ctx) {
     return json({ ok: true, id: row.id, status });
   }
 
-  const resume = rest.match(/^\/actions\/([^/]+)\/resume$/);
-  if (resume && method === 'POST') {
-    const denied = await needSession(request, env);
-    if (denied) return denied;
-    const cc = needCc(request);
-    if (cc) return cc;
-    const row = env.DB ? await actionById(env.DB, resume[1]) : null;
-    if (!row || row.target !== 'gpu1') return json({ error: 'Not found' }, 404);
-    const body = await request.json().catch(() => ({}));
-    const keepers = Array.isArray(body.keepers) ? body.keepers : [];
-    if (!keepersOk(keepers)) return json({ error: 'Keepers required' }, 400);
-    const payload = JSON.parse(row.payload || '{}');
-    payload.keepers = keepers;
-    if (Array.isArray(body.expectedLines)) payload.expectedLines = body.expectedLines.filter((line) => typeof line === 'string' && line.trim());
-    const prev = row.result ? JSON.parse(row.result) : {};
-    prev.stage = 'resume';
-    await requeueAction(env.DB, row.id, JSON.stringify(payload), JSON.stringify(prev));
-    return json({ ok: true, id: row.id, status: 'queued' });
-  }
-
   const complete = rest.match(/^\/actions\/([^/]+)\/complete$/);
   if (complete && method === 'POST') {
     const who = machineOf(request, env);
@@ -606,34 +314,6 @@ export async function handleApi(request, env, ctx) {
   }
 
   const up = rest.match(/^\/uploads\/([^/]+)$/);
-  if (up && method === 'PUT') {
-    const id = up[1];
-    const exp = Number(url.searchParams.get('exp') || 0);
-    const sig = url.searchParams.get('sig') || '';
-    const filename = safeName(url.searchParams.get('filename'));
-    const title = url.searchParams.get('title') || filename;
-    if (!env.SESSION_SECRET || exp < Date.now() / 1000) return json({ error: 'Expired' }, 403);
-    const want = await hmacHex(env.SESSION_SECRET, `${id}.${exp}.${filename}`);
-    if (!timingSafeEqualString(sig, want)) return json({ error: 'Unauthorized' }, 403);
-    const key = uploadKey(id, filename);
-    const idem = `upload-${id}`;
-    if (env.DB) {
-      const existing = await actionByIdem(env.DB, idem);
-      if (existing) return json({ ok: true, id: existing.id, status: existing.status, host: 'gpu1' });
-    }
-    const buf = await request.arrayBuffer();
-    if (env.UPLOADS) await env.UPLOADS.put(key, buf);
-    const now = new Date().toISOString();
-    const actionId = crypto.randomUUID();
-    if (env.DB) {
-      await insertAction(env.DB, {
-        id: actionId, kind: 'video.start_edit', target: 'gpu1',
-        payload: JSON.stringify({ id, title, filename, key }),
-        status: 'queued', result: null, idem_key: idem, created_at: now, finished_at: null,
-      });
-    }
-    return json({ ok: true, id: actionId, status: 'queued', host: 'gpu1' });
-  }
   if (up && method === 'GET') {
     const who = machineOf(request, env);
     if (!who) return json({ error: 'Unauthorized' }, 401);
@@ -647,16 +327,6 @@ export async function handleApi(request, env, ctx) {
     return new Response(obj.body, { headers: { 'Content-Type': 'application/octet-stream' } });
   }
   const output = rest.match(/^\/uploads\/([^/]+)\/output$/);
-  if (output && method === 'GET') {
-    const denied = await needSession(request, env);
-    if (denied) return denied;
-    const row = env.DB ? await actionByIdem(env.DB, `upload-${output[1]}`) : null;
-    const result = row && row.result ? JSON.parse(row.result) : null;
-    if (!row || !result || !result.validated || !result.outputKey) return json({ error: 'Not ready' }, 404);
-    const obj = env.UPLOADS ? await env.UPLOADS.get(result.outputKey) : null;
-    if (!obj) return json({ error: 'Not found' }, 404);
-    return new Response(obj.body, { headers: { 'Content-Type': 'video/mp4' } });
-  }
   if (output && method === 'PUT') {
     const who = machineOf(request, env);
     if (who !== 'gpu1') return json({ error: 'Unauthorized' }, 401);
@@ -679,38 +349,13 @@ export async function handleApi(request, env, ctx) {
     return Response.redirect(await googleAuthUrl(env, url.origin), 302);
   }
 
-  if (rest === '/actions' && method === 'POST') return postAction(request, env, ctx);
-  const approve = rest.match(/^\/approvals\/([^/]+)$/);
-  if (approve && method === 'POST') {
-    if (!env.DB) return json({ error: 'Unavailable' }, 503);
-    const id = decodeURIComponent(approve[1]);
-    const row = await approveDeliverable(env.DB, id, 'Jon', new Date().toISOString());
-    if (!row) return json({ error: 'Not found' }, 404);
-    return json({ ok: true, id, approvedAt: row.approved_at, approvedBy: row.approved_by, duplicate: !!row.duplicate });
-  }
-  const reply = rest.match(/^\/questions\/([^/]+)\/answer$/);
-  if (reply && method === 'POST') {
-    if (!env.DB) return json({ error: 'Unavailable' }, 503);
-    const body = await request.json().catch(() => ({}));
-    const answer = cleanAnswer(body.answer);
-    if (!answer) return json({ error: 'Type an answer first' }, 400);
-    const row = await answerQuestion(env.DB, decodeURIComponent(reply[1]), answer, new Date().toISOString());
-    if (!row) return json({ error: 'Not found' }, 404);
-    return json({ ok: true, answeredAt: row.answered_at, duplicate: row.duplicate });
-  }
+  if (rest === '/actions' && method === 'POST') return postAction(request, env);
   const one = rest.match(/^\/actions\/([^/]+)$/);
   if (one && method === 'GET') {
     if (!env.DB) return json({ id: one[1], status: 'done', result: 'Done' });
     const row = await actionById(env.DB, one[1]);
     if (!row) return json({ error: 'Not found' }, 404);
     return json({ id: row.id, status: row.status, result: row.result });
-  }
-  if (rest === '/checklist' && method === 'POST' && env.DB) {
-    const b = await request.json().catch(() => ({}));
-    if (b.done === false) await deleteChecklist(env.DB, b.day, b.item);
-    else if (b.how === 'auto') return json({ ok: true, ignored: true });
-    else await upsertChecklist(env.DB, b.day, b.item, b.done_at || new Date().toISOString(), 'manual');
-    return json({ ok: true });
   }
   if (rest === '/habits' && method === 'POST' && env.DB) {
     const b = await request.json().catch(() => ({}));
@@ -731,36 +376,6 @@ export async function handleApi(request, env, ctx) {
       status: 'queued', result: null, idem_key: id, created_at: now, finished_at: null,
     });
     return json({ ok: true, id });
-  }
-  const idea = rest.match(/^\/ideas\/([^/]+)$/);
-  if (idea && method === 'POST' && env.DB) {
-    const b = await request.json().catch(() => ({}));
-    await upsertIdea(env.DB, { id: idea[1], ...b });
-    return json({ ok: true });
-  }
-  if (rest === '/uploads' && method === 'POST') {
-    const b = await request.json().catch(() => ({}));
-    const id = crypto.randomUUID();
-    const exp = Math.floor(Date.now() / 1000) + 3600;
-    const filename = safeName(b.filename);
-    const title = String(b.title || filename.replace(/\.[^.]+$/, '') || 'Recording');
-    const sig = await hmacHex(env.SESSION_SECRET, `${id}.${exp}.${filename}`);
-    const origin = new URL(request.url).origin;
-    const putUrl = `${origin}/dashboard/api/uploads/${id}?exp=${exp}&sig=${sig}&filename=${encodeURIComponent(filename)}&title=${encodeURIComponent(title)}`;
-    return json({ id, putUrl });
-  }
-  if (rest === '/video-projects' && method === 'PUT' && env.DB) {
-    const list = await request.json().catch(() => []);
-    if (!Array.isArray(list)) return json({ error: 'Bad projects' }, 400);
-    await replaceVideoProjects(env.DB, list, new Date().toISOString());
-    return json({ ok: true, n: list.length });
-  }
-  if (rest === '/posts' && method === 'POST') {
-    const b = await request.json().catch(() => ({}));
-    const row = normalizePost(b, 'manual');
-    if (!row.platform || !row.first_line) return json({ error: 'Need a platform and the first line' }, 400);
-    if (env.DB) await upsertPost(env.DB, row);
-    return json({ ok: true, id: row.id });
   }
   return json({ error: 'Not found' }, 404);
 }
