@@ -1,7 +1,9 @@
 // Bot access API (dashboard plan step 1, 2026-10-29). Each bot writes one row at a time under
 // /dashboard/api/v1 with its own Bearer token; bot_tokens keeps only the SHA-256 hash. Jon's side
-// (answer a question, approve or reject) needs the dashboard session and is never open to a bot.
+// (answer a question, approve or reject, tick off a task owned by jon) needs the dashboard session
+// and is never open to a bot.
 import { readSession } from './auth.js';
+import { PROJECTS } from './projects.js';
 
 export const TASK_STATUSES = ['todo', 'doing', 'waiting_on_jon', 'qc', 'done', 'cancelled'];
 const OPEN_STATUSES = ['todo', 'doing', 'waiting_on_jon'];
@@ -16,6 +18,8 @@ const TOKEN_RE = /^ccb_[A-Za-z0-9_-]{32,128}$/;
 const SLUG_RE = /^[a-z0-9][a-z0-9-]{0,39}$/;
 const ACTION_RE = /^[a-z][a-z0-9_]{1,39}$/;
 const ID_RE = /^[tpqar]_[0-9a-f]{16}$/;
+const PROJECT_SLUGS = PROJECTS.map((p) => p.slug);
+const DAY_RE = /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/;
 
 const enc = new TextEncoder();
 const json = (data, status = 200) =>
@@ -126,8 +130,30 @@ async function ownerOf(db, who, value) {
     return who.bot;
   }
   const slug = slugOf(value, 'owner');
+  if (slug === 'jon') return slug; // things only Jon can do; he ticks them done himself
   if (!(await knownBot(db, slug))) throw new Bad(400, `Unknown bot: ${slug}`);
   return slug;
+}
+
+// A project slug, or null for Unsorted ("unsorted" or empty).
+function projectOf(value) {
+  const s = value == null ? '' : String(value).trim().toLowerCase();
+  if (!s || s === 'unsorted') return null;
+  if (!PROJECT_SLUGS.includes(s)) throw new Bad(400, `project must be one of: ${PROJECT_SLUGS.join(', ')} (or unsorted)`);
+  return s;
+}
+
+function projectFilter(where, args, q) {
+  if (!q.get('project')) return;
+  const p = projectOf(q.get('project'));
+  if (p) { where.push('project = ?'); args.push(p); } else where.push('project IS NULL');
+}
+
+// Minutes of Jon's time: a whole number from 1 to 480, or null.
+function minutesOf(body) {
+  const n = numberOf(body, 'minutes', 1, 480);
+  if (n != null && !Number.isInteger(n)) throw new Bad(400, 'minutes must be a whole number');
+  return n;
 }
 
 function whoFilter(who, value, key) {
@@ -156,6 +182,7 @@ async function linkedTask(db, body) {
 
 const taskOut = (r) => ({
   id: r.id, title: r.title, owner: r.owner, status: r.status, note: r.note ?? null,
+  project: r.project ?? null, minutes: r.minutes ?? null, due: r.due ?? null,
   createdBy: r.created_by, updatedBy: r.updated_by, createdAt: r.created_at, updatedAt: r.updated_at, doneAt: r.done_at ?? null,
 });
 const proofOut = (r) => ({
@@ -165,12 +192,14 @@ const proofOut = (r) => ({
 });
 const questionOut = (r) => ({
   id: r.id, askedBy: r.asked_by, question: r.question, context: r.context ?? null, options: parseJson(r.options, []),
-  taskId: r.task_id ?? null, status: r.status, answer: r.answer ?? null, answeredBy: r.answered_by ?? null,
+  taskId: r.task_id ?? null, project: r.project ?? null, minutes: r.minutes ?? null,
+  status: r.status, answer: r.answer ?? null, answeredBy: r.answered_by ?? null,
   answeredAt: r.answered_at ?? null, closedBy: r.closed_by ?? null, closedAt: r.closed_at ?? null,
   createdAt: r.created_at, updatedAt: r.updated_at,
 });
 const approvalOut = (r) => ({
   id: r.id, action: r.action, title: r.title, payload: parseJson(r.payload, {}), taskId: r.task_id ?? null,
+  project: r.project ?? null, minutes: r.minutes ?? null,
   requestedBy: r.requested_by, status: r.status, decidedBy: r.decided_by ?? null, decidedAt: r.decided_at ?? null,
   decisionNote: r.decision_note ?? null, claimedBy: r.claimed_by ?? null, claimedAt: r.claimed_at ?? null,
   doneBy: r.done_by ?? null, doneAt: r.done_at ?? null, doneNote: r.done_note ?? null,
@@ -211,12 +240,15 @@ async function createTask(db, who, body, now) {
   const status = body.status == null ? 'todo' : oneOf(body.status, TASK_STATUSES, 'status');
   if (!OPEN_STATUSES.includes(status)) throw new Bad(400, `A new task starts as ${OPEN_STATUSES.join(', ')}`);
   const note = text(body, 'note', 4000);
+  const project = projectOf(body.project);
+  const minutes = minutesOf(body);
+  const due = matchOf(body, 'due', DAY_RE, '2026-10-29');
   const key = text(body, 'key', 200);
   const id = newId('t');
   const { row, duplicate } = await insertOnce(db, 'bot_tasks', 'created_by', who.bot, key, id,
-    `INSERT INTO bot_tasks (id, title, owner, status, note, created_by, updated_by, idem_key, created_at, updated_at, done_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)`,
-    [id, title, owner, status, note, who.bot, who.bot, key, now, now]);
+    `INSERT INTO bot_tasks (id, title, owner, status, note, project, minutes, due, created_by, updated_by, idem_key, created_at, updated_at, done_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)`,
+    [id, title, owner, status, note, project, minutes, due, who.bot, who.bot, key, now, now]);
   return json({ ok: true, duplicate, task: taskOut(row) }, duplicate ? 200 : 201);
 }
 
@@ -234,8 +266,19 @@ async function updateTask(db, who, id, body, now) {
   const sets = [];
   const args = [];
   if ('title' in body) { sets.push('title = ?'); args.push(text(body, 'title', 300, true)); }
-  if ('owner' in body) { sets.push('owner = ?'); args.push(await ownerOf(db, who, body.owner)); }
+  if ('owner' in body) {
+    const owner = await ownerOf(db, who, body.owner);
+    // Jon's tick skips the proof rule, so a task can't move into or out of Jon's hands; create it as his.
+    if (owner !== row.owner && (owner === 'jon' || row.owner === 'jon')) {
+      throw new Bad(400, 'A task cannot be moved to or from jon; create a new task with owner jon');
+    }
+    sets.push('owner = ?');
+    args.push(owner);
+  }
   if ('note' in body) { sets.push('note = ?'); args.push(text(body, 'note', 4000)); }
+  if ('project' in body) { sets.push('project = ?'); args.push(projectOf(body.project)); }
+  if ('minutes' in body) { sets.push('minutes = ?'); args.push(minutesOf(body)); }
+  if ('due' in body) { sets.push('due = ?'); args.push(matchOf(body, 'due', DAY_RE, '2026-10-29')); }
   if ('status' in body) {
     const status = oneOf(body.status, TASK_STATUSES, 'status');
     if (status !== row.status) {
@@ -246,7 +289,7 @@ async function updateTask(db, who, id, body, now) {
     sets.push('status = ?', 'done_at = ?');
     args.push(status, status === 'done' ? (row.status === 'done' ? row.done_at : now) : null);
   }
-  if (!sets.length) throw new Bad(400, 'Nothing to change: send title, owner, status or note');
+  if (!sets.length) throw new Bad(400, 'Nothing to change: send title, owner, status, note, project, minutes or due');
   // Re-check the proof inside the UPDATE so a QC fail landing in between can't be skipped.
   const moving = 'status' in body && body.status !== row.status ? String(body.status).trim().toLowerCase() : '';
   const guard = moving === 'done' ? " AND EXISTS (SELECT 1 FROM bot_proofs WHERE task_id = bot_tasks.id AND status = 'passed')"
@@ -257,10 +300,24 @@ async function updateTask(db, who, id, body, now) {
   return json({ ok: true, task: taskOut(await taskRow(db, id)) });
 }
 
+// Jon ticks off a task only he can do (owner jon): done without proof, and nothing else.
+async function tickTask(db, id, body, now) {
+  oneOf(body.status, ['done'], 'status');
+  const r = await db.prepare(
+    "UPDATE bot_tasks SET status = 'done', done_at = ?, updated_by = 'jon', updated_at = ? WHERE id = ? AND owner = 'jon' AND status IN ('todo', 'doing', 'waiting_on_jon')",
+  ).bind(now, now, id).run();
+  const row = await taskRow(db, id);
+  if (!row) throw new Bad(404, 'Task not found');
+  if (row.owner !== 'jon') throw new Bad(403, 'Jon can only tick tasks owned by jon');
+  if (!changed(r)) return json({ ok: false, error: `Task is already ${row.status}`, task: taskOut(row) }, 409);
+  return json({ ok: true, task: taskOut(row) });
+}
+
 async function listTasks(db, who, q) {
   const where = [];
   const args = [];
   if (q.get('owner')) { where.push('owner = ?'); args.push(whoFilter(who, q.get('owner'), 'owner')); }
+  projectFilter(where, args, q);
   inList(where, args, 'status', statusList(q.get('status'), TASK_STATUSES));
   const rows = await list(db, 'bot_tasks', where, args, 'updated_at DESC', limitOf(q));
   return json({ ok: true, tasks: rows.map(taskOut) });
@@ -341,12 +398,14 @@ async function askQuestion(db, who, body, now) {
   const options = optionsOf(body.options);
   const context = text(body, 'context', 8000);
   const task = await linkedTask(db, body);
+  const project = projectOf(body.project);
+  const minutes = minutesOf(body);
   const key = text(body, 'key', 200);
   const id = newId('q');
   const { row, duplicate } = await insertOnce(db, 'bot_questions', 'asked_by', who.bot, key, id,
-    `INSERT INTO bot_questions (id, asked_by, question, context, options, task_id, status, idem_key, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, 'open', ?, ?, ?)`,
-    [id, who.bot, question, context, JSON.stringify(options), task, key, now, now]);
+    `INSERT INTO bot_questions (id, asked_by, question, context, options, task_id, project, minutes, status, idem_key, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, ?, ?)`,
+    [id, who.bot, question, context, JSON.stringify(options), task, project, minutes, key, now, now]);
   return json({ ok: true, duplicate, question: questionOut(row) }, duplicate ? 200 : 201);
 }
 
@@ -354,6 +413,7 @@ async function listQuestions(db, who, q) {
   const where = [];
   const args = [];
   if (q.get('asked_by')) { where.push('asked_by = ?'); args.push(whoFilter(who, q.get('asked_by'), 'asked_by')); }
+  projectFilter(where, args, q);
   inList(where, args, 'status', statusList(q.get('status'), QUESTION_STATUSES));
   const rows = await list(db, 'bot_questions', where, args, 'created_at DESC', limitOf(q));
   return json({ ok: true, questions: rows.map(questionOut) });
@@ -404,12 +464,14 @@ async function requestApproval(db, who, body, now) {
   const title = text(body, 'title', 300, true);
   const payload = payloadOf(body.payload);
   const task = await linkedTask(db, body);
+  const project = projectOf(body.project);
+  const minutes = minutesOf(body);
   const key = text(body, 'key', 200);
   const id = newId('a');
   const { row, duplicate } = await insertOnce(db, 'bot_approvals', 'requested_by', who.bot, key, id,
-    `INSERT INTO bot_approvals (id, action, title, payload, task_id, requested_by, status, idem_key, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?)`,
-    [id, action, title, payload, task, who.bot, key, now, now]);
+    `INSERT INTO bot_approvals (id, action, title, payload, task_id, project, minutes, requested_by, status, idem_key, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?)`,
+    [id, action, title, payload, task, project, minutes, who.bot, key, now, now]);
   return json({ ok: true, duplicate, approval: approvalOut(row) }, duplicate ? 200 : 201);
 }
 
@@ -423,6 +485,7 @@ async function listApprovals(db, who, q) {
     args.push(action);
   }
   if (q.get('requested_by')) { where.push('requested_by = ?'); args.push(whoFilter(who, q.get('requested_by'), 'requested_by')); }
+  projectFilter(where, args, q);
   inList(where, args, 'status', statusList(q.get('status'), APPROVAL_STATUSES));
   const rows = await list(db, 'bot_approvals', where, args, 'created_at DESC', limitOf(q));
   return json({ ok: true, approvals: rows.map(approvalOut) });
@@ -547,6 +610,18 @@ export const FEEDS = {
     writers: ['ana'],
     parse: (b) => ({ text: text(b, 'text', 8000, true), date: matchOf(b, 'date', /^\d{4}-\d{2}-\d{2}$/, '2026-10-29') }),
   },
+  calendar_today: {
+    writers: ['ana'],
+    parse: (b) => {
+      if (!Array.isArray(b.events) || b.events.length > 60) throw new Bad(400, 'events must be a list of at most 60 events');
+      const events = b.events.map((e) => {
+        if (!e || typeof e !== 'object' || Array.isArray(e)) throw new Bad(400, 'each event must be {start, end, title, calendar?}');
+        const calendar = text(e, 'calendar', 100);
+        return { start: text(e, 'start', 40, true), end: text(e, 'end', 40, true), title: text(e, 'title', 300, true), ...(calendar ? { calendar } : {}) };
+      });
+      return { date: matchOf(b, 'date', DAY_RE, '2026-10-29', true), events };
+    },
+  },
   claude_usage: {
     writers: ['ana'],
     parse: (b) => ({ weekPct: numberOf(b, 'weekPct', 0, 1000, true), resetsAt: isoOf(b.resetsAt, 'resetsAt'), note: text(b, 'note', 500) }),
@@ -599,20 +674,26 @@ async function tryRead(work) {
 export async function todayData(db, nowMs, month) {
   if (!db) return null;
   const since = new Date(nowMs - 7 * 86400000).toISOString();
-  const [q, a, summary, usage, ebooks, runs] = await Promise.all([
+  const [q, a, summary, usage, ebooks, runs, calendar, tasks] = await Promise.all([
     tryRead(db.prepare("SELECT * FROM bot_questions WHERE status = 'open' ORDER BY created_at LIMIT 200").all()),
     tryRead(db.prepare("SELECT * FROM bot_approvals WHERE status = 'pending' ORDER BY created_at LIMIT 200").all()),
     tryRead(latestFeed(db, 'morning_summary')),
     tryRead(latestFeed(db, 'claude_usage')),
     tryRead(db.prepare("SELECT * FROM bot_feed_entries WHERE name = 'ebook_sales' AND json_extract(data, '$.month') = ? ORDER BY created_at DESC LIMIT 1").bind(month).first()),
     tryRead(db.prepare('SELECT COALESCE(SUM(tokens), 0) AS tokens, COUNT(*) AS runs FROM bot_runs WHERE started_at >= ?').bind(since).first()),
+    tryRead(latestFeed(db, 'calendar_today')),
+    // The Projects board: open and QC tasks plus the last 7 days of done ones, each with its newest web proof link.
+    tryRead(db.prepare(`SELECT t.*, (SELECT p.link FROM bot_proofs p WHERE p.task_id = t.id AND (p.link LIKE 'http://%' OR p.link LIKE 'https://%')
+      ORDER BY p.created_at DESC LIMIT 1) AS proof_link FROM bot_tasks t
+      WHERE t.status IN ('todo', 'doing', 'waiting_on_jon', 'qc') OR (t.status = 'done' AND t.done_at >= ?) ORDER BY t.updated_at DESC LIMIT 500`).bind(since).all()),
   ]);
   // A feed is null when its table could not be read, undefined when nothing was posted yet.
   const feed = (row) => (row === FAILED ? null : row ? feedOut(row) : undefined);
   return {
     questions: q === FAILED ? null : (q.results || []).map(questionOut),
     approvals: a === FAILED ? null : (a.results || []).map(approvalOut),
-    feeds: { morning_summary: feed(summary), claude_usage: feed(usage), ebook_sales: feed(ebooks) },
+    feeds: { morning_summary: feed(summary), calendar_today: feed(calendar), claude_usage: feed(usage), ebook_sales: feed(ebooks) },
+    tasks: tasks === FAILED ? null : (tasks.results || []).map((r) => ({ ...taskOut(r), proofLink: r.proof_link ?? null })),
     runs7d: runs === FAILED || !runs ? null : { tokens: Number(runs.tokens) || 0, runs: Number(runs.runs) || 0, since },
   };
 }
@@ -656,7 +737,7 @@ async function route(request, db, who, rest) {
     case 'GET tasks': return listTasks(db, who, q);
     case 'POST tasks': needBot(who); return createTask(db, who, body, now);
     case 'GET tasks/:id': return getTask(db, id);
-    case 'PATCH tasks/:id': needBot(who); return updateTask(db, who, id, body, now);
+    case 'PATCH tasks/:id': return who.jon ? tickTask(db, id, body, now) : updateTask(db, who, id, body, now);
     case 'POST tasks/:id/proofs': needBot(who); return addProof(db, who, id, body, now);
     case 'GET proofs': return listProofs(db, q);
     case 'POST proofs/:id/check': needBot(who); return checkProof(db, who, id, body, now);

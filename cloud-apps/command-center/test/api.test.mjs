@@ -193,10 +193,10 @@ test('ingest accepts a retired source and stores nothing; a kept source is still
   assert.deepEqual(writes, [['INSERT OR REPLACE INTO snapshots', 'sponsors_cash']]);
 });
 
-test('the nav holds exactly the six kept pages, and those are the pages served', async () => {
+test('the nav holds exactly the seven kept pages, and those are the pages served', async () => {
   const cookie = `${COOKIE}=${await signSession(SECRET, Math.floor(Date.now() / 1000) + 3600)}`;
   const json = await (await handleApi(req('/dashboard/api/snapshot', { cookie }), env)).json();
   const ids = json.nav.groups.flatMap((g) => g.items.map((i) => i.id));
-  assert.deepEqual(ids, ['today', 'sponsors', 'viral', 'webinar', 'money', 'life']);
+  assert.deepEqual(ids, ['today', 'projects', 'sponsors', 'viral', 'webinar', 'money', 'life']);
   assert.deepEqual(Object.keys(json.pages), ids);
 });

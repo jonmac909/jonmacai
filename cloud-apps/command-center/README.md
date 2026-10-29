@@ -2,11 +2,11 @@
 
 Live: [https://jonmac.ai/dashboard](https://jonmac.ai/dashboard)
 
-Cloudflare Worker `jonmac-command-center`. Routes `jonmac.ai/dashboard` and `jonmac.ai/dashboard/*`. Pages render from `GET /dashboard/api/snapshot`, which starts from `fixtures/snapshot.json` and overlays live D1 snapshots. Six pages: Today (below), Sponsors (`sponsors` from the Mac collector, `sponsors_cash` deposits), Viral View (`viralview` cron every 10 min), Webinar (clone funnel D1), Money (`moneyclaw` cron every 10 min, `bank_scan`) and Life (Google Calendar + habits). Critical alerts (bank code needed, payment over 7 days late) go to Today and, once each, to Telegram from the cron. Any other `#page` opens Today.
+Cloudflare Worker `jonmac-command-center`. Routes `jonmac.ai/dashboard` and `jonmac.ai/dashboard/*`. Pages render from `GET /dashboard/api/snapshot`, which starts from `fixtures/snapshot.json` and overlays live D1 snapshots. Seven pages: Today (below), Projects (below), Sponsors (`sponsors` from the Mac collector, `sponsors_cash` deposits), Viral View (`viralview` cron every 10 min), Webinar (clone funnel D1), Money (`moneyclaw` cron every 10 min, `bank_scan`) and Life (Google Calendar + habits). Critical alerts (bank code needed, payment over 7 days late) go to Today and, once each, to Telegram from the cron. Any other `#page` opens Today.
 
 ## Snapshot shape (`fixtures/snapshot.json`)
 
-This file is the mockup data contract. The API serves only the six pages' slices of it (`PAGES` in `src/api.js`); the other mockup pages in it are never served. Do not hard-code numbers in HTML.
+This file is the mockup data contract. The API serves only the seven pages' slices of it (`PAGES` in `src/api.js`); the other mockup pages in it are never served. Do not hard-code numbers in HTML.
 
 ```
 {
@@ -35,7 +35,7 @@ Every page object is render-ready copy from the mockup: tiles (`icon, label, val
 | `money` | `personal, business, categories, fix, bankScan, netWorth, charges` |
 | `life` | `tiles, workouts, dateNight, today` |
 
-`GET /dashboard/api/snapshot?pages=today,sponsors` returns `{ pages, nav, sources }` with only the asked-for page keys; the nav lists exactly the six pages.
+`GET /dashboard/api/snapshot?pages=today,sponsors` returns `{ pages, nav, sources }` with only the asked-for page keys; the nav lists exactly the seven pages.
 
 Regenerate compact JSON: `node scripts/build-snapshot.mjs`
 
@@ -52,19 +52,20 @@ Each of the 14 bots (D:\AgentTeam\rules\BOTS.md) writes one row at a time with i
 | Method and path | Who | What |
 |---|---|---|
 | `GET /v1/me` | bot or Jon | who the token or session belongs to |
-| `POST /v1/tasks` | bot | `{title, owner?, status?, note?, key?}`; owner defaults to the caller |
-| `GET /v1/tasks?owner=me\|slug&status=a,b&limit=` | bot or Jon | newest change first |
+| `POST /v1/tasks` | bot | `{title, owner?, status?, note?, project?, minutes?, due?, key?}`; owner defaults to the caller; `owner: jon` for what only Jon can do |
+| `GET /v1/tasks?owner=me\|slug\|jon&status=a,b&project=&limit=` | bot or Jon | newest change first |
 | `GET /v1/tasks/:id` | bot or Jon | task with its proof |
-| `PATCH /v1/tasks/:id` | bot | `{status?, owner?, note?, title?}`; `qc` needs a proof not failed, `done` a proof QC passed, `cancelled` a note |
+| `PATCH /v1/tasks/:id` | bot | `{status?, owner?, note?, title?, project?, minutes?, due?}`; `qc` needs a proof not failed, `done` a proof QC passed, `cancelled` a note |
+| `PATCH /v1/tasks/:id` | Jon (session + `X-CC: 1`) | `{status: done}` on an open task owned by `jon` only: the tick, no proof |
 | `POST /v1/tasks/:id/proofs` | bot | `{kind: render\|url\|pdf\|test, link, note?}`; link is http(s) or a file path |
 | `GET /v1/proofs?status=pending&task=` | bot or Jon | QC's queue |
 | `POST /v1/proofs/:id/check` | `qc` only | `{result: passed\|failed, note?}`; failing the last supporting proof sends a `qc`/`done` task back to `doing` |
-| `POST /v1/questions` | bot | `{question, options?[≤10], context?, task?, key?}` |
-| `GET /v1/questions[/:id]?status=&asked_by=` | bot or Jon | read the answer |
+| `POST /v1/questions` | bot | `{question, options?[≤10], context?, task?, project?, minutes?, key?}` |
+| `GET /v1/questions[/:id]?status=&asked_by=&project=` | bot or Jon | read the answer |
 | `POST /v1/questions/:id/close` | the asking bot | after reading the answer, or to withdraw |
 | `POST /v1/questions/:id/answer` | Jon (session + `X-CC: 1`) | `{answer}`; first answer wins |
-| `POST /v1/approvals` | bot | `{action (snake_case), title, payload?{} (max 4000 chars as formatted JSON, all shown to Jon), task?, key?}` |
-| `GET /v1/approvals[/:id]?status=approved&action=&requested_by=` | bot or Jon | approved = approved, not yet claimed |
+| `POST /v1/approvals` | bot | `{action (snake_case), title, payload?{} (max 4000 chars as formatted JSON, all shown to Jon), task?, project?, minutes?, key?}` |
+| `GET /v1/approvals[/:id]?status=approved&action=&requested_by=&project=` | bot or Jon | approved = approved, not yet claimed |
 | `POST /v1/approvals/:id/decide` | Jon (session + `X-CC: 1`) | `{decision: approve\|reject, note?}`; pending only |
 | `POST /v1/approvals/:id/claim` | the requesting bot | approved → running; one claimer wins (409 for the rest) |
 | `POST /v1/approvals/:id/done` | the requesting bot | running → done |
@@ -72,7 +73,7 @@ Each of the 14 bots (D:\AgentTeam\rules\BOTS.md) writes one row at a time with i
 | `POST /v1/approvals/:id/cancel` | the requesting bot | pending or approved → cancelled |
 | `POST /v1/runs` | bot | `{status: running\|ok\|failed, started?, ended?, tokens?, error?, task?, note?}`; own runs only |
 | `GET /v1/runs?bot=&status=&since=` | bot or Jon | newest first |
-| `PUT /v1/feeds/:name` | named bots | append one entry: `morning_summary {text, date?}` and `claude_usage {weekPct, resetsAt?, note?}` (ana); `ebook_sales {month, usd, orders?, note?}` (home-guide-press, accounting) |
+| `PUT /v1/feeds/:name` | named bots | append one entry: `morning_summary {text, date?}`, `calendar_today {date, events[≤60]: {start, end, title, calendar?}}` and `claude_usage {weekPct, resetsAt?, note?}` (ana); `ebook_sales {month, usd, orders?, note?}` (home-guide-press, accounting) |
 | `GET /v1/feeds/:name` | bot or Jon | newest entry |
 
 ### Today page
@@ -88,6 +89,15 @@ Default page (`#today`). Built by `src/today.js` from the snapshot. Each card sh
   - Bot approvals (Approve / Reject call `/v1/approvals/:id/decide`).
   - Bot questions, answered in place, oldest first.
 - The morning summary and Claude usage come from the feeds.
+
+`project` is one of the slugs in `PROJECTS` (`src/projects.js`); `unsorted` or empty means none, and `?project=unsorted` lists those. `minutes` is 1 to 480, `due` is YYYY-MM-DD (migration `0009_projects.sql`, additive).
+
+### Projects page
+
+`#projects/<slug>` (`#projects` and unknown slugs open the first). Built by `src/projects.js` from the same bot data as Today.
+- Left: the projects in order, plus Unsorted when it has items. The red count is what waits on Jon: open questions, pending approvals, and open tasks that are `waiting_on_jon` or owned by `jon`.
+- Main: the project's Today goal cards (Sponsors; Viral View and Webinar; Ebooks), then a board: To do, Doing, Waiting on Jon (plus its questions and approvals, answered in place), QC, Done (last 7 days).
+- Right: Jon's Today checklist across projects (questions, approvals, `jon` tasks due today or undated; `minutes` or 2/15 min), the morning summary and the `calendar_today` feed.
 
 `key` makes a create safe to retry: the same bot and key return the first row (`duplicate: true`). Errors are `{ok: false, error}` with 400/401/403/404/409/413.
 

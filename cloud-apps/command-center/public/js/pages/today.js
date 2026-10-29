@@ -7,7 +7,7 @@ function src(s) {
   return `<p class="src${s.stale ? ' stale' : ''}">${esc(s.label)} · ${esc(s.ageLabel)}${s.stale ? ` ${pill('Stale', 'risk')}` : ''}</p>`;
 }
 
-function goalCard(g) {
+export function goalCard(g) {
   const pace = g.pacePct == null ? '' : `<span class="pacemark" style="left:${Math.min(100, g.pacePct)}%" title="Where the number should be today"></span>`;
   const drivers = (g.drivers || []).map((d) => `<div><span>${esc(d.label)}</span><b>${esc(d.value)}</b></div>`).join('');
   return `<article class="card goal">
@@ -25,7 +25,7 @@ function goalCard(g) {
 // Links come from pushed data: only web links and same-site paths become clickable.
 const safeHref = (h) => (/^(https?:\/\/|\/(?![/\\]))/i.test(String(h || '')) ? h : '');
 
-function needItem(it) {
+export function needItem(it) {
   it = { ...it, href: safeHref(it.href) };
   const meta = [it.from ? `<span class="jttag">${esc(it.from)}</span>` : '', it.project ? `<span>${esc(it.project)}</span>` : '', it.ageLabel ? `<span>${esc(it.ageLabel)}</span>` : '']
     .filter(Boolean).join('<i>·</i>');
@@ -65,7 +65,7 @@ function needsCard(n) {
     ${list}${(n.sources || []).map(src).join('')}</div>`;
 }
 
-function summaryCard(s) {
+export function summaryCard(s) {
   const body = s.missing ? `<p class="muted">${esc(s.missing)}</p>` : `<div class="summary">${esc(s.text)}</div>`;
   return `<div class="card pad"><div class="cardhead"><h2>Morning summary</h2><span class="meta">${esc(s.date || '')}</span></div>${body}${src(s.source)}</div>`;
 }

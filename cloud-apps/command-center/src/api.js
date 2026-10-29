@@ -88,8 +88,8 @@ async function login(request, env) {
   return json({ ok: true }, 200, { 'Set-Cookie': sessionCookieHeader(token, SESSION_DAYS * 24 * 3600) });
 }
 
-// The dashboard's pages, in nav order. Today and Webinar have no fixture numbers at all.
-export const PAGES = ['today', 'sponsors', 'viral', 'webinar', 'money', 'life'];
+// The dashboard's pages, in nav order. Today, Projects and Webinar have no fixture numbers at all.
+export const PAGES = ['today', 'projects', 'sponsors', 'viral', 'webinar', 'money', 'life'];
 
 function filterSnapshot(pages) {
   const want = pages ? pages.split(',').map((s) => s.trim()).filter((id) => PAGES.includes(id)) : PAGES;
@@ -112,7 +112,7 @@ export function liveNav(orig) {
   return {
     ...nav,
     groups: [
-      { title: 'Today', items: [{ id: 'today', label: 'Today', icon: 'home' }] },
+      { title: 'Today', items: [{ id: 'today', label: 'Today', icon: 'home' }, { id: 'projects', label: 'Projects', icon: 'board' }] },
       { title: 'Business', items: [
         { id: 'sponsors', label: 'Sponsors', icon: 'mail' },
         { id: 'viral', label: 'Viral View', icon: 'chart' },
@@ -245,7 +245,7 @@ export async function handleApi(request, env, ctx) {
     if (!env.DB) return json(base);
     const now = Date.now();
     const extra = { habits: await listHabits(env.DB), funnel: await listFunnel(env.CLONE_DB) };
-    if (base.pages.today) extra.today = await todayData(env.DB, now, monthWindow(now).key);
+    if (base.pages.today || base.pages.projects) extra.today = await todayData(env.DB, now, monthWindow(now).key);
     return json(mergeSnapshot(base, await listSnapshots(env.DB), now, await listDealStages(env.DB), extra));
   }
 
