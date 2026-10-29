@@ -13,7 +13,7 @@ import {
   approveDeliverable, listApprovals, listDailyApprovals,
 } from './db.js';
 import { mergeSnapshot } from './snapshot.js';
-import { listFunnel } from './webinar.js';
+import { listFunnel, funnelMonth } from './webinar.js';
 import { overlayVideo } from './video.js';
 import { boardStageFor, mapColumn } from './sponsors.js';
 import { normalizePost } from './content.js';
@@ -28,7 +28,8 @@ import { REVIEW_SOURCE, draftId, isIsolated, parseReview, plannerDestination, re
 import { normalizeTeam } from './team.js';
 import { normalizeDeliverables } from './tasks.js';
 import { normalizeQuestions, cleanAnswer } from './questions.js';
-import { handleV1 } from './bots.js';
+import { handleV1, todayData } from './bots.js';
+import { monthWindow } from './today.js';
 
 const PREFIX = '/dashboard/api';
 const json = (data, status = 200, headers = {}) =>
@@ -147,7 +148,7 @@ async function login(request, env) {
 }
 
 // Pages built only from live feeds; they have no fixture numbers at all.
-const LIVE_PAGES = { videos: {}, webinar: {}, team: {}, tasks: {}, projects: {}, questions: {}, channels: {} };
+const LIVE_PAGES = { today: {}, videos: {}, webinar: {}, team: {}, tasks: {}, projects: {}, questions: {}, channels: {} };
 
 function filterSnapshot(pages) {
   const all = { ...snapshot.pages, ...LIVE_PAGES };
@@ -167,7 +168,7 @@ export function liveNav(orig) {
     ...nav,
     groups: [
       { title: 'Today', items: [
-        { id: 'home', label: 'Home', icon: 'home' },
+        { id: 'today', label: 'Today', icon: 'home' },
         { id: 'tasks', label: 'Tasks', icon: 'check' },
         { id: 'projects', label: 'Projects', icon: 'board' },
         { id: 'channels', label: 'YouTube', icon: 'film' },
@@ -183,6 +184,7 @@ export function liveNav(orig) {
       ] },
       { title: 'Life', items: [{ id: 'life', label: 'Life', icon: 'heart' }] },
       { title: 'Archive', archive: true, items: [
+        { id: 'home', label: 'Home (old)', icon: 'home' },
         { id: 'agents', label: 'Machines & Agents (old)', icon: 'bot' },
         { id: 'videos', label: 'Production feed', icon: 'film' },
         { id: 'support', label: 'Support', icon: 'chat' },
@@ -407,6 +409,12 @@ export async function handleApi(request, env, ctx) {
     extra.questions = await listQuestions(env.DB).catch(() => []);
     extra.teamRoster = await listTeamBots(env.DB).catch(() => []);
     extra.dailyApprovals = await listDailyApprovals(env.DB, ymd(now)).catch(() => []);
+    if (!url.searchParams.get('pages') || url.searchParams.get('pages').split(',').includes('today')) {
+      const win = monthWindow(now);
+      extra.today = await todayData(env.DB, now);
+      extra.funnelMonth = await funnelMonth(env.CLONE_DB, win.start, win.end);
+      extra.pendingDeliverables = await listPendingDeliverables(env.DB).catch(() => []);
+    }
     const merged = mergeSnapshot(base, await listSnapshots(env.DB), now, overrides, await listIdeas(env.DB), await listPosts(env.DB), await listVideoProjects(env.DB), extra);
     if (merged.pages.outreach) {
       applyOutreachStatus(merged.pages.outreach, await latestAction(env.DB, 'outreach.refresh'), merged.sources?.instantly);

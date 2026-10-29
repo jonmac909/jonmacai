@@ -81,6 +81,23 @@ Each of the 14 bots (D:\AgentTeam\rules\BOTS.md) writes one row at a time with i
 | `POST /v1/approvals/:id/cancel` | the requesting bot | pending or approved → cancelled |
 | `POST /v1/runs` | bot | `{status: running\|ok\|failed, started?, ended?, tokens?, error?, task?, note?}`; own runs only |
 | `GET /v1/runs?bot=&status=&since=` | bot or Jon | newest first |
+| `PUT /v1/feeds/:name` | named bots | append one entry: `morning_summary {text, date?}` and `claude_usage {weekPct, resetsAt?, note?}` (ana); `ebook_sales {month, usd, orders?, note?}` (home-guide-press, accounting) |
+| `GET /v1/feeds/:name` | bot or Jon | newest entry |
+
+### Today page
+
+Default page (`#today`; the old Home is under Archive). Built by `src/today.js` from the snapshot. Each card shows its source and its age, and anything older than 24 h is marked stale.
+- Four $10k goals, $40k in total:
+  - Sponsors: the sponsor cash ledger or bank feed.
+  - Viral View MRR: the `viralview` snapshot.
+  - Webinar funnel: the live clone D1 `clone_session_events`, verified payments minus refunds this month.
+  - Ebooks: the `ebook_sales` feed.
+- One "Needs you" list:
+  - Critical alerts.
+  - Bot approvals (Approve / Reject call `/v1/approvals/:id/decide`) and Ana's pending deliverables.
+  - Bot questions and Ana's open questions, answered in place, oldest first.
+  - Videos ready for review, and Ana's Waiting On You.
+- The morning summary and Claude usage come from the feeds.
 
 `key` makes a create safe to retry: the same bot and key return the first row (`duplicate: true`). Errors are `{ok: false, error}` with 400/401/403/404/409/413.
 

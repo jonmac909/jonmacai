@@ -1,3 +1,4 @@
+import { render as today } from './pages/today.js';
 import { render as home } from './pages/home.js';
 import { render as tasks } from './pages/tasks.js?v=20261023e';
 import { render as projects } from './pages/projects.js';
@@ -21,7 +22,7 @@ import { render as team } from './pages/team.js?v=20261023f';
 import { formatJobResult } from './ui.js';
 import { bindModals, openDraft } from './modals.js';
 const PREFIX = '/dashboard';
-const pages = { home, tasks, projects, channels, questions, sponsors, viral, youtube, content, outreach, support, video, money, markets, life, mastermind, agents, videos, webinar, team };
+const pages = { today, home, tasks, projects, channels, questions, sponsors, viral, youtube, content, outreach, support, video, money, markets, life, mastermind, agents, videos, webinar, team };
 let data = null;
 
 const root = document.documentElement;
@@ -101,8 +102,26 @@ async function uploadFile(file) {
 
 
 function hashPage() {
-  const id = (location.hash || '#home').replace(/^#/, '') || 'home';
-  return pages[id] ? id : 'home';
+  const id = (location.hash || '#today').replace(/^#/, '') || 'today';
+  return pages[id] ? id : 'today';
+}
+
+// Today's answer and approve buttons post to the URL the server put on the button.
+function todayPost(url, body, okText, button) {
+  if (!String(url).startsWith(`${PREFIX}/api/`)) return;
+  fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CC': '1' }, body: JSON.stringify(body) })
+    .then(async (res) => {
+      const row = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        button.disabled = false;
+        say(row.error || 'Could not send');
+        if (res.status === 409) go('today', { refetch: true });
+        return;
+      }
+      say(okText);
+      go('today', { refetch: true });
+    })
+    .catch(() => { button.disabled = false; say('Could not send'); });
 }
 
 function navHtml() {
@@ -184,9 +203,9 @@ function recount() {
 }
 
 export async function go(id, { refetch = false } = {}) {
-  if (!pages[id]) id = 'home';
+  if (!pages[id]) id = 'today';
   if (location.hash !== `#${id}`) history.replaceState(null, '', `${PREFIX}/#${id}`);
-  if (refetch || id === 'agents' || id === 'team' || id === 'projects' || id === 'questions' || id === 'channels') {
+  if (refetch || id === 'today' || id === 'agents' || id === 'team' || id === 'projects' || id === 'questions' || id === 'channels') {
     const snap = await fetch(`${PREFIX}/api/snapshot?v=${Date.now()}`);
     if (snap.ok) data = await snap.json();
     document.getElementById('navs').innerHTML = navHtml();
@@ -240,6 +259,23 @@ function clearNeedsFilter(card) {
 }
 
 document.addEventListener('click', (e) => {
+  const tsend = e.target.closest('[data-tsend]');
+  if (tsend) {
+    const answer = tsend.closest('.qcard').querySelector('.qtext').value.trim();
+    if (!answer) { say('Type an answer first'); return; }
+    if (tsend.disabled) return;
+    tsend.disabled = true;
+    todayPost(tsend.dataset.tsend, { answer }, 'Sent', tsend);
+    return;
+  }
+  const tdec = e.target.closest('[data-tdecide]');
+  if (tdec) {
+    if (tdec.disabled) return;
+    if (tdec.dataset.confirm && !window.confirm(tdec.dataset.confirm)) return;
+    tdec.disabled = true;
+    todayPost(tdec.dataset.tdecide, { decision: tdec.dataset.decision }, tdec.dataset.decision === 'reject' ? 'Rejected' : 'Approved', tdec);
+    return;
+  }
   const approveBtn = e.target.closest('[data-approve]');
   if (approveBtn) {
     e.preventDefault();
@@ -487,11 +523,12 @@ document.getElementById('navs').innerHTML = navHtml();
 // Collector beats refresh these pages every 60 s while visible.
 setInterval(() => {
   const id = hashPage();
-  if (document.hidden || !['home', 'tasks', 'agents', 'videos', 'webinar', 'team', 'content'].includes(id)) return;
+  if (document.hidden || !['today', 'home', 'tasks', 'agents', 'videos', 'webinar', 'team', 'content'].includes(id)) return;
   if (document.activeElement && /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName)) return;
   const y = window.scrollY;
   go(id, { refetch: true }).then(() => window.scrollTo(0, y)).catch(() => {});
 }, 60000);
 let last = hashPage();
 try { if (!location.hash) last = localStorage.getItem('cc-page') || last; } catch {}
+if (last === 'home') last = 'today'; // Today replaced Home (2026-10-29); old Home is under Archive
 go(last);
