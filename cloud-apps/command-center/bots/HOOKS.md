@@ -7,8 +7,8 @@
 | `script_failure` | Developer, Ana | every team script, when it fails |
 | `proof_posted` | QC | `dash.py proof-add`, automatically |
 | `raw_footage` | Video Editor | `watch_footage.ps1`, when files land in `D:\AgentTeam\footage` |
-| `sponsor_email` | Sponsors, Ana | partners@ mail watcher (not built: needs the Google consent helper) |
-| `accounting_email` | Accounting | jon@ mail watcher for Jennifer and Max (not built: same) |
+| `sponsor_email` | Sponsors, Ana | `watch_mail.py`, on new partners@ inbox mail |
+| `accounting_email` | Accounting | `watch_mail.py`, on jon@ mail from gdbookkeeping.com or maxeisner.ca |
 | `cancellation_spike` | Viral View, Ana | Viral View numbers (not built: needs the Commas API key) |
 
 `hook.py test [ROUTE ...]` wakes each routine once with a "nothing to do" event, to check it works.
@@ -27,6 +27,13 @@ Start at logon (only after Jon approves `start_watchers`). It runs hidden with n
 ```powershell
 $run = New-ScheduledTaskAction -Execute conhost.exe -Argument '--headless powershell.exe -NoProfile -ExecutionPolicy Bypass -File D:\AgentTeam\tools\watch_footage.ps1'
 Register-ScheduledTask AgentTeam-watch-footage -Action $run -Trigger (New-ScheduledTaskTrigger -AtLogOn -User $env:USERNAME) -Settings (New-ScheduledTaskSettingsSet -ExecutionTimeLimit 0)
+```
+
+## Mail
+`watch_mail.py` checks Gmail's history log for partners@ and jon@ every 2 minutes (Ana's call; no bot, no Claude tokens) and sends one event per account per check, only on a match. It skips accounts not connected yet (GOOGLE.md), backs off on errors and sends one `script_failure` after 3 failures in a row. Log: `D:\AgentTeam\logs\watch_mail.log`. Start at logon (only after Jon approves `start_mail_watcher`):
+```powershell
+$run = New-ScheduledTaskAction -Execute 'C:\Users\jonst\AppData\Local\Programs\Python\Python310\pythonw.exe' -Argument '-I D:\AgentTeam\tools\watch_mail.py'
+Register-ScheduledTask AgentTeam-watch-mail -Action $run -Trigger (New-ScheduledTaskTrigger -AtLogOn -User $env:USERNAME) -Settings (New-ScheduledTaskSettingsSet -ExecutionTimeLimit 0)
 ```
 
 ## Secrets
