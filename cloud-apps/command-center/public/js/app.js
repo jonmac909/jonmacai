@@ -297,9 +297,15 @@ document.getElementById('navs').innerHTML = navHtml();
 setInterval(() => {
   const id = hashPage();
   if (document.hidden || !['today', 'projects', 'webinar'].includes(id.split('/')[0])) return;
-  if (document.activeElement && /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName)) return;
+  const el = document.activeElement;
+  if (el && (/^(TEXTAREA|SELECT)$/.test(el.tagName) || (el.tagName === 'INPUT' && el.type !== 'checkbox'))) return;
   const y = window.scrollY;
-  go(id, { refetch: true }).then(() => window.scrollTo(0, y)).catch(() => {});
+  const x = document.querySelector('#page .pjkan')?.scrollLeft || 0;  // keep the board where Jon scrolled it
+  go(id, { refetch: true }).then(() => {
+    window.scrollTo(0, y);
+    const board = document.querySelector('#page .pjkan');
+    if (board) board.scrollLeft = x;
+  }).catch(() => {});
 }, 60000);
 let last = hashPage();
 try { if (!location.hash) last = localStorage.getItem('cc-page') || last; } catch {}
