@@ -48,6 +48,22 @@ IMAP_ACCOUNTS = {'jonstagger': ('jonstagger@gmail.com', Path(
     r'C:\Users\jonst\AppData\Roaming\OpenBot\agent-api-keys\agent-f48f578a-c9a6-4e93-9294-e4a0cbbb17e2'
     r'\JONSTAGGER_GMAIL_APP_PASSWORD'))}
 SYSTEM_LABELS = {'INBOX', 'UNREAD', 'TRASH', 'SPAM', 'SENT', 'DRAFT', 'STARRED', 'IMPORTANT'}
+# Arguments reach IMAP commands and API paths, so only these shapes get through (no quotes, backslashes,
+# control characters or slashes).
+LABEL_RE = re.compile(r'[A-Za-z0-9 _.&-][A-Za-z0-9 _./&-]{0,99}')
+MSG_ID_RE = re.compile(r'[0-9a-f]{1,24}')
+QUERY_BAD_RE = re.compile(r'["\\\x00-\x1f\x7f]')
+
+
+def check_args(args):
+    if getattr(args, 'msg_id', None) is not None and not MSG_ID_RE.fullmatch(args.msg_id):
+        raise Fail(2, 'message ids are hex, like 18c2f0a1b2c3d4e5')
+    name = getattr(args, 'label', None)
+    if name is not None and (not LABEL_RE.fullmatch(name) or name.upper() in SYSTEM_LABELS
+                             or name.upper().startswith('CATEGORY_')):
+        raise Fail(2, 'label names are your own labels: letters, digits, space and _ . / & -')
+    if getattr(args, 'query', None) is not None and QUERY_BAD_RE.search(args.query):
+        raise Fail(2, 'queries may not contain quotes, backslashes or control characters')
 
 
 class Fail(Exception):
@@ -124,7 +140,7 @@ class Imap:
 
     def subjects(self, n, query):
         self._ok(*self.box.select(self.allmail, readonly=True))
-        uids = self._ok(*self.box.uid('SEARCH', 'X-GM-RAW', '"%s"' % query.replace('"', '')))[0].split()[-n:][::-1]
+        uids = self._ok(*self.box.uid('SEARCH', 'X-GM-RAW', '"%s"' % query))[0].split()[-n:][::-1]
         out = []
         for uid in uids:
             data = self._ok(*self.box.uid('FETCH', uid, '(X-GM-MSGID BODY.PEEK[HEADER.FIELDS (FROM SUBJECT DATE)])'))
@@ -142,9 +158,7 @@ class Imap:
         return found[0]
 
     def label(self, msg_id, name):
-        if name.upper() in SYSTEM_LABELS:
-            raise Fail(2, 'system labels (%s) are not allowed' % name)
-        self._ok(*self.box.uid('STORE', self._uid(msg_id), '+X-GM-LABELS', '("%s")' % name.replace('"', '')))
+        self._ok(*self.box.uid('STORE', self._uid(msg_id), '+X-GM-LABELS', '("%s")' % name))
         return {'id': msg_id, 'label': name}
 
     def archive(self, msg_id):
@@ -164,10 +178,9 @@ def subjects(g, n, query):
 
 
 def label(g, msg_id, name):
-    if name.upper() in SYSTEM_LABELS:
-        raise Fail(2, 'system labels (%s) are not allowed' % name)
     labels = g.call('GET', GMAIL + '/labels').get('labels') or []
-    lab = next((x for x in labels if x['name'] == name), None) or g.call('POST', GMAIL + '/labels', {'name': name})
+    lab = (next((x for x in labels if x['name'] == name and x.get('type') == 'user'), None)
+           or g.call('POST', GMAIL + '/labels', {'name': name}))
     g.call('POST', GMAIL + '/messages/%s/modify' % msg_id, {'addLabelIds': [lab['id']]})
     return {'id': msg_id, 'label': name}
 
@@ -199,9 +212,9 @@ def draft_delete(g, draft_id):
 
 
 def events(g, day):
-    start = datetime.strptime(day, '%Y-%m-%d').astimezone() if day else datetime.now().astimezone().replace(
-        hour=0, minute=0, second=0, microsecond=0)
-    items = g.call('GET', CAL, query={'timeMin': start.isoformat(), 'timeMax': (start + timedelta(days=1)).isoformat(),
+    d = datetime.strptime(day, '%Y-%m-%d') if day else datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+    start, end = d.astimezone(), (d + timedelta(days=1)).astimezone()  # each midnight gets its own UTC offset (DST)
+    items = g.call('GET', CAL, query={'timeMin': start.isoformat(), 'timeMax': end.isoformat(),
                                       'singleEvents': 'true', 'orderBy': 'startTime', 'maxResults': 100}).get('items') or []
     return [{'start': e['start'].get('dateTime') or e['start'].get('date'),
              'end': e['end'].get('dateTime') or e['end'].get('date'), 'summary': e.get('summary', '(no title)')}
@@ -245,6 +258,7 @@ def run(args):
         raise Fail(2, str(err))
     if args.cmd not in ALLOWED.get(bot, {}).get(args.account, set()):
         raise Fail(2, '%s may not run %s on %s' % (bot, args.cmd, args.account))
+    check_args(args)
     if args.account in IMAP_ACCOUNTS:
         m = Imap(args.account)
         try:
