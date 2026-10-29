@@ -75,6 +75,8 @@ def send(cfg, body, delivery):
             status = 503
         except OSError:  # URLError, timeouts, resets
             status = 0
+        except ValueError:  # malformed URL in the secrets file; its message would show the URL
+            return 0
     return status
 
 

@@ -119,18 +119,32 @@ class Hooks(unittest.TestCase):
                     return False
             while not started() and time.time() < deadline:
                 time.sleep(0.2)
-            (folder / 'jon').mkdir()
-            for name in ('take1.mp4', 'take2.MOV', 'notes.txt'):
-                (folder / 'jon' / name).write_bytes(b'x' * 1000)
-            while not self.srv.events and time.time() < deadline:
-                time.sleep(0.2)
-            time.sleep(3)  # nothing else may arrive for the same drop
+            def drop(action, events):
+                action()
+                end = time.time() + 15
+                while len(self.srv.events) < events and time.time() < end:
+                    time.sleep(0.2)
+                time.sleep(3)  # nothing else may arrive for the same drop
+
+            def first_drop():
+                (folder / 'jon').mkdir()
+                for name in ('take1.mp4', 'take2.MOV', 'notes.txt'):
+                    (folder / 'jon' / name).write_bytes(b'x' * 1000)
+            drop(first_drop, 1)
+            drop(lambda: (folder / 'jon' / 'done').mkdir() or (folder / 'jon' / 'take1.mp4').rename(
+                folder / 'jon' / 'done' / 'take1.mp4'), 2)  # already announced: no new event
+
+            def folder_moved_in():
+                outside = Path(self.dir.name) / 'screen'
+                outside.mkdir()
+                (outside / 'rec1.mp4').write_bytes(b'y' * 500)
+                outside.rename(folder / 'screen')
+            drop(folder_moved_in, 2)
         finally:
             ps.kill()
-        self.assertEqual(len(self.srv.events), 1, self.srv.events)
-        route, event = self.srv.events[0]
-        self.assertEqual((route, event['type'], event['data']['count']), ('video-editor', 'raw_footage', 2))
-        self.assertEqual(sorted(Path(f['path']).name for f in event['data']['files']), ['take1.mp4', 'take2.MOV'])
+        names = [sorted(Path(f['path']).name for f in e['data']['files']) for _, e in self.srv.events]
+        self.assertEqual(names, [['take1.mp4', 'take2.MOV'], ['rec1.mp4']])
+        self.assertEqual({(r, e['type']) for r, e in self.srv.events}, {('video-editor', 'raw_footage')})
 
 
 if __name__ == '__main__':

@@ -21,10 +21,13 @@ Every script reports its own failure, for example from PowerShell:
 Pipe the JSON on stdin in PowerShell 5.1; it breaks quotes in command-line arguments.
 
 ## Raw footage
-Drop raw files for a video (any subfolder) into `D:\AgentTeam\footage`. After 60 s with no changes and no file still copying, Video Editor gets one `raw_footage` event listing the new video and audio files. A missed-events error or a stop sends `script_failure`. Log: `D:\AgentTeam\logs\watch_footage.log`.
+Drop raw files for a video into `D:\AgentTeam\footage` (any subfolder; copying or moving a whole folder in works too). After 60 s with no changes and no file still copying, Video Editor gets one `raw_footage` event listing the new video and audio files. Files that were already there when the watcher started, or that were already announced (moved to a `done\` subfolder, say), are not announced again. If the event can't be delivered, the watcher sends `script_failure` once and retries for 10 minutes. If it stops (e.g. the folder was deleted), it sends `script_failure`; restart it with `Start-ScheduledTask AgentTeam-watch-footage`. Log: `D:\AgentTeam\logs\watch_footage.log`.
 
-Start at logon (only after Jon approves `start_watchers`; hidden, no console window):
-`schtasks /Create /TN AgentTeam-watch-footage /SC ONLOGON /RL LIMITED /TR "conhost.exe --headless powershell.exe -NoProfile -ExecutionPolicy Bypass -File D:\AgentTeam\tools\watch_footage.ps1"`
+Start at logon (only after Jon approves `start_watchers`). It runs hidden with no console window, and has no 72-hour run limit:
+```powershell
+$run = New-ScheduledTaskAction -Execute conhost.exe -Argument '--headless powershell.exe -NoProfile -ExecutionPolicy Bypass -File D:\AgentTeam\tools\watch_footage.ps1'
+Register-ScheduledTask AgentTeam-watch-footage -Action $run -Trigger (New-ScheduledTaskTrigger -AtLogOn -User $env:USERNAME) -Settings (New-ScheduledTaskSettingsSet -ExecutionTimeLimit 0)
+```
 
 ## Secrets
 `D:\AgentTeam\secrets\webhooks.json` holds each routine's URL and signing secret: `{"qc": {"url": "...", "secret": "..."}, ...}`. Only Jon makes the secrets (OpenBot Routines settings). Never print, paste, commit or copy this file, its secrets or its URLs.
