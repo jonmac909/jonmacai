@@ -2,7 +2,7 @@ import { esc } from '../ui.js';
 import { goalCard, needItem, summaryCard } from './today.js';
 
 // Projects (2026-10-29): the project list, the chosen project's goal cards and board, and one
-// Today column of everything that needs Jon. Questions and approvals use Today's cards and buttons.
+// Today checklist (Jon, then each bot). Questions and approvals use Today's cards and buttons.
 function card(it) {
   if (it.kind !== 'task') return needItem(it);
   const proof = /^https?:\/\//i.test(it.proof || '') ? `<a class="pjlink" href="${esc(it.proof)}" target="_blank" rel="noopener">Proof</a>` : '';
@@ -16,17 +16,22 @@ function column(c) {
   return `<section class="pjcol pjcol-${esc(c.key)}"><h3>${esc(c.label)}<span class="n">${c.items.length}</span></h3>${body}</section>`;
 }
 
+// Only Jon's open tasks have a live box (the tick). Team tasks tick themselves when their bot moves
+// them to done; questions and approvals stay unticked until answered, then leave the list.
 function checkItem(it) {
   const what = `<span class="jttag">${esc(it.project)}</span> `;
-  const body = it.tickUrl
-    ? `<label class="pjci"><input type="checkbox" data-ttick="${esc(it.tickUrl)}"> ${what}${esc(it.title)}</label>`
-    : `<span class="pjci">${what}<button type="button" class="jtneed" data-page="${esc(it.page)}" data-card="${esc(it.card)}">${esc(it.title)}</button></span>`;
+  const box = it.tickUrl ? `<input type="checkbox" data-ttick="${esc(it.tickUrl)}">`
+    : `<input type="checkbox" disabled${it.done ? ' checked' : ''}${it.card ? ` aria-label="${esc(it.title)}"` : ''}>`;
+  const body = it.card
+    ? `<span class="pjci">${box} ${what}<button type="button" class="jtneed" data-page="${esc(it.page)}" data-card="${esc(it.card)}">${esc(it.title)}</button></span>`
+    : `<label class="pjci">${box} ${what}${esc(it.title)}</label>`;
   return `<li>${body}<span class="pjest">${esc(it.minutes)} min</span></li>`;
 }
 
 function todayCard(t) {
-  const list = t.items.length ? `<ul class="pjtodo">${t.items.map(checkItem).join('')}</ul>` : '<p class="muted">Nothing needs you today.</p>';
-  return `<div class="card pad"><div class="cardhead"><h2>Today</h2><span class="meta">${esc(t.total)} total</span></div>${list}</div>`;
+  const list = t.groups.map((g) => `<h3 class="pjgrp">${esc(g.label)}<span class="n">${g.done}/${g.total}</span></h3>
+    <ul class="pjtodo">${g.items.map(checkItem).join('')}</ul>`).join('') || '<p class="muted">Nothing on the list today.</p>';
+  return `<div class="card pad"><div class="cardhead"><h2>Today</h2><span class="meta">Jon: ${esc(t.total)}</span></div>${list}</div>`;
 }
 
 function calendarCard(c) {

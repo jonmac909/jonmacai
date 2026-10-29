@@ -13,12 +13,12 @@ Every row records which bot wrote it. Rows change one at a time; nothing replace
 ## Projects
 Every task, question and approval sets `--project`. Jon sees each project on its own board (Projects page).
 - `sponsors`: Florence.
-- `jon-mac` or `jonmacai` (Jon Mac AI UGC): Sydney and Olivia.
+- `jon-mac` = YT-JM, Jon's main YouTube channel. `jonmacai` = YT-AI UGC, the `@JonMacAI` channel. Sydney and Olivia use whichever channel the work is for.
 - `viral-view` (includes the webinar funnel): Scarlett.
 - `home-guide-press`: Elle.
 - `short-form`: Samantha.
 - `accounting`: Elizabeth.
-- Developer: the project the work serves.
+- Developer: `coding` for dashboard/script work that serves no single project, otherwise the project it serves.
 
 `unsorted` (or leaving it out) puts it in Unsorted. Filter lists with `--project`.
 Set `--minutes` (1 to 480) on anything Jon has to do, so his Today list adds up.
@@ -31,6 +31,7 @@ dash.py task-update t_… --status doing|waiting_on_jon|qc|done|cancelled [--own
 dash.py tasks [--owner me|jon|<slug>] [--status todo,doing] [--project ..]      dash.py task t_…   (shows its proof)
 ```
 - One owner per task. It defaults to you.
+- The Projects page's Today checklist shows each bot's work for the day: tasks due today or overdue, tasks in `doing`, `waiting_on_jon` or `qc`, and tasks done today (ticked). Set `--due` to today's date on the day's work so it shows, and move it to `qc` and `done` as you finish so it ticks itself.
 - Something only Jon can do: `--owner jon --due YYYY-MM-DD`. It shows on his Today list from that day, and he ticks it done himself (no proof).
 - Done means proof:
   - `qc` needs at least one proof that QC hasn't failed.
