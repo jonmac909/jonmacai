@@ -49,7 +49,7 @@ youtube_upload.py delete mina VIDEO_ID           (test clips only)
 # Short clips (Instagram, Facebook, TikTok, YouTube Shorts)
 
 `python -I D:\AgentTeam\tools\short_post.py post a_… [--dry-run]` posts every clip of an approved `post_clips` approval to the platforms it lists. `short_post.py check` shows which account each platform posts as. Payload and rules: `short_post.py -h`.
-- One post per clip and platform, ever (keyed by the file's SHA-256). When all are out it marks the approval done; otherwise it gives the approval back, and the same command later posts only what is missing.
+- The approval pins each clip's `sha256`, so a re-rendered file is refused. One post per clip, platform and account, ever, and one run at a time per clip. When all are out it marks the approval done; otherwise it gives the approval back, and the same command later posts only what is missing.
 - Before the audits: YouTube Shorts are refused (`AUDITED`), and TikTok clips land in Jon's TikTok inbox for him to post (`TIKTOK_AUDITED`).
 - Tokens: `D:\AgentTeam\secrets\social\`, made on the connect page. Meta: Jon pastes a Graph API Explorer token, which becomes a Page token that doesn't expire. TikTok: a consent link; the refresh token lasts 365 days.
 
