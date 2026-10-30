@@ -1,8 +1,8 @@
 import { esc } from '../ui.js';
 import { goalCard, needItem, summaryCard } from './today.js';
 
-// Projects (2026-10-29): the project list, the chosen project's goal cards and board, and one
-// Today checklist (Jon, then each bot). Questions and approvals use Today's cards and buttons.
+// Projects (2026-10-29): the project list, the chosen project's goal cards and board, and its
+// daily checklist. Questions and approvals use Today's cards and buttons.
 // Every board card opens in the card modal (modals.js) on click, Enter or Space.
 function card(it) {
   const open = ` tabindex="0" data-open="${esc(it.id)}"`;
@@ -18,22 +18,19 @@ function column(c) {
   return `<section class="pjcol pjcol-${esc(c.key)}"><h3>${esc(c.label)}<span class="n">${c.items.length}</span></h3>${body}</section>`;
 }
 
-// Only Jon's open tasks have a live box (the tick). Team tasks tick themselves when their bot moves
-// them to done; questions and approvals stay unticked until answered, then leave the list.
-function checkItem(it) {
-  const what = `<span class="jttag">${esc(it.project)}</span> `;
-  const box = it.tickUrl ? `<input type="checkbox" data-ttick="${esc(it.tickUrl)}">`
-    : `<input type="checkbox" disabled${it.done ? ' checked' : ''}${it.card ? ` aria-label="${esc(it.title)}"` : ''}>`;
-  const body = it.card
-    ? `<span class="pjci">${box} ${what}<button type="button" class="jtneed" data-page="${esc(it.page)}" data-card="${esc(it.card)}">${esc(it.title)}</button></span>`
-    : `<label class="pjci">${box} ${what}${esc(it.title)}</label>`;
-  return `<li>${body}<span class="pjest">${esc(it.minutes)} min</span></li>`;
+// Read-only for Jon: the project's bot ticks an item with dash.py daily-done. A ticked item shows who
+// and when, and opens its proof when that is a web link; a file path shows as text.
+function dailyItem(it) {
+  const web = /^https?:\/\//i.test(it.link || '');
+  const name = web ? `<a href="${esc(it.link)}" target="_blank" rel="noopener">${esc(it.text)}</a>` : esc(it.text);
+  const meta = it.done ? `<span class="pjm">${esc(it.by)}<i>·</i>${esc(it.ageLabel)}${web ? '' : `<i>·</i>${esc(it.link)}`}</span>` : '';
+  return `<li><label class="pjci"><input type="checkbox" disabled${it.done ? ' checked' : ''}> ${name}${meta}</label></li>`;
 }
 
-function todayCard(t) {
-  const list = t.groups.map((g) => `<h3 class="pjgrp">${esc(g.label)}<span class="n">${g.done}/${g.total}</span></h3>
-    <ul class="pjtodo">${g.items.map(checkItem).join('')}</ul>`).join('') || '<p class="muted">Nothing on the list today.</p>';
-  return `<div class="card pad"><div class="cardhead"><h2>Today</h2><span class="meta">Jon: ${esc(t.total)}</span></div>${list}</div>`;
+function checklistCard(c) {
+  if (!c) return '';
+  const body = c.missing ? `<p class="muted">${esc(c.missing)}</p>` : `<ul class="pjtodo">${c.items.map(dailyItem).join('')}</ul>`;
+  return `<div class="card pad"><div class="cardhead"><h2>Daily checklist</h2>${c.missing ? '' : `<span class="meta">${c.done}/${c.total}</span>`}</div>${body}</div>`;
 }
 
 function calendarCard(c) {
@@ -58,7 +55,7 @@ export function render(d, _data, sub) {
       <div class="card pad"><div class="cardhead"><h2>Board</h2>${d.available ? '' : '<span class="meta">The bot tables could not be read.</span>'}</div>
         <div class="pjkan">${p.columns.map(column).join('')}</div></div>
     </div>
-    <div class="pjright todayside">${todayCard(d.today)}${summaryCard(d.summary)}${calendarCard(d.calendar)}</div>
+    <div class="pjright todayside">${checklistCard(p.checklist)}${summaryCard(d.summary)}${calendarCard(d.calendar)}</div>
   </div>
 </div>`;
 }

@@ -21,7 +21,6 @@ Every task, question and approval sets `--project`. Jon sees each project on its
 - Developer: `coding` for dashboard/script work that serves no single project, otherwise the project it serves.
 
 `unsorted` (or leaving it out) puts it in Unsorted. Filter lists with `--project`.
-Set `--minutes` (1 to 480) on anything Jon has to do, so his Today list adds up.
 
 ## Tasks
 ```
@@ -31,14 +30,29 @@ dash.py task-update t_… --status doing|waiting_on_jon|qc|done|cancelled [--own
 dash.py tasks [--owner me|jon|<slug>] [--status todo,doing] [--project ..]      dash.py task t_…   (shows its proof)
 ```
 - One owner per task. It defaults to you.
-- The Projects page's Today checklist shows each bot's work for the day: tasks due today or overdue, tasks in `doing`, `waiting_on_jon` or `qc`, and tasks done today (ticked). Set `--due` to today's date on the day's work so it shows, and move it to `qc` and `done` as you finish so it ticks itself.
-- Something only Jon can do: `--owner jon --due YYYY-MM-DD`. It shows on his Today list from that day, and he ticks it done himself (no proof).
+- Something only Jon can do: `--owner jon`. It shows on the project's board, and he ticks it done there himself (no proof).
 - Done means proof:
   - `qc` needs at least one proof that QC hasn't failed.
   - `done` needs a proof QC passed.
   - If QC fails the last proof that supported a `qc` or `done` task, the task goes back to `doing`.
 - `cancelled` needs a `--note` saying why.
 - `--key` is your own unique id for the task. Repeating it returns the first task, so a retry never makes a copy.
+
+## Daily checklist
+Each project tab has the same daily items every day, reset at midnight PT. No one-off tasks here; those go on the board.
+Tick each daily item when it's done for the day with `dash.py daily-done <project> "<item>" --link <proof>`.
+```
+dash.py daily-done sponsors "Chase overdue payments (drafts)" --link "https://…" or "D:\path\file" [--note ..]
+dash.py daily-done sponsors 5 --link ..          (or the item's number, 1 = first; scripts use the text, numbers change when the list is edited)
+dash.py feed daily_checklists                    (every project's items, in order)
+```
+- Who ticks which tab (anyone else is refused):
+  - `sponsors`: sponsors.
+  - `jon-mac` (YT-JM) and `jonmacai` (YT-AI UGC): jon-mac-youtube or video-editor.
+  - `viral-view`: viral-view. `home-guide-press`: home-guide-press. `short-form`: short-form.
+  - `accounting`: accounting. `coding`: developer.
+- The link is proof, as in `proof-add`. Ticking the same item again that day replaces its link and note.
+- Ana runs `dash.py daily-sync` after editing `D:\AgentTeam\rules\facts\daily-checklists.md` (`--file` reads another copy).
 
 ## Proof
 ```

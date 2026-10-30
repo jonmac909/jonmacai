@@ -25,9 +25,12 @@ TOKEN_DIR = Path(os.environ.get('DASH_TOKEN_DIR', r'D:\AgentTeam\secrets\bot-tok
 BOTS_MD = Path(os.environ.get('DASH_BOTS_MD', r'D:\AgentTeam\rules\BOTS.md'))
 TASK_STATUSES = ['todo', 'doing', 'waiting_on_jon', 'qc', 'done', 'cancelled']
 PROOF_KINDS = ['render', 'url', 'pdf', 'test']
-FEEDS = ['morning_summary', 'calendar_today', 'claude_usage', 'ebook_sales']
-# Same slugs, same order as PROJECTS in src/projects.js. "unsorted" means no project.
-PROJECTS = ['sponsors', 'jon-mac', 'jonmacai', 'viral-view', 'home-guide-press', 'short-form', 'accounting', 'coding']
+FEEDS = ['morning_summary', 'calendar_today', 'claude_usage', 'ebook_sales', 'daily_checklists']
+# Same labels, slugs and order as PROJECTS in src/projects.js. "unsorted" means no project.
+LABELS = {'Sponsors': 'sponsors', 'YT-JM': 'jon-mac', 'YT-AI UGC': 'jonmacai', 'Viral View': 'viral-view',
+          'Home Guide Press': 'home-guide-press', 'Short-form': 'short-form', 'Accounting': 'accounting', 'Coding': 'coding'}
+PROJECTS = list(LABELS.values())
+DAILY_FILE = r'D:\AgentTeam\rules\facts\daily-checklists.md'
 
 
 class Fail(Exception):
@@ -187,6 +190,24 @@ def wake_qc(out, task_id, bot):
         print('dash.py: proof saved, but QC was not woken (%s); QC will see it in its queue.' % bad, file=sys.stderr)
 
 
+def daily_lists(path):
+    """{slug: [item, ...]} from the `## <tab label>` sections' `- item` lines; every other line is ignored."""
+    lists, slug = {}, None
+    for line in read_file(path).splitlines():
+        if line.startswith('## '):
+            slug = LABELS.get(line[3:].strip())
+            if slug:
+                lists.setdefault(slug, [])
+        elif slug and line.startswith('- ') and line[2:].strip():
+            lists[slug].append(line[2:].strip())
+    if not any(lists.values()):
+        raise Fail(2, 'No checklist items in %s: expected "## <tab label>" sections with "- item" lines.' % path)
+    missing = [label for label, slug in LABELS.items() if not lists.get(slug)]
+    if missing:  # a typo'd heading would otherwise empty that tab's checklist
+        raise Fail(2, 'No items under: %s. Check the "## " headings in %s.' % (', '.join(missing), path))
+    return lists
+
+
 def project_of(value):
     if value is None:
         return None
@@ -279,6 +300,10 @@ def run(args, ctx):
         return call(ctx, 'PUT', '/feeds/%s' % q(args.name, safe=''), feed_data(args))
     if c == 'feed':
         return call(ctx, 'GET', '/feeds/%s' % q(args.name, safe=''))
+    if c == 'daily-sync':
+        return call(ctx, 'PUT', '/feeds/daily_checklists', {'projects': daily_lists(args.file)})
+    if c == 'daily-done':
+        return call(ctx, 'POST', '/daily', only({'project': project, 'item': args.item, 'link': args.link, 'note': args.note}))
     raise Fail(2, 'Unknown command %s' % c)
 
 
@@ -422,6 +447,15 @@ def parser():
 
     a = s.add_parser('feed', help='read the newest entry of a feed')
     a.add_argument('name', choices=FEEDS)
+
+    a = s.add_parser('daily-sync', help='Ana: post the daily checklists from daily-checklists.md')
+    a.add_argument('--file', default=DAILY_FILE, help='default %(default)s')
+
+    a = s.add_parser('daily-done', help="tick one of your project's daily items for today (PT)")
+    a.add_argument('project', help='one of: %s' % ', '.join(PROJECTS))
+    a.add_argument('item', help='the item text, or its number in the list (1 = first)')
+    a.add_argument('--link', required=True, help='proof: https:// URL or a file path on GPU1')
+    a.add_argument('--note')
     return p
 
 
