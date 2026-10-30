@@ -350,9 +350,17 @@ data = await snap.json();
 stale(data); // records this page's build
 document.getElementById('navs').innerHTML = navHtml();
 // Today, Todo, Projects and Webinar refresh every 60 s while visible, keeping the sub-path (the chosen project).
+// Every other page (Calendar, Content, ...) asks only for the build, so an open tab still reloads to new code.
+async function checkBuild() {
+  const r = await fetch(`${PREFIX}/api/build`).catch(() => null);
+  const j = r?.ok ? await r.json().catch(() => null) : null;
+  if (j && stale(j)) location.reload();
+}
+document.addEventListener('visibilitychange', () => { if (!document.hidden) checkBuild(); }); // a phone tab coming back
 setInterval(() => {
   const id = hashPage();
-  if (document.hidden || !['today', 'todo', 'projects', 'webinar'].includes(id.split('/')[0])) return;
+  if (document.hidden) return;
+  if (!['today', 'todo', 'projects', 'webinar'].includes(id.split('/')[0])) { checkBuild(); return; }
   const el = document.activeElement;
   if (el && (/^(TEXTAREA|SELECT)$/.test(el.tagName) || (el.tagName === 'INPUT' && el.type !== 'checkbox'))) return;
   const y = window.scrollY;

@@ -200,3 +200,13 @@ test('the nav holds exactly the kept pages, and those are the pages served', asy
   assert.deepEqual(ids, ['today', 'todo', 'projects', 'feed', 'calendar', 'content', 'sponsors', 'viral', 'webinar', 'money', 'life', 'journal']);
   assert.deepEqual(Object.keys(json.pages), ids);
 });
+
+test('GET /api/build: the deploy version for a signed-in page, nothing without a session', async () => {
+  const env = { SESSION_SECRET: 'test-session-secret-32-bytes-ok!', CF_VERSION_METADATA: { id: 'v-123' } };
+  const { signSession, COOKIE } = await import('../src/auth.js');
+  const { handleApi } = await import('../src/api.js');
+  const get = async (cookie) => handleApi(new Request('https://jonmac.ai/dashboard/api/build', cookie ? { headers: { Cookie: cookie } } : {}), env);
+  assert.equal((await get()).status, 401);
+  const ok = await get(`${COOKIE}=${await signSession(env.SESSION_SECRET, Math.floor(Date.now() / 1000) + 600)}`);
+  assert.deepEqual([ok.status, await ok.json()], [200, { build: 'v-123' }]);
+});
