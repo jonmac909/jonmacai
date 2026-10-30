@@ -64,6 +64,30 @@ class Draft(unittest.TestCase):
                                'thread': '18c2f0a1b2c3d4e5'})
         self.assertEqual(google_api.drafts_made(), ['r123'])  # draft-delete still allowed
 
+    def test_long_outlook_message_id_stays_plain_in_the_raw_mail(self):
+        mid = '<SN7PR11MB7041A1B2C3D4E5F6A7B8C9D0E1F2A3B4C5D6@SN7PR11MB7041.namprd11.prod.outlook.com>'
+        g = FakeGmail([dict(headers(('Subject', ' RE: Partnership'), ('Message-ID', mid)), labelIds=['INBOX'])])
+        google_api.draft(g, 'a@x.com', None, 'Hi', 'abc')
+        raw = base64.urlsafe_b64decode(g.posted[-1]['message']['raw'])
+        self.assertIn(b'In-Reply-To: ' + mid.encode(), raw)
+        self.assertIn(b'References: ' + mid.encode(), raw)
+        self.assertNotIn(b'=?utf-8?', raw)
+        self.assertEqual(sent_mail(g)['Subject'], 'RE: Partnership')  # trimmed, no second Re:
+
+    def test_header_line_breaks_are_flattened(self):
+        g = FakeGmail([dict(headers(('Subject', 'Rates\r\nBcc: evil@x.com'), ('Message-ID', '<a@x.com>')),
+                            labelIds=['INBOX'])])
+        google_api.draft(g, 'a@x.com', None, 'Hi', 'abc')
+        m = sent_mail(g)
+        self.assertEqual(m['Subject'], 'Re: Rates Bcc: evil@x.com')
+        self.assertIsNone(m['Bcc'])
+
+    def test_reply_headers_come_from_newest_message_with_an_id(self):
+        g = FakeGmail([dict(headers(('Subject', 'A'), ('Message-ID', '<a@x.com>')), labelIds=['INBOX']),
+                       dict(headers(('Subject', 'Re: A'),), labelIds=['INBOX'])])
+        google_api.draft(g, 'a@x.com', None, 'Hi', 'abc')
+        self.assertEqual(sent_mail(g)['In-Reply-To'], '<a@x.com>')
+
     def test_first_reply_adds_re(self):
         g = FakeGmail([dict(headers(('Subject', 'Partnership'), ('Message-ID', '<a@x.com>')), labelIds=['INBOX'])])
         google_api.draft(g, 'a@x.com', None, 'Hi', 'abc')
@@ -90,7 +114,7 @@ class Draft(unittest.TestCase):
 class Args(unittest.TestCase):
     def run_cli(self, *argv):
         with mock.patch.object(google_api.dash, 'which_bot', return_value='sponsors'), \
-                mock.patch.object(google_api, 'Google', return_value=FakeGmail()), \
+                mock.patch.object(google_api, 'Google', side_effect=AssertionError('checked before Google')), \
                 mock.patch.object(google_api, 'DIR', Path(tempfile.gettempdir()) / 'no-such-google-dir'):
             return google_api.run(google_api.parser().parse_args(['draft', 'partners', '--to', 'a@x.com', '--body', 'Hi', *argv]))
 

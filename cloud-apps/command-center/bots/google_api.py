@@ -68,6 +68,8 @@ def check_args(args):
         raise Fail(2, 'label names are your own labels: letters, digits, space and _ . / & -')
     if getattr(args, 'query', None) is not None and QUERY_BAD_RE.search(args.query):
         raise Fail(2, 'queries may not contain quotes, backslashes or control characters')
+    if getattr(args, 'cmd', None) == 'draft' and bool(args.subject) == bool(args.thread_id):
+        raise Fail(2, 'give --subject for a new email or --thread-id for a reply, not both')
 
 
 class Fail(Exception):
@@ -198,21 +200,23 @@ def drafts_made():
 
 
 def draft(g, to, subject, body, thread_id=None):
-    msg = EmailMessage()
+    # 998: never fold, so long Message-IDs (Outlook's) stay plain in In-Reply-To and References
+    msg = EmailMessage(policy=email.policy.default.clone(max_line_length=998))
     msg['To'] = to
     if thread_id:  # a reply: Gmail threads it by threadId plus a matching subject and reply headers
         t = g.call('GET', GMAIL + '/threads/' + thread_id, query={
             'format': 'metadata', 'metadataHeaders': ['Subject', 'Message-ID', 'References']})
-        sent = [m for m in t.get('messages') or [] if 'DRAFT' not in m.get('labelIds', [])]
-        if not sent:
+        clean = lambda v: ' '.join((v or '').split())  # noqa: E731  (no line breaks from their headers)
+        heads = [{x['name'].lower(): clean(x['value']) for x in m.get('payload', {}).get('headers', [])}
+                 for m in t.get('messages') or [] if 'DRAFT' not in m.get('labelIds', [])]
+        h = next((x for x in reversed(heads) if x.get('message-id')), None)  # newest real message
+        if not h:
             raise Fail(2, 'thread %s has no message to reply to' % thread_id)
-        h = {x['name'].lower(): x['value'] for x in sent[-1].get('payload', {}).get('headers', [])}
-        subject = h.get('subject') or ''
-        if not re.match(r'(?i)re:', subject):
+        subject = h.get('subject', '')
+        if not re.match(r'(?i)re\s*:', subject):
             subject = 'Re: ' + subject
-        if h.get('message-id'):
-            msg['In-Reply-To'] = h['message-id']
-            msg['References'] = (h.get('references', '') + ' ' + h['message-id']).strip()
+        msg['In-Reply-To'] = h['message-id']
+        msg['References'] = (h.get('references', '') + ' ' + h['message-id']).strip()
     msg['Subject'] = subject
     msg.set_content(body)
     raw = base64.urlsafe_b64encode(msg.as_bytes()).decode()
@@ -301,8 +305,6 @@ def run(args):
         g.call('POST', GMAIL + '/messages/%s/modify' % args.msg_id, {'removeLabelIds': ['INBOX']})
         return {'archived': args.msg_id}
     if args.cmd == 'draft':
-        if bool(args.subject) == bool(args.thread_id):
-            raise Fail(2, 'give --subject for a new email or --thread-id for a reply, not both')
         body = args.body if args.body is not None else Path(args.body_file).read_text(encoding='utf-8')
         return draft(g, args.to, args.subject, body, args.thread_id)
     if args.cmd == 'draft-delete':
