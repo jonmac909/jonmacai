@@ -176,7 +176,6 @@ export async function go(id, { refetch = false } = {}) {
   const same = shownPage === id;
   const typed = same ? typedAnswers() : {};
   document.getElementById('page').innerHTML = pages[name](page, data, sub);
-  noLoneWords(document.getElementById('page'));
   shownPage = id;
   document.querySelectorAll('#page .qcard').forEach((c) => {
     const key = c.querySelector('[data-tsend]');
@@ -282,6 +281,9 @@ document.addEventListener('click', (e) => {
 bindModals({ say, act, go });
 
 window.addEventListener('hashchange', () => go(hashPage()));
+
+// Everything the app renders (pages, nav, modals, toasts) gets noLoneWords.
+new MutationObserver((ms) => ms.forEach((m) => m.addedNodes.forEach((n) => noLoneWords(n)))).observe(document.body, { childList: true, subtree: true });
 
 const snap = await fetch(`${PREFIX}/api/snapshot?v=${Date.now()}`);
 if (snap.status === 401) { location.href = `${PREFIX}/`; throw new Error('auth'); }

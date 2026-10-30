@@ -5,16 +5,18 @@ export function barWidth(value) {
 }
 
 // Jon: never one word alone on a line. CSS text-wrap:pretty catches most; this joins the last two
-// words of each text run with a no-break space so the last line always has two. Two-word runs only
-// when short ("Oct 19"), so a long pair in a narrow table cell can still wrap instead of overflowing.
+// words of each line of text with a no-break space. Only short pairs (up to 18 characters), so a
+// narrow phone card can still wrap a long pair instead of overflowing. Running it twice changes nothing.
+const LAST_PAIR = /(\S+) (\S+)(?=[ \t\r]*(?:\n|$))/g;
 export function noLoneWords(root) {
+  const fix = (n) => {
+    if (n.parentElement?.closest('textarea,pre,code,script,style,option')) return;
+    const t = n.nodeValue.replace(LAST_PAIR, (m, a, b) => (m.length <= 18 ? `${a}\u00a0${b}` : m));
+    if (t !== n.nodeValue) n.nodeValue = t;
+  };
+  if (root.nodeType === 3) return fix(root);
   const walk = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
-  for (let n = walk.nextNode(); n; n = walk.nextNode()) {
-    if (n.parentElement?.closest('textarea,pre,code,script,style,option')) continue;
-    const t = n.nodeValue;
-    const i = t.trimEnd().lastIndexOf(' ');
-    if (i > 0 && t.length - i < 30 && (t.slice(0, i).trim().includes(' ') || t.trim().length <= 24)) n.nodeValue = t.slice(0, i) + '\u00a0' + t.slice(i + 1);
-  }
+  for (let n = walk.nextNode(); n; n = walk.nextNode()) fix(n);
 }
 
 export function esc(s) {
