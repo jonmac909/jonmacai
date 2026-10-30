@@ -35,8 +35,9 @@ function Id($path) {  # survives a move between subfolders
 }
 
 function Media($path) {  # media files at $path, or under it if it is a folder
-  if (Test-Path -LiteralPath $path -PathType Container) {
-    Get-ChildItem -LiteralPath $path -Recurse -File | Where-Object { $media -contains $_.Extension.ToLowerInvariant() } |
+  # .NET checks, not Test-Path: a file or folder another program is deleting throws "Access is denied" there
+  if ([IO.Directory]::Exists($path)) {
+    Get-ChildItem -LiteralPath $path -Recurse -File -ErrorAction Ignore | Where-Object { $media -contains $_.Extension.ToLowerInvariant() } |
       ForEach-Object { $_.FullName }
   } elseif ($media -contains [IO.Path]::GetExtension($path).ToLowerInvariant()) { $path }
 }
@@ -75,7 +76,7 @@ try {
       Media $e.SourceEventArgs.FullPath | ForEach-Object { $pending[$_] = $true }
       continue
     }
-    $files = @($pending.Keys | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } | Where-Object { -not $seen[(Id $_)] } | Sort-Object)
+    $files = @($pending.Keys | Where-Object { [IO.File]::Exists($_) } | Where-Object { -not $seen[(Id $_)] } | Sort-Object)
     if (@($files | Where-Object { Busy $_ }).Count) { continue }  # still copying: wait another quiet spell
     if (-not $files.Count) { $pending.Clear(); continue }
     $list = @($files | ForEach-Object { @{ path = $_; bytes = (Get-Item -LiteralPath $_).Length } })

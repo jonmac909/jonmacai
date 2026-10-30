@@ -134,6 +134,24 @@ class Hooks(unittest.TestCase):
             drop(lambda: (folder / 'jon' / 'done').mkdir() or (folder / 'jon' / 'take1.mp4').rename(
                 folder / 'jon' / 'done' / 'take1.mp4'), 2)  # already announced: no new event
 
+            def file_being_deleted():  # Windows answers "Access is denied" for it; it stopped the watcher
+                import ctypes
+                from ctypes import wintypes
+                k = ctypes.WinDLL('kernel32', use_last_error=True)
+                k.CreateFileW.restype = wintypes.HANDLE
+                k.CreateFileW.argtypes = [wintypes.LPCWSTR, wintypes.DWORD, wintypes.DWORD, wintypes.LPVOID,
+                                          wintypes.DWORD, wintypes.DWORD, wintypes.HANDLE]
+                h = k.CreateFileW(str(folder / 'part.m4a'), 0xC0010000, 7, None, 1, 0, None)  # read/write/delete, new
+                try:
+                    k.SetFileInformationByHandle(h, 4, ctypes.byref(ctypes.c_ubyte(1)), 1)  # delete when closed
+                    for _ in range(4):  # changes the watcher sees while the file is in that state
+                        k.WriteFile(h, b'z' * 100, 100, ctypes.byref(wintypes.DWORD()), None)
+                        k.FlushFileBuffers(h)
+                        time.sleep(0.5)
+                finally:
+                    k.CloseHandle(h)
+            drop(file_being_deleted, 1)  # gone when closed: no new event
+
             def folder_moved_in():
                 outside = Path(self.dir.name) / 'screen'
                 outside.mkdir()
