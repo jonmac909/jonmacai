@@ -151,24 +151,30 @@ test("wake: Jon's comment POSTs card_comment to the owner's routine, signed like
   });
 });
 
-test('wake: owners without a routine go to ana with forOwner; failures and a missing secret still save the comment', async (t) => {
+test("wake: owners without a complete route go to ana with forOwner; Jon's own card wakes no one; failures still save the comment", async (t) => {
   let status = 202;
   const sent = mockFetch(t, () => { if (status === 'down') throw new TypeError('fetch failed'); return status; });
   const { env, db } = await setup();
-  for (const owner of ['jon', 'home-guide-press']) {
+  const noSecret = { ...env, WEBHOOKS: JSON.stringify({ ...HOOKS, sponsors: { url: HOOKS.sponsors.url } }) };
+  for (const [owner, e] of [['home-guide-press', env], ['sponsors', noSecret]]) {
     const task = await newTask(env, { owner, project: 'unsorted' });
-    const c = (await call(env, 'POST', `/tasks/${task.id}/comments`, { jon: true, body: { body: 'hi' } })).body.comment;
+    const c = (await call(e, 'POST', `/tasks/${task.id}/comments`, { jon: true, body: { body: 'hi' } })).body.comment;
     const { url, init } = sent.at(-1);
     const data = JSON.parse(init.body).data;
     assert.deepEqual([url, data.owner, data.forOwner, data.project, data.url, c.wakeStatus], ['https://hooks.example/ana', owner, owner, null, 'https://jonmac.ai/dashboard/#projects/unsorted', '202']);
     assert.equal(init.headers['x-openbot-signature'],
       `sha256=${createHmac('sha256', HOOKS.ana.secret).update(`${init.headers['x-openbot-timestamp']}.${c.id}.${init.body}`).digest('hex')}`);
   }
+  const own = await newTask(env, { owner: 'jon' });
+  const quiet = [];
+  const note = await call(env, 'POST', `/tasks/${own.id}/comments`, { jon: true, body: { body: 'note to self' }, ctx: { waitUntil: (p) => quiet.push(p) } });
+  assert.deepEqual([note.status, note.body.comment.wakeStatus, quiet.length, sent.length], [201, 'owner is Jon', 0, 2]);
 
   const task = await newTask(env);
   const post = async (e) => call(e, 'POST', `/tasks/${task.id}/comments`, { jon: true, body: { body: 'again' } });
   status = 503;
-  assert.deepEqual([(await post(env)).body.comment.wakeStatus], ['503']);
+  const tries = sent.length;
+  assert.deepEqual([(await post(env)).body.comment.wakeStatus, sent.length - tries], ['503', 1], 'awaited (no ctx): one try');
   status = 'down';
   const down = await post(env);
   assert.deepEqual([down.status, down.body.comment.wakeStatus], [201, 'unreachable']);
@@ -190,6 +196,47 @@ test('wake: owners without a routine go to ana with forOwner; failures and a mis
   assert.equal((await db.prepare('SELECT wake_status FROM bot_task_comments WHERE id = ?').bind(bg.body.comment.id).first()).wake_status, '202');
 });
 
+test('wake in the background: a 503 or unreachable routine is retried after 2 s, then 4 s, with the same delivery id', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const replies = [];
+  const sent = mockFetch(t, () => { const r = replies.shift(); if (r === 'down') throw new TypeError('fetch failed'); return r; });
+  const { env, db } = await setup();
+  const task = await newTask(env);
+  const turn = () => new Promise((r) => setImmediate(r));
+  const sentReaches = async (n) => { for (let i = 0; i < 2000 && sent.length < n; i++) await turn(); assert.equal(sent.length, n); await turn(); };
+  const comment = async (script) => {
+    replies.push(...script);
+    const waits = [];
+    const from = sent.length;
+    const c = (await call(env, 'POST', `/tasks/${task.id}/comments`, { jon: true, body: { body: 'x' }, ctx: { waitUntil: (p) => waits.push(p) } })).body.comment;
+    return { c, from, done: Promise.all(waits) };
+  };
+  const statusOf = async (id) => (await db.prepare('SELECT wake_status FROM bot_task_comments WHERE id = ?').bind(id).first()).wake_status;
+
+  const a = await comment([503, 'down', 202]);
+  await sentReaches(a.from + 1);
+  t.mock.timers.tick(1999); await turn();
+  assert.equal(sent.length, a.from + 1, 'not before 2 s');
+  t.mock.timers.tick(1);
+  await sentReaches(a.from + 2);
+  t.mock.timers.tick(3999); await turn();
+  assert.equal(sent.length, a.from + 2, 'not before 4 more s');
+  t.mock.timers.tick(1);
+  await sentReaches(a.from + 3);
+  await a.done;
+  assert.equal(await statusOf(a.c.id), '202');
+  assert.deepEqual(sent.slice(a.from).map((s) => s.init.headers['x-openbot-delivery-id']), [a.c.id, a.c.id, a.c.id]);
+
+  const b = await comment(['down', 503, 503]);
+  for (const n of [1, 2, 3]) { await sentReaches(b.from + n); t.mock.timers.tick(4000); }
+  await b.done;
+  assert.deepEqual([await statusOf(b.c.id), sent.length - b.from], ['503', 3], 'gives up after two retries; the last result is kept');
+
+  const c = await comment([401]);
+  await c.done;
+  assert.deepEqual([await statusOf(c.c.id), sent.length - c.from], ['401', 1], 'a refusal is not retried');
+});
+
 const TASK = {
   id: 't_0123456789abcdef', title: '<b>Edit</b> ep 4', owner: 'video-editor', status: 'waiting_on_jon', note: 'Cut <script>x</script>', project: 'jon-mac', due: '2026-10-30', minutes: 15,
   proofs: [
@@ -202,6 +249,7 @@ const TASK = {
     { id: 'c_1', author: 'jon', body: 'Use <img src=x onerror=alert(1)>', createdAt: '2026-10-29T18:10:00Z', wakeStatus: '202' },
     { id: 'c_2', author: 'jon', body: 'And this', createdAt: '2026-10-29T18:11:00Z', wakeStatus: '503' },
     { id: 'c_3', author: 'video-editor', body: 'Done', createdAt: '2026-10-29T18:20:00Z', wakeStatus: null },
+    { id: 'c_4', author: 'jon', body: 'Thanks', createdAt: '2026-10-29T18:30:00Z', wakeStatus: 'owner is Jon' },
   ],
 };
 
@@ -218,7 +266,7 @@ test('card modal: escaped, only http(s) proof links clickable, the thread with w
   assert.ok(html.indexOf('Use &lt;img') < html.indexOf('And this') && html.indexOf('And this') < html.indexOf('>Done<'), 'comments oldest first');
   assert.match(html, /sent to video-editor/);
   assert.match(html, /couldn&#39;t notify \(503\)/);
-  assert.equal((html.match(/sent to|couldn/g) || []).length, 2, "only Jon's comments have a wake line");
+  assert.equal((html.match(/sent to|sending|couldn|owner is/g) || []).length, 2, "Jon's woken comments have a wake line; bots' and his own card's don't");
   assert.match(html, /data-csend="\/dashboard\/api\/v1\/tasks\/t_0123456789abcdef\/comments"/);
 
   const q = askModal({ kind: 'question', id: 'q1', title: 'Which <cover>?', context: 'A or B', options: ['A'], from: 'home-guide-press', answerUrl: '/dashboard/api/v1/questions/q1/answer' });

@@ -619,7 +619,8 @@ tfoot td{font-weight:600;color:var(--ink);border-top:1px solid var(--line)}
 /* Card modal (2026-10-29): any board card opens here; full screen on phones. */
 .pjkan [data-open]{cursor:pointer}
 .cardmodal{width:min(44rem,92vw)}
-.cardmodal .modal-card{box-sizing:border-box;max-height:86vh;overflow:auto;display:flex;flex-direction:column;gap:.55rem}
+.cardmodal .modal-card{box-sizing:border-box;max-height:86vh;overflow:auto;overscroll-behavior:contain;display:flex;flex-direction:column;gap:.55rem}
+body:has(.cardmodal[open]){overflow:hidden} /* the page behind stays put */
 .cardmodal h2{overflow-wrap:anywhere}
 .cardmodal h3{margin:.5rem 0 0;font-size:.74rem;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}
 .cmhead{position:sticky;top:-1.2rem;z-index:1;display:flex;justify-content:flex-end;margin:-1.2rem -1.2rem 0;padding:.6rem 1.2rem;background:var(--card)} /* Close stays in reach while the card scrolls */

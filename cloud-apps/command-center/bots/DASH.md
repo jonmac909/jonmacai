@@ -70,6 +70,7 @@ dash.py comment t_… "Fixed, new proof is up"   or   dash.py comment t_… --te
 - Jon may comment on your card from the Projects page. You are woken with type `card_comment` (`data.task`, `data.comment`).
 - Read the thread with `dash.py task t_…`, then answer with `dash.py comment`. Your comment wakes no one.
 - Keep replies short, and do the work the comment asks for.
+- Ana: a `card_comment` with `data.forOwner` is for a bot without its own routine. Pass it to that bot in one message (task id and the comment), or handle it yourself. That bot answers with `dash.py comment`.
 
 ## Questions for Jon
 ```

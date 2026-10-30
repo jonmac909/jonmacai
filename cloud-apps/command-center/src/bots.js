@@ -367,16 +367,22 @@ function historyOf(task, proofs, events) {
 // ---- comments: Jon writes on a card and wakes its owner; the owner bot answers in the thread ----
 
 const commentOut = (r) => ({ id: r.id, taskId: r.task_id, author: r.author, body: r.body, createdAt: r.created_at, wakeStatus: r.wake_status ?? null });
+const JON_OWNS = 'owner is Jon';
+const WAKE_PAUSES = [2000, 4000]; // ms before each retry of a 503 or an unreachable routine, as in hook.py
 
 async function addComment(db, env, ctx, who, taskId, body, now) {
   const task = await taskRow(db, taskId);
   if (!task) throw new Bad(404, 'Task not found');
-  const comment = { id: newId('c'), task_id: taskId, author: who.jon ? 'jon' : who.bot, body: text(body, 'body', 4000, true), created_at: now, wake_status: null };
-  await db.prepare('INSERT INTO bot_task_comments (id, task_id, author, body, created_at, wake_status) VALUES (?, ?, ?, ?, ?, NULL)')
-    .bind(comment.id, taskId, comment.author, comment.body, now).run();
+  const comment = {
+    id: newId('c'), task_id: taskId, author: who.jon ? 'jon' : who.bot, body: text(body, 'body', 4000, true), created_at: now,
+    wake_status: who.jon && task.owner === 'jon' ? JON_OWNS : null, // Jon's note on his own card wakes no one
+  };
+  await db.prepare('INSERT INTO bot_task_comments (id, task_id, author, body, created_at, wake_status) VALUES (?, ?, ?, ?, ?, ?)')
+    .bind(comment.id, taskId, comment.author, comment.body, now, comment.wake_status).run();
   await logEvent(db, taskId, now, comment.author, 'comment', 'commented');
-  if (who.jon) {
-    const wake = wakeOwner(env, task, comment).then(async (status) => {
+  if (who.jon && task.owner !== 'jon') {
+    // In the Worker the wake runs after the reply and retries; without ctx (tests) it is one awaited try.
+    const wake = wakeOwner(env, task, comment, ctx?.waitUntil ? WAKE_PAUSES : []).then(async (status) => {
       await db.prepare('UPDATE bot_task_comments SET wake_status = ? WHERE id = ?').bind(status, comment.id).run();
       return status;
     });
@@ -386,15 +392,16 @@ async function addComment(db, env, ctx, who, taskId, body, now) {
   return json({ ok: true, comment: commentOut(comment) }, 201);
 }
 
-// POST card_comment to the owner's OpenBot routine, signed exactly like bots/hook.py. Owners without
-// a routine go to Ana with data.forOwner. Returns the HTTP status as text, "unreachable" or
-// "not configured"; never throws, and never logs the URL or secret.
-async function wakeOwner(env, task, comment) {
+// POST card_comment to the owner's OpenBot routine, signed exactly like bots/hook.py. An owner without
+// a complete route (url and secret) goes to Ana with data.forOwner. Returns the final HTTP status as
+// text, "unreachable" or "not configured"; never throws, and never logs the URL or secret.
+async function wakeOwner(env, task, comment, pauses) {
   let hooks = null;
   try { hooks = JSON.parse(env.WEBHOOKS || 'null'); } catch { /* treated as not configured */ }
-  const route = hooks && Object.hasOwn(hooks, task.owner) ? task.owner : 'ana';
-  const cfg = hooks?.[route];
-  if (typeof cfg?.url !== 'string' || typeof cfg?.secret !== 'string' || !cfg.url || !cfg.secret) return 'not configured';
+  const usable = (r) => typeof hooks?.[r]?.url === 'string' && typeof hooks[r].secret === 'string' && !!hooks[r].url && !!hooks[r].secret;
+  const route = usable(task.owner) ? task.owner : 'ana';
+  if (!usable(route)) return 'not configured';
+  const cfg = hooks[route];
   const body = JSON.stringify({
     type: 'card_comment',
     occurredAt: new Date().toISOString(),
@@ -403,23 +410,28 @@ async function wakeOwner(env, task, comment) {
       url: `https://jonmac.ai/dashboard/#projects/${task.project || 'unsorted'}`, ...(route === task.owner ? {} : { forOwner: task.owner }),
     },
   });
-  // shortcut: one attempt (hook.py retries 503 twice); add retries if comments show "couldn't notify (503)" often.
-  try {
-    const ts = String(Math.floor(Date.now() / 1000));
-    const key = await crypto.subtle.importKey('raw', enc.encode(cfg.secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
-    const sig = new Uint8Array(await crypto.subtle.sign('HMAC', key, enc.encode(`${ts}.${comment.id}.${body}`)));
-    const res = await fetch(cfg.url, {
-      method: 'POST',
-      body,
-      signal: AbortSignal.timeout(5000),
-      headers: {
-        'Content-Type': 'application/json', 'x-openbot-timestamp': ts, 'x-openbot-delivery-id': comment.id,
-        'x-openbot-signature': `sha256=${[...sig].map((b) => b.toString(16).padStart(2, '0')).join('')}`,
-      },
-    });
-    return String(res.status);
-  } catch {
-    return 'unreachable';
+  // Every try uses the comment id as the delivery id, so the routine runs once however many arrive.
+  for (let i = 0; ; i++) {
+    let status;
+    try {
+      const ts = String(Math.floor(Date.now() / 1000));
+      const key = await crypto.subtle.importKey('raw', enc.encode(cfg.secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+      const sig = new Uint8Array(await crypto.subtle.sign('HMAC', key, enc.encode(`${ts}.${comment.id}.${body}`)));
+      const res = await fetch(cfg.url, {
+        method: 'POST',
+        body,
+        signal: AbortSignal.timeout(10000),
+        headers: {
+          'Content-Type': 'application/json', 'x-openbot-timestamp': ts, 'x-openbot-delivery-id': comment.id,
+          'x-openbot-signature': `sha256=${[...sig].map((b) => b.toString(16).padStart(2, '0')).join('')}`,
+        },
+      });
+      status = String(res.status);
+    } catch {
+      status = 'unreachable';
+    }
+    if ((status !== '503' && status !== 'unreachable') || i >= pauses.length) return status;
+    await new Promise((r) => setTimeout(r, pauses[i]));
   }
 }
 

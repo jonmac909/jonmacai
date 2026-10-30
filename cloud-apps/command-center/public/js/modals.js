@@ -9,7 +9,8 @@ let sending = false;
 
 const when = (at) => (Number.isFinite(Date.parse(at)) ? new Date(at).toLocaleString('en-CA', { dateStyle: 'medium', timeStyle: 'short' }) : '');
 const PROOF_PILL = { passed: 'ok', failed: 'crit', pending: 'risk' };
-const wakeLine = (status, owner) => (status == null ? `sending to ${owner}…`
+// Under Jon's comments: whether the owner bot was woken. On his own cards no one is, and nothing shows.
+const wakeLine = (status, owner) => (status === 'owner is Jon' ? '' : status == null ? `sending to ${owner}…`
   : status === '200' || status === '202' ? `sent to ${owner}` : `couldn't notify (${status})`);
 
 export function taskModal(t, projectLabel) {
@@ -20,8 +21,10 @@ export function taskModal(t, projectLabel) {
     return `<li>${pill(p.status, PROOF_PILL[p.status] || '')} ${esc(p.kind)} · ${link}${p.note ? `<p>${esc(p.note)}</p>` : ''}${p.checkNote ? `<p>QC: ${esc(p.checkNote)}</p>` : ''}</li>`;
   }).join('');
   const history = (t.history || []).map((h) => `<li>${esc(h.detail || h.kind)} <span class="cmby">by ${esc(h.by)} · ${esc(when(h.at))}</span></li>`).join('');
-  const comments = (t.comments || []).map((c) => `<li><span class="cmby"><b>${esc(c.author)}</b> · ${esc(when(c.createdAt))}</span><p>${esc(c.body)}</p>${
-    c.author === 'jon' ? `<span class="cmby">${esc(wakeLine(c.wakeStatus, t.owner))}</span>` : ''}</li>`).join('');
+  const comments = (t.comments || []).map((c) => {
+    const wake = c.author === 'jon' ? wakeLine(c.wakeStatus, t.owner) : '';
+    return `<li><span class="cmby"><b>${esc(c.author)}</b> · ${esc(when(c.createdAt))}</span><p>${esc(c.body)}</p>${wake ? `<span class="cmby">${esc(wake)}</span>` : ''}</li>`;
+  }).join('');
   const list = (html, none) => (html ? `<ul class="cmlist">${html}</ul>` : `<p class="muted">${none}</p>`);
   return `<h2>${esc(t.title)}</h2><dl class="cmfacts">${facts}</dl>${t.note ? `<p class="cmnote">${esc(t.note)}</p>` : ''}
     <h3>Proof</h3>${list(proofs, 'No proof yet.')}
@@ -52,10 +55,21 @@ async function loadTask(dlg) {
   const want = shown;
   const res = await fetch(`${PREFIX}/api/v1/tasks/${encodeURIComponent(want.id)}`).catch(() => null);
   const j = res?.ok ? await res.json().catch(() => null) : null;
-  if (shown !== want || !dlg.open) return; // closed, or another card opened meanwhile
+  if (shown !== want || !dlg.open) return null; // closed, or another card opened meanwhile
   const body = dlg.querySelector('.cmbody');
-  if (j?.task) body.innerHTML = taskModal(j.task, want.label(j.task.project));
-  else if (body.querySelector('.cmload')) body.querySelector('.cmload').textContent = 'Could not load this task.';
+  if (!j?.task) {
+    if (body.querySelector('.cmload')) body.querySelector('.cmload').textContent = 'Could not load this task.';
+    return null;
+  }
+  // A half-typed comment survives the reload.
+  const box = body.querySelector('.qtext');
+  const typed = box?.value || '';
+  const focused = !!box && document.activeElement === box;
+  body.innerHTML = taskModal(j.task, want.label(j.task.project));
+  const next = body.querySelector('.qtext');
+  next.value = typed;
+  if (focused) next.focus();
+  return j.task;
 }
 
 async function sendComment(dlg, button, say) {
@@ -69,8 +83,13 @@ async function sendComment(dlg, button, say) {
     if (!res.ok) { say(j.error || 'Could not send'); return; }
     box.value = '';
     say('Comment sent');
-    await loadTask(dlg);
+    const want = shown;
+    const task = await loadTask(dlg);
     dlg.querySelector('.cmbody .qtext')?.focus();
+    // The wake finishes after the reply (with retries): look once more so "sending to …" shows its result.
+    if (task && task.comments.filter((c) => c.author === 'jon').at(-1)?.wakeStatus == null) {
+      setTimeout(() => { if (shown === want) loadTask(dlg); }, 8000);
+    }
   } catch {
     say('Could not send');
   } finally {
