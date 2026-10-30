@@ -159,6 +159,18 @@ function bindKanban() {
   ktotals();
 }
 
+// Jon: never one word alone on a line. CSS text-wrap:pretty catches most; this joins the last two
+// words of each multi-word text run with a no-break space so the last line always has two.
+export function noLoneWords(root) {
+  const walk = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  for (let n = walk.nextNode(); n; n = walk.nextNode()) {
+    if (n.parentElement?.closest('textarea,pre,code,script,style,option')) continue;
+    const t = n.nodeValue;
+    const i = t.trimEnd().lastIndexOf(' ');
+    if (i > 0 && t.slice(0, i).trim().includes(' ') && t.length - i < 30) n.nodeValue = t.slice(0, i) + ' ' + t.slice(i + 1);
+  }
+}
+
 export async function go(id, { refetch = false } = {}) {
   if (!Object.hasOwn(pages, id.split('/')[0])) id = 'today';
   const [name, sub] = id.split('/');
@@ -176,6 +188,7 @@ export async function go(id, { refetch = false } = {}) {
   const same = shownPage === id;
   const typed = same ? typedAnswers() : {};
   document.getElementById('page').innerHTML = pages[name](page, data, sub);
+  noLoneWords(document.getElementById('page'));
   shownPage = id;
   document.querySelectorAll('#page .qcard').forEach((c) => {
     const key = c.querySelector('[data-tsend]');
