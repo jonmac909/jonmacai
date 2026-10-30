@@ -7,6 +7,7 @@ import { overlayWebinar } from './webinar.js';
 import { buildCash, withoutExcluded } from './cash.js';
 import { buildToday } from './today.js';
 import { buildProjects } from './projects.js';
+import { buildTodo } from './todo.js';
 
 export const COLLECTOR_INTERVAL_MS = 5 * 60 * 1000;
 
@@ -90,5 +91,6 @@ export function mergeSnapshot(fixture, rows, nowMs = Date.now(), overrides = {},
   applyReviewDrafts(out, by.cc_review_drafts ? parseData(by.cc_review_drafts.data) : []);
   buildToday(out, by, cash, extra, nowMs);
   buildProjects(out, by, cash, extra, nowMs);
+  buildTodo(out, extra, nowMs);
   return out;
 }

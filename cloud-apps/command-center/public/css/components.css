@@ -671,6 +671,32 @@ body:has(.cardmodal[open]){overflow:hidden} /* the page behind stays put */
   .cardmodal{width:100%;height:100%;max-width:none;max-height:none;margin:0}
   .cardmodal .modal-card{min-width:0;height:100%;max-height:none;border:0;border-radius:0}
 }
+/* Todo, Feed and Journal (2026-10-30). Todo reuses Today's list cards; Feed and Journal rows share one look. */
+.nylist [data-open],.fdlist [data-open]{cursor:pointer}
+.fdlist,.jnlist{list-style:none;margin:0;padding:0}
+.fdrow,.jnentry{display:flex;flex-direction:column;gap:.3rem;padding:.75rem 0;min-width:0;overflow-wrap:anywhere}
+.fdrow:first-child,.jnentry:first-child{padding-top:0}
+.fdrow+.fdrow,.jnentry+.jnentry{border-top:1px solid var(--line)}
+.fdtop{display:flex;flex-wrap:wrap;align-items:baseline;gap:.4rem;font-size:.9rem}
+.fdtop time{margin-left:auto;font-size:.78rem;color:var(--muted);white-space:nowrap}
+.fdtitle{margin:0;font-weight:600;font-size:.92rem}
+.fdbody{margin:0;font-size:.88rem;color:var(--muted);white-space:pre-wrap;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.fdmore:not(:empty){margin-top:.75rem}
+.fdlist a,.jnlist a{color:var(--accent);text-decoration:none}
+.fdlist a:hover,.jnlist a:hover{text-decoration:underline}
+.jnadd{display:flex;flex-wrap:wrap;gap:.5rem;align-items:center}
+.jnadd [name=text]{flex:1 1 16rem}
+.jnadd [name=tags]{flex:1 1 8rem;max-width:14rem}
+.jnhost{font-size:.78rem;font-weight:500;color:var(--muted)}
+.jntag{padding:.1rem .5rem;font-size:.75rem}
+.jnentry [data-jedit]{margin-left:auto}
+.jnform{display:flex;flex-direction:column;gap:.5rem}
+.jnform .qtext{flex:none}
+@media (max-width:820px){
+  .fdchips,.jntags{flex-wrap:nowrap;overflow-x:auto}
+  .fdchips .chip,.jntags .chip{flex:none;white-space:nowrap}
+  .jnadd [name=tags]{max-width:none}
+}
 @media (max-width:820px){
   .pjpage{grid-template-columns:minmax(0,1fr)}
   .pjpage>.pjright{grid-column:auto}

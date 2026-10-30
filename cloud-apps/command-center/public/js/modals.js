@@ -76,7 +76,9 @@ let shown = null; // the task in the card modal: { id, label }
 export function openCard(id, page) {
   const dlg = document.getElementById('cardModal');
   const lanes = page?.projects || [];
-  const item = lanes.flatMap((l) => l.columns.flatMap((c) => c.items)).find((i) => i.id === id);
+  // A Feed row's task may be off the board (cancelled, or done over a week ago): its card loads all the same.
+  const item = lanes.flatMap((l) => l.columns.flatMap((c) => c.items)).find((i) => i.id === id)
+    || (/^t_[0-9a-f]{16}$/.test(id) ? { id, kind: 'task', title: 'Task' } : null);
   if (!dlg || !item) return;
   shown = item.kind === 'task' ? { id, label: (slug) => lanes.find((l) => l.slug === (slug || 'unsorted'))?.label || slug } : null;
   dlg.setAttribute('aria-label', item.title);

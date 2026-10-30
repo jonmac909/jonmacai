@@ -78,6 +78,55 @@ export function esc(s) {
   ));
 }
 
+// Bots by first name (Jon, 2026-10-30); the chips on Feed list them in this order.
+export const BOT_NAMES = {
+  sponsors: 'Florence', 'video-editor': 'Olivia', 'viral-view': 'Scarlett', 'jon-mac-youtube': 'Sydney', 'home-guide-press': 'Elle',
+  'short-form': 'Samantha', accounting: 'Elizabeth', developer: 'Lucy', qc: 'Jessica', ana: 'Ana', inbox: 'Zendaya', spotify: 'Daisy',
+};
+export const botName = (slug) => (slug === 'jon' ? 'Jon' : Object.hasOwn(BOT_NAMES, slug) ? BOT_NAMES[slug] : String(slug ?? ''));
+
+// Friendly dates in Jon's time zone: "today 10:50", "yesterday 18:05", "Mon 09:10", "Oct 12", "Oct 12, 2025".
+const TZ = 'America/Vancouver';
+const fmt = (ms, opts) => new Intl.DateTimeFormat('en-US', { timeZone: TZ, ...opts }).format(ms);
+const dayNo = (ymd) => Date.UTC(+ymd.slice(0, 4), +ymd.slice(5, 7) - 1, +ymd.slice(8, 10)) / 86400000;
+const ymdOf = (ms) => new Intl.DateTimeFormat('en-CA', { timeZone: TZ }).format(ms);
+
+// A YYYY-MM-DD day: "today", "yesterday", "tomorrow", else "Oct 27".
+export function dayLabel(ymd, now = Date.now()) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(ymd || ''))) return '';
+  const diff = dayNo(ymdOf(now)) - dayNo(ymd);
+  if (diff === 0) return 'today';
+  if (diff === 1) return 'yesterday';
+  if (diff === -1) return 'tomorrow';
+  const ms = Date.UTC(+ymd.slice(0, 4), +ymd.slice(5, 7) - 1, +ymd.slice(8, 10), 12);
+  return new Intl.DateTimeFormat('en-US', { timeZone: 'UTC', month: 'short', day: 'numeric', ...(ymd.slice(0, 4) !== ymdOf(now).slice(0, 4) ? { year: 'numeric' } : {}) }).format(ms);
+}
+
+// A moment: "today 10:50", "yesterday 10:50", "Mon 10:50" this week, else the day.
+export function whenLabel(at, now = Date.now()) {
+  const t = Date.parse(at);
+  if (!Number.isFinite(t)) return '';
+  const time = fmt(t, { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+  const diff = dayNo(ymdOf(now)) - dayNo(ymdOf(t));
+  if (diff >= 0 && diff <= 1) return `${diff ? 'yesterday' : 'today'} ${time}`;
+  if (diff > 1 && diff < 7) return `${fmt(t, { weekday: 'short' })} ${time}`;
+  return dayLabel(ymdOf(t), now);
+}
+
+export function hostOf(url) {
+  try { return new URL(url).hostname.replace(/^www\./, ''); } catch { return ''; }
+}
+
+// Text with its web links as short, clickable host labels (never a raw URL), everything escaped.
+export const URL_RE = /(https?:\/\/[^\s<>"']*[^\s<>"'.,;:!?)\]])/i;
+export function linkify(text) {
+  return String(text ?? '').split(URL_RE).map((part, i) => {
+    if (i % 2 === 0) return esc(part);
+    const host = hostOf(part);
+    return host ? `<a href="${esc(part)}" target="_blank" rel="noopener">${esc(host)}</a>` : 'link';
+  }).join('');
+}
+
 export function ico(name) {
   return `<span class="ico"><svg class="ic"><use href="#i-${esc(name)}"/></svg></span>`;
 }

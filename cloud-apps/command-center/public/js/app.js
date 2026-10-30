@@ -1,5 +1,8 @@
 import { render as today } from './pages/today.js';
+import { render as todo } from './pages/todo.js';
 import { render as projects } from './pages/projects.js';
+import { render as feed, mount as mountFeed } from './pages/feed.js';
+import { render as journal, mount as mountJournal } from './pages/journal.js';
 import { render as sponsors } from './pages/sponsors.js';
 import { render as viral } from './pages/viral.js';
 import { render as webinar } from './pages/webinar.js';
@@ -10,7 +13,9 @@ import { bindModals, openCard, openDraft, restoreAnswers, typedAnswers } from '.
 const PREFIX = '/dashboard';
 // Any other #page (old bookmarks to removed pages) falls back to Today. A page may have a
 // sub-path, like #projects/sponsors; the page itself decides what an unknown one shows.
-const pages = { today, projects, sponsors, viral, webinar, money, life };
+const pages = { today, todo, projects, feed, sponsors, viral, webinar, money, life, journal };
+// Feed and Journal fetch their own rows (from /v1) once rendered.
+const mounts = { feed: mountFeed, journal: mountJournal };
 let data = null;
 
 const root = document.documentElement;
@@ -179,6 +184,7 @@ export async function go(id, { refetch = false } = {}) {
   // Half-typed answers survive a re-render of the same page (refresh, or after another item is sent).
   const typed = same ? typedAnswers(root) : {};
   root.innerHTML = pages[name](page, data, sub);
+  mounts[name]?.(root.firstElementChild, { say });
   shownPage = id;
   restoreAnswers(root, typed);
   if (!same) window.scrollTo(0, 0);
@@ -186,8 +192,8 @@ export async function go(id, { refetch = false } = {}) {
   bindKanban();
 }
 
-// A board card opens in the card modal, unless the click was on one of its own controls or links.
-const boardCard = (el) => el.closest?.('#page .pjkan [data-open]');
+// A board, Todo or Feed card opens in the card modal, unless the click was on one of its own controls or links.
+const boardCard = (el) => el.closest?.('#page [data-open]');
 document.addEventListener('keydown', (e) => {
   if ((e.key === 'Enter' || e.key === ' ') && boardCard(e.target) === e.target) {
     e.preventDefault();
@@ -331,10 +337,10 @@ if (snap.status === 401) { location.href = `${PREFIX}/`; throw new Error('auth')
 data = await snap.json();
 stale(data); // records this page's build
 document.getElementById('navs').innerHTML = navHtml();
-// Today, Projects and Webinar refresh every 60 s while visible, keeping the sub-path (the chosen project).
+// Today, Todo, Projects and Webinar refresh every 60 s while visible, keeping the sub-path (the chosen project).
 setInterval(() => {
   const id = hashPage();
-  if (document.hidden || !['today', 'projects', 'webinar'].includes(id.split('/')[0])) return;
+  if (document.hidden || !['today', 'todo', 'projects', 'webinar'].includes(id.split('/')[0])) return;
   const el = document.activeElement;
   if (el && (/^(TEXTAREA|SELECT)$/.test(el.tagName) || (el.tagName === 'INPUT' && el.type !== 'checkbox'))) return;
   const y = window.scrollY;
