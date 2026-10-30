@@ -179,7 +179,7 @@ test('feed page: first names, friendly times, escaped rows with link labels, and
   assert.doesNotMatch(textOf(comment), /https?:/, 'no raw URL on screen');
   const proof = rowHtml(r({ who: 'sponsors', kind: 'proof', body: 'render', link: 'javascript:alert(1)' }), now);
   assert.doesNotMatch(proof, /href/, 'only web links are links');
-  assert.match(rowHtml(r({ who: 'sponsors', kind: 'proof', body: 'url', link: 'https://jonmac.ai/review/1' }), now), /<a class="pjdeliv" href="https:\/\/jonmac.ai\/review\/1"[^>]*>Watch video<\/a>/);
+  assert.match(rowHtml(r({ who: 'sponsors', kind: 'proof', body: 'url', link: 'https://jonmac.ai/review/1' }), now), /<a class="pjdeliv" href="\/dashboard\/review\/1"[^>]*>Open review<\/a>/, 'a review-site video opens the dashboard Review page');
   const ask = (more) => rowHtml(r({ id: 'q_0123456789abcdef', who: 'home-guide-press', kind: 'question', taskId: null, title: 'Which cover?', body: null, ...more }), now);
   assert.match(ask({ pending: true }), /data-open="q_0123456789abcdef".*<b>Elle<\/b><span>asked<\/span>/s, 'an open question opens its card');
   assert.doesNotMatch(ask({ pending: false }), /data-open/, 'an answered one without a task has no card');
@@ -254,7 +254,7 @@ test("todo page: the board's own buttons, deliverable link, first names, no chec
   assert.match(html, /<li class="qcard nyi crit" tabindex="0" data-open="t2">\s*<div class="qmeta"><span class="pill crit">Overdue<\/span> <span class="jttag">Florence<\/span><i>·<\/i><span>Sponsors<\/span><i>·<\/i><span>60 min<\/span><i>·<\/i><span>due Oct 28<\/span><\/div>\s*<h3 class="qq">&lt;img src=x onerror=alert\(1\)&gt;<\/h3>/);
   assert.match(html, /<span>due yesterday<\/span>/);
   assert.match(html, /data-ttick="\/dashboard\/api\/v1\/tasks\/t2">Done<\/button>/);
-  assert.match(html, /<span class="jttag">Olivia<\/span>.*<a class="pjdeliv" href="https:\/\/jonmac.ai\/review\/7"[^>]*>Watch video<\/a>.*data-ttick="\/dashboard\/api\/v1\/tasks\/t7" data-confirm="Approve &quot;Task t7&quot;\? It moves to Done.">Approve<\/button><button type="button" class="btn line" data-sendback="t7">Send back<\/button>/s);
+  assert.match(html, /<span class="jttag">Olivia<\/span>.*<a class="pjdeliv" href="\/dashboard\/review\/7"[^>]*>Open review<\/a>.*data-ttick="\/dashboard\/api\/v1\/tasks\/t7" data-confirm="Approve &quot;Task t7&quot;\? It moves to Done.">Approve<\/button><button type="button" class="btn line" data-sendback="t7">Send back<\/button>/s);
   assert.match(html, /<span class="jttag">Elle<\/span>.*<span>2 min · today 09:00<\/span>.*data-qopt="A".*data-tsend="\/dashboard\/api\/v1\/questions\/q1\/answer"/s);
   assert.match(html, /<span class="jttag">Scarlett<\/span>.*data-tdecide="\/dashboard\/api\/v1\/approvals\/a1\/decide" data-decision="approve".*data-decision="reject"/s);
   assert.doesNotMatch(html, /type="checkbox"/, 'no checkbox approves anything');
