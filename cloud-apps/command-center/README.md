@@ -54,12 +54,13 @@ Each of the 14 bots (D:\AgentTeam\rules\BOTS.md) writes one row at a time with i
 | `GET /v1/me` | bot or Jon | who the token or session belongs to |
 | `POST /v1/tasks` | bot | `{title, owner?, status?, note?, project?, minutes?, due?, key?}`; owner defaults to the caller; `owner: jon` for what only Jon can do |
 | `GET /v1/tasks?owner=me\|slug\|jon&status=a,b&project=&limit=` | bot or Jon | newest change first |
-| `GET /v1/tasks/:id` | bot or Jon | task with its proof |
-| `PATCH /v1/tasks/:id` | bot | `{status?, owner?, note?, title?, project?, minutes?, due?}`; `qc` needs a proof not failed, `done` a proof QC passed, `cancelled` a note |
-| `PATCH /v1/tasks/:id` | Jon (session + `X-CC: 1`) | `{status: done}` on an open task owned by `jon` only: the tick, no proof |
+| `GET /v1/tasks/:id` | bot or Jon | task with its `deliverable` (`{link, kind, web}`: the newest QC-passed proof, else the newest proof; null without proof), `proofs`, `comments` (oldest first) and `history` (`{at, by, kind, detail}`; tasks from before `0010_comments.sql` start with a synthetic "created") |
+| `POST /v1/tasks/:id/comments` | bot, or Jon (session + `X-CC: 1`) | `{body}` (1 to 4000 chars) → the comment. Jon's comment wakes the owner's OpenBot routine with `card_comment`, signed like `bots/hook.py`, from the optional `WEBHOOKS` secret (same JSON as `webhooks.json`); an owner without a complete route (url and secret) goes to `ana` with `forOwner`. A 503 or unreachable routine is retried after 2 s and 4 s with the same delivery id; the final result is the comment's `wakeStatus`. A bot's comment, or Jon's on a `jon` task, wakes no one |
+| `PATCH /v1/tasks/:id` | bot | `{status?, owner?, note?, title?, project?, minutes?, due?}`; statuses `todo`, `doing`, `waiting_on_jon`, `qc` (needs a proof not failed), `review` (needs a proof QC passed), `cancelled` (needs a note). `done` is 403: only Jon approves |
+| `PATCH /v1/tasks/:id` | Jon (session + `X-CC: 1`) | `{status: done}`: ticks an open task owned by `jon` (no proof), or approves a task in `review`. `{status: doing, comment}` (1 to 4000 chars) sends a `review` task back: the comment is saved and wakes the owner like Jon's comments, with `data.sentBack: true`. Anything else is 400 or 409 |
 | `POST /v1/tasks/:id/proofs` | bot | `{kind: render\|url\|pdf\|test, link, note?}`; link is http(s) or a file path |
 | `GET /v1/proofs?status=pending&task=` | bot or Jon | QC's queue |
-| `POST /v1/proofs/:id/check` | `qc` only | `{result: passed\|failed, note?}`; failing the last supporting proof sends a `qc`/`done` task back to `doing` |
+| `POST /v1/proofs/:id/check` | `qc` only | `{result: passed\|failed, note?}`; passing moves a `qc` task to `review`; failing the last supporting proof sends a `qc`/`review`/`done` task back to `doing` |
 | `POST /v1/questions` | bot | `{question, options?[≤10], context?, task?, project?, minutes?, key?}` |
 | `GET /v1/questions[/:id]?status=&asked_by=&project=` | bot or Jon | read the answer |
 | `POST /v1/questions/:id/close` | the asking bot | after reading the answer, or to withdraw |
@@ -97,8 +98,8 @@ Default page (`#today`). Built by `src/today.js` from the snapshot. Each card sh
 ### Projects page
 
 `#projects/<slug>` (`#projects` and unknown slugs open the first). Built by `src/projects.js` from the same bot data as Today.
-- Left: the projects in order, plus Unsorted when it has items. The red count is what waits on Jon: open questions, pending approvals, and open tasks that are `waiting_on_jon` or owned by `jon`.
-- Main: the project's Today goal cards (Sponsors; Viral View and Webinar; Ebooks), then a board: To do, Doing, Waiting on Jon (plus its questions and approvals, answered in place), QC, Done (last 7 days).
+- Left: the projects in order, plus Unsorted when it has items. The red count is what waits on Jon: open questions, pending approvals, tasks in `review`, and open tasks that are `waiting_on_jon` or owned by `jon`.
+- Main: the project's Today goal cards (Sponsors; Viral View and Webinar; Ebooks), then a board: To do, Doing, Waiting on Jon (plus its questions and approvals, answered in place), QC, Review, Done (last 7 days). Review and Done cards lead with their deliverable (web links open; a file path is text). A Review card has Approve (asks first) and Send back (opens the card; its Send back sends the comment box). Any card opens in a modal (full screen on phones): a task with its proof, history and comment thread; a question or approval with the same Reply or Approve/Reject.
 - Right: the project's daily checklist (the newest `daily_checklists` feed; today's ticks from `bot_daily_ticks`, migration `0011_daily_ticks.sql`), the morning summary and the `calendar_today` feed. The checklist is read-only: ticked items show who and when, and open their proof when it is a web link. Unsorted has none.
 
 `key` makes a create safe to retry: the same bot and key return the first row (`duplicate: true`). Errors are `{ok: false, error}` with 400/401/403/404/409/413.

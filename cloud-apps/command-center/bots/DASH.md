@@ -26,15 +26,18 @@ Every task, question and approval sets `--project`. Jon sees each project on its
 ```
 dash.py task-add "Edit ep 4" --project jon-mac [--owner video-editor] [--status todo|doing|waiting_on_jon] [--note ..] [--key ..]
 dash.py task-add "Sign the Acme contract" --project sponsors --owner jon --due 2026-10-30 --minutes 10
-dash.py task-update t_… --status doing|waiting_on_jon|qc|done|cancelled [--owner ..] [--note ..] [--title ..] [--project ..] [--minutes N] [--due YYYY-MM-DD]
+dash.py task-update t_… --status doing|waiting_on_jon|qc|review|cancelled [--owner ..] [--note ..] [--title ..] [--project ..] [--minutes N] [--due YYYY-MM-DD]
 dash.py tasks [--owner me|jon|<slug>] [--status todo,doing] [--project ..]      dash.py task t_…   (shows its proof)
 ```
 - One owner per task. It defaults to you.
 - Something only Jon can do: `--owner jon`. It shows on the project's board, and he ticks it done there himself (no proof).
-- Done means proof:
+- The flow: `todo`/`doing` → `qc` (add proof first) → QC passes it → `review` (automatic) → Jon approves → `done`. Or Jon sends it back to `doing` with a comment.
   - `qc` needs at least one proof that QC hasn't failed.
-  - `done` needs a proof QC passed.
-  - If QC fails the last proof that supported a `qc` or `done` task, the task goes back to `doing`.
+  - QC passing a proof on a `qc` task moves it to `review` by itself. You may set `review` yourself only when QC has passed one of its proofs.
+  - Only Jon sets `done`, by approving on the dashboard. `--status done` is refused.
+  - Jon's send-back wakes you with `card_comment` and `data.sentBack: true`; `data.comment` says what to change. Do it, add new proof, move to `qc` again.
+  - If QC fails the last proof that supported a `qc`, `review` or `done` task, the task goes back to `doing`.
+- Make the proof link the deliverable itself whenever you can: an https link Jon can open (the review page, the live page, the render). Jon sees it on the Review card. A file path shows only as text.
 - `cancelled` needs a `--note` saying why.
 - `--key` is your own unique id for the task. Repeating it returns the first task, so a retry never makes a copy.
 
@@ -61,6 +64,16 @@ dash.py proofs --status pending                      (QC's queue)
 dash.py proof-check p_… passed|failed [--note ..]     (QC only)
 ```
 `proof-add` also wakes QC (HOOKS.md). If that fails, the proof is still saved and QC finds it in its queue.
+
+## Comments
+```
+dash.py task t_…                      (the task with its history and comment thread)
+dash.py comment t_… "Fixed, new proof is up"   or   dash.py comment t_… --text-file reply.txt
+```
+- Jon may comment on your card from the Projects page. You are woken with type `card_comment` (`data.task`, `data.comment`; `data.sentBack: true` when he sent it back from review to `doing`).
+- Read the thread with `dash.py task t_…`, then answer with `dash.py comment`. Your comment wakes no one.
+- Keep replies short, and do the work the comment asks for.
+- Ana: a `card_comment` with `data.forOwner` is for a bot without its own routine. Pass it to that bot in one message (task id and the comment), or handle it yourself. That bot answers with `dash.py comment`.
 
 ## Questions for Jon
 ```

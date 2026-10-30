@@ -38,5 +38,6 @@ Register-ScheduledTask AgentTeam-watch-mail -Action $run -Trigger (New-Scheduled
 
 ## Secrets
 `D:\AgentTeam\secrets\webhooks.json` holds each routine's URL and signing secret: `{"qc": {"url": "...", "secret": "..."}, ...}`. Only Jon makes the secrets (OpenBot Routines settings). Never print, paste, commit or copy this file, its secrets or its URLs.
+The dashboard Worker holds the only other copy, as the Cloudflare secret `WEBHOOKS` (it wakes a card's owner when Jon comments). Developer sets it from this file with `wrangler secret put WEBHOOKS`, piping the file in so it is never printed.
 
 Tests: `python -I bots/test_hook.py` (a local receiver checks the signature format; the footage test runs the watcher for a few seconds).

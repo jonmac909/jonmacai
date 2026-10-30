@@ -23,7 +23,7 @@ from pathlib import Path
 BASE = os.environ.get('DASH_BASE', 'https://jonmac.ai/dashboard/api/v1')
 TOKEN_DIR = Path(os.environ.get('DASH_TOKEN_DIR', r'D:\AgentTeam\secrets\bot-tokens'))
 BOTS_MD = Path(os.environ.get('DASH_BOTS_MD', r'D:\AgentTeam\rules\BOTS.md'))
-TASK_STATUSES = ['todo', 'doing', 'waiting_on_jon', 'qc', 'done', 'cancelled']
+TASK_STATUSES = ['todo', 'doing', 'waiting_on_jon', 'qc', 'review', 'done', 'cancelled']
 PROOF_KINDS = ['render', 'url', 'pdf', 'test']
 FEEDS = ['morning_summary', 'calendar_today', 'claude_usage', 'ebook_sales', 'daily_checklists']
 # Same labels, slugs and order as PROJECTS in src/projects.js. "unsorted" means no project.
@@ -233,6 +233,9 @@ def run(args, ctx):
                                                  'note': args.note, 'project': project, 'minutes': args.minutes,
                                                  'due': args.due, 'key': args.key}))
     if c == 'task-update':
+        if args.status == 'done':
+            raise Fail(2, 'Bots cannot set done. Jon approves a task from review to done on the dashboard; '
+                          'QC passing your proof moves a qc task to review.')
         body = only({'title': args.title, 'owner': args.owner, 'status': args.status, 'note': args.note,
                      'project': project, 'minutes': args.minutes, 'due': args.due})
         if not body:
@@ -243,6 +246,15 @@ def run(args, ctx):
                                                  'limit': args.limit})
     if c == 'task':
         return call(ctx, 'GET', '/tasks/%s' % q(args.id, safe=''))
+    if c == 'comment':
+        if args.text and args.text_file:
+            raise Fail(2, 'Give the text or --text-file, not both.')
+        body = (read_file(args.text_file) if args.text_file else args.text or '').strip()
+        if not body:
+            raise Fail(2, 'The comment is empty.')
+        if len(body) > 4000:
+            raise Fail(2, 'The comment is longer than 4000 characters.')
+        return call(ctx, 'POST', '/tasks/%s/comments' % q(args.task_id, safe=''), {'body': body})
     if c == 'proof-add':
         out = call(ctx, 'POST', '/tasks/%s/proofs' % q(args.task_id, safe=''),
                    only({'kind': args.kind, 'link': args.link, 'note': args.note}))
@@ -323,7 +335,7 @@ def parser():
     a = s.add_parser('task-update', help='change one task')
     a.add_argument('id')
     a.add_argument('--status', choices=TASK_STATUSES,
-                   help='qc needs proof; done needs proof QC passed; cancelled needs --note')
+                   help='qc needs proof; review needs proof QC passed; done is Jon\'s alone; cancelled needs --note')
     a.add_argument('--owner')
     a.add_argument('--note')
     a.add_argument('--title')
@@ -336,8 +348,13 @@ def parser():
     project_args(a, filter_only=True)
     a.add_argument('--limit', type=int)
 
-    a = s.add_parser('task', help='one task with its proof')
+    a = s.add_parser('task', help='one task with its proof, history and comments')
     a.add_argument('id')
+
+    a = s.add_parser('comment', help="answer in a task's comment thread (wakes no one)")
+    a.add_argument('task_id')
+    a.add_argument('text', nargs='?')
+    a.add_argument('--text-file', help='file whose contents become the comment')
 
     a = s.add_parser('proof-add', help='add proof to a task')
     a.add_argument('task_id')

@@ -170,5 +170,52 @@ class Hooks(unittest.TestCase):
         self.assertEqual({(r, e['type']) for r, e in self.srv.events}, {('video-editor', 'raw_footage')})
 
 
+class DashComment(unittest.TestCase):
+    """dash.py comment: checked locally, then one POST with the trimmed text."""
+    CTX = {'bot': 'qc', 'token': 't', 'base': 'https://x'}
+
+    def comment(self, *argv):
+        return dash.run(dash.parser().parse_args(['comment'] + list(argv)), self.CTX)
+
+    def test_posts_the_trimmed_text(self):
+        with mock.patch.object(dash, 'call', return_value={'ok': True}) as call, tempfile.TemporaryDirectory() as d:
+            self.assertEqual(self.comment('t_0123456789abcdef', '  On it  '), {'ok': True})
+            reply = Path(d) / 'reply.txt'
+            reply.write_text('From a file\n', encoding='utf-8')
+            self.comment('t_0123456789abcdef', '--text-file', str(reply))
+        self.assertEqual([c.args[1:] for c in call.call_args_list], [
+            ('POST', '/tasks/t_0123456789abcdef/comments', {'body': 'On it'}),
+            ('POST', '/tasks/t_0123456789abcdef/comments', {'body': 'From a file'})])
+
+    def test_bad_text_never_reaches_the_dashboard(self):
+        with mock.patch.object(dash, 'call') as call:
+            for argv in (['t_1'], ['t_1', '   '], ['t_1', 'x' * 4001], ['t_1', 'hi', '--text-file', 'x.txt'],
+                         ['t_1', '--text-file', 'missing.txt']):
+                with self.assertRaises(dash.Fail) as err:
+                    self.comment(*argv)
+                self.assertEqual(err.exception.code, 2, argv[1:])
+        call.assert_not_called()
+
+
+class DashTaskUpdate(unittest.TestCase):
+    """dash.py task-update: review is a bot's to set; done is Jon's, refused locally."""
+    CTX = {'bot': 'qc', 'token': 't', 'base': 'https://x'}
+
+    def update(self, *argv):
+        return dash.run(dash.parser().parse_args(['task-update', 't_0123456789abcdef'] + list(argv)), self.CTX)
+
+    def test_review_is_sent(self):
+        with mock.patch.object(dash, 'call', return_value={'ok': True}) as call:
+            self.update('--status', 'review')
+        call.assert_called_once_with(self.CTX, 'PATCH', '/tasks/t_0123456789abcdef', {'status': 'review'})
+
+    def test_done_is_refused_locally(self):
+        with mock.patch.object(dash, 'call') as call, self.assertRaises(dash.Fail) as err:
+            self.update('--status', 'done')
+        self.assertEqual(err.exception.code, 2)
+        self.assertIn('Jon approves', str(err.exception))
+        call.assert_not_called()
+
+
 if __name__ == '__main__':
     unittest.main()

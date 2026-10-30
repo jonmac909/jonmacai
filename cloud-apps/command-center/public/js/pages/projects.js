@@ -3,16 +3,36 @@ import { goalCard, needItem, summaryCard } from './today.js';
 
 // Projects (2026-10-29): the project list, the chosen project's goal cards and board, and its
 // daily checklist. Questions and approvals use Today's cards and buttons.
-function card(it) {
-  if (it.kind !== 'task') return needItem(it);
-  const proof = /^https?:\/\//i.test(it.proof || '') ? `<a class="pjlink" href="${esc(it.proof)}" target="_blank" rel="noopener">Proof</a>` : '';
+const OPEN_KIND = { render: 'Open render', url: 'Open page', pdf: 'Open PDF', test: 'Open test run' };
+
+// The deliverable of a Review or Done card (also in its modal): a web link opens in a new tab;
+// a file path on GPU1 is plain text, never a link.
+export function deliverableLink(d) {
+  if (!d?.link) return '';
+  return /^https?:\/\//i.test(d.link)
+    ? `<a class="pjdeliv" href="${esc(d.link)}" target="_blank" rel="noopener">${esc(OPEN_KIND[d.kind] || 'Open')}</a>`
+    : `<span class="pjdeliv">local file <code>${esc(d.link)}</code></span>`;
+}
+
+// Approve finalises a Review card, so it asks first (data-confirm).
+export const approveButton = (url, title) =>
+  `<button type="button" class="btn" data-ttick="${esc(url)}" data-confirm="${esc(`Approve "${title}"? It moves to Done.`)}">Approve</button>`;
+
+// Every board card opens in the card modal (modals.js) on click, Enter or Space; so does Send back.
+function card(it, col) {
+  const open = ` tabindex="0" data-open="${esc(it.id)}"`;
+  if (it.kind !== 'task') return needItem(it, open);
+  const deliv = col === 'review' || col === 'done' ? deliverableLink(it.deliverable) : '';
+  const proof = !deliv && /^https?:\/\//i.test(it.proof || '') ? `<a class="pjlink" href="${esc(it.proof)}" target="_blank" rel="noopener">Proof</a>` : '';
   const done = it.tickUrl ? `<div class="qopts"><button type="button" class="btn" data-ttick="${esc(it.tickUrl)}">Done</button></div>` : '';
-  return `<li class="pjcard"><span class="pjt">${esc(it.title)}</span>
-    <span class="pjm"><span class="jttag">${esc(it.from)}</span>${it.ageLabel ? `<i>·</i><span>${esc(it.ageLabel)}</span>` : ''}${proof}</span>${done}</li>`;
+  const review = it.reviewUrl ? `<div class="qopts">${approveButton(it.reviewUrl, it.title)}
+    <button type="button" class="btn line" data-sendback="${esc(it.id)}">Send back</button></div>` : '';
+  return `<li class="pjcard"${open}><span class="pjt">${esc(it.title)}</span>${deliv}
+    <span class="pjm"><span class="jttag">${esc(it.from)}</span>${it.ageLabel ? `<i>·</i><span>${esc(it.ageLabel)}</span>` : ''}${proof}</span>${done}${review}</li>`;
 }
 
 function column(c) {
-  const body = c.items.length ? `<ul class="pjcards">${c.items.map(card).join('')}</ul>` : '<p class="pjempty">Nothing here</p>';
+  const body = c.items.length ? `<ul class="pjcards">${c.items.map((it) => card(it, c.key)).join('')}</ul>` : '<p class="pjempty">Nothing here</p>';
   return `<section class="pjcol pjcol-${esc(c.key)}"><h3>${esc(c.label)}<span class="n">${c.items.length}</span></h3>${body}</section>`;
 }
 
