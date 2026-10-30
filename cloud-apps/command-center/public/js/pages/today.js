@@ -65,8 +65,30 @@ function needsCard(n) {
     ${list}${(n.sources || []).map(src).join('')}</div>`;
 }
 
+// Ana writes the summary in light Markdown: **bold**, [text](https://link), "- " bullets, blank line = new section.
+// Escaped first, so only these three forms become HTML; links must be http(s).
+const inline = (line) => esc(line)
+  .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+  .replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+
+export function summaryHtml(text) {
+  return String(text || '').trim().split(/\r?\n\s*\n/).map((section) => {
+    const lines = section.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+    let html = '';
+    let list = [];
+    const flush = () => { if (list.length) html += `<ul>${list.join('')}</ul>`; list = []; };
+    for (const line of lines) {
+      const bullet = line.match(/^[-*•]\s+(.*)$/);
+      if (bullet) list.push(`<li>${inline(bullet[1])}</li>`);
+      else { flush(); html += `<p>${inline(line)}</p>`; }
+    }
+    flush();
+    return `<section>${html}</section>`;
+  }).join('');
+}
+
 export function summaryCard(s) {
-  const body = s.missing ? `<p class="muted">${esc(s.missing)}</p>` : `<div class="summary">${esc(s.text)}</div>`;
+  const body = s.missing ? `<p class="muted">${esc(s.missing)}</p>` : `<div class="summary">${summaryHtml(s.text)}</div>`;
   return `<div class="card pad"><div class="cardhead"><h2>Morning summary</h2><span class="meta">${esc(s.date || '')}</span></div>${body}${src(s.source)}</div>`;
 }
 
