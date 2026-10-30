@@ -9,7 +9,7 @@ import { purchaseReminders, retryReminders, unsubscribeReminders } from './remin
 import { assignSession, salesClosed } from './reminder-plan.js';
 import { consentEvidence, readinessConfig, smsSendingEnabled } from './readiness.js';
 import { recordScorecardPayment, recordVisit, sessionDate } from './scorecard.js';
-import { OFFER_PRICE } from './offer.js';
+import { OFFER_PLAN, OFFER_PRICE } from './offer.js';
 
 const CSP = "script-src 'self' 'unsafe-inline' https://t.whop.tw https://cdn.embedded.fanbasis.io https://connect.facebook.net https://www.googletagmanager.com";
 
@@ -17,11 +17,13 @@ const CSP = "script-src 'self' 'unsafe-inline' https://t.whop.tw https://cdn.emb
 // "Registration Closed" lander after the close. Only utm_* tags pass through to checkout.
 function seatRedirect(url, env) {
   let target = url.origin + '/clone/';
-  if (!salesClosed() && env.CHECKOUT_URL) {
-    const checkout = new URL(env.CHECKOUT_URL);
-    for (const [key, value] of url.searchParams) if (/^utm_[a-z]+$/.test(key)) checkout.searchParams.set(key, value);
-    checkout.searchParams.set('lp', 'clone');
-    target = checkout.href;
+  if (!salesClosed()) {
+    try {
+      const checkout = new URL(env.CHECKOUT_URL);
+      for (const [key, value] of url.searchParams) if (/^utm_[a-z]+$/.test(key)) checkout.searchParams.set(key, value);
+      checkout.searchParams.set('lp', 'clone');
+      target = checkout.href;
+    } catch {} // No usable CHECKOUT_URL: the lander's own seat button still sells.
   }
   return new Response(null, { status: 302, headers: { location: target, 'cache-control': 'no-store' } });
 }
@@ -99,13 +101,14 @@ export default {
     if (env.CLONE_VERSION?.tag) headers.set('x-clone-commit', env.CLONE_VERSION.tag);
     if (!(headers.get('content-type') || '').includes('text/html')) return new Response(response.body, { status: response.status, headers });
     // One offer price for every page (src/offer.js).
-    let html = (await response.text()).replaceAll('{{OFFER_PRICE}}', OFFER_PRICE);
+    let html = (await response.text()).replaceAll('{{OFFER_PRICE}}', OFFER_PRICE).replaceAll('{{OFFER_PLAN}}', OFFER_PLAN);
     // Meta pixel ID for meta-pixel.js on every page; only when Meta is configured (never sandbox).
     if (!isSandbox(env) && metaConfigured(env)) {
       const tag = '<script>window.CLONE_META=' + JSON.stringify({ pixelId: env.META_PIXEL_ID }) + ';</script>';
       html = html.replace(/<meta charset=[^>]*>/i, m => m + tag);
     }
-    headers.delete('content-length');
+    // The file's validators don't describe the filled-in page, so no browser or edge revalidates on them.
+    for (const name of ['content-length', 'etag', 'last-modified']) headers.delete(name);
     return new Response(html, { status: response.status, headers });
   },
   async scheduled(controller, env, ctx) {
@@ -187,10 +190,10 @@ async function handleLead(request, env) {
         email,
         data: { first_name: firstName || "there", name },
         // Resend's documented field; nurture templates read these as event.* variables.
-        payload: { first_name: firstName || "there", name, offer_price: OFFER_PRICE, seat_url: checkout,
-          session_label: assignSession(Date.now()).session_label },
+        payload: { first_name: firstName || "there", name, offer_price: OFFER_PRICE, offer_plan: OFFER_PLAN,
+          seat_url: checkout, session_label: assignSession(Date.now()).session_label },
       }),
-    }));
+    }).then(r => { if (!r.ok) console.error('clone.lead event rejected: ' + r.status); return r; }));
     jobs.push(fetch("https://api.resend.com/emails", {
       method: "POST",
       headers,

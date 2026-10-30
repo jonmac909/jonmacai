@@ -101,10 +101,12 @@ Closed". The Worker's own "seat isn't saved" lead email uses it. Never link emai
 the hosted checkout ignores the close.
 
 **Offer price.** `src/offer.js` `OFFER_PRICE_USD` is the one place the webinar offer's price lives
-($997 or $1,997, open with Jon). Pages write `{{OFFER_PRICE}}`; the Worker fills it into every HTML
-response (pages are never answered 304, so a swap shows at once). Emails get it as
-`event.offer_price` on the `clone.lead` event (with `seat_url` and `session_label`); the value is
-fixed when the lead signs up. The $47 seat price is separate: it is the Commas product `nmGzE` and
+($997 or $1,997, open with Jon); `OFFER_PLAN` under it is the 3-payment plan. Pages write
+`{{OFFER_PRICE}}` / `{{OFFER_PLAN}}` (the refund policy does); the Worker fills them into every HTML
+response, with no ETag/Last-Modified and no 304 from the asset store, so a swap shows at once.
+Emails get `event.offer_price` and `event.offer_plan` on the `clone.lead` event (with `seat_url`
+and `session_label`); those are fixed when the lead signs up, so leads already in the 7-day
+nurture keep the old price after a swap. The $47 seat price is separate: it is the Commas product `nmGzE` and
 the purchase webhook's $47 check.
 
 **Nurture emails.** Resend automation "Clone Nurture 7-Day" (`01a05004-f61e-7068-a9cd-5f9a4106461f`)

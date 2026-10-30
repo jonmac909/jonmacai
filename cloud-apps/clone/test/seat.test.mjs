@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
 import worker from '../src/index.js';
 import { SALES_CLOSE } from '../src/reminder-plan.js';
-import { OFFER_PRICE } from '../src/offer.js';
+import { OFFER_PLAN, OFFER_PRICE } from '../src/offer.js';
 
 const checkout = 'https://commas.com/checkout/nmGzEY7RCWcGOKl';
 const seat = query => worker.fetch(new Request('https://jonmac.ai/clone/seat' + query), { CHECKOUT_URL: checkout });
@@ -20,6 +20,9 @@ test('email seat link: the live checkout before the sales close, the closed land
   const closed = await seat('?utm_source=nurture');
   assert.equal(closed.status, 302);
   assert.equal(closed.headers.get('location'), 'https://jonmac.ai/clone/');
+  mock.timers.reset();
+  const broken = await worker.fetch(new Request('https://jonmac.ai/clone/seat'), { CHECKOUT_URL: 'not a url' });
+  assert.equal(broken.headers.get('location'), 'https://jonmac.ai/clone/', 'a bad CHECKOUT_URL falls back to the lander');
 });
 
 test('pages show the one offer price wherever they say {{OFFER_PRICE}}, and never get a stale 304', async () => {
@@ -28,22 +31,26 @@ test('pages show the one offer price wherever they say {{OFFER_PRICE}}, and neve
   const ASSETS = { async fetch(request) {
     seen.push([new URL(request.url).pathname, request.headers.get('if-none-match')]);
     const html = new URL(request.url).pathname.endsWith('.html');
-    return new Response('<meta charset="utf-8"><p>{{OFFER_PRICE}} or {{OFFER_PRICE}}</p>',
-      { headers: { 'content-type': html ? 'text/html; charset=utf-8' : 'text/javascript', etag: '"v1"' } });
+    const body = request.url.endsWith('/refund.html') ? readFileSync(new URL('../public/refund.html', import.meta.url), 'utf8') : '<meta charset="utf-8"><p>{{OFFER_PRICE}} or {{OFFER_PRICE}}</p>';
+    return new Response(body, { headers: { 'content-type': html ? 'text/html; charset=utf-8' : 'text/javascript', etag: '"v1"', 'last-modified': 'Fri, 30 Oct 2026 00:00:00 GMT' } });
   } };
   const page = await worker.fetch(new Request('https://jonmac.ai/clone/vault.html', { headers: { 'if-none-match': '"v1"' } }), { ASSETS });
   assert.equal(page.status, 200);
   assert.equal(await page.text(), `<meta charset="utf-8"><p>${OFFER_PRICE} or ${OFFER_PRICE}</p>`);
+  assert.equal(page.headers.get('etag'), null, 'no validator that describes the unfilled file');
+  assert.equal(page.headers.get('last-modified'), null);
+  const refund = await (await worker.fetch(new Request('https://jonmac.ai/clone/refund.html'), { ASSETS })).text();
+  assert.ok(refund.includes(`(${OFFER_PRICE}, or ${OFFER_PLAN})`) && !refund.includes('{{'), 'the refund policy shows the one price');
   const script = await worker.fetch(new Request('https://jonmac.ai/clone/schedule.js', { headers: { 'if-none-match': '"v1"' } }), { ASSETS });
   assert.match(await script.text(), /\{\{OFFER_PRICE\}\}/, 'scripts are served as they are');
-  assert.deepEqual(seen, [['/vault.html', null], ['/schedule.js', '"v1"']]);
+  assert.deepEqual(seen, [['/vault.html', null], ['/refund.html', null], ['/schedule.js', '"v1"']]);
 });
 
-test('pages use no {{TOKEN}} other than {{OFFER_PRICE}}', () => {
+test('pages use no {{TOKEN}} other than the offer price and plan', () => {
   const dir = new URL('../public/', import.meta.url);
   for (const file of readdirSync(dir).filter(f => f.endsWith('.html'))) {
     const tokens = readFileSync(new URL(file, dir), 'utf8').match(/\{\{\s*[A-Z_]+\s*\}\}/g) || [];
-    assert.deepEqual(tokens.filter(token => token !== '{{OFFER_PRICE}}'), [], file);
+    assert.deepEqual(tokens.filter(token => !['{{OFFER_PRICE}}', '{{OFFER_PLAN}}'].includes(token)), [], file);
   }
 });
 
@@ -65,6 +72,7 @@ test('the lead email and the nurture event carry the seat link and the offer pri
   assert.ok(!email.text.includes('commas.com'), 'no direct checkout link that ignores the close');
   assert.equal(event.event, 'clone.lead');
   assert.equal(event.payload.offer_price, OFFER_PRICE);
+  assert.equal(event.payload.offer_plan, OFFER_PLAN);
   assert.equal(event.payload.seat_url, 'https://jonmac.ai/clone/seat');
   assert.match(event.payload.session_label, /Thursday, November 12, 2026/);
   assert.deepEqual(event.data, { first_name: 'Seat', name: 'Seat Test' }, 'the existing event field is unchanged');
