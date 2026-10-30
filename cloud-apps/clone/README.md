@@ -486,14 +486,14 @@ Automations and ensure none duplicates this sequence.
 
 | Step | Delivery | Subject |
 | --- | --- | --- |
-| E1 | Immediately | You're in |
-| E2 | 24 hours before, only when the session is more than 24 hours away | Why followers don't matter |
-| E3 | Session day, 9 AM ET | What we'll build tonight |
-| E4 | One hour before | Your link for tonight |
-| E5 | Ten minutes before | Starting in 10 |
-| E6 | Session start | We're live |
-| E7 | Fifteen minutes after | Trouble joining? |
-| E8 | Following calendar day, 9 AM ET | Your Clone Method replay |
+| E1 | Immediately | you're in |
+| E2 | 24 hours before, only when the session is more than 24 hours away | followers |
+| E3 | Session day, 9 AM ET | here's what we're building tonight |
+| E4 | One hour before | your link for tonight |
+| E5 | Ten minutes before | we start in 10 minutes |
+| E6 | Session start | we're live |
+| E7 | Fifteen minutes after | if the link won't open |
+| E8 | Following calendar day, 9 AM ET | your replay is here |
 
 Each message has plain text, simple HTML, reply-to `jon@thejonmac.com`, an
 unsubscribe footer, and one-click `List-Unsubscribe` headers. E1 includes a

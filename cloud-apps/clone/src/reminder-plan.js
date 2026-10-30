@@ -33,6 +33,9 @@ export function easternTime(at, dayOffset, hour) {
 export const SESSION_AT = Date.UTC(2026, 10, 13, 0, 0, 0);
 export const SALES_CLOSE = Date.UTC(2026, 10, 13, 1, 30, 0);
 export const salesClosed = (at = Date.now()) => at >= SALES_CLOSE;
+// Late is judged against the buyer's own stored session, so a later date move never turns an
+// old late buyer (L1 only) into an on-time one on webhook redelivery or cron recovery.
+export const lateBuyer = ({ purchased_at, session_at }) => purchased_at >= Date.parse(session_at) + (SALES_CLOSE - SESSION_AT);
 
 export function assignSession(purchasedAt) {
   const at = new Date(purchasedAt).getTime();
@@ -71,7 +74,7 @@ export function reminderPlan({ transaction_ref, purchased_at, session_at }, env,
   if (!Number.isFinite(session) || !Number.isFinite(purchased_at)) throw new Error('invalid_session');
   const links = reminderLinks(env);
   const live = purchased_at >= session;
-  const candidates = salesClosed(purchased_at) ? [['L1', purchased_at + (isSandbox(env) ? 3 * 60 * 1000 : 0)]] : [
+  const candidates = lateBuyer({ purchased_at, session_at }) ? [['L1', purchased_at + (isSandbox(env) ? 3 * 60 * 1000 : 0)]] : [
     ['E1', purchased_at + (isSandbox(env) ? 3 * 60 * 1000 : 0)], ['E2', session - 24 * HOUR],
     ['E3', easternTime(session, 0, 9)], ['E4', session - HOUR],
     ['E5', session - 10 * 60 * 1000], ['E6', live ? purchased_at : session],

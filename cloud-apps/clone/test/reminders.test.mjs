@@ -5,7 +5,7 @@ import { createHmac } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import worker from '../src/index.js';
 import testWorker from '../scripts/resend-test-worker.js';
-import { assignSession, calendarUrl, reminderMessage, reminderPlan } from '../src/reminder-plan.js';
+import { assignSession, calendarUrl, lateBuyer, reminderMessage, reminderPlan } from '../src/reminder-plan.js';
 import { purchaseReminders, retryReminders, scheduleSession, unsubscribeReminders } from '../src/reminders.js';
 import { sandboxSettings } from './sandbox-fixture.mjs';
 
@@ -98,6 +98,22 @@ test('plans skip past steps, hold steps awaiting links, and keep keys stable', (
   const latePurchase = Date.parse('2026-11-13T02:00:00Z');
   const lateNoReplay = reminderPlan({ ...session, purchased_at: latePurchase, ...assignSession(latePurchase) }, {}, ms);
   assert.deepEqual(lateNoReplay.map(p => [p.step, p.awaiting]), [['L1', 'missing_replay_url']]);
+});
+
+test('a buyer booked for Oct 29 before the move keeps that session; a redelivered webhook sends nothing new', async t => {
+  const originalFetch = globalThis.fetch; t.after(() => { globalThis.fetch = originalFetch; });
+  const f = fixture(), p = provider(), ref = 'ORD-oct29-late';
+  const row = { transaction_ref: ref, purchased_at: Date.parse('2026-10-30T02:00:00Z'), session_at: '2026-10-29T23:00:00.000Z' };
+  assert.equal(lateBuyer(row), true);
+  assert.equal(lateBuyer({ ...row, purchased_at: Date.parse('2026-10-29T20:00:00Z') }), false);
+  assert.deepEqual(reminderPlan(row, f.env, row.purchased_at).map(s => s.step), ['L1']);
+  f.sql.prepare(`INSERT INTO clone_webinar_sessions (transaction_ref, payment_ref, email, purchased_at, session_at, session_label, unsubscribe_token, initialized)
+    VALUES (?, ?, 'test_user_mock@example.com', ?, ?, 'Thursday, October 29, 2026 at 7:00 PM EDT', ?, 1)`).run(ref, ref, row.purchased_at, row.session_at, 'b'.repeat(64));
+  f.sql.prepare("INSERT INTO clone_webinar_steps(transaction_ref, step, payload, state) VALUES (?, 'L1', '{}', 'submitted'), (?, 'event', '{}', 'skipped')").run(ref, ref);
+  await purchaseReminders(seat({ created_at: '2026-10-30T02:00:00Z' }, ref), f.env);
+  assert.equal(f.sql.prepare('SELECT session_at FROM clone_webinar_sessions WHERE transaction_ref = ?').get(ref).session_at, row.session_at);
+  assert.deepEqual(f.sql.prepare('SELECT step FROM clone_webinar_steps WHERE transaction_ref = ? ORDER BY step').all(ref).map(r => r.step), ['L1', 'event']);
+  assert.equal(p.calls.filter(c => c.path === '/emails' || c.path === '/events/send').length, 0);
 });
 
 test('every email has simple HTML, text, unsubscribe and email-only join links', () => {
