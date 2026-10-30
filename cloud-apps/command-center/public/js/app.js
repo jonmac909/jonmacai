@@ -191,7 +191,7 @@ export async function go(id, { refetch = false } = {}) {
   if (!same) window.scrollTo(0, 0);
   // The chosen channel tab in view on a phone's sideways row, without scrolling the window.
   const tab = root.querySelector('.cctabs .on');
-  if (tab && !same) { const row = tab.closest('.cctabs'); row.scrollLeft += tab.getBoundingClientRect().left - row.getBoundingClientRect().left - 16; }
+  if (tab) { const row = tab.closest('.cctabs'); row.scrollLeft += tab.getBoundingClientRect().left - row.getBoundingClientRect().left - 16; }
   try { localStorage.setItem('cc-page', id); } catch {}
   bindKanban();
 }
