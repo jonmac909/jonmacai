@@ -22,7 +22,7 @@ function dailyItem(it) {
   const web = /^https?:\/\//i.test(it.link || '');
   const name = web ? `<a href="${esc(it.link)}" target="_blank" rel="noopener">${esc(it.text)}</a>` : esc(it.text);
   const meta = it.done ? `<span class="pjm">${esc(it.by)}<i>·</i>${esc(it.ageLabel)}${web ? '' : `<i>·</i>${esc(it.link)}`}</span>` : '';
-  return `<li><label class="pjci"><input type="checkbox" disabled${it.done ? ' checked' : ''}> ${name}${meta}</label></li>`;
+  return `<li><label class="pjci"><input type="checkbox" disabled${it.done ? ' checked' : ''}><span>${name}${meta}</span></label></li>`;
 }
 
 function checklistCard(c) {
