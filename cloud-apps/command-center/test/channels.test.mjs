@@ -277,3 +277,16 @@ test('Content page: a Selected badge and the source channel on each outlier', ()
   assert.match(html, /<span class="oct"><span class="pill ok">Selected<\/span> high<\/span>\s*<span class="ocm"><b>30× avg<\/b><i>·<\/i> <span>Ads With Cami<\/span><i>·<\/i> /);
   assert.match(html, /<span class="oct">low<\/span>/);
 });
+
+test('CSV imports: hand-added rows cannot take csv: keys; Jon\'s Select matches the same YouTube video in another link form', async () => {
+  const { env } = await setup();
+  assert.equal((await call(env, 'POST', '/v1/calendar', { bot: 'developer', body: { ...VIDEO, key: 'csv:jon-mac:0' } })).status, 400);
+  const put = (outliers) => call(env, 'PUT', '/v1/outliers/jonmacai', { bot: 'developer', body: { outliers } });
+  const o = (link) => ({ title: 'V', link, views: 5000, avg: 1000, published: '2026-10-20' });
+  await put([o('https://www.youtube.com/watch?v=AbCdEfGhIjK&t=5')]);
+  const [row] = (await call(env, 'GET', '/v1/outliers?channel=jonmacai', { bot: 'developer' })).body.outliers;
+  await call(env, 'POST', `/v1/outliers/${row.id}/select`, { jon: true, body: { selected: true } });
+  await put([o('https://youtu.be/AbCdEfGhIjK')]);
+  const [again] = (await call(env, 'GET', '/v1/outliers?channel=jonmacai', { bot: 'developer' })).body.outliers;
+  assert.deepEqual([again.selected, again.selectedBy], [true, 'jon']);
+});

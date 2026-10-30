@@ -256,12 +256,18 @@ def csv_import(ctx, paths, folder, resource, key, row_of):
     channels, skipped = {}, []
     for f in files:
         try:
-            with open(f, newline='', encoding='utf-8-sig') as fh:
-                rows = list(csv.DictReader(fh))
+            try:
+                rows = read_rows(f, 'utf-8-sig')
+            except UnicodeDecodeError:
+                rows = read_rows(f, 'cp1252')  # Excel's default "CSV" save
         except OSError as err:
             raise Fail(2, 'Cannot read %s: %s' % (f, err))
-        items = channels.setdefault(f.stem, [])  # an empty file clears the channel
+        items, bad = [], 0
         for n, row in enumerate(rows, start=2):  # line 1 is the header
+            if None in row:  # more cells than columns
+                skipped.append('%s line %d: more cells than columns (put quotes around text with commas)' % (f.name, n))
+                bad += 1
+                continue
             row = {(k or '').strip().lower(): (v or '').strip() for k, v in row.items()}
             if not any(row.values()):
                 continue
@@ -269,6 +275,13 @@ def csv_import(ctx, paths, folder, resource, key, row_of):
                 items.append(row_of(row))
             except ValueError as err:
                 skipped.append('%s line %d: %s' % (f.name, n, err))
+                bad += 1
+        # A file with a bad row isn't sent at all: the page keeps its last good import rather than losing rows.
+        # Only a file with no data rows clears its channel.
+        if bad:
+            skipped.append('%s: not imported until its %d bad row(s) are fixed; the page keeps the last good import' % (f.name, bad))
+        else:
+            channels[f.stem] = items
     done = {}
     for channel, items in channels.items():
         try:
@@ -276,6 +289,11 @@ def csv_import(ctx, paths, folder, resource, key, row_of):
         except Fail as err:
             skipped.append('%s: %s' % (channel, err))
     return {'imported': done, 'skipped': skipped}
+
+
+def read_rows(path, encoding):
+    with open(path, newline='', encoding=encoding) as fh:
+        return list(csv.DictReader(fh))
 
 
 def day_or_fail(value, name):
@@ -299,7 +317,7 @@ def calendar_row(row):
 def whole(value, name):
     try:
         return int(float((value or '').replace(',', '')))
-    except ValueError:
+    except (ValueError, OverflowError):
         raise ValueError('%s %r is not a number' % (name, value))
 
 
@@ -689,7 +707,7 @@ def main(argv=None):
         print('dash.py: %s' % err, file=sys.stderr)
         return err.code
     print(json.dumps(out, indent=2, ensure_ascii=False))
-    return 0
+    return 1 if isinstance(out, dict) and out.get('skipped') else 0  # an import with problems exits 1, so it gets reported
 
 
 if __name__ == '__main__':

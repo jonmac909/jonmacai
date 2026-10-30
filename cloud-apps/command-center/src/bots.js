@@ -1025,6 +1025,16 @@ function webLinkOf(body, key = 'link', required = false) {
   return s;
 }
 
+// csv: keys belong to the CSV imports (PUT calendar|outliers/<channel>), which replace those rows.
+function keyOf(body) {
+  const key = text(body, 'key', 200);
+  if (key?.startsWith('csv:')) throw new Bad(400, 'key must not start with csv: (the CSV imports use those)');
+  return key;
+}
+
+// A YouTube video's id, so youtu.be/x and youtube.com/watch?v=x match; any other link is its own key.
+const videoKey = (link) => String(link).match(/(?:[?&]v=|youtu\.be\/|\/shorts\/|\/embed\/)([\w-]{11})/)?.[1] || link;
+
 function countOf(body, key, min) {
   const n = numberOf(body, key, min, 1e12, true);
   if (!Number.isInteger(n)) throw new Bad(400, `${key} must be a whole number`);
@@ -1066,7 +1076,7 @@ async function addCalendar(db, who, body, now) {
   const time = matchOf(body, 'time', TIME_RE, '09:00') || null;
   const status = oneOf(body.status ?? 'planned', CALENDAR_STATUSES, 'status');
   const link = webLinkOf(body, 'link');
-  const key = text(body, 'key', 200);
+  const key = keyOf(body);
   const id = newId('v');
   const { row, duplicate } = await insertOnce(db, 'yt_calendar', 'created_by', who.bot, key, id,
     `INSERT INTO yt_calendar (id, channel, title, day, time_pt, status, link, created_by, updated_by, idem_key, created_at, updated_at)
@@ -1137,7 +1147,7 @@ async function addOutlier(db, who, body, now) {
   const avg = countOf(body, 'avg', 1);
   const published = matchOf(body, 'published', DAY_RE, '2026-10-27', true);
   const source = text(body, 'source', 200) || null;
-  const key = text(body, 'key', 200);
+  const key = keyOf(body);
   const id = newId('o');
   const { row, duplicate } = await insertOnce(db, 'yt_outliers', 'created_by', who.bot, key, id,
     `INSERT INTO yt_outliers (id, channel, title, source, link, thumb, views, avg_views, published, created_by, idem_key, created_at)
@@ -1165,13 +1175,13 @@ async function putOutliers(db, who, slug, body, now) {
   const channel = channelOf(slug);
   if (!Array.isArray(body.outliers) || body.outliers.length > 500) throw new Bad(400, 'outliers must be a list of at most 500');
   const { results } = await db.prepare("SELECT link, selected, selected_at FROM yt_outliers WHERE channel = ? AND selected_by = 'jon'").bind(channel).all();
-  const jon = new Map((results || []).map((r) => [r.link, r]));
+  const jon = new Map((results || []).map((r) => [videoKey(r.link), r]));
   const rows = body.outliers.map((o, i) => {
     if (!o || typeof o !== 'object' || Array.isArray(o)) throw new Bad(400, `outliers[${i}] must be {title, link, views, avg, published, ...}`);
     try {
       const link = webLinkOf(o, 'link', true);
       if (o.selected !== undefined && typeof o.selected !== 'boolean') throw new Bad(400, 'selected must be true or false');
-      const mine = jon.get(link);
+      const mine = jon.get(videoKey(link));
       const on = mine ? mine.selected : o.selected ? 1 : 0;
       return [newId('o'), channel, text(o, 'title', 300, true), text(o, 'source', 200) || null, link, webLinkOf(o, 'thumb'),
         countOf(o, 'views', 0), countOf(o, 'avg', 1), matchOf(o, 'published', DAY_RE, '2026-10-27', true),
