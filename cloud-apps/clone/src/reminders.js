@@ -1,5 +1,5 @@
 import { isSandbox, leadKey, paymentConfig } from './payment-config.js';
-import { assignSession, escapeHtml, missingLink, reminderLinks, reminderMessage, reminderPlan, replayStep, salesClosed, SALES_CLOSE,
+import { assignSession, escapeHtml, lateBuyer, missingLink, reminderLinks, reminderMessage, reminderPlan, replayStep, SALES_CLOSE,
   SANDBOX_REMINDER_RECIPIENT } from './reminder-plan.js';
 
 const DAY = 24 * 60 * 60 * 1000;
@@ -242,7 +242,7 @@ export async function purchaseReminders(payload, env) {
   await env.CLONE_LEADS.put(leadKey(env, seat.email), JSON.stringify({ ...lead, purchased: true,
     purchasedAt: new Date(session.purchased_at).toISOString(), commas_txn: session.transaction_ref,
     session_at: session.session_at, session_label: session.session_label,
-    ...(salesClosed(session.purchased_at) ? { late: true } : {}) }));
+    ...(lateBuyer(session) ? { late: true } : {}) }));
   await initializeSteps(env, session);
   await scheduleSession(env, session.transaction_ref);
   return { scheduled: true };
@@ -261,7 +261,7 @@ async function initializeSteps(env, session) {
     VALUES (?, 'event', ?, ?) ON CONFLICT(transaction_ref, step) DO NOTHING`, session.transaction_ref, JSON.stringify({
     event: 'clone.purchase', email: session.email,
     payload: { session_at: session.session_at, session_label: session.session_label, commas_txn: session.transaction_ref },
-  }), isSandbox(env) || salesClosed(session.purchased_at) ? 'skipped' : 'pending');
+  }), isSandbox(env) || lateBuyer(session) ? 'skipped' : 'pending');
   await run(db, 'UPDATE clone_webinar_sessions SET initialized = 1 WHERE transaction_ref = ?', session.transaction_ref);
 }
 

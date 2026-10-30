@@ -190,7 +190,7 @@ export async function runSandbox(options = {}) {
   }
   try {
     if (salesClosed(options.now)) {
-      // After the Oct 29 5:30 PM PT cutoff the funnel cannot sell, so the live run checks the closed state instead.
+      // After the Nov 12 5:30 PM PT cutoff the funnel cannot sell, so the live run checks the closed state instead.
       stage = 'sales closed checks';
       const context = await browser.newContext({ serviceWorkers: 'block', ignoreHTTPSErrors: ['localhost', '127.0.0.1'].includes(base.hostname) });
       try {

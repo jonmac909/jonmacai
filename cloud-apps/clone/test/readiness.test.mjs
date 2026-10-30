@@ -29,7 +29,7 @@ function post(path, body, requestOrigin = origin) {
 function payment(id = 'nmGzE', amount = 47, transaction = 'ORD-test-payment') {
   return { type: 'payment.succeeded', data: { item: { id }, amount, currency: 'USD', status: 'succeeded',
     transaction_history_id: transaction, created_at: '2026-10-07T18:00:00Z',
-    api_metadata: { data: { clone_session_date: '2026-10-29' } } } };
+    api_metadata: { data: { clone_session_date: '2026-11-12' } } } };
 }
 
 test('optional phone; the lead hook never records SMS consent while SMS is disabled', async () => {
@@ -108,14 +108,14 @@ test('per-session ledger deduplicates visits and canonical payments, uses cents,
     await Promise.all([recordScorecardPayment(p, env), recordScorecardPayment({ ...p, id: 'different-envelope' }, env)]);
   }
   await recordScorecardPayment(payment('2J89z', 0, 'ORD-free-trial'), env);
-  const row = env.db.prepare('SELECT * FROM clone_session_scorecard WHERE session_date = ?').get('2026-10-29');
+  const row = env.db.prepare('SELECT * FROM clone_session_scorecard WHERE session_date = ?').get('2026-11-12');
   assert.equal(row.lander_visits, 1); assert.equal(row.seat_purchases, 1);
   assert.equal(row.software_purchases, 1); assert.equal(row.audit_purchases, 1); assert.equal(row.vault_purchases, 1);
   assert.equal(row.gross_cash_cents, 103700); assert.equal(row.net_cash_cents, 103700);
   for (const key of ['ad_spend_cents', 'impressions', 'link_clicks', 'live_attendees', 'peak_concurrent', 'attendees_at_pitch']) assert.equal(row[key], null);
-  // One live session: every visit and payment, before or after it, belongs to Oct 29.
-  assert.equal(sessionDate(Date.parse('2026-10-31T23:01:00Z')), '2026-10-29');
-  assert.equal(sessionDate(Date.parse('2026-10-01T12:00:00Z')), '2026-10-29');
+  // One live session: every visit and payment, before or after it, belongs to Nov 12.
+  assert.equal(sessionDate(Date.parse('2026-11-15T00:01:00Z')), '2026-11-12');
+  assert.equal(sessionDate(Date.parse('2026-10-01T12:00:00Z')), '2026-11-12');
   await recordVisit({ ...env, CLONE_PAYMENT_MODE: 'sandbox' }, '11111111-1111-4111-8111-111111111111', at);
   assert.equal(env.db.prepare('SELECT COUNT(*) n FROM clone_session_events').get().n, 6);
   const columns = env.db.prepare('PRAGMA table_info(clone_session_events)').all().map(c => c.name);

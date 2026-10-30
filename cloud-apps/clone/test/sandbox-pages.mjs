@@ -60,7 +60,7 @@ try {
       assert.equal(response.status(), 200); assert.equal(await page.evaluate(() => CloneMode.environment), 'sandbox');
       assert.equal(await page.evaluate(() => !!window.whop), false);
       const copy = await page.locator('body').innerText();
-      assert.match(copy, /Thursday, October 29(?: @|,| at) 7:00 PM (?:ET|Eastern)/i);
+      assert.match(copy, /Thursday, November 12(?: @|,| at) 7:00 PM (?:ET|Eastern)/i);
       assert.doesNotMatch(copy, /daily at 7|runs daily|any session/i);
       const frames = page.locator('iframe[src*="youtube-nocookie.com/embed/"]');
       const videos = [];
@@ -98,7 +98,7 @@ try {
       const record = await page.evaluate(key => JSON.parse(sessionStorage.getItem('clone_sandbox_whop_event:' + key)), dedup);
       assert.equal(record.payload.event_name, 'page'); assert.ok(!record.payload.url.includes('sandbox='));
       await page.screenshot({ path: '.wrangler/proof/pages/' + transaction + '-' + name + '.png' });
-      purchase.pages.push({ page: name, status: response.status(), single_session_oct29_7pm_et: true, videos, whop: record, reload_deduplicated: true });
+      purchase.pages.push({ page: name, status: response.status(), single_session_nov12_7pm_et: true, videos, whop: record, reload_deduplicated: true });
       console.log('PASS page/copy/log-dedup: ' + transaction + '/' + name + (name === 'survey' ? ' (known missing video)' : ''));
     }
     report.purchases.push(purchase);

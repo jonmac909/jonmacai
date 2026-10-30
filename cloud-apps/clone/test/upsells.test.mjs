@@ -371,7 +371,7 @@ test('Clone one-click payments: verified identity, durable claims and safe fallb
 });
 
 test('after sales close an unverified visitor gets no checkout, a verified buyer still finishes the funnel', async t => {
-  const originalNow = Date.now, close = Date.parse('2026-10-30T00:30:00Z');
+  const originalNow = Date.now, close = Date.parse('2026-11-13T01:30:00Z');
   t.after(() => { Date.now = originalNow; globalThis.fetch = fetchBefore; });
   const fetchBefore = globalThis.fetch;
   await t.test('unverified visitors: 410 sales_closed, no hosted checkout URL, no Commas call', async () => {
