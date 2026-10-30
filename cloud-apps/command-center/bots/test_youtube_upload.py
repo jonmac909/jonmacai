@@ -25,7 +25,7 @@ class FakeGoogle:
         self.got, self.sessions, self.calls, self.meta, self.updated = b'', 0, [], None, None
 
     def __call__(self, method, url, data=None, headers=None):
-        self.calls.append((method, url.split('?')[0]))
+        self.calls.append((method, url))
         headers = headers or {}
         if url == TOKEN_URI:
             return 200, {}, b'{"access_token": "at"}'
@@ -67,7 +67,7 @@ class FakeGoogle:
         raise AssertionError('unexpected %s %s' % (method, url))
 
     def uploaded_chunks(self):
-        return sum(1 for m, u in self.calls if u == SESSION.split('?')[0] and m == 'PUT')
+        return sum(1 for m, u in self.calls if u == SESSION and m == 'PUT')
 
 
 class Base(unittest.TestCase):
@@ -88,7 +88,7 @@ class Base(unittest.TestCase):
         self.addCleanup(sleep.stop)
         (self.dir / 'client.json').write_text(json.dumps({'installed': {
             'client_id': 'cid', 'client_secret': 'cs', 'token_uri': TOKEN_URI}}))
-        (self.dir / 'yt-mina.json').write_text(json.dumps({'channel': MINA, 'refresh_token': 'rt'}))
+        (self.dir / 'yt-mina.json').write_text(json.dumps({'channel': MINA, 'client_id': 'cid', 'refresh_token': 'rt'}))
         self.video = self.dir / 'mina-1.mp4'
         self.video.write_bytes(os.urandom(600 * 1024))  # 3 chunks of 256 KiB
 
@@ -107,6 +107,7 @@ class Upload(Base):
         out = self.up(g)
         self.assertEqual(g.got, self.video.read_bytes())
         self.assertEqual(g.uploaded_chunks(), 3)
+        self.assertIn(('POST', yu.UPLOAD + '/videos?uploadType=resumable&part=snippet,status'), g.calls)
         self.assertEqual(g.meta['status'], {'privacyStatus': 'private', 'selfDeclaredMadeForKids': False,
                                             'containsSyntheticMedia': True})
         self.assertEqual(g.meta['snippet']['tags'], ['ai ugc', 'viral view'])
@@ -136,6 +137,23 @@ class Upload(Base):
         self.assertTrue(again['already_uploaded'])
         self.assertEqual([c for c in g.calls[before:] if c[1].startswith(yu.UPLOAD)], [])
 
+    def test_a_run_killed_after_google_got_the_last_byte_returns_that_video_next_time(self):
+        g = FakeGoogle(self.video.stat().st_size)
+
+        def die_after_last_chunk(method, url, data=None, headers=None):
+            out = g(method, url, data, headers)
+            if url == SESSION and data and len(g.got) == g.size:
+                raise OSError('killed before the video id was saved')
+            return out
+        with self.assertRaises(yu.Fail):
+            self.up(die_after_last_chunk)
+        sent = g.uploaded_chunks()
+        out = self.up(g)
+        self.assertEqual(out['video'], 'VIDEO000001')
+        self.assertFalse(out['already_uploaded'])
+        self.assertEqual(g.sessions, 1)
+        self.assertEqual(g.uploaded_chunks(), sent + 1)  # only the "how far did you get" question
+
     def test_a_network_blip_is_retried_within_the_run(self):
         g = FakeGoogle(self.video.stat().st_size, breaks=1)
         with mock.patch.object(yu, 'RETRIES', 3):
@@ -163,7 +181,8 @@ class Upload(Base):
         before = len(g.calls)
         out = self.up(g, '--thumbnail', str(thumb), '--playlist', 'PLabcdefghij')
         self.assertEqual(out['problems'], [])
-        self.assertEqual([u for _, u in g.calls[before:] if u != TOKEN_URI], [yu.UPLOAD + '/thumbnails/set'])  # no 2nd playlist add
+        self.assertEqual([u for _, u in g.calls[before:] if u != TOKEN_URI],
+                         [yu.UPLOAD + '/thumbnails/set?videoId=VIDEO000001'])  # no 2nd playlist add
 
     def test_real_videos_wait_for_the_audit_but_dry_run_still_shows_the_plan(self):
         args = ['upload', 'mina', str(self.video), '--title', 'T', '--synthetic', 'no']
@@ -243,6 +262,34 @@ class Schedule(Base):
         self.assertEqual(calls, [('GET', '/approvals/a_0123abcd'), ('POST', '/approvals/a_0123abcd/claim'),
                                  ('POST', '/approvals/a_0123abcd/done')])
         self.assertEqual(out['publish'], '2026-11-02T17:00:00Z')
+        self.assertIn(('PUT', yu.API + '/videos?part=status'), g.calls)
+
+    def test_a_video_youtube_keeps_private_is_not_reported_as_published(self):
+        calls = self.dash(self.approval(payload={'channel': 'mina', 'video': 'VIDEO000001', 'publishAt': 'now'}))
+        g = FakeGoogle(0)
+
+        def locked(method, url, data=None, headers=None):
+            if method == 'PUT':
+                body = json.loads(data)
+                body['status']['privacyStatus'] = 'private'
+                return 200, {}, json.dumps(body).encode()
+            return g(method, url, data, headers)
+        with mock.patch.object(yu, 'http', locked), self.assertRaises(yu.Fail) as e:
+            yu.schedule('a_0123abcd', now=NOW)
+        self.assertIn('locked private', str(e.exception))
+        self.assertEqual(calls[-1], ('POST', '/approvals/a_0123abcd/release'))
+
+    def test_dashboard_hiccup_after_youtube_succeeded_is_a_warning_not_a_failure(self):
+        approval = self.approval()
+
+        def call(ctx, method, path, body=None, query=None):
+            if path.endswith('/done'):
+                raise yu.dash.Fail(3, 'Dashboard not reachable')
+            return {'ok': True, 'approval': approval}
+        self.dash(approval)
+        with mock.patch.object(yu.dash, 'call', side_effect=call), mock.patch.object(yu, 'http', FakeGoogle(0)):
+            out = yu.schedule('a_0123abcd', now=NOW)
+        self.assertIn('approval-done', out['warning'])
 
     def test_now_makes_it_public(self):
         self.dash(self.approval(payload={'channel': 'mina', 'video': 'VIDEO000001', 'publishAt': 'now'}))
@@ -296,6 +343,7 @@ class Connect(Base):
         self.assertIn('client_id=123-abc.apps.googleusercontent.com', google_connect.Flow().start('yt-mina'))
         self.assertIn('client_id=cid', google_connect.Flow().start('partners'))  # Gmail keeps its own app
         self.assertNotEqual(google_connect.save_youtube_client('evil', 'x'), '')
+        self.assertFalse(yu.connected('mina'))  # made with the old app: Jon reconnects it with the new one
 
 
 if __name__ == '__main__':

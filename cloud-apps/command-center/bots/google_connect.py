@@ -32,6 +32,7 @@ from pathlib import Path
 DIR = Path(os.environ.get('GOOGLE_SECRETS', r'D:\AgentTeam\secrets\google'))
 PORT = 8765
 REDIRECT = 'http://localhost:%d/' % PORT
+HOSTS = ('localhost:%d' % PORT, '127.0.0.1:%d' % PORT)
 GMAIL, CAL = 'https://www.googleapis.com/auth/gmail.', 'https://www.googleapis.com/auth/calendar.'
 # One consent per account, with every scope the team needs on it. What each bot may do with it is
 # enforced by google_api.py, not by Google: see GOOGLE.md.
@@ -68,6 +69,8 @@ def label(slug):
 
 
 def connected(slug):
+    if slug in YOUTUBE:
+        return yt.connected(slug[3:])
     _, _, key, want = target(slug)
     try:
         return json.loads((DIR / ('%s.json' % slug)).read_text(encoding='utf-8')).get(key) == want
@@ -163,7 +166,7 @@ class Flow:
             return slug, 'That was %s. Open the link again and choose %s.' % (got, label(slug))
         DIR.mkdir(parents=True, exist_ok=True)
         tmp = DIR / ('%s.json.tmp' % slug)
-        tmp.write_text(json.dumps({'account': slug, key: want, 'scopes': sorted(granted),
+        tmp.write_text(json.dumps({'account': slug, key: want, 'client_id': c['client_id'], 'scopes': sorted(granted),
                                    'refresh_token': tok['refresh_token'],
                                    'connected_at': time.strftime('%Y-%m-%dT%H:%M:%S%z')}), encoding='utf-8')
         os.replace(tmp, DIR / ('%s.json' % slug))
@@ -223,7 +226,15 @@ def index(form_key):
 
 def handler(flow, done):
     class H(BaseHTTPRequestHandler):
+        def foreign(self):  # another site reaching this page through DNS rebinding
+            if self.headers.get('Host') in HOSTS:
+                return False
+            self.send_error(403)
+            return True
+
         def do_GET(self):
+            if self.foreign():
+                return
             u = urllib.parse.urlparse(self.path)
             q = dict(urllib.parse.parse_qsl(u.query))
             slug = u.path.strip('/')
@@ -247,6 +258,8 @@ def handler(flow, done):
             self.reply(index(flow.form_key))
 
         def do_POST(self):
+            if self.foreign():
+                return
             size = int(self.headers.get('Content-Length') or 0)
             form = dict(urllib.parse.parse_qsl(self.rfile.read(min(size, 4096)).decode('utf-8', 'replace')))
             if urllib.parse.urlparse(self.path).path != '/youtube-client' or \

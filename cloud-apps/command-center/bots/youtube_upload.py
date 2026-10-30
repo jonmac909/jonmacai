@@ -130,9 +130,11 @@ def token_path(channel):
 
 
 def connected(channel):
+    """A saved sign-in for this exact channel, made with the OAuth app in use now (a new app needs new sign-ins)."""
     try:
-        return json.loads(token_path(channel).read_text(encoding='utf-8')).get('channel') == CHANNELS[channel][2]
-    except (OSError, ValueError):
+        tok = json.loads(token_path(channel).read_text(encoding='utf-8'))
+        return tok.get('channel') == CHANNELS[channel][2] and tok.get('client_id') == client()['client_id']
+    except (OSError, ValueError, KeyError):
         return False
 
 
@@ -373,16 +375,34 @@ def schedule(approval_id, dry_run=False, now=None):
         keep = ('license', 'embeddable', 'publicStatsViewable', 'selfDeclaredMadeForKids', 'containsSyntheticMedia')
         status = {k: v for k, v in items[0].get('status', {}).items() if k in keep}
         status.update({'privacyStatus': 'public'} if when == 'now' else {'privacyStatus': 'private', 'publishAt': when})
-        yt.call('PUT', API + '/videos', {'id': video, 'status': status}, {'part': 'status'})
-    except Fail as err:
+        saved = yt.call('PUT', API + '/videos', {'id': video, 'status': status}, {'part': 'status'}).get('status') or {}
+        # Read back what YouTube kept: a video locked private (unaudited upload) must not be reported as published.
+        if saved.get('privacyStatus') != status['privacyStatus'] or \
+                (when != 'now' and not same_time(saved.get('publishAt'), when)):
+            raise Fail(1, 'YouTube kept the video %s (publishAt %s), not what Jon approved; it may be locked private '
+                          '(uploaded through the unaudited API project)' % (saved.get('privacyStatus'), saved.get('publishAt')))
+    except Exception as err:
         try:
             dash_call(ctx, 'POST', '/approvals/%s/release' % q, {'note': str(err)[:500]})
         except Fail:
             pass  # still "running"; the next session finds it (DASH.md)
-        raise
+        if isinstance(err, Fail):
+            raise
+        raise Fail(1, 'publishing stopped: %s' % err)
     note = 'public now' if when == 'now' else 'scheduled for %s' % when
-    dash_call(ctx, 'POST', '/approvals/%s/done' % q, {'note': note})
-    return dict(plan, done=note, studio='https://studio.youtube.com/video/%s/edit' % video)
+    out = dict(plan, done=note, studio='https://studio.youtube.com/video/%s/edit' % video)
+    try:
+        dash_call(ctx, 'POST', '/approvals/%s/done' % q, {'note': note})
+    except Fail as err:  # YouTube already did it; only the dashboard record is behind
+        out['warning'] = 'YouTube is done, but the approval could not be marked done (%s); run dash.py approval-done' % err
+    return out
+
+
+def same_time(a, b):
+    try:
+        return datetime.fromisoformat(str(a).replace('Z', '+00:00')) == datetime.fromisoformat(b.replace('Z', '+00:00'))
+    except ValueError:
+        return False
 
 
 def upload_meta(args):
