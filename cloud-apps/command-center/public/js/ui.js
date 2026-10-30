@@ -7,13 +7,16 @@ export function barWidth(value) {
 // Jon: never one word alone on a line. CSS text-wrap:pretty catches most; this joins the last two
 // words of each line of text with a no-break space, but only when the pair fits on one line of its
 // box, so a narrow phone card still wraps instead of overflowing. Table columns widen to fit, so a
-// cell takes any pair up to 24 characters ("Oct 19"). Reads every width first, then
-// writes (one layout). Running it twice changes nothing.
-const LAST_PAIR = /(\S+) (\S+)(?=[ \t\r]*(?:\n|$))/g;
-export function noLoneWords(root) {
+// cell takes any pair up to 24 characters ("Oct 19"). Takes a node or a list, reads every width
+// first, then writes (one layout). Running it twice changes nothing. Words are capped at 60
+// characters so a long run with no spaces (raw JSON) stays fast.
+const LAST_PAIR = /(\S{1,60}) (\S{1,60})(?=[ \t\r]*(?:\n|$))/g;
+export function noLoneWords(roots) {
   const nodes = [];
-  if (root.nodeType === 3) nodes.push(root);
-  else for (let w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT), n = w.nextNode(); n; n = w.nextNode()) nodes.push(n);
+  for (const root of [].concat(roots)) {
+    if (root.nodeType === 3) nodes.push(root);
+    else for (let w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT), n = w.nextNode(); n; n = w.nextNode()) nodes.push(n);
+  }
   const edits = [];
   for (const n of nodes) {
     if (!n.parentElement || n.parentElement.closest('textarea,pre,code,script,style,option')) continue;

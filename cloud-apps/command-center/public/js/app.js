@@ -282,8 +282,14 @@ bindModals({ say, act, go });
 
 window.addEventListener('hashchange', () => go(hashPage()));
 
-// Everything the app renders (pages, nav, modals, toasts) gets noLoneWords.
-new MutationObserver((ms) => ms.forEach((m) => m.addedNodes.forEach((n) => noLoneWords(n)))).observe(document.body, { childList: true, subtree: true });
+// Everything the app renders (pages, nav, modals, toasts) gets noLoneWords, in one pass per batch.
+new MutationObserver((ms) => noLoneWords(ms.flatMap((m) => [...m.addedNodes]))).observe(document.body, { childList: true, subtree: true });
+// Pairs were joined for the old width; after a rotation or resize, re-render so they fit again.
+let shownWidth = innerWidth, resizing;
+window.addEventListener('resize', () => {
+  clearTimeout(resizing);
+  resizing = setTimeout(() => { if (innerWidth !== shownWidth) { shownWidth = innerWidth; go(hashPage()); } }, 300);
+});
 
 const snap = await fetch(`${PREFIX}/api/snapshot?v=${Date.now()}`);
 if (snap.status === 401) { location.href = `${PREFIX}/`; throw new Error('auth'); }
