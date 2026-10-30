@@ -179,8 +179,8 @@ test('board: a Review column between QC and Done, counted as waiting on Jon; Rev
   const html = renderProjects(out.pages.projects, {}, 'sponsors');
   const col = (key) => html.match(new RegExp(`<section class="pjcol pjcol-${key}">.*?</section>`, 's'))[0];
   const review = col('review');
-  assert.match(review, /<a class="pjdeliv" href="https:\/\/jonmac.ai\/review\/4\?a=1&amp;b=&quot;2&quot;" target="_blank" rel="noopener">Open render<\/a>/);
-  assert.match(review, /<span class="pjdeliv">local file <code>D:\\renders\\&lt;ep5&gt;\.mp4<\/code><\/span>/);
+  assert.match(review, /<a class="pjdeliv" href="https:\/\/jonmac.ai\/review\/4\?a=1&amp;b=&quot;2&quot;" target="_blank" rel="noopener">Watch video<\/a>/);
+  assert.match(review, /<span class="pjdeliv" title="D:\\renders\\&lt;ep5&gt;\.mp4">Local file: &lt;ep5&gt;\.mp4<\/span>/);
   assert.equal((review.match(/href=/g) || []).length, 1, 'a local path is never a link');
   assert.equal((review.match(/data-ttick="\/dashboard\/api\/v1\/tasks\/t_r\d" data-confirm="Approve &quot;[^"]*&quot;\? It moves to Done\.">Approve</g) || []).length, 2);
   assert.match(review, /data-confirm="Approve &quot;Cut &lt;ep 4&gt;&quot;\? It moves to Done\."/, 'escaped');
@@ -188,7 +188,7 @@ test('board: a Review column between QC and Done, counted as waiting on Jon; Rev
   assert.doesNotMatch(review, /<input|checkbox|<ep/);
   const done = col('done');
   assert.doesNotMatch(done, /href="javascript|data-ttick|data-sendback|>Proof</, 'a non-http deliverable is text, and Done has no buttons');
-  assert.match(done, /local file <code>javascript:alert\(1\)<\/code>/);
+  assert.match(done, /<span class="pjdeliv" title="javascript:alert\(1\)">Local file: javascript:alert\(1\)<\/span>/);
   assert.match(col('qc'), />Proof<\/a>/);
   assert.doesNotMatch(col('qc'), /pjdeliv/, 'the deliverable shows on Review and Done cards only');
 });
@@ -196,14 +196,14 @@ test('board: a Review column between QC and Done, counted as waiting on Jon; Rev
 test('card modal: deliverable on top, Approve and Send back in review; Done only on Jon\'s own open task', () => {
   const base = { id: 't_0123456789abcdef', title: 'Cut "4"', owner: 'sponsors', project: 'sponsors', proofs: [], history: [], comments: [], asks: [] };
   const html = taskModal({ ...base, status: 'review', deliverable: { link: 'https://jonmac.ai/review/4', kind: 'url', web: true } }, 'Sponsors');
-  assert.match(html, /^<h2>Cut &quot;4&quot;<\/h2><p class="cmdeliv"><a class="pjdeliv" href="https:\/\/jonmac.ai\/review\/4" target="_blank" rel="noopener">Open page<\/a><\/p><dl/);
+  assert.match(html, /^<h2>Cut &quot;4&quot;<\/h2><p class="cmmeta">Florence · Ready for your review · Sponsors<\/p><section class="cmact"><h3>Your move<\/h3><div class="qopts"><a class="pjdeliv btn line" href="https:\/\/jonmac.ai\/review\/4" target="_blank" rel="noopener">Watch video<\/a>/);
   assert.match(html, /data-ttick="\/dashboard\/api\/v1\/tasks\/t_0123456789abcdef" data-confirm="Approve &quot;Cut &quot;4&quot;&quot;\? It moves to Done\.">Approve/);
   assert.match(html, /data-tback="\/dashboard\/api\/v1\/tasks\/t_0123456789abcdef">Send back/);
   assert.doesNotMatch(html, /type="checkbox"|>Done</);
   const local = taskModal({ ...base, status: 'done', deliverable: { link: 'D:\\a.mp4', kind: 'render', web: false } }, 'Sponsors');
-  assert.match(local, /<p class="cmdeliv"><span class="pjdeliv">local file <code>D:\\a\.mp4<\/code><\/span><\/p>/);
+  assert.match(local, /<p class="cmdeliv"><span class="pjdeliv" title="D:\\a\.mp4">Local file: a\.mp4<\/span><\/p>/);
   assert.doesNotMatch(local, /href=|data-ttick|data-tback/);
-  assert.doesNotMatch(taskModal({ ...base, status: 'doing', deliverable: { link: 'https://x.example', kind: 'url', web: true } }, 'Sponsors'), /cmdeliv/);
+  assert.doesNotMatch(taskModal({ ...base, status: 'doing', deliverable: { link: 'https://x.example', kind: 'url', web: true } }, 'Sponsors'), /cmdeliv|pjdeliv|Your move/, 'nothing for Jon to do while a bot works');
   const jon = { ...base, owner: 'jon' };
   assert.match(taskModal({ ...jon, status: 'waiting_on_jon' }, 'Sponsors'), /data-ttick[^>]*>Done</);
   for (const status of ['qc', 'done', 'cancelled']) assert.doesNotMatch(taskModal({ ...jon, status }, 'Sponsors'), /data-ttick/, status);

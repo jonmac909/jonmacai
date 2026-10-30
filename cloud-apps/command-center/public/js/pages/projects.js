@@ -1,17 +1,16 @@
-import { esc } from '../ui.js';
+import { esc, botName, linkLabel } from '../ui.js';
 import { goalCard, needItem, summaryCard } from './today.js';
 
 // Projects (2026-10-29): the project list, the chosen project's goal cards and board, and its
 // daily checklist. Questions and approvals use Today's cards and buttons.
-const OPEN_KIND = { render: 'Open render', url: 'Open page', pdf: 'Open PDF', test: 'Open test run' };
 
 // The deliverable of a Review or Done card (also in its modal): a web link opens in a new tab;
 // a file path on GPU1 is plain text, never a link.
-export function deliverableLink(d) {
+export function deliverableLink(d, cls = '') {
   if (!d?.link) return '';
   return /^https?:\/\//i.test(d.link)
-    ? `<a class="pjdeliv" href="${esc(d.link)}" target="_blank" rel="noopener">${esc(OPEN_KIND[d.kind] || 'Open')}</a>`
-    : `<span class="pjdeliv">local file <code>${esc(d.link)}</code></span>`;
+    ? `<a class="pjdeliv${cls ? ` ${cls}` : ''}" href="${esc(d.link)}" target="_blank" rel="noopener">${esc(linkLabel(d.link, d.kind))}</a>`
+    : `<span class="pjdeliv" title="${esc(d.link)}">Local file: ${esc(String(d.link).split(/[\\/]/).pop())}</span>`;
 }
 
 // Approve finalises a Review card, so it asks first (data-confirm).
@@ -28,7 +27,7 @@ function card(it, col) {
   const review = it.reviewUrl ? `<div class="qopts">${approveButton(it.reviewUrl, it.title)}
     <button type="button" class="btn line" data-sendback="${esc(it.id)}">Send back</button></div>` : '';
   return `<li class="pjcard"${open}><span class="pjt">${esc(it.title)}</span>${deliv}
-    <span class="pjm"><span class="jttag">${esc(it.from)}</span>${it.ageLabel ? `<i>·</i><span>${esc(it.ageLabel)}</span>` : ''}${proof}</span>${done}${review}</li>`;
+    <span class="pjm"><span class="jttag">${esc(botName(it.from))}</span>${it.ageLabel ? `<i>·</i><span>${esc(it.ageLabel)}</span>` : ''}${proof}</span>${done}${review}</li>`;
 }
 
 function column(c) {

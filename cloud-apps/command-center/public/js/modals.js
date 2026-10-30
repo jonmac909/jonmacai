@@ -1,5 +1,5 @@
-import { esc, pill } from './ui.js';
-import { needItem } from './pages/today.js';
+import { esc, pill, botName, linkLabel, friendlyWhen } from './ui.js';
+import { needItem, summaryHtml } from './pages/today.js';
 import { approveButton, deliverableLink } from './pages/projects.js';
 
 const PREFIX = '/dashboard';
@@ -8,42 +8,55 @@ let sending = false;
 // ---- Card modal (2026-10-29): any Projects board card. A task loads its proof, history and comment
 // thread; a question or approval shows the board's own card, with the same Reply or Approve/Reject.
 
-const when = (at) => (Number.isFinite(Date.parse(at)) ? new Date(at).toLocaleString('en-CA', { dateStyle: 'medium', timeStyle: 'short' }) : '');
 const PROOF_PILL = { passed: 'ok', failed: 'crit', pending: 'risk' };
 // Under Jon's comments: whether the owner bot was woken. On his own cards no one is, and nothing shows.
 const wakeLine = (status, owner) => (status === 'owner is Jon' ? '' : status == null ? `sending to ${owner}…`
   : status === '200' || status === '202' ? `sent to ${owner}` : `couldn't notify (${status})`);
 
+const STATUS = { todo: 'To do', doing: 'Doing', waiting_on_jon: 'Waiting on you', qc: 'In QC', review: 'Ready for your review', done: 'Done', cancelled: 'Cancelled' };
+
+// One proof: a labelled button (never the raw URL), its QC result, and its notes.
+function proofItem(p) {
+  const name = String(p.link || '').split(/[\\/]/).pop();
+  const open = /^https?:\/\//i.test(p.link)
+    ? `<a class="btn line cmopen" href="${esc(p.link)}" target="_blank" rel="noopener">${esc(linkLabel(p.link, p.kind))}</a>`
+    : `<span class="cmfile" title="${esc(p.link)}">Local file: ${esc(name)}</span>`;
+  const qc = p.status === 'passed' ? 'QC passed' : p.status === 'failed' ? 'QC failed' : 'Waiting for QC';
+  return `<li><div class="cmrow">${open}${pill(qc, PROOF_PILL[p.status] || '')}</div>${p.note ? `<div class="cmsmall">${summaryHtml(p.note)}</div>` : ''}${p.checkNote ? `<div class="cmsmall"><strong>QC:</strong> ${esc(p.checkNote)}</div>` : ''}</li>`;
+}
+
 export function taskModal(t, projectLabel) {
-  const facts = [['Owner', t.owner], ['Status', String(t.status).replace(/_/g, ' ')], ['Project', projectLabel], ['Due', t.due], ['Minutes', t.minutes]]
-    .filter(([, v]) => v != null && v !== '').map(([k, v]) => `<div><dt>${k}</dt><dd>${esc(v)}</dd></div>`).join('');
-  const proofs = (t.proofs || []).map((p) => {
-    const link = /^https?:\/\//i.test(p.link) ? `<a href="${esc(p.link)}" target="_blank" rel="noopener">${esc(p.link)}</a>` : `<code>${esc(p.link)}</code>`;
-    return `<li>${pill(p.status, PROOF_PILL[p.status] || '')} ${esc(p.kind)} · ${link}${p.note ? `<p>${esc(p.note)}</p>` : ''}${p.checkNote ? `<p>QC: ${esc(p.checkNote)}</p>` : ''}</li>`;
-  }).join('');
-  const history = (t.history || []).map((h) => `<li>${esc(h.detail || h.kind)} <span class="cmby">by ${esc(h.by)} · ${esc(when(h.at))}</span></li>`).join('');
-  const comments = (t.comments || []).map((c) => {
-    const wake = c.author === 'jon' ? wakeLine(c.wakeStatus, t.owner) : '';
-    return `<li><span class="cmby"><b>${esc(c.author)}</b> · ${esc(when(c.createdAt))}</span><p>${esc(c.body)}</p>${wake ? `<span class="cmby">${esc(wake)}</span>` : ''}</li>`;
-  }).join('');
-  const list = (html, none) => (html ? `<ul class="cmlist">${html}</ul>` : `<p class="muted">${none}</p>`);
-  // Jon's actions on this card: the same Answer and Approve/Reject as the board, Done on his own open
-  // tasks (the only ones the tick accepts), and Approve or Send back (with the comment box) in review.
+  const meta = [botName(t.owner), STATUS[t.status] || String(t.status).replace(/_/g, ' '), projectLabel, t.due ? `due ${t.due}` : '', t.minutes ? `${t.minutes} min of your time` : '']
+    .filter(Boolean).map(esc).join(' · ');
+  // Your move: only when Jon has to act, with everything he needs right there.
   const url = `${PREFIX}/api/v1/tasks/${t.id}`;
-  const done = t.owner === 'jon' && ['todo', 'doing', 'waiting_on_jon'].includes(t.status)
-    ? `<div class="qopts"><button type="button" class="btn" data-ttick="${esc(url)}">Done</button></div>` : '';
-  const review = t.status === 'review' ? `<div class="qopts">${approveButton(url, t.title)}
-    <button type="button" class="btn line" data-tback="${esc(url)}">Send back</button></div>
-    <p class="muted">To send it back, write what to change in the comment box below.</p>` : '';
+  const open = ['todo', 'doing', 'waiting_on_jon'].includes(t.status);
+  const mine = t.owner === 'jon' && open;
+  const done = mine ? `<button type="button" class="btn" data-ttick="${esc(url)}">Done</button>` : '';
+  const review = t.status === 'review' ? `${approveButton(url, t.title)}
+    <button type="button" class="btn line" data-tback="${esc(url)}">Send back</button>` : '';
+  const d = t.deliverable;
+  const deliv = d?.link && (t.status === 'review' || t.status === 'waiting_on_jon' || mine) ? deliverableLink(d, 'btn line') : '';
   const asks = (t.asks || []).map((it) => needItem(it)).join('');
-  const action = done || review || asks ? `<section class="cmact"><h3>Your action</h3>${done}${review}${asks ? `<ul class="qlist">${asks}</ul>` : ''}</section>` : '';
-  const deliv = t.status === 'review' || t.status === 'done' ? deliverableLink(t.deliverable) : '';
-  return `<h2>${esc(t.title)}</h2>${deliv ? `<p class="cmdeliv">${deliv}</p>` : ''}<dl class="cmfacts">${facts}</dl>${t.note ? `<p class="cmnote">${esc(t.note)}</p>` : ''}${action}
-    <h3>Proof</h3>${list(proofs, 'No proof yet.')}
-    <h3>History</h3>${list(history, 'No history yet.')}
-    <h3>Comments</h3>${list(comments, 'No comments yet.')}
-    <div class="qform"><textarea class="qtext cmtext" rows="3" maxlength="4000" placeholder="Write a comment" aria-label="Your comment"></textarea>
-      <button type="button" class="btn" data-csend="${esc(`${PREFIX}/api/v1/tasks/${t.id}/comments`)}">Send</button></div>`;
+  const buttons = deliv || done || review ? `<div class="qopts">${deliv}${done}${review}</div>` : '';
+  const hint = review ? '<p class="cmsmall">To send it back, write what to change in the comment box.</p>'
+    : !buttons && !asks ? '<p class="cmsmall">Read the note and reply in the comment box.</p>' : '';
+  const move = buttons || asks || t.status === 'waiting_on_jon'
+    ? `<section class="cmact"><h3>Your move</h3>${buttons}${hint}${asks ? `<ul class="qlist">${asks}</ul>` : ''}</section>` : '';
+  const doneLink = t.status === 'done' && d?.link ? `<p class="cmdeliv">${deliverableLink(d, 'btn line')}</p>` : '';
+  const proofs = (t.proofs || []).map(proofItem).join('');
+  const history = (t.history || []).map((h) => `<li>${esc(h.detail || h.kind)} <span class="cmby">· ${esc(botName(h.by))} · ${esc(friendlyWhen(h.at))}</span></li>`).join('');
+  const comments = (t.comments || []).map((c) => {
+    const wake = c.author === 'jon' ? wakeLine(c.wakeStatus, botName(t.owner)) : '';
+    return `<li><span class="cmby"><b>${esc(botName(c.author))}</b> · ${esc(friendlyWhen(c.createdAt))}</span><div class="cmtextbody">${summaryHtml(c.body)}</div>${wake ? `<span class="cmby">${esc(wake)}</span>` : ''}</li>`;
+  }).join('');
+  return `<h2>${esc(t.title)}</h2><p class="cmmeta">${meta}</p>${move}${doneLink}
+    ${t.note ? `<div class="cmnote">${summaryHtml(t.note)}</div>` : ''}
+    ${proofs ? `<h3>Proof</h3><ul class="cmlist cmproofs">${proofs}</ul>` : ''}
+    <h3>Comments</h3>${comments ? `<ul class="cmlist">${comments}</ul>` : ''}
+    <div class="cmcompose"><textarea class="qtext cmtext" rows="2" maxlength="4000" placeholder="Write a comment" aria-label="Your comment"></textarea>
+      <button type="button" class="btn" data-csend="${esc(`${PREFIX}/api/v1/tasks/${t.id}/comments`)}">Send</button></div>
+    ${history ? `<details class="cmhist"><summary>History (${(t.history || []).length})</summary><ul class="cmlist">${history}</ul></details>` : ''}`;
 }
 
 // Questions and approvals: the same card as the board, so its Reply and Approve/Reject work as there.
@@ -82,6 +95,7 @@ async function loadTask(dlg) {
   restoreAnswers(body, answers);
   const next = body.querySelector('.cmtext');
   next.value = typed;
+  if (typed) next.dispatchEvent(new Event('input', { bubbles: true })); // grow to fit, like typing does
   if (focused) next.focus();
   return j.task;
 }
@@ -133,6 +147,11 @@ async function sendComment(dlg, button, say) {
 
 export function bindModals({ say, act, go }) {
   const card = document.getElementById('cardModal');
+  card?.addEventListener('input', (e) => { // the comment box grows with what Jon types
+    if (!e.target.matches('.cmtext')) return;
+    e.target.style.height = 'auto';
+    e.target.style.height = `${Math.min(e.target.scrollHeight + 2, 240)}px`;
+  });
   card?.addEventListener('click', (e) => {
     if (e.target.closest('[data-cclose]')) { card.close(); return; }
     const send = e.target.closest('[data-csend]');

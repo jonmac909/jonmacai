@@ -39,6 +39,39 @@ export function noLoneWords(roots) {
   for (const [n, t] of edits) n.nodeValue = t;
 }
 
+// The team by first name: Jon reads names, not bot slugs.
+export const BOT_NAMES = {
+  jon: 'Jon', ana: 'Ana', sponsors: 'Florence', 'video-editor': 'Olivia', 'viral-view': 'Scarlett', 'jon-mac-youtube': 'Sydney',
+  'home-guide-press': 'Elle', 'short-form': 'Samantha', accounting: 'Elizabeth', developer: 'Lucy', qc: 'Jessica', inbox: 'Zendaya',
+  spotify: 'Daisy', moneyclaw: 'Mila', historient: 'Emma',
+};
+export const botName = (slug) => BOT_NAMES[slug] || String(slug ?? '');
+
+// What a link does when Jon clicks it, never the raw URL.
+export function linkLabel(url, kind) {
+  const u = String(url || '').toLowerCase();
+  if (u.includes('mail.google.com')) return /draft/.test(u) ? 'Open draft in Gmail' : 'Open in Gmail';
+  if (/youtube\.com|youtu\.be|jonmac\.ai\/review|\.(mp4|mov|webm)(\?|#|$)/.test(u) || kind === 'render') return 'Watch video';
+  if (/\.pdf(\?|#|$)/.test(u) || kind === 'pdf') return 'Open PDF';
+  if (u.includes('docs.google.com/spreadsheets')) return 'Open sheet';
+  if (u.includes('docs.google.com')) return 'Open doc';
+  if (u.includes('drive.google.com')) return 'Open in Drive';
+  if (kind === 'test') return 'Open test results';
+  return 'Open page';
+}
+
+// "today 10:50", "yesterday 10:50", "Oct 28" (plus the year when it isn't this year).
+export function friendlyWhen(at, now = new Date()) {
+  const d = new Date(at);
+  if (!Number.isFinite(d.getTime())) return '';
+  const time = d.toLocaleTimeString('en-CA', { hour: 'numeric', minute: '2-digit' });
+  const day = (x) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+  const diff = Math.round((day(now) - day(d)) / 864e5);
+  if (diff === 0) return `today ${time}`;
+  if (diff === 1) return `yesterday ${time}`;
+  return d.toLocaleDateString('en-CA', { month: 'short', day: 'numeric', ...(d.getFullYear() === now.getFullYear() ? {} : { year: 'numeric' }) });
+}
+
 export function esc(s) {
   return String(s ?? '').replace(/[&<>"']/g, (c) => (
     { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
