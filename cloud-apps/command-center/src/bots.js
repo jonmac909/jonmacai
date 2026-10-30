@@ -898,19 +898,21 @@ async function listDaily(db, q) {
 
 // One row per update: who did it, whose item it is (`owner`, for the bot filter) and the task it is on.
 // Comments and proofs come from their own tables (body, link), so their history rows are skipped.
+// D1 allows at most 5 terms in a compound SELECT, so the seven sources are read as two unions and merged.
 // shortcut: each page reads all five tables; add created_at indexes or a date floor past ~50k rows.
-const ACTIVITY = `SELECT x.id, x.at, x.who, x.kind, x.task, x.body, x.link, x.pending,
-  COALESCE(x.item, t.title) AS title, COALESCE(x.whose, t.owner) AS owner FROM (
-  SELECT id, at, "by" AS who, kind, task_id AS task, detail AS body, NULL AS link, NULL AS item, NULL AS whose, 0 AS pending
+const ACTIVITY = [`SELECT id, at, "by" AS who, kind, task_id AS task, detail AS body, NULL AS link, NULL AS item, NULL AS whose, 0 AS pending
     FROM bot_task_events WHERE kind NOT IN ('comment', 'proof')
   UNION ALL SELECT id, created_at, author, 'comment', task_id, body, NULL, NULL, NULL, 0 FROM bot_task_comments
   UNION ALL SELECT id, created_at, created_by, 'proof', task_id, kind, link, NULL, NULL, 0 FROM bot_proofs
-  UNION ALL SELECT id, created_at, asked_by, 'question', task_id, NULL, NULL, question, asked_by, status = 'open' FROM bot_questions
-  UNION ALL SELECT id, answered_at, answered_by, 'answer', task_id, answer, NULL, question, asked_by, 0 FROM bot_questions WHERE answered_at IS NOT NULL
+  UNION ALL SELECT id, created_at, asked_by, 'question', task_id, NULL, NULL, question, asked_by, status = 'open' FROM bot_questions`,
+`SELECT id, answered_at AS at, answered_by AS who, 'answer' AS kind, task_id AS task, answer AS body, NULL AS link, question AS item, asked_by AS whose, 0 AS pending
+    FROM bot_questions WHERE answered_at IS NOT NULL
   UNION ALL SELECT id, created_at, requested_by, 'approval', task_id, NULL, NULL, title, requested_by, status = 'pending' FROM bot_approvals
   UNION ALL SELECT id, decided_at, decided_by, 'decision', task_id, CASE status WHEN 'rejected' THEN 'rejected' ELSE 'approved' END
-    || COALESCE(': ' || decision_note, ''), NULL, title, requested_by, 0 FROM bot_approvals WHERE decided_at IS NOT NULL
-) x LEFT JOIN bot_tasks t ON t.id = x.task`;
+    || COALESCE(': ' || decision_note, ''), NULL, title, requested_by, 0 FROM bot_approvals WHERE decided_at IS NOT NULL`,
+].map((part) => `SELECT x.id, x.at, x.who, x.kind, x.task, x.body, x.link, x.pending,
+  COALESCE(x.item, t.title) AS title, COALESCE(x.whose, t.owner) AS owner FROM (${part}) x LEFT JOIN bot_tasks t ON t.id = x.task`);
+const newestFirst = (a, b) => (a.at === b.at ? (a.id < b.id ? 1 : a.id > b.id ? -1 : 0) : a.at < b.at ? 1 : -1);
 const CURSOR_RE = /^(\d{4}-\d{2}-\d{2}T[\d:.]+Z)\|([a-z]_[0-9a-f]{16})$/;
 
 async function listActivity(db, q) {
@@ -928,8 +930,9 @@ async function listActivity(db, q) {
     args.push(m[1], m[1], m[2]);
   }
   const limit = Math.min(limitOf(q), 300);
-  const sql = `${ACTIVITY}${where.length ? ` WHERE ${where.join(' AND ')}` : ''} ORDER BY x.at DESC, x.id DESC LIMIT ?`;
-  const rows = (await db.prepare(sql).bind(...args, limit).all()).results || [];
+  const tail = `${where.length ? ` WHERE ${where.join(' AND ')}` : ''} ORDER BY x.at DESC, x.id DESC LIMIT ?`;
+  const parts = await Promise.all(ACTIVITY.map((sql) => db.prepare(sql + tail).bind(...args, limit).all()));
+  const rows = parts.flatMap((r) => r.results || []).sort(newestFirst).slice(0, limit);
   const items = rows.map((r) => ({
     id: r.id, at: r.at, who: r.who, owner: r.owner ?? null, kind: r.kind, taskId: r.task ?? null,
     title: r.title ?? null, body: r.body ?? null, link: r.link ?? null, pending: !!r.pending,
