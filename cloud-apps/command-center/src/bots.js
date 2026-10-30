@@ -702,7 +702,8 @@ const tickOut = (r) => ({ day: r.day, project: r.project, item: r.item, bot: r.b
 
 async function tickDaily(db, who, body, now) {
   const project = oneOf(body.project, PROJECT_SLUGS, 'project');
-  if (!DAILY_TICKERS[project].includes(who.bot)) throw new Bad(403, `Only ${DAILY_TICKERS[project].join(' or ')} can tick ${project}`);
+  const tickers = DAILY_TICKERS[project] || [];
+  if (!tickers.includes(who.bot)) throw new Bad(403, `Only ${tickers.join(' or ') || 'its owning bot'} can tick ${project}`);
   const items = parseJson((await latestFeed(db, 'daily_checklists'))?.data, {}).projects?.[project] || [];
   const want = text(body, 'item', 200, true);
   // The item's text (any case), else its 1-based number in the list.
@@ -711,10 +712,13 @@ async function tickDaily(db, who, body, now) {
   const link = linkOf(body.link);
   const note = text(body, 'note', 4000);
   const day = ymd(Date.parse(now));
+  // A bot may re-tick its own item (new proof); on a shared tab it can't overwrite another bot's tick.
   await db.prepare(`INSERT INTO bot_daily_ticks (id, day, project, item, bot, link, note, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    ON CONFLICT (day, project, item) DO UPDATE SET bot = excluded.bot, link = excluded.link, note = excluded.note, created_at = excluded.created_at`)
+    ON CONFLICT (day, project, item) DO UPDATE SET link = excluded.link, note = excluded.note, created_at = excluded.created_at
+    WHERE bot_daily_ticks.bot = excluded.bot`)
     .bind(newId('d'), day, project, item, who.bot, link, note, now).run();
   const row = await db.prepare('SELECT * FROM bot_daily_ticks WHERE day = ? AND project = ? AND item = ?').bind(day, project, item).first();
+  if (row.bot !== who.bot) throw new Bad(409, `${row.bot} already ticked "${item}" today`);
   return json({ ok: true, tick: tickOut(row) });
 }
 

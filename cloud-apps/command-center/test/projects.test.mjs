@@ -259,12 +259,17 @@ test('POST /v1/daily: only the owning bot ticks, by item text or number, with a 
   assert.deepEqual(Object.keys(TICKERS), PROJECTS.map((x) => x.slug));
   await call(env, 'PUT', '/v1/feeds/daily_checklists', { bot: 'ana', body: { projects: Object.fromEntries(PROJECTS.map((x) => [x.slug, [`${x.label} daily`]])) } });
   for (const [project, ok] of Object.entries(TICKERS)) {
-    for (const bot of BOTS) assert.equal((await tick({ project, item: 1 }, bot)).status, ok.includes(bot) ? 200 : 403, `${bot} on ${project}`);
+    let first = true;  // on a shared tab the first allowed bot ticks; the next can't overwrite it
+    for (const bot of BOTS) {
+      const want = !ok.includes(bot) ? 403 : first ? 200 : 409;
+      if (ok.includes(bot)) first = false;
+      assert.equal((await tick({ project, item: 1 }, bot)).status, want, `${bot} on ${project}`);
+    }
   }
   assert.equal((await call(env, 'POST', '/v1/daily', { jon: true, body: { project: 'sponsors', item: 1, link: 'https://x.test/p' } })).status, 403, 'Jon only reads');
   assert.equal((await handleApi(new Request('https://jonmac.ai/dashboard/api/v1/daily'), env)).status, 401);
   const all = (await call(env, 'GET', '/v1/daily', { jon: true })).body.ticks;
-  assert.deepEqual(all.map((x) => [x.project, x.item, x.bot]).sort(), PROJECTS.map((x) => [x.slug, `${x.label} daily`, TICKERS[x.slug].at(-1)]).sort(), 'one row per item; a second bot ticking updates the bot');
+  assert.deepEqual(all.map((x) => [x.project, x.item, x.bot]).sort(), PROJECTS.map((x) => [x.slug, `${x.label} daily`, BOTS.find((b) => TICKERS[x.slug].includes(b))]).sort(), 'one row per item; a second bot cannot overwrite it');
 
   await call(env, 'PUT', '/v1/feeds/daily_checklists', { bot: 'ana', body: { projects: { sponsors: ['Sort partners@ and draft replies', 'Chase overdue payments (drafts)'] } } });
   const byText = await tick({ item: '  chase OVERDUE payments (DRAFTS) ' });
@@ -328,32 +333,42 @@ test('dash.py daily-sync reads "## <tab label>" sections and "- item" lines; the
     '## Coding ',
     '- Live sites checked',
     '',
+    ...['YT-AI UGC', 'Viral View', 'Home Guide Press', 'Short-form', 'Accounting'].flatMap((t) => [`## ${t}`, `- ${t} daily`]),
     "The video tabs' \"Finished render\" item needs Video Editor's render.",
   ].join('\r\n');
   const dir = mkdtempSync(join(tmpdir(), 'daily-'));
   writeFileSync(join(dir, 'sample.md'), sample);
   writeFileSync(join(dir, 'empty.md'), '# Nothing\n- no tabs\n');
+  writeFileSync(join(dir, 'typo.md'), sample.replace('## YT-AI UGC', '## YT AI UGC'));
   const code = [
     'import json, sys, dash',
-    'try:',
-    '    dash.daily_lists(sys.argv[2])',
-    '    empty = 0',
-    'except dash.Fail as err:',
-    '    empty = err.code',
-    'print(json.dumps({"lists": dash.daily_lists(sys.argv[1]), "labels": list(dash.LABELS.items()), "empty": empty}))',
+    'def refused(path):',
+    '    try:',
+    '        dash.daily_lists(path)',
+    '        return 0',
+    '    except dash.Fail as err:',
+    '        return err.code',
+    'print(json.dumps({"lists": dash.daily_lists(sys.argv[1]), "labels": list(dash.LABELS.items()),',
+    '                  "empty": refused(sys.argv[2]), "typo": refused(sys.argv[3])}))',
   ].join('\n');
   const py = process.platform === 'win32' ? 'python' : 'python3';
   const bots = join(dirname(fileURLToPath(import.meta.url)), '..', 'bots');
-  const r = spawnSync(py, ['-c', code, join(dir, 'sample.md'), join(dir, 'empty.md')], { encoding: 'utf8', cwd: bots });
+  const r = spawnSync(py, ['-c', code, join(dir, 'sample.md'), join(dir, 'empty.md'), join(dir, 'typo.md')], { encoding: 'utf8', cwd: bots });
   assert.equal(r.status, 0, r.stderr);
   const got = JSON.parse(r.stdout);
   assert.deepEqual(got.lists, {
     sponsors: ['Sort partners@ and draft replies', 'Chase overdue payments (drafts)'],
     'jon-mac': ['Edit pack handed to Video Editor'],
     coding: ['Live sites checked'],
+    jonmacai: ['YT-AI UGC daily'],
+    'viral-view': ['Viral View daily'],
+    'home-guide-press': ['Home Guide Press daily'],
+    'short-form': ['Short-form daily'],
+    accounting: ['Accounting daily'],
   });
   assert.deepEqual(got.labels, PROJECTS.map((x) => [x.label, x.slug]), 'same labels and slugs as PROJECTS');
   assert.equal(got.empty, 2, 'a file with no tab items is refused locally');
+  assert.equal(got.typo, 2, 'a typo in a tab heading is refused, so that tab is never emptied');
   const { env } = await setup();
   assert.equal((await call(env, 'PUT', '/v1/feeds/daily_checklists', { bot: 'ana', body: { projects: got.lists } })).status, 201);
 });

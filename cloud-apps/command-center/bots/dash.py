@@ -202,6 +202,9 @@ def daily_lists(path):
             lists[slug].append(line[2:].strip())
     if not any(lists.values()):
         raise Fail(2, 'No checklist items in %s: expected "## <tab label>" sections with "- item" lines.' % path)
+    missing = [label for label, slug in LABELS.items() if not lists.get(slug)]
+    if missing:  # a typo'd heading would otherwise empty that tab's checklist
+        raise Fail(2, 'No items under: %s. Check the "## " headings in %s.' % (', '.join(missing), path))
     return lists
 
 

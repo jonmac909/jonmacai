@@ -43,7 +43,7 @@ Each project tab has the same daily items every day, reset at midnight PT. No on
 Tick each daily item when it's done for the day with `dash.py daily-done <project> "<item>" --link <proof>`.
 ```
 dash.py daily-done sponsors "Chase overdue payments (drafts)" --link "https://…" or "D:\path\file" [--note ..]
-dash.py daily-done sponsors 5 --link ..          (or the item's number, 1 = first)
+dash.py daily-done sponsors 5 --link ..          (or the item's number, 1 = first; scripts use the text, numbers change when the list is edited)
 dash.py feed daily_checklists                    (every project's items, in order)
 ```
 - Who ticks which tab (anyone else is refused):
