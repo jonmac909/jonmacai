@@ -212,14 +212,14 @@ test('daily checklist: each tab shows only its own items, ticked by today\'s tic
   assert.equal((s.match(/<input type="checkbox" disabled[ >]/g) || []).length, 3, 'every item has a disabled box');
   assert.equal((s.match(/<input /g) || []).length, 3);
   assert.equal((s.match(/ checked>/g) || []).length, 2);
-  assert.match(s, /<input type="checkbox" disabled checked><span><a href="https:\/\/jonmac.ai\/review\/s1" target="_blank" rel="noopener">Sort partners@<\/a><span class="pjm">sponsors<i>·<\/i>2 hr ago<\/span><\/span>/);
-  assert.match(s, /<input type="checkbox" disabled checked><span>Chase payments<span class="pjm">sponsors<i>·<\/i>30 min ago<i>·<\/i>Local file: chase.txt<\/span><\/span>/, 'a file path is its name, as text');
+  assert.match(s, /<input type="checkbox" disabled checked><span><a href="https:\/\/jonmac.ai\/review\/s1" target="_blank" rel="noopener">Sort partners@<\/a><span class="pjm">Florence<i>·<\/i>2 hr ago<\/span><\/span>/);
+  assert.match(s, /<input type="checkbox" disabled checked><span>Chase payments<span class="pjm">Florence<i>·<\/i>30 min ago<i>·<\/i>Local file: chase.txt<\/span><\/span>/, 'a file path is its name, as text');
   assert.match(s, /<input type="checkbox" disabled><span>Find 5 leads<\/span><\/label>/);
   assert.doesNotMatch(s, /Edit pack|AI clips|data-ttick|data-card/, "only this tab's items, and no tick buttons");
   const jm = card('jon-mac');
   assert.match(jm, /<span class="meta">1\/1<\/span>/);
   assert.doesNotMatch(jm, /<a |href/, 'http(s) links only');
-  assert.match(jm, /video-editor<i>·<\/i>1 hr ago<i>·<\/i>Local file: javascript:alert\(1\)/);
+  assert.match(jm, /Olivia<i>·<\/i>1 hr ago<i>·<\/i>Local file: javascript:alert\(1\)/);
   assert.equal(card('unsorted'), '', 'Unsorted shows no checklist');
 
   const none = fixture();

@@ -25,7 +25,7 @@ function proofItem(p) {
   const lines = String(p.note || '').split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
   const first = (lines.find((l) => !HEADING.test(l)) || '').replace(/^[-*•]\s+/, '');
   const more = lines.length > 1 || first.length > 140 ? `<div class="cmsmall">${summaryHtml(p.note)}</div>` : '';
-  const check = p.checkNote ? `<div class="cmsmall"><strong>QC:</strong> ${esc(p.checkNote)}</div>` : '';
+  const check = p.checkNote ? `<div class="cmsmall"><strong>QC:</strong> ${inline(p.checkNote)}</div>` : '';
   return `<li><div class="cmrow">${pill(qc, PROOF_PILL[p.status] || '')}${open}</div>${first ? `<p class="cmsmall cmone">${inline(first)}</p>` : ''}${more || check ? `<details class="cmdet"><summary>Details</summary>${more}${check}</details>` : ''}</li>`;
 }
 
