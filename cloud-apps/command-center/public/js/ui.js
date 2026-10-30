@@ -5,18 +5,34 @@ export function barWidth(value) {
 }
 
 // Jon: never one word alone on a line. CSS text-wrap:pretty catches most; this joins the last two
-// words of each line of text with a no-break space. Only short pairs (up to 18 characters), so a
-// narrow phone card can still wrap a long pair instead of overflowing. Running it twice changes nothing.
+// words of each line of text with a no-break space, but only when the pair fits on one line of its
+// box, so a narrow phone card still wraps instead of overflowing. Table columns widen to fit, so a
+// cell takes any pair up to 24 characters ("Oct 19"). Reads every width first, then
+// writes (one layout). Running it twice changes nothing.
 const LAST_PAIR = /(\S+) (\S+)(?=[ \t\r]*(?:\n|$))/g;
 export function noLoneWords(root) {
-  const fix = (n) => {
-    if (n.parentElement?.closest('textarea,pre,code,script,style,option')) return;
-    const t = n.nodeValue.replace(LAST_PAIR, (m, a, b) => (m.length <= 18 ? `${a}\u00a0${b}` : m));
-    if (t !== n.nodeValue) n.nodeValue = t;
-  };
-  if (root.nodeType === 3) return fix(root);
-  const walk = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
-  for (let n = walk.nextNode(); n; n = walk.nextNode()) fix(n);
+  const nodes = [];
+  if (root.nodeType === 3) nodes.push(root);
+  else for (let w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT), n = w.nextNode(); n; n = w.nextNode()) nodes.push(n);
+  const edits = [];
+  for (const n of nodes) {
+    if (!n.parentElement || n.parentElement.closest('textarea,pre,code,script,style,option')) continue;
+    let box = n.parentElement;
+    while (box && !box.clientWidth) box = box.parentElement; // inline parents have no width
+    const cell = box?.closest('td,th');
+    const css = box && getComputedStyle(box);
+    const room = box ? box.clientWidth - parseFloat(css.paddingLeft) - parseFloat(css.paddingRight) : 0;
+    const t = n.nodeValue.replace(LAST_PAIR, (m, a, b, at) => {
+      const r = document.createRange();
+      r.setStart(n, at);
+      r.setEnd(n, at + m.length);
+      const width = [...r.getClientRects()].reduce((sum, x) => sum + x.width, 0);
+      // Not laid out yet (hidden): join only short pairs.
+      return (cell ? m.length <= 24 : width ? width + 6 <= room : m.length <= 18) ? `${a}\u00a0${b}` : m;
+    });
+    if (t !== n.nodeValue) edits.push([n, t]);
+  }
+  for (const [n, t] of edits) n.nodeValue = t;
 }
 
 export function esc(s) {
