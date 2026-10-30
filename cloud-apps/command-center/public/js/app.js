@@ -150,6 +150,15 @@ function bindKanban() {
   ktotals();
 }
 
+// The deploy this page's code came from (its first snapshot's). Jon's tab stays open for days, so a
+// newer deploy reloads it, unless a card is open or something is typed.
+let build;
+const stale = (d) => {
+  build ??= d?.build;
+  return !!d?.build && d.build !== build && !document.querySelector('dialog[open]')
+    && ![...document.querySelectorAll('#page textarea, #page input:not([type]), #page input[type=text]')].some((el) => el.value.trim());
+};
+
 export async function go(id, { refetch = false } = {}) {
   if (!Object.hasOwn(pages, id.split('/')[0])) id = 'today';
   const [name, sub] = id.split('/');
@@ -157,6 +166,7 @@ export async function go(id, { refetch = false } = {}) {
   if (refetch || name === 'today') {
     const snap = await fetch(`${PREFIX}/api/snapshot?v=${Date.now()}`);
     if (snap.ok) data = await snap.json();
+    if (stale(data)) { location.reload(); return; }
     document.getElementById('navs').innerHTML = navHtml();
   }
   document.querySelectorAll('.nav').forEach((n) => {
@@ -218,6 +228,16 @@ document.addEventListener('click', (e) => {
     if (back.disabled) return;
     back.disabled = true;
     todayPost(back.dataset.tback, { status: 'doing', comment }, 'Sent back', back, 'PATCH');
+    return;
+  }
+  // Close card, on the board or in its modal: what's in the modal's comment box goes with it as the reason.
+  const close = e.target.closest('[data-tclose]');
+  if (close) {
+    if (close.disabled) return;
+    const comment = close.closest('dialog')?.querySelector('.cmtext')?.value.trim() || '';
+    if (!window.confirm(`Close "${close.dataset.title}"? It leaves the board${comment ? ' and your comment goes to its owner' : ''}.`)) return;
+    close.disabled = true;
+    todayPost(close.dataset.tclose, comment ? { status: 'cancelled', comment } : { status: 'cancelled' }, 'Closed', close, 'PATCH');
     return;
   }
   const tdec = e.target.closest('[data-tdecide]');
@@ -309,6 +329,7 @@ window.addEventListener('resize', () => {
 const snap = await fetch(`${PREFIX}/api/snapshot?v=${Date.now()}`);
 if (snap.status === 401) { location.href = `${PREFIX}/`; throw new Error('auth'); }
 data = await snap.json();
+stale(data); // records this page's build
 document.getElementById('navs').innerHTML = navHtml();
 // Today, Projects and Webinar refresh every 60 s while visible, keeping the sub-path (the chosen project).
 setInterval(() => {

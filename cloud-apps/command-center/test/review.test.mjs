@@ -180,15 +180,16 @@ test('board: a Review column between QC and Done, counted as waiting on Jon; Rev
   const col = (key) => html.match(new RegExp(`<section class="pjcol pjcol-${key}">.*?</section>`, 's'))[0];
   const review = col('review');
   assert.match(review, /<a class="pjdeliv" href="https:\/\/jonmac.ai\/review\/4\?a=1&amp;b=&quot;2&quot;" target="_blank" rel="noopener">Watch video<\/a>/);
-  assert.match(review, /<span class="pjdeliv" title="D:\\renders\\&lt;ep5&gt;\.mp4">Local file: &lt;ep5&gt;\.mp4<\/span>/);
+  assert.match(review, /<span class="pjdeliv">Local file: &lt;ep5&gt;\.mp4<\/span>/);
   assert.equal((review.match(/href=/g) || []).length, 1, 'a local path is never a link');
   assert.equal((review.match(/data-ttick="\/dashboard\/api\/v1\/tasks\/t_r\d" data-confirm="Approve &quot;[^"]*&quot;\? It moves to Done\.">Approve</g) || []).length, 2);
   assert.match(review, /data-confirm="Approve &quot;Cut &lt;ep 4&gt;&quot;\? It moves to Done\."/, 'escaped');
   assert.deepEqual([...review.matchAll(/data-sendback="([^"]+)">Send back</g)].map((m) => m[1]), ['t_r1', 't_r2']);
   assert.doesNotMatch(review, /<input|checkbox|<ep/);
+  assert.equal((review.match(/<button type="button" class="pjx" data-tclose="\/dashboard\/api\/v1\/tasks\/t_r\d" data-title="[^"]*" aria-label="Close &quot;[^"]*&quot;"/g) || []).length, 2, 'Close on each card');
   const done = col('done');
-  assert.doesNotMatch(done, /href="javascript|data-ttick|data-sendback|>Proof</, 'a non-http deliverable is text, and Done has no buttons');
-  assert.match(done, /<span class="pjdeliv" title="javascript:alert\(1\)">Local file: javascript:alert\(1\)<\/span>/);
+  assert.doesNotMatch(done, /href="javascript|data-ttick|data-sendback|data-tclose|>Proof</, 'a non-http deliverable is text, and Done has no buttons');
+  assert.match(done, /<span class="pjdeliv">Local file: javascript:alert\(1\)<\/span>/);
   assert.match(col('qc'), />Proof<\/a>/);
   assert.doesNotMatch(col('qc'), /pjdeliv/, 'the deliverable shows on Review and Done cards only');
 });
@@ -201,7 +202,7 @@ test('card modal: deliverable on top, Approve and Send back in review; Done only
   assert.match(html, /data-tback="\/dashboard\/api\/v1\/tasks\/t_0123456789abcdef">Send back/);
   assert.doesNotMatch(html, /type="checkbox"|>Done</);
   const local = taskModal({ ...base, status: 'done', deliverable: { link: 'D:\\a.mp4', kind: 'render', web: false } }, 'Sponsors');
-  assert.match(local, /<p class="cmdeliv"><span class="pjdeliv" title="D:\\a\.mp4">Local file: a\.mp4<\/span><\/p>/);
+  assert.match(local, /<p class="cmdeliv"><span class="pjdeliv">Local file: a\.mp4<\/span><\/p>/);
   assert.doesNotMatch(local, /href=|data-ttick|data-tback/);
   assert.doesNotMatch(taskModal({ ...base, status: 'doing', deliverable: { link: 'https://x.example', kind: 'url', web: true } }, 'Sponsors'), /cmdeliv|pjdeliv|Your move/, 'nothing for Jon to do while a bot works');
   const jon = { ...base, owner: 'jon' };
@@ -229,4 +230,55 @@ test('migration 0012 run twice moves bot tasks from done to review once, with on
   assert.deepEqual(events.map((e) => [e.task_id, e.kind, e.detail]), [['t_000000000000000a', 'status', 'status done → review (Review stage added; was done 2026-10-29T10:00:00.000Z)']]);
   assert.match(events[0].id, /^e_[0-9a-f]{16}$/);
   assert.ok(Number.isFinite(Date.parse(events[0].at)));
+});
+
+test('Jon closes a card: any unfinished task, with or without a reason; a reason wakes the owner with closed; bots cannot reopen it', async (t) => {
+  const sent = mockFetch(t);
+  const { env } = await setup();
+  const { task } = await inQc(env);
+  assert.equal((await patch(env, task.id, { jon: true, cc: false }, { status: 'cancelled' })).status, 403, 'X-CC required');
+  const closed = await patch(env, task.id, { jon: true }, { status: 'cancelled' });
+  assert.deepEqual([closed.status, closed.body.task.status, closed.body.task.updatedBy, closed.body.comment], [200, 'cancelled', 'jon', undefined]);
+  assert.equal(sent.length, 0, 'no reason, no wake');
+  assert.deepEqual((await history(env, task.id)).at(-1), ['jon', 'status', 'status qc → cancelled (closed by Jon)']);
+  assert.equal((await patch(env, task.id, { jon: true }, { status: 'cancelled' })).status, 409, 'already closed');
+  for (const body of [{ status: 'doing' }, { note: 'still going' }]) {
+    assert.equal((await patch(env, task.id, { bot: 'sponsors' }, body)).status, 409, `bots can't reopen: ${JSON.stringify(body)}`);
+  }
+
+  const { task: other } = await inQc(env, true); // in review, with an open question and a pending approval
+  const q = (await call(env, 'POST', '/questions', { bot: 'sponsors', body: { question: 'Which cut?', task: other.id } })).body.question;
+  const a = (await call(env, 'POST', '/approvals', { bot: 'sponsors', body: { action: 'send_pitches', title: 'Send 3 pitches', payload: { count: 3 }, task: other.id } })).body.approval;
+  const why = await patch(env, other.id, { jon: true }, { status: 'cancelled', comment: ' Not needed any more ' });
+  assert.deepEqual([why.status, why.body.task.status, why.body.comment.body], [200, 'cancelled', 'Not needed any more']);
+  const event = JSON.parse(sent[0].init.body);
+  assert.deepEqual([event.data.task, event.data.closed, event.data.sentBack], [other.id, true, undefined]);
+  const asks = (await call(env, 'GET', `/tasks/${other.id}`, { jon: true })).body.task.asks;
+  assert.deepEqual(asks, [], 'its question and approval closed with it');
+  assert.equal((await call(env, 'GET', `/questions/${q.id}`, { bot: 'sponsors' })).body.question.status, 'closed');
+  assert.equal((await call(env, 'GET', `/approvals/${a.id}`, { bot: 'sponsors' })).body.approval.status, 'cancelled');
+
+  const { task: done } = await inQc(env, true);
+  await patch(env, done.id, { jon: true }, { status: 'done' });
+  assert.equal((await patch(env, done.id, { jon: true }, { status: 'cancelled' })).status, 409, 'done is final');
+});
+
+test('card modal: Close card on unfinished tasks only; Jon reads You; proof is a chip, a button and one line, the rest behind Details', () => {
+  const base = { id: 't_0123456789abcdef', title: 'Cut "4"', owner: 'jon', note: '', proofs: [], history: [], comments: [], asks: [] };
+  for (const status of ['todo', 'doing', 'waiting_on_jon', 'qc', 'review']) {
+    assert.match(taskModal({ ...base, status }, 'Sponsors'), /data-tclose="\/dashboard\/api\/v1\/tasks\/t_0123456789abcdef" data-title="Cut &quot;4&quot;">Close card</, status);
+  }
+  for (const status of ['done', 'cancelled']) assert.doesNotMatch(taskModal({ ...base, status }, 'Sponsors'), /data-tclose/, status);
+  assert.match(taskModal({ ...base, status: 'doing' }, 'Sponsors'), /<p class="cmmeta">You · Doing · Sponsors<\/p>/);
+
+  const proofs = [
+    { link: 'https://docs.google.com/document/d/x', kind: 'url', status: 'passed', note: '**What happened**\n- **Script** v2: hook rewritten\n- 3 beats', checkNote: 'All 12 references checked' },
+    { link: 'D:\\AgentTeam\\renders\\cut.mp4', kind: 'render', status: 'pending', note: 'Short one' },
+  ];
+  const history = [{ at: '2026-10-30T10:00:00Z', by: 'sponsors', kind: 'owner', detail: 'owner sponsors → video-editor' }, { at: '2026-10-30T11:00:00Z', by: 'qc', kind: 'status', detail: 'status qc → review' }];
+  const html = taskModal({ ...base, status: 'review', proofs, history }, 'Sponsors');
+  assert.match(html, /<li><div class="cmrow"><span class="pill ok">QC passed<\/span><a class="btn line cmopen" [^>]*>Open doc<\/a><\/div><p class="cmsmall cmone"><strong>Script<\/strong> v2: hook rewritten<\/p><details class="cmdet"><summary>Details<\/summary>.*3 beats.*<strong>QC:<\/strong> All 12 references checked<\/div><\/details><\/li>/s);
+  assert.match(html, /<span class="cmfile">Local file: cut\.mp4<\/span><\/div><p class="cmsmall cmone">Short one<\/p><\/li>/, 'one line, no Details');
+  assert.doesNotMatch(html, /D:\\/, 'no local paths');
+  assert.match(html, /owner Florence → Olivia .*In QC → Ready for your review/s, 'history in words');
 });

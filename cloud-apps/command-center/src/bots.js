@@ -281,9 +281,12 @@ async function hasProof(db, taskId, status) {
   return !!(await db.prepare(sql).bind(taskId).first());
 }
 
+const CLOSED = 'Jon closed this task. Add a new task if there is more to do';
+
 async function updateTask(db, who, id, body, now) {
   const row = await taskRow(db, id);
   if (!row) throw new Bad(404, 'Task not found');
+  if (row.status === 'cancelled' && row.updated_by === 'jon') throw new Bad(409, CLOSED);
   const sets = [];
   const args = [];
   const next = {}; // the history-tracked columns this call sets
@@ -319,9 +322,12 @@ async function updateTask(db, who, id, body, now) {
   const moving = 'status' in body && body.status !== row.status ? String(body.status).trim().toLowerCase() : '';
   const guard = moving === 'review' ? ` AND EXISTS (${PASSED_SINCE_SENT_BACK})`
     : moving === 'qc' ? " AND EXISTS (SELECT 1 FROM bot_proofs WHERE task_id = bot_tasks.id AND status != 'failed')" : '';
-  const r = await db.prepare(`UPDATE bot_tasks SET ${sets.join(', ')}, updated_by = ?, updated_at = ? WHERE id = ?${guard}`)
+  const r = await db.prepare(`UPDATE bot_tasks SET ${sets.join(', ')}, updated_by = ?, updated_at = ? WHERE id = ? AND NOT (status = 'cancelled' AND updated_by IS 'jon')${guard}`)
     .bind(...args, who.bot, now, id).run();
-  if (guard && !changed(r)) throw new Bad(409, 'QC failed the proof just now; add new proof first');
+  if (!changed(r)) {
+    const latest = await taskRow(db, id);
+    throw new Bad(409, latest.status === 'cancelled' && latest.updated_by === 'jon' ? CLOSED : 'QC failed the proof just now; add new proof first');
+  }
   for (const [key, value] of Object.entries(next)) {
     if ((row[key] ?? null) !== value) await logEvent(db, id, now, who.bot, key, `${key} ${row[key] ?? 'none'} → ${value ?? 'none'}`);
   }
@@ -330,24 +336,32 @@ async function updateTask(db, who, id, body, now) {
 
 // Jon's PATCH. {status: done} ticks off an open task only he can do (owner jon, no proof), or approves
 // a task in review. {status: doing, comment} sends a task in review back to its owner: the comment is
-// saved and wakes the owner like any comment of his, with data.sentBack. Nothing else.
+// saved and wakes the owner like any comment of his, with data.sentBack. {status: cancelled, comment?}
+// closes any unfinished card (Close card); a reason reaches the owner the same way, with data.closed,
+// and bots can't reopen the card. Nothing else.
 async function tickTask(db, env, ctx, id, body, now) {
-  const status = oneOf(body.status, ['done', 'doing'], 'status');
-  const comment = status === 'doing' ? text(body, 'comment', 4000, true) : null; // what to change
+  const status = oneOf(body.status, ['done', 'doing', 'cancelled'], 'status');
+  const close = status === 'cancelled';
+  const comment = status === 'doing' ? text(body, 'comment', 4000, true) : close ? text(body, 'comment', 4000) : null;
   const task = await taskRow(db, id);
   if (!task) throw new Bad(404, 'Task not found');
   const tick = status === 'done' && task.owner === 'jon' && task.status !== 'review';
-  const from = tick ? OPEN_STATUSES : ['review'];
+  const from = close ? [...OPEN_STATUSES, 'qc', 'review'] : tick ? OPEN_STATUSES : ['review'];
   const r = await db.prepare(`UPDATE bot_tasks SET status = ?, done_at = ?, updated_by = 'jon', updated_at = ? WHERE id = ? AND status IN (${from.map(() => '?').join(', ')})`)
     .bind(status, status === 'done' ? now : null, now, id, ...from).run();
   const row = await taskRow(db, id);
   if (!changed(r)) {
-    const error = tick ? `Task is already ${row.status}` : `Task is ${row.status.replace(/_/g, ' ')}; only a task in review can be ${comment ? 'sent back' : 'approved'}`;
+    const error = tick || close ? `Task is already ${row.status}` : `Task is ${row.status.replace(/_/g, ' ')}; only a task in review can be ${comment ? 'sent back' : 'approved'}`;
     return json({ ok: false, error, task: taskOut(row) }, 409);
   }
-  await logEvent(db, id, now, 'jon', tick ? 'tick' : 'status', tick ? 'ticked done' : `status review → ${status} (${comment ? 'sent back' : 'approved'} by Jon)`);
+  await logEvent(db, id, now, 'jon', tick ? 'tick' : 'status', tick ? 'ticked done'
+    : close ? `status ${task.status} → cancelled (closed by Jon)` : `status review → ${status} (${comment ? 'sent back' : 'approved'} by Jon)`);
+  if (close) { // its open asks go with it, so nothing approves or answers work on a closed card
+    await db.prepare("UPDATE bot_questions SET status = 'closed', closed_by = 'jon', closed_at = ?, updated_at = ? WHERE task_id = ? AND status = 'open'").bind(now, now, id).run();
+    await db.prepare("UPDATE bot_approvals SET status = 'cancelled', done_by = 'jon', done_at = ?, done_note = 'card closed', updated_at = ? WHERE task_id = ? AND status = 'pending'").bind(now, now, id).run();
+  }
   if (!comment) return json({ ok: true, task: taskOut(row) });
-  const c = await postComment(db, env, ctx, { jon: true }, row, comment, now, { sentBack: true });
+  const c = await postComment(db, env, ctx, { jon: true }, row, comment, now, close ? { closed: true } : { sentBack: true });
   return json({ ok: true, task: taskOut(row), comment: commentOut(c) });
 }
 

@@ -69,12 +69,12 @@ function needsCard(n) {
 // bullets, blank line = new section. Escaped first, so only these forms become HTML; links must be http(s).
 // A bare URL becomes a labelled link ("Open draft in Gmail"), never the raw address.
 const LINKS = /\[([^\]]+)\]\((https?:\/\/(?:[^\s()<]|\([^\s()<]*\))+)\)|(https?:\/\/(?:[^\s<&]|&amp;)*(?:[^\s<&.,;:!?)\]]|&amp;))/g;
-const inline = (line) => esc(line)
+export const inline = (line) => esc(line)
   .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
   .replace(LINKS, (m, text, href, bare) => (bare
     ? `<a href="${bare}" target="_blank" rel="noopener">${linkLabel(bare.replace(/&amp;/g, '&'))}</a>`
     : `<a href="${href}" target="_blank" rel="noopener">${text}</a>`));
-const HEADING = /^(?:\*\*)?(What happened|Your move|Next|Why|Status)(?:\*\*)?\s*:?\s*(?:\*\*)?$/i;
+export const HEADING = /^(?:\*\*)?(What happened|Your move|Next|Why|Status)(?:\*\*)?\s*:?\s*(?:\*\*)?$/i;
 
 export function summaryHtml(text) {
   return String(text || '').trim().split(/\r?\n\s*\n/).map((section) => {

@@ -246,7 +246,8 @@ export async function handleApi(request, env, ctx) {
     const now = Date.now();
     const extra = { habits: await listHabits(env.DB), funnel: await listFunnel(env.CLONE_DB) };
     if (base.pages.today || base.pages.projects) extra.today = await todayData(env.DB, now, monthWindow(now).key);
-    return json(mergeSnapshot(base, await listSnapshots(env.DB), now, await listDealStages(env.DB), extra));
+    const build = env.CF_VERSION_METADATA?.id ?? null; // this deploy; an open page reloads when it changes (app.js)
+    return json({ ...mergeSnapshot(base, await listSnapshots(env.DB), now, await listDealStages(env.DB), extra), build });
   }
 
   if (rest === '/ingest' && method === 'POST') {

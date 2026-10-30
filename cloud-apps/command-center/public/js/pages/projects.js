@@ -10,7 +10,7 @@ export function deliverableLink(d, cls = '') {
   if (!d?.link) return '';
   return /^https?:\/\//i.test(d.link)
     ? `<a class="pjdeliv${cls ? ` ${cls}` : ''}" href="${esc(d.link)}" target="_blank" rel="noopener">${esc(linkLabel(d.link, d.kind))}</a>`
-    : `<span class="pjdeliv" title="${esc(d.link)}">Local file: ${esc(String(d.link).split(/[\\/]/).pop())}</span>`;
+    : `<span class="pjdeliv">Local file: ${esc(String(d.link).split(/[\\/]/).pop())}</span>`;
 }
 
 // Approve finalises a Review card, so it asks first (data-confirm).
@@ -26,7 +26,8 @@ function card(it, col) {
   const done = it.tickUrl ? `<div class="qopts"><button type="button" class="btn" data-ttick="${esc(it.tickUrl)}">Done</button></div>` : '';
   const review = it.reviewUrl ? `<div class="qopts">${approveButton(it.reviewUrl, it.title)}
     <button type="button" class="btn line" data-sendback="${esc(it.id)}">Send back</button></div>` : '';
-  return `<li class="pjcard"${open}><span class="pjt">${esc(it.title)}</span>${deliv}
+  const close = col === 'done' ? '' : `<button type="button" class="pjx" data-tclose="/dashboard/api/v1/tasks/${esc(it.id)}" data-title="${esc(it.title)}" aria-label="${esc(`Close "${it.title}"`)}" title="Close card">×</button>`;
+  return `<li class="pjcard"${open}>${close}<span class="pjt">${esc(it.title)}</span>${deliv}
     <span class="pjm"><span class="jttag">${esc(botName(it.from))}</span>${it.ageLabel ? `<i>·</i><span>${esc(it.ageLabel)}</span>` : ''}${proof}</span>${done}${review}</li>`;
 }
 
@@ -40,7 +41,8 @@ function column(c) {
 function dailyItem(it) {
   const web = /^https?:\/\//i.test(it.link || '');
   const name = web ? `<a href="${esc(it.link)}" target="_blank" rel="noopener">${esc(it.text)}</a>` : esc(it.text);
-  const meta = it.done ? `<span class="pjm">${esc(it.by)}<i>·</i>${esc(it.ageLabel)}${web ? '' : `<i>·</i>${esc(it.link)}`}</span>` : '';
+  const file = !web && it.link ? `<i>·</i>Local file: ${esc(String(it.link).split(/[\\/]/).pop())}` : '';
+  const meta = it.done ? `<span class="pjm">${esc(it.by)}<i>·</i>${esc(it.ageLabel)}${file}</span>` : '';
   return `<li><label class="pjci"><input type="checkbox" disabled${it.done ? ' checked' : ''}><span>${name}${meta}</span></label></li>`;
 }
 

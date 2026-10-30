@@ -262,10 +262,11 @@ test('card modal: escaped, only http(s) proof links clickable, the thread with w
   assert.doesNotMatch(html, />https?:\/\//, 'no raw URL as text');
   assert.match(html, /<details class="cmhist"><summary>History \(2\)<\/summary>/, 'history collapsed');
   assert.deepEqual(html.match(/href="[^"]*"/g), ['href="https://jonmac.ai/review/4?a=1&amp;b=&quot;2&quot;"']);
-  assert.match(html, /title="javascript:alert\(1\)"/, 'a non-web link is text, not a link');
-  assert.match(html, /<span class="cmfile" title="D:\\renders\\ep4\.mp4">Local file: ep4\.mp4<\/span>/);
+  assert.match(html, /<span class="cmfile">Local file: javascript:alert\(1\)<\/span>/, 'a non-web link is text, not a link');
+  assert.match(html, /<span class="cmfile">Local file: ep4\.mp4<\/span>/);
+  assert.doesNotMatch(html, /D:\\/, 'no local paths');
   assert.match(html, /<strong>QC:<\/strong> &lt;i&gt;ok&lt;\/i&gt;/);
-  assert.ok(html.indexOf('created <span class="cmby">· Ana') < html.indexOf('status doing → qc <span class="cmby">· Jessica'), 'history oldest first, by name');
+  assert.ok(html.indexOf('created <span class="cmby">· Ana') < html.indexOf('Doing → In QC <span class="cmby">· Jessica'), 'history oldest first, by name');
   assert.ok(html.indexOf('Use &lt;img') < html.indexOf('And this') && html.indexOf('And this') < html.indexOf('>Done<'), 'comments oldest first');
   assert.match(html, /sent to Olivia/);
   assert.match(html, /couldn&#39;t notify \(503\)/);
