@@ -39,7 +39,8 @@ export function taskModal(t, projectLabel) {
   const deliv = d?.link && (t.status === 'review' || t.status === 'waiting_on_jon' || mine) ? deliverableLink(d, 'btn line') : '';
   const asks = (t.asks || []).map((it) => needItem(it)).join('');
   const buttons = deliv || done || review ? `<div class="qopts">${deliv}${done}${review}</div>` : '';
-  const hint = review ? '<p class="cmsmall">To send it back, write what to change in the comment box.</p>' : '';
+  const hint = review ? '<p class="cmsmall">To send it back, write what to change in the comment box.</p>'
+    : !buttons && !asks ? '<p class="cmsmall">Read the note and reply in the comment box.</p>' : '';
   const move = buttons || asks || t.status === 'waiting_on_jon'
     ? `<section class="cmact"><h3>Your move</h3>${buttons}${hint}${asks ? `<ul class="qlist">${asks}</ul>` : ''}</section>` : '';
   const doneLink = t.status === 'done' && d?.link ? `<p class="cmdeliv">${deliverableLink(d, 'btn line')}</p>` : '';
@@ -94,6 +95,7 @@ async function loadTask(dlg) {
   restoreAnswers(body, answers);
   const next = body.querySelector('.cmtext');
   next.value = typed;
+  if (typed) next.dispatchEvent(new Event('input', { bubbles: true })); // grow to fit, like typing does
   if (focused) next.focus();
   return j.task;
 }

@@ -641,8 +641,8 @@ body:has(.cardmodal[open]){overflow:hidden} /* the page behind stays put */
 .cardmodal h2{overflow-wrap:anywhere}
 .cardmodal h3:not(.qq){margin:.9rem 0 .1rem;font-size:.95rem;font-weight:650;color:var(--ink)}
 .cmmeta{margin:-.2rem 0 .2rem;font-size:.95rem;color:var(--muted)}
-.cmnote h4{margin:.8rem 0 .2rem;font-size:.95rem;font-weight:650}
-.cmnote h4:first-child{margin-top:0}
+.cmnote h4,.summary h4{margin:.8rem 0 .2rem;font-size:.95rem;font-weight:650}
+.cmnote h4:first-child,.summary h4:first-child{margin-top:0}
 .cmnote ul{margin:.2rem 0 0;padding-left:1.2rem}
 .cmnote li+li{margin-top:.25rem}
 .cmnote p+p,.cmnote ul+p{margin-top:.5rem}
@@ -651,7 +651,6 @@ body:has(.cardmodal[open]){overflow:hidden} /* the page behind stays put */
 .cmopen{text-decoration:none}
 .cmfile{font-size:.9rem;color:var(--muted)}
 .cmsmall{font-size:.88rem;color:var(--muted);line-height:1.5;margin-top:.35rem}
-.cmsmall p,.cmtextbody p{margin:0}
 .cmcompose{display:flex;gap:.5rem;align-items:flex-end}
 .cmcompose .cmtext{flex:1;min-height:2.6rem;max-height:15rem;resize:none;field-sizing:content;font:inherit;font-size:.95rem;line-height:1.4;padding:.55rem .75rem}
 .cmhist summary{cursor:pointer;color:var(--muted);font-size:.9rem;margin-top:.6rem}
@@ -679,3 +678,4 @@ body:has(.cardmodal[open]){overflow:hidden} /* the page behind stays put */
   .pjlist .chip{flex:none;white-space:nowrap}
   .pjpage .pjkan{grid-template-columns:none;grid-auto-flow:column;grid-auto-columns:minmax(78%,1fr)}
 }
+.cmsmall p,.cmtextbody p{margin:0} /* last, so .cmlist p doesn't override it */

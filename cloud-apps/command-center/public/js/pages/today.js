@@ -68,7 +68,7 @@ function needsCard(n) {
 // Ana writes the summary (and bots their card notes) in light Markdown: **bold**, [text](https://link), "- "
 // bullets, blank line = new section. Escaped first, so only these forms become HTML; links must be http(s).
 // A bare URL becomes a labelled link ("Open draft in Gmail"), never the raw address.
-const LINKS = /\[([^\]]+)\]\((https?:\/\/(?:[^\s()<]|\([^\s()<]*\))+)\)|(https?:\/\/[^\s<]*[^\s<.,;:!?)\]'"])/g;
+const LINKS = /\[([^\]]+)\]\((https?:\/\/(?:[^\s()<]|\([^\s()<]*\))+)\)|(https?:\/\/(?:[^\s<&]|&amp;)*(?:[^\s<&.,;:!?)\]]|&amp;))/g;
 const inline = (line) => esc(line)
   .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
   .replace(LINKS, (m, text, href, bare) => (bare
