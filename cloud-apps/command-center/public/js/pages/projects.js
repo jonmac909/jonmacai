@@ -3,11 +3,13 @@ import { goalCard, needItem, summaryCard } from './today.js';
 
 // Projects (2026-10-29): the project list, the chosen project's goal cards and board, and one
 // Today checklist (Jon, then each bot). Questions and approvals use Today's cards and buttons.
+// Every board card opens in the card modal (modals.js) on click, Enter or Space.
 function card(it) {
-  if (it.kind !== 'task') return needItem(it);
+  const open = ` tabindex="0" data-open="${esc(it.id)}"`;
+  if (it.kind !== 'task') return needItem(it, open);
   const proof = /^https?:\/\//i.test(it.proof || '') ? `<a class="pjlink" href="${esc(it.proof)}" target="_blank" rel="noopener">Proof</a>` : '';
   const done = it.tickUrl ? `<div class="qopts"><button type="button" class="btn" data-ttick="${esc(it.tickUrl)}">Done</button></div>` : '';
-  return `<li class="pjcard"><span class="pjt">${esc(it.title)}</span>
+  return `<li class="pjcard"${open}><span class="pjt">${esc(it.title)}</span>
     <span class="pjm"><span class="jttag">${esc(it.from)}</span>${it.ageLabel ? `<i>·</i><span>${esc(it.ageLabel)}</span>` : ''}${proof}</span>${done}</li>`;
 }
 

@@ -6,7 +6,7 @@ import { render as webinar } from './pages/webinar.js';
 import { render as money } from './pages/money.js';
 import { render as life } from './pages/life.js';
 import { formatJobResult } from './ui.js';
-import { bindModals, openDraft } from './modals.js';
+import { bindModals, openCard, openDraft } from './modals.js';
 const PREFIX = '/dashboard';
 // Any other #page (old bookmarks to removed pages) falls back to Today. A page may have a
 // sub-path, like #projects/sponsors; the page itself decides what an unknown one shows.
@@ -79,6 +79,7 @@ function todayPost(url, body, okText, button, method = 'POST') {
         return;
       }
       say(okText);
+      button.closest('dialog')?.close(); // answered from the card modal
       go(hashPage(), { refetch: true });
     })
     .catch(() => { failed(); say('Could not send'); });
@@ -188,7 +189,21 @@ export async function go(id, { refetch = false } = {}) {
   bindKanban();
 }
 
+// A board card opens in the card modal, unless the click was on one of its own controls or links.
+const boardCard = (el) => el.closest?.('#page .pjkan [data-open]');
+document.addEventListener('keydown', (e) => {
+  if ((e.key === 'Enter' || e.key === ' ') && boardCard(e.target) === e.target) {
+    e.preventDefault();
+    openCard(e.target.dataset.open, data.pages.projects);
+  }
+});
+
 document.addEventListener('click', (e) => {
+  const cardEl = boardCard(e.target);
+  if (cardEl && !e.target.closest('a, button, input, textarea, select, summary, label')) {
+    openCard(cardEl.dataset.open, data.pages.projects);
+    return;
+  }
   const tsend = e.target.closest('[data-tsend]');
   if (tsend) {
     const answer = tsend.closest('.qcard').querySelector('.qtext').value.trim();

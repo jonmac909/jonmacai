@@ -249,7 +249,19 @@ async function createTask(db, who, body, now) {
     `INSERT INTO bot_tasks (id, title, owner, status, note, project, minutes, due, created_by, updated_by, idem_key, created_at, updated_at, done_at)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)`,
     [id, title, owner, status, note, project, minutes, due, who.bot, who.bot, key, now, now]);
+  if (!duplicate) await logEvent(db, id, now, who.bot, 'created', 'created');
   return json({ ok: true, duplicate, task: taskOut(row) }, duplicate ? 200 : 201);
+}
+
+// One history row. Best effort: the change it records is already saved, and failing here would make
+// the bot retry (and, for proofs, add a copy).
+async function logEvent(db, taskId, at, by, kind, detail) {
+  try {
+    await db.prepare('INSERT INTO bot_task_events (id, task_id, at, "by", kind, detail) VALUES (?, ?, ?, ?, ?, ?)')
+      .bind(newId('e'), taskId, at, by, kind, detail).run();
+  } catch (err) {
+    console.error('task history', err);
+  }
 }
 
 // Done means proof: qc needs a proof QC hasn't failed, done needs one QC passed.
@@ -265,6 +277,7 @@ async function updateTask(db, who, id, body, now) {
   if (!row) throw new Bad(404, 'Task not found');
   const sets = [];
   const args = [];
+  const next = {}; // the history-tracked columns this call sets
   if ('title' in body) { sets.push('title = ?'); args.push(text(body, 'title', 300, true)); }
   if ('owner' in body) {
     const owner = await ownerOf(db, who, body.owner);
@@ -273,14 +286,14 @@ async function updateTask(db, who, id, body, now) {
       throw new Bad(400, 'A task cannot be moved to or from jon; create a new task with owner jon');
     }
     sets.push('owner = ?');
-    args.push(owner);
+    args.push(next.owner = owner);
   }
   if ('note' in body) { sets.push('note = ?'); args.push(text(body, 'note', 4000)); }
-  if ('project' in body) { sets.push('project = ?'); args.push(projectOf(body.project)); }
+  if ('project' in body) { sets.push('project = ?'); args.push(next.project = projectOf(body.project)); }
   if ('minutes' in body) { sets.push('minutes = ?'); args.push(minutesOf(body)); }
-  if ('due' in body) { sets.push('due = ?'); args.push(matchOf(body, 'due', DAY_RE, '2026-10-29')); }
+  if ('due' in body) { sets.push('due = ?'); args.push(next.due = matchOf(body, 'due', DAY_RE, '2026-10-29')); }
   if ('status' in body) {
-    const status = oneOf(body.status, TASK_STATUSES, 'status');
+    const status = next.status = oneOf(body.status, TASK_STATUSES, 'status');
     if (status !== row.status) {
       if (status === 'qc' && !(await hasProof(db, id, 'qc'))) throw new Bad(409, 'Add proof before moving a task to qc');
       if (status === 'done' && !(await hasProof(db, id, 'done'))) throw new Bad(409, 'A task is done only when QC has passed one of its proofs');
@@ -297,6 +310,9 @@ async function updateTask(db, who, id, body, now) {
   const r = await db.prepare(`UPDATE bot_tasks SET ${sets.join(', ')}, updated_by = ?, updated_at = ? WHERE id = ?${guard}`)
     .bind(...args, who.bot, now, id).run();
   if (guard && !changed(r)) throw new Bad(409, 'QC failed the proof just now; add new proof first');
+  for (const [key, value] of Object.entries(next)) {
+    if ((row[key] ?? null) !== value) await logEvent(db, id, now, who.bot, key, `${key} ${row[key] ?? 'none'} → ${value ?? 'none'}`);
+  }
   return json({ ok: true, task: taskOut(await taskRow(db, id)) });
 }
 
@@ -310,6 +326,7 @@ async function tickTask(db, id, body, now) {
   if (!row) throw new Bad(404, 'Task not found');
   if (row.owner !== 'jon') throw new Bad(403, 'Jon can only tick tasks owned by jon');
   if (!changed(r)) return json({ ok: false, error: `Task is already ${row.status}`, task: taskOut(row) }, 409);
+  await logEvent(db, id, now, 'jon', 'tick', 'ticked done');
   return json({ ok: true, task: taskOut(row) });
 }
 
@@ -326,8 +343,83 @@ async function listTasks(db, who, q) {
 async function getTask(db, id) {
   const row = await taskRow(db, id);
   if (!row) throw new Bad(404, 'Task not found');
-  const { results } = await db.prepare('SELECT * FROM bot_proofs WHERE task_id = ? ORDER BY created_at').bind(id).all();
-  return json({ ok: true, task: { ...taskOut(row), proofs: (results || []).map(proofOut) } });
+  const rows = async (sql) => (await db.prepare(sql).bind(id).all()).results || [];
+  const proofs = await rows('SELECT * FROM bot_proofs WHERE task_id = ? ORDER BY created_at');
+  const comments = await rows('SELECT * FROM bot_task_comments WHERE task_id = ? ORDER BY created_at, rowid');
+  const events = await rows('SELECT * FROM bot_task_events WHERE task_id = ? ORDER BY at, rowid');
+  return json({ ok: true, task: { ...taskOut(row), proofs: proofs.map(proofOut), comments: comments.map(commentOut), history: historyOf(row, proofs, events) } });
+}
+
+// Tasks from before history began have no "created" row: start theirs with one, plus the proofs
+// added before their first recorded event.
+function historyOf(task, proofs, events) {
+  const out = events.map((e) => ({ at: e.at, by: e.by, kind: e.kind, detail: e.detail ?? null }));
+  if (events.some((e) => e.kind === 'created')) return out;
+  const first = events[0]?.at;
+  return [
+    { at: task.created_at, by: task.created_by, kind: 'created', detail: 'created' },
+    ...proofs.filter((p) => !first || p.created_at < first).map((p) => ({ at: p.created_at, by: p.created_by, kind: 'proof', detail: `proof added (${p.kind})` })),
+    ...out,
+  ];
+}
+
+// ---- comments: Jon writes on a card and wakes its owner; the owner bot answers in the thread ----
+
+const commentOut = (r) => ({ id: r.id, taskId: r.task_id, author: r.author, body: r.body, createdAt: r.created_at, wakeStatus: r.wake_status ?? null });
+
+async function addComment(db, env, ctx, who, taskId, body, now) {
+  const task = await taskRow(db, taskId);
+  if (!task) throw new Bad(404, 'Task not found');
+  const comment = { id: newId('c'), task_id: taskId, author: who.jon ? 'jon' : who.bot, body: text(body, 'body', 4000, true), created_at: now, wake_status: null };
+  await db.prepare('INSERT INTO bot_task_comments (id, task_id, author, body, created_at, wake_status) VALUES (?, ?, ?, ?, ?, NULL)')
+    .bind(comment.id, taskId, comment.author, comment.body, now).run();
+  await logEvent(db, taskId, now, comment.author, 'comment', 'commented');
+  if (who.jon) {
+    const wake = wakeOwner(env, task, comment).then(async (status) => {
+      await db.prepare('UPDATE bot_task_comments SET wake_status = ? WHERE id = ?').bind(status, comment.id).run();
+      return status;
+    });
+    if (ctx?.waitUntil) ctx.waitUntil(wake.catch(() => console.error('card_comment: wake result not saved')));
+    else comment.wake_status = await wake.catch(() => null);
+  }
+  return json({ ok: true, comment: commentOut(comment) }, 201);
+}
+
+// POST card_comment to the owner's OpenBot routine, signed exactly like bots/hook.py. Owners without
+// a routine go to Ana with data.forOwner. Returns the HTTP status as text, "unreachable" or
+// "not configured"; never throws, and never logs the URL or secret.
+async function wakeOwner(env, task, comment) {
+  let hooks = null;
+  try { hooks = JSON.parse(env.WEBHOOKS || 'null'); } catch { /* treated as not configured */ }
+  const route = hooks && Object.hasOwn(hooks, task.owner) ? task.owner : 'ana';
+  const cfg = hooks?.[route];
+  if (typeof cfg?.url !== 'string' || typeof cfg?.secret !== 'string' || !cfg.url || !cfg.secret) return 'not configured';
+  const body = JSON.stringify({
+    type: 'card_comment',
+    occurredAt: new Date().toISOString(),
+    data: {
+      task: task.id, title: task.title, project: task.project ?? null, owner: task.owner, comment: comment.body, commentId: comment.id, by: 'jon',
+      url: `https://jonmac.ai/dashboard/#projects/${task.project || 'unsorted'}`, ...(route === task.owner ? {} : { forOwner: task.owner }),
+    },
+  });
+  // shortcut: one attempt (hook.py retries 503 twice); add retries if comments show "couldn't notify (503)" often.
+  try {
+    const ts = String(Math.floor(Date.now() / 1000));
+    const key = await crypto.subtle.importKey('raw', enc.encode(cfg.secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+    const sig = new Uint8Array(await crypto.subtle.sign('HMAC', key, enc.encode(`${ts}.${comment.id}.${body}`)));
+    const res = await fetch(cfg.url, {
+      method: 'POST',
+      body,
+      signal: AbortSignal.timeout(5000),
+      headers: {
+        'Content-Type': 'application/json', 'x-openbot-timestamp': ts, 'x-openbot-delivery-id': comment.id,
+        'x-openbot-signature': `sha256=${[...sig].map((b) => b.toString(16).padStart(2, '0')).join('')}`,
+      },
+    });
+    return String(res.status);
+  } catch {
+    return 'unreachable';
+  }
 }
 
 // ---- proofs ----
@@ -342,6 +434,7 @@ async function addProof(db, who, taskId, body, now) {
     `INSERT INTO bot_proofs (id, task_id, kind, link, note, status, created_by, created_at)
      VALUES (?, ?, ?, ?, ?, 'pending', ?, ?)`,
   ).bind(id, taskId, kind, link, note, who.bot, now).run();
+  await logEvent(db, taskId, now, who.bot, 'proof', `proof added (${kind})`);
   const row = await db.prepare('SELECT * FROM bot_proofs WHERE id = ?').bind(id).first();
   return json({ ok: true, proof: proofOut(row) }, 201);
 }
@@ -354,12 +447,15 @@ async function checkProof(db, who, id, body, now) {
     .bind(result, who.bot, now, note, id).run();
   if (!changed(r)) throw new Bad(404, 'Proof not found');
   const row = await db.prepare('SELECT * FROM bot_proofs WHERE id = ?').bind(id).first();
+  await logEvent(db, row.task_id, now, who.bot, 'check', `proof ${result}`);
   // A failed check takes a qc or done task back to doing when no proof still supports it.
   let task = await taskRow(db, row.task_id);
   if (result === 'failed' && task && (task.status === 'qc' || task.status === 'done') && !(await hasProof(db, task.id, task.status))) {
+    const was = task.status;
     await db.prepare("UPDATE bot_tasks SET status = 'doing', done_at = NULL, updated_by = ?, updated_at = ? WHERE id = ? AND status = ?")
       .bind(who.bot, now, task.id, task.status).run();
     task = await taskRow(db, task.id);
+    if (task.status !== was) await logEvent(db, task.id, now, who.bot, 'status', `status ${was} → ${task.status}`);
   }
   return json({ ok: true, proof: proofOut(row), task: task ? taskOut(task) : null });
 }
@@ -716,7 +812,7 @@ async function whoIs(request, env) {
   return (await readSession(request, env)) ? { jon: true } : null;
 }
 
-async function route(request, db, who, rest) {
+async function route(request, db, who, rest, env, ctx) {
   const method = request.method;
   if (who.jon && method !== 'GET' && request.headers.get('X-CC') !== '1') throw new Bad(403, 'Missing header');
   const q = new URL(request.url).searchParams;
@@ -739,6 +835,7 @@ async function route(request, db, who, rest) {
     case 'GET tasks/:id': return getTask(db, id);
     case 'PATCH tasks/:id': return who.jon ? tickTask(db, id, body, now) : updateTask(db, who, id, body, now);
     case 'POST tasks/:id/proofs': needBot(who); return addProof(db, who, id, body, now);
+    case 'POST tasks/:id/comments': return addComment(db, env, ctx, who, id, body, now);
     case 'GET proofs': return listProofs(db, q);
     case 'POST proofs/:id/check': needBot(who); return checkProof(db, who, id, body, now);
     case 'GET questions': return listQuestions(db, who, q);
@@ -769,13 +866,13 @@ async function route(request, db, who, rest) {
 }
 
 // `rest` is the path after /dashboard/api/v1, e.g. "/tasks/t_0123456789abcdef".
-export async function handleV1(request, env, rest) {
+export async function handleV1(request, env, rest, ctx) {
   const db = env.DB;
   if (!db) return json({ ok: false, error: 'Database unavailable' }, 503);
   try {
     const who = await whoIs(request, env);
     if (!who) return json({ ok: false, error: 'Unauthorized' }, 401);
-    return await route(request, db, who, rest);
+    return await route(request, db, who, rest, env, ctx);
   } catch (err) {
     if (err instanceof Bad) return json({ ok: false, error: err.message }, err.status);
     if (/no such table/i.test(String(err?.message))) return json({ ok: false, error: 'Bot tables are not set up yet' }, 503);

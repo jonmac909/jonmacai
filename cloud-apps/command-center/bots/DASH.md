@@ -48,6 +48,15 @@ dash.py proof-check p_… passed|failed [--note ..]     (QC only)
 ```
 `proof-add` also wakes QC (HOOKS.md). If that fails, the proof is still saved and QC finds it in its queue.
 
+## Comments
+```
+dash.py task t_…                      (the task with its history and comment thread)
+dash.py comment t_… "Fixed, new proof is up"   or   dash.py comment t_… --text-file reply.txt
+```
+- Jon may comment on your card from the Projects page. You are woken with type `card_comment` (`data.task`, `data.comment`).
+- Read the thread with `dash.py task t_…`, then answer with `dash.py comment`. Your comment wakes no one.
+- Keep replies short, and do the work the comment asks for.
+
 ## Questions for Jon
 ```
 dash.py ask "Send the 20 pitches today?" --project sponsors --option Yes --option No [--minutes 2] [--context ..] [--task t_…] [--key ..]

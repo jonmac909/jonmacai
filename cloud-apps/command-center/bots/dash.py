@@ -222,6 +222,15 @@ def run(args, ctx):
                                                  'limit': args.limit})
     if c == 'task':
         return call(ctx, 'GET', '/tasks/%s' % q(args.id, safe=''))
+    if c == 'comment':
+        if args.text and args.text_file:
+            raise Fail(2, 'Give the text or --text-file, not both.')
+        body = (read_file(args.text_file) if args.text_file else args.text or '').strip()
+        if not body:
+            raise Fail(2, 'The comment is empty.')
+        if len(body) > 4000:
+            raise Fail(2, 'The comment is longer than 4000 characters.')
+        return call(ctx, 'POST', '/tasks/%s/comments' % q(args.task_id, safe=''), {'body': body})
     if c == 'proof-add':
         out = call(ctx, 'POST', '/tasks/%s/proofs' % q(args.task_id, safe=''),
                    only({'kind': args.kind, 'link': args.link, 'note': args.note}))
@@ -311,8 +320,13 @@ def parser():
     project_args(a, filter_only=True)
     a.add_argument('--limit', type=int)
 
-    a = s.add_parser('task', help='one task with its proof')
+    a = s.add_parser('task', help='one task with its proof, history and comments')
     a.add_argument('id')
+
+    a = s.add_parser('comment', help="answer in a task's comment thread (wakes no one)")
+    a.add_argument('task_id')
+    a.add_argument('text', nargs='?')
+    a.add_argument('--text-file', help='file whose contents become the comment')
 
     a = s.add_parser('proof-add', help='add proof to a task')
     a.add_argument('task_id')

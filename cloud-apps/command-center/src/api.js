@@ -222,7 +222,7 @@ export async function handleApi(request, env, ctx) {
   const method = request.method;
 
   // Per-bot API (bot tokens or Jon's session); see src/bots.js.
-  if (rest === '/v1' || rest.startsWith('/v1/')) return handleV1(request, env, rest.slice(3));
+  if (rest === '/v1' || rest.startsWith('/v1/')) return handleV1(request, env, rest.slice(3), ctx);
 
   if (rest === '/login' && method === 'POST') {
     const cc = needCc(request);

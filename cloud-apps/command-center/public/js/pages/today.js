@@ -25,7 +25,7 @@ export function goalCard(g) {
 // Links come from pushed data: only web links and same-site paths become clickable.
 const safeHref = (h) => (/^(https?:\/\/|\/(?![/\\]))/i.test(String(h || '')) ? h : '');
 
-export function needItem(it) {
+export function needItem(it, attrs = '') {
   it = { ...it, href: safeHref(it.href) };
   const meta = [it.from ? `<span class="jttag">${esc(it.from)}</span>` : '', it.project ? `<span>${esc(it.project)}</span>` : '', it.ageLabel ? `<span>${esc(it.ageLabel)}</span>` : '']
     .filter(Boolean).join('<i>·</i>');
@@ -47,7 +47,7 @@ export function needItem(it) {
   } else if (it.page) {
     act = `<div class="qopts"><button type="button" class="btn line" data-page="${esc(it.page)}">${esc(it.btn || 'Open')}</button></div>`;
   }
-  return `<li class="qcard nyi ${esc(it.cls || '')}">
+  return `<li class="qcard nyi ${esc(it.cls || '')}"${attrs}>
     <div class="qmeta">${meta}</div>
     <h3 class="qq">${esc(it.title)}</h3>
     ${it.detail ? `<p class="qctx">${esc(it.detail)}</p>` : ''}
@@ -59,7 +59,7 @@ export function needItem(it) {
 function needsCard(n) {
   const items = n.items || [];
   const list = items.length
-    ? `<ul class="qlist nylist">${items.map(needItem).join('')}</ul>`
+    ? `<ul class="qlist nylist">${items.map((it) => needItem(it)).join('')}</ul>`
     : `<p class="muted">${n.available ? 'Nothing needs you right now.' : 'The bot tables could not be read.'}</p>`;
   return `<div class="card pad"><div class="cardhead"><h2>Needs you</h2><span class="meta">${items.length === 1 ? '1 item' : `${items.length} items`}</span></div>
     ${list}${(n.sources || []).map(src).join('')}</div>`;
