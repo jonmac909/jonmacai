@@ -6,9 +6,25 @@ import { buyerSession, checkoutContext, recordPurchaseProof, sameOrigin, upsell,
 import { deliverWhopEvent, enqueueWhopEvent, flushWhopEvents, whopAttribution, whopPurchaseFromVerifiedPayment } from './whop-events.js';
 import { deliverMetaEvent, enqueueMetaEvent, flushMetaEvents, metaAttribution, metaConfigured, metaPaymentFromWebhook, metaPurchase } from './meta-events.js';
 import { purchaseReminders, retryReminders, unsubscribeReminders } from './reminders.js';
-import { salesClosed } from './reminder-plan.js';
+import { assignSession, salesClosed } from './reminder-plan.js';
 import { consentEvidence, readinessConfig, smsSendingEnabled } from './readiness.js';
 import { recordScorecardPayment, recordVisit, sessionDate } from './scorecard.js';
+import { OFFER_PRICE } from './offer.js';
+
+const CSP = "script-src 'self' 'unsafe-inline' https://t.whop.tw https://cdn.embedded.fanbasis.io https://connect.facebook.net https://www.googletagmanager.com";
+
+// Seat button for emails (Jon, Oct 30): the live checkout while sales are open, the
+// "Registration Closed" lander after the close. Only utm_* tags pass through to checkout.
+function seatRedirect(url, env) {
+  let target = url.origin + '/clone/';
+  if (!salesClosed() && env.CHECKOUT_URL) {
+    const checkout = new URL(env.CHECKOUT_URL);
+    for (const [key, value] of url.searchParams) if (/^utm_[a-z]+$/.test(key)) checkout.searchParams.set(key, value);
+    checkout.searchParams.set('lp', 'clone');
+    target = checkout.href;
+  }
+  return new Response(null, { status: 302, headers: { location: target, 'cache-control': 'no-store' } });
+}
 
 export default {
   async fetch(request, env) {
@@ -23,6 +39,7 @@ export default {
     if (url.pathname === "/clone") {
       return Response.redirect(url.origin + "/clone/" + url.search, 301);
     }
+    if (url.pathname === '/clone/seat') return seatRedirect(url, env);
     if (url.pathname === '/clone/api/reminders/unsubscribe') return unsubscribeReminders(request, url.searchParams.get('sandbox') === '1' ? sandboxEnv(env) : env);
     // Sandbox hooks have separate HMAC/storage, log-only Whop and test-mailbox reminders.
     if (url.pathname === '/clone/api/sandbox/purchase' && request.method === 'POST') {
@@ -61,30 +78,35 @@ export default {
     }
     let path = url.pathname.replace(/^\/clone/, "");
     if (path === "" || path === "/") path = "/index.html";
-    const res = await env.ASSETS.fetch(new Request(new URL(path, url.origin), request));
+    // Pages are rewritten below, so the asset store must never answer 304 for a page whose
+    // file is unchanged while OFFER_PRICE changed.
+    const asset = p => {
+      const assetRequest = new Request(new URL(p, url.origin), request);
+      if (p.endsWith('.html')) { assetRequest.headers.delete('if-none-match'); assetRequest.headers.delete('if-modified-since'); }
+      return env.ASSETS.fetch(assetRequest);
+    };
+    let res = await asset(path);
     if (res.status === 404) {
-      const fb = await env.ASSETS.fetch(new Request(new URL("/index.html", url.origin), request));
-      const missing = new Response(fb.body, { status: 404, headers: fb.headers });
-      return isSandbox(env) ? sandboxPage(missing, access.config, env) : missing;
+      const fb = await asset('/index.html');
+      res = new Response(fb.body, { status: 404, headers: fb.headers });
     }
     const response = isSandbox(env) ? sandboxPage(res, access.config, env) : res;
     const headers = new Headers(response.headers);
     // Existing page scripts/SDK remain allowed. No default-src restriction is
     // introduced for the funnel's video, fonts, images or embedded checkout.
-    // Meta pixel ID for meta-pixel.js on every page; only when Meta is configured (never sandbox).
-    if (!isSandbox(env) && metaConfigured(env) && (headers.get('content-type') || '').includes('text/html')) {
-      const tag = '<script>window.CLONE_META=' + JSON.stringify({ pixelId: env.META_PIXEL_ID }) + ';</script>';
-      const html = (await response.text()).replace(/<meta charset=[^>]*>/i, m => m + tag);
-      headers.set('content-security-policy', "script-src 'self' 'unsafe-inline' https://t.whop.tw https://cdn.embedded.fanbasis.io https://connect.facebook.net https://www.googletagmanager.com");
-      if (env.CLONE_VERSION?.id) headers.set('x-clone-version', env.CLONE_VERSION.id);
-      if (env.CLONE_VERSION?.tag) headers.set('x-clone-commit', env.CLONE_VERSION.tag);
-      headers.delete('content-length');
-      return new Response(html, { status: response.status, headers });
-    }
-    headers.set('content-security-policy', "script-src 'self' 'unsafe-inline' https://t.whop.tw https://cdn.embedded.fanbasis.io https://connect.facebook.net https://www.googletagmanager.com");
+    headers.set('content-security-policy', CSP);
     if (env.CLONE_VERSION?.id) headers.set('x-clone-version', env.CLONE_VERSION.id);
     if (env.CLONE_VERSION?.tag) headers.set('x-clone-commit', env.CLONE_VERSION.tag);
-    return new Response(response.body, { status: response.status, headers });
+    if (!(headers.get('content-type') || '').includes('text/html')) return new Response(response.body, { status: response.status, headers });
+    // One offer price for every page (src/offer.js).
+    let html = (await response.text()).replaceAll('{{OFFER_PRICE}}', OFFER_PRICE);
+    // Meta pixel ID for meta-pixel.js on every page; only when Meta is configured (never sandbox).
+    if (!isSandbox(env) && metaConfigured(env)) {
+      const tag = '<script>window.CLONE_META=' + JSON.stringify({ pixelId: env.META_PIXEL_ID }) + ';</script>';
+      html = html.replace(/<meta charset=[^>]*>/i, m => m + tag);
+    }
+    headers.delete('content-length');
+    return new Response(html, { status: response.status, headers });
   },
   async scheduled(controller, env, ctx) {
     ctx.waitUntil(Promise.all([flushWhopEvents(env), flushMetaEvents(env), retryReminders(env),
@@ -155,6 +177,8 @@ async function handleLead(request, env) {
         }),
       }));
     }
+    // Email seat buttons use /clone/seat so they stop selling at the sales close.
+    const checkout = new URL(request.url).origin + "/clone/seat";
     jobs.push(fetch("https://api.resend.com/events/send", {
       method: "POST",
       headers,
@@ -162,9 +186,11 @@ async function handleLead(request, env) {
         event: "clone.lead",
         email,
         data: { first_name: firstName || "there", name },
+        // Resend's documented field; nurture templates read these as event.* variables.
+        payload: { first_name: firstName || "there", name, offer_price: OFFER_PRICE, seat_url: checkout,
+          session_label: assignSession(Date.now()).session_label },
       }),
     }));
-    const checkout = env.CHECKOUT_URL || "https://jonmac.ai/clone/";
     jobs.push(fetch("https://api.resend.com/emails", {
       method: "POST",
       headers,
