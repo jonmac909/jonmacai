@@ -1003,7 +1003,8 @@ async function listJournal(db, q) {
 
 // Sydney, Scarlett and Elle feed the pages; Developer and Ana fix them. Jon only toggles "selected".
 export const CHANNEL_WRITERS = ['jon-mac-youtube', 'viral-view', 'home-guide-press', 'developer', 'ana'];
-export const CALENDAR_STATUSES = ['planned', 'scheduled', 'published'];
+export const CALENDAR_STATUSES = ['idea', 'planned', 'scripted', 'recording', 'editing', 'qc', 'review', 'scheduled', 'published'];
+const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/; // posting time, PT
 const CHANNEL_SLUGS = CHANNELS.map((c) => c.slug);
 
 function needChannelWriter(who) {
@@ -1024,6 +1025,16 @@ function webLinkOf(body, key = 'link', required = false) {
   return s;
 }
 
+// csv: keys belong to the CSV imports (PUT calendar|outliers/<channel>), which replace those rows.
+function keyOf(body) {
+  const key = text(body, 'key', 200);
+  if (key?.toLowerCase().startsWith('csv:')) throw new Bad(400, 'key must not start with csv: (the CSV imports use those)');
+  return key;
+}
+
+// A YouTube video's id, so youtu.be/x and youtube.com/watch?v=x match; any other link is its own key.
+const videoKey = (link) => String(link).match(/(?:[?&]v=|youtu\.be\/|\/shorts\/|\/embed\/)([\w-]{11})/)?.[1] || link;
+
 function countOf(body, key, min) {
   const n = numberOf(body, key, min, 1e12, true);
   if (!Number.isInteger(n)) throw new Bad(400, `${key} must be a whole number`);
@@ -1031,11 +1042,11 @@ function countOf(body, key, min) {
 }
 
 const calendarOut = (r) => ({
-  id: r.id, channel: r.channel, title: r.title, date: r.day, status: r.status, link: r.link ?? null,
+  id: r.id, channel: r.channel, title: r.title, date: r.day, time: r.time_pt ?? null, status: r.status, link: r.link ?? null,
   createdBy: r.created_by, updatedBy: r.updated_by, createdAt: r.created_at, updatedAt: r.updated_at,
 });
 const outlierOut = (r) => ({
-  id: r.id, channel: r.channel, title: r.title, link: r.link, thumb: r.thumb ?? null, views: r.views, avg: r.avg_views,
+  id: r.id, channel: r.channel, title: r.title, source: r.source ?? null, link: r.link, thumb: r.thumb ?? null, views: r.views, avg: r.avg_views,
   multiple: Math.round((r.views / r.avg_views) * 100) / 100, published: r.published, selected: !!r.selected,
   selectedBy: r.selected_by ?? null, selectedAt: r.selected_at ?? null, createdBy: r.created_by, createdAt: r.created_at,
 });
@@ -1062,14 +1073,15 @@ async function addCalendar(db, who, body, now) {
   const channel = channelOf(body.channel);
   const title = text(body, 'title', 300, true);
   const day = matchOf(body, 'date', DAY_RE, '2026-11-03', true);
+  const time = matchOf(body, 'time', TIME_RE, '09:00') || null;
   const status = oneOf(body.status ?? 'planned', CALENDAR_STATUSES, 'status');
   const link = webLinkOf(body, 'link');
-  const key = text(body, 'key', 200);
+  const key = keyOf(body);
   const id = newId('v');
   const { row, duplicate } = await insertOnce(db, 'yt_calendar', 'created_by', who.bot, key, id,
-    `INSERT INTO yt_calendar (id, channel, title, day, status, link, created_by, updated_by, idem_key, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [id, channel, title, day, status, link, who.bot, who.bot, key, now, now]);
+    `INSERT INTO yt_calendar (id, channel, title, day, time_pt, status, link, created_by, updated_by, idem_key, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [id, channel, title, day, time, status, link, who.bot, who.bot, key, now, now]);
   return json({ ok: true, duplicate, video: calendarOut(row) }, duplicate ? 200 : 201);
 }
 
@@ -1079,12 +1091,36 @@ async function updateCalendar(db, who, id, body, now) {
   const args = [];
   if ('title' in body) { sets.push('title = ?'); args.push(text(body, 'title', 300, true)); }
   if ('date' in body) { sets.push('day = ?'); args.push(matchOf(body, 'date', DAY_RE, '2026-11-03', true)); }
+  if ('time' in body) { sets.push('time_pt = ?'); args.push(matchOf(body, 'time', TIME_RE, '09:00') || null); }
   if ('status' in body) { sets.push('status = ?'); args.push(oneOf(body.status, CALENDAR_STATUSES, 'status')); }
   if ('link' in body) { sets.push('link = ?'); args.push(webLinkOf(body, 'link')); }
-  if (!sets.length) throw new Bad(400, 'Nothing to change: send title, date, status or link');
+  if (!sets.length) throw new Bad(400, 'Nothing to change: send title, date, time, status or link');
   const r = await db.prepare(`UPDATE yt_calendar SET ${sets.join(', ')}, updated_by = ?, updated_at = ? WHERE id = ?`).bind(...args, who.bot, now, id).run();
   if (!changed(r)) throw new Bad(404, 'Calendar video not found');
   return json({ ok: true, video: calendarOut(await db.prepare('SELECT * FROM yt_calendar WHERE id = ?').bind(id).first()) });
+}
+
+// An owner's CSV schedule for one channel (dash.py calendar-import): its rows replace the channel's
+// earlier CSV rows in one batch. Videos added one by one (POST calendar) stay.
+async function putCalendar(db, who, slug, body, now) {
+  needChannelWriter(who);
+  const channel = channelOf(slug);
+  if (!Array.isArray(body.videos) || body.videos.length > 500) throw new Bad(400, 'videos must be a list of at most 500');
+  const rows = body.videos.map((v, i) => {
+    if (!v || typeof v !== 'object' || Array.isArray(v)) throw new Bad(400, `videos[${i}] must be {date, time?, title, status, link?}`);
+    try {
+      return [newId('v'), channel, text(v, 'title', 300, true), matchOf(v, 'date', DAY_RE, '2026-11-03', true),
+        matchOf(v, 'time', TIME_RE, '09:00') || null, oneOf(v.status, CALENDAR_STATUSES, 'status'), webLinkOf(v, 'link'),
+        who.bot, who.bot, `csv:${channel}:${i}`, now, now];
+    } catch (err) {
+      throw err instanceof Bad ? new Bad(400, `videos[${i}]: ${err.message}`) : err;
+    }
+  });
+  const insert = db.prepare(`INSERT INTO yt_calendar (id, channel, title, day, time_pt, status, link, created_by, updated_by, idem_key, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
+  const [gone] = await db.batch([db.prepare("DELETE FROM yt_calendar WHERE channel = ? AND idem_key LIKE 'csv:%'").bind(channel),
+    ...rows.map((r) => insert.bind(...r))]);
+  return json({ ok: true, channel, replaced: gone?.meta?.changes ?? 0, videos: rows.length });
 }
 
 async function listCalendar(db, q) {
@@ -1110,12 +1146,13 @@ async function addOutlier(db, who, body, now) {
   const views = countOf(body, 'views', 0);
   const avg = countOf(body, 'avg', 1);
   const published = matchOf(body, 'published', DAY_RE, '2026-10-27', true);
-  const key = text(body, 'key', 200);
+  const source = text(body, 'source', 200) || null;
+  const key = keyOf(body);
   const id = newId('o');
   const { row, duplicate } = await insertOnce(db, 'yt_outliers', 'created_by', who.bot, key, id,
-    `INSERT INTO yt_outliers (id, channel, title, link, thumb, views, avg_views, published, created_by, idem_key, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [id, channel, title, link, thumb, views, avg, published, who.bot, key, now]);
+    `INSERT INTO yt_outliers (id, channel, title, source, link, thumb, views, avg_views, published, created_by, idem_key, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [id, channel, title, source, link, thumb, views, avg, published, who.bot, key, now]);
   return json({ ok: true, duplicate, outlier: outlierOut(row) }, duplicate ? 200 : 201);
 }
 
@@ -1129,6 +1166,35 @@ async function selectOutlier(db, who, id, body, now) {
   const row = await db.prepare('SELECT * FROM yt_outliers WHERE id = ?').bind(id).first();
   if (!row) throw new Bad(404, 'Outlier not found');
   return json({ ok: true, outlier: outlierOut(row) });
+}
+
+// An owner's Content CSV for one channel (dash.py content-import): its rows replace the channel's earlier
+// CSV rows in one batch. Where Jon toggled Select on the same video, his choice stays over the CSV's.
+async function putOutliers(db, who, slug, body, now) {
+  needChannelWriter(who);
+  const channel = channelOf(slug);
+  if (!Array.isArray(body.outliers) || body.outliers.length > 500) throw new Bad(400, 'outliers must be a list of at most 500');
+  const { results } = await db.prepare("SELECT link, selected, selected_at FROM yt_outliers WHERE channel = ? AND selected_by = 'jon'").bind(channel).all();
+  const jon = new Map((results || []).map((r) => [videoKey(r.link), r]));
+  const rows = body.outliers.map((o, i) => {
+    if (!o || typeof o !== 'object' || Array.isArray(o)) throw new Bad(400, `outliers[${i}] must be {title, link, views, avg, published, ...}`);
+    try {
+      const link = webLinkOf(o, 'link', true);
+      if (o.selected !== undefined && typeof o.selected !== 'boolean') throw new Bad(400, 'selected must be true or false');
+      const mine = jon.get(videoKey(link));
+      const on = mine ? mine.selected : o.selected ? 1 : 0;
+      return [newId('o'), channel, text(o, 'title', 300, true), text(o, 'source', 200) || null, link, webLinkOf(o, 'thumb'),
+        countOf(o, 'views', 0), countOf(o, 'avg', 1), matchOf(o, 'published', DAY_RE, '2026-10-27', true),
+        on, mine ? 'jon' : on ? who.bot : null, mine ? mine.selected_at : on ? now : null, who.bot, `csv:${channel}:${i}`, now];
+    } catch (err) {
+      throw err instanceof Bad ? new Bad(400, `outliers[${i}]: ${err.message}`) : err;
+    }
+  });
+  const insert = db.prepare(`INSERT INTO yt_outliers (id, channel, title, source, link, thumb, views, avg_views, published, selected, selected_by,
+    selected_at, created_by, idem_key, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
+  const [gone] = await db.batch([db.prepare("DELETE FROM yt_outliers WHERE channel = ? AND idem_key LIKE 'csv:%'").bind(channel),
+    ...rows.map((r) => insert.bind(...r))]);
+  return json({ ok: true, channel, replaced: gone?.meta?.changes ?? 0, outliers: rows.length });
 }
 
 async function listOutliers(db, q) {
@@ -1216,6 +1282,8 @@ async function route(request, db, who, rest, env, ctx) {
     if (method === 'PUT' && rawId) return setChannel(db, who, rawId, await readBody(request), now);
     throw new Bad(404, 'Not found');
   }
+  if (kind === 'calendar' && method === 'PUT' && rawId && !verb) return putCalendar(db, who, rawId, await readBody(request), now);
+  if (kind === 'outliers' && method === 'PUT' && rawId && !verb) return putOutliers(db, who, rawId, await readBody(request), now);
   const id = rawId ? idOf(rawId) : null;
   const body = method === 'POST' || method === 'PATCH' ? await readBody(request) : {};
 

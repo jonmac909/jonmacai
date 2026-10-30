@@ -11,6 +11,7 @@ Prints the JSON reply. Exit codes: 0 ok; 1 the dashboard refused (reason on stde
 reached or failed (network, 5xx, redirect, not JSON). See DASH.md.
 """
 import argparse
+import csv
 import json
 import os
 import re
@@ -30,7 +31,10 @@ FEEDS = ['morning_summary', 'calendar_today', 'claude_usage', 'ebook_sales', 'da
 LABELS = {'Sponsors': 'sponsors', 'YT-JM': 'jon-mac', 'YT-AI UGC': 'jonmacai', 'Viral View': 'viral-view',
           'Home Guide Press': 'home-guide-press', 'Short-form': 'short-form', 'Accounting': 'accounting', 'Coding': 'coding'}
 PROJECTS = list(LABELS.values())
-CALENDAR_STATUSES = ['planned', 'scheduled', 'published']
+CALENDAR_STATUSES = ['idea', 'planned', 'scripted', 'recording', 'editing', 'qc', 'review', 'scheduled', 'published']
+CALENDAR_DIR = Path(r'D:\AgentTeam\calendar')  # one CSV per channel: date,time_pt,channel,title,status,link
+CONTENT_DIR = Path(r'D:\AgentTeam\content')  # channel,outlier_title,source_channel,url,views,channel_avg,multiple,published_date,selected[,thumbnail_url]
+WEB_RE = re.compile(r'^https?://[^\s/?#]+\S*$', re.I)
 DAILY_FILE = r'D:\AgentTeam\rules\facts\daily-checklists.md'
 
 
@@ -224,6 +228,125 @@ def day_of(value, flag):
     return value
 
 
+def time_of(value):
+    """'9:00', '09:00', '9am', '9:30 PM' -> '09:00' / '21:30' (PT); '' -> None."""
+    s = (value or '').strip().lower().replace('.', '')
+    if not s:
+        return None
+    m = re.fullmatch(r'(\d{1,2})(?::(\d{2}))?\s*(am|pm)?(?:\s*pt)?', s)
+    if not m or (not m.group(2) and not m.group(3)):
+        raise ValueError('time_pt %r is not a time like 09:00 or 9:30 PM' % value)
+    h, mins, half = int(m.group(1)), int(m.group(2) or 0), m.group(3)
+    if half:
+        if not 1 <= h <= 12:
+            raise ValueError('time_pt %r is not a time' % value)
+        h = h % 12 + (12 if half == 'pm' else 0)
+    if h > 23 or mins > 59:
+        raise ValueError('time_pt %r is not a time' % value)
+    return '%02d:%02d' % (h, mins)
+
+
+def csv_import(ctx, paths, folder, resource, key, row_of):
+    """Each <channel-slug>.csv (default: every one in `folder`) replaces that channel's CSV rows on its page
+    (PUT /<resource>/<channel>). row_of(row) turns one CSV row into what the API takes, or raises ValueError:
+    that row is skipped and reported. The file name is the channel; a CSV's channel column is only a label."""
+    files = [Path(p) for p in paths] or sorted(folder.glob('*.csv'))
+    if not files:
+        raise Fail(2, 'No CSV files in %s.' % folder)
+    channels, skipped = {}, []
+    for f in files:
+        try:
+            try:
+                rows = read_rows(f, 'utf-8-sig')
+            except UnicodeDecodeError:
+                rows = read_rows(f, 'cp1252')  # Excel's default "CSV" save
+        except (OSError, UnicodeDecodeError, csv.Error) as err:  # one unreadable file never stops the others
+            skipped.append('%s: not imported, not a readable CSV (save it as "CSV UTF-8"): %s' % (f.name, err))
+            continue
+        items, bad = [], 0
+        for n, row in enumerate(rows, start=2):  # line 1 is the header
+            if None in row:  # more cells than columns
+                skipped.append('%s line %d: more cells than columns (put quotes around text with commas)' % (f.name, n))
+                bad += 1
+                continue
+            row = {(k or '').strip().lower(): (v or '').strip() for k, v in row.items()}
+            if not any(row.values()):
+                continue
+            try:
+                items.append(row_of(row))
+            except ValueError as err:
+                skipped.append('%s line %d: %s' % (f.name, n, err))
+                bad += 1
+        # A file with a bad row isn't sent at all: the page keeps its last good import rather than losing rows.
+        # Only a file with no data rows clears its channel.
+        if bad:
+            skipped.append('%s: not imported until its %d bad row(s) are fixed; the page keeps the last good import' % (f.name, bad))
+        else:
+            channels[f.stem] = items
+    done = {}
+    for channel, items in channels.items():
+        try:
+            done[channel] = call(ctx, 'PUT', '/%s/%s' % (resource, urllib.parse.quote(channel, safe='')), {key: items})[key]
+        except Fail as err:
+            skipped.append('%s: %s' % (channel, err))
+    return {'imported': done, 'skipped': skipped}
+
+
+def read_rows(path, encoding):
+    with open(path, newline='', encoding=encoding) as fh:
+        return list(csv.DictReader(fh))
+
+
+def day_or_fail(value, name):
+    if not re.fullmatch(r'\d{4}-\d{2}-\d{2}', value or ''):
+        raise ValueError('%s %r is not like 2026-11-03' % (name, value))
+    return value
+
+
+def calendar_row(row):
+    """A Calendar CSV row: date,time_pt,channel,title,status,link. A link that isn't http(s) is left off."""
+    status = row.get('status', '').lower()
+    if status not in CALENDAR_STATUSES:
+        raise ValueError('status %r is not one of %s' % (row.get('status'), ', '.join(CALENDAR_STATUSES)))
+    if not row.get('title'):
+        raise ValueError('title is empty')
+    link = row.get('link', '')
+    return only({'date': day_or_fail(row.get('date'), 'date'), 'time': time_of(row.get('time_pt')), 'title': row['title'],
+                 'status': status, 'link': link if WEB_RE.match(link) else None})
+
+
+def whole(value, name):
+    try:
+        return int(float((value or '').replace(',', '')))
+    except (ValueError, OverflowError):
+        raise ValueError('%s %r is not a number' % (name, value))
+
+
+def content_row(row):
+    """A Content CSV row: outlier_title,source_channel,url,views,channel_avg,multiple,published_date,selected
+    (yes/no),thumbnail_url. With no channel_avg, the average is views / multiple."""
+    if not row.get('outlier_title'):
+        raise ValueError('outlier_title is empty')
+    if not WEB_RE.match(row.get('url', '')):
+        raise ValueError('url %r is not an http(s) link' % row.get('url'))
+    views = whole(row.get('views'), 'views')
+    if row.get('channel_avg'):
+        avg = whole(row['channel_avg'], 'channel_avg')
+    else:
+        multiple = float(row.get('multiple') or 0)
+        if not 0 < multiple < float('inf'):
+            raise ValueError('needs channel_avg or multiple')
+        avg = round(views / multiple)
+    picked = row.get('selected', '').lower()
+    if picked not in ('yes', 'no', 'y', 'n', 'true', 'false', '1', '0', ''):
+        raise ValueError('selected %r is not yes or no' % row.get('selected'))
+    thumb = row.get('thumbnail_url', '')
+    return only({'title': row['outlier_title'], 'source': row.get('source_channel') or None, 'link': row['url'],
+                 'thumb': thumb if WEB_RE.match(thumb) else None, 'views': views, 'avg': max(1, avg),
+                 'published': day_or_fail(row.get('published_date'), 'published_date'),
+                 'selected': picked in ('yes', 'y', 'true', '1')})
+
+
 def web_of(value, flag):
     """The Calendar and Content pages take http(s) links only ("" clears a calendar link)."""
     if value and not re.match(r'^https?://[^\s/?#]+\S*$', value, re.I):
@@ -328,14 +451,24 @@ def run(args, ctx):
     if c == 'calendar':
         return call(ctx, 'GET', '/calendar', query={'channel': args.channel, 'from': day_of(args.start, '--from'),
                                                     'to': day_of(args.end, '--to'), 'limit': args.limit})
+    if c == 'calendar-import':
+        return csv_import(ctx, args.files, CALENDAR_DIR, 'calendar', 'videos', calendar_row)
+    if c == 'content-import':
+        return csv_import(ctx, args.files, CONTENT_DIR, 'outliers', 'outliers', content_row)
+    if c in ('calendar-add', 'calendar-update'):
+        try:
+            time = time_of(args.time) if args.time else args.time
+        except ValueError as err:
+            raise Fail(2, str(err))
     if c == 'calendar-add':
         return call(ctx, 'POST', '/calendar', only({'channel': args.channel, 'title': args.title, 'date': day_of(args.date, '--date'),
-                                                   'status': args.status, 'link': web_of(args.link, '--link'), 'key': args.key}))
+                                                   'time': time, 'status': args.status, 'link': web_of(args.link, '--link'),
+                                                   'key': args.key}))
     if c == 'calendar-update':
-        body = only({'title': args.title, 'date': day_of(args.date, '--date'), 'status': args.status,
+        body = only({'title': args.title, 'date': day_of(args.date, '--date'), 'time': time, 'status': args.status,
                      'link': web_of(args.link, '--link')})
         if not body:
-            raise Fail(2, 'Nothing to change: pass --title, --date, --status or --link.')
+            raise Fail(2, 'Nothing to change: pass --title, --date, --time, --status or --link.')
         return call(ctx, 'PATCH', '/calendar/%s' % q(args.id, safe=''), body)
     if c == 'outliers':
         return call(ctx, 'GET', '/outliers', query={'channel': args.channel, 'selected': '1' if args.selected else None,
@@ -513,10 +646,20 @@ def parser():
     a.add_argument('--to', dest='end', help='YYYY-MM-DD')
     a.add_argument('--limit', type=int)
 
+    a = s.add_parser('calendar-import', help="load channel schedules from <channel-slug>.csv files (date,time_pt,channel,title,status,link); "
+                                               "each file replaces that channel's CSV rows")
+    a.add_argument('files', nargs='*', help='CSV files (default: every one in D:\\AgentTeam\\calendar)')
+
+    a = s.add_parser('content-import', help="load outliers from <channel-slug>.csv files (channel,outlier_title,source_channel,url,"
+                                              "views,channel_avg,multiple,published_date,selected[,thumbnail_url]); each file replaces "
+                                              "that channel's CSV rows, keeping Jon's own Select choices")
+    a.add_argument('files', nargs='*', help='CSV files (default: every one in D:\\AgentTeam\\content)')
+
     a = s.add_parser('calendar-add', help="add a video to a channel's calendar")
     a.add_argument('channel')
     a.add_argument('title')
     a.add_argument('--date', required=True, help='YYYY-MM-DD (PT)')
+    a.add_argument('--time', help='posting time PT, e.g. 09:00 or 9:30 PM')
     a.add_argument('--status', required=True, choices=CALENDAR_STATUSES)
     a.add_argument('--link', help='https:// link to the video, Studio page or script')
     a.add_argument('--key', help='your own unique key; repeating it returns the first video instead of a copy')
@@ -525,6 +668,7 @@ def parser():
     a.add_argument('id')
     a.add_argument('--title')
     a.add_argument('--date', help='YYYY-MM-DD (PT)')
+    a.add_argument('--time', help="posting time PT, or '' to remove it")
     a.add_argument('--status', choices=CALENDAR_STATUSES)
     a.add_argument('--link', help="https:// link, or '' to remove it")
 
@@ -564,7 +708,7 @@ def main(argv=None):
         print('dash.py: %s' % err, file=sys.stderr)
         return err.code
     print(json.dumps(out, indent=2, ensure_ascii=False))
-    return 0
+    return 1 if isinstance(out, dict) and out.get('skipped') else 0  # an import with problems exits 1, so it gets reported
 
 
 if __name__ == '__main__':

@@ -31,10 +31,10 @@ const VIDEO = { channel: 'jon-mac', title: 'Topview video 1', date: '2026-11-03'
 const OUTLIER = { channel: 'theo-creates', title: 'AI UGC in 10 min', link: 'https://www.youtube.com/watch?v=x', views: 42000, avg: 10000, published: '2026-10-27' };
 
 test('the channel list is the 23 channels in channels.md, Jon\'s own first', () => {
-  assert.equal(CHANNELS.length, 23);
+  assert.equal(CHANNELS.length, 24);
   assert.deepEqual(CHANNELS.slice(0, 3).map((c) => c.label), ['Jon Mac', '@JonMacAI', 'Complete Histories']);
-  assert.deepEqual(['Jon\'s own', 'Viral View', 'Home Guide Press'].map((g) => CHANNELS.filter((c) => c.group === g).length), [3, 7, 13]);
-  assert.equal(new Set(CHANNELS.map((c) => c.slug)).size, 23);
+  assert.deepEqual(['Jon\'s own', 'Viral View', 'Home Guide Press'].map((g) => CHANNELS.filter((c) => c.group === g).length), [3, 7, 14]);
+  assert.equal(new Set(CHANNELS.map((c) => c.slug)).size, 24);
 });
 
 test('only the channel bots, Developer and Ana write; Jon only toggles selected, with X-CC', async () => {
@@ -103,7 +103,7 @@ test('keys make adds safe to retry; schedules and selects are safe to repeat', a
     assert.deepEqual([r.status, r.body.channel.slug, r.body.channel.schedule], [200, 'jon-mac', 'Tue and Fri 9 am PT']);
   }
   const list = (await call(env, 'GET', '/v1/channels', { jon: true })).body.channels;
-  assert.deepEqual([list.length, list[0].schedule, list[1].schedule], [23, 'Tue and Fri 9 am PT', null]);
+  assert.deepEqual([list.length, list[0].schedule, list[1].schedule], [24, 'Tue and Fri 9 am PT', null]);
   await call(env, 'PUT', '/v1/channels/jon-mac', { bot: 'ana', body: { schedule: '' } });
   assert.equal((await call(env, 'GET', '/v1/channels', { bot: 'qc' })).body.channels[0].schedule, null, '"" clears it');
 });
@@ -172,12 +172,12 @@ test('the pages: schedule or "not set", friendly dates, coming up then the last 
   assert.deepEqual(aria.earlier.map((x) => x.dateLabel), ['Yesterday', 'Tue, Oct 20']);
   assert.equal(aria.count, 4);
   const html = calendar(out.pages.calendar, {}, 'aria-creates');
-  assert.match(html, /Posting schedule: <b>Mon, Wed and Fri 9 am PT<\/b>/);
+  assert.match(html, /Posting days: <b>Mon, Wed and Fri 9 am PT<\/b>/);
   assert.match(html, /<a class="btn sm line" href="https:\/\/youtu\.be\/p" target="_blank" rel="noopener">Watch on YouTube<\/a>/);
   assert.doesNotMatch(html.replace(/href="[^"]*"/g, ''), /https?:/, 'no raw URLs on the page');
   assert.match(html, /class="chip on" data-page="calendar\/aria-creates" aria-current="page">Aria Creates<span class="ccn">4<\/span>/);
-  assert.match(calendar(out.pages.calendar, {}, 'theo-creates'), /Posting schedule: not set[\s\S]*No videos on the calendar yet/);
-  assert.match(calendar(out.pages.calendar, {}, 'unknown'), /<h2>Jon Mac<\/h2>/, 'an unknown tab opens the first');
+  assert.match(calendar(out.pages.calendar, {}, 'theo-creates'), /Posting days: not set[\s\S]*No videos on the calendar yet/);
+  assert.match(calendar(out.pages.calendar, {}, 'unknown'), /<h2>All channels<\/h2>/, 'an unknown tab opens the first, All channels');
   assert.match(calendar({ available: false, channels: out.pages.calendar.channels }, {}, ''), /could not be read/);
   assert.deepEqual([ageLabel('2026-10-30', '2026-10-30'), ageLabel('2026-10-29', '2026-10-30'), ageLabel('2026-06-01', '2026-10-30'), ageLabel('2023-10-01', '2026-10-30')],
     ['today', '1 day ago', '4 months ago', '3 years ago']);
@@ -190,11 +190,103 @@ test('snapshot: Calendar and Content are in the nav, served from D1, never the o
   const ids = snap.nav.groups.flatMap((g) => g.items.map((i) => i.id));
   assert.deepEqual(ids.slice(4, 6), ['calendar', 'content']);
   assert.equal(snap.pages.content.tiles, undefined, 'no mockup tiles');
-  assert.deepEqual([snap.pages.calendar.available, snap.pages.calendar.channels.length, snap.pages.content.channels.length], [true, 23, 23]);
+  assert.deepEqual([snap.pages.calendar.available, snap.pages.calendar.channels.length, snap.pages.content.channels.length], [true, 25, 24], 'Calendar has All channels first');
   const bare = (await handleApi(new Request('https://jonmac.ai/dashboard/api/snapshot?pages=content', { headers: { Cookie: `${COOKIE}=${await signSession(SECRET, Math.floor(Date.now() / 1000) + 3600)}` } }), { SESSION_SECRET: SECRET })).json();
   assert.deepEqual((await bare).pages, { content: {} }, 'without D1 too');
   // Before migration 0014 is applied the pages still load and say the tables could not be read.
   const old = { prepare: (sql) => (/yt_/.test(sql) ? { bind() { return this; }, all: async () => { throw new Error('no such table: yt_channels'); } } : env.DB.prepare(sql)) };
   const r = (await call({ ...env, DB: old }, 'GET', '/snapshot?pages=calendar', { jon: true })).body.pages.calendar;
-  assert.deepEqual([r.available, r.channels.length], [false, 23]);
+  assert.deepEqual([r.available, r.channels.length], [false, 25]);
+});
+
+test('calendar CSV import: PUT calendar/<channel> replaces only that channel\'s CSV rows; new statuses and a posting time', async () => {
+  const { env } = await setup();
+  const put = (bot, channel, videos) => call(env, 'PUT', `/v1/calendar/${channel}`, { bot, body: { videos } });
+  const one = (await call(env, 'POST', '/v1/calendar', { bot: 'developer', body: { ...VIDEO, channel: 'jonmacai', time: '09:00', status: 'scripted' } })).body.video;
+  assert.deepEqual([one.time, one.status], ['09:00', 'scripted']);
+  const first = await put('jon-mac-youtube', 'jonmacai', [
+    { date: '2026-11-02', time: '09:00', title: 'A', status: 'editing', link: 'https://jonmac.ai/review/a' },
+    { date: '2026-11-04', title: 'B', status: 'idea' },
+  ]);
+  assert.deepEqual([first.status, first.body.videos, first.body.replaced], [200, 2, 0]);
+  await put('developer', 'theo-creates', [{ date: '2026-11-03', title: 'T', status: 'scheduled' }]);
+  const again = await put('developer', 'jonmacai', [{ date: '2026-11-05', time: '18:30', title: 'C', status: 'published' }]);
+  assert.deepEqual([again.body.videos, again.body.replaced], [1, 2], 'the last import replaces the first, whoever ran it');
+  const rows = (await call(env, 'GET', '/v1/calendar', { bot: 'developer' })).body.videos;
+  assert.deepEqual(rows.map((v) => [v.channel, v.title, v.time, v.status]).sort(),
+    [['jonmacai', 'C', '18:30', 'published'], ['jonmacai', VIDEO.title, '09:00', 'scripted'], ['theo-creates', 'T', null, 'scheduled']].sort(),
+    'a video added on its own and other channels stay');
+
+  for (const [videos, why] of [[[{ date: '2026-11-02', title: 'x', status: 'drafting' }], 'status'], [[{ date: '2026-11-02', time: '9am', title: 'x', status: 'idea' }], 'time'],
+    [[{ date: '11/2/2026', title: 'x', status: 'idea' }], 'date'], [[{ date: '2026-11-02', title: 'x', status: 'idea', link: 'D:\\x.mp4' }], 'link'], ['nope', 'list']]) {
+    const r = await put('developer', 'jonmacai', videos);
+    assert.equal(r.status, 400, why);
+  }
+  assert.match((await put('developer', 'jonmacai', [{ date: '2026-11-02', title: 'ok', status: 'idea' }, { date: '2026-11-02', title: '', status: 'idea' }])).body.error, /^videos\[1\]: /);
+  assert.equal((await call(env, 'GET', '/v1/calendar?channel=jonmacai', { bot: 'developer' })).body.videos.length, 2, 'a refused import changes nothing');
+  assert.equal((await put('sponsors', 'jonmacai', [])).status, 403);
+  assert.equal((await put('developer', 'not-a-channel', [])).status, 400);
+});
+
+test('Calendar page: All channels first with each video\'s channel, times in PT, a colour per status, posting days from the videos', () => {
+  const out = { pages: { calendar: {} } };
+  const v = (id, channel, day, status, time = null) => ({ id, channel, title: id, day, time_pt: time, status, link: null });
+  buildChannelPages(out, { channels: [], outliers: [], calendar: [v('a', 'jonmacai', '2026-11-03', 'editing', '09:00'), v('c', 'jonmacai', '2026-11-05', 'review'),
+    v('b', 'theo-creates', '2026-11-06', 'scheduled', '18:30'), v('old', 'jonmacai', '2026-10-20', 'published'), v('x', 'gone-channel', '2026-11-03', 'idea')] }, NOW);
+  const [all, ...rest] = out.pages.calendar.channels;
+  assert.deepEqual([all.slug, all.count, all.upcoming.map((x) => x.title)], ['all', 3, ['a', 'c', 'b']], 'an unknown channel is left out');
+  assert.equal(rest.find((c) => c.slug === 'jonmacai').schedule, 'Tue, Thu', 'posting days from its coming videos');
+  const html = calendar(out.pages.calendar, {}, '');
+  assert.match(html, /<h2>All channels<\/h2><span class="meta">3 coming up<\/span>/);
+  assert.match(html, /<span class="ccdate">Tue, Nov 3<small>9:00 AM PT<\/small><\/span><span class="cct"><span class="ccch">@JonMacAI<\/span>a<\/span><span class="ccend"><span class="pill violet">Editing<\/span>/);
+  assert.match(html, /Theo Creates<\/span>b<\/span><span class="ccend"><span class="pill teal">Scheduled</);
+  assert.match(html, /<span class="pill risk">Ready for review<\/span>/);
+  assert.match(calendar(out.pages.calendar, {}, 'jonmacai'), /Posting days: <b>Tue, Thu<\/b>/);
+  assert.doesNotMatch(calendar(out.pages.calendar, {}, 'jonmacai'), /ccch/, 'one channel: no channel names');
+});
+
+test('content CSV import: PUT outliers/<channel> replaces that channel\'s CSV rows, keeps Jon\'s Select, names the source channel', async () => {
+  const { env } = await setup();
+  const put = (bot, channel, outliers) => call(env, 'PUT', `/v1/outliers/${channel}`, { bot, body: { outliers } });
+  const o = (title, link, extra = {}) => ({ title, link, views: 9000, avg: 1000, published: '2026-10-20', source: 'Pitbull Dog Dad', ...extra });
+  const first = await put('home-guide-press', 'dale-whitaker-pitbulls', [o('A', 'https://youtu.be/a'), o('B', 'https://youtu.be/b', { selected: true, thumb: 'https://i.ytimg.com/b.jpg' })]);
+  assert.deepEqual([first.status, first.body.outliers, first.body.replaced], [200, 2, 0]);
+  const list = async () => (await call(env, 'GET', '/v1/outliers?channel=dale-whitaker-pitbulls', { bot: 'developer' })).body.outliers;
+  const a = (await list()).find((x) => x.title === 'A');
+  assert.equal((await call(env, 'POST', `/v1/outliers/${a.id}/select`, { jon: true, body: { selected: true } })).status, 200);
+  const b = (await list()).find((x) => x.title === 'B');
+  await call(env, 'POST', `/v1/outliers/${b.id}/select`, { jon: true, body: { selected: false } });
+  const again = await put('developer', 'dale-whitaker-pitbulls', [o('A2', 'https://youtu.be/a'), o('B', 'https://youtu.be/b', { selected: true }), o('C', 'https://youtu.be/c', { selected: true })]);
+  assert.deepEqual([again.body.outliers, again.body.replaced], [3, 2]);
+  const rows = await list();
+  assert.deepEqual(rows.map((x) => [x.title, x.selected, x.selectedBy, x.source]).sort(),
+    [['A2', true, 'jon', 'Pitbull Dog Dad'], ['B', false, 'jon', 'Pitbull Dog Dad'], ['C', true, 'developer', 'Pitbull Dog Dad']], "Jon's choices win over the CSV");
+  for (const [outliers, why] of [[[o('x', 'D:\\a.mp4')], 'link'], [[o('x', 'https://youtu.be/x', { avg: 0 })], 'avg'], [[o('x', 'https://youtu.be/x', { selected: 'yes' })], 'selected'], ['nope', 'list']]) {
+    assert.equal((await put('developer', 'dale-whitaker-pitbulls', outliers)).status, 400, why);
+  }
+  assert.equal((await list()).length, 3, 'a refused import changes nothing');
+  assert.equal((await put('sponsors', 'jonmacai', [])).status, 403);
+});
+
+test('Content page: a Selected badge and the source channel on each outlier', () => {
+  const out = { pages: { content: {} } };
+  const r = (id, views, selected, source) => ({ id, channel: 'jonmacai', title: id, link: 'https://youtu.be/x', thumb: null, views, avg_views: 1000, published: '2026-10-20', selected, source });
+  buildChannelPages(out, { channels: [], calendar: [], outliers: [r('low', 2000, 0, null), r('high', 30000, 1, 'Ads With Cami')] }, NOW);
+  const html = content(out.pages.content, {}, 'jonmacai');
+  assert.ok(html.indexOf('high') < html.indexOf('low'), 'best multiple first');
+  assert.match(html, /<span class="oct"><span class="pill ok">Selected<\/span> high<\/span>\s*<span class="ocm"><b>30× avg<\/b><i>·<\/i> <span>Ads With Cami<\/span><i>·<\/i> /);
+  assert.match(html, /<span class="oct">low<\/span>/);
+});
+
+test('CSV imports: hand-added rows cannot take csv: keys; Jon\'s Select matches the same YouTube video in another link form', async () => {
+  const { env } = await setup();
+  assert.equal((await call(env, 'POST', '/v1/calendar', { bot: 'developer', body: { ...VIDEO, key: 'csv:jon-mac:0' } })).status, 400);
+  const put = (outliers) => call(env, 'PUT', '/v1/outliers/jonmacai', { bot: 'developer', body: { outliers } });
+  const o = (link) => ({ title: 'V', link, views: 5000, avg: 1000, published: '2026-10-20' });
+  await put([o('https://www.youtube.com/watch?v=AbCdEfGhIjK&t=5')]);
+  const [row] = (await call(env, 'GET', '/v1/outliers?channel=jonmacai', { bot: 'developer' })).body.outliers;
+  await call(env, 'POST', `/v1/outliers/${row.id}/select`, { jon: true, body: { selected: true } });
+  await put([o('https://youtu.be/AbCdEfGhIjK')]);
+  const [again] = (await call(env, 'GET', '/v1/outliers?channel=jonmacai', { bot: 'developer' })).body.outliers;
+  assert.deepEqual([again.selected, again.selectedBy], [true, 'jon']);
 });
