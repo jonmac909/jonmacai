@@ -2,11 +2,11 @@
 
 Live: [https://jonmac.ai/dashboard](https://jonmac.ai/dashboard)
 
-Cloudflare Worker `jonmac-command-center`. Routes `jonmac.ai/dashboard` and `jonmac.ai/dashboard/*`. Pages render from `GET /dashboard/api/snapshot`, which starts from `fixtures/snapshot.json` and overlays live D1 snapshots. Seven pages: Today (below), Projects (below), Sponsors (`sponsors` from the Mac collector, `sponsors_cash` deposits), Viral View (`viralview` cron every 10 min), Webinar (clone funnel D1), Money (`moneyclaw` cron every 10 min, `bank_scan`) and Life (Google Calendar + habits). Critical alerts (bank code needed, payment over 7 days late) go to Today and, once each, to Telegram from the cron. Any other `#page` opens Today.
+Cloudflare Worker `jonmac-command-center`. Routes `jonmac.ai/dashboard` and `jonmac.ai/dashboard/*`. Pages render from `GET /dashboard/api/snapshot`, which starts from `fixtures/snapshot.json` and overlays live D1 snapshots. Ten pages: Today, Todo, Projects, Feed and Journal (below), Sponsors (`sponsors` from the Mac collector, `sponsors_cash` deposits), Viral View (`viralview` cron every 10 min), Webinar (clone funnel D1), Money (`moneyclaw` cron every 10 min, `bank_scan`) and Life (Google Calendar + habits). Critical alerts (bank code needed, payment over 7 days late) go to Today and, once each, to Telegram from the cron. Any other `#page` opens Today.
 
 ## Snapshot shape (`fixtures/snapshot.json`)
 
-This file is the mockup data contract. The API serves only the seven pages' slices of it (`PAGES` in `src/api.js`); the other mockup pages in it are never served. Do not hard-code numbers in HTML.
+This file is the mockup data contract. The API serves only the dashboard pages' slices of it (`PAGES` in `src/api.js`); the other mockup pages in it are never served. Do not hard-code numbers in HTML.
 
 ```
 {
@@ -35,7 +35,7 @@ Every page object is render-ready copy from the mockup: tiles (`icon, label, val
 | `money` | `personal, business, categories, fix, bankScan, netWorth, charges` |
 | `life` | `tiles, workouts, dateNight, today` |
 
-`GET /dashboard/api/snapshot?pages=today,sponsors` returns `{ pages, nav, sources }` with only the asked-for page keys; the nav lists exactly the seven pages.
+`GET /dashboard/api/snapshot?pages=today,sponsors` returns `{ pages, nav, sources }` with only the asked-for page keys; the nav lists exactly the ten pages.
 
 Regenerate compact JSON: `node scripts/build-snapshot.mjs`
 
@@ -78,6 +78,8 @@ Each of the 14 bots (D:\AgentTeam\rules\BOTS.md) writes one row at a time with i
 | `GET /v1/feeds/:name` | bot or Jon | newest entry |
 | `POST /v1/daily` | the project's bot (`DAILY_TICKERS` in `src/bots.js`) | `{project, item, link, note?}`: ticks a daily item for today (PT). `item` is its text (any case) or 1-based number in the newest `daily_checklists`; link as for proofs. Again the same day updates link, note, bot and time |
 | `GET /v1/daily?day=YYYY-MM-DD` | bot or Jon | that day's ticks (default today, PT) |
+| `GET /v1/activity?bot=&before=&limit=` | bot or Jon | the Feed, newest first: task history, comments, proofs, questions and answers, approvals and decisions. `bot` keeps rows by that bot or on its work (`jon` too); `limit` up to 300 (default 100); `next` is the `before` of the next page |
+| `GET /v1/journal`, `POST /v1/journal`, `PATCH` and `DELETE /v1/journal/:id` | Jon only (bots get 403) | Jon's journal (`0013_journal.sql`). `{title?, link?, note?, tags?}`: title 1 to 300 characters (default: the link's site), link http(s) only, note up to 4000, tags a list or one string of up to 10 words |
 
 ### Today page
 
@@ -101,6 +103,12 @@ Default page (`#today`). Built by `src/today.js` from the snapshot. Each card sh
 - Left: the projects in order, plus Unsorted when it has items. The red count is what waits on Jon: open questions, pending approvals, tasks in `review`, and open tasks that are `waiting_on_jon` or owned by `jon`.
 - Main: the project's Today goal cards (Sponsors; Viral View and Webinar; Ebooks), then a board: To do, Doing, Waiting on Jon (plus its questions and approvals, answered in place), QC, Review, Done (last 7 days). Review and Done cards lead with their deliverable (web links open; a file path is text). A Review card has Approve (asks first) and Send back (opens the card; its Send back sends the comment box). Any card opens in a modal (full screen on phones): a task with its proof, history and comment thread; a question or approval with the same Reply or Approve/Reject.
 - Right: the project's daily checklist (the newest `daily_checklists` feed; today's ticks from `bot_daily_ticks`, migration `0011_daily_ticks.sql`), the morning summary and the `calendar_today` feed. The checklist is read-only: ticked items show who and when, and open their proof when it is a web link. Unsorted has none.
+
+### Todo, Feed and Journal pages (2026-10-30)
+
+- Todo (`#todo`, `src/todo.js`): only Jon's things for today, from the same bot data as Today. His open tasks due today, overdue or with no due date (Done), open questions (Answer), pending approvals (Approve/Reject) and tasks in Review (deliverable, Approve, Send back). Overdue first, then by `minutes`. Every row opens its card.
+- Feed (`#feed`, `#feed/<bot>`): `/v1/activity`, 100 rows per page, bots by first name (`BOT_NAMES` in `public/js/ui.js`). A row on a task opens its card, even one off the board.
+- Journal (`#journal`, `#journal/<tag>`): one box takes a pasted link or text, tags optional; edit and delete in place. Links show as their title and site, never as a raw URL.
 
 `key` makes a create safe to retry: the same bot and key return the first row (`duplicate: true`). Errors are `{ok: false, error}` with 400/401/403/404/409/413.
 

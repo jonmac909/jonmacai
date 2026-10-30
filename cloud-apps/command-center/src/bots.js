@@ -20,7 +20,7 @@ const MAX_PAYLOAD = 4000;
 const TOKEN_RE = /^ccb_[A-Za-z0-9_-]{32,128}$/;
 const SLUG_RE = /^[a-z0-9][a-z0-9-]{0,39}$/;
 const ACTION_RE = /^[a-z][a-z0-9_]{1,39}$/;
-const ID_RE = /^[tpqar]_[0-9a-f]{16}$/;
+const ID_RE = /^[tpqarj]_[0-9a-f]{16}$/;
 const PROJECT_SLUGS = PROJECTS.map((p) => p.slug);
 const DAY_RE = /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/;
 
@@ -894,6 +894,121 @@ async function listDaily(db, q) {
   return json({ ok: true, day, ticks: (results || []).map(tickOut) });
 }
 
+// ---- activity (the Feed page, 2026-10-30): every update from every bot, newest first ----
+
+// One row per update: who did it, whose item it is (`owner`, for the bot filter) and the task it is on.
+// Comments and proofs come from their own tables (body, link), so their history rows are skipped.
+// D1 allows at most 5 terms in a compound SELECT, so the seven sources are read as two unions and merged.
+// shortcut: each page reads all five tables; add created_at indexes or a date floor past ~50k rows.
+const ACTIVITY = [`SELECT id, at, "by" AS who, kind, task_id AS task, detail AS body, NULL AS link, NULL AS item, NULL AS whose, 0 AS pending
+    FROM bot_task_events WHERE kind NOT IN ('comment', 'proof')
+  UNION ALL SELECT id, created_at, author, 'comment', task_id, body, NULL, NULL, NULL, 0 FROM bot_task_comments
+  UNION ALL SELECT id, created_at, created_by, 'proof', task_id, kind, link, NULL, NULL, 0 FROM bot_proofs
+  UNION ALL SELECT id, created_at, asked_by, 'question', task_id, NULL, NULL, question, asked_by, status = 'open' FROM bot_questions`,
+`SELECT id, answered_at AS at, answered_by AS who, 'answer' AS kind, task_id AS task, answer AS body, NULL AS link, question AS item, asked_by AS whose, 0 AS pending
+    FROM bot_questions WHERE answered_at IS NOT NULL
+  UNION ALL SELECT id, created_at, requested_by, 'approval', task_id, NULL, NULL, title, requested_by, status = 'pending' FROM bot_approvals
+  UNION ALL SELECT id, decided_at, decided_by, 'decision', task_id, CASE status WHEN 'rejected' THEN 'rejected' ELSE 'approved' END
+    || COALESCE(': ' || decision_note, ''), NULL, title, requested_by, 0 FROM bot_approvals WHERE decided_at IS NOT NULL`,
+].map((part) => `SELECT x.id, x.at, x.who, x.kind, x.task, x.body, x.link, x.pending,
+  COALESCE(x.item, t.title) AS title, COALESCE(x.whose, t.owner) AS owner FROM (${part}) x LEFT JOIN bot_tasks t ON t.id = x.task`);
+const newestFirst = (a, b) => (a.at === b.at ? (a.id < b.id ? 1 : a.id > b.id ? -1 : 0) : a.at < b.at ? 1 : -1);
+const CURSOR_RE = /^(\d{4}-\d{2}-\d{2}T[\d:.]+Z)\|([a-z]_[0-9a-f]{16})$/;
+
+async function listActivity(db, q) {
+  const where = [];
+  const args = [];
+  if (q.get('bot')) {
+    const bot = slugOf(q.get('bot'), 'bot');
+    where.push('(x.who = ? OR COALESCE(x.whose, t.owner) = ?)');
+    args.push(bot, bot);
+  }
+  if (q.get('before')) {
+    const m = CURSOR_RE.exec(q.get('before'));
+    if (!m) throw new Bad(400, 'before must be the next value from the previous page');
+    where.push('(x.at < ? OR (x.at = ? AND x.id < ?))');
+    args.push(m[1], m[1], m[2]);
+  }
+  const limit = Math.min(limitOf(q), 300);
+  const tail = `${where.length ? ` WHERE ${where.join(' AND ')}` : ''} ORDER BY x.at DESC, x.id DESC LIMIT ?`;
+  const parts = await Promise.all(ACTIVITY.map((sql) => db.prepare(sql + tail).bind(...args, limit).all()));
+  const rows = parts.flatMap((r) => r.results || []).sort(newestFirst).slice(0, limit);
+  const items = rows.map((r) => ({
+    id: r.id, at: r.at, who: r.who, owner: r.owner ?? null, kind: r.kind, taskId: r.task ?? null,
+    title: r.title ?? null, body: r.body ?? null, link: r.link ?? null, pending: !!r.pending,
+  }));
+  const last = rows.at(-1);
+  return json({ ok: true, items, next: rows.length === limit ? `${last.at}|${last.id}` : null });
+}
+
+// ---- journal (2026-10-30): Jon's own links and ideas for later. Jon only; bot tokens get 403 ----
+
+const TAG_RE = /^[a-z0-9][a-z0-9-]{0,29}$/;
+const journalOut = (r) => ({
+  id: r.id, title: r.title, link: r.link ?? null, note: r.note ?? null, tags: parseJson(r.tags, []), createdAt: r.created_at, updatedAt: r.updated_at,
+});
+const journalRow = (db, id) => db.prepare('SELECT * FROM journal_entries WHERE id = ?').bind(id).first();
+
+// A web link only: http(s) with a host, no spaces or control characters.
+function webLinkOf(body) {
+  const s = text(body, 'link', 2000);
+  if (!s) return null;
+  let url = null;
+  try { url = new URL(s); } catch { /* refused below */ }
+  // eslint-disable-next-line no-control-regex
+  if (!url?.hostname || !/^https?:\/\//i.test(s) || /[\s\u0000-\u001f\u007f]/.test(s)) throw new Bad(400, 'link must be an http(s) link');
+  return s;
+}
+
+// Tags as a list or one string ("ideas, yt #later"): lowercase words, no repeats, at most 10.
+function tagsOf(value) {
+  if (value == null) return [];
+  const list = Array.isArray(value) ? value : typeof value === 'string' ? value.split(/[\s,]+/) : null;
+  if (!list || list.some((v) => typeof v !== 'string')) throw new Bad(400, 'tags must be a list of words');
+  const out = [];
+  for (const v of list) {
+    const s = v.trim().replace(/^#/, '').toLowerCase();
+    if (!s) continue;
+    if (!TAG_RE.test(s)) throw new Bad(400, 'each tag is one word of letters, digits or dashes, up to 30 characters');
+    if (!out.includes(s)) out.push(s);
+  }
+  if (out.length > 10) throw new Bad(400, 'at most 10 tags');
+  return out;
+}
+
+async function addJournal(db, body, now) {
+  const link = webLinkOf(body);
+  const title = text(body, 'title', 300) || (link ? new URL(link).hostname.replace(/^www\./, '') : null);
+  if (!title) throw new Bad(400, 'Write something or paste a link');
+  const id = newId('j');
+  await db.prepare('INSERT INTO journal_entries (id, title, link, note, tags, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)')
+    .bind(id, title, link, text(body, 'note', 4000), JSON.stringify(tagsOf(body.tags)), now, now).run();
+  return json({ ok: true, entry: journalOut(await journalRow(db, id)) }, 201);
+}
+
+async function editJournal(db, id, body, now) {
+  const sets = [];
+  const args = [];
+  if ('title' in body) { sets.push('title = ?'); args.push(text(body, 'title', 300, true)); }
+  if ('link' in body) { sets.push('link = ?'); args.push(webLinkOf(body)); }
+  if ('note' in body) { sets.push('note = ?'); args.push(text(body, 'note', 4000)); }
+  if ('tags' in body) { sets.push('tags = ?'); args.push(JSON.stringify(tagsOf(body.tags))); }
+  if (!sets.length) throw new Bad(400, 'Nothing to change: send title, link, note or tags');
+  const r = await db.prepare(`UPDATE journal_entries SET ${sets.join(', ')}, updated_at = ? WHERE id = ?`).bind(...args, now, id).run();
+  if (!changed(r)) throw new Bad(404, 'Entry not found');
+  return json({ ok: true, entry: journalOut(await journalRow(db, id)) });
+}
+
+async function deleteJournal(db, id) {
+  if (!changed(await db.prepare('DELETE FROM journal_entries WHERE id = ?').bind(id).run())) throw new Bad(404, 'Entry not found');
+  return json({ ok: true });
+}
+
+async function listJournal(db, q) {
+  const { results } = await db.prepare('SELECT * FROM journal_entries ORDER BY created_at DESC, rowid DESC LIMIT ?').bind(limitOf(q)).all();
+  return json({ ok: true, entries: (results || []).map(journalOut) });
+}
+
 const FAILED = Symbol('failed');
 async function tryRead(work) {
   try { return await work; } catch (err) { console.error('todayData', err); return FAILED; }
@@ -1003,6 +1118,11 @@ async function route(request, db, who, rest, env, ctx) {
     case 'POST runs': needBot(who); return reportRun(db, who, body, now);
     case 'GET daily': return listDaily(db, q);
     case 'POST daily': needBot(who); return tickDaily(db, who, body, now);
+    case 'GET activity': return listActivity(db, q);
+    case 'GET journal': needJon(who); return listJournal(db, q);
+    case 'POST journal': needJon(who); return addJournal(db, body, now);
+    case 'PATCH journal/:id': needJon(who); return editJournal(db, id, body, now);
+    case 'DELETE journal/:id': needJon(who); return deleteJournal(db, id);
     default: return json({ ok: false, error: 'Not found' }, 404);
   }
 }

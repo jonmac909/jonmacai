@@ -88,8 +88,9 @@ async function login(request, env) {
   return json({ ok: true }, 200, { 'Set-Cookie': sessionCookieHeader(token, SESSION_DAYS * 24 * 3600) });
 }
 
-// The dashboard's pages, in nav order. Today, Projects and Webinar have no fixture numbers at all.
-export const PAGES = ['today', 'projects', 'sponsors', 'viral', 'webinar', 'money', 'life'];
+// The dashboard's pages, in nav order. Today, Todo, Projects and Webinar have no fixture numbers at all;
+// Feed and Journal load their own rows from /v1 (activity, journal).
+export const PAGES = ['today', 'todo', 'projects', 'feed', 'sponsors', 'viral', 'webinar', 'money', 'life', 'journal'];
 
 function filterSnapshot(pages) {
   const want = pages ? pages.split(',').map((s) => s.trim()).filter((id) => PAGES.includes(id)) : PAGES;
@@ -112,14 +113,19 @@ export function liveNav(orig) {
   return {
     ...nav,
     groups: [
-      { title: 'Today', items: [{ id: 'today', label: 'Today', icon: 'home' }, { id: 'projects', label: 'Projects', icon: 'board' }] },
+      { title: 'Today', items: [
+        { id: 'today', label: 'Today', icon: 'home' },
+        { id: 'todo', label: 'Todo', icon: 'check' },
+        { id: 'projects', label: 'Projects', icon: 'board' },
+        { id: 'feed', label: 'Feed', icon: 'chat' },
+      ] },
       { title: 'Business', items: [
         { id: 'sponsors', label: 'Sponsors', icon: 'mail' },
         { id: 'viral', label: 'Viral View', icon: 'chart' },
         { id: 'webinar', label: 'Webinar', icon: 'clock' },
         { id: 'money', label: 'Money', icon: 'wallet' },
       ] },
-      { title: 'Life', items: [{ id: 'life', label: 'Life', icon: 'heart' }] },
+      { title: 'Life', items: [{ id: 'life', label: 'Life', icon: 'heart' }, { id: 'journal', label: 'Journal', icon: 'pen' }] },
     ],
   };
 }
@@ -245,7 +251,7 @@ export async function handleApi(request, env, ctx) {
     if (!env.DB) return json(base);
     const now = Date.now();
     const extra = { habits: await listHabits(env.DB), funnel: await listFunnel(env.CLONE_DB) };
-    if (base.pages.today || base.pages.projects) extra.today = await todayData(env.DB, now, monthWindow(now).key);
+    if (base.pages.today || base.pages.projects || base.pages.todo) extra.today = await todayData(env.DB, now, monthWindow(now).key);
     const build = env.CF_VERSION_METADATA?.id ?? null; // this deploy; an open page reloads when it changes (app.js)
     return json({ ...mergeSnapshot(base, await listSnapshots(env.DB), now, await listDealStages(env.DB), extra), build });
   }
