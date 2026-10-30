@@ -173,7 +173,7 @@ test('feed page: first names, friendly times, escaped rows with link labels, and
   assert.match(moved, /<li class="fdrow" tabindex="0" data-open="t_0123456789abcdef">/);
   assert.match(moved, /<b>Jessica<\/b><span>moved QC → Review \(QC passed\)<\/span><time datetime="2026-10-30T17:50:00Z">today 10:50<\/time>/);
   const comment = rowHtml(r({ who: 'jon', kind: 'comment', title: 'Fix <b>this</b> https://t.test/x', body: 'Use <img src=x onerror=alert(1)> see https://www.loom.com/share/abc?a=1&b=2.' , at: '2026-10-29T23:00:00Z' }), now);
-  assert.match(comment, /<b>Jon<\/b><span>commented<\/span><time [^>]*>yesterday 16:00<\/time>/);
+  assert.match(comment, /<b>You<\/b><span>commented<\/span><time [^>]*>yesterday 16:00<\/time>/);
   assert.match(comment, /Fix &lt;b&gt;this&lt;\/b&gt; <a href="https:\/\/t.test\/x"/);
   assert.match(comment, /Use &lt;img src=x onerror=alert\(1\)&gt; see <a href="https:\/\/www.loom.com\/share\/abc\?a=1&amp;b=2" target="_blank" rel="noopener">loom\.com<\/a>\./);
   assert.doesNotMatch(textOf(comment), /https?:/, 'no raw URL on screen');
@@ -189,7 +189,7 @@ test('feed page: first names, friendly times, escaped rows with link labels, and
   const page = renderFeed({}, {}, 'video-editor');
   assert.match(page, /class="chip on" data-page="feed\/video-editor" aria-current="page">Olivia</);
   assert.match(page, /data-bot="video-editor"/);
-  for (const name of ['All', 'Florence', 'Olivia', 'Scarlett', 'Sydney', 'Elle', 'Samantha', 'Elizabeth', 'Lucy', 'Jessica', 'Ana', 'Zendaya', 'Daisy', 'Jon']) assert.match(page, new RegExp(`>${name}</button>`));
+  for (const name of ['All', 'Florence', 'Olivia', 'Scarlett', 'Sydney', 'Elle', 'Samantha', 'Elizabeth', 'Lucy', 'Jessica', 'Ana', 'Zendaya', 'Daisy', 'You']) assert.match(page, new RegExp(`>${name}</button>`));
   assert.match(renderFeed({}, {}, '"><script>'), /class="chip on" data-page="feed" aria-current="page">All</, 'an unknown filter shows all');
   assert.doesNotMatch(renderFeed({}, {}, '"><script>'), /<script>/);
 });
@@ -198,7 +198,7 @@ test('friendly dates and first names', () => {
   assert.deepEqual(['2026-10-30T17:50:00Z', '2026-10-30T07:05:00Z', '2026-10-30T06:59:00Z', '2026-10-25T18:00:00Z', '2026-10-23T18:00:00Z', '2025-12-01T18:00:00Z', 'nope']
     .map((at) => whenLabel(at, NOW)), ['today 10:50', 'today 00:05', 'yesterday 23:59', 'Sun 11:00', 'Oct 23', 'Dec 1, 2025', '']);
   assert.deepEqual(['2026-10-30', '2026-10-29', '2026-10-31', '2026-10-01', '2027-01-02', 'x'].map((d) => dayLabel(d, NOW)), ['today', 'yesterday', 'tomorrow', 'Oct 1', 'Jan 2, 2027', '']);
-  assert.deepEqual(['sponsors', 'video-editor', 'jon', 'developer', 'someone-new'].map(botName), ['Florence', 'Olivia', 'Jon', 'Lucy', 'someone-new']);
+  assert.deepEqual(['sponsors', 'video-editor', 'jon', 'developer', 'someone-new'].map(botName), ['Florence', 'Olivia', 'You', 'Lucy', 'someone-new']);
   assert.equal(linkify('a <b> https://x.test/p?q=1&r=2) b'), 'a &lt;b&gt; <a href="https://x.test/p?q=1&amp;r=2" target="_blank" rel="noopener">x.test</a>) b');
 });
 
