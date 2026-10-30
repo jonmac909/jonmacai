@@ -5,6 +5,7 @@
   google_api.py label ACCOUNT MSG_ID LABEL                      add a label (made if missing)
   google_api.py archive ACCOUNT MSG_ID                          take a message out of the inbox
   google_api.py draft ACCOUNT --to ADDR --subject S (--body B | --body-file F)   save a draft; never sends
+  google_api.py draft ACCOUNT --to ADDR --thread-id T (--body B | --body-file F)  draft a reply inside thread T
   google_api.py draft-delete ACCOUNT DRAFT_ID                   delete a draft this tool made
   google_api.py events ACCOUNT [--date YYYY-MM-DD] [--calendar jonstagger@gmail.com]
                                                                 that day's events (primary calendar by default)
@@ -58,8 +59,9 @@ QUERY_BAD_RE = re.compile(r'["\\\x00-\x1f\x7f]')
 
 
 def check_args(args):
-    if getattr(args, 'msg_id', None) is not None and not MSG_ID_RE.fullmatch(args.msg_id):
-        raise Fail(2, 'message ids are hex, like 18c2f0a1b2c3d4e5')
+    for key in ('msg_id', 'thread_id'):
+        if getattr(args, key, None) is not None and not MSG_ID_RE.fullmatch(getattr(args, key)):
+            raise Fail(2, 'message and thread ids are hex, like 18c2f0a1b2c3d4e5')
     name = getattr(args, 'label', None)
     if name is not None and (not LABEL_RE.fullmatch(name) or name.upper() in SYSTEM_LABELS
                              or name.upper().startswith('CATEGORY_')):
@@ -175,7 +177,8 @@ def subjects(g, n, query):
         msg = g.call('GET', GMAIL + '/messages/' + m['id'], query={
             'format': 'metadata', 'metadataHeaders': ['From', 'Subject', 'Date']})
         h = {x['name'].lower(): x['value'] for x in msg.get('payload', {}).get('headers', [])}
-        out.append({'id': m['id'], 'date': h.get('date'), 'from': h.get('from'), 'subject': h.get('subject')})
+        out.append({'id': m['id'], 'thread': m.get('threadId'), 'date': h.get('date'), 'from': h.get('from'),
+                    'subject': h.get('subject')})
     return out
 
 
@@ -194,14 +197,28 @@ def drafts_made():
         return []
 
 
-def draft(g, to, subject, body):
+def draft(g, to, subject, body, thread_id=None):
     msg = EmailMessage()
-    msg['To'], msg['Subject'] = to, subject
+    msg['To'] = to
+    if thread_id:  # a reply: Gmail threads it by threadId plus a matching subject and reply headers
+        t = g.call('GET', GMAIL + '/threads/' + thread_id, query={
+            'format': 'metadata', 'metadataHeaders': ['Subject', 'Message-ID', 'References']})
+        sent = [m for m in t.get('messages') or [] if 'DRAFT' not in m.get('labelIds', [])]
+        if not sent:
+            raise Fail(2, 'thread %s has no message to reply to' % thread_id)
+        h = {x['name'].lower(): x['value'] for x in sent[-1].get('payload', {}).get('headers', [])}
+        subject = h.get('subject') or ''
+        if not re.match(r'(?i)re:', subject):
+            subject = 'Re: ' + subject
+        if h.get('message-id'):
+            msg['In-Reply-To'] = h['message-id']
+            msg['References'] = (h.get('references', '') + ' ' + h['message-id']).strip()
+    msg['Subject'] = subject
     msg.set_content(body)
     raw = base64.urlsafe_b64encode(msg.as_bytes()).decode()
-    d = g.call('POST', GMAIL + '/drafts', {'message': {'raw': raw}})
+    d = g.call('POST', GMAIL + '/drafts', {'message': dict({'raw': raw}, **({'threadId': thread_id} if thread_id else {}))})
     (DIR / 'drafts-made.json').write_text(json.dumps(drafts_made() + [d['id']]), encoding='utf-8')
-    return {'draft': d['id'], 'to': to, 'subject': subject}
+    return {'draft': d['id'], 'to': to, 'subject': subject, 'thread': d.get('message', {}).get('threadId')}
 
 
 def draft_delete(g, draft_id):
@@ -241,7 +258,8 @@ def parser():
     a = s.add_parser('draft')
     a.add_argument('account')
     a.add_argument('--to', required=True)
-    a.add_argument('--subject', required=True)
+    a.add_argument('--subject')
+    a.add_argument('--thread-id', help='reply inside this thread (the "thread" from subjects); the subject comes from it')
     b = a.add_mutually_exclusive_group(required=True)
     b.add_argument('--body')
     b.add_argument('--body-file')
@@ -283,8 +301,10 @@ def run(args):
         g.call('POST', GMAIL + '/messages/%s/modify' % args.msg_id, {'removeLabelIds': ['INBOX']})
         return {'archived': args.msg_id}
     if args.cmd == 'draft':
+        if bool(args.subject) == bool(args.thread_id):
+            raise Fail(2, 'give --subject for a new email or --thread-id for a reply, not both')
         body = args.body if args.body is not None else Path(args.body_file).read_text(encoding='utf-8')
-        return draft(g, args.to, args.subject, body)
+        return draft(g, args.to, args.subject, body, args.thread_id)
     if args.cmd == 'draft-delete':
         return draft_delete(g, args.draft_id)
     return events(g, args.date, args.calendar)
