@@ -108,21 +108,24 @@ export function reminderMessage(session, plan, env) {
   const reminder = plan.step === 'L1' ? null : plan.step === 'E8' ? `Your session was ${session.session_label}. The recording is yours to revisit.` :
     `Your live training: ${session.session_label}. Join from a computer.`;
   const copy = {
-    E1: ["You're in", `The answer key is public. You can see which products sell, which videos work, and what buyers respond to.\n\nThe work is choosing one, building it, and getting it in front of buyers. Winners are on a clock; they act while the opportunity is there. That's what we'll practice together.\n\nAdd it to your calendar:\n${calendarUrl(session.session_at)}`],
-    E2: ["Why followers don't matter", "A follower count doesn't tell you whether a video can sell. A clear product, a useful demonstration, and an offer people understand give you something to test.\n\nStart with the buyer's problem. Then make the video answer it. We'll use that approach in the training."],
-    E3: ["What we'll build tonight", "Tonight we'll choose a product, study a working example, and build your first clone together. You'll leave with a draft you can test.\n\nBring a computer and an idea. If you don't have a product picked yet, that's fine; we'll work through it."],
-    E4: ["Your link for tonight", `Open the link on your computer and check that Zoom works before we begin. Have a place to save your notes and your first draft.\n\nJoin here:\n${plan.join}`],
-    E5: ["Starting in 10", `Grab your computer and open Zoom. We'll start with the product and work through the build together.\n\nJoin here:\n${plan.join}`],
-    E6: ["We're live", `We're starting. Bring your draft or follow along as we build the first one.\n\nJoin here:\n${plan.join}`],
-    E7: ["Trouble joining?", `Here's the link again:\n${plan.join}\n\nIf you're stuck, reply to this email and tell me what you're seeing.`],
-    E8: ["Your Clone Method replay", `Rewatch the part you need, then finish one draft before starting another. One completed test will teach you more than a folder of unfinished ideas.\n\nWatch the replay:\n${plan.replay}`],
+    E1: ["you're in", `Hey,\n\nQuick story. The people who win on TikTok Shop are rarely the most creative. They found something already selling and moved while it was hot.\n\nWinning videos are public. You can see what sells and why.\n\nThat's the Clone Method. No big following, no camera. One product, one structure that works.\n\n[Put the session on your calendar](${calendarUrl(session.session_at)})\n\nJon`],
+    E2: ["followers", `Hey,\n\nA follower count says almost nothing about whether a video can sell.\n\nTikTok Shop tests your video on strangers. If it sells, it shows it to more strangers. It doesn't care who follows you.\n\nSo the question isn't how to get followers. It's how to make a video that sells.\n\nReply and tell me what you sell. I read these.\n\nJon`],
+    E3: ["here's what we're building tonight", `Hey,\n\nTonight we build.\n\nWe'll pick a product, study a winning example together, and build your first clone while I'm there to correct you. Not a theory session. A working session.\n\nBy the end you'll have a draft you can test this week.\n\nBring a laptop and an idea. If you do not have a product picked yet, that is fine. We'll find one.\n\nSee you tonight.\n\nJon`],
+    E4: ["your link for tonight", `Hey,\n\n[Here's your link for tonight](${plan.join})\n\nOpen it on a computer and check that Zoom works before we start. Give yourself five minutes so you're not fighting with audio while everyone else is building.\n\nHave somewhere to take notes, and have your product idea nearby.\n\nTalk soon,\nJon`],
+    E5: ["we start in 10 minutes", `Hey,\n\nWe start in 10 minutes.\n\nGrab your laptop, open Zoom and get comfortable. We'll pick the product first, then build it together.\n\n[Join the live session](${plan.join})\n\nSee you inside.\n\nJon`],
+    E6: ["we're live", `Hey,\n\nWe're live.\n\nCome in. Bring your draft if you started one, or just follow along while we build the first one from scratch.\n\n[Join the live session](${plan.join})\n\nJon`],
+    E7: ["if the link won't open", `Hey,\n\n[A few people have had trouble with the link, so here it is again](${plan.join})\n\nIf it's still not working, reply and tell me exactly what you see on your screen. I'll help you sort it out.\n\nJon`],
+    E8: ["your replay is here", `Hey,\n\n[The replay is ready](${plan.replay})\n\nHere's my advice, and I mean it. Watch the part you need, then go finish one draft. Just one.\n\nOne finished, tested video will teach you more than a folder full of half finished ideas.\n\nWhen you post it, reply and tell me how it went. I read every one.\n\nTalk soon,\nJon`],
     L1: ['Your Clone Method recording', `Thanks for your order. Registration for the live Clone Method session on ${session.session_label} closed before your order came in, so there isn't a live seat to give you.\n\nHere's the full recording:\n${plan.replay}\n\nIf you'd rather not keep it, reply to this email and I'll refund your $47 in full.`],
   };
   const [subject, body] = copy[plan.step];
   const unsubscribe = `https://jonmac.ai/clone/api/reminders/unsubscribe?token=${encodeURIComponent(session.unsubscribe_token)}${isSandbox(env) ? '&sandbox=1' : ''}`;
-  const text = `${body}\n\n${reminder ? reminder + '\n\n' : ''}— Jon\n\nUnsubscribe from webinar reminders:\n${unsubscribe}`;
+  // Bodies use [anchor](url) links; plain text shows "anchor:" then the URL, HTML shows the anchor only.
+  const closing = plan.step === 'L1' ? '— Jon\n\n' : '';
+  const source = `${body}\n\n${reminder ? reminder + '\n\n' : ''}${closing}[Unsubscribe from webinar reminders](${unsubscribe})`;
+  const text = source.replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, '$1:\n$2');
   const html = '<div style="font-family:Arial,sans-serif;font-size:16px;line-height:1.6;max-width:600px">' +
-    text.split('\n\n').map(p => `<p>${escapeHtml(p).replace(/https:\/\/[^\s<]+/g, u => `<a href="${u}">${u}</a>`).replace(/\n/g, '<br>')}</p>`).join('') + '</div>';
+    source.split('\n\n').map(p => `<p>${escapeHtml(p).replace(/\[([^\]]+)\]\((https:[^)\s]+)\)|(https:\/\/[^\s<]+)/g, (m, anchor, linked, bare) => anchor ? `<a href="${linked}">${anchor}</a>` : `<a href="${bare}">${bare}</a>`).replace(/\n/g, '<br>')}</p>`).join('') + '</div>';
   return {
     from: env.RESEND_FROM || 'Jon Mac <support@viralview.io>', to: isSandbox(env) ? SANDBOX_REMINDER_RECIPIENT : session.email,
     reply_to: env.RESEND_REPLY_TO || 'jon@thejonmac.com', subject: (isSandbox(env) ? '[SANDBOX TEST] ' : '') + subject, text, html,
