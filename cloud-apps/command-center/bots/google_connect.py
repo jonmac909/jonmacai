@@ -1,22 +1,24 @@
 #!/usr/bin/env python3
-"""google_connect.py - Jon connects each Google account to the team with one consent click (stdlib only).
+"""google_connect.py - Jon connects each Google account and YouTube channel to the team with one consent click (stdlib only).
 
-  google_connect.py serve [--hours 24]   local page on http://localhost:8765/ with one link per account
-  google_connect.py status               which accounts are connected (no secrets printed)
+  google_connect.py serve [--hours 24]   local page on http://localhost:8765/ with one link per account and channel
+  google_connect.py status               which accounts and channels are connected (no secrets printed)
 
-Open http://localhost:8765/<account> in a browser on GPU1 (the consent returns to this PC). Each link
-goes to Google's consent screen for that account; afterwards the token is checked (right account,
-every scope ticked) and saved to D:\\AgentTeam\\secrets\\google\\<account>.json. The OAuth client is
-the old Hermes one (project ana-assistant-510518), in D:\\AgentTeam\\secrets\\google\\client.json.
-The server stops when every account is connected or after --hours. Never print or copy the files.
-See GOOGLE.md.
+Open http://localhost:8765/ in a browser on GPU1 (the consent returns to this PC). Each link goes to
+Google's consent screen; afterwards the token is checked (right account or channel, every scope ticked)
+and saved to D:\\AgentTeam\\secrets\\google\\<account>.json (YouTube: yt-<channel>.json). Gmail uses the old
+Hermes client (project ana-assistant-510518, client.json). YouTube uses Jon's own External app
+(youtube-client.json, pasted on the page) when it exists, else client.json. The server stops when
+everything is connected or after --hours. Never print or copy the files. See GOOGLE.md.
 """
 import argparse
 import base64
 import hashlib
+import hmac
 import html
 import json
 import os
+import re
 import secrets
 import sys
 import threading
@@ -39,17 +41,42 @@ ACCOUNTS = {
 }
 # shortcut: the Hermes client's app ("Historient") is internal to thejonmac.com, so Google blocks
 # jonstagger@gmail.com (Error 403 org_internal). Connect that account another way (see GOOGLE.md).
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import youtube_upload as yt  # noqa: E402  (channel list, YouTube OAuth client, scope)
+
+# A brand channel is its own Google identity, so YouTube needs one consent per channel.
+YOUTUBE = {'yt-' + k: v for k, v in yt.CHANNELS.items()}  # slug: (name, account, channel id)
 
 
 def client():
     return json.loads((DIR / 'client.json').read_text(encoding='utf-8'))['installed']
 
 
+def target(slug):
+    """(login hint, scopes, which field names the identity, the identity it must be) for one link."""
+    if slug in YOUTUBE:
+        return yt.ACCOUNTS[YOUTUBE[slug][1]], [yt.SCOPE], 'channel', YOUTUBE[slug][2]
+    return ACCOUNTS[slug][0], ACCOUNTS[slug][1], 'email', ACCOUNTS[slug][0]
+
+
+def oauth_client(slug):
+    return yt.client() if slug in YOUTUBE else client()
+
+
+def label(slug):
+    return YOUTUBE[slug][0] if slug in YOUTUBE else ACCOUNTS[slug][0]
+
+
 def connected(slug):
+    _, _, key, want = target(slug)
     try:
-        return json.loads((DIR / ('%s.json' % slug)).read_text(encoding='utf-8')).get('email') == ACCOUNTS[slug][0]
+        return json.loads((DIR / ('%s.json' % slug)).read_text(encoding='utf-8')).get(key) == want
     except (OSError, ValueError):
         return False
+
+
+def everything():
+    return list(ACCOUNTS) + list(YOUTUBE)
 
 
 def post(url, fields):
@@ -65,30 +92,57 @@ def profile_email(access_token):
         return json.loads(r.read())['emailAddress'].lower()
 
 
+def channel_id(access_token):
+    req = urllib.request.Request('https://www.googleapis.com/youtube/v3/channels?part=id&mine=true',
+                                 headers={'Authorization': 'Bearer ' + access_token})
+    with urllib.request.urlopen(req, timeout=30) as r:
+        items = json.loads(r.read()).get('items') or []
+    return items[0]['id'] if items else 'an account with no channel'
+
+
+def save_youtube_client(client_id, client_secret):
+    """Jon pastes his YouTube app's Desktop client on the page. Returns a problem or ''."""
+    if not re.fullmatch(r'[0-9]+-[a-z0-9]+\.apps\.googleusercontent\.com', client_id) or \
+            not re.fullmatch(r'[A-Za-z0-9_-]{20,64}', client_secret):
+        return 'That is not a Client ID and secret. Copy both again from the Clients page.'
+    DIR.mkdir(parents=True, exist_ok=True)
+    tmp = DIR / 'youtube-client.json.tmp'
+    tmp.write_text(json.dumps({'installed': {
+        'client_id': client_id, 'client_secret': client_secret, 'redirect_uris': ['http://localhost'],
+        'auth_uri': 'https://accounts.google.com/o/oauth2/auth', 'token_uri': 'https://oauth2.googleapis.com/token'}}),
+        encoding='utf-8')
+    os.replace(tmp, DIR / 'youtube-client.json')
+    return ''
+
+
 class Flow:
     """Pending consents: state -> (slug, PKCE verifier). In memory only; a restart just needs a new click."""
     def __init__(self):
         self.pending, self.lock = {}, threading.Lock()
+        self.form_key = secrets.token_urlsafe(16)  # only this page may post the YouTube client form
 
     def start(self, slug):
         state, verifier = secrets.token_urlsafe(24), secrets.token_urlsafe(64)
         with self.lock:
             self.pending[state] = (slug, verifier)
         challenge = base64.urlsafe_b64encode(hashlib.sha256(verifier.encode()).digest()).rstrip(b'=').decode()
-        email, scopes = ACCOUNTS[slug]
-        return 'https://accounts.google.com/o/oauth2/v2/auth?' + urllib.parse.urlencode({
-            'client_id': client()['client_id'], 'redirect_uri': REDIRECT, 'response_type': 'code',
-            'scope': ' '.join(scopes), 'access_type': 'offline', 'prompt': 'consent', 'login_hint': email,
-            'state': state, 'code_challenge': challenge, 'code_challenge_method': 'S256'})
+        hint, scopes, _, _ = target(slug)
+        q = {'client_id': oauth_client(slug)['client_id'], 'redirect_uri': REDIRECT, 'response_type': 'code',
+             'scope': ' '.join(scopes), 'access_type': 'offline', 'prompt': 'consent',
+             'state': state, 'code_challenge': challenge, 'code_challenge_method': 'S256'}
+        if hint:
+            q['login_hint'] = hint
+        return 'https://accounts.google.com/o/oauth2/v2/auth?' + urllib.parse.urlencode(q)
 
     def finish(self, state, code):
-        """Exchange the code; save the token only if it is the right account with every scope. Returns (slug, problem)."""
+        """Exchange the code; save the token only if it is the right account or channel with every scope.
+        Returns (slug, problem)."""
         with self.lock:
             slug, verifier = self.pending.pop(state, (None, None))
         if not slug:
             return None, 'This consent link expired. Open the account link again.'
-        email, scopes = ACCOUNTS[slug]
-        c = client()
+        _, scopes, key, want = target(slug)
+        c = oauth_client(slug)
         try:
             tok = post(c['token_uri'], {'code': code, 'client_id': c['client_id'], 'client_secret': c['client_secret'],
                                         'redirect_uri': REDIRECT, 'grant_type': 'authorization_code',
@@ -101,12 +155,15 @@ class Flow:
             return slug, 'Some permissions were not ticked (%s). Open the link again and tick every box.' % ', '.join(missing)
         if not tok.get('refresh_token'):
             return slug, 'Google sent no long-lived token. Open the link again.'
-        got = profile_email(tok['access_token'])
-        if got != email:
-            return slug, 'That was %s. Open the link again and choose %s.' % (got, email)
+        try:
+            got = (channel_id if key == 'channel' else profile_email)(tok['access_token'])
+        except urllib.error.HTTPError as err:
+            return slug, 'Google would not say which account that was (%s). Open the link again.' % err.code
+        if got != want:
+            return slug, 'That was %s. Open the link again and choose %s.' % (got, label(slug))
         DIR.mkdir(parents=True, exist_ok=True)
         tmp = DIR / ('%s.json.tmp' % slug)
-        tmp.write_text(json.dumps({'account': slug, 'email': email, 'scopes': sorted(granted),
+        tmp.write_text(json.dumps({'account': slug, key: want, 'scopes': sorted(granted),
                                    'refresh_token': tok['refresh_token'],
                                    'connected_at': time.strftime('%Y-%m-%dT%H:%M:%S%z')}), encoding='utf-8')
         os.replace(tmp, DIR / ('%s.json' % slug))
@@ -118,11 +175,50 @@ def page(body):
             '<body style="font:16px system-ui;max-width:640px;margin:40px auto;line-height:1.5">%s</body>' % body).encode()
 
 
-def index():
-    rows = ''.join('<li><a href="/%s">%s</a> %s</li>' % (s, html.escape(e), '&#10003; connected' if connected(s) else '')
-                   for s, (e, _) in ACCOUNTS.items())
-    return page('<h1>Connect Google accounts to the team</h1><p>Click each account, pick that account on Google, '
-                'tick every box and press Continue.</p><ul>%s</ul>' % rows)
+SETUP = '''<h1>Connect accounts to the team</h1>
+<h2>1. YouTube app (once, 5 min, signed in as jon@)</h2><ol>
+<li><a href="https://console.cloud.google.com/projectcreate">Create a project</a> named Jon Mac Team YouTube.</li>
+<li><a href="https://console.cloud.google.com/apis/library/youtube.googleapis.com">Turn on YouTube Data API v3</a> in it.</li>
+<li><a href="https://console.cloud.google.com/auth/overview">Google Auth Platform</a>: Get started. App name Jon Mac Team,
+your email, audience <b>External</b>.</li>
+<li><a href="https://console.cloud.google.com/auth/audience">Audience</a>: press <b>Publish app</b>
+(otherwise every sign-in expires after 7 days).</li>
+<li><a href="https://console.cloud.google.com/auth/clients">Clients</a>: Create client, type <b>Desktop app</b>,
+then paste its Client ID and secret here (YouTube app: %(app)s):
+<form method="post" action="/youtube-client"><input type="hidden" name="key" value="%(key)s">
+<input name="client_id" placeholder="Client ID" size="60" autocomplete="off"><br>
+<input name="client_secret" placeholder="Client secret" size="60" autocomplete="off" type="password">
+<button>Save</button></form></li></ol>
+<h2>2. YouTube channels (about 30 s each)</h2>
+<p>Click a channel, choose the Google account, then choose <b>that channel</b> and press Continue. Google says the app
+is not verified: press Advanced, then Go to Jon Mac Team.</p>%(youtube)s
+<h2>3. Thumbnails</h2><p>YouTube allows custom thumbnails only on phone-verified channels.
+<a href="https://www.youtube.com/verify">Verify the channel</a> that is switched on in YouTube (one phone number covers
+2 channels a year).</p>
+<h2>4. YouTube API audit</h2><p>Until Google approves it, videos the bots upload stay private for good, so the bots
+upload in Studio meanwhile. <a href="https://support.google.com/youtube/contact/yt_api_form">Open the form</a> and copy
+<a href="https://github.com/jonmac909/jonmacai/blob/main/cloud-apps/command-center/bots/GOOGLE.md#youtube-api-audit-answers">the
+written answers</a>.</p>
+<h2>5. Short clips (once)</h2><ol>
+<li><a href="https://developers.facebook.com/apps/creation/">Meta for Developers</a>: create a Business app named
+Jon Mac Team, add the Instagram product (API setup with Instagram login) with your Instagram account, and Facebook
+Login for Business with your Page. About 15 min; no Meta review is needed for your own accounts.</li>
+<li><a href="https://developers.tiktok.com/apps/">TikTok for Developers</a>: sign up, Connect an app, add Login Kit and
+Content Posting API. About 15 min. Posts stay private until TikTok audits the app.</li></ol>
+<h2>Gmail and Calendar</h2><ul>%(gmail)s</ul>'''
+
+
+def index(form_key):
+    def li(slug):
+        return '<li><a href="/%s">%s</a> %s</li>' % (slug, html.escape(label(slug)),
+                                                      '&#10003; connected' if connected(slug) else '')
+    groups = {}
+    for slug, (_, account, _) in YOUTUBE.items():
+        groups.setdefault(account, []).append(li(slug))
+    youtube = ''.join('<h3>%s</h3><ul>%s</ul>' % (html.escape(yt.ACCOUNTS[a] or "Jacqueline's account (she signs in)"),
+                                                  ''.join(rows)) for a, rows in groups.items())
+    return page(SETUP % {'app': 'saved' if (DIR / 'youtube-client.json').exists() else 'not saved yet',
+                         'key': form_key, 'youtube': youtube, 'gmail': ''.join(li(s) for s in ACCOUNTS)})
 
 
 def handler(flow, done):
@@ -131,7 +227,7 @@ def handler(flow, done):
             u = urllib.parse.urlparse(self.path)
             q = dict(urllib.parse.parse_qsl(u.query))
             slug = u.path.strip('/')
-            if slug in ACCOUNTS:
+            if slug in ACCOUNTS or slug in YOUTUBE:
                 self.send_response(302)
                 self.send_header('Location', flow.start(slug))
                 self.end_headers()
@@ -143,12 +239,24 @@ def handler(flow, done):
                     slug, problem = None, 'Google said: %s. Open the account link again.' % q.get('error', 'cancelled')
                 log('%s %s' % (slug or '?', problem or 'connected'))
                 body = ('<h1>Not connected yet</h1><p>%s</p>' % html.escape(problem) if problem else
-                        '<h1>Connected %s</h1><p>You can close this tab.</p>' % html.escape(ACCOUNTS[slug][0]))
+                        '<h1>Connected %s</h1><p>You can close this tab.</p>' % html.escape(label(slug)))
                 self.reply(page(body + '<p><a href="/">All accounts</a></p>'))
-                if all(connected(s) for s in ACCOUNTS):
+                if all(connected(s) for s in everything()):
                     done.set()
                 return
-            self.reply(index())
+            self.reply(index(flow.form_key))
+
+        def do_POST(self):
+            size = int(self.headers.get('Content-Length') or 0)
+            form = dict(urllib.parse.parse_qsl(self.rfile.read(min(size, 4096)).decode('utf-8', 'replace')))
+            if urllib.parse.urlparse(self.path).path != '/youtube-client' or \
+                    not hmac.compare_digest(form.get('key', ''), flow.form_key):
+                self.reply(page('<h1>Not saved</h1><p>Open <a href="/">the connect page</a> and try again.</p>'))
+                return
+            problem = save_youtube_client(form.get('client_id', '').strip(), form.get('client_secret', '').strip())
+            log('youtube client %s' % (problem or 'saved'))
+            self.reply(page('<h1>%s</h1><p><a href="/">Back to the connect page</a></p>'
+                            % html.escape(problem or 'YouTube app saved. Now connect the channels.')))
 
         def reply(self, body):
             self.send_response(200)
@@ -189,7 +297,7 @@ def main(argv=None):
     if args.cmd == 'serve':
         serve(args.hours)
     else:
-        print(json.dumps({s: connected(s) for s in ACCOUNTS}))
+        print(json.dumps({s: connected(s) for s in everything()}))
     return 0
 
 

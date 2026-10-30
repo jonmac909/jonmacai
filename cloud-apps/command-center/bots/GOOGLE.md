@@ -27,3 +27,30 @@ google_api.py events jon --date 2026-10-30        google_api.py events jon --cal
 - The OAuth client is the old Hermes one (Google Cloud project `ana-assistant-510518`, app name "Historient"), copied to `D:\AgentTeam\secrets\google\client.json`.
 - That app is internal to thejonmac.com. Google blocks personal Gmail accounts for it (Error 403 org_internal), so jonstagger@gmail.com and the Complete Histories account need another route.
 - One consent per account covers the team. partners@ grants Gmail read and compose. jon@ grants Gmail modify and calendar events.
+
+# YouTube uploads
+
+`python -I D:\AgentTeam\tools\youtube_upload.py COMMAND ...` (stdlib only, prints JSON, same exit codes). Channel slugs: `youtube_upload.py channels`.
+
+```
+youtube_upload.py upload mina D:\renders\mina-1.mp4 --title "..." --synthetic yes --description-file desc.txt
+                  [--tags "a,b"] [--category 28] [--playlist PLxxxx] [--thumbnail thumb.jpg] [--dry-run]
+youtube_upload.py schedule a_0123abcd            (after Jon approves; see below)
+youtube_upload.py delete mina VIDEO_ID           (test clips only)
+```
+- Upload is always **private**. Run the same command again after a crash: it resumes, and a finished upload returns the same video, never a second copy. A refused thumbnail or playlist add shows in `problems`; rerunning retries only those.
+- `--synthetic yes` when realistic AI people, voices or scenes appear (HeyGen avatars, cloned voices). YouTube asks creators to say so.
+- Publishing needs Jon. Ask: `dash.py approval-request publish_video "<video title> - <channel name>" --project <project> --payload-file p.json` with `{"channel": "mina", "video": "VIDEO_ID", "publishAt": "2026-11-02T17:00:00Z"}` (`"now"` = public at once). When it's approved, `schedule a_…` claims it, sets the time Jon saw and marks it done. Anything else (pending, rejected, used, another action, a past time) is refused before YouTube is touched.
+- **Until Google audits the API project, real uploads are refused** (`AUDITED = False`): Google keeps every video uploaded through an unaudited project private for good. Use YouTube Studio until then; `--test-clip` allows a throwaway test. Flip `AUDITED` when the audit passes.
+- Quota (checked 2026-10-30): uploads have their own bucket of 100 a day per project. Everything else shares 10,000 units: a thumbnail, playlist add or schedule costs 50 each, so about 150 units a video. No increase needed.
+- Tokens: one per channel, `yt-<channel>.json`, because each brand channel is its own Google identity. Jon connects them on the `google_connect.py serve` page, which checks the channel id. YouTube uses Jon's External app (`youtube-client.json`, pasted on that page); the Gmail app is internal to thejonmac.com, which blocks brand channels and Jacqueline's Gmail.
+- Custom thumbnails need each channel phone-verified (one number covers 2 channels a year).
+
+## YouTube API audit answers
+For Jon to copy into the YouTube API Services audit form. Jon fills in his address and the project number (Google Cloud > project settings).
+- Organization: Ecomm House Inc. (Jon Mac). Website: jonmac.ai. Contact: jon@thejonmac.com.
+- API client: "Jon Mac Team", an internal tool. It is not offered to the public and has no outside users.
+- What it does: uploads the channel owner's own finished videos to his own channels (Jon Mac, @JonMacAI, the Viral View and Home Guide Press channels, and Complete Histories), always as private first. It sets the title, description, tags, thumbnail and playlist, then schedules or publishes a video only after the owner approves that video in the team's private dashboard.
+- YouTube data used: the owner's own channel id and his own videos' status. Nothing from other users is read, shown or stored. Only video ids are kept locally. OAuth tokens stay on one company machine.
+- API methods: videos.insert, videos.list, videos.update, videos.delete (test clips only), thumbnails.set, playlistItems.insert, channels.list (mine).
+- Quota: the default is enough (about 30 uploads a day across all channels).
