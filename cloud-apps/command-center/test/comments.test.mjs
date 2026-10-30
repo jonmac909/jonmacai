@@ -257,14 +257,17 @@ test('card modal: escaped, only http(s) proof links clickable, the thread with w
   const html = taskModal(TASK, 'YT-JM');
   assert.doesNotMatch(html, /<script|<b>Edit|<img|<i>ok/);
   assert.match(html, /<h2>&lt;b&gt;Edit&lt;\/b&gt; ep 4<\/h2>/);
-  assert.match(html, /<dd>video-editor<\/dd>.*<dd>waiting on jon<\/dd>.*<dd>YT-JM<\/dd>.*<dd>2026-10-30<\/dd>.*<dd>15<\/dd>/s);
+  assert.match(html, /<p class="cmmeta">Olivia · Waiting on you · YT-JM · due 2026-10-30 · 15 min of your time<\/p>/);
+  assert.match(html, /<a class="btn line cmopen" href="https:\/\/jonmac.ai\/review\/4[^"]*" target="_blank" rel="noopener">Watch video<\/a>/, 'proof as a labelled button');
+  assert.doesNotMatch(html, />https?:\/\//, 'no raw URL as text');
+  assert.match(html, /<details class="cmhist"><summary>History \(2\)<\/summary>/, 'history collapsed');
   assert.deepEqual(html.match(/href="[^"]*"/g), ['href="https://jonmac.ai/review/4?a=1&amp;b=&quot;2&quot;"']);
-  assert.match(html, /<code>javascript:alert\(1\)<\/code>/);
-  assert.match(html, /<code>D:\\renders\\ep4\.mp4<\/code>/);
-  assert.match(html, /QC: &lt;i&gt;ok&lt;\/i&gt;/);
-  assert.ok(html.indexOf('created <span class="cmby">by ana') < html.indexOf('status doing → qc <span class="cmby">by qc'), 'history oldest first');
+  assert.match(html, /title="javascript:alert\(1\)"/, 'a non-web link is text, not a link');
+  assert.match(html, /<span class="cmfile" title="D:\\renders\\ep4\.mp4">Local file: ep4\.mp4<\/span>/);
+  assert.match(html, /<strong>QC:<\/strong> &lt;i&gt;ok&lt;\/i&gt;/);
+  assert.ok(html.indexOf('created <span class="cmby">· Ana') < html.indexOf('status doing → qc <span class="cmby">· Jessica'), 'history oldest first, by name');
   assert.ok(html.indexOf('Use &lt;img') < html.indexOf('And this') && html.indexOf('And this') < html.indexOf('>Done<'), 'comments oldest first');
-  assert.match(html, /sent to video-editor/);
+  assert.match(html, /sent to Olivia/);
   assert.match(html, /couldn&#39;t notify \(503\)/);
   assert.equal((html.match(/sent to|sending|couldn|owner is/g) || []).length, 2, "Jon's woken comments have a wake line; bots' and his own card's don't");
   assert.match(html, /data-csend="\/dashboard\/api\/v1\/tasks\/t_0123456789abcdef\/comments"/);
@@ -303,7 +306,7 @@ test("card modal actions: a waiting-on-Jon card shows its question and approval 
   const read = (await call(env, 'GET', `/tasks/${task.id}`, { jon: true })).body.task;
   assert.deepEqual(read.asks.map((a) => a.kind), ['approval', 'question']);
   const html = taskModal(read, 'Sponsors');
-  assert.match(html, /<h3>Your action<\/h3>/);
+  assert.match(html, /<h3>Your move<\/h3>/);
   assert.match(html, /data-qopt="Yes"/);
   assert.match(html, /data-tsend="\/dashboard\/api\/v1\/questions\/q_[0-9a-f]+\/answer"/);
   assert.match(html, /data-tdecide="\/dashboard\/api\/v1\/approvals\/a_[0-9a-f]+\/decide"[^>]*data-decision="approve"|data-decision="approve"[^>]*data-tdecide="\/dashboard\/api\/v1\/approvals\/a_/);
@@ -318,4 +321,15 @@ test("card modal actions: a waiting-on-Jon card shows its question and approval 
   await call(env, 'PATCH', `/tasks/${jonTask.id}`, { jon: true, body: { status: 'done' } });
   const ticked = (await call(env, 'GET', `/tasks/${jonTask.id}`, { jon: true })).body.task;
   assert.doesNotMatch(taskModal(ticked, 'Sponsors'), /data-ttick/, 'a done task has no Done button');
+});
+
+test('card modal note: Markdown with What happened / Your move / Next headings, bold, bullets, labelled links', () => {
+  const note = '**What happened**\n- Neeti offers **affiliate only** (20%)\n- Draft: https://mail.google.com/mail/u/1/#drafts\n\n**Your move**\n- Send the draft\n\nNext\n- Close as lost if silent by Nov 6';
+  const html = taskModal({ id: 't_0123456789abcdef', title: 'HeyGen (Neeti)', owner: 'sponsors', status: 'waiting_on_jon', note, proofs: [], history: [], comments: [], asks: [],
+    deliverable: { link: 'https://mail.google.com/mail/u/1/#drafts', kind: 'url', web: true } }, 'Sponsors');
+  assert.match(html, /<p class="cmmeta">Florence · Waiting on you · Sponsors<\/p>/);
+  assert.match(html, /<section class="cmact"><h3>Your move<\/h3><div class="qopts"><a class="pjdeliv btn line" href="https:\/\/mail.google.com\/mail\/u\/1\/#drafts"[^>]*>Open draft in Gmail<\/a>/);
+  assert.match(html, /<h4>What happened<\/h4><ul><li>Neeti offers <strong>affiliate only<\/strong> \(20%\)<\/li><li>Draft: <a href="https:\/\/mail.google.com\/mail\/u\/1\/#drafts" target="_blank" rel="noopener">Open draft in Gmail<\/a><\/li><\/ul>/);
+  assert.match(html, /<h4>Your move<\/h4>.*<h4>Next<\/h4>/s);
+  assert.match(html, /<textarea class="qtext cmtext" rows="2"/, 'compact comment box');
 });

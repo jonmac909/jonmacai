@@ -1,4 +1,4 @@
-import { pill, esc } from '../ui.js';
+import { pill, esc, linkLabel } from '../ui.js';
 
 // Today (dashboard plan step 2): four goals, one Needs-you list with answer buttons in place,
 // Ana's morning summary and Claude usage. Each card says where its numbers come from.
@@ -65,11 +65,16 @@ function needsCard(n) {
     ${list}${(n.sources || []).map(src).join('')}</div>`;
 }
 
-// Ana writes the summary in light Markdown: **bold**, [text](https://link), "- " bullets, blank line = new section.
-// Escaped first, so only these three forms become HTML; links must be http(s).
+// Ana writes the summary (and bots their card notes) in light Markdown: **bold**, [text](https://link), "- "
+// bullets, blank line = new section. Escaped first, so only these forms become HTML; links must be http(s).
+// A bare URL becomes a labelled link ("Open draft in Gmail"), never the raw address.
+const LINKS = /\[([^\]]+)\]\((https?:\/\/(?:[^\s()<]|\([^\s()<]*\))+)\)|(https?:\/\/[^\s<]*[^\s<.,;:!?)\]'"])/g;
 const inline = (line) => esc(line)
   .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-  .replace(/\[([^\]]+)\]\((https?:\/\/(?:[^\s()<]|\([^\s()<]*\))+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+  .replace(LINKS, (m, text, href, bare) => (bare
+    ? `<a href="${bare}" target="_blank" rel="noopener">${linkLabel(bare.replace(/&amp;/g, '&'))}</a>`
+    : `<a href="${href}" target="_blank" rel="noopener">${text}</a>`));
+const HEADING = /^(?:\*\*)?(What happened|Your move|Next|Why|Status)(?:\*\*)?\s*:?\s*(?:\*\*)?$/i;
 
 export function summaryHtml(text) {
   return String(text || '').trim().split(/\r?\n\s*\n/).map((section) => {
@@ -79,7 +84,9 @@ export function summaryHtml(text) {
     const flush = () => { if (list.length) html += `<ul>${list.join('')}</ul>`; list = []; };
     for (const line of lines) {
       const bullet = line.match(/^[-*•]\s+(.*)$/);
+      const heading = line.match(HEADING);
       if (bullet) list.push(`<li>${inline(bullet[1])}</li>`);
+      else if (heading) { flush(); html += `<h4>${esc(heading[1])}</h4>`; }
       else { flush(); html += `<p>${inline(line)}</p>`; }
     }
     flush();
