@@ -3,6 +3,7 @@ import { render as todo } from './pages/todo.js';
 import { render as projects } from './pages/projects.js';
 import { render as feed, mount as mountFeed } from './pages/feed.js';
 import { render as journal, mount as mountJournal } from './pages/journal.js';
+import { calendar, content } from './pages/channels.js';
 import { render as sponsors } from './pages/sponsors.js';
 import { render as viral } from './pages/viral.js';
 import { render as webinar } from './pages/webinar.js';
@@ -13,7 +14,7 @@ import { bindModals, openCard, openDraft, restoreAnswers, typedAnswers } from '.
 const PREFIX = '/dashboard';
 // Any other #page (old bookmarks to removed pages) falls back to Today. A page may have a
 // sub-path, like #projects/sponsors; the page itself decides what an unknown one shows.
-const pages = { today, todo, projects, feed, sponsors, viral, webinar, money, life, journal };
+const pages = { today, todo, projects, feed, calendar, content, sponsors, viral, webinar, money, life, journal };
 // Feed and Journal fetch their own rows (from /v1) once rendered.
 const mounts = { feed: mountFeed, journal: mountJournal };
 let data = null;
@@ -188,6 +189,9 @@ export async function go(id, { refetch = false } = {}) {
   shownPage = id;
   restoreAnswers(root, typed);
   if (!same) window.scrollTo(0, 0);
+  // The chosen channel tab in view on a phone's sideways row, without scrolling the window.
+  const tab = root.querySelector('.cctabs .on');
+  if (tab) { const row = tab.closest('.cctabs'); row.scrollLeft += tab.getBoundingClientRect().left - row.getBoundingClientRect().left - 16; }
   try { localStorage.setItem('cc-page', id); } catch {}
   bindKanban();
 }
@@ -244,6 +248,14 @@ document.addEventListener('click', (e) => {
     if (!window.confirm(`Close "${close.dataset.title}"? It leaves the board${comment ? ' and your comment goes to its owner' : ''}.`)) return;
     close.disabled = true;
     todayPost(close.dataset.tclose, comment ? { status: 'cancelled', comment } : { status: 'cancelled' }, 'Closed', close, 'PATCH');
+    return;
+  }
+  const osel = e.target.closest('[data-osel]'); // Content: select an outlier for production, or unselect it
+  if (osel) {
+    if (osel.disabled) return;
+    osel.disabled = true;
+    const on = osel.dataset.on !== '1';
+    todayPost(osel.dataset.osel, { selected: on }, on ? 'Selected for production' : 'Unselected', osel);
     return;
   }
   const tdec = e.target.closest('[data-tdecide]');

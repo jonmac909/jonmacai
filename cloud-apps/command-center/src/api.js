@@ -14,6 +14,7 @@ import { runMoneyMove } from './money.js';
 import { exchangeGoogleCode, googleAuthUrl, runLife } from './life.js';
 import { REVIEW_SOURCE, draftId, isIsolated, parseReview, plannerDestination, reviewMutate, upsertReview } from './review.js';
 import { handleV1, todayData } from './bots.js';
+import { channelData } from './channels.js';
 import { monthWindow } from './today.js';
 
 const PREFIX = '/dashboard/api';
@@ -88,14 +89,16 @@ async function login(request, env) {
   return json({ ok: true }, 200, { 'Set-Cookie': sessionCookieHeader(token, SESSION_DAYS * 24 * 3600) });
 }
 
-// The dashboard's pages, in nav order. Today, Todo, Projects and Webinar have no fixture numbers at all;
-// Feed and Journal load their own rows from /v1 (activity, journal).
-export const PAGES = ['today', 'todo', 'projects', 'feed', 'sponsors', 'viral', 'webinar', 'money', 'life', 'journal'];
+// The dashboard's pages, in nav order. Today, Todo, Projects, Calendar, Content and Webinar have no fixture
+// numbers at all (the fixture's old "content" mockup is never served); Feed and Journal load their own rows
+// from /v1 (activity, journal).
+export const PAGES = ['today', 'todo', 'projects', 'feed', 'calendar', 'content', 'sponsors', 'viral', 'webinar', 'money', 'life', 'journal'];
+const LIVE_ONLY = ['calendar', 'content'];
 
 function filterSnapshot(pages) {
   const want = pages ? pages.split(',').map((s) => s.trim()).filter((id) => PAGES.includes(id)) : PAGES;
   const out = {};
-  for (const id of want) out[id] = snapshot.pages[id] || {};
+  for (const id of want) out[id] = (!LIVE_ONLY.includes(id) && snapshot.pages[id]) || {};
   return JSON.parse(JSON.stringify({ pages: out, nav: liveNav(snapshot.nav), sources: snapshot.sources }));
 }
 
@@ -119,6 +122,7 @@ export function liveNav(orig) {
         { id: 'projects', label: 'Projects', icon: 'board' },
         { id: 'feed', label: 'Feed', icon: 'chat' },
       ] },
+      { title: 'YouTube', items: [{ id: 'calendar', label: 'Calendar', icon: 'cal' }, { id: 'content', label: 'Content', icon: 'trend' }] },
       { title: 'Business', items: [
         { id: 'sponsors', label: 'Sponsors', icon: 'mail' },
         { id: 'viral', label: 'Viral View', icon: 'chart' },
@@ -252,6 +256,7 @@ export async function handleApi(request, env, ctx) {
     const now = Date.now();
     const extra = { habits: await listHabits(env.DB), funnel: await listFunnel(env.CLONE_DB) };
     if (base.pages.today || base.pages.projects || base.pages.todo) extra.today = await todayData(env.DB, now, monthWindow(now).key);
+    if (base.pages.calendar || base.pages.content) extra.channels = await channelData(env.DB, now);
     const build = env.CF_VERSION_METADATA?.id ?? null; // this deploy; an open page reloads when it changes (app.js)
     return json({ ...mergeSnapshot(base, await listSnapshots(env.DB), now, await listDealStages(env.DB), extra), build });
   }

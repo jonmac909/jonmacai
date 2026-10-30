@@ -3,6 +3,7 @@
 // (answer a question, approve or reject, tick off a task owned by jon) needs the dashboard session
 // and is never open to a bot.
 import { readSession } from './auth.js';
+import { CHANNELS, MULTIPLE_SQL } from './channels.js';
 import { ymd } from './life.js';
 import { PROJECTS } from './projects.js';
 import { approvalItem, questionItem } from './today.js';
@@ -20,7 +21,7 @@ const MAX_PAYLOAD = 4000;
 const TOKEN_RE = /^ccb_[A-Za-z0-9_-]{32,128}$/;
 const SLUG_RE = /^[a-z0-9][a-z0-9-]{0,39}$/;
 const ACTION_RE = /^[a-z][a-z0-9_]{1,39}$/;
-const ID_RE = /^[tpqarj]_[0-9a-f]{16}$/;
+const ID_RE = /^[tpqarjvo]_[0-9a-f]{16}$/;
 const PROJECT_SLUGS = PROJECTS.map((p) => p.slug);
 const DAY_RE = /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/;
 
@@ -949,17 +950,6 @@ const journalOut = (r) => ({
 });
 const journalRow = (db, id) => db.prepare('SELECT * FROM journal_entries WHERE id = ?').bind(id).first();
 
-// A web link only: http(s) with a host, no spaces or control characters.
-function webLinkOf(body) {
-  const s = text(body, 'link', 2000);
-  if (!s) return null;
-  let url = null;
-  try { url = new URL(s); } catch { /* refused below */ }
-  // eslint-disable-next-line no-control-regex
-  if (!url?.hostname || !/^https?:\/\//i.test(s) || /[\s\u0000-\u001f\u007f]/.test(s)) throw new Bad(400, 'link must be an http(s) link');
-  return s;
-}
-
 // Tags as a list or one string ("ideas, yt #later"): lowercase words, no repeats, at most 10.
 function tagsOf(value) {
   if (value == null) return [];
@@ -1007,6 +997,147 @@ async function deleteJournal(db, id) {
 async function listJournal(db, q) {
   const { results } = await db.prepare('SELECT * FROM journal_entries ORDER BY created_at DESC, rowid DESC LIMIT ?').bind(limitOf(q)).all();
   return json({ ok: true, entries: (results || []).map(journalOut) });
+}
+
+// ---- channels (2026-10-30): schedules, calendar videos and outliers for the Calendar and Content pages ----
+
+// Sydney, Scarlett and Elle feed the pages; Developer and Ana fix them. Jon only toggles "selected".
+export const CHANNEL_WRITERS = ['jon-mac-youtube', 'viral-view', 'home-guide-press', 'developer', 'ana'];
+export const CALENDAR_STATUSES = ['planned', 'scheduled', 'published'];
+const CHANNEL_SLUGS = CHANNELS.map((c) => c.slug);
+
+function needChannelWriter(who) {
+  if (!CHANNEL_WRITERS.includes(who.bot)) throw new Bad(403, `Only ${CHANNEL_WRITERS.join(', ')} can write channels, calendar and outliers`);
+}
+
+const channelOf = (value) => oneOf(value, CHANNEL_SLUGS, 'channel');
+
+// A web link only (the pages show these as links, buttons and images): http(s) with a host, no spaces or
+// control characters. "" clears an optional one.
+function webLinkOf(body, key = 'link', required = false) {
+  const s = text(body, key, 2000, required);
+  if (!s) return null;
+  let url = null;
+  try { url = new URL(s); } catch { /* refused below */ }
+  // eslint-disable-next-line no-control-regex
+  if (!url?.hostname || !/^https?:\/\/[^\s/?#]+\S*$/i.test(s) || /[\s\u0000-\u001f\u007f]/.test(s)) throw new Bad(400, `${key} must be an http(s) link`);
+  return s;
+}
+
+function countOf(body, key, min) {
+  const n = numberOf(body, key, min, 1e12, true);
+  if (!Number.isInteger(n)) throw new Bad(400, `${key} must be a whole number`);
+  return n;
+}
+
+const calendarOut = (r) => ({
+  id: r.id, channel: r.channel, title: r.title, date: r.day, status: r.status, link: r.link ?? null,
+  createdBy: r.created_by, updatedBy: r.updated_by, createdAt: r.created_at, updatedAt: r.updated_at,
+});
+const outlierOut = (r) => ({
+  id: r.id, channel: r.channel, title: r.title, link: r.link, thumb: r.thumb ?? null, views: r.views, avg: r.avg_views,
+  multiple: Math.round((r.views / r.avg_views) * 100) / 100, published: r.published, selected: !!r.selected,
+  selectedBy: r.selected_by ?? null, selectedAt: r.selected_at ?? null, createdBy: r.created_by, createdAt: r.created_at,
+});
+
+async function listChannels(db) {
+  const { results } = await db.prepare('SELECT * FROM yt_channels').all();
+  const rows = new Map((results || []).map((r) => [r.slug, r]));
+  return json({ ok: true, channels: CHANNELS.map((c) => ({ ...c, schedule: rows.get(c.slug)?.schedule ?? null })) });
+}
+
+async function setChannel(db, who, slug, body, now) {
+  needChannelWriter(who);
+  const channel = channelOf(slug);
+  if (!('schedule' in body)) throw new Bad(400, 'schedule is required ("" clears it)');
+  const schedule = text(body, 'schedule', 200);
+  await db.prepare(`INSERT INTO yt_channels (slug, schedule, updated_by, updated_at) VALUES (?, ?, ?, ?)
+    ON CONFLICT (slug) DO UPDATE SET schedule = excluded.schedule, updated_by = excluded.updated_by, updated_at = excluded.updated_at`)
+    .bind(channel, schedule, who.bot, now).run();
+  return json({ ok: true, channel: { ...CHANNELS.find((c) => c.slug === channel), schedule } });
+}
+
+async function addCalendar(db, who, body, now) {
+  needChannelWriter(who);
+  const channel = channelOf(body.channel);
+  const title = text(body, 'title', 300, true);
+  const day = matchOf(body, 'date', DAY_RE, '2026-11-03', true);
+  const status = oneOf(body.status ?? 'planned', CALENDAR_STATUSES, 'status');
+  const link = webLinkOf(body, 'link');
+  const key = text(body, 'key', 200);
+  const id = newId('v');
+  const { row, duplicate } = await insertOnce(db, 'yt_calendar', 'created_by', who.bot, key, id,
+    `INSERT INTO yt_calendar (id, channel, title, day, status, link, created_by, updated_by, idem_key, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [id, channel, title, day, status, link, who.bot, who.bot, key, now, now]);
+  return json({ ok: true, duplicate, video: calendarOut(row) }, duplicate ? 200 : 201);
+}
+
+async function updateCalendar(db, who, id, body, now) {
+  needChannelWriter(who);
+  const sets = [];
+  const args = [];
+  if ('title' in body) { sets.push('title = ?'); args.push(text(body, 'title', 300, true)); }
+  if ('date' in body) { sets.push('day = ?'); args.push(matchOf(body, 'date', DAY_RE, '2026-11-03', true)); }
+  if ('status' in body) { sets.push('status = ?'); args.push(oneOf(body.status, CALENDAR_STATUSES, 'status')); }
+  if ('link' in body) { sets.push('link = ?'); args.push(webLinkOf(body, 'link')); }
+  if (!sets.length) throw new Bad(400, 'Nothing to change: send title, date, status or link');
+  const r = await db.prepare(`UPDATE yt_calendar SET ${sets.join(', ')}, updated_by = ?, updated_at = ? WHERE id = ?`).bind(...args, who.bot, now, id).run();
+  if (!changed(r)) throw new Bad(404, 'Calendar video not found');
+  return json({ ok: true, video: calendarOut(await db.prepare('SELECT * FROM yt_calendar WHERE id = ?').bind(id).first()) });
+}
+
+async function listCalendar(db, q) {
+  const where = [];
+  const args = [];
+  if (q.get('channel')) { where.push('channel = ?'); args.push(channelOf(q.get('channel'))); }
+  for (const [key, op] of [['from', '>='], ['to', '<=']]) {
+    if (!q.get(key)) continue;
+    if (!DAY_RE.test(q.get(key))) throw new Bad(400, `${key} must look like 2026-11-03`);
+    where.push(`day ${op} ?`);
+    args.push(q.get(key));
+  }
+  const rows = await list(db, 'yt_calendar', where, args, 'day, created_at', limitOf(q));
+  return json({ ok: true, videos: rows.map(calendarOut) });
+}
+
+async function addOutlier(db, who, body, now) {
+  needChannelWriter(who);
+  const channel = channelOf(body.channel);
+  const title = text(body, 'title', 300, true);
+  const link = webLinkOf(body, 'link', true);
+  const thumb = webLinkOf(body, 'thumb');
+  const views = countOf(body, 'views', 0);
+  const avg = countOf(body, 'avg', 1);
+  const published = matchOf(body, 'published', DAY_RE, '2026-10-27', true);
+  const key = text(body, 'key', 200);
+  const id = newId('o');
+  const { row, duplicate } = await insertOnce(db, 'yt_outliers', 'created_by', who.bot, key, id,
+    `INSERT INTO yt_outliers (id, channel, title, link, thumb, views, avg_views, published, created_by, idem_key, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [id, channel, title, link, thumb, views, avg, published, who.bot, key, now]);
+  return json({ ok: true, duplicate, outlier: outlierOut(row) }, duplicate ? 200 : 201);
+}
+
+// Bots set it with dash.py, Jon toggles it on the Content page. Setting the same value again changes nothing.
+async function selectOutlier(db, who, id, body, now) {
+  if (!who.jon) needChannelWriter(who);
+  if (typeof body.selected !== 'boolean') throw new Bad(400, 'selected must be true or false');
+  const on = body.selected ? 1 : 0;
+  await db.prepare('UPDATE yt_outliers SET selected = ?, selected_by = ?, selected_at = ? WHERE id = ? AND selected != ?')
+    .bind(on, who.jon ? 'jon' : who.bot, now, id, on).run();
+  const row = await db.prepare('SELECT * FROM yt_outliers WHERE id = ?').bind(id).first();
+  if (!row) throw new Bad(404, 'Outlier not found');
+  return json({ ok: true, outlier: outlierOut(row) });
+}
+
+async function listOutliers(db, q) {
+  const where = [];
+  const args = [];
+  if (q.get('channel')) { where.push('channel = ?'); args.push(channelOf(q.get('channel'))); }
+  if (q.get('selected')) { where.push('selected = ?'); args.push(oneOf(q.get('selected'), ['1', '0'], 'selected') === '1' ? 1 : 0); }
+  const rows = await list(db, 'yt_outliers', where, args, MULTIPLE_SQL, limitOf(q));
+  return json({ ok: true, outliers: rows.map(outlierOut) });
 }
 
 const FAILED = Symbol('failed');
@@ -1080,6 +1211,11 @@ async function route(request, db, who, rest, env, ctx) {
     if (method === 'PUT') { needBot(who); return putFeed(db, who, rawId, await readBody(request), now); }
     throw new Bad(404, 'Not found');
   }
+  if (kind === 'channels' && !verb) {
+    if (method === 'GET' && !rawId) return listChannels(db);
+    if (method === 'PUT' && rawId) return setChannel(db, who, rawId, await readBody(request), now);
+    throw new Bad(404, 'Not found');
+  }
   const id = rawId ? idOf(rawId) : null;
   const body = method === 'POST' || method === 'PATCH' ? await readBody(request) : {};
 
@@ -1123,6 +1259,12 @@ async function route(request, db, who, rest, env, ctx) {
     case 'POST journal': needJon(who); return addJournal(db, body, now);
     case 'PATCH journal/:id': needJon(who); return editJournal(db, id, body, now);
     case 'DELETE journal/:id': needJon(who); return deleteJournal(db, id);
+    case 'GET calendar': return listCalendar(db, q);
+    case 'POST calendar': return addCalendar(db, who, body, now);
+    case 'PATCH calendar/:id': return updateCalendar(db, who, id, body, now);
+    case 'GET outliers': return listOutliers(db, q);
+    case 'POST outliers': return addOutlier(db, who, body, now);
+    case 'POST outliers/:id/select': return selectOutlier(db, who, id, body, now);
     default: return json({ ok: false, error: 'Not found' }, 404);
   }
 }

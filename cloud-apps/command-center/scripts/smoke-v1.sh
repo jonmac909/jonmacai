@@ -10,10 +10,12 @@ dir="${DASH_TOKEN_DIR:-D:/AgentTeam/secrets/bot-tokens}"
 tok() { tr -d '\r\n' < "$dir/$1.token"; }
 pass=0; fail=0
 body=""; code=""
+out=$(mktemp) # one per run: two smoke runs at once must not swap responses
+trap 'rm -f "$out"' EXIT
 
 req() { # req METHOD PATH AUTH(bot slug|none|bad|jon|jon-nocc) [JSON]
   local method="$1" path="$2" who="$3" data="${4:-}"
-  local args=(-s -o /tmp/smoke-body -w '%{http_code}' -X "$method")
+  local args=(-s -o "$out" -w '%{http_code}' -X "$method")
   case "$who" in
     none) ;;
     bad) args+=(-H "Authorization: Bearer ccb_0000000000000000000000000000000000000000000") ;;
@@ -23,7 +25,7 @@ req() { # req METHOD PATH AUTH(bot slug|none|bad|jon|jon-nocc) [JSON]
   esac
   [ -n "$data" ] && args+=(-H 'Content-Type: application/json' --data "$data")
   code=$(curl "${args[@]}" "$api$path")
-  body=$(cat /tmp/smoke-body)
+  body=$(cat "$out")
 }
 field() { python -c "import sys,json; d=json.loads(sys.argv[1]); print(eval(sys.argv[2]))" "$body" "$1"; }
 expect() { # expect LABEL STATUS [PYEXPR EXPECTED]

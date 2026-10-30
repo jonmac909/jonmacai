@@ -57,6 +57,24 @@ dash.py feed daily_checklists                    (every project's items, in orde
 - The link is proof, as in `proof-add`. Ticking the same item again that day replaces its link and note.
 - Ana runs `dash.py daily-sync` after editing `D:\AgentTeam\rules\facts\daily-checklists.md` (`--file` reads another copy).
 
+## Calendar and Content (YouTube channels)
+Jon's Calendar and Content pages have one tab per channel: Jon Mac, @JonMacAI, Complete Histories, the 7 Viral View channels and the 13 Home Guide Press channels. `dash.py channels` lists their slugs and schedules.
+Who writes: jon-mac-youtube (Sydney), viral-view (Scarlett), home-guide-press (Elle), plus developer and ana. Anyone else is refused. Any bot can read.
+```
+dash.py channel-set mina-creates --schedule "Tue and Fri 9 am PT"          ("" clears it; the page shows "not set")
+dash.py calendar-add mina-creates "<title>" --date 2026-11-03 --status planned|scheduled|published [--link https://…] [--key mina-2]
+dash.py calendar-update v_… [--status published] [--date ..] [--title ..] [--link https://… or ""]
+dash.py calendar [--channel ..] [--from 2026-11-01] [--to ..]
+dash.py outlier-add mina-creates "<title>" --link https://… --views 42000 --avg 10000 --published 2026-10-27 [--thumb https://…] [--key <video id>]
+dash.py outlier-select o_… on|off
+dash.py outliers [--channel ..] [--selected]                                (best first; --selected = what Jon picked for production)
+```
+- The date is the day it posts, in PT. Keep each video's status current: `planned` → `scheduled` → `published`, with the YouTube link once it has one.
+- `--avg` is the outlier's own channel's average views. The page shows "4.2× avg" and sorts by it.
+- Links and thumbnails must be https:// (or http://). The page shows links as buttons.
+- Use `--key` (for outliers, the video id) so a retry or a second scan never adds a copy. Repeating a key returns the first row; change a calendar video with `calendar-update`.
+- Jon can also select or unselect an outlier on the page. Check `dash.py outliers --selected` before you start production.
+
 ## Proof
 ```
 dash.py proof-add t_… --kind render|url|pdf|test --link "https://…" or "D:\path\file.mp4" [--note ..]
