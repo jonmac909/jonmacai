@@ -4,6 +4,40 @@ export function barWidth(value) {
   return `max(2px, ${Math.min(100, n)}%)`;
 }
 
+// Jon: never one word alone on a line. CSS text-wrap:pretty catches most; this joins the last two
+// words of each line of text with a no-break space, but only when the pair fits on one line of its
+// box, so a narrow phone card still wraps instead of overflowing. Table columns widen to fit, so a
+// cell takes any pair up to 24 characters ("Oct 19"). Takes a node or a list, reads every width
+// first, then writes (one layout). Running it twice changes nothing. Words are capped at 60
+// characters so a long run with no spaces (raw JSON) stays fast.
+const LAST_PAIR = /(\S{1,60}) (\S{1,60})(?=[ \t\r]*(?:\n|$))/g;
+export function noLoneWords(roots) {
+  const nodes = [];
+  for (const root of [].concat(roots)) {
+    if (root.nodeType === 3) nodes.push(root);
+    else for (let w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT), n = w.nextNode(); n; n = w.nextNode()) nodes.push(n);
+  }
+  const edits = [];
+  for (const n of nodes) {
+    if (!n.parentElement || n.parentElement.closest('textarea,pre,code,script,style,option')) continue;
+    let box = n.parentElement;
+    while (box && !box.clientWidth) box = box.parentElement; // inline parents have no width
+    const cell = box?.closest('td,th');
+    const css = box && getComputedStyle(box);
+    const room = box ? box.clientWidth - parseFloat(css.paddingLeft) - parseFloat(css.paddingRight) : 0;
+    const t = n.nodeValue.replace(LAST_PAIR, (m, a, b, at) => {
+      const r = document.createRange();
+      r.setStart(n, at);
+      r.setEnd(n, at + m.length);
+      const width = [...r.getClientRects()].reduce((sum, x) => sum + x.width, 0);
+      // Not laid out yet (hidden): join only short pairs.
+      return (cell ? m.length <= 24 : width ? width + 6 <= room : m.length <= 18) ? `${a}\u00a0${b}` : m;
+    });
+    if (t !== n.nodeValue) edits.push([n, t]);
+  }
+  for (const [n, t] of edits) n.nodeValue = t;
+}
+
 export function esc(s) {
   return String(s ?? '').replace(/[&<>"']/g, (c) => (
     { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
