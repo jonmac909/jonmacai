@@ -129,6 +129,13 @@ Default page (`#today`). Built by `src/today.js` from the snapshot. Each card sh
 - Content: the channel's outliers, best first by views over their channel's average ("4.2× avg"), with thumbnail, views, age, a link button and the Select toggle.
 - Links and thumbnails are http(s) only, on the way in and again on the page.
 
+### Review (video review)
+
+The menu's Review link opens `/dashboard/review`: the jonmac.ai/review pages (channels, versions, side by side, timestamped comments with drawings and voice notes, Send back / Approve) under the dashboard sign-in, with no passcode. `src/videoreview.js` checks Jon's session (and `X-CC: 1` on writes), then forwards `/dashboard/review/*` and `/dashboard/api/review/*` to the review Worker over the `REVIEW` service binding with the `REVIEW_API_TOKEN` secret and `X-Review-Via: dashboard`. The review Worker treats that as a signed-in reviewer (never an agent) and prefixes its links with `/dashboard`. Video and voice notes stream through with their byte ranges; nothing is copied.
+- A task is linked to a review video by its proof link `https://jonmac.ai/review/<slug>` (newest proof wins; a task in `review` first). Its Review card's deliverable opens `/dashboard/review/<slug>`.
+- Each new comment there is posted on the linked task's thread as Jon and wakes the owner with `card_comment` and `data.review` `{slug, commentId, t, time, text, audio, drawing}`. With no linked task, it wakes `video-editor` the same way with `data.task: null`.
+- Send back and Approve there also move a linked task in `review`: Send back is Jon's `{status: doing, comment}` with the sent comments listed, Approve is `{status: done}`. A task in any other status stays put.
+
 `key` makes a create safe to retry: the same bot and key return the first row (`duplicate: true`). Errors are `{ok: false, error}` with 400/401/403/404/409/413.
 
 ### Preview

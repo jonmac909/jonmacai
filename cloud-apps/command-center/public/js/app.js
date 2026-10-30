@@ -99,6 +99,7 @@ function navHtml() {
     const items = g.items.map((it) => {
       const n = badges[it.id];
       const badge = n ? `<span class="n">${n}</span>` : '';
+      if (it.href) return `<a class="nav" href="${it.href}"><svg class="ic"><use href="#i-${it.icon}"/></svg>${it.label}</a>`;
       return `<button class="nav" data-page="${it.id}"><svg class="ic"><use href="#i-${it.icon}"/></svg>${it.label}${badge}</button>`;
     }).join('');
     return `<div class="navgrp"><h4>${g.title}</h4>${items}</div>`;

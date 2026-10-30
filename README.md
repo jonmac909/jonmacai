@@ -66,11 +66,16 @@ Send `Authorization: Bearer $REVIEW_API_TOKEN` with every call. Base: `https://j
 | `GET /<slug>` | one video (URLs, duration, chapters, status) |
 | `GET /<slug>/comments?status=open` | open comments in time order (`all`, `resolved` also work) |
 | `POST /<slug>/comments/<id>/resolve` | mark resolved; body `{"by": "agent name"}`, or `{"resolved": false}` to reopen |
-| `POST /<slug>/comments` | add a comment `{"author", "t", "text"}` |
-| `DELETE /<slug>/comments/<id>` | delete (agents only) |
+| `POST /<slug>/comments` | add a comment `{"author", "t", "text", "drawing"?}`, or the same fields as a multipart form plus an `audio` file (a voice note: audio/webm, audio/mp4 or audio/ogg, at most 5 MB, checked by its first bytes). Text may be empty with a drawing or voice note |
+| `GET /<slug>/comments/<id>/audio` | the voice note, with byte ranges |
+| `POST /<slug>/comments/<id>/transcript` | `{"text"}`: what the voice note says (agents only; `scripts/review_voice.mjs` posts it) |
+| `DELETE /<slug>/comments/<id>` | delete, with its voice note (agents only) |
 | `POST /<slug>/status` | `{"status": "needs_review" \| "changes_requested" \| "approved"}` |
 
-Each comment has `id, slug, author, t` (seconds), `text, created_at, resolved, resolved_at, resolved_by`.
+Each comment has `id, slug, author, t` (seconds), `text, created_at, resolved, resolved_at, resolved_by, drawing, audio_url, transcript`.
+A `drawing` is `{"v": 1, "shapes": [{"tool": "pen"|"arrow"|"box", "color", "points": [[x, y], …]}]}` with x and y from 0 to 1 across the video picture; colours are `#ff3b30 #ffcc00 #34c759 #0a84ff #ffffff`. The Worker rewrites it from those parts only (migration `0005_comment_media.sql`).
+
+The dashboard serves these pages at `jonmac.ai/dashboard/review` under its own sign-in: it forwards over a service binding with this token and `X-Review-Via: dashboard`, which this Worker treats as a signed-in reviewer, never an agent (see `cloud-apps/command-center/README.md`, "Review").
 
 ### Publishing a video
 

@@ -2,6 +2,7 @@ import { handleApi } from './api.js';
 import { handleCron } from './cron.js';
 import { readSession } from './auth.js';
 import { handleCall } from './call.js';
+import { reviewProxy } from './videoreview.js';
 
 export { CallRelay } from './call.js';
 
@@ -30,6 +31,9 @@ export default {
       return new Response('Not found', { status: 404 });
     }
     if (url.pathname.startsWith(`${PREFIX}/api/call/`)) return handleCall(request, env);
+    if (url.pathname === `${PREFIX}/review` || url.pathname.startsWith(`${PREFIX}/review/`) || url.pathname.startsWith(`${PREFIX}/api/review/`)) {
+      return reviewProxy(request, env, ctx);
+    }
     if (url.pathname.startsWith(`${PREFIX}/api/`)) return handleApi(request, env, ctx);
 
     let assetPath = url.pathname.slice(PREFIX.length) || '/';

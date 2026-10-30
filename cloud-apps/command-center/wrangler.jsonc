@@ -33,6 +33,10 @@
       "bucket_name": "command-center-uploads"
     }
   ],
+  // /dashboard/review: Jon's requests go to the review Worker with the REVIEW_API_TOKEN secret (src/videoreview.js).
+  "services": [
+    { "binding": "REVIEW", "service": "jonmac-review" }
+  ],
   "triggers": {
     "crons": ["*/10 * * * *"]
   },
