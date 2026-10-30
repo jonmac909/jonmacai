@@ -534,6 +534,12 @@ async function routerApi(request, env, url, [id, action, extra]) {
       }),
     });
   }
+  // POST /api/review/submissions/<id>/requeue: the dashboard stored a Send back as delivered (its card wake), then
+  // couldn't wake the owner after all, so the router picks it up again.
+  if (id !== undefined && action === "requeue" && extra === undefined && method === "POST") {
+    await env.DB.prepare("UPDATE submissions SET delivered_at = NULL, delivered_to = NULL WHERE id = ? AND delivered_to = 'dashboard'").bind(id).run();
+    return json({ ok: true });
+  }
   if (id !== undefined && action === "delivered" && extra === undefined && method === "POST") {
     const body = await readJson(request);
     const to = text(body?.to, 80);

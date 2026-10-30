@@ -25,9 +25,11 @@ const SLUG = 'topview-2-v2';
 function fakeReview() {
   const seen = [];
   const comments = [];
+  const hooks = {};
   return {
     seen,
     comments,
+    hooks,
     async fetch(request) {
       const url = new URL(request.url);
       const body = ['GET', 'HEAD'].includes(request.method) ? null : await request.text();
@@ -48,7 +50,9 @@ function fakeReview() {
         comments.push(comment);
         return Response.json({ comment }, { status: 201 });
       }
+      if (url.pathname.endsWith('/requeue') && request.method === 'POST') return Response.json({ ok: true });
       if (url.pathname === `/api/review/${SLUG}/submit`) {
+        await hooks.onSubmit?.();
         const { kind } = JSON.parse(body);
         const submission = { id: `s-${kind}`, kind, comment_count: comments.length };
         if (kind === 'changes') for (const c of comments) c.submission_id = submission.id;
@@ -199,6 +203,19 @@ test('Approve on the review page moves the linked Review task to Done; Send back
   await hit(env3, 'POST', `/dashboard/api/review/${SLUG}/comments`, { body: { author: 'Jon', t: 3, text: 'x' } });
   await hit(env3, 'POST', `/dashboard/api/review/${SLUG}/submit`, { body: { kind: 'changes' }, headers: { 'X-Review-Delivered-To': 'dashboard' } });
   assert.deepEqual(told(third), [null]);
+});
+
+test('a Send back the card could not announce goes back to the GPU2 router', async (t) => {
+  mockFetch(t);
+  const { env, db, review } = await setup();
+  const task = await videoTask(env);
+  await hit(env, 'POST', `/dashboard/api/review/${SLUG}/comments`, { body: { author: 'Jon', t: 2, text: 'x' } });
+  review.hooks.onSubmit = () => db.prepare("UPDATE bot_tasks SET status = 'doing' WHERE id = ?").bind(task.id).run(); // the bot moved it meanwhile
+  const res = await (await hit(env, 'POST', `/dashboard/api/review/${SLUG}/submit`, { body: { kind: 'changes' } })).json();
+  assert.equal(res.taskNote, 'Its task is doing, so it stays there.');
+  const back = review.seen.filter((x) => x.path.endsWith('/requeue'));
+  assert.deepEqual(back.map((x) => [x.path, x.headers.authorization, x.headers['x-review-via']]),
+    [['/api/review/submissions/s-changes/requeue', `Bearer ${REVIEW_TOKEN}`, undefined]]);
 });
 
 test('a task not in Review, or no task, stays put; the review is still saved', async (t) => {

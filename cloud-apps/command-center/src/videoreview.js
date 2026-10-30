@@ -21,9 +21,15 @@ const clock = (t) => {
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 };
 
-const kindOf = (buf) => {
-  try { return JSON.parse(new TextDecoder().decode(buf)).kind ?? 'changes'; } catch { return null; }
+// A submit's kind, read the way the review Worker reads it: only a JSON object body counts, else "changes".
+const kindOf = (request, buf) => {
+  if (!/^application\/json/i.test(request.headers.get('Content-Type') || '')) return 'changes';
+  try {
+    const v = JSON.parse(new TextDecoder().decode(buf));
+    return v && typeof v === 'object' && v.kind !== undefined ? v.kind : 'changes';
+  } catch { return 'changes'; }
 };
+const SENT_BACK = 'Its task went back to Doing with these notes.';
 
 export const reviewSlug = (link) => REVIEW_LINK.exec(String(link || ''))?.[1].toLowerCase() || null;
 
@@ -68,7 +74,7 @@ export async function reviewProxy(request, env, ctx) {
   const headers = new Headers(request.headers);
   headers.delete('X-Review-Delivered-To');
   const submitting = write ? /^\/api\/review\/([a-z0-9-]+)\/submit\/?$/.exec(target.pathname)?.[1] : null;
-  if (submitting && kindOf(body) === 'changes') {
+  if (submitting && kindOf(request, body) === 'changes') {
     const task = await linkedTask(env.DB, submitting);
     if (task?.status === 'review' && task.owner !== 'jon') headers.set('X-Review-Delivered-To', 'dashboard');
   }
@@ -84,6 +90,13 @@ export async function reviewProxy(request, env, ctx) {
   } catch (err) {
     console.error('video review tie-in', err);
     out.taskNote = 'Saved, but the dashboard could not be updated.';
+  }
+  // Stored as delivered, but the card wake didn't happen after all (the task left Review meanwhile, or an error):
+  // hand the Send back to the GPU2 router again, so the owner still hears about it.
+  if (headers.has('X-Review-Delivered-To') && out.taskNote !== SENT_BACK && out.submission?.id && !out.duplicate) {
+    const back = await env.REVIEW.fetch(new Request(`${url.origin}/api/review/submissions/${encodeURIComponent(out.submission.id)}/requeue`,
+      { method: 'POST', headers: { Authorization: `Bearer ${env.REVIEW_API_TOKEN}` } })).catch(() => null);
+    if (!back?.ok) console.error('review requeue', back?.status);
   }
   return json(out, res.status);
 }
@@ -125,5 +138,5 @@ async function moveTask(env, ctx, origin, slug, submission, now) {
   }
   const res = await tickTask(env.DB, env, ctx, task.id, patch, now, { review: { slug, submission: submission.id } });
   if (!res.ok) return { taskNote: (await res.json()).error };
-  return { taskNote: patch.status === 'done' ? 'Its task moved to Done.' : 'Its task went back to Doing with these notes.' };
+  return { taskNote: patch.status === 'done' ? 'Its task moved to Done.' : SENT_BACK };
 }

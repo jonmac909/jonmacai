@@ -378,6 +378,13 @@ test("dashboard: the agent token plus X-Review-Via is a signed-in reviewer under
   assert.deepEqual([told.delivered_to, browser.delivered_to], ["dashboard", null]);
   const queue = (await (await fetchApp("/api/review/submissions?undelivered=1", { headers: agent })).json()).submissions.map((x) => x.id);
   assert.deepEqual([queue.includes(told.id), queue.includes(browser.id)], [false, true]);
+  // The dashboard couldn't wake the owner after all: requeue hands it back to the router (agent token only).
+  const denied = await fetchApp(`/api/review/submissions/${told.id}/requeue`, jsonInit("POST", {}, dash));
+  assert.equal(denied.status, 403);
+  await denied.arrayBuffer();
+  await fetchApp(`/api/review/submissions/${told.id}/requeue`, jsonInit("POST", {}, agent)).then((r) => r.arrayBuffer());
+  const again = (await (await fetchApp("/api/review/submissions?undelivered=1", { headers: agent })).json()).submissions.map((x) => x.id);
+  assert.ok(again.includes(told.id));
 });
 
 test("drawings: stored as checked vector JSON; bad tools, colours, points and extra keys never stored", async () => {
