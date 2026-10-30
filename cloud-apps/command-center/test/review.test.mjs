@@ -71,12 +71,29 @@ test('QC passing a qc task moves it to review, with a history row; bots never se
   assert.deepEqual([self.status, self.body.task.status], [200, 'review']);
 });
 
+test('after a send-back, an old passed proof cannot move the task to review again; a done task never moves', async () => {
+  const { env } = await setup();
+  const { task, proof } = await inQc(env, true);
+  const back = await patch(env, task.id, { jon: true }, { status: 'doing', comment: 'Tighten the intro' });
+  assert.equal(back.body.task.status, 'doing');
+  const skip = await patch(env, task.id, { bot: 'sponsors' }, { status: 'review' });
+  assert.equal(skip.status, 409, 'the pass from before the send-back does not count');
+  const p2 = (await call(env, 'POST', `/tasks/${task.id}/proofs`, { bot: 'sponsors', body: { kind: 'url', link: 'https://example.com/v2' } })).body.proof;
+  await patch(env, task.id, { bot: 'sponsors' }, { status: 'qc' });
+  const passed = await call(env, 'POST', `/proofs/${p2.id}/check`, { bot: 'qc', body: { result: 'passed' } });
+  assert.equal(passed.body.task.status, 'review', 'a new pass after the send-back moves it on');
+  await patch(env, task.id, { jon: true }, { status: 'done' });
+  assert.equal((await patch(env, task.id, { bot: 'sponsors' }, { status: 'doing' })).status, 409, "bots can't undo Jon's approval");
+  const late = await call(env, 'POST', `/proofs/${proof.id}/check`, { bot: 'qc', body: { result: 'failed' } });
+  assert.equal(late.body.task.status, 'done', "a late QC fail doesn't reopen what Jon approved");
+});
+
 test('QC failing the last passed proof sends a review task back to doing', async () => {
   const { env } = await setup();
   const { task, proof } = await inQc(env, true);
   const failed = await call(env, 'POST', `/proofs/${proof.id}/check`, { bot: 'qc', body: { result: 'failed', note: 'wrong cut' } });
   assert.deepEqual([failed.body.task.status, failed.body.task.updatedBy], ['doing', 'qc']);
-  assert.deepEqual((await history(env, task.id)).at(-1), ['qc', 'status', 'status review → doing']);
+  assert.deepEqual((await history(env, task.id)).at(-1), ['qc', 'status', 'status review → doing (QC failed)']);
 });
 
 test('Jon approves a review task: done, done_at, by jon, "approved by Jon"; nothing else of a bot\'s', async () => {
@@ -206,10 +223,10 @@ test('migration 0012 run twice moves bot tasks from done to review once, with on
   db.sqlite.exec(sql);
   const { results: tasks } = await db.prepare('SELECT id, status, done_at, updated_by FROM bot_tasks ORDER BY id').all();
   assert.deepEqual(tasks.map((x) => [x.id.slice(-1), x.status, x.done_at, x.updated_by]), [
-    ['a', 'review', null, 'developer'], ['b', 'done', '2026-10-29T10:00:00.000Z', 'ana'], ['c', 'doing', null, 'ana'], ['d', 'done', '2026-10-30T10:00:00.000Z', 'ana'],
+    ['a', 'review', '2026-10-29T10:00:00.000Z', 'developer'], ['b', 'done', '2026-10-29T10:00:00.000Z', 'ana'], ['c', 'doing', null, 'ana'], ['d', 'done', '2026-10-30T10:00:00.000Z', 'ana'],
   ]);
   const { results: events } = await db.prepare("SELECT * FROM bot_task_events WHERE \"by\" = 'developer'").all();
-  assert.deepEqual(events.map((e) => [e.task_id, e.kind, e.detail]), [['t_000000000000000a', 'status', 'status done → review (Review stage added)']]);
+  assert.deepEqual(events.map((e) => [e.task_id, e.kind, e.detail]), [['t_000000000000000a', 'status', 'status done → review (Review stage added; was done 2026-10-29T10:00:00.000Z)']]);
   assert.match(events[0].id, /^e_[0-9a-f]{16}$/);
   assert.ok(Number.isFinite(Date.parse(events[0].at)));
 });

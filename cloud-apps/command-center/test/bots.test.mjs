@@ -143,7 +143,7 @@ test('proof: kinds and links, QC-only checks, and qc/done need usable proof', as
   assert.equal(done.body.task.status, 'done');
   assert.ok(done.body.task.doneAt);
   const refailed = await call(env, 'POST', `/proofs/${p2.id}/check`, { bot: 'qc', body: { result: 'failed', note: 'link 404s' } });
-  assert.deepEqual([refailed.body.task.status, refailed.body.task.doneAt], ['doing', null], 'a done task without passed proof reopens');
+  assert.equal(refailed.body.task.status, 'done', "a late QC fail never reopens what Jon approved");
 
   const full = await call(env, 'GET', `/tasks/${task.id}`, { bot: 'sponsors' });
   assert.deepEqual(full.body.task.proofs.map((p) => [p.kind, p.status]), [['render', 'failed'], ['url', 'failed']]);

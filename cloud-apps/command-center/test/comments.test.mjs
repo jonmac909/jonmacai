@@ -95,7 +95,7 @@ test('history: create, status, owner/project/due, proof, QC check, tick and comm
     ['sponsors', 'proof', 'proof added (url)'],
     ['qc', 'status', 'status doing → qc'],
     ['qc', 'check', 'proof failed'],
-    ['qc', 'status', 'status qc → doing'],
+    ['qc', 'status', 'status qc → doing (QC failed)'],
     ['jon', 'comment', 'commented'],
     ['qc', 'comment', 'commented'],
   ]);

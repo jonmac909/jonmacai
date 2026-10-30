@@ -268,10 +268,16 @@ async function logEvent(db, taskId, at, by, kind, detail) {
 }
 
 // Done means proof: qc needs a proof QC hasn't failed, review and done need one QC passed.
+// A proof that supports a review: QC passed it after Jon last sent the task back (an older pass doesn't count).
+const PASSED_SINCE_SENT_BACK = "SELECT 1 FROM bot_proofs p WHERE p.task_id = bot_tasks.id AND p.status = 'passed' AND p.checked_at > "
+  + "COALESCE((SELECT MAX(e.at) FROM bot_task_events e WHERE e.task_id = bot_tasks.id AND e.detail LIKE '%(sent back by Jon)'), '')";
+
 async function hasProof(db, taskId, status) {
   const sql = status === 'qc'
     ? "SELECT 1 AS ok FROM bot_proofs WHERE task_id = ? AND status != 'failed' LIMIT 1"
-    : "SELECT 1 AS ok FROM bot_proofs WHERE task_id = ? AND status = 'passed' LIMIT 1";
+    : status === 'review'
+      ? `SELECT 1 AS ok FROM bot_tasks WHERE id = ? AND EXISTS (${PASSED_SINCE_SENT_BACK})`
+      : "SELECT 1 AS ok FROM bot_proofs WHERE task_id = ? AND status = 'passed' LIMIT 1";
   return !!(await db.prepare(sql).bind(taskId).first());
 }
 
@@ -298,9 +304,11 @@ async function updateTask(db, who, id, body, now) {
   if ('status' in body) {
     const status = next.status = oneOf(body.status, TASK_STATUSES, 'status');
     if (status === 'done') throw new Bad(403, 'Bots cannot set done: Jon approves a task from review to done on the dashboard');
+    // 2. Jon's approval is final for bots: a done task never moves again (a new task is the way to reopen work).
+    if (row.status === 'done' && status !== 'done') throw new Bad(409, 'Jon approved this task; it is done. Add a new task for more work');
     if (status !== row.status) {
       if (status === 'qc' && !(await hasProof(db, id, 'qc'))) throw new Bad(409, 'Add proof before moving a task to qc');
-      if (status === 'review' && !(await hasProof(db, id, 'review'))) throw new Bad(409, 'A task goes to review only when QC has passed one of its proofs');
+      if (status === 'review' && !(await hasProof(db, id, 'review'))) throw new Bad(409, 'A task goes to review only when QC has passed one of its proofs (since Jon last sent it back)');
       if (status === 'cancelled' && !text(body, 'note', 4000)) throw new Bad(400, 'Say why in note when cancelling a task');
     }
     sets.push('status = ?', 'done_at = NULL');
@@ -309,7 +317,7 @@ async function updateTask(db, who, id, body, now) {
   if (!sets.length) throw new Bad(400, 'Nothing to change: send title, owner, status, note, project, minutes or due');
   // Re-check the proof inside the UPDATE so a QC fail landing in between can't be skipped.
   const moving = 'status' in body && body.status !== row.status ? String(body.status).trim().toLowerCase() : '';
-  const guard = moving === 'review' ? " AND EXISTS (SELECT 1 FROM bot_proofs WHERE task_id = bot_tasks.id AND status = 'passed')"
+  const guard = moving === 'review' ? ` AND EXISTS (${PASSED_SINCE_SENT_BACK})`
     : moving === 'qc' ? " AND EXISTS (SELECT 1 FROM bot_proofs WHERE task_id = bot_tasks.id AND status != 'failed')" : '';
   const r = await db.prepare(`UPDATE bot_tasks SET ${sets.join(', ')}, updated_by = ?, updated_at = ? WHERE id = ?${guard}`)
     .bind(...args, who.bot, now, id).run();
@@ -496,13 +504,14 @@ async function checkProof(db, who, id, body, now) {
     if (changed(moved)) await logEvent(db, task.id, now, who.bot, 'status', 'status qc → review (QC passed)');
     task = await taskRow(db, task.id);
   }
-  // A failed check takes a qc, review or done task back to doing when no proof still supports it.
-  if (result === 'failed' && task && ['qc', 'review', 'done'].includes(task.status) && !(await hasProof(db, task.id, task.status))) {
+  // A failed check takes a qc or review task back to doing when no proof still supports it. Done is Jon's
+  // decision and stays done; a late fail there only shows on the proof.
+  if (result === 'failed' && task && ['qc', 'review'].includes(task.status) && !(await hasProof(db, task.id, task.status))) {
     const was = task.status;
-    await db.prepare("UPDATE bot_tasks SET status = 'doing', done_at = NULL, updated_by = ?, updated_at = ? WHERE id = ? AND status = ?")
-      .bind(who.bot, now, task.id, task.status).run();
+    const back = await db.prepare("UPDATE bot_tasks SET status = 'doing', updated_by = ?, updated_at = ? WHERE id = ? AND status = ?")
+      .bind(who.bot, now, task.id, was).run();
+    if (changed(back)) await logEvent(db, task.id, now, who.bot, 'status', `status ${was} → doing (QC failed)`);
     task = await taskRow(db, task.id);
-    if (task.status !== was) await logEvent(db, task.id, now, who.bot, 'status', `status ${was} → ${task.status}`);
   }
   return json({ ok: true, proof: proofOut(row), task: task ? taskOut(task) : null });
 }
