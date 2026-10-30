@@ -9,7 +9,8 @@ Google's consent screen; afterwards the token is checked (right account or chann
 and saved to D:\\AgentTeam\\secrets\\google\\<account>.json (YouTube: yt-<channel>.json). Gmail uses the old
 Hermes client (project ana-assistant-510518, client.json). YouTube uses Jon's own External app
 (youtube-client.json, pasted on the page) when it exists, else client.json. The server stops when
-everything is connected or after --hours. Never print or copy the files. See GOOGLE.md.
+everything is connected or after --hours. The same page connects Instagram/Facebook and TikTok for short_post.py
+(D:\\AgentTeam\\secrets\\social\\). Never print or copy the files. See GOOGLE.md.
 """
 import argparse
 import base64
@@ -44,9 +45,11 @@ ACCOUNTS = {
 # jonstagger@gmail.com (Error 403 org_internal). Connect that account another way (see GOOGLE.md).
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import youtube_upload as yt  # noqa: E402  (channel list, YouTube OAuth client, scope)
+import short_post as sp  # noqa: E402  (Meta and TikTok sign-ins for the short clips)
 
 # A brand channel is its own Google identity, so YouTube needs one consent per channel.
 YOUTUBE = {'yt-' + k: v for k, v in yt.CHANNELS.items()}  # slug: (name, account, channel id)
+SOCIAL = {'meta': 'Instagram and Facebook', 'tiktok': 'TikTok'}
 
 
 def client():
@@ -65,12 +68,14 @@ def oauth_client(slug):
 
 
 def label(slug):
-    return YOUTUBE[slug][0] if slug in YOUTUBE else ACCOUNTS[slug][0]
+    return YOUTUBE[slug][0] if slug in YOUTUBE else SOCIAL[slug] if slug in SOCIAL else ACCOUNTS[slug][0]
 
 
 def connected(slug):
     if slug in YOUTUBE:
         return yt.connected(slug[3:])
+    if slug in SOCIAL:
+        return sp.connected(slug)
     _, _, key, want = target(slug)
     try:
         return json.loads((DIR / ('%s.json' % slug)).read_text(encoding='utf-8')).get(key) == want
@@ -79,7 +84,7 @@ def connected(slug):
 
 
 def everything():
-    return list(ACCOUNTS) + list(YOUTUBE)
+    return list(ACCOUNTS) + list(YOUTUBE) + list(SOCIAL)
 
 
 def post(url, fields):
@@ -128,7 +133,9 @@ class Flow:
         state, verifier = secrets.token_urlsafe(24), secrets.token_urlsafe(64)
         with self.lock:
             self.pending[state] = (slug, verifier)
-        challenge = base64.urlsafe_b64encode(hashlib.sha256(verifier.encode()).digest()).rstrip(b'=').decode()
+        if slug == 'tiktok':
+            return sp.tiktok_auth_url(state, verifier)
+        challenge =base64.urlsafe_b64encode(hashlib.sha256(verifier.encode()).digest()).rstrip(b'=').decode()
         hint, scopes, _, _ = target(slug)
         q = {'client_id': oauth_client(slug)['client_id'], 'redirect_uri': REDIRECT, 'response_type': 'code',
              'scope': ' '.join(scopes), 'access_type': 'offline', 'prompt': 'consent',
@@ -144,6 +151,8 @@ class Flow:
             slug, verifier = self.pending.pop(state, (None, None))
         if not slug:
             return None, 'This consent link expired. Open the account link again.'
+        if slug == 'tiktok':
+            return slug, sp.tiktok_connect(code, verifier)
         _, scopes, key, want = target(slug)
         c = oauth_client(slug)
         try:
@@ -202,12 +211,34 @@ is not verified: press Advanced, then Go to Jon Mac Team.</p>%(youtube)s
 upload in Studio meanwhile. <a href="https://support.google.com/youtube/contact/yt_api_form">Open the form</a> and copy
 <a href="https://github.com/jonmac909/jonmacai/blob/main/cloud-apps/command-center/bots/GOOGLE.md#youtube-api-audit-answers">the
 written answers</a>.</p>
-<h2>5. Short clips (once)</h2><ol>
-<li><a href="https://developers.facebook.com/apps/creation/">Meta for Developers</a>: create a Business app named
-Jon Mac Team, add the Instagram product (API setup with Instagram login) with your Instagram account, and Facebook
-Login for Business with your Page. About 15 min; no Meta review is needed for your own accounts.</li>
-<li><a href="https://developers.tiktok.com/apps/">TikTok for Developers</a>: sign up, Connect an app, add Login Kit and
-Content Posting API. About 15 min. Posts stay private until TikTok audits the app.</li></ol>
+<h2>5. Instagram and Facebook (once, 15 min)</h2><p>Your Instagram must be a professional account linked to your
+Facebook Page. No Meta review is needed for your own accounts.</p><ol>
+<li><a href="https://developers.facebook.com/apps/creation/">Meta for Developers</a>: create an app named Jon Mac Team,
+type Business. Add Facebook Login for Business and Instagram.</li>
+<li><a href="https://developers.facebook.com/tools/explorer/">Graph API Explorer</a>: pick the Jon Mac Team app, add the
+permissions pages_show_list, pages_read_engagement, pages_manage_posts, instagram_basic, instagram_content_publish and
+business_management (plus ads_management and ads_read if the Page sits in a Meta business portfolio), press
+<b>Generate Access Token</b> and choose only your Page and its Instagram.</li>
+<li>Paste the App ID and App secret (App settings, Basic) and that token here (Instagram and Facebook: %(meta)s):
+<form method="post" action="/meta"><input type="hidden" name="key" value="%(key)s">
+<input name="app_id" placeholder="App ID" size="60" autocomplete="off"><br>
+<input name="app_secret" placeholder="App secret" size="60" autocomplete="off" type="password"><br>
+<input name="token" placeholder="Access token" size="60" autocomplete="off" type="password">
+<button>Save</button></form></li>
+<li>App settings, Basic: Privacy Policy URL https://viralview.io/privacy, then switch App Mode to <b>Live</b>
+(in Development mode the posts show only to you).</li></ol>
+<h2>6. TikTok (once, 15 min)</h2><ol>
+<li><a href="https://developers.tiktok.com/apps/">TikTok for Developers</a>: sign up, Connect an app named Jon Mac Team,
+platform <b>Desktop</b>. Add Login Kit with the redirect URI <code>%(tiktok_redirect)s</code>, and Content Posting API with
+Direct Post on. Under Sandbox, add your TikTok account as a target user.</li>
+<li>Paste the Client key and Client secret here (TikTok app: %(tiktok_app)s):
+<form method="post" action="/tiktok-client"><input type="hidden" name="key" value="%(key)s">
+<input name="client_key" placeholder="Client key" size="60" autocomplete="off"><br>
+<input name="client_secret" placeholder="Client secret" size="60" autocomplete="off" type="password">
+<button>Save</button></form></li>
+<li><a href="/tiktok">Connect TikTok</a> %(tiktok)s</li></ol>
+<p>Until TikTok audits the app, each approved clip arrives in your TikTok inbox: tap the notification, paste the
+caption and post.</p>
 <h2>Gmail and Calendar</h2><ul>%(gmail)s</ul>'''
 
 
@@ -221,7 +252,16 @@ def index(form_key):
     youtube = ''.join('<h3>%s</h3><ul>%s</ul>' % (html.escape(yt.ACCOUNTS[a] or "Jacqueline's account (she signs in)"),
                                                   ''.join(rows)) for a, rows in groups.items())
     return page(SETUP % {'app': 'saved' if (DIR / 'youtube-client.json').exists() else 'not saved yet',
-                         'key': form_key, 'youtube': youtube, 'gmail': ''.join(li(s) for s in ACCOUNTS)})
+                         'key': form_key, 'youtube': youtube, 'gmail': ''.join(li(s) for s in ACCOUNTS),
+                         'meta': 'connected' if connected('meta') else 'not connected yet',
+                         'tiktok_app': 'saved' if (sp.DIR / 'tiktok-client.json').exists() else 'not saved yet',
+                         'tiktok': '&#10003; connected' if connected('tiktok') else '', 'tiktok_redirect': sp.TIKTOK_REDIRECT})
+
+
+# The forms on the page: path -> (save function, its form fields, what Jon sees when it worked)
+FORMS = {'/youtube-client': (save_youtube_client, ('client_id', 'client_secret'), 'YouTube app saved. Now connect the channels.'),
+         '/meta': (sp.meta_connect, ('app_id', 'app_secret', 'token'), 'Instagram and Facebook connected.'),
+         '/tiktok-client': (sp.tiktok_client_save, ('client_key', 'client_secret'), 'TikTok app saved. Now press Connect TikTok.')}
 
 
 def handler(flow, done):
@@ -238,7 +278,10 @@ def handler(flow, done):
             u = urllib.parse.urlparse(self.path)
             q = dict(urllib.parse.parse_qsl(u.query))
             slug = u.path.strip('/')
-            if slug in ACCOUNTS or slug in YOUTUBE:
+            if slug == 'tiktok' and not (sp.DIR / 'tiktok-client.json').exists():
+                self.reply(page('<h1>Save the TikTok app first</h1><p><a href="/">Back to the connect page</a></p>'))
+                return
+            if slug in ACCOUNTS or slug in YOUTUBE or slug == 'tiktok':
                 self.send_response(302)
                 self.send_header('Location', flow.start(slug))
                 self.end_headers()
@@ -247,7 +290,7 @@ def handler(flow, done):
                 if 'code' in q:
                     slug, problem = flow.finish(q['state'], q['code'])
                 else:
-                    slug, problem = None, 'Google said: %s. Open the account link again.' % q.get('error', 'cancelled')
+                    slug, problem = None, 'The sign-in said: %s. Open the account link again.' % q.get('error', 'cancelled')
                 log('%s %s' % (slug or '?', problem or 'connected'))
                 body = ('<h1>Not connected yet</h1><p>%s</p>' % html.escape(problem) if problem else
                         '<h1>Connected %s</h1><p>You can close this tab.</p>' % html.escape(label(slug)))
@@ -262,14 +305,14 @@ def handler(flow, done):
                 return
             size = int(self.headers.get('Content-Length') or 0)
             form = dict(urllib.parse.parse_qsl(self.rfile.read(min(size, 4096)).decode('utf-8', 'replace')))
-            if urllib.parse.urlparse(self.path).path != '/youtube-client' or \
-                    not hmac.compare_digest(form.get('key', ''), flow.form_key):
+            path = urllib.parse.urlparse(self.path).path
+            if path not in FORMS or not hmac.compare_digest(form.get('key', ''), flow.form_key):
                 self.reply(page('<h1>Not saved</h1><p>Open <a href="/">the connect page</a> and try again.</p>'))
                 return
-            problem = save_youtube_client(form.get('client_id', '').strip(), form.get('client_secret', '').strip())
-            log('youtube client %s' % (problem or 'saved'))
-            self.reply(page('<h1>%s</h1><p><a href="/">Back to the connect page</a></p>'
-                            % html.escape(problem or 'YouTube app saved. Now connect the channels.')))
+            save, fields, ok = FORMS[path]
+            problem = save(*(form.get(f, '').strip() for f in fields))
+            log('%s %s' % (path, problem or 'saved'))
+            self.reply(page('<h1>%s</h1><p><a href="/">Back to the connect page</a></p>' % html.escape(problem or ok)))
 
         def reply(self, body):
             self.send_response(200)

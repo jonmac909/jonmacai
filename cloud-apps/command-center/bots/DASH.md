@@ -112,7 +112,7 @@ dash.py approval-done a_… [--note "sent 20"]      (running → done)
 dash.py approval-release a_… [--note "SMTP down"] (running → approved, try again later)
 dash.py approval-cancel a_…       (withdraw your own pending or approved request)
 ```
-- Actions are snake_case. The known ones are `send_pitches`, `publish_draft`, `post_clips`, `spotify_batch` and `publish_video` (YouTube; GOOGLE.md).
+- Actions are snake_case. The known ones are `send_pitches`, `publish_draft`, `post_clips` (short clips; `short_post.py -h` has the payload), `spotify_batch` and `publish_video` (YouTube; GOOGLE.md).
 - Jon sees the whole payload before approving, so it is capped at 4000 characters as formatted JSON. Put long lists in a file and send its path.
 - Status flow: `pending` → Jon makes it `approved` or `rejected` → the bot that asked claims it (`running`) → `done`.
 - Only Jon approves or rejects.
