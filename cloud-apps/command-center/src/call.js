@@ -7,6 +7,7 @@ import { readSession, timingSafeEqualString } from './auth.js';
 export const STARTS_PER_HOUR = 10;
 export const MAX_CALL_MS = 30 * 60 * 1000;
 const HOUR = 60 * 60 * 1000;
+const LIVE_MS = 75 * 1000; // GPU1 pings every 30 s: a link silent this long died without a close
 
 export async function handleCall(request, env) {
   const url = new URL(request.url);
@@ -27,8 +28,8 @@ export async function handleCall(request, env) {
   return relay.fetch(new Request(url, { headers: { Upgrade: 'websocket', 'X-Call-Role': role } }));
 }
 
-const typeOf = (msg) => {
-  try { return typeof msg === 'string' ? JSON.parse(msg).type : ''; } catch { return ''; }
+const parse = (msg) => {
+  try { return typeof msg === 'string' ? JSON.parse(msg) || {} : {}; } catch { return {}; }
 };
 const send = (ws, msg) => { try { ws.send(msg); } catch { /* gone */ } };
 const close = (ws, code, reason) => { try { ws.close(code, reason); } catch { /* gone */ } };
@@ -49,6 +50,7 @@ export class CallRelay {
       this.endCall(4502, 'GPU1 reconnected. Call again.');
       for (const old of this.open('gpu1')) close(old, 4000, 'Replaced by a newer GPU1 connection.');
       this.ctx.acceptWebSocket(server, ['gpu1']);
+      server.serializeAttachment({ at: Date.now() });
     } else {
       const refused = await this.refusal(Date.now());
       if (refused) {
@@ -56,9 +58,11 @@ export class CallRelay {
         close(server, ...refused);
       } else {
         this.endCall(4001, 'Replaced by a new call.');
+        // Each call has its own id: GPU1 echoes it in call.started, so a slower, older start can't take this call.
+        const id = crypto.randomUUID();
         this.ctx.acceptWebSocket(server, ['phone']);
-        server.serializeAttachment({ ready: false });
-        this.toGpu1(JSON.stringify({ type: 'call.start' }));
+        server.serializeAttachment({ id, ready: false });
+        this.toGpu1(JSON.stringify({ type: 'call.start', id }));
         await this.ctx.storage.setAlarm(Date.now() + MAX_CALL_MS);
       }
     }
@@ -66,11 +70,16 @@ export class CallRelay {
   }
 
   async refusal(now) {
-    if (!this.open('gpu1').length) return [4503, 'GPU1 is offline, so Ana cannot take calls right now.'];
+    if (!this.gpu1Live(now)) return [4503, 'GPU1 is offline, so Ana cannot take calls right now.'];
     const starts = ((await this.ctx.storage.get('starts')) || []).filter((t) => now - t < HOUR);
     if (starts.length >= STARTS_PER_HOUR) return [4429, `That is ${STARTS_PER_HOUR} calls this hour. Try again later.`];
     await this.ctx.storage.put('starts', [...starts, now]);
     return null;
+  }
+
+  gpu1Live(now) {
+    return this.open('gpu1').some((ws) => now - Math.max(ws.deserializeAttachment()?.at || 0,
+      this.ctx.getWebSocketAutoResponseTimestamp(ws)?.getTime() || 0) < LIVE_MS);
   }
 
   toGpu1(msg) {
@@ -85,16 +94,22 @@ export class CallRelay {
 
   webSocketMessage(ws, msg) {
     if (this.ctx.getTags(ws).includes('gpu1')) return this.fromGpu1(msg);
-    if (typeof msg !== 'string') return this.toGpu1(msg); // mic audio
-    if (typeOf(msg) === 'session.close') this.endCall(1000, 'Call ended.'); // Hang up
+    if (ws.readyState !== WebSocket.OPEN) return; // a phone a newer call already replaced
+    if (typeof msg !== 'string') { // mic audio, once GPU1 has picked up this call
+      if (ws.deserializeAttachment()?.ready) this.toGpu1(msg);
+      return;
+    }
+    if (parse(msg).type === 'session.close') this.endCall(1000, 'Call ended.'); // Hang up
   }
 
   fromGpu1(msg) {
     const [phone] = this.open('phone');
     if (!phone) return;
-    const type = typeOf(msg);
-    if (type === 'call.started') phone.serializeAttachment({ ready: true });
-    if (!phone.deserializeAttachment()?.ready) return; // still in flight from the call before
+    const { type, id } = parse(msg);
+    const at = phone.deserializeAttachment() || {};
+    // GPU1 handles calls in order, so everything after this call's own call.started belongs to it.
+    if (!at.ready && type === 'call.started' && id === at.id) phone.serializeAttachment({ ...at, ready: true });
+    else if (!at.ready) return; // still in flight from a call before
     send(phone, msg);
     if (type === 'session.closed') close(phone, 1000, 'Call ended.');
   }

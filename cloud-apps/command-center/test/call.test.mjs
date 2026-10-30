@@ -102,6 +102,7 @@ function relay() {
     acceptWebSocket(ws, t) { tags.set(ws, t); },
     getWebSockets(tag) { return [...tags.keys()].filter((ws) => tags.get(ws).includes(tag)); },
     getTags(ws) { return tags.get(ws) || []; },
+    getWebSocketAutoResponseTimestamp(ws) { return ws.pongAt === undefined ? new Date() : ws.pongAt; }, // pinging unless a test says not
     setWebSocketAutoResponse(pair) { ctx.auto = pair; },
     storage: {
       get: async (k) => store.get(k),
@@ -150,19 +151,27 @@ test('audio and events pass both ways once GPU1 has picked up', async () => {
   const phone = await room.connect('phone');
   assert.deepEqual(events(gpu1), ['call.start']);
 
+  const { id } = JSON.parse(gpu1.sent[0]);
+  assert.match(id, /^[0-9a-f-]{36}$/, 'each call has its own id');
+
   const mic = new Uint8Array([1, 2, 3, 4]).buffer;
   room.webSocketMessage(phone, mic);
-  assert.equal(gpu1.sent.at(-1), mic);
+  assert.equal(gpu1.sent.length, 1, 'no mic audio before GPU1 picks up');
 
   room.webSocketMessage(gpu1, new Uint8Array([9, 9]).buffer);
   room.webSocketMessage(gpu1, '{"type":"session.output_transcript.delta","delta":"old call"}');
-  assert.equal(phone.sent.length, 0, 'frames from before this call never reach the phone');
+  room.webSocketMessage(gpu1, '{"type":"call.started","id":"an-older-call"}');
+  room.webSocketMessage(gpu1, '{"type":"error","error":{"message":"old call failed"}}');
+  assert.equal(phone.sent.length, 0, 'frames from an older call, even its call.started, never reach this phone');
 
-  room.webSocketMessage(gpu1, '{"type":"call.started"}');
+  const started = JSON.stringify({ type: 'call.started', id });
+  room.webSocketMessage(gpu1, started);
   const voice = new Uint8Array([5, 6]).buffer;
   room.webSocketMessage(gpu1, voice);
   room.webSocketMessage(gpu1, '{"type":"session.output_transcript.delta","delta":"Hola Jon"}');
-  assert.deepEqual(phone.sent, ['{"type":"call.started"}', voice, '{"type":"session.output_transcript.delta","delta":"Hola Jon"}']);
+  assert.deepEqual(phone.sent, [started, voice, '{"type":"session.output_transcript.delta","delta":"Hola Jon"}']);
+  room.webSocketMessage(phone, mic);
+  assert.equal(gpu1.sent.at(-1), mic);
 
   room.webSocketMessage(phone, '{"type":"call.start"}');
   assert.equal(events(gpu1).length, 1, 'the phone cannot send GPU1 commands');
@@ -207,4 +216,23 @@ test('GPU1 dropping or reconnecting ends the call on the phone', async () => {
   assert.equal(b.closedWith[0], 4502, 'the call on the old link ends');
   assert.equal(again.closedWith[0], 4000, 'only one GPU1 link at a time');
   assert.equal(newer.closedWith, null);
+});
+
+test('a half-open GPU1 link (no ping for 75 s) counts as offline', async () => {
+  const { room } = relay();
+  const gpu1 = await room.connect('gpu1');
+  gpu1.att = { at: Date.now() - 80_000 };
+  gpu1.pongAt = new Date(Date.now() - 80_000);
+  assert.equal((await room.connect('phone')).closedWith[0], 4503);
+  gpu1.pongAt = new Date();
+  assert.equal((await room.connect('phone')).closedWith, null);
+});
+
+test('a phone a newer call replaced cannot hang up the new call', async () => {
+  const { room } = relay();
+  await room.connect('gpu1');
+  const old = await room.connect('phone');
+  const now = await room.connect('phone');
+  room.webSocketMessage(old, '{"type":"session.close"}');
+  assert.equal(now.closedWith, null);
 });
