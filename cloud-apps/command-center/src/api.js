@@ -248,6 +248,11 @@ export async function handleApi(request, env, ctx) {
     const ok = await exchangeGoogleCode(env, url.origin, url.searchParams.get('code'), url.searchParams.get('state'));
     return Response.redirect(`${url.origin}/dashboard/#life${ok ? '' : '?cal=err'}`, 302);
   }
+  // The deploy's version alone, so a page that doesn't refresh its data still notices a deploy (app.js).
+  if (rest === '/build' && method === 'GET') {
+    const denied = await needSession(request, env);
+    return denied || json({ build: env.CF_VERSION_METADATA?.id ?? null });
+  }
   if (rest === '/snapshot' && method === 'GET') {
     const denied = await needSession(request, env);
     if (denied) return denied;
