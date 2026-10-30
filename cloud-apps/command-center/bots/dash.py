@@ -30,6 +30,7 @@ FEEDS = ['morning_summary', 'calendar_today', 'claude_usage', 'ebook_sales', 'da
 LABELS = {'Sponsors': 'sponsors', 'YT-JM': 'jon-mac', 'YT-AI UGC': 'jonmacai', 'Viral View': 'viral-view',
           'Home Guide Press': 'home-guide-press', 'Short-form': 'short-form', 'Accounting': 'accounting', 'Coding': 'coding'}
 PROJECTS = list(LABELS.values())
+CALENDAR_STATUSES = ['planned', 'scheduled', 'published']
 DAILY_FILE = r'D:\AgentTeam\rules\facts\daily-checklists.md'
 
 
@@ -217,6 +218,19 @@ def project_of(value):
     return s
 
 
+def day_of(value, flag):
+    if value is not None and not re.fullmatch(r'\d{4}-\d{2}-\d{2}', value):
+        raise Fail(2, '%s must be a date like 2026-11-03.' % flag)
+    return value
+
+
+def web_of(value, flag):
+    """The Calendar and Content pages take http(s) links only ("" clears a calendar link)."""
+    if value and not re.match(r'^https?://[^\s/?#]+\S*$', value, re.I):
+        raise Fail(2, '%s must be an http(s) link.' % flag)
+    return value
+
+
 def run(args, ctx):
     c = args.cmd
     q = urllib.parse.quote
@@ -307,6 +321,33 @@ def run(args, ctx):
         return call(ctx, 'PUT', '/feeds/daily_checklists', {'projects': daily_lists(args.file)})
     if c == 'daily-done':
         return call(ctx, 'POST', '/daily', only({'project': project, 'item': args.item, 'link': args.link, 'note': args.note}))
+    if c == 'channels':
+        return call(ctx, 'GET', '/channels')
+    if c == 'channel-set':
+        return call(ctx, 'PUT', '/channels/%s' % q(args.channel, safe=''), {'schedule': args.schedule})
+    if c == 'calendar':
+        return call(ctx, 'GET', '/calendar', query={'channel': args.channel, 'from': day_of(args.start, '--from'),
+                                                    'to': day_of(args.end, '--to'), 'limit': args.limit})
+    if c == 'calendar-add':
+        return call(ctx, 'POST', '/calendar', only({'channel': args.channel, 'title': args.title, 'date': day_of(args.date, '--date'),
+                                                   'status': args.status, 'link': web_of(args.link, '--link'), 'key': args.key}))
+    if c == 'calendar-update':
+        body = only({'title': args.title, 'date': day_of(args.date, '--date'), 'status': args.status,
+                     'link': web_of(args.link, '--link')})
+        if not body:
+            raise Fail(2, 'Nothing to change: pass --title, --date, --status or --link.')
+        return call(ctx, 'PATCH', '/calendar/%s' % q(args.id, safe=''), body)
+    if c == 'outliers':
+        return call(ctx, 'GET', '/outliers', query={'channel': args.channel, 'selected': '1' if args.selected else None,
+                                                    'limit': args.limit})
+    if c == 'outlier-add':
+        if args.views < 0 or args.avg < 1:
+            raise Fail(2, '--views must be 0 or more and --avg 1 or more.')
+        return call(ctx, 'POST', '/outliers', only({'channel': args.channel, 'title': args.title, 'link': web_of(args.link, '--link'),
+                                                   'thumb': web_of(args.thumb, '--thumb'), 'views': args.views, 'avg': args.avg,
+                                                   'published': day_of(args.published, '--published'), 'key': args.key}))
+    if c == 'outlier-select':
+        return call(ctx, 'POST', '/outliers/%s/select' % q(args.id, safe=''), {'selected': args.state == 'on'})
     raise Fail(2, 'Unknown command %s' % c)
 
 
@@ -459,6 +500,52 @@ def parser():
     a.add_argument('item', help='the item text, or its number in the list (1 = first)')
     a.add_argument('--link', required=True, help='proof: https:// URL or a file path on GPU1')
     a.add_argument('--note')
+
+    s.add_parser('channels', help='the channel slugs (Calendar and Content tabs) and their posting schedules')
+
+    a = s.add_parser('channel-set', help="set a channel's posting schedule ('' clears it)")
+    a.add_argument('channel', help='channel slug, see: dash.py channels')
+    a.add_argument('--schedule', required=True, help='e.g. "Tue and Fri 9 am PT"')
+
+    a = s.add_parser('calendar', help='list calendar videos')
+    a.add_argument('--channel')
+    a.add_argument('--from', dest='start', help='YYYY-MM-DD')
+    a.add_argument('--to', dest='end', help='YYYY-MM-DD')
+    a.add_argument('--limit', type=int)
+
+    a = s.add_parser('calendar-add', help="add a video to a channel's calendar")
+    a.add_argument('channel')
+    a.add_argument('title')
+    a.add_argument('--date', required=True, help='YYYY-MM-DD (PT)')
+    a.add_argument('--status', required=True, choices=CALENDAR_STATUSES)
+    a.add_argument('--link', help='https:// link to the video, Studio page or script')
+    a.add_argument('--key', help='your own unique key; repeating it returns the first video instead of a copy')
+
+    a = s.add_parser('calendar-update', help='change one calendar video')
+    a.add_argument('id')
+    a.add_argument('--title')
+    a.add_argument('--date', help='YYYY-MM-DD (PT)')
+    a.add_argument('--status', choices=CALENDAR_STATUSES)
+    a.add_argument('--link', help="https:// link, or '' to remove it")
+
+    a = s.add_parser('outliers', help='list outliers, best first (what Jon picked: --selected)')
+    a.add_argument('--channel')
+    a.add_argument('--selected', action='store_true', help='only those selected for production')
+    a.add_argument('--limit', type=int)
+
+    a = s.add_parser('outlier-add', help='add an outlier video found for a channel')
+    a.add_argument('channel')
+    a.add_argument('title')
+    a.add_argument('--link', required=True, help='https:// link to the video')
+    a.add_argument('--views', required=True, type=int)
+    a.add_argument('--avg', required=True, type=int, help="its own channel's average views")
+    a.add_argument('--published', required=True, help='YYYY-MM-DD')
+    a.add_argument('--thumb', help='https:// thumbnail image')
+    a.add_argument('--key', help='your own unique key, e.g. the video id; repeating it returns the first row')
+
+    a = s.add_parser('outlier-select', help='mark an outlier selected for production, or not')
+    a.add_argument('id')
+    a.add_argument('state', choices=['on', 'off'])
     return p
 
 

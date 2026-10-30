@@ -217,5 +217,56 @@ class DashTaskUpdate(unittest.TestCase):
         call.assert_not_called()
 
 
+class DashChannels(unittest.TestCase):
+    """dash.py channel, calendar and outlier commands: checked locally, then one call each."""
+    CTX = {'bot': 'viral-view', 'token': 't', 'base': 'https://x'}
+
+    def run_cmd(self, *argv):
+        return dash.run(dash.parser().parse_args(list(argv)), self.CTX)
+
+    def test_each_command_sends_one_call(self):
+        with mock.patch.object(dash, 'call', return_value={'ok': True}) as call:
+            self.run_cmd('channels')
+            self.run_cmd('channel-set', 'mina-creates', '--schedule', 'Tue and Fri 9 am PT')
+            self.run_cmd('calendar', '--channel', 'mina-creates', '--from', '2026-11-01')
+            self.run_cmd('calendar-add', 'mina-creates', 'Video 2', '--date', '2026-11-03', '--status', 'planned', '--key', 'mina-2')
+            self.run_cmd('calendar-update', 'v_0123456789abcdef', '--status', 'published', '--link', 'https://youtu.be/x')
+            self.run_cmd('calendar-update', 'v_0123456789abcdef', '--link', '')
+            self.run_cmd('outlier-add', 'mina-creates', 'Big one', '--link', 'https://youtu.be/y', '--views', '42000',
+                         '--avg', '10000', '--published', '2026-10-27', '--thumb', 'https://i.ytimg.com/vi/y/hq.jpg', '--key', 'y')
+            self.run_cmd('outliers', '--channel', 'mina-creates', '--selected')
+            self.run_cmd('outlier-select', 'o_0123456789abcdef', 'on')
+            self.run_cmd('outlier-select', 'o_0123456789abcdef', 'off')
+        self.assertEqual([c.args[1:] + tuple(c.kwargs.values()) for c in call.call_args_list], [
+            ('GET', '/channels'),
+            ('PUT', '/channels/mina-creates', {'schedule': 'Tue and Fri 9 am PT'}),
+            ('GET', '/calendar', {'channel': 'mina-creates', 'from': '2026-11-01', 'to': None, 'limit': None}),
+            ('POST', '/calendar', {'channel': 'mina-creates', 'title': 'Video 2', 'date': '2026-11-03', 'status': 'planned', 'key': 'mina-2'}),
+            ('PATCH', '/calendar/v_0123456789abcdef', {'status': 'published', 'link': 'https://youtu.be/x'}),
+            ('PATCH', '/calendar/v_0123456789abcdef', {'link': ''}),
+            ('POST', '/outliers', {'channel': 'mina-creates', 'title': 'Big one', 'link': 'https://youtu.be/y',
+                                   'thumb': 'https://i.ytimg.com/vi/y/hq.jpg', 'views': 42000, 'avg': 10000,
+                                   'published': '2026-10-27', 'key': 'y'}),
+            ('GET', '/outliers', {'channel': 'mina-creates', 'selected': '1', 'limit': None}),
+            ('POST', '/outliers/o_0123456789abcdef/select', {'selected': True}),
+            ('POST', '/outliers/o_0123456789abcdef/select', {'selected': False})])
+
+    def test_bad_input_never_reaches_the_dashboard(self):
+        add = ['outlier-add', 'mina-creates', 'T', '--link', 'https://youtu.be/y', '--views', '5', '--avg', '2', '--published', '2026-10-27']
+        cal = ['calendar-add', 'mina-creates', 'T', '--date', '2026-11-03', '--status', 'planned']
+        with mock.patch.object(dash, 'call') as call:
+            for argv in ([*cal[:4], 'Tuesday', *cal[5:]], [*cal, '--link', 'javascript:alert(1)'],
+                         [*cal, '--link', 'D:\\video.mp4'], ['calendar-update', 'v_1'], ['calendar', '--to', '11/03'],
+                         [*add[:4], 'ftp://x', *add[5:]], [*add, '--thumb', 'data:image/png;base64,AA'],
+                         [*add[:6], '-1', *add[7:]], [*add[:8], '0', *add[9:]], [*add[:10], '2026-1-1']):
+                with self.assertRaises(dash.Fail) as err:
+                    self.run_cmd(*argv)
+                self.assertEqual(err.exception.code, 2, argv)
+            for argv in ([*cal[:6], 'live'], ['outlier-select', 'o_1', 'yes'], cal[:5]):  # argparse refuses these
+                with self.assertRaises(SystemExit), mock.patch('sys.stderr'):
+                    self.run_cmd(*argv)
+        call.assert_not_called()
+
+
 if __name__ == '__main__':
     unittest.main()
