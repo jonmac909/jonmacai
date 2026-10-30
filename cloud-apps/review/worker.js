@@ -370,7 +370,7 @@ async function api(request, env, url) {
     return deleteVideo(env, row);
   }
 
-  if (resource === "submit" && id === undefined && method === "POST") return submit(request, env, base, row);
+  if (resource === "submit" && id === undefined && method === "POST") return submit(request, env, base, row, who);
   if (resource === "submissions" && id === undefined && method === "GET") {
     return json({ submissions: (await slugSubmissions(env, slug)).results.map((s) => publicSubmission(s, base)) });
   }
@@ -470,7 +470,7 @@ async function api(request, env, url) {
     if (!agent) return fail(403, "agent_token_required");
     const voice = await env.DB.prepare("SELECT audio_key FROM comments WHERE id = ? AND slug = ?").bind(id, slug).first();
     const result = await env.DB.prepare("DELETE FROM comments WHERE id = ? AND slug = ?").bind(id, slug).run();
-    if (voice?.audio_key) await env.MEDIA.delete(voice.audio_key);
+    if (voice?.audio_key) await env.MEDIA.delete(voice.audio_key).catch((err) => console.error("voice note delete", err)); // the comment is gone either way
     return result.meta.changes ? json({ deleted: id }) : fail(404, "comment_not_found");
   }
 
@@ -480,7 +480,7 @@ async function api(request, env, url) {
 // Submit changes / Approve (reviewer session or agent). Snapshots the open, unsent comments, locks
 // them to this submission and sets the video status, all in one transaction. The dedupe key
 // (slug, kind, sorted comment ids) is UNIQUE, so a double tap returns the first row, never a second.
-async function submit(request, env, base, row) {
+async function submit(request, env, base, row, who = {}) {
   const body = (await readJson(request)) || {};
   const kind = body.kind === undefined ? "changes" : body.kind;
   if (!Object.hasOwn(KINDS, kind)) return fail(400, "kind must be changes or approve");
@@ -492,9 +492,12 @@ async function submit(request, env, base, row) {
   const dedupe = `${row.slug}|${kind}|${[...ids].sort().join(",")}`;
   const id = crypto.randomUUID();
   const stamp = now();
+  // The dashboard already tells the owner of this Send back (its card wake): stored as delivered, the GPU2 router skips it.
+  const told = who.prefix === "/dashboard" && request.headers.get("X-Review-Delivered-To") === "dashboard";
   await env.DB.batch([
-    env.DB.prepare("INSERT OR IGNORE INTO submissions (id, slug, kind, created_at, comment_ids, dedupe_key) VALUES (?, ?, ?, ?, ?, ?)")
-      .bind(id, row.slug, kind, stamp, JSON.stringify(ids), dedupe),
+    env.DB.prepare(`INSERT OR IGNORE INTO submissions (id, slug, kind, created_at, comment_ids, dedupe_key, delivered_at, delivered_to)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`)
+      .bind(id, row.slug, kind, stamp, JSON.stringify(ids), dedupe, told ? stamp : null, told ? "dashboard" : null),
     env.DB.prepare(`UPDATE comments SET submission_id = ?1 WHERE slug = ?2 AND submission_id IS NULL
         AND id IN (SELECT value FROM json_each(?3)) AND EXISTS (SELECT 1 FROM submissions WHERE id = ?1)`)
       .bind(id, row.slug, JSON.stringify(ids)),

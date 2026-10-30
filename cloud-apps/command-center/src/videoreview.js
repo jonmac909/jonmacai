@@ -21,12 +21,17 @@ const clock = (t) => {
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 };
 
+const kindOf = (buf) => {
+  try { return JSON.parse(new TextDecoder().decode(buf)).kind ?? 'changes'; } catch { return null; }
+};
+
 export const reviewSlug = (link) => REVIEW_LINK.exec(String(link || ''))?.[1].toLowerCase() || null;
 
 // The task a review video belongs to: one with that review page as proof, a task in review first, then the newest proof.
 export async function linkedTask(db, slug) {
   const { results } = await db.prepare(`SELECT t.*, p.link AS review_link FROM bot_proofs p JOIN bot_tasks t ON t.id = p.task_id
-    WHERE p.link LIKE ? AND t.status != 'cancelled' ORDER BY t.status = 'review' DESC, p.created_at DESC LIMIT 20`).bind(`%/review/${slug}%`).all();
+    WHERE (p.link LIKE ? OR p.link LIKE ? OR p.link LIKE ? OR p.link LIKE ?) AND t.status != 'cancelled'
+    ORDER BY t.status = 'review' DESC, p.created_at DESC LIMIT 20`).bind(...['', '/%', '?%', '#%'].map((end) => `%/review/${slug}${end}`)).all();
   return (results || []).find((r) => reviewSlug(r.review_link) === slug) || null;
 }
 
@@ -57,8 +62,18 @@ export async function reviewProxy(request, env, ctx) {
 
   const target = new URL(url);
   target.pathname = url.pathname.slice('/dashboard'.length);
-  const res = await forward(env, target, { method: request.method, headers: request.headers, body });
-  const hook = write && res.ok ? /^\/api\/review\/([a-z0-9-]+)\/(comments|submit)$/.exec(target.pathname) : null;
+  // Send back on a video whose bot-owned task waits in Review: the card wake (moveTask) is the owner's one notice,
+  // so the review Worker stores the submission as delivered and the GPU2 router skips it. Approve wakes no one
+  // and Jon's own tasks wake no bot, so those stay with the router.
+  const headers = new Headers(request.headers);
+  headers.delete('X-Review-Delivered-To');
+  const submitting = write ? /^\/api\/review\/([a-z0-9-]+)\/submit\/?$/.exec(target.pathname)?.[1] : null;
+  if (submitting && kindOf(body) === 'changes') {
+    const task = await linkedTask(env.DB, submitting);
+    if (task?.status === 'review' && task.owner !== 'jon') headers.set('X-Review-Delivered-To', 'dashboard');
+  }
+  const res = await forward(env, target, { method: request.method, headers, body });
+  const hook = write && res.ok ? /^\/api\/review\/([a-z0-9-]+)\/(comments|submit)\/?$/.exec(target.pathname) : null;
   if (!hook) return res;
   const out = await res.json();
   try {
@@ -110,13 +125,5 @@ async function moveTask(env, ctx, origin, slug, submission, now) {
   }
   const res = await tickTask(env.DB, env, ctx, task.id, patch, now, { review: { slug, submission: submission.id } });
   if (!res.ok) return { taskNote: (await res.json()).error };
-  // Send back just woke the owner on the card, so the GPU2 router must not send its own notice: mark the
-  // submission delivered (the agent call, without X-Review-Via). Approve wakes no one, so the router still tells them.
-  if (patch.status === 'doing') {
-    const done = await env.REVIEW.fetch(new Request(`${origin}/api/review/submissions/${encodeURIComponent(submission.id)}/delivered`, {
-      method: 'POST', headers: { Authorization: `Bearer ${env.REVIEW_API_TOKEN}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ to: 'dashboard' }) }))
-      .catch(() => null);
-    if (!done?.ok) console.error('review submission delivered', done?.status);
-  }
   return { taskNote: patch.status === 'done' ? 'Its task moved to Done.' : 'Its task went back to Doing with these notes.' };
 }

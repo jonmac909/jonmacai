@@ -365,6 +365,19 @@ test("dashboard: the agent token plus X-Review-Via is a signed-in reviewer under
     assert.equal(response.status, 403, path);
     await response.arrayBuffer();
   }
+
+  // A Send back the dashboard tells the owner about itself is stored as delivered, so the GPU2 router skips it.
+  // Only the dashboard can say so: the header from a signed-in browser changes nothing.
+  const claim = { "X-Review-Delivered-To": "dashboard" };
+  const sendBack = async (headers) => {
+    await fetchApp("/api/review/mina-1-v8/comments", jsonInit("POST", { author: "Jon", t: 1, text: "tighter" }, headers)).then((r) => r.arrayBuffer());
+    return (await (await fetchApp("/api/review/mina-1-v8/submit", jsonInit("POST", { kind: "changes" }, { ...headers, ...claim }))).json()).submission;
+  };
+  const told = await sendBack(dash);
+  const browser = await sendBack({ Cookie: cookie, Origin: runtime.url });
+  assert.deepEqual([told.delivered_to, browser.delivered_to], ["dashboard", null]);
+  const queue = (await (await fetchApp("/api/review/submissions?undelivered=1", { headers: agent })).json()).submissions.map((x) => x.id);
+  assert.deepEqual([queue.includes(told.id), queue.includes(browser.id)], [false, true]);
 });
 
 test("drawings: stored as checked vector JSON; bad tools, colours, points and extra keys never stored", async () => {

@@ -54,7 +54,6 @@ function fakeReview() {
         if (kind === 'changes') for (const c of comments) c.submission_id = submission.id;
         return Response.json({ submission, status: kind === 'approve' ? 'approved' : 'changes_requested', duplicate: false }, { status: 201 });
       }
-      if (/^\/api\/review\/submissions\/[^/]+\/delivered$/.test(url.pathname) && request.method === 'POST') return Response.json({ submission: {} });
       return Response.json({ error: 'not_found' }, { status: 404 });
     },
   };
@@ -175,8 +174,8 @@ test('Approve on the review page moves the linked Review task to Done; Send back
   assert.equal(ok.taskNote, 'Its task moved to Done.');
   const done = await taskRow(db, approved.id);
   assert.deepEqual([done.status, done.updated_by, !!done.done_at], ['done', 'jon', true]);
-  const delivered = (r) => r.seen.filter((x) => x.path.endsWith('/delivered'));
-  assert.equal(delivered(first).length, 0, 'Approve wakes no one, so the GPU2 router still sends its notice');
+  const told = (r) => r.seen.filter((x) => x.path.endsWith('/submit')).map((x) => x.headers['x-review-delivered-to'] ?? null);
+  assert.deepEqual(told(first), [null], 'Approve wakes no one, so the GPU2 router still sends its notice');
 
   const { env: env2, db: db2, review } = await setup();
   const back = await videoTask(env2);
@@ -191,9 +190,15 @@ test('Approve on the review page moves the linked Review task to Done; Send back
   assert.deepEqual([sent[0].data.data.sentBack, sent[0].data.data.review], [true, { slug: SLUG, submission: 's-changes' }]);
   const history = await db2.prepare("SELECT detail FROM bot_task_events WHERE task_id = ? AND kind = 'status' ORDER BY at DESC, rowid DESC").bind(back.id).first();
   assert.equal(history.detail, 'status review → doing (sent back by Jon)');
-  const [mark] = delivered(review);
-  assert.deepEqual([mark?.path, mark?.headers.authorization, mark?.headers['x-review-via'], mark?.body],
-    ['/api/review/submissions/s-changes/delivered', `Bearer ${REVIEW_TOKEN}`, undefined, '{"to":"dashboard"}'], 'the GPU2 router skips a send back the dashboard delivered');
+  assert.deepEqual(told(review), ['dashboard'], 'the card wake is the one notice: the review Worker stores it as delivered, so the GPU2 router skips it');
+
+  // Jon's own task wakes no bot, and the browser can't claim the hand-off: both stay with the router.
+  const { env: env3, db: db3, review: third } = await setup();
+  const mine = await videoTask(env3);
+  await db3.prepare("UPDATE bot_tasks SET owner = 'jon' WHERE id = ?").bind(mine.id).run();
+  await hit(env3, 'POST', `/dashboard/api/review/${SLUG}/comments`, { body: { author: 'Jon', t: 3, text: 'x' } });
+  await hit(env3, 'POST', `/dashboard/api/review/${SLUG}/submit`, { body: { kind: 'changes' }, headers: { 'X-Review-Delivered-To': 'dashboard' } });
+  assert.deepEqual(told(third), [null]);
 });
 
 test('a task not in Review, or no task, stays put; the review is still saved', async (t) => {
