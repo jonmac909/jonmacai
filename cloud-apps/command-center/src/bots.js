@@ -1028,7 +1028,7 @@ function webLinkOf(body, key = 'link', required = false) {
 // csv: keys belong to the CSV imports (PUT calendar|outliers/<channel>), which replace those rows.
 function keyOf(body) {
   const key = text(body, 'key', 200);
-  if (key?.startsWith('csv:')) throw new Bad(400, 'key must not start with csv: (the CSV imports use those)');
+  if (key?.toLowerCase().startsWith('csv:')) throw new Bad(400, 'key must not start with csv: (the CSV imports use those)');
   return key;
 }
 

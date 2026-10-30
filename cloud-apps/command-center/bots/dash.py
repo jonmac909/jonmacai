@@ -260,8 +260,9 @@ def csv_import(ctx, paths, folder, resource, key, row_of):
                 rows = read_rows(f, 'utf-8-sig')
             except UnicodeDecodeError:
                 rows = read_rows(f, 'cp1252')  # Excel's default "CSV" save
-        except OSError as err:
-            raise Fail(2, 'Cannot read %s: %s' % (f, err))
+        except (OSError, UnicodeDecodeError, csv.Error) as err:  # one unreadable file never stops the others
+            skipped.append('%s: not imported, not a readable CSV (save it as "CSV UTF-8"): %s' % (f.name, err))
+            continue
         items, bad = [], 0
         for n, row in enumerate(rows, start=2):  # line 1 is the header
             if None in row:  # more cells than columns
@@ -333,7 +334,7 @@ def content_row(row):
         avg = whole(row['channel_avg'], 'channel_avg')
     else:
         multiple = float(row.get('multiple') or 0)
-        if multiple <= 0:
+        if not 0 < multiple < float('inf'):
             raise ValueError('needs channel_avg or multiple')
         avg = round(views / multiple)
     picked = row.get('selected', '').lower()
