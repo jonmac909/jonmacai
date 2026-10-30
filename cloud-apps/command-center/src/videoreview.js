@@ -110,5 +110,13 @@ async function moveTask(env, ctx, origin, slug, submission, now) {
   }
   const res = await tickTask(env.DB, env, ctx, task.id, patch, now, { review: { slug, submission: submission.id } });
   if (!res.ok) return { taskNote: (await res.json()).error };
+  // Send back just woke the owner on the card, so the GPU2 router must not send its own notice: mark the
+  // submission delivered (the agent call, without X-Review-Via). Approve wakes no one, so the router still tells them.
+  if (patch.status === 'doing') {
+    const done = await env.REVIEW.fetch(new Request(`${origin}/api/review/submissions/${encodeURIComponent(submission.id)}/delivered`, {
+      method: 'POST', headers: { Authorization: `Bearer ${env.REVIEW_API_TOKEN}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ to: 'dashboard' }) }))
+      .catch(() => null);
+    if (!done?.ok) console.error('review submission delivered', done?.status);
+  }
   return { taskNote: patch.status === 'done' ? 'Its task moved to Done.' : 'Its task went back to Doing with these notes.' };
 }
