@@ -593,7 +593,15 @@ tfoot td{font-weight:600;color:var(--ink);border-top:1px solid var(--line)}
 /* Today (2026-10-29): source line under each card, morning summary, side column, urgent rows. */
 .src{margin:.5rem 0 0;font-size:.78rem;color:var(--muted)}
 .src.stale{color:var(--risk-ink)}
-.summary{white-space:pre-line;font-size:.92rem;line-height:1.5}
+.summary{font-size:.92rem;line-height:1.5;overflow-wrap:anywhere}
+.summary section+section{margin-top:.75rem;padding-top:.75rem;border-top:1px solid var(--line)}
+.summary p{margin:0}
+.summary p+p,.summary ul+p,.summary p+ul{margin-top:.4rem}
+.summary ul{margin:0;padding-left:1.1rem}
+.summary li+li{margin-top:.25rem}
+.summary strong{font-weight:650;color:var(--ink)}
+.summary a{color:var(--accent);text-decoration:none;font-weight:500}
+.summary a:hover{text-decoration:underline}
 .todayside{display:grid;gap:.9rem;align-content:start}
 .nylist{max-width:none}
 .nyi.crit{border-left:3px solid var(--crit-fill);padding-left:.7rem}
