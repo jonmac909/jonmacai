@@ -303,7 +303,7 @@ new MutationObserver((ms) => noLoneWords(ms.flatMap((m) => [...m.addedNodes]))).
 let shownWidth = innerWidth, resizing;
 window.addEventListener('resize', () => {
   clearTimeout(resizing);
-  resizing = setTimeout(() => { if (innerWidth !== shownWidth) { shownWidth = innerWidth; go(hashPage()); } }, 300);
+  resizing = setTimeout(() => { if (data && innerWidth !== shownWidth) { shownWidth = innerWidth; go(hashPage()); } }, 300);
 });
 
 const snap = await fetch(`${PREFIX}/api/snapshot?v=${Date.now()}`);
