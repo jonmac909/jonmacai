@@ -173,7 +173,7 @@ async function handleLead(request, env) {
         to: email,
         reply_to: env.RESEND_REPLY_TO || undefined,
         subject: "Your seat isn't saved yet",
-        text: `${firstName ? firstName + " — " : ""}you're one step from your seat at The Clone Method live training (Thursday, October 29, 7:00 PM ET).
+        text: `${firstName ? firstName + " — " : ""}you're one step from your seat at The Clone Method live training (Thursday, November 12, 7:00 PM ET).
 
 Finish here, it takes under a minute:
 ${checkout}

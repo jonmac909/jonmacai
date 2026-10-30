@@ -25,12 +25,13 @@ export function easternTime(at, dayOffset, hour) {
   return guess;
 }
 
-// One live session only (Jon, Oct 20): Thu Oct 29 2026, 7 PM ET. public/schedule.js
-// uses the same times. Sales close at 5:30 PM PT / 8:30 PM ET (Jon, Oct 21), 90 minutes into
-// the session. Anyone who pays after that gets the recording and a refund offer (L1) instead of
-// reminders. Anyone who pays while the session is live gets the join link at once (E6).
-export const SESSION_AT = Date.UTC(2026, 9, 29, 23, 0, 0);
-export const SALES_CLOSE = Date.UTC(2026, 9, 30, 0, 30, 0);
+// One live session only: Thu Nov 12 2026, 4 PM PT / 7 PM ET (moved from Oct 29, Jon, Oct 30).
+// public/schedule.js uses the same times. Sales close at 5:30 PM PT / 8:30 PM ET (Jon, Oct 21),
+// 90 minutes into the session. Anyone who pays after that gets the recording and a refund offer (L1)
+// instead of reminders. Anyone who pays while the session is live gets the join link at once (E6).
+// Buyers already booked keep their stored session_at; changing these never re-plans their emails.
+export const SESSION_AT = Date.UTC(2026, 10, 13, 0, 0, 0);
+export const SALES_CLOSE = Date.UTC(2026, 10, 13, 1, 30, 0);
 export const salesClosed = (at = Date.now()) => at >= SALES_CLOSE;
 
 export function assignSession(purchasedAt) {

@@ -52,7 +52,7 @@ try {
   await Promise.all([page.waitForResponse(response => response.url().endsWith('/clone/api/visit')), page.goto('https://jonmac.ai/clone/')]);
   await Promise.all([page.waitForResponse(response => response.url().endsWith('/clone/api/visit')), page.reload()]);
   assert.equal((await db.prepare("SELECT COUNT(*) n FROM clone_session_events WHERE kind='visit'").first()).n, 1);
-  // The Worker's own clock decides sales; after the Oct 29 5:30 PM PT close it answers 410 to every lead.
+  // The Worker's own clock decides sales; after the Nov 12 5:30 PM PT close it answers 410 to every lead.
   if (realClosed) {
     const closedLead = await page.evaluate(() => fetch('/clone/api/lead', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' }).then(r => r.status));
     assert.equal(closedLead, 410);

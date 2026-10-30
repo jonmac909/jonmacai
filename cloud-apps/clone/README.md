@@ -78,14 +78,17 @@ unchanged by JON-15. CI additionally runs `npm run test:readiness:browser`, usin
 the actual Worker/KV/D1 with mocked external resources and no message/payment
 submission. Mobile screenshots are saved in the OS temp directory.
 
-## Sales close (Oct 29, 5:30 PM PT / 8:30 PM ET)
+## Sales close (Thu Nov 12, 5:30 PM PT / 8:30 PM ET)
 
-`SALES_CLOSE` is 2026-10-30T00:30:00Z, 90 minutes into the 7 PM ET session, after the pitch. Buyers who
+The one live session moved from Oct 29 to Thursday, November 12, 2026, 4 PM PT / 7 PM ET
+(`SESSION` 2026-11-13T00:00:00Z, after daylight saving ends; Jon, Oct 30). Buyers already booked keep
+their stored session; only new purchases get Nov 12.
+`SALES_CLOSE` is 2026-11-13T01:30:00Z, 90 minutes into the 7 PM ET session, after the pitch. Buyers who
 pay while the session is live get the join link at once (reminder E6). After `SALES_CLOSE` the Worker returns 410 `sales_closed` from `/api/lead`, `/api/checkout-session`
 and `/api/upsell` for any visitor without a verified purchase (no hosted checkout URL either).
 A buyer verified before the cutoff can still finish the funnel. `public/closed-gate.js` shows
 "Registration Closed" on welcome, survey, software, audit and vault to browsers with no verified
-purchase. Tests: `npm test` shifts `Date` to Oct 28 once the real clock passes the cutoff
+purchase. Tests: `npm test` shifts `Date` to Nov 11 once the real clock passes the cutoff
 (`test/clock-setup.mjs`); browser scripts fix the page clock (`test/clock.mjs`); the live sandbox
 runner switches to closed-state checks after the cutoff.
 

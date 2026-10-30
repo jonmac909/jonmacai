@@ -1,11 +1,11 @@
-// One live session only (Jon, Oct 20): Thu Oct 29 2026, 7 PM ET, 2 hours.
+// One live session only: Thu Nov 12 2026, 4 PM PT / 7 PM ET, 2 hours (Jon, Oct 30).
 // Sales close at 5:30 PM PT / 8:30 PM ET, 90 minutes into the session, after the pitch (Jon, Oct 21).
 // src/reminder-plan.js uses the same times.
 (function (root) {
   'use strict';
-  var SESSION = Date.UTC(2026, 9, 29, 23, 0, 0);  // Thu Oct 29 2026, 7 PM EDT
-  var SALES_CLOSE = Date.UTC(2026, 9, 30, 0, 30, 0); // Thu Oct 29 5:30 PM PDT / 8:30 PM EDT
-  var SESSION_END = SESSION + 2 * 3600000;         // 9 PM EDT
+  var SESSION = Date.UTC(2026, 10, 13, 0, 0, 0);    // Thu Nov 12 2026, 4 PM PST / 7 PM EST
+  var SALES_CLOSE = Date.UTC(2026, 10, 13, 1, 30, 0); // Thu Nov 12 5:30 PM PST / 8:30 PM EST
+  var SESSION_END = SESSION + 2 * 3600000;          // 9 PM EST
   function nextSession() { return new Date(SESSION); }
   function isClosed(now) { return (now || new Date()).getTime() >= SALES_CLOSE; }
   function phase(now) {

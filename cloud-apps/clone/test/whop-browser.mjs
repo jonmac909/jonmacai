@@ -58,7 +58,7 @@ try {
   const calendar = new URL(await page.locator('#cal').getAttribute('href'));
   assert.equal(calendar.searchParams.get('recur'), null, 'One live session: no recurring calendar');
   assert.equal(calendar.searchParams.get('ctz'), 'America/New_York');
-  assert.equal(calendar.searchParams.get('dates'), '20261029T190000/20261029T210000');
+  assert.equal(calendar.searchParams.get('dates'), '20261112T190000/20261112T210000');
   // The Worker's own clock decides sales; a real post-close run cannot take new leads.
   if (!realClosed) {
     await page.goto(new URL('/clone/?wacid=campaign&wasid=adset&waid=ad', base).toString());
@@ -73,7 +73,7 @@ try {
     assert.equal(serverEvents[0].user.anonymous_id, 'wuid_browser_fixture');
     assert.equal(serverEvents[0].context.ad_id, 'ad');
     console.log('PASS: opt-in browser/server IDs match, with _wuid and Whop ad attribution; no email dispatch');
-  } else console.log('SKIP: opt-in lead flow needs the Worker clock before the Oct 29 5:30 PM PT close; unit tests cover it with a shifted clock');
+  } else console.log('SKIP: opt-in lead flow needs the Worker clock before the Nov 12 5:30 PM PT close; unit tests cover it with a shifted clock');
   // Lead events (Whop lead + complete_registration, Meta Lead) wait for a 2xx from /api/lead.
   for (const [label, status, fires] of [['accepted 200', 200, true], ['closed 410', 410, false], ['server error 500', 500, false], ['network failure', 0, false]]) {
     const fresh = await browser.newContext(); await fresh.route('**/*', proxy);
@@ -107,9 +107,9 @@ try {
   assert.equal(hosted.searchParams.get('whop_anonymous_id'), 'wuid_browser_fixture');
   assert.equal(hosted.searchParams.get('waid'), 'ad');
   console.log('PASS: hosted upsell fallback carries retained _wuid and Whop campaign parameters');
-  // After sales close (5:30 PM PT Oct 29) sales are closed: no popup, no checkout, no Lead or cart event.
+  // After sales close (5:30 PM PT Nov 12) sales are closed: no popup, no checkout, no Lead or cart event.
   const closed = await context.newPage(); closed.on('pageerror', error => errors.push(closed.url() + ' ' + error.stack));
-  await closed.clock.install({ time: new Date('2026-10-30T00:35:00Z') });
+  await closed.clock.install({ time: new Date('2026-11-13T01:35:00Z') });
   const apiCalls = []; closed.on('request', r => { if (/\/clone\/api\/(checkout-session|lead)/.test(r.url())) apiCalls.push(r.url()); });
   await closed.goto(new URL('/clone/', base).toString());
   await closed.waitForFunction(() => document.documentElement.classList.contains('sales-closed'));
@@ -127,7 +127,7 @@ try {
     const fresh = await browser.newContext(); await fresh.route('**/*', proxy);
     if (buyer) await fresh.route('**/clone/api/buyer-session', route => route.fulfill({ contentType: 'application/json', body: '{"ok":true}' }));
     const gated = await fresh.newPage(); gated.on('pageerror', error => errors.push(gated.url() + ' ' + error.stack));
-    await gated.clock.install({ time: new Date('2026-10-30T00:35:00Z') });
+    await gated.clock.install({ time: new Date('2026-11-13T01:35:00Z') });
     for (const name of ['welcome', 'survey', 'software', 'audit', 'vault']) {
       await gated.goto(new URL('/clone/' + name + '.html', base).toString());
       if (buyer) {
@@ -151,7 +151,7 @@ try {
     await fresh.route('**/clone/api/buyer-session', route => route.fulfill({ status: 401, contentType: 'application/json', body: '{"ok":false,"fallback":true}' }));
     await fresh.route('**/clone/api/upsell', route => route.fulfill({ status: 410, contentType: 'application/json',
       body: '{"ok":false,"error":"sales_closed","closed":true,"message":"Registration is closed for this session."}' }));
-    const lapsed = await fresh.newPage(); await lapsed.clock.install({ time: new Date('2026-10-30T00:35:00Z') });
+    const lapsed = await fresh.newPage(); await lapsed.clock.install({ time: new Date('2026-11-13T01:35:00Z') });
     const hostedHits = []; lapsed.on('request', r => { if (r.url().includes('commas.com/checkout')) hostedHits.push(r.url()); });
     await lapsed.goto(new URL('/clone/software.html', base).toString());
     await lapsed.locator('[data-upsell="software"]').first().click();
