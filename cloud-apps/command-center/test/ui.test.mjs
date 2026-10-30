@@ -22,3 +22,10 @@ test('morning summary renders light Markdown safely', async () => {
     + '<ul><li><strong>Olivia:</strong> done</li><li>two</li></ul></section>'
     + '<section><p><strong>Bad:</strong> &lt;b&gt;x&lt;/b&gt; [y](javascript:alert(1))</p></section>');
 });
+
+test('morning summary links keep parentheses and never carry tags into the href', async () => {
+  const { summaryHtml } = await import('../public/js/pages/today.js');
+  assert.equal(summaryHtml('[Wiki](https://en.wikipedia.org/wiki/Foo_(bar))'),
+    '<section><p><a href="https://en.wikipedia.org/wiki/Foo_(bar)" target="_blank" rel="noopener">Wiki</a></p></section>');
+  assert.doesNotMatch(summaryHtml('[a](https://x.com/**b**)'), /href="[^"]*</);
+});

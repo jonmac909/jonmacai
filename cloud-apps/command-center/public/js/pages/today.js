@@ -69,7 +69,7 @@ function needsCard(n) {
 // Escaped first, so only these three forms become HTML; links must be http(s).
 const inline = (line) => esc(line)
   .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-  .replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+  .replace(/\[([^\]]+)\]\((https?:\/\/(?:[^\s()<]|\([^\s()<]*\))+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
 
 export function summaryHtml(text) {
   return String(text || '').trim().split(/\r?\n\s*\n/).map((section) => {
