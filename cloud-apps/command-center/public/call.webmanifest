@@ -1,0 +1,10 @@
+{
+  "name": "Call Ana",
+  "short_name": "Call Ana",
+  "start_url": "/dashboard/call",
+  "scope": "/dashboard/call",
+  "display": "standalone",
+  "background_color": "#16a34a",
+  "theme_color": "#16a34a",
+  "icons": [{ "src": "call-icon.png", "sizes": "512x512", "type": "image/png" }]
+}

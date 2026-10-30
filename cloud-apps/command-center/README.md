@@ -43,6 +43,10 @@ Regenerate compact JSON: `node scripts/build-snapshot.mjs`
 
 Cookie `__Host-cc_session` = `{unixExpiry}.{HMAC-SHA256(expiry)}` under `SESSION_SECRET`. HttpOnly, Secure, SameSite=Strict, Path=/, 30 days. Password compared in constant time. 10 failures / IP / 15 min locks that IP 15 min. 51 failures across IPs / hour locks everyone 1 hour.
 
+## Call Ana (`/dashboard/call`, `src/call.js`)
+
+Jon calls Ana by voice from any phone or browser. The page needs the dashboard session (no session: the login page, which returns him to the call). GPU1's Grok Voice bridge keeps one outbound WebSocket to the `CallRelay` Durable Object (`/dashboard/api/call/gpu1`, `Authorization: Bearer CALL_RELAY_SECRET`, at least 32 chars; GPU1 copy in `D:\AgentTeam\secrets\call-relay.secret`), so GPU1 has no inbound port and no DNS. The phone opens `/dashboard/api/call/phone` (session + same Origin) and sends mic audio as 16-bit mono PCM at 24 kHz; Grok's audio and caption events come back the same way. One call at a time (a new call replaces the old one), 10 starts an hour, 30 minutes per call. The idle GPU1 link pings every 30 s and is answered without waking the object (hibernation). GPU1 side: `D:\AgentTeam\grok-voice\relay_client.py`.
+
 Machine ingest is `POST /dashboard/api/ingest` with `Authorization: Bearer` (`MACHINE_TOKEN_MAC` / `MACHINE_TOKEN_GPU2`) and `{source, collectedAt, data}`. Sources retired on 2026-10-29 with the old MausBot team (`RETIRED_SOURCES` in `src/api.js`: `team`, `agents_gpu2`, `agents_mac`, `jon_tasks`, `needs_jon`, `partners_report`, `content_queue`, `support`, `video`, `videos`, `mastermind`, `youtube`, `cc_review_drafts`, `health`, `probe`, `webinar`, `post`) get `200 {ok: true, ignored: true}` and nothing is stored. Runners poll `POST /dashboard/api/actions/claim` every 15s. A source older than 3× its schedule (collectors: 5 min → stale after 15 min) gets a grey Stale pill. Collectors live in `collectors/mac` and `collectors/gpu2`; add a source as one `sources/*.py` module with `source(machine)` and `collect(machine)`.
 
 ## Bot API (`/dashboard/api/v1`)
