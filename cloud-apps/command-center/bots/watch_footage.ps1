@@ -30,7 +30,7 @@ function Fire($event, $data, $key) {
 }
 
 function Id($path) {  # survives a move between subfolders
-  $f = Get-Item -LiteralPath $path
+  $f = Get-Item -LiteralPath $path -ErrorAction Ignore  # being deleted: no id, and Busy holds it back
   '{0}|{1}|{2}' -f $f.Name, $f.Length, $f.LastWriteTimeUtc.Ticks
 }
 
@@ -79,7 +79,7 @@ try {
     $files = @($pending.Keys | Where-Object { [IO.File]::Exists($_) } | Where-Object { -not $seen[(Id $_)] } | Sort-Object)
     if (@($files | Where-Object { Busy $_ }).Count) { continue }  # still copying: wait another quiet spell
     if (-not $files.Count) { $pending.Clear(); continue }
-    $list = @($files | ForEach-Object { @{ path = $_; bytes = (Get-Item -LiteralPath $_).Length } })
+    $list = @($files | ForEach-Object { @{ path = $_; bytes = (Get-Item -LiteralPath $_ -ErrorAction Ignore).Length } })
     $ids = @($files | ForEach-Object { Id $_ })
     $hash = [Security.Cryptography.SHA256]::Create().ComputeHash([Text.Encoding]::UTF8.GetBytes($ids -join "`n"))
     $key = [BitConverter]::ToString($hash) -replace '-'

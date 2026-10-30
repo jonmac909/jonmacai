@@ -142,12 +142,17 @@ class Hooks(unittest.TestCase):
                 k.CreateFileW.argtypes = [wintypes.LPCWSTR, wintypes.DWORD, wintypes.DWORD, wintypes.LPVOID,
                                           wintypes.DWORD, wintypes.DWORD, wintypes.HANDLE]
                 h = k.CreateFileW(str(folder / 'part.m4a'), 0xC0010000, 7, None, 1, 0, None)  # read/write/delete, new
+                if h in (None, wintypes.HANDLE(-1).value):
+                    raise ctypes.WinError(ctypes.get_last_error())
+                wait = threading.Event().wait  # time.sleep is patched out in setUp
                 try:
-                    k.SetFileInformationByHandle(h, 4, ctypes.byref(ctypes.c_ubyte(1)), 1)  # delete when closed
+                    if not k.SetFileInformationByHandle(h, 4, ctypes.byref(ctypes.c_ubyte(1)), 1):  # delete on close
+                        raise ctypes.WinError(ctypes.get_last_error())
                     for _ in range(4):  # changes the watcher sees while the file is in that state
                         k.WriteFile(h, b'z' * 100, 100, ctypes.byref(wintypes.DWORD()), None)
                         k.FlushFileBuffers(h)
-                        time.sleep(0.5)
+                        wait(0.5)
+                    wait(4)  # and a quiet spell (2 s) that finds it still there
                 finally:
                     k.CloseHandle(h)
             drop(file_being_deleted, 1)  # gone when closed: no new event
