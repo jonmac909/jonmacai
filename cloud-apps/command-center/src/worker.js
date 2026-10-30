@@ -1,6 +1,9 @@
 import { handleApi } from './api.js';
 import { handleCron } from './cron.js';
 import { readSession } from './auth.js';
+import { handleCall } from './call.js';
+
+export { CallRelay } from './call.js';
 
 const PREFIX = '/dashboard';
 
@@ -26,11 +29,13 @@ export default {
     if (url.pathname !== PREFIX && !url.pathname.startsWith(`${PREFIX}/`)) {
       return new Response('Not found', { status: 404 });
     }
+    if (url.pathname.startsWith(`${PREFIX}/api/call/`)) return handleCall(request, env);
     if (url.pathname.startsWith(`${PREFIX}/api/`)) return handleApi(request, env, ctx);
 
     let assetPath = url.pathname.slice(PREFIX.length) || '/';
     if (assetPath === '/') assetPath = '/index.html';
-    const html = assetPath === '/index.html' || assetPath === '/login.html';
+    if (assetPath === '/call') assetPath = '/call.html';
+    const html = assetPath === '/index.html' || assetPath === '/login.html' || assetPath === '/call.html';
     if (html && assetPath !== '/login.html') {
       const session = await readSession(request, env);
       if (!session) assetPath = '/login.html';

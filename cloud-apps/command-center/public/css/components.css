@@ -360,7 +360,7 @@ tfoot td{font-weight:600;color:var(--ink);border-top:1px solid var(--line)}
 
 /* Content V4 */
 .chips{display:flex;gap:.4rem;flex-wrap:wrap}
-.chips .chip.on{background:var(--btn-bg);color:var(--on-accent);border-color:transparent;box-shadow:var(--btn-glow)}
+.chips .chip.on,.cctabs .chip.on{background:var(--btn-bg);color:var(--on-accent);border-color:transparent;box-shadow:var(--btn-glow)}
 .fout{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,12rem),1fr));gap:.9rem}
 .fcard{padding:1rem 1.05rem;display:flex;flex-direction:column;gap:.45rem}
 .fnum{display:flex;align-items:baseline;gap:.35rem;flex-wrap:wrap}

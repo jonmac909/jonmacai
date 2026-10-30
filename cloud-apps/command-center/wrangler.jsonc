@@ -37,6 +37,12 @@
     "crons": ["*/10 * * * *"]
   },
   "version_metadata": { "binding": "CF_VERSION_METADATA" },
+  // Phone calls to Ana (src/call.js): GPU1 and Jon's phone meet in one Durable Object.
+  // Secret CALL_RELAY_SECRET = D:\AgentTeam\secrets\call-relay.secret on GPU1.
+  "durable_objects": {
+    "bindings": [{ "name": "CALL_RELAY", "class_name": "CallRelay" }]
+  },
+  "migrations": [{ "tag": "call-relay-v1", "new_sqlite_classes": ["CallRelay"] }],
   "routes": [
     { "pattern": "jonmac.ai/dashboard", "zone_name": "jonmac.ai" },
     { "pattern": "jonmac.ai/dashboard/*", "zone_name": "jonmac.ai" }
@@ -53,6 +59,9 @@
       "triggers": { "crons": [] },
       "vars": { "PREVIEW": "1" },
       "version_metadata": { "binding": "CF_VERSION_METADATA" },
+      "durable_objects": {
+        "bindings": [{ "name": "CALL_RELAY", "class_name": "CallRelay" }]
+      },
       "d1_databases": [
         {
           "binding": "DB",
