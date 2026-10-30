@@ -679,3 +679,11 @@ body:has(.cardmodal[open]){overflow:hidden} /* the page behind stays put */
   .pjpage .pjkan{grid-template-columns:none;grid-auto-flow:column;grid-auto-columns:minmax(78%,1fr)}
 }
 .cmsmall p,.cmtextbody p{margin:0} /* last, so .cmlist p doesn't override it */
+.pjcard{position:relative}
+.pjx{position:absolute;top:.3rem;right:.3rem;width:1.75rem;height:1.75rem;padding:0;border:0;border-radius:.45rem;background:none;color:var(--muted);font-size:1.15rem;line-height:1;cursor:pointer}
+.pjx:hover,.pjx:focus-visible{background:var(--hover);color:var(--ink)}
+.pjx+.pjt{padding-right:1.6rem}
+.cmclose{margin:.75rem 0 0}
+.cmone{margin:.3rem 0 0;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.cmdet{margin-top:.25rem}
+.cmdet summary{cursor:pointer;color:var(--muted);font-size:.85rem}

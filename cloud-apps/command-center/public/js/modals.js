@@ -1,5 +1,5 @@
 import { esc, pill, botName, linkLabel, friendlyWhen } from './ui.js';
-import { needItem, summaryHtml } from './pages/today.js';
+import { needItem, summaryHtml, inline } from './pages/today.js';
 import { approveButton, deliverableLink } from './pages/projects.js';
 
 const PREFIX = '/dashboard';
@@ -15,15 +15,23 @@ const wakeLine = (status, owner) => (status === 'owner is Jon' ? '' : status == 
 
 const STATUS = { todo: 'To do', doing: 'Doing', waiting_on_jon: 'Waiting on you', qc: 'In QC', review: 'Ready for your review', done: 'Done', cancelled: 'Cancelled' };
 
-// One proof: a labelled button (never the raw URL), its QC result, and its notes.
+// One proof, compact: its QC result, a labelled button (never a raw URL or a local path) and the first
+// line of its note. The rest of the note and QC's notes sit behind Details.
 function proofItem(p) {
-  const name = String(p.link || '').split(/[\\/]/).pop();
   const open = /^https?:\/\//i.test(p.link)
     ? `<a class="btn line cmopen" href="${esc(p.link)}" target="_blank" rel="noopener">${esc(linkLabel(p.link, p.kind))}</a>`
-    : `<span class="cmfile" title="${esc(p.link)}">Local file: ${esc(name)}</span>`;
+    : `<span class="cmfile">Local file: ${esc(String(p.link || '').split(/[\\/]/).pop())}</span>`;
   const qc = p.status === 'passed' ? 'QC passed' : p.status === 'failed' ? 'QC failed' : 'Waiting for QC';
-  return `<li><div class="cmrow">${open}${pill(qc, PROOF_PILL[p.status] || '')}</div>${p.note ? `<div class="cmsmall">${summaryHtml(p.note)}</div>` : ''}${p.checkNote ? `<div class="cmsmall"><strong>QC:</strong> ${esc(p.checkNote)}</div>` : ''}</li>`;
+  const lines = String(p.note || '').split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+  const first = (lines[0] || '').replace(/^[-*•]\s+/, '');
+  const more = lines.length > 1 || first.length > 140 ? `<div class="cmsmall">${summaryHtml(p.note)}</div>` : '';
+  const check = p.checkNote ? `<div class="cmsmall"><strong>QC:</strong> ${esc(p.checkNote)}</div>` : '';
+  return `<li><div class="cmrow">${pill(qc, PROOF_PILL[p.status] || '')}${open}</div>${first ? `<p class="cmsmall cmone">${inline(first)}</p>` : ''}${more || check ? `<details class="cmdet"><summary>Details</summary>${more}${check}</details>` : ''}</li>`;
 }
+
+// History in words: statuses as the board names them, owners by name.
+const histText = (h) => String(h.detail || h.kind).replace(/^(status|owner) (\S+) → (\S+)/, (_, k, a, b) => (k === 'status'
+  ? `${STATUS[a] || a} → ${STATUS[b] || b}` : `owner ${botName(a)} → ${botName(b)}`));
 
 export function taskModal(t, projectLabel) {
   const meta = [botName(t.owner), STATUS[t.status] || String(t.status).replace(/_/g, ' '), projectLabel, t.due ? `due ${t.due}` : '', t.minutes ? `${t.minutes} min of your time` : '']
@@ -45,7 +53,7 @@ export function taskModal(t, projectLabel) {
     ? `<section class="cmact"><h3>Your move</h3>${buttons}${hint}${asks ? `<ul class="qlist">${asks}</ul>` : ''}</section>` : '';
   const doneLink = t.status === 'done' && d?.link ? `<p class="cmdeliv">${deliverableLink(d, 'btn line')}</p>` : '';
   const proofs = (t.proofs || []).map(proofItem).join('');
-  const history = (t.history || []).map((h) => `<li>${esc(h.detail || h.kind)} <span class="cmby">· ${esc(botName(h.by))} · ${esc(friendlyWhen(h.at))}</span></li>`).join('');
+  const history = (t.history || []).map((h) => `<li>${esc(histText(h))} <span class="cmby">· ${esc(botName(h.by))} · ${esc(friendlyWhen(h.at))}</span></li>`).join('');
   const comments = (t.comments || []).map((c) => {
     const wake = c.author === 'jon' ? wakeLine(c.wakeStatus, botName(t.owner)) : '';
     return `<li><span class="cmby"><b>${esc(botName(c.author))}</b> · ${esc(friendlyWhen(c.createdAt))}</span><div class="cmtextbody">${summaryHtml(c.body)}</div>${wake ? `<span class="cmby">${esc(wake)}</span>` : ''}</li>`;
@@ -56,6 +64,7 @@ export function taskModal(t, projectLabel) {
     <h3>Comments</h3>${comments ? `<ul class="cmlist">${comments}</ul>` : ''}
     <div class="cmcompose"><textarea class="qtext cmtext" rows="2" maxlength="4000" placeholder="Write a comment" aria-label="Your comment"></textarea>
       <button type="button" class="btn" data-csend="${esc(`${PREFIX}/api/v1/tasks/${t.id}/comments`)}">Send</button></div>
+    ${t.status === 'done' || t.status === 'cancelled' ? '' : `<p class="cmclose"><button type="button" class="btn line" data-tclose="${esc(url)}" data-title="${esc(t.title)}">Close card</button></p>`}
     ${history ? `<details class="cmhist"><summary>History (${(t.history || []).length})</summary><ul class="cmlist">${history}</ul></details>` : ''}`;
 }
 

@@ -41,11 +41,11 @@ export function noLoneWords(roots) {
 
 // The team by first name: Jon reads names, not bot slugs.
 export const BOT_NAMES = {
-  jon: 'Jon', ana: 'Ana', sponsors: 'Florence', 'video-editor': 'Olivia', 'viral-view': 'Scarlett', 'jon-mac-youtube': 'Sydney',
+  jon: 'You', ana: 'Ana', sponsors: 'Florence', 'video-editor': 'Olivia', 'viral-view': 'Scarlett', 'jon-mac-youtube': 'Sydney',
   'home-guide-press': 'Elle', 'short-form': 'Samantha', accounting: 'Elizabeth', developer: 'Lucy', qc: 'Jessica', inbox: 'Zendaya',
   spotify: 'Daisy', moneyclaw: 'Mila', historient: 'Emma',
 };
-export const botName = (slug) => BOT_NAMES[slug] || String(slug ?? '');
+export const botName = (slug) => BOT_NAMES[String(slug ?? '').toLowerCase()] || String(slug ?? '');
 
 // What a link does when Jon clicks it, never the raw URL.
 export function linkLabel(url, kind) {

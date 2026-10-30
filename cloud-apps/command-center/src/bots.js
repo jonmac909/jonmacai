@@ -284,6 +284,7 @@ async function hasProof(db, taskId, status) {
 async function updateTask(db, who, id, body, now) {
   const row = await taskRow(db, id);
   if (!row) throw new Bad(404, 'Task not found');
+  if (row.status === 'cancelled' && row.updated_by === 'jon') throw new Bad(409, 'Jon closed this task. Add a new task if there is more to do');
   const sets = [];
   const args = [];
   const next = {}; // the history-tracked columns this call sets
@@ -330,24 +331,28 @@ async function updateTask(db, who, id, body, now) {
 
 // Jon's PATCH. {status: done} ticks off an open task only he can do (owner jon, no proof), or approves
 // a task in review. {status: doing, comment} sends a task in review back to its owner: the comment is
-// saved and wakes the owner like any comment of his, with data.sentBack. Nothing else.
+// saved and wakes the owner like any comment of his, with data.sentBack. {status: cancelled, comment?}
+// closes any unfinished card (Close card); a reason reaches the owner the same way, with data.closed,
+// and bots can't reopen the card. Nothing else.
 async function tickTask(db, env, ctx, id, body, now) {
-  const status = oneOf(body.status, ['done', 'doing'], 'status');
-  const comment = status === 'doing' ? text(body, 'comment', 4000, true) : null; // what to change
+  const status = oneOf(body.status, ['done', 'doing', 'cancelled'], 'status');
+  const close = status === 'cancelled';
+  const comment = status === 'doing' ? text(body, 'comment', 4000, true) : close ? text(body, 'comment', 4000) : null;
   const task = await taskRow(db, id);
   if (!task) throw new Bad(404, 'Task not found');
   const tick = status === 'done' && task.owner === 'jon' && task.status !== 'review';
-  const from = tick ? OPEN_STATUSES : ['review'];
+  const from = close ? [...OPEN_STATUSES, 'qc', 'review'] : tick ? OPEN_STATUSES : ['review'];
   const r = await db.prepare(`UPDATE bot_tasks SET status = ?, done_at = ?, updated_by = 'jon', updated_at = ? WHERE id = ? AND status IN (${from.map(() => '?').join(', ')})`)
     .bind(status, status === 'done' ? now : null, now, id, ...from).run();
   const row = await taskRow(db, id);
   if (!changed(r)) {
-    const error = tick ? `Task is already ${row.status}` : `Task is ${row.status.replace(/_/g, ' ')}; only a task in review can be ${comment ? 'sent back' : 'approved'}`;
+    const error = tick || close ? `Task is already ${row.status}` : `Task is ${row.status.replace(/_/g, ' ')}; only a task in review can be ${comment ? 'sent back' : 'approved'}`;
     return json({ ok: false, error, task: taskOut(row) }, 409);
   }
-  await logEvent(db, id, now, 'jon', tick ? 'tick' : 'status', tick ? 'ticked done' : `status review → ${status} (${comment ? 'sent back' : 'approved'} by Jon)`);
+  await logEvent(db, id, now, 'jon', tick ? 'tick' : 'status', tick ? 'ticked done'
+    : close ? `status ${task.status} → cancelled (closed by Jon)` : `status review → ${status} (${comment ? 'sent back' : 'approved'} by Jon)`);
   if (!comment) return json({ ok: true, task: taskOut(row) });
-  const c = await postComment(db, env, ctx, { jon: true }, row, comment, now, { sentBack: true });
+  const c = await postComment(db, env, ctx, { jon: true }, row, comment, now, close ? { closed: true } : { sentBack: true });
   return json({ ok: true, task: taskOut(row), comment: commentOut(c) });
 }
 
