@@ -3,6 +3,7 @@
 // (answer a question, approve or reject, tick off a task owned by jon) needs the dashboard session
 // and is never open to a bot.
 import { readSession } from './auth.js';
+import { ymd } from './life.js';
 import { PROJECTS } from './projects.js';
 
 export const TASK_STATUSES = ['todo', 'doing', 'waiting_on_jon', 'qc', 'done', 'cancelled'];
@@ -634,6 +635,26 @@ export const FEEDS = {
       return { month: matchOf(b, 'month', /^\d{4}-(0[1-9]|1[0-2])$/, '2026-10', true), usd: numberOf(b, 'usd', 0, 1e9, true), orders, note: text(b, 'note', 500) };
     },
   },
+  // Each project's daily items, from D:\AgentTeam\rules\facts\daily-checklists.md (dash.py daily-sync).
+  daily_checklists: {
+    writers: ['ana', 'developer'],
+    parse: (b) => {
+      const all = b.projects;
+      if (!all || typeof all !== 'object' || Array.isArray(all)) throw new Bad(400, 'projects must be {slug: [item, …]}');
+      const projects = {};
+      for (const [slug, items] of Object.entries(all)) {
+        if (!PROJECT_SLUGS.includes(slug)) throw new Bad(400, `Unknown project ${slug}; use ${PROJECT_SLUGS.join(', ')}`);
+        if (!Array.isArray(items) || items.length > 12) throw new Bad(400, `${slug} must be a list of at most 12 items`);
+        projects[slug] = items.map((v) => {
+          const s = typeof v === 'string' ? v.trim() : '';
+          if (!s || s.length > 200) throw new Bad(400, `each ${slug} item must be text of 1 to 200 characters`);
+          return s;
+        });
+        if (new Set(projects[slug].map(fold)).size < items.length) throw new Bad(400, `${slug} lists the same item twice`);
+      }
+      return { projects };
+    },
+  },
 };
 
 function feedSpec(name) {
@@ -664,6 +685,46 @@ async function getFeed(db, name) {
   return json({ ok: true, feed: row ? feedOut(row) : null });
 }
 
+// ---- daily checklists: the owning bot ticks an item for today (Vancouver) with a proof link ----
+
+const DAILY_TICKERS = {
+  sponsors: ['sponsors'],
+  'jon-mac': ['jon-mac-youtube', 'video-editor'],
+  jonmacai: ['jon-mac-youtube', 'video-editor'],
+  'viral-view': ['viral-view'],
+  'home-guide-press': ['home-guide-press'],
+  'short-form': ['short-form'],
+  accounting: ['accounting'],
+  coding: ['developer'],
+};
+const fold = (s) => s.trim().toLowerCase();
+const tickOut = (r) => ({ day: r.day, project: r.project, item: r.item, bot: r.bot, link: r.link, note: r.note ?? null, createdAt: r.created_at });
+
+async function tickDaily(db, who, body, now) {
+  const project = oneOf(body.project, PROJECT_SLUGS, 'project');
+  if (!DAILY_TICKERS[project].includes(who.bot)) throw new Bad(403, `Only ${DAILY_TICKERS[project].join(' or ')} can tick ${project}`);
+  const items = parseJson((await latestFeed(db, 'daily_checklists'))?.data, {}).projects?.[project] || [];
+  const want = text(body, 'item', 200, true);
+  // The item's text (any case), else its 1-based number in the list.
+  const item = items.find((x) => fold(x) === fold(want)) ?? (/^\d+$/.test(want) ? items[Number(want) - 1] : undefined);
+  if (!item) throw new Bad(400, `item must be one of ${project}'s daily items: ${items.map((x, i) => `${i + 1}. ${x}`).join(' ') || 'none yet'}`);
+  const link = linkOf(body.link);
+  const note = text(body, 'note', 4000);
+  const day = ymd(Date.parse(now));
+  await db.prepare(`INSERT INTO bot_daily_ticks (id, day, project, item, bot, link, note, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT (day, project, item) DO UPDATE SET bot = excluded.bot, link = excluded.link, note = excluded.note, created_at = excluded.created_at`)
+    .bind(newId('d'), day, project, item, who.bot, link, note, now).run();
+  const row = await db.prepare('SELECT * FROM bot_daily_ticks WHERE day = ? AND project = ? AND item = ?').bind(day, project, item).first();
+  return json({ ok: true, tick: tickOut(row) });
+}
+
+async function listDaily(db, q) {
+  const day = q.get('day') || ymd(Date.now());
+  if (!DAY_RE.test(day)) throw new Bad(400, 'day must look like 2026-10-29');
+  const { results } = await db.prepare('SELECT * FROM bot_daily_ticks WHERE day = ? ORDER BY project, created_at').bind(day).all();
+  return json({ ok: true, day, ticks: (results || []).map(tickOut) });
+}
+
 const FAILED = Symbol('failed');
 async function tryRead(work) {
   try { return await work; } catch (err) { console.error('todayData', err); return FAILED; }
@@ -674,7 +735,7 @@ async function tryRead(work) {
 export async function todayData(db, nowMs, month) {
   if (!db) return null;
   const since = new Date(nowMs - 7 * 86400000).toISOString();
-  const [q, a, summary, usage, ebooks, runs, calendar, tasks] = await Promise.all([
+  const [q, a, summary, usage, ebooks, runs, calendar, tasks, daily, ticks] = await Promise.all([
     tryRead(db.prepare("SELECT * FROM bot_questions WHERE status = 'open' ORDER BY created_at LIMIT 200").all()),
     tryRead(db.prepare("SELECT * FROM bot_approvals WHERE status = 'pending' ORDER BY created_at LIMIT 200").all()),
     tryRead(latestFeed(db, 'morning_summary')),
@@ -686,14 +747,17 @@ export async function todayData(db, nowMs, month) {
     tryRead(db.prepare(`SELECT t.*, (SELECT p.link FROM bot_proofs p WHERE p.task_id = t.id AND (p.link LIKE 'http://%' OR p.link LIKE 'https://%')
       ORDER BY p.created_at DESC LIMIT 1) AS proof_link FROM bot_tasks t
       WHERE t.status IN ('todo', 'doing', 'waiting_on_jon', 'qc') OR (t.status = 'done' AND t.done_at >= ?) ORDER BY t.updated_at DESC LIMIT 500`).bind(since).all()),
+    tryRead(latestFeed(db, 'daily_checklists')),
+    tryRead(db.prepare('SELECT * FROM bot_daily_ticks WHERE day = ?').bind(ymd(nowMs)).all()), // today's ticks only
   ]);
   // A feed is null when its table could not be read, undefined when nothing was posted yet.
   const feed = (row) => (row === FAILED ? null : row ? feedOut(row) : undefined);
   return {
     questions: q === FAILED ? null : (q.results || []).map(questionOut),
     approvals: a === FAILED ? null : (a.results || []).map(approvalOut),
-    feeds: { morning_summary: feed(summary), calendar_today: feed(calendar), claude_usage: feed(usage), ebook_sales: feed(ebooks) },
+    feeds: { morning_summary: feed(summary), calendar_today: feed(calendar), claude_usage: feed(usage), ebook_sales: feed(ebooks), daily_checklists: feed(daily) },
     tasks: tasks === FAILED ? null : (tasks.results || []).map((r) => ({ ...taskOut(r), proofLink: r.proof_link ?? null })),
+    dailyTicks: ticks === FAILED ? null : (ticks.results || []).map(tickOut),
     runs7d: runs === FAILED || !runs ? null : { tokens: Number(runs.tokens) || 0, runs: Number(runs.runs) || 0, since },
   };
 }
@@ -764,6 +828,8 @@ async function route(request, db, who, rest) {
     case 'POST approvals/:id/decide': needJon(who); return decideApproval(db, id, body, now);
     case 'GET runs': return listRuns(db, who, q);
     case 'POST runs': needBot(who); return reportRun(db, who, body, now);
+    case 'GET daily': return listDaily(db, q);
+    case 'POST daily': needBot(who); return tickDaily(db, who, body, now);
     default: return json({ ok: false, error: 'Not found' }, 404);
   }
 }

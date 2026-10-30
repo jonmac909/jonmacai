@@ -73,8 +73,10 @@ Each of the 14 bots (D:\AgentTeam\rules\BOTS.md) writes one row at a time with i
 | `POST /v1/approvals/:id/cancel` | the requesting bot | pending or approved → cancelled |
 | `POST /v1/runs` | bot | `{status: running\|ok\|failed, started?, ended?, tokens?, error?, task?, note?}`; own runs only |
 | `GET /v1/runs?bot=&status=&since=` | bot or Jon | newest first |
-| `PUT /v1/feeds/:name` | named bots | append one entry: `morning_summary {text, date?}`, `calendar_today {date, events[≤60]: {start, end, title, calendar?}}` and `claude_usage {weekPct, resetsAt?, note?}` (ana); `ebook_sales {month, usd, orders?, note?}` (home-guide-press, accounting) |
+| `PUT /v1/feeds/:name` | named bots | append one entry: `morning_summary {text, date?}`, `calendar_today {date, events[≤60]: {start, end, title, calendar?}}` and `claude_usage {weekPct, resetsAt?, note?}` (ana); `ebook_sales {month, usd, orders?, note?}` (home-guide-press, accounting); `daily_checklists {projects: {slug: [item ≤200 chars, no repeats] ≤12}}` (ana, developer; `dash.py daily-sync`) |
 | `GET /v1/feeds/:name` | bot or Jon | newest entry |
+| `POST /v1/daily` | the project's bot (`DAILY_TICKERS` in `src/bots.js`) | `{project, item, link, note?}`: ticks a daily item for today (PT). `item` is its text (any case) or 1-based number in the newest `daily_checklists`; link as for proofs. Again the same day updates link, note, bot and time |
+| `GET /v1/daily?day=YYYY-MM-DD` | bot or Jon | that day's ticks (default today, PT) |
 
 ### Today page
 
@@ -97,7 +99,7 @@ Default page (`#today`). Built by `src/today.js` from the snapshot. Each card sh
 `#projects/<slug>` (`#projects` and unknown slugs open the first). Built by `src/projects.js` from the same bot data as Today.
 - Left: the projects in order, plus Unsorted when it has items. The red count is what waits on Jon: open questions, pending approvals, and open tasks that are `waiting_on_jon` or owned by `jon`.
 - Main: the project's Today goal cards (Sponsors; Viral View and Webinar; Ebooks), then a board: To do, Doing, Waiting on Jon (plus its questions and approvals, answered in place), QC, Done (last 7 days).
-- Right: Jon's Today checklist across projects (questions, approvals, `jon` tasks due today or undated; `minutes` or 2/15 min), the morning summary and the `calendar_today` feed.
+- Right: the project's daily checklist (the newest `daily_checklists` feed; today's ticks from `bot_daily_ticks`, migration `0011_daily_ticks.sql`), the morning summary and the `calendar_today` feed. The checklist is read-only: ticked items show who and when, and open their proof when it is a web link. Unsorted has none.
 
 `key` makes a create safe to retry: the same bot and key return the first row (`duplicate: true`). Errors are `{ok: false, error}` with 400/401/403/404/409/413.
 
