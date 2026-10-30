@@ -6,7 +6,7 @@ import { deliverableLink } from './projects.js';
 const API = '/dashboard/api/v1/activity';
 const STATUS = { todo: 'To do', doing: 'Doing', waiting_on_jon: 'Waiting on Jon', qc: 'QC', review: 'Review', done: 'Done', cancelled: 'Cancelled' };
 const SAID = { created: 'added a task', tick: 'ticked done', comment: 'commented', proof: 'added proof', question: 'asked', answer: 'answered', approval: 'asked to approve' };
-const CHIPS = [['', 'All'], ...Object.entries(BOT_NAMES), ['jon', 'Jon']];
+const CHIPS = [['', 'All'], ...Object.entries(BOT_NAMES).filter(([slug]) => slug !== 'jon'), ['jon', 'Jon']];
 
 function phrase(r) {
   const m = r.kind === 'status' && /^status (\w+) → (\w+)(.*)$/.exec(r.body || '');

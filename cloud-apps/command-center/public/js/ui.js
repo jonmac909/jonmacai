@@ -45,7 +45,7 @@ export const BOT_NAMES = {
   'home-guide-press': 'Elle', 'short-form': 'Samantha', accounting: 'Elizabeth', developer: 'Lucy', qc: 'Jessica', inbox: 'Zendaya',
   spotify: 'Daisy', moneyclaw: 'Mila', historient: 'Emma',
 };
-export const botName = (slug) => BOT_NAMES[String(slug ?? '').toLowerCase()] || String(slug ?? '');
+export const botName = (slug) => { const k = String(slug ?? '').toLowerCase(); return Object.hasOwn(BOT_NAMES, k) ? BOT_NAMES[k] : String(slug ?? ''); };
 
 // What a link does when Jon clicks it, never the raw URL.
 export function linkLabel(url, kind) {
@@ -77,13 +77,6 @@ export function esc(s) {
     { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
   ));
 }
-
-// Bots by first name (Jon, 2026-10-30); the chips on Feed list them in this order.
-export const BOT_NAMES = {
-  sponsors: 'Florence', 'video-editor': 'Olivia', 'viral-view': 'Scarlett', 'jon-mac-youtube': 'Sydney', 'home-guide-press': 'Elle',
-  'short-form': 'Samantha', accounting: 'Elizabeth', developer: 'Lucy', qc: 'Jessica', ana: 'Ana', inbox: 'Zendaya', spotify: 'Daisy',
-};
-export const botName = (slug) => (slug === 'jon' ? 'Jon' : Object.hasOwn(BOT_NAMES, slug) ? BOT_NAMES[slug] : String(slug ?? ''));
 
 // Friendly dates in Jon's time zone: "today 10:50", "yesterday 18:05", "Mon 09:10", "Oct 12", "Oct 12, 2025".
 const TZ = 'America/Vancouver';
