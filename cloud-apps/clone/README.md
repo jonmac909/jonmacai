@@ -92,6 +92,42 @@ purchase. Tests: `npm test` shifts `Date` to Nov 11 once the real clock passes t
 (`test/clock-setup.mjs`); browser scripts fix the page clock (`test/clock.mjs`); the live sandbox
 runner switches to closed-state checks after the cutoff.
 
+## Email seat link, offer price and the nurture emails (Oct 30)
+
+**Seat link.** Every seat button in an email points at `https://jonmac.ai/clone/seat`. Before
+`SALES_CLOSE` it redirects (302, no-store) to `CHECKOUT_URL`, the live $47 Commas checkout, keeping
+only `utm_*` tags plus `lp=clone`. After the close it goes to `/clone/`, which shows "Registration
+Closed". The Worker's own "seat isn't saved" lead email uses it. Never link emails straight at Commas:
+the hosted checkout ignores the close.
+
+**Offer price.** `src/offer.js` `OFFER_PRICE_USD` is the one place the webinar offer's price lives
+($997 or $1,997, open with Jon); `OFFER_PLAN` under it is the 3-payment plan. Pages write
+`{{OFFER_PRICE}}` / `{{OFFER_PLAN}}` (the refund policy does); the Worker fills them into every HTML
+response, with no ETag/Last-Modified and no 304 from the asset store, so a swap shows at once.
+Emails get `event.offer_price` and `event.offer_plan` on the `clone.lead` event (with `seat_url`
+and `session_label`); those are fixed when the lead signs up, so leads already in the 7-day
+nurture keep the old price after a swap. The $47 seat price is separate: it is the Commas product `nmGzE` and
+the purchase webhook's $47 check.
+
+**Nurture emails.** Resend automation "Clone Nurture 7-Day" (`01a05004-f61e-7068-a9cd-5f9a4106461f`)
+starts on `clone.lead`. Before each email it waits for `clone.purchase` (1 hour, then 1 day each);
+a purchase ends the run. The copy lives only in these Resend templates:
+
+| # | When | Subject | Live template | Draft copy (not live) |
+| --- | --- | --- | --- | --- |
+| 1 | +1 hour | no rush | `bafd27ab-c231-4a82-a4ee-3cd15501a620` | `42fb6cc6-82d3-4b18-9fcf-6ee95d4b9d3a` |
+| 2 | +1 day | starts tonight | `920a6a18-6dde-43d6-a472-695a1d3a1803` | `63906059-0dbd-4feb-b82b-6954ae3828b2` |
+| 3 | +2 days | no followers | `3965f1b9-6524-4d97-b8b9-6d0cff96c78f` | `89285b99-a843-41f2-a759-0ea3a9f39107` |
+| 4 | +3 days | the window | `246fa17b-b63e-4c49-85ab-5a569fffa9e6` | `319dec54-39b9-430c-a0f6-a1668420083f` |
+| 5 | +4 days | what's included | `03572195-02d1-47a7-ad5d-275ab2e04dc1` | `f8535e2f-3f8d-472e-acd7-a09042cca2d7` |
+| 6 | +5 days | quick answers | `0f37a66e-744c-44f7-af9e-efe541210e5d` | `cec334f2-5b07-436b-a9a3-994c6ed3c987` |
+| 7 | +6 days | last one | `506eb78a-f341-4702-b8ca-12fce452febe` | `d9ae532a-a100-40db-9d5c-65e6260f2d9c` |
+
+New version: write the copy into the drafts (button `https://jonmac.ai/clone/seat`, price
+`{{{OFFER_PRICE}}}`), test-send only to a team address, and get Jon's approval on the Review card.
+Then publish the 7 drafts and change only the automation's 7 `send_email` steps to the draft IDs with
+`variables: { OFFER_PRICE: { var: "event.offer_price" } }`. Rollback: put the old IDs back.
+
 ## Daily schedule and Whop measurement (JON-16)
 
 The training runs daily at 7 PM America/New_York. Lander, welcome, survey,
