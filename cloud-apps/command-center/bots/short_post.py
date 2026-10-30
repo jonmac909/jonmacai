@@ -6,12 +6,15 @@
 
 Ask Jon first: dash.py approval-request post_clips "<clip titles>" --project short-form --payload-file p.json, with p.json:
   {"platforms": ["instagram_reels", "facebook_reels", "tiktok", "youtube_shorts"], "youtube_channel": "jonmacai",
-   "clips": [{"file": "D:/AgentTeam/footage/short-form/clip1.mp4", "title": "YouTube title", "caption": "...", "hashtags": "#a #b", "synthetic": true}]}
-  Clips: vertical .mp4, 3 to 90 s. "synthetic": true when realistic AI people, voices or scenes appear.
+   "clips": [{"file": "D:/AgentTeam/footage/short-form/clip1.mp4", "sha256": "<Get-FileHash -Algorithm SHA256>",
+              "title": "YouTube title", "caption": "...", "hashtags": "#a #b", "synthetic": true}]}
+  Clips: vertical .mp4, 3 to 90 s. "sha256" pins the exact file Jon watched: a re-rendered file is refused.
+  "synthetic": true when realistic AI people, voices or scenes appear.
 post refuses anything but an approved post_clips approval of this bot, and posts only the clips it lists. It claims the
-approval, posts each clip once per platform (keyed by the file's SHA-256, so a rerun or a copy never posts twice), records
-the post id, link or error per platform, and marks the approval done when every clip is on every platform. Otherwise it
-gives the approval back with what failed; the same command later posts only what is missing.
+approval, posts each clip once per platform and account (keyed by the file's SHA-256, so a rerun, a copy or a second run
+at the same time never posts twice), records the post id, link or error per platform, and marks the approval done when
+every clip is on every platform. Otherwise it gives the approval back with what failed; the same command later posts only
+what is missing.
 
 Before the audits: YouTube refuses API uploads (youtube_upload.AUDITED) and TikTok only lets an unaudited app post to
 private accounts, so each clip goes to Jon's TikTok inbox: he taps the notification, pastes the caption and posts.
@@ -43,9 +46,11 @@ TIKTOK = 'https://open.tiktokapis.com/v2'
 TIKTOK_REDIRECT = 'http://localhost:8765/tiktok-callback/'  # the connect page; registered in Jon's TikTok app
 TIKTOK_SCOPES = 'user.info.basic,video.upload,video.publish'
 TIKTOK_AUDITED = False  # unaudited: inbox drafts (TikTok refuses direct posts to public accounts until the audit)
+TIKTOK_CHUNK = 64 << 20  # TikTok: 5-64 MB chunks, a smaller file whole; the last chunk takes the rest
 PLATFORMS = ('instagram_reels', 'facebook_reels', 'tiktok', 'youtube_shorts')
 DONE = ('posted', 'inbox')
 POLL, WAIT = 10, 60  # seconds between status checks, checks before "run again later"
+STALE = 7200  # a clip lock older than this was left by a killed run (posting one clip takes minutes)
 FFPROBE = os.environ.get('FFPROBE', 'ffprobe')
 YT_AUDIT = ("YouTube Shorts wait for Google's YouTube API audit: until it passes, Google keeps API uploads private "
             "for good (youtube_upload.AUDITED)")
@@ -132,21 +137,27 @@ def facebook(m, clip, rec, save):
         m.rupload(d.get('upload_url') or '%s/video-upload/%s/%s' % (RUPLOAD, VERSION, d['video_id']), clip['file'])
         rec.update(video=d['video_id'], uploaded=True)
         save()
-    if not rec.get('finished'):  # finishing the same video again can't make a second reel
-        if not m.call('POST', '/%s/video_reels' % m.page, {'upload_phase': 'finish', 'video_id': rec['video'],
-                                                           'video_state': 'PUBLISHED', 'description': clip['text']}).get('success'):
-            raise Fail(1, 'Facebook did not accept the reel; run the same command again')
-        rec['finished'] = True
-        save()
-    for _ in range(WAIT):
+
+    def publishing():
+        """Facebook's publishing phase. A failed or expired video was never published: reset so the next run starts over."""
         st = m.call('GET', '/' + rec['video'], query={'fields': 'status'}).get('status') or {}
         phases = [st.get(p) or {} for p in ('uploading_phase', 'processing_phase', 'publishing_phase')]
-        if st.get('video_status') == 'error' or any(p.get('status') == 'error' for p in phases):
+        if st.get('video_status') in ('error', 'expired', 'upload_failed') or any(p.get('status') == 'error' for p in phases):
             for k in ('video', 'uploaded', 'finished'):
                 rec.pop(k, None)
             save()
             raise Fail(1, 'Facebook could not process the reel (%s); run the same command again' % json.dumps(st)[:300])
-        if phases[2].get('status') in ('complete', 'completed'):
+        return phases[2].get('status')
+
+    if not rec.get('finished'):
+        if publishing() not in ('in_progress', 'complete', 'completed'):  # else an earlier finish went through
+            if not m.call('POST', '/%s/video_reels' % m.page, {'upload_phase': 'finish', 'video_id': rec['video'],
+                                                               'video_state': 'PUBLISHED', 'description': clip['text']}).get('success'):
+                raise Fail(1, 'Facebook did not accept the reel; run the same command again')
+        rec['finished'] = True
+        save()
+    for _ in range(WAIT):
+        if publishing() in ('complete', 'completed'):
             break
         time.sleep(POLL)
     else:
@@ -168,19 +179,23 @@ def meta_connect(app_id, app_secret, user_token):
         if status != 200:
             return 'Meta refused the token (%s). Make a new one in the Graph API Explorer and paste it again.' % \
                 meta_error(status, body)
-        status, _, body = yt.http('GET', GRAPH + '/me/accounts?fields=id,name,access_token,instagram_business_account'
-                                  '%7Bid,username%7D', None, {'Authorization': 'OAuth ' + json.loads(body)['access_token']})
+        status, _, body = yt.http('GET', GRAPH + '/me/accounts?limit=100&fields=id,name,access_token,'
+                                  'instagram_business_account%7Bid,username%7D', None,
+                                  {'Authorization': 'OAuth ' + json.loads(body)['access_token']})
+        if status != 200:
+            return 'Meta would not list your Pages (%s). Tick pages_show_list and try again.' % meta_error(status, body)
+        pages = [p for p in json.loads(body)['data'] if p.get('access_token') and p.get('id')
+                 and (p.get('instagram_business_account') or {}).get('id')]
     except OSError as err:
         return 'Meta unreachable (%s). Try again.' % err
-    if status != 200:
-        return 'Meta would not list your Pages (%s). Tick pages_show_list and try again.' % meta_error(status, body)
-    pages = [p for p in json.loads(body).get('data', []) if p.get('instagram_business_account')]
+    except (ValueError, KeyError, TypeError, AttributeError):
+        return 'Meta answered something unexpected. Make a new token in the Graph API Explorer and paste it again.'
     if len(pages) != 1:
         return ('Found %d Facebook Pages with an Instagram account linked; it must be exactly one. Make the token '
                 'again and choose only your Jon Mac Page and its Instagram.' % len(pages))
     p, ig = pages[0], pages[0]['instagram_business_account']
-    save_json('meta.json', {'app_id': app_id, 'page_id': p['id'], 'page_name': p['name'], 'page_token': p['access_token'],
-                            'ig_id': ig['id'], 'ig_username': ig.get('username', '')})
+    save_json('meta.json', {'app_id': app_id, 'page_id': p['id'], 'page_name': p.get('name', ''),
+                            'page_token': p['access_token'], 'ig_id': ig['id'], 'ig_username': ig.get('username', '')})
     return ''
 
 
@@ -227,9 +242,21 @@ class TikTok:
 
 
 def tiktok(t, clip, rec, save):
+    def fetch():
+        return t.call('POST', '/post/publish/status/fetch/', {'publish_id': rec['publish_id']})
+
+    if rec.get('publish_id') and not rec.get('uploaded'):  # an earlier run stopped during the upload
+        s = fetch().get('status')
+        if s == 'PROCESSING_UPLOAD' and time.time() - rec['started'] < 3700:
+            raise Fail(1, 'an earlier TikTok upload of this clip stopped part way; TikTok drops it within the hour. '
+                          'Run the same command again after that.')
+        if s in ('PROCESSING_UPLOAD', 'FAILED'):  # its upload link lasted an hour, so TikTok can't post it any more
+            rec.pop('publish_id')
+        else:
+            rec['uploaded'] = True  # the last bytes did arrive
     if not rec.get('publish_id'):
         size = clip['file'].stat().st_size
-        chunk = min(size, 64 << 20)  # 5-64 MB chunks, a file under 5 MB whole; the last chunk takes the rest
+        chunk = min(size, TIKTOK_CHUNK)
         count = size // chunk
         body = {'source_info': {'source': 'FILE_UPLOAD', 'video_size': size, 'chunk_size': chunk, 'total_chunk_count': count}}
         path = '/post/publish/inbox/video/init/'
@@ -249,9 +276,14 @@ def tiktok(t, clip, rec, save):
                 status, _, raw = yt.http('PUT', d['upload_url'], data, {
                     'Content-Type': 'video/mp4', 'Content-Range': 'bytes %d-%d/%d' % (i * chunk, i * chunk + len(data) - 1, size)})
                 if status not in (201, 206):
+                    if status < 500:  # TikTok refused these bytes, so it can't post this upload
+                        rec.pop('publish_id')
+                        save()
                     raise Fail(1, 'TikTok refused the upload (%s): %s' % (status, raw[:200].decode('utf-8', 'replace')))
+        rec['uploaded'] = True
+        save()
     for _ in range(WAIT):
-        st = t.call('POST', '/post/publish/status/fetch/', {'publish_id': rec['publish_id']})
+        st = fetch()
         s = st.get('status')
         if s == 'SEND_TO_USER_INBOX':
             rec.update(state='inbox', id=rec['publish_id'], note="In Jon's TikTok inbox: he taps the notification, "
@@ -263,12 +295,11 @@ def tiktok(t, clip, rec, save):
             rec.update(state='posted', id=str(ids[0]) if ids else rec['publish_id'],
                        link='%s/video/%s' % (user, ids[0]) if ids else user)
             return
-        # Nothing was posted: an upload link lasts an hour, so after that no more bytes can arrive.
-        if s == 'FAILED' or (s == 'PROCESSING_UPLOAD' and time.time() - rec['started'] > 3700):
-            rec.pop('publish_id')
+        if s == 'FAILED':  # nothing was posted
+            for k in ('publish_id', 'uploaded'):
+                rec.pop(k, None)
             save()
-            raise Fail(1, 'TikTok did not take the clip (%s); run the same command again'
-                       % (st.get('fail_reason') or 'the upload stopped part way'))
+            raise Fail(1, 'TikTok did not take the clip (%s); run the same command again' % st.get('fail_reason'))
         time.sleep(POLL)
     raise Fail(1, 'TikTok is still working on the clip; run the same command again later')
 
@@ -297,11 +328,13 @@ def tiktok_connect(code, verifier):
         return 'TikTok unreachable or the TikTok app is not saved (%s). Try again.' % err
     if 'error' in out:
         return 'TikTok refused the sign-in (%s). Press Connect TikTok again.' % out['error']
-    missing = [s for s in ('video.upload', 'video.publish') if s not in out.get('scope', '').split(',')]
+    if not out.get('refresh_token') or not out.get('open_id'):
+        return 'TikTok sent no long-lived sign-in. Press Connect TikTok again.'
+    missing = [s for s in ('video.upload', 'video.publish') if s not in str(out.get('scope', '')).split(',')]
     if missing:
         return 'TikTok did not grant %s. Add Content Posting API with Direct Post to the app, then connect again.' % \
             ', '.join(missing)
-    save_json('tiktok.json', {'client_key': key, 'open_id': out.get('open_id'), 'scope': out['scope'],
+    save_json('tiktok.json', {'client_key': key, 'open_id': out['open_id'], 'scope': out['scope'],
                               'refresh_token': out['refresh_token']})
     return ''
 
@@ -318,18 +351,37 @@ def connected(name):
 # ---- YouTube Shorts: the YouTube uploader does the upload ----
 
 def youtube(y, clip, rec, save):
-    out = yt.upload(y, y.channel, clip['file'], clip['yt_meta'])
-    rec.update(state='posted', id=out['video'], link='https://youtube.com/shorts/' + out['video'])
+    rec['id'] = video = yt.upload(y, y.channel, clip['file'], clip['yt_meta'])['video']  # a rerun returns the same video
+    items = y.call('GET', yt.API + '/videos', query={'part': 'status', 'id': video}).get('items') or []
+    privacy = items[0].get('status', {}).get('privacyStatus') if items else 'missing'
+    if privacy != 'public':  # Google locks uploads through an unaudited API project private
+        raise Fail(1, 'YouTube kept the Short %s, not public (locked by the unaudited API project?)' % privacy)
+    rec.update(state='posted', link='https://youtube.com/shorts/' + video)
 
 
 def session(pf, channel):
+    """(signed-in session, the account it posts to). The account is part of the no-double-post key."""
     if pf == 'tiktok':
-        return TikTok()
+        t = TikTok()
+        return t, t.tok['open_id']
     if pf == 'youtube_shorts':
         if not yt.AUDITED:
             raise Fail(2, YT_AUDIT)
-        return yt.YouTube(channel)
-    return Meta()
+        return yt.YouTube(channel), yt.CHANNELS[channel][2]
+    m = Meta()
+    return m, m.ig if pf == 'instagram_reels' else m.page
+
+
+def target_id(pf, channel):
+    """The account a platform posts to, from the saved sign-ins (no network)."""
+    try:
+        if pf == 'youtube_shorts':
+            return yt.CHANNELS[channel][2]
+        if pf == 'tiktok':
+            return read_json('tiktok.json')['open_id']
+        return read_json('meta.json')['ig_id' if pf == 'instagram_reels' else 'page_id']
+    except (OSError, ValueError, KeyError):
+        raise Fail(2, NOT_CONNECTED % pf)
 
 
 POSTERS = {'instagram_reels': instagram, 'facebook_reels': facebook, 'tiktok': tiktok, 'youtube_shorts': youtube}
@@ -398,6 +450,10 @@ def clips_of(payload):
         path = Path(str(c.get('file') or ''))
         if path.suffix.lower() != '.mp4' or not path.is_file():
             raise Fail(2, 'clip %d: no .mp4 at %s' % (n, path))
+        sha = sha256(path)
+        if str(c.get('sha256') or '').lower() != sha:
+            raise Fail(2, 'clip %d: "sha256" must be the hash of the file Jon approved; the file now is %s. A changed '
+                          'clip needs a new approval.' % (n, sha))
         synthetic = c.get('synthetic', payload.get('synthetic'))
         if not isinstance(synthetic, bool):
             raise Fail(2, 'clip %d: say "synthetic": true or false (realistic AI people, voices or scenes)' % n)
@@ -407,7 +463,7 @@ def clips_of(payload):
         text = '\n\n'.join(s for s in (str(c.get('caption') or '').strip(), str(c.get('hashtags') or '').strip()) if s)
         if not text or len(text) > 2200 or text.count('#') > 30:
             raise Fail(2, 'clip %d: caption plus hashtags must be 1-2200 characters with up to 30 hashtags' % n)
-        clip = {'n': n, 'file': path, 'sha': sha256(path), 'text': text, 'synthetic': synthetic}
+        clip = {'n': n, 'file': path, 'sha': sha, 'text': text, 'synthetic': synthetic}
         if 'youtube_shorts' in platforms:
             desc = text if '#shorts' in text.lower() else text + ' #Shorts'
             _, clip['yt_meta'], _ = yt.upload_meta(argparse.Namespace(
@@ -419,27 +475,64 @@ def clips_of(payload):
     return platforms, channel, out
 
 
-def record_path(sha, platform):
-    return DIR / 'posts' / ('%s-%s.json' % (sha[:32], platform))
+def record_path(sha, platform, account):
+    return DIR / 'posts' / ('%s-%s-%s.json' % (sha[:32], platform, hashlib.sha256(str(account).encode()).hexdigest()[:12]))
+
+
+def take_lock(rp):
+    """One run at a time per clip, platform and account. None if another run holds it."""
+    lk = rp.with_suffix('.lock')
+    lk.parent.mkdir(parents=True, exist_ok=True)
+    try:  # shortcut: two runs meeting the same stale lock in the same instant could both take it; rare, needs a killed run
+        if time.time() - lk.stat().st_mtime > STALE:
+            lk.unlink()
+    except OSError:
+        pass
+    try:
+        os.close(os.open(lk, os.O_CREAT | os.O_EXCL | os.O_WRONLY))
+    except FileExistsError:
+        return None
+    return lk
+
+
+def error_text(err):
+    return str(err) if isinstance(err, Fail) else '%s: %s' % (type(err).__name__, err)
 
 
 def post_one(pf, clip, sess, approval_id):
-    """One clip on one platform, at most once ever. Returns what the record says."""
-    rp = record_path(clip['sha'], pf)
-    rec = yt.read_record(rp) or {'platform': pf, 'sha256': clip['sha']}
-    already = rec.get('state') in DONE
-    if not already:
-        rec.update(file=str(clip['file']), approval=approval_id)
-        try:
-            if isinstance(sess, Exception):
-                raise sess
-            POSTERS[pf](sess, clip, rec, lambda: yt.write_record(rp, rec))
-            rec.pop('error', None)
-        except Exception as err:  # recorded and reported; the other platforms still post
-            rec['error'] = str(err) if isinstance(err, Fail) else '%s: %s' % (type(err).__name__, err)
-        yt.write_record(rp, rec)
+    """One clip on one platform, at most once ever. sess: (session, account) or the error that stopped it.
+    Returns what the record says."""
+    if isinstance(sess, Exception):
+        return {'error': error_text(sess)}
+    client, account = sess
+    rp = record_path(clip['sha'], pf, account)
+    lk = take_lock(rp)
+    if not lk:
+        return {'error': 'another run is posting this clip to %s right now; run the same command again later' % pf}
+    try:
+        rec = yt.read_record(rp) or {'platform': pf, 'account': account, 'sha256': clip['sha']}
+        already = rec.get('state') in DONE
+        if not already:
+            rec.update(file=str(clip['file']), approval=approval_id)
+            try:
+                if sha256(clip['file']) != clip['sha']:
+                    raise Fail(2, 'the file changed after Jon approved it; a changed clip needs a new approval')
+                POSTERS[pf](client, clip, rec, lambda: yt.write_record(rp, rec))
+                rec.pop('error', None)
+            except Exception as err:  # recorded and reported; the other platforms still post
+                rec['error'] = error_text(err)
+            yt.write_record(rp, rec)
+    finally:
+        lk.unlink()
     out = {k: rec[k] for k in ('state', 'id', 'link', 'note', 'error') if k in rec}
     return dict(out, already_posted=True) if already else out
+
+
+def plan_state(clip, pf, channel):
+    try:
+        return (yt.read_record(record_path(clip['sha'], pf, target_id(pf, channel))) or {}).get('state') or 'would post'
+    except Fail as err:
+        return str(err)
 
 
 def post(approval_id, dry_run=False):
@@ -459,9 +552,8 @@ def post(approval_id, dry_run=False):
     platforms, channel, clips = clips_of(a.get('payload') or {})
     if dry_run:
         return {'approval': approval_id, 'dry_run': True, 'accounts': accounts(platforms, channel),
-                'clips': [dict({'n': c['n'], 'file': str(c['file'])}, **{
-                    pf: (yt.read_record(record_path(c['sha'], pf)) or {}).get('state') or 'would post'
-                    for pf in platforms}) for c in clips]}
+                'clips': [dict({'n': c['n'], 'file': str(c['file'])}, **{pf: plan_state(c, pf, channel) for pf in platforms})
+                          for c in clips]}
     yt.dash_call(ctx, 'POST', '/approvals/%s/claim' % q, {})
     try:
         sessions = {}

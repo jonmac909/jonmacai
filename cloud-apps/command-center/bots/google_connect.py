@@ -217,7 +217,8 @@ Facebook Page. No Meta review is needed for your own accounts.</p><ol>
 type Business. Add Facebook Login for Business and Instagram.</li>
 <li><a href="https://developers.facebook.com/tools/explorer/">Graph API Explorer</a>: pick the Jon Mac Team app, add the
 permissions pages_show_list, pages_read_engagement, pages_manage_posts, instagram_basic, instagram_content_publish and
-business_management, press <b>Generate Access Token</b> and choose only your Page and its Instagram.</li>
+business_management (plus ads_management and ads_read if the Page sits in a Meta business portfolio), press
+<b>Generate Access Token</b> and choose only your Page and its Instagram.</li>
 <li>Paste the App ID and App secret (App settings, Basic) and that token here (Instagram and Facebook: %(meta)s):
 <form method="post" action="/meta"><input type="hidden" name="key" value="%(key)s">
 <input name="app_id" placeholder="App ID" size="60" autocomplete="off"><br>
