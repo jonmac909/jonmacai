@@ -14,3 +14,18 @@ test('progress bar is at least 2px when value is above zero', () => {
   assert.equal(barWidth(0.1), 'max(2px, 0.1%)');
   assert.equal(barWidth(1), 'max(2px, 1%)');
 });
+
+test('morning summary renders light Markdown safely', async () => {
+  const { summaryHtml } = await import('../public/js/pages/today.js');
+  const html = summaryHtml('**Shoot:** [Script](https://docs.google.com/d/a?x=1&y=2) now.\n- **Olivia:** done\n- two\n\n**Bad:** <b>x</b> [y](javascript:alert(1))');
+  assert.equal(html, '<section><p><strong>Shoot:</strong> <a href="https://docs.google.com/d/a?x=1&amp;y=2" target="_blank" rel="noopener">Script</a> now.</p>'
+    + '<ul><li><strong>Olivia:</strong> done</li><li>two</li></ul></section>'
+    + '<section><p><strong>Bad:</strong> &lt;b&gt;x&lt;/b&gt; [y](javascript:alert(1))</p></section>');
+});
+
+test('morning summary links keep parentheses and never carry tags into the href', async () => {
+  const { summaryHtml } = await import('../public/js/pages/today.js');
+  assert.equal(summaryHtml('[Wiki](https://en.wikipedia.org/wiki/Foo_(bar))'),
+    '<section><p><a href="https://en.wikipedia.org/wiki/Foo_(bar)" target="_blank" rel="noopener">Wiki</a></p></section>');
+  assert.doesNotMatch(summaryHtml('[a](https://x.com/**b**)'), /href="[^"]*</);
+});

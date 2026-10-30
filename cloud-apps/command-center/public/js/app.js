@@ -5,7 +5,7 @@ import { render as viral } from './pages/viral.js';
 import { render as webinar } from './pages/webinar.js';
 import { render as money } from './pages/money.js';
 import { render as life } from './pages/life.js';
-import { formatJobResult } from './ui.js';
+import { formatJobResult, noLoneWords } from './ui.js';
 import { bindModals, openCard, openDraft } from './modals.js';
 const PREFIX = '/dashboard';
 // Any other #page (old bookmarks to removed pages) falls back to Today. A page may have a
@@ -296,6 +296,15 @@ document.addEventListener('click', (e) => {
 bindModals({ say, act, go });
 
 window.addEventListener('hashchange', () => go(hashPage()));
+
+// Everything the app renders (pages, nav, modals, toasts) gets noLoneWords, in one pass per batch.
+new MutationObserver((ms) => noLoneWords(ms.flatMap((m) => [...m.addedNodes]))).observe(document.body, { childList: true, subtree: true });
+// Pairs were joined for the old width; after a rotation or resize, re-render so they fit again.
+let shownWidth = innerWidth, resizing;
+window.addEventListener('resize', () => {
+  clearTimeout(resizing);
+  resizing = setTimeout(() => { if (innerWidth !== shownWidth) { shownWidth = innerWidth; go(hashPage()); } }, 300);
+});
 
 const snap = await fetch(`${PREFIX}/api/snapshot?v=${Date.now()}`);
 if (snap.status === 401) { location.href = `${PREFIX}/`; throw new Error('auth'); }

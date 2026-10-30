@@ -12,10 +12,12 @@
 ```
 google_api.py subjects jon -n 5 --query "from:jennifer@gdbookkeeping.com"
 google_api.py label jon MSG_ID "Receipts"        google_api.py archive jon MSG_ID
-google_api.py draft partners --to a@b.com --subject "Re: rates" --body-file reply.txt
+google_api.py draft partners --to a@b.com --subject "Rates" --body-file pitch.txt            (new email)
+google_api.py draft partners --to a@b.com --thread-id THREAD --body-file reply.txt             (reply in the thread)
 google_api.py events jon --date 2026-10-30        google_api.py events jon --calendar jonstagger@gmail.com
 ```
 - Nothing here sends mail, deletes mail, marks it read or writes the calendar. Only the approval script sends, after Jon approves. Calendar writes will need Jon's approval each time.
+- Replies to a sponsor go in their thread (Jon, 2026-10-29): take `thread` from `subjects`, pass it as `--thread-id`. The draft gets "Re: <their subject>" and the reply headers of the thread's last message, so it shows inside the conversation.
 - Exit codes: 0 ok, 1 Google refused, 2 local problem or not allowed.
 - All bots run as the same Windows user, so the limits record intent; they don't wall bots off. Never print, copy or commit the token files.
 

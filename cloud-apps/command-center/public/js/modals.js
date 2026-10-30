@@ -26,11 +26,17 @@ export function taskModal(t, projectLabel) {
     return `<li><span class="cmby"><b>${esc(c.author)}</b> · ${esc(when(c.createdAt))}</span><p>${esc(c.body)}</p>${wake ? `<span class="cmby">${esc(wake)}</span>` : ''}</li>`;
   }).join('');
   const list = (html, none) => (html ? `<ul class="cmlist">${html}</ul>` : `<p class="muted">${none}</p>`);
-  return `<h2>${esc(t.title)}</h2><dl class="cmfacts">${facts}</dl>${t.note ? `<p class="cmnote">${esc(t.note)}</p>` : ''}
+  // Jon's actions on this card: the same Answer and Approve/Reject as the board, and Done on his own tasks.
+  const open = !['done', 'cancelled'].includes(t.status);
+  const done = t.owner === 'jon' && open
+    ? `<div class="qopts"><button type="button" class="btn" data-ttick="${esc(`${PREFIX}/api/v1/tasks/${t.id}`)}">Done</button></div>` : '';
+  const asks = (t.asks || []).map((it) => needItem(it)).join('');
+  const action = done || asks ? `<section class="cmact"><h3>Your action</h3>${done}${asks ? `<ul class="qlist">${asks}</ul>` : ''}</section>` : '';
+  return `<h2>${esc(t.title)}</h2><dl class="cmfacts">${facts}</dl>${t.note ? `<p class="cmnote">${esc(t.note)}</p>` : ''}${action}
     <h3>Proof</h3>${list(proofs, 'No proof yet.')}
     <h3>History</h3>${list(history, 'No history yet.')}
     <h3>Comments</h3>${list(comments, 'No comments yet.')}
-    <div class="qform"><textarea class="qtext" rows="3" maxlength="4000" placeholder="Write a comment" aria-label="Your comment"></textarea>
+    <div class="qform"><textarea class="qtext cmtext" rows="3" maxlength="4000" placeholder="Write a comment" aria-label="Your comment"></textarea>
       <button type="button" class="btn" data-csend="${esc(`${PREFIX}/api/v1/tasks/${t.id}/comments`)}">Send</button></div>`;
 }
 
@@ -62,18 +68,18 @@ async function loadTask(dlg) {
     return null;
   }
   // A half-typed comment survives the reload.
-  const box = body.querySelector('.qtext');
+  const box = body.querySelector('.cmtext');
   const typed = box?.value || '';
   const focused = !!box && document.activeElement === box;
   body.innerHTML = taskModal(j.task, want.label(j.task.project));
-  const next = body.querySelector('.qtext');
+  const next = body.querySelector('.cmtext');
   next.value = typed;
   if (focused) next.focus();
   return j.task;
 }
 
 async function sendComment(dlg, button, say) {
-  const box = dlg.querySelector('.cmbody .qtext');
+  const box = dlg.querySelector('.cmbody .cmtext');
   const body = box.value.trim();
   if (!body) { say('Type a comment first'); return; }
   button.disabled = true;
@@ -85,7 +91,7 @@ async function sendComment(dlg, button, say) {
     say('Comment sent');
     const want = shown;
     const task = await loadTask(dlg);
-    dlg.querySelector('.cmbody .qtext')?.focus();
+    dlg.querySelector('.cmbody .cmtext')?.focus();
     // The wake finishes after the reply (with retries): look once more so "sending to …" shows its result.
     if (task && task.comments.filter((c) => c.author === 'jon').at(-1)?.wakeStatus == null) {
       setTimeout(() => { if (shown === want) loadTask(dlg); }, 8000);

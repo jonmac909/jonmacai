@@ -291,3 +291,31 @@ test('board: every card opens the modal (task, question and approval)', () => {
   const html = renderProjects(d, {}, 'sponsors');
   assert.deepEqual([...html.matchAll(/<li class="[^"]*" tabindex="0" data-open="([^"]+)"/g)].map((m) => m[1]), ['t_0123456789abcdef', 'q_0123456789abcdef', 'a_0123456789abcdef']);
 });
+
+test("card modal actions: a waiting-on-Jon card shows its question and approval buttons, Done only on Jon's own task", async (t) => {
+  mockFetch(t);
+  const { env } = await setup();
+  const task = await newTask(env, { status: 'waiting_on_jon' });
+  await call(env, 'POST', '/questions', { bot: 'sponsors', body: { question: 'Send it?', options: ['Yes', 'No'], task: task.id } });
+  await call(env, 'POST', '/approvals', { bot: 'sponsors', body: { action: 'send_pitches', title: 'Send 3 pitches', payload: { count: 3 }, task: task.id } });
+  const other = await newTask(env, { title: 'Unlinked' });
+  await call(env, 'POST', '/questions', { bot: 'sponsors', body: { question: 'Not this card', task: other.id } });
+  const read = (await call(env, 'GET', `/tasks/${task.id}`, { jon: true })).body.task;
+  assert.deepEqual(read.asks.map((a) => a.kind), ['approval', 'question']);
+  const html = taskModal(read, 'Sponsors');
+  assert.match(html, /<h3>Your action<\/h3>/);
+  assert.match(html, /data-qopt="Yes"/);
+  assert.match(html, /data-tsend="\/dashboard\/api\/v1\/questions\/q_[0-9a-f]+\/answer"/);
+  assert.match(html, /data-tdecide="\/dashboard\/api\/v1\/approvals\/a_[0-9a-f]+\/decide"[^>]*data-decision="approve"|data-decision="approve"[^>]*data-tdecide="\/dashboard\/api\/v1\/approvals\/a_/);
+  assert.doesNotMatch(html, /Not this card/);
+  assert.doesNotMatch(html, /data-ttick/, "a bot's task has no Done");
+  assert.doesNotMatch(html, /type="checkbox"/, 'no checkbox approves anything');
+  assert.equal((html.match(/class="qtext cmtext"/g) || []).length, 1, 'one comment box, separate from the answer box');
+
+  const mine = await call(env, 'POST', '/tasks', { bot: 'sponsors', body: { title: 'Sign the contract', project: 'sponsors', owner: 'jon' } });
+  const jonTask = (await call(env, 'GET', `/tasks/${mine.body.task.id}`, { jon: true })).body.task;
+  assert.match(taskModal(jonTask, 'Sponsors'), new RegExp(`data-ttick="/dashboard/api/v1/tasks/${jonTask.id}"`));
+  await call(env, 'PATCH', `/tasks/${jonTask.id}`, { jon: true, body: { status: 'done' } });
+  const ticked = (await call(env, 'GET', `/tasks/${jonTask.id}`, { jon: true })).body.task;
+  assert.doesNotMatch(taskModal(ticked, 'Sponsors'), /data-ttick/, 'a done task has no Done button');
+});

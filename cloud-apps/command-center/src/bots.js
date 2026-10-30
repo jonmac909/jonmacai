@@ -5,6 +5,7 @@
 import { readSession } from './auth.js';
 import { ymd } from './life.js';
 import { PROJECTS } from './projects.js';
+import { approvalItem, questionItem } from './today.js';
 
 export const TASK_STATUSES = ['todo', 'doing', 'waiting_on_jon', 'qc', 'done', 'cancelled'];
 const OPEN_STATUSES = ['todo', 'doing', 'waiting_on_jon'];
@@ -348,7 +349,11 @@ async function getTask(db, id) {
   const proofs = await rows('SELECT * FROM bot_proofs WHERE task_id = ? ORDER BY created_at');
   const comments = await rows('SELECT * FROM bot_task_comments WHERE task_id = ? ORDER BY created_at, rowid');
   const events = await rows('SELECT * FROM bot_task_events WHERE task_id = ? ORDER BY at, rowid');
-  return json({ ok: true, task: { ...taskOut(row), proofs: proofs.map(proofOut), comments: comments.map(commentOut), history: historyOf(row, proofs, events) } });
+  // What Jon can do about this card right now: its open questions and pending approvals, as the board shows them.
+  const approvals = await rows("SELECT * FROM bot_approvals WHERE task_id = ? AND status = 'pending' ORDER BY created_at");
+  const questions = await rows("SELECT * FROM bot_questions WHERE task_id = ? AND status = 'open' ORDER BY created_at");
+  const asks = [...approvals.map((r) => approvalItem(approvalOut(r))), ...questions.map((r) => questionItem(questionOut(r)))];
+  return json({ ok: true, task: { ...taskOut(row), proofs: proofs.map(proofOut), comments: comments.map(commentOut), history: historyOf(row, proofs, events), asks } });
 }
 
 // Tasks from before history began have no "created" row: start theirs with one, plus the proofs
