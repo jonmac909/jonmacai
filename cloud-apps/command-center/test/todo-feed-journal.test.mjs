@@ -92,6 +92,8 @@ test('journal page: links show as labels (never raw URLs), everything escaped, q
   assert.deepEqual(quickEntry('  https://x.test/a?b=1  ', ''), { title: '', link: 'https://x.test/a?b=1', tags: '' });
   assert.deepEqual(quickEntry('Watch this https://x.test/v later', 'yt'), { title: 'Watch this later', link: 'https://x.test/v', tags: 'yt' });
   assert.deepEqual(quickEntry('Just an idea', undefined), { title: 'Just an idea', link: '', tags: '' });
+  const long = quickEntry(`${'word '.repeat(70)}end`, '');
+  assert.ok(long.title.length <= 300 && `${long.title} ${long.note}` === `${'word '.repeat(70)}end`, 'a long idea saves: start as title, rest as note');
   assert.match(renderJournal({}, {}, 'ideas'), /data-tag="ideas"/);
   assert.match(renderJournal({}, {}, '"><b>'), /data-tag=""/, 'an odd tag in the URL is dropped');
 });

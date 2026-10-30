@@ -44,9 +44,10 @@ export async function mount(el) {
     const res = await fetch(`${API}?${q}`).catch(() => null);
     const j = res?.ok ? await res.json().catch(() => null) : null;
     if (!before) list.innerHTML = '';
+    list.querySelector('.fderr')?.remove();
     if (!j?.items) {
-      list.insertAdjacentHTML('beforeend', '<li class="muted">Could not load the feed.</li>');
-      more.innerHTML = '';
+      list.insertAdjacentHTML('beforeend', '<li class="muted fderr">Could not load the feed.</li>');
+      more.innerHTML = before ? `<button type="button" class="btn line" data-fdmore="${esc(before)}">Try again</button>` : '';
       return;
     }
     list.insertAdjacentHTML('beforeend', j.items.map((r) => rowHtml(r)).join('') || (before ? '' : '<li class="muted">Nothing yet.</li>'));

@@ -9,7 +9,11 @@ const TAG_RE = /^[a-z0-9][a-z0-9-]{0,29}$/;
 export function quickEntry(text, tags) {
   const s = String(text || '').trim();
   const link = s.match(URL_RE)?.[0] || '';
-  return { title: s.replace(link, ' ').replace(/\s+/g, ' ').trim(), link, tags: String(tags || '') };
+  const words = s.replace(link, ' ').replace(/\s+/g, ' ').trim();
+  if (words.length <= 300) return { title: words, link, tags: String(tags || '') };
+  // A title holds 300 characters: a longer idea keeps its start as the title and the rest as the note.
+  const at = words.lastIndexOf(' ', 300) > 0 ? words.lastIndexOf(' ', 300) : 300;
+  return { title: words.slice(0, at), link, note: words.slice(at).trim(), tags: String(tags || '') };
 }
 
 // A link shows as its title, any URL in that title as its site: never a raw URL.

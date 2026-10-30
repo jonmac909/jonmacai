@@ -168,7 +168,7 @@ export async function go(id, { refetch = false } = {}) {
   if (!Object.hasOwn(pages, id.split('/')[0])) id = 'today';
   const [name, sub] = id.split('/');
   if (location.hash !== `#${id}`) history.replaceState(null, '', `${PREFIX}/#${id}`);
-  if (refetch || name === 'today') {
+  if (refetch || name === 'today' || name === 'todo') {
     const snap = await fetch(`${PREFIX}/api/snapshot?v=${Date.now()}`);
     if (snap.ok) data = await snap.json();
     if (stale(data)) { location.reload(); return; }
