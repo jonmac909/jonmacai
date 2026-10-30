@@ -61,8 +61,10 @@ export function calendar(d, _data, sub) {
 function outlierRow(o) {
   const thumb = web(o.thumb) ? `<img class="octhumb" src="${esc(o.thumb)}" alt="" loading="lazy" referrerpolicy="no-referrer">` : '<span class="octhumb"></span>';
   const select = `<button type="button" class="btn sm${o.selected ? '' : ' line'}" data-osel="${esc(o.selectUrl)}" data-on="${o.selected ? '1' : '0'}" aria-pressed="${o.selected}">${o.selected ? 'Selected for production' : 'Select for production'}</button>`;
-  return `<li class="ocrow${o.selected ? ' on' : ''}">${thumb}<div class="ocbody"><span class="oct">${esc(o.title)}</span>
-    <span class="ocm"><b>${esc(o.multipleLabel)}</b><i>·</i> <span>${esc(o.viewsLabel)}</span><i>·</i> <span>${esc(o.ageLabel)}</span></span>
+  const badge = o.selected ? `${pill('Selected', 'ok')} ` : '';
+  const source = o.source ? `<span>${esc(o.source)}</span><i>·</i> ` : '';
+  return `<li class="ocrow${o.selected ? ' on' : ''}">${thumb}<div class="ocbody"><span class="oct">${badge}${esc(o.title)}</span>
+    <span class="ocm"><b>${esc(o.multipleLabel)}</b><i>·</i> ${source}<span>${esc(o.viewsLabel)}</span><i>·</i> <span>${esc(o.ageLabel)}</span></span>
     <span class="ocact">${linkButton(o.link)}${select}</span></div></li>`;
 }
 

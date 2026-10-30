@@ -244,3 +244,36 @@ test('Calendar page: All channels first with each video\'s channel, times in PT,
   assert.match(calendar(out.pages.calendar, {}, 'jonmacai'), /Posting days: <b>Tue, Thu<\/b>/);
   assert.doesNotMatch(calendar(out.pages.calendar, {}, 'jonmacai'), /ccch/, 'one channel: no channel names');
 });
+
+test('content CSV import: PUT outliers/<channel> replaces that channel\'s CSV rows, keeps Jon\'s Select, names the source channel', async () => {
+  const { env } = await setup();
+  const put = (bot, channel, outliers) => call(env, 'PUT', `/v1/outliers/${channel}`, { bot, body: { outliers } });
+  const o = (title, link, extra = {}) => ({ title, link, views: 9000, avg: 1000, published: '2026-10-20', source: 'Pitbull Dog Dad', ...extra });
+  const first = await put('home-guide-press', 'dale-whitaker-pitbulls', [o('A', 'https://youtu.be/a'), o('B', 'https://youtu.be/b', { selected: true, thumb: 'https://i.ytimg.com/b.jpg' })]);
+  assert.deepEqual([first.status, first.body.outliers, first.body.replaced], [200, 2, 0]);
+  const list = async () => (await call(env, 'GET', '/v1/outliers?channel=dale-whitaker-pitbulls', { bot: 'developer' })).body.outliers;
+  const a = (await list()).find((x) => x.title === 'A');
+  assert.equal((await call(env, 'POST', `/v1/outliers/${a.id}/select`, { jon: true, body: { selected: true } })).status, 200);
+  const b = (await list()).find((x) => x.title === 'B');
+  await call(env, 'POST', `/v1/outliers/${b.id}/select`, { jon: true, body: { selected: false } });
+  const again = await put('developer', 'dale-whitaker-pitbulls', [o('A2', 'https://youtu.be/a'), o('B', 'https://youtu.be/b', { selected: true }), o('C', 'https://youtu.be/c', { selected: true })]);
+  assert.deepEqual([again.body.outliers, again.body.replaced], [3, 2]);
+  const rows = await list();
+  assert.deepEqual(rows.map((x) => [x.title, x.selected, x.selectedBy, x.source]).sort(),
+    [['A2', true, 'jon', 'Pitbull Dog Dad'], ['B', false, 'jon', 'Pitbull Dog Dad'], ['C', true, 'developer', 'Pitbull Dog Dad']], "Jon's choices win over the CSV");
+  for (const [outliers, why] of [[[o('x', 'D:\\a.mp4')], 'link'], [[o('x', 'https://youtu.be/x', { avg: 0 })], 'avg'], [[o('x', 'https://youtu.be/x', { selected: 'yes' })], 'selected'], ['nope', 'list']]) {
+    assert.equal((await put('developer', 'dale-whitaker-pitbulls', outliers)).status, 400, why);
+  }
+  assert.equal((await list()).length, 3, 'a refused import changes nothing');
+  assert.equal((await put('sponsors', 'jonmacai', [])).status, 403);
+});
+
+test('Content page: a Selected badge and the source channel on each outlier', () => {
+  const out = { pages: { content: {} } };
+  const r = (id, views, selected, source) => ({ id, channel: 'jonmacai', title: id, link: 'https://youtu.be/x', thumb: null, views, avg_views: 1000, published: '2026-10-20', selected, source });
+  buildChannelPages(out, { channels: [], calendar: [], outliers: [r('low', 2000, 0, null), r('high', 30000, 1, 'Ads With Cami')] }, NOW);
+  const html = content(out.pages.content, {}, 'jonmacai');
+  assert.ok(html.indexOf('high') < html.indexOf('low'), 'best multiple first');
+  assert.match(html, /<span class="oct"><span class="pill ok">Selected<\/span> high<\/span>\s*<span class="ocm"><b>30× avg<\/b><i>·<\/i> <span>Ads With Cami<\/span><i>·<\/i> /);
+  assert.match(html, /<span class="oct">low<\/span>/);
+});

@@ -107,7 +107,7 @@ export function buildChannelPages(out, data, nowMs = Date.now()) {
       available: !!data,
       channels: CHANNELS.map((c) => {
         const outliers = rowsOf(data?.outliers, c.slug).map((r) => ({ ...r, avg: r.avg_views })).sort(byMultiple).map((r) => ({
-          id: r.id, title: r.title, link: r.link, thumb: r.thumb || null, views: r.views, avg: r.avg,
+          id: r.id, title: r.title, source: r.source || null, link: r.link, thumb: r.thumb || null, views: r.views, avg: r.avg,
           multipleLabel: multipleLabel(r.views / r.avg), viewsLabel: `${compact(r.views)} views vs ${compact(r.avg)} avg`,
           ageLabel: ageLabel(r.published, today), selected: !!r.selected, selectUrl: `/dashboard/api/v1/outliers/${r.id}/select`,
         }));

@@ -1036,7 +1036,7 @@ const calendarOut = (r) => ({
   createdBy: r.created_by, updatedBy: r.updated_by, createdAt: r.created_at, updatedAt: r.updated_at,
 });
 const outlierOut = (r) => ({
-  id: r.id, channel: r.channel, title: r.title, link: r.link, thumb: r.thumb ?? null, views: r.views, avg: r.avg_views,
+  id: r.id, channel: r.channel, title: r.title, source: r.source ?? null, link: r.link, thumb: r.thumb ?? null, views: r.views, avg: r.avg_views,
   multiple: Math.round((r.views / r.avg_views) * 100) / 100, published: r.published, selected: !!r.selected,
   selectedBy: r.selected_by ?? null, selectedAt: r.selected_at ?? null, createdBy: r.created_by, createdAt: r.created_at,
 });
@@ -1136,12 +1136,13 @@ async function addOutlier(db, who, body, now) {
   const views = countOf(body, 'views', 0);
   const avg = countOf(body, 'avg', 1);
   const published = matchOf(body, 'published', DAY_RE, '2026-10-27', true);
+  const source = text(body, 'source', 200) || null;
   const key = text(body, 'key', 200);
   const id = newId('o');
   const { row, duplicate } = await insertOnce(db, 'yt_outliers', 'created_by', who.bot, key, id,
-    `INSERT INTO yt_outliers (id, channel, title, link, thumb, views, avg_views, published, created_by, idem_key, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [id, channel, title, link, thumb, views, avg, published, who.bot, key, now]);
+    `INSERT INTO yt_outliers (id, channel, title, source, link, thumb, views, avg_views, published, created_by, idem_key, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [id, channel, title, source, link, thumb, views, avg, published, who.bot, key, now]);
   return json({ ok: true, duplicate, outlier: outlierOut(row) }, duplicate ? 200 : 201);
 }
 
@@ -1155,6 +1156,35 @@ async function selectOutlier(db, who, id, body, now) {
   const row = await db.prepare('SELECT * FROM yt_outliers WHERE id = ?').bind(id).first();
   if (!row) throw new Bad(404, 'Outlier not found');
   return json({ ok: true, outlier: outlierOut(row) });
+}
+
+// An owner's Content CSV for one channel (dash.py content-import): its rows replace the channel's earlier
+// CSV rows in one batch. Where Jon toggled Select on the same video, his choice stays over the CSV's.
+async function putOutliers(db, who, slug, body, now) {
+  needChannelWriter(who);
+  const channel = channelOf(slug);
+  if (!Array.isArray(body.outliers) || body.outliers.length > 500) throw new Bad(400, 'outliers must be a list of at most 500');
+  const { results } = await db.prepare("SELECT link, selected, selected_at FROM yt_outliers WHERE channel = ? AND selected_by = 'jon'").bind(channel).all();
+  const jon = new Map((results || []).map((r) => [r.link, r]));
+  const rows = body.outliers.map((o, i) => {
+    if (!o || typeof o !== 'object' || Array.isArray(o)) throw new Bad(400, `outliers[${i}] must be {title, link, views, avg, published, ...}`);
+    try {
+      const link = webLinkOf(o, 'link', true);
+      if (o.selected !== undefined && typeof o.selected !== 'boolean') throw new Bad(400, 'selected must be true or false');
+      const mine = jon.get(link);
+      const on = mine ? mine.selected : o.selected ? 1 : 0;
+      return [newId('o'), channel, text(o, 'title', 300, true), text(o, 'source', 200) || null, link, webLinkOf(o, 'thumb'),
+        countOf(o, 'views', 0), countOf(o, 'avg', 1), matchOf(o, 'published', DAY_RE, '2026-10-27', true),
+        on, mine ? 'jon' : on ? who.bot : null, mine ? mine.selected_at : on ? now : null, who.bot, `csv:${channel}:${i}`, now];
+    } catch (err) {
+      throw err instanceof Bad ? new Bad(400, `outliers[${i}]: ${err.message}`) : err;
+    }
+  });
+  const insert = db.prepare(`INSERT INTO yt_outliers (id, channel, title, source, link, thumb, views, avg_views, published, selected, selected_by,
+    selected_at, created_by, idem_key, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
+  const [gone] = await db.batch([db.prepare("DELETE FROM yt_outliers WHERE channel = ? AND idem_key LIKE 'csv:%'").bind(channel),
+    ...rows.map((r) => insert.bind(...r))]);
+  return json({ ok: true, channel, replaced: gone?.meta?.changes ?? 0, outliers: rows.length });
 }
 
 async function listOutliers(db, q) {
@@ -1243,6 +1273,7 @@ async function route(request, db, who, rest, env, ctx) {
     throw new Bad(404, 'Not found');
   }
   if (kind === 'calendar' && method === 'PUT' && rawId && !verb) return putCalendar(db, who, rawId, await readBody(request), now);
+  if (kind === 'outliers' && method === 'PUT' && rawId && !verb) return putOutliers(db, who, rawId, await readBody(request), now);
   const id = rawId ? idOf(rawId) : null;
   const body = method === 'POST' || method === 'PATCH' ? await readBody(request) : {};
 
