@@ -272,12 +272,12 @@ test('card modal: Close card on unfinished tasks only; Jon reads You; proof is a
   assert.match(taskModal({ ...base, status: 'doing' }, 'Sponsors'), /<p class="cmmeta">You · Doing · Sponsors<\/p>/);
 
   const proofs = [
-    { link: 'https://docs.google.com/document/d/x', kind: 'url', status: 'passed', note: '**What happened**\n- **Script** v2: hook rewritten\n- 3 beats', checkNote: 'All 12 references checked' },
+    { link: 'https://docs.google.com/document/d/x', kind: 'url', status: 'passed', note: '**What happened**\n- **Script** v2: hook rewritten\n- 3 beats', checkNote: 'All 12 references checked. Report: D:\\AgentTeam\\qc\\REPORT.md' },
     { link: 'D:\\AgentTeam\\renders\\cut.mp4', kind: 'render', status: 'pending', note: 'Short one' },
   ];
   const history = [{ at: '2026-10-30T10:00:00Z', by: 'sponsors', kind: 'owner', detail: 'owner sponsors → video-editor' }, { at: '2026-10-30T11:00:00Z', by: 'qc', kind: 'status', detail: 'status qc → review' }];
   const html = taskModal({ ...base, status: 'review', proofs, history }, 'Sponsors');
-  assert.match(html, /<li><div class="cmrow"><span class="pill ok">QC passed<\/span><a class="btn line cmopen" [^>]*>Open doc<\/a><\/div><p class="cmsmall cmone"><strong>Script<\/strong> v2: hook rewritten<\/p><details class="cmdet"><summary>Details<\/summary>.*3 beats.*<strong>QC:<\/strong> All 12 references checked<\/div><\/details><\/li>/s);
+  assert.match(html, /<li><div class="cmrow"><span class="pill ok">QC passed<\/span><a class="btn line cmopen" [^>]*>Open doc<\/a><\/div><p class="cmsmall cmone"><strong>Script<\/strong> v2: hook rewritten<\/p><details class="cmdet"><summary>Details<\/summary>.*3 beats.*<strong>QC:<\/strong> All 12 references checked\. Report: REPORT\.md<\/div><\/details><\/li>/s);
   assert.match(html, /<span class="cmfile">Local file: cut\.mp4<\/span><\/div><p class="cmsmall cmone">Short one<\/p><\/li>/, 'one line, no Details');
   assert.doesNotMatch(html, /D:\\/, 'no local paths');
   assert.match(html, /owner Florence → Olivia .*In QC → Ready for your review/s, 'history in words');

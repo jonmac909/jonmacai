@@ -42,7 +42,7 @@ function dailyItem(it) {
   const web = /^https?:\/\//i.test(it.link || '');
   const name = web ? `<a href="${esc(it.link)}" target="_blank" rel="noopener">${esc(it.text)}</a>` : esc(it.text);
   const file = !web && it.link ? `<i>·</i>Local file: ${esc(String(it.link).split(/[\\/]/).pop())}` : '';
-  const meta = it.done ? `<span class="pjm">${esc(it.by)}<i>·</i>${esc(it.ageLabel)}${file}</span>` : '';
+  const meta = it.done ? `<span class="pjm">${esc(botName(it.by))}<i>·</i>${esc(it.ageLabel)}${file}</span>` : '';
   return `<li><label class="pjci"><input type="checkbox" disabled${it.done ? ' checked' : ''}><span>${name}${meta}</span></label></li>`;
 }
 
