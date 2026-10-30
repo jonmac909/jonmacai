@@ -189,7 +189,9 @@ export async function go(id, { refetch = false } = {}) {
   shownPage = id;
   restoreAnswers(root, typed);
   if (!same) window.scrollTo(0, 0);
-  root.querySelector('.cctabs .on')?.scrollIntoView({ block: 'nearest', inline: 'nearest' }); // the chosen channel tab, on a phone's scrolling row
+  // The chosen channel tab in view on a phone's sideways row, without scrolling the window.
+  const tab = root.querySelector('.cctabs .on');
+  if (tab && !same) { const row = tab.closest('.cctabs'); row.scrollLeft += tab.getBoundingClientRect().left - row.getBoundingClientRect().left - 16; }
   try { localStorage.setItem('cc-page', id); } catch {}
   bindKanban();
 }

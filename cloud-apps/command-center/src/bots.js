@@ -1020,7 +1020,7 @@ function webLinkOf(body, key = 'link', required = false) {
   let url = null;
   try { url = new URL(s); } catch { /* refused below */ }
   // eslint-disable-next-line no-control-regex
-  if (!url?.hostname || !/^https?:\/\/[^\s/?#]+\S*$/i.test(s) || /[\s -]/.test(s)) throw new Bad(400, `${key} must be an http(s) link`);
+  if (!url?.hostname || !/^https?:\/\/[^\s/?#]+\S*$/i.test(s) || /[\s\u0000-\u001f\u007f]/.test(s)) throw new Bad(400, `${key} must be an http(s) link`);
   return s;
 }
 
