@@ -5,7 +5,7 @@ import { render as viral } from './pages/viral.js';
 import { render as webinar } from './pages/webinar.js';
 import { render as money } from './pages/money.js';
 import { render as life } from './pages/life.js';
-import { formatJobResult } from './ui.js';
+import { formatJobResult, noLoneWords } from './ui.js';
 import { bindModals, openDraft } from './modals.js';
 const PREFIX = '/dashboard';
 // Any other #page (old bookmarks to removed pages) falls back to Today. A page may have a
@@ -157,19 +157,6 @@ function bindKanban() {
     });
   });
   ktotals();
-}
-
-// Jon: never one word alone on a line. CSS text-wrap:pretty catches most; this joins the last two
-// words of each text run with a no-break space so the last line always has two. Two-word runs only
-// when short ("Oct 19"), so a long pair in a narrow table cell can still wrap instead of overflowing.
-export function noLoneWords(root) {
-  const walk = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
-  for (let n = walk.nextNode(); n; n = walk.nextNode()) {
-    if (n.parentElement?.closest('textarea,pre,code,script,style,option')) continue;
-    const t = n.nodeValue;
-    const i = t.trimEnd().lastIndexOf(' ');
-    if (i > 0 && t.length - i < 30 && (t.slice(0, i).trim().includes(' ') || t.trim().length <= 24)) n.nodeValue = t.slice(0, i) + ' ' + t.slice(i + 1);
-  }
 }
 
 export async function go(id, { refetch = false } = {}) {

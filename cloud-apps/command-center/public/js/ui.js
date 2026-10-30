@@ -4,6 +4,19 @@ export function barWidth(value) {
   return `max(2px, ${Math.min(100, n)}%)`;
 }
 
+// Jon: never one word alone on a line. CSS text-wrap:pretty catches most; this joins the last two
+// words of each text run with a no-break space so the last line always has two. Two-word runs only
+// when short ("Oct 19"), so a long pair in a narrow table cell can still wrap instead of overflowing.
+export function noLoneWords(root) {
+  const walk = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  for (let n = walk.nextNode(); n; n = walk.nextNode()) {
+    if (n.parentElement?.closest('textarea,pre,code,script,style,option')) continue;
+    const t = n.nodeValue;
+    const i = t.trimEnd().lastIndexOf(' ');
+    if (i > 0 && t.length - i < 30 && (t.slice(0, i).trim().includes(' ') || t.trim().length <= 24)) n.nodeValue = t.slice(0, i) + '\u00a0' + t.slice(i + 1);
+  }
+}
+
 export function esc(s) {
   return String(s ?? '').replace(/[&<>"']/g, (c) => (
     { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
