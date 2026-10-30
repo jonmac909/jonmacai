@@ -1,5 +1,5 @@
 import { esc, pill, botName, linkLabel, friendlyWhen } from './ui.js';
-import { needItem, summaryHtml, inline } from './pages/today.js';
+import { needItem, summaryHtml, inline, HEADING } from './pages/today.js';
 import { approveButton, deliverableLink } from './pages/projects.js';
 
 const PREFIX = '/dashboard';
@@ -23,7 +23,7 @@ function proofItem(p) {
     : `<span class="cmfile">Local file: ${esc(String(p.link || '').split(/[\\/]/).pop())}</span>`;
   const qc = p.status === 'passed' ? 'QC passed' : p.status === 'failed' ? 'QC failed' : 'Waiting for QC';
   const lines = String(p.note || '').split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
-  const first = (lines[0] || '').replace(/^[-*•]\s+/, '');
+  const first = (lines.find((l) => !HEADING.test(l)) || '').replace(/^[-*•]\s+/, '');
   const more = lines.length > 1 || first.length > 140 ? `<div class="cmsmall">${summaryHtml(p.note)}</div>` : '';
   const check = p.checkNote ? `<div class="cmsmall"><strong>QC:</strong> ${esc(p.checkNote)}</div>` : '';
   return `<li><div class="cmrow">${pill(qc, PROOF_PILL[p.status] || '')}${open}</div>${first ? `<p class="cmsmall cmone">${inline(first)}</p>` : ''}${more || check ? `<details class="cmdet"><summary>Details</summary>${more}${check}</details>` : ''}</li>`;

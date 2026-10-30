@@ -26,7 +26,7 @@ function card(it, col) {
   const done = it.tickUrl ? `<div class="qopts"><button type="button" class="btn" data-ttick="${esc(it.tickUrl)}">Done</button></div>` : '';
   const review = it.reviewUrl ? `<div class="qopts">${approveButton(it.reviewUrl, it.title)}
     <button type="button" class="btn line" data-sendback="${esc(it.id)}">Send back</button></div>` : '';
-  const close = col === 'done' ? '' : `<button type="button" class="pjx" data-tclose="/dashboard/api/v1/tasks/${esc(it.id)}" data-title="${esc(it.title)}" aria-label="Close card" title="Close card">×</button>`;
+  const close = col === 'done' ? '' : `<button type="button" class="pjx" data-tclose="/dashboard/api/v1/tasks/${esc(it.id)}" data-title="${esc(it.title)}" aria-label="${esc(`Close "${it.title}"`)}" title="Close card">×</button>`;
   return `<li class="pjcard"${open}>${close}<span class="pjt">${esc(it.title)}</span>${deliv}
     <span class="pjm"><span class="jttag">${esc(botName(it.from))}</span>${it.ageLabel ? `<i>·</i><span>${esc(it.ageLabel)}</span>` : ''}${proof}</span>${done}${review}</li>`;
 }

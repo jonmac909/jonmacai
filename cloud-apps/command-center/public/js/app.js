@@ -156,7 +156,7 @@ let build;
 const stale = (d) => {
   build ??= d?.build;
   return !!d?.build && d.build !== build && !document.querySelector('dialog[open]')
-    && ![...document.querySelectorAll('textarea, input[type=text]')].some((el) => el.value.trim());
+    && ![...document.querySelectorAll('#page textarea, #page input:not([type]), #page input[type=text]')].some((el) => el.value.trim());
 };
 
 export async function go(id, { refetch = false } = {}) {

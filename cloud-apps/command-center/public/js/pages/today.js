@@ -74,7 +74,7 @@ export const inline = (line) => esc(line)
   .replace(LINKS, (m, text, href, bare) => (bare
     ? `<a href="${bare}" target="_blank" rel="noopener">${linkLabel(bare.replace(/&amp;/g, '&'))}</a>`
     : `<a href="${href}" target="_blank" rel="noopener">${text}</a>`));
-const HEADING = /^(?:\*\*)?(What happened|Your move|Next|Why|Status)(?:\*\*)?\s*:?\s*(?:\*\*)?$/i;
+export const HEADING = /^(?:\*\*)?(What happened|Your move|Next|Why|Status)(?:\*\*)?\s*:?\s*(?:\*\*)?$/i;
 
 export function summaryHtml(text) {
   return String(text || '').trim().split(/\r?\n\s*\n/).map((section) => {
