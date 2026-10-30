@@ -251,7 +251,7 @@ tfoot td{font-weight:600;color:var(--ink);border-top:1px solid var(--line)}
 .modal-card menu{display:flex;gap:.5rem;justify-content:flex-end;margin:.9rem 0 0;padding:0}
 
 @media (max-width:820px){
-  .shell{grid-template-columns:minmax(0,1fr)}
+  .shell{grid-template-columns:minmax(0,1fr);grid-template-rows:auto 1fr} /* a short page doesn't stretch the top bar */
   .side{border-right:0;border-bottom:1px solid var(--line);padding:.9rem 16px;gap:.7rem;min-width:0}
   .side .primary,.plan,.navgrp h4{display:none}
   .navs{display:flex;gap:.3rem;overflow-x:auto;min-width:0}
