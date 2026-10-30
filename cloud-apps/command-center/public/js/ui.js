@@ -25,11 +25,12 @@ export function noLoneWords(roots) {
     const cell = box?.closest('td,th');
     const css = box && getComputedStyle(box);
     const room = box ? box.clientWidth - parseFloat(css.paddingLeft) - parseFloat(css.paddingRight) : 0;
+    const r = document.createRange();
+    // A word's widest box: Chrome adds a stray box for a word that ends at a line break.
+    const measure = (from, to) => { r.setStart(n, from); r.setEnd(n, to); return Math.max(0, ...[...r.getClientRects()].map((x) => x.width)); };
     const t = n.nodeValue.replace(LAST_PAIR, (m, a, b, at) => {
-      const r = document.createRange();
-      r.setStart(n, at);
-      r.setEnd(n, at + m.length);
-      const width = [...r.getClientRects()].reduce((sum, x) => sum + x.width, 0);
+      // Each word on its own: a space at a line break measures to the end of the line.
+      const width = measure(at, at + a.length) + measure(at + a.length + 1, at + m.length);
       // Not laid out yet (hidden): join only short pairs.
       return (cell ? m.length <= 24 : width ? width + 6 <= room : m.length <= 18) ? `${a}\u00a0${b}` : m;
     });
