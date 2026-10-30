@@ -1,5 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
+import { mkdtempSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { handleApi } from '../src/api.js';
 import { sha256Hex, todayData } from '../src/bots.js';
 import { buildProjects, PROJECTS } from '../src/projects.js';
@@ -8,7 +13,8 @@ import { signSession, COOKIE } from '../src/auth.js';
 import { sqliteD1 } from './sqlited1.mjs';
 
 const SECRET = 'test-session-secret-32-bytes-ok!';
-const TOK = { ana: `ccb_${'a'.repeat(43)}`, sponsors: `ccb_${'s'.repeat(43)}`, qc: `ccb_${'q'.repeat(43)}` };
+const BOTS = ['ana', 'sponsors', 'qc', 'developer', 'jon-mac-youtube', 'video-editor', 'viral-view', 'home-guide-press', 'short-form', 'accounting'];
+const TOK = Object.fromEntries(BOTS.map((b) => [b, `ccb_${b.padEnd(43, 'x')}`]));
 const NOW = Date.parse('2026-10-29T19:00:00Z'); // Thu Oct 29, 12:00 PT
 
 async function setup() {
@@ -139,13 +145,23 @@ function fixture() {
         feeds: {
           morning_summary: { bot: 'ana', createdAt: '2026-10-29T15:15:00Z', data: { text: 'All good', date: '2026-10-29' } },
           calendar_today: { bot: 'ana', createdAt: '2026-10-29T15:15:00Z', data: { date: '2026-10-29', events: [{ start: '09:30', end: '10:00', title: 'Call' }] } },
+          daily_checklists: { bot: 'ana', createdAt: '2026-10-29T15:00:00Z', data: { projects: {
+            sponsors: ['Sort partners@', 'Chase payments', 'Find 5 leads'],
+            'jon-mac': ['Edit pack handed over'],
+            jonmacai: ['Edit pack handed over', 'AI clips made'],
+          } } },
         },
+        dailyTicks: [
+          { day: '2026-10-29', project: 'sponsors', item: 'Sort partners@', bot: 'sponsors', link: 'https://jonmac.ai/review/s1', note: null, createdAt: '2026-10-29T17:00:00Z' },
+          { day: '2026-10-29', project: 'sponsors', item: 'Chase payments', bot: 'sponsors', link: 'D:\\drafts\\chase.txt', note: 'sent 2', createdAt: '2026-10-29T18:30:00Z' },
+          { day: '2026-10-29', project: 'jon-mac', item: 'Edit pack handed over', bot: 'video-editor', link: 'javascript:alert(1)', note: null, createdAt: '2026-10-29T18:00:00Z' },
+        ],
       },
     },
   };
 }
 
-test('projects page: lanes, counts, board columns, Unsorted, checklist and goal cards', () => {
+test('projects page: lanes, counts, board columns, Unsorted and goal cards; no mixed checklist', () => {
   const { out, by, cash, extra } = fixture();
   buildProjects(out, by, cash, extra, NOW);
   const p = out.pages.projects;
@@ -162,91 +178,220 @@ test('projects page: lanes, counts, board columns, Unsorted, checklist and goal 
   assert.deepEqual([lane('viral-view').columns[4].items[0].proof, lane('jon-mac').columns[3].items[0].proof], ['https://jonmac.ai/review/5', ''], 'web links only');
   const a1 = lane('viral-view').columns[2].items[1];
   assert.deepEqual([a1.kind, a1.decideUrl, a1.payloadPreview], ['approval', '/dashboard/api/v1/approvals/a1/decide', '{\n  "n": 3\n}'], "Today's approval item");
-
-  const [jon] = p.today.groups;
-  assert.deepEqual(jon.items.map((i) => [i.id, i.project, i.minutes]),
-    [['t2', 'Sponsors', 15], ['q1', 'Sponsors', 5], ['a1', 'Viral View', 2], ['q2', 'Home Guide Press', 2], ['t8', 'Unsorted', 30]],
-    'questions, approvals, and jon tasks due today or undated (not t3, due later)');
-  assert.deepEqual([p.today.minutes, p.today.total], [54, '54 min']);
-  assert.deepEqual([jon.items[0].tickUrl, jon.items[1].tickUrl, jon.items[1].page, jon.items[1].card],
-    ['/dashboard/api/v1/tasks/t2', undefined, 'projects/sponsors', '/dashboard/api/v1/questions/q1/answer']);
-
   assert.deepEqual(p.projects.map((x) => x.goals.map((g) => g.key)), [['sponsors'], [], [], ['viral', 'webinar'], ['ebooks'], [], [], [], []]);
-  assert.deepEqual([p.summary.text, p.calendar.events, p.available], ['All good', [{ time: '09:30-10:00', title: 'Call' }], true]);
+  assert.deepEqual([p.summary.text, p.calendar.events, p.available, p.today], ['All good', [{ time: '09:30-10:00', title: 'Call' }], true, undefined]);
 
   const quiet = fixture();
   quiet.extra.today.tasks = quiet.extra.today.tasks.filter((x) => x.project);
   quiet.extra.today.feeds.calendar_today.data.date = '2026-10-28';
-  quiet.extra.today.questions[0].minutes = 90;
   buildProjects(quiet.out, quiet.by, quiet.cash, quiet.extra, NOW);
   const q = quiet.out.pages.projects;
   assert.equal(q.projects.some((x) => x.slug === 'unsorted'), false, 'Unsorted only when it has items');
-  assert.deepEqual([q.calendar.missing, q.today.total], ["Ana posts today's calendar each morning.", '1 hr 49 min']);
+  assert.equal(q.calendar.missing, "Ana posts today's calendar each morning.");
 });
 
-test("Today checklist: Jon first, then one group per bot, with the day's work and what got done today", () => {
-  const f = fixture();
-  f.extra.today.tasks.push(
-    task('t10', 'sponsors', 'sponsors', 'done', { doneAt: '2026-10-29T08:00:00Z', minutes: 20 }), // 01:00 PT today
-    task('t11', 'sponsors', 'sponsors', 'done', { doneAt: '2026-10-29T06:30:00Z' }), // 23:30 PT yesterday
-    task('t12', 'sponsors', 'sponsors', 'todo', { due: '2026-10-29' }),
-    task('t13', 'accounting', 'accounting', 'todo', { due: '2026-10-27' }),
-    task('t14', 'sponsors', 'sponsors', 'todo', { due: '2026-10-30' }),
-    task('t15', 'coding', 'jon', 'done', { doneAt: '2026-10-29T18:00:00Z', minutes: 10 }),
-    task('t16', 'coding', 'developer', 'cancelled', { due: '2026-10-29' }),
-    task('t17', 'coding', 'developer', 'doing', { due: '2026-11-05' }),
-  );
-  buildProjects(f.out, f.by, f.cash, f.extra, NOW);
-  const p = f.out.pages.projects;
-  assert.deepEqual(p.today.groups.map((g) => [g.label, `${g.done}/${g.total}`, g.items.map((i) => i.id)]), [
-    ['Jon', '1/6', ['t2', 'q1', 'a1', 'q2', 't15', 't8']],
-    ['accounting', '0/1', ['t13']],
-    ['developer', '0/1', ['t17']],
-    ['sponsors', '1/2', ['t10', 't12']],
-    ['video-editor', '0/1', ['t9']],
-    ['viral-view', '0/1', ['t4']],
-  ], 'due today, overdue open, in progress, done today; not undated todo t1, due later t3/t14, done yesterday t5/t11/t6, cancelled t7/t16');
-  const item = (id) => p.today.groups.flatMap((g) => g.items).find((i) => i.id === id);
-  assert.deepEqual([item('t10').done, item('t10').tickUrl, item('t10').card, item('t10').project, item('t10').minutes], [true, undefined, undefined, 'Sponsors', 20], 'auto-ticked, no tick action');
-  assert.deepEqual([item('t15').done, item('t15').tickUrl, item('t12').done, item('t9').project], [true, undefined, false, 'YT-JM']);
-  assert.equal(p.today.minutes, 54, "Jon's open items only");
+test('daily checklist: each tab shows only its own items, ticked by today\'s ticks; Unsorted has none', () => {
+  const { out, by, cash, extra } = fixture();
+  buildProjects(out, by, cash, extra, NOW);
+  const p = out.pages.projects;
+  const daily = (slug) => p.projects.find((x) => x.slug === slug).checklist;
+  assert.deepEqual(daily('sponsors'), { done: 2, total: 3, items: [
+    { text: 'Sort partners@', done: true, by: 'sponsors', ageLabel: '2 hr ago', link: 'https://jonmac.ai/review/s1' },
+    { text: 'Chase payments', done: true, by: 'sponsors', ageLabel: '30 min ago', link: 'D:\\drafts\\chase.txt' },
+    { text: 'Find 5 leads', done: false },
+  ] });
+  assert.deepEqual(daily('jon-mac').items.map((i) => [i.text, i.done]), [['Edit pack handed over', true]]);
+  assert.deepEqual(daily('jonmacai').items.map((i) => [i.text, i.done]), [['Edit pack handed over', false], ['AI clips made', false]], 'a tick counts for its own project only');
+  assert.deepEqual(daily('coding'), { missing: 'Ana syncs the daily checklist with dash.py daily-sync' }, 'no items for this tab');
+  assert.equal(daily('unsorted'), undefined);
 
-  // The renderer: Jon's open tasks tick; team, done and question/approval boxes are disabled and send nothing.
-  const side = renderProjects(p, {}, 'sponsors').split('pjright')[1];
-  const row = (text) => side.split('<li').find((x) => x.includes(text));
-  assert.match(row('Task t2</label>'), /<input type="checkbox" data-ttick="\/dashboard\/api\/v1\/tasks\/t2">/);
-  assert.match(row('Task t8</label>'), /data-ttick="\/dashboard\/api\/v1\/tasks\/t8"/);
-  assert.equal((side.match(/data-ttick|data-tsend|data-tdecide/g) || []).length, 2, "only Jon's two open tasks send anything");
-  assert.match(row('Task t10</label>'), /<input type="checkbox" disabled checked>/);
-  assert.match(row('Task t15</label>'), /<input type="checkbox" disabled checked>/);
-  for (const t of ['Task t12</label>', 'Task t13</label>', 'Task t9</label>']) assert.match(row(t), /<input type="checkbox" disabled>/, t);
-  assert.match(row('Send today?'), /<input type="checkbox" disabled aria-label="Send today\?">.*data-page="projects\/sponsors" data-card="\/dashboard\/api\/v1\/questions\/q1\/answer"/s);
-  assert.match(row('Post 3 clips'), /<input type="checkbox" disabled aria-label="Post 3 clips">.*data-page="projects\/viral-view" data-card="\/dashboard\/api\/v1\/approvals\/a1\/decide"/s);
-  assert.match(side, /class="pjgrp">Jon<span class="n">1\/6<\/span>[\s\S]*class="pjgrp">sponsors<span class="n">1\/2<\/span>/);
-  assert.match(row('Task t10</label>'), /<span class="jttag">Sponsors<\/span> Task t10<\/label><span class="pjest">20 min<\/span>/);
+  // The renderer: read-only boxes, done/total, who and when, and only web proof links open.
+  const card = (sub, page = p) => renderProjects(page, {}, sub).split('pjright')[1].split('<div class="card pad">').find((c) => c.includes('Daily checklist')) || '';
+  const s = card('sponsors');
+  assert.match(s, /<h2>Daily checklist<\/h2><span class="meta">2\/3<\/span>/);
+  assert.equal((s.match(/<input type="checkbox" disabled[ >]/g) || []).length, 3, 'every item has a disabled box');
+  assert.equal((s.match(/<input /g) || []).length, 3);
+  assert.equal((s.match(/ checked>/g) || []).length, 2);
+  assert.match(s, /<input type="checkbox" disabled checked> <a href="https:\/\/jonmac.ai\/review\/s1" target="_blank" rel="noopener">Sort partners@<\/a><span class="pjm">sponsors<i>·<\/i>2 hr ago<\/span>/);
+  assert.match(s, /<input type="checkbox" disabled checked> Chase payments<span class="pjm">sponsors<i>·<\/i>30 min ago<i>·<\/i>D:\\drafts\\chase.txt<\/span>/, 'a file path is plain text');
+  assert.match(s, /<input type="checkbox" disabled> Find 5 leads<\/label>/);
+  assert.doesNotMatch(s, /Edit pack|AI clips|data-ttick|data-card/, "only this tab's items, and no tick buttons");
+  const jm = card('jon-mac');
+  assert.match(jm, /<span class="meta">1\/1<\/span>/);
+  assert.doesNotMatch(jm, /<a |href/, 'http(s) links only');
+  assert.match(jm, /video-editor<i>·<\/i>1 hr ago<i>·<\/i>javascript:alert\(1\)/);
+  assert.equal(card('unsorted'), '', 'Unsorted shows no checklist');
+
+  const none = fixture();
+  delete none.extra.today.feeds.daily_checklists;
+  buildProjects(none.out, none.by, none.cash, none.extra, NOW);
+  assert.match(card('sponsors', none.out.pages.projects), /<h2>Daily checklist<\/h2><\/div><p class="muted">Ana syncs the daily checklist with dash.py daily-sync<\/p>/);
 });
 
-test('snapshot serves Projects from the bot tables, and Jon ticks his task from it', async () => {
+test('daily_checklists feed: ana or developer, known projects, at most 12 items of 200 characters, no repeats', async () => {
+  const { env } = await setup();
+  const put = (bot, body) => call(env, 'PUT', '/v1/feeds/daily_checklists', { bot, body });
+  assert.equal((await put('sponsors', { projects: { sponsors: ['x'] } })).status, 403);
+  for (const projects of [undefined, null, [], 'x', { webinar: ['x'] }, { unsorted: ['x'] }, { sponsors: 'x' }, { sponsors: Array.from({ length: 13 }, (_, i) => `item ${i}`) },
+    { sponsors: [''] }, { sponsors: ['  '] }, { sponsors: [5] }, { sponsors: ['x'.repeat(201)] }, { sponsors: ['Chase', ' chase '] }]) {
+    assert.equal((await put('ana', { projects })).status, 400, JSON.stringify(projects));
+  }
+  const twelve = Array.from({ length: 12 }, (_, i) => `item ${i + 1}`);
+  const ok = await put('ana', { projects: { sponsors: [' Sort partners@ ', 'x'.repeat(200)], coding: twelve, accounting: [] } });
+  assert.equal(ok.status, 201);
+  assert.deepEqual(ok.body.feed.data.projects, { sponsors: ['Sort partners@', 'x'.repeat(200)], coding: twelve, accounting: [] });
+  assert.equal((await put('developer', { projects: { coding: ['Live sites checked'] } })).status, 201);
+  assert.deepEqual((await call(env, 'GET', '/v1/feeds/daily_checklists', { jon: true })).body.feed.data, { projects: { coding: ['Live sites checked'] } }, 'newest wins');
+});
+
+const TICKERS = {
+  sponsors: ['sponsors'], 'jon-mac': ['jon-mac-youtube', 'video-editor'], jonmacai: ['jon-mac-youtube', 'video-editor'], 'viral-view': ['viral-view'],
+  'home-guide-press': ['home-guide-press'], 'short-form': ['short-form'], accounting: ['accounting'], coding: ['developer'],
+};
+
+test('POST /v1/daily: only the owning bot ticks, by item text or number, with a proof link; again the same day updates it', async () => {
+  const { env } = await setup();
+  const tick = (body, bot = 'sponsors') => call(env, 'POST', '/v1/daily', { bot, body: { project: 'sponsors', link: 'https://jonmac.ai/review/1', ...body } });
+  const early = await tick({ item: 1 });
+  assert.deepEqual([early.status, early.body.error.endsWith('none yet')], [400, true], 'nothing to tick before daily-sync');
+
+  // Who ticks what: every bot against every project.
+  assert.deepEqual(Object.keys(TICKERS), PROJECTS.map((x) => x.slug));
+  await call(env, 'PUT', '/v1/feeds/daily_checklists', { bot: 'ana', body: { projects: Object.fromEntries(PROJECTS.map((x) => [x.slug, [`${x.label} daily`]])) } });
+  for (const [project, ok] of Object.entries(TICKERS)) {
+    let first = true;  // on a shared tab the first allowed bot ticks; the next can't overwrite it
+    for (const bot of BOTS) {
+      const want = !ok.includes(bot) ? 403 : first ? 200 : 409;
+      if (ok.includes(bot)) first = false;
+      assert.equal((await tick({ project, item: 1 }, bot)).status, want, `${bot} on ${project}`);
+    }
+  }
+  assert.equal((await call(env, 'POST', '/v1/daily', { jon: true, body: { project: 'sponsors', item: 1, link: 'https://x.test/p' } })).status, 403, 'Jon only reads');
+  assert.equal((await handleApi(new Request('https://jonmac.ai/dashboard/api/v1/daily'), env)).status, 401);
+  const all = (await call(env, 'GET', '/v1/daily', { jon: true })).body.ticks;
+  assert.deepEqual(all.map((x) => [x.project, x.item, x.bot]).sort(), PROJECTS.map((x) => [x.slug, `${x.label} daily`, BOTS.find((b) => TICKERS[x.slug].includes(b))]).sort(), 'one row per item; a second bot cannot overwrite it');
+
+  await call(env, 'PUT', '/v1/feeds/daily_checklists', { bot: 'ana', body: { projects: { sponsors: ['Sort partners@ and draft replies', 'Chase overdue payments (drafts)'] } } });
+  const byText = await tick({ item: '  chase OVERDUE payments (DRAFTS) ' });
+  assert.deepEqual([byText.status, byText.body.tick.item, byText.body.tick.bot], [200, 'Chase overdue payments (drafts)', 'sponsors'], 'stored as the canonical text');
+  for (const item of [1, '1', ' 1 ']) assert.equal((await tick({ item })).body.tick.item, 'Sort partners@ and draft replies', JSON.stringify(item));
+  for (const item of [0, 3, '1.0', 'Chase overdue', '', null]) assert.equal((await tick({ item })).status, 400, JSON.stringify(item));
+  for (const project of ['webinar', 'unsorted', '']) assert.equal((await tick({ project, item: 1 })).status, 400, project);
+  for (const link of [undefined, '', 'ftp://x/y', 'javascript:alert(1)', 'jonmac.ai/review', '//host/x']) assert.equal((await tick({ item: 1, link })).status, 400, String(link));
+  assert.equal((await tick({ item: 1, link: 'D:\\renders\\sort.png' })).status, 200, 'a file path is proof too');
+
+  await tick({ item: 1, link: 'https://jonmac.ai/review/2', note: 'second pass' });
+  const rows = async () => (await call(env, 'GET', `/v1/daily?day=${all[0].day}`, { bot: 'qc' })).body.ticks.filter((x) => x.project === 'sponsors' && x.item.startsWith('Sort'));
+  assert.deepEqual((await rows()).map((x) => [x.link, x.note]), [['https://jonmac.ai/review/2', 'second pass']], 'the last tick that day wins');
+  await tick({ item: 1, link: 'https://jonmac.ai/review/3' });
+  assert.deepEqual((await rows()).map((x) => [x.link, x.note]), [['https://jonmac.ai/review/3', null]]);
+  assert.equal((await call(env, 'GET', '/v1/daily?day=2026-13-01', { bot: 'sponsors' })).status, 400);
+});
+
+test('daily ticks reset at midnight PT: a tick counts only on the day it was made', async (t) => {
+  const { env, db } = await setup();
+  const at = (iso) => t.mock.timers.setTime(Date.parse(iso));
+  t.mock.timers.enable({ apis: ['Date'], now: Date.parse('2026-10-30T06:59:00Z') }); // Thu Oct 29, 23:59 PT
+  await call(env, 'PUT', '/v1/feeds/daily_checklists', { bot: 'ana', body: { projects: { sponsors: ['Sort partners@', 'Chase payments'] } } });
+  const tick = () => call(env, 'POST', '/v1/daily', { bot: 'sponsors', body: { project: 'sponsors', item: 1, link: 'https://jonmac.ai/review/1' } });
+  const page = async () => {
+    const out = { pages: { projects: {} } };
+    buildProjects(out, {}, { available: false }, { today: await todayData(db, Date.now(), '2026-10') }, Date.now());
+    return out.pages.projects.projects[0].checklist;
+  };
+  assert.equal((await tick()).body.tick.day, '2026-10-29');
+  assert.deepEqual([(await page()).done, (await page()).items[0].by], [1, 'sponsors']);
+
+  at('2026-10-30T07:01:00Z'); // Fri Oct 30, 00:01 PT
+  assert.deepEqual([(await page()).done, (await page()).items[0].done], [0, false], 'a new day starts unticked');
+  assert.deepEqual((await call(env, 'GET', '/v1/daily', { jon: true })).body, { ok: true, day: '2026-10-30', ticks: [] });
+  assert.equal((await tick()).body.tick.day, '2026-10-30', "a new row, not yesterday's");
+  assert.equal((await page()).done, 1);
+  assert.equal((await call(env, 'GET', '/v1/daily?day=2026-10-29', { jon: true })).body.ticks.length, 1, 'yesterday is kept');
+});
+
+test('dash.py daily-sync reads "## <tab label>" sections and "- item" lines; the Worker accepts the result', async () => {
+  const sample = [
+    '# Daily checklists (Jon, 2026-10-29)',
+    'One checklist per project tab. The owning bot ticks an item with `dash.py`.',
+    '- before any tab: ignored',
+    '',
+    '## Sponsors',
+    '- Sort partners@ and draft replies',
+    '-   ',
+    '- Chase overdue payments (drafts)',
+    'not an item',
+    '',
+    '## YT-JM',
+    '- Edit pack handed to Video Editor',
+    '  - indented: ignored',
+    '* star: ignored',
+    '',
+    '## Webinar',
+    '- unknown tab: ignored',
+    '',
+    '## Coding ',
+    '- Live sites checked',
+    '',
+    ...['YT-AI UGC', 'Viral View', 'Home Guide Press', 'Short-form', 'Accounting'].flatMap((t) => [`## ${t}`, `- ${t} daily`]),
+    "The video tabs' \"Finished render\" item needs Video Editor's render.",
+  ].join('\r\n');
+  const dir = mkdtempSync(join(tmpdir(), 'daily-'));
+  writeFileSync(join(dir, 'sample.md'), sample);
+  writeFileSync(join(dir, 'empty.md'), '# Nothing\n- no tabs\n');
+  writeFileSync(join(dir, 'typo.md'), sample.replace('## YT-AI UGC', '## YT AI UGC'));
+  const code = [
+    'import json, sys, dash',
+    'def refused(path):',
+    '    try:',
+    '        dash.daily_lists(path)',
+    '        return 0',
+    '    except dash.Fail as err:',
+    '        return err.code',
+    'print(json.dumps({"lists": dash.daily_lists(sys.argv[1]), "labels": list(dash.LABELS.items()),',
+    '                  "empty": refused(sys.argv[2]), "typo": refused(sys.argv[3])}))',
+  ].join('\n');
+  const py = process.platform === 'win32' ? 'python' : 'python3';
+  const bots = join(dirname(fileURLToPath(import.meta.url)), '..', 'bots');
+  const r = spawnSync(py, ['-c', code, join(dir, 'sample.md'), join(dir, 'empty.md'), join(dir, 'typo.md')], { encoding: 'utf8', cwd: bots });
+  assert.equal(r.status, 0, r.stderr);
+  const got = JSON.parse(r.stdout);
+  assert.deepEqual(got.lists, {
+    sponsors: ['Sort partners@ and draft replies', 'Chase overdue payments (drafts)'],
+    'jon-mac': ['Edit pack handed to Video Editor'],
+    coding: ['Live sites checked'],
+    jonmacai: ['YT-AI UGC daily'],
+    'viral-view': ['Viral View daily'],
+    'home-guide-press': ['Home Guide Press daily'],
+    'short-form': ['Short-form daily'],
+    accounting: ['Accounting daily'],
+  });
+  assert.deepEqual(got.labels, PROJECTS.map((x) => [x.label, x.slug]), 'same labels and slugs as PROJECTS');
+  assert.equal(got.empty, 2, 'a file with no tab items is refused locally');
+  assert.equal(got.typo, 2, 'a typo in a tab heading is refused, so that tab is never emptied');
+  const { env } = await setup();
+  assert.equal((await call(env, 'PUT', '/v1/feeds/daily_checklists', { bot: 'ana', body: { projects: got.lists } })).status, 201);
+});
+
+test('snapshot serves Projects from the bot tables: the board with Jon\'s tick, and each tab\'s daily checklist', async () => {
   const { env } = await setup();
   const mine = (await call(env, 'POST', '/v1/tasks', { bot: 'sponsors', body: { title: 'Sign it', owner: 'jon', project: 'sponsors', minutes: 10 } })).body.task;
   const work = (await call(env, 'POST', '/v1/tasks', { bot: 'sponsors', body: { title: 'Draft pitches', project: 'sponsors', status: 'doing' } })).body.task;
   await call(env, 'POST', `/v1/tasks/${work.id}/proofs`, { bot: 'sponsors', body: { kind: 'url', link: 'https://jonmac.ai/review/p1' } });
   await call(env, 'POST', `/v1/tasks/${work.id}/proofs`, { bot: 'sponsors', body: { kind: 'render', link: 'D:\\later.mp4' } });
+  await call(env, 'PUT', '/v1/feeds/daily_checklists', { bot: 'ana', body: { projects: { sponsors: ['Sort partners@', 'Chase payments'], coding: ['Live sites checked'] } } });
+  assert.equal((await call(env, 'POST', '/v1/daily', { bot: 'sponsors', body: { project: 'sponsors', item: 2, link: 'https://jonmac.ai/review/c1' } })).status, 200);
   const snap = async () => (await (await handleApi(new Request('https://jonmac.ai/dashboard/api/snapshot?pages=projects', { headers: { Cookie: await cookie() } }), env)).json()).pages.projects;
   const p = await snap();
   const sponsors = p.projects[0];
   assert.deepEqual([sponsors.slug, sponsors.waiting, sponsors.goals.map((g) => g.key)], ['sponsors', 1, ['sponsors']]);
   assert.deepEqual(sponsors.columns[1].items.map((i) => [i.title, i.proof]), [['Draft pitches', 'https://jonmac.ai/review/p1']], 'newest web proof');
-  const list = (x) => x.today.groups.map((g) => [g.label, g.items.map((i) => [i.title, i.minutes, i.done])]);
-  assert.deepEqual(list(p), [['Jon', [['Sign it', 10, false]]], ['sponsors', [['Draft pitches', 15, false]]]]);
-  const tick = await call(env, 'PATCH', p.today.groups[0].items[0].tickUrl.replace('/dashboard/api', ''), { jon: true, body: { status: 'done' } });
+  assert.deepEqual(sponsors.checklist.items.map((i) => [i.text, i.done, i.by ?? null, i.link ?? null]),
+    [['Sort partners@', false, null, null], ['Chase payments', true, 'sponsors', 'https://jonmac.ai/review/c1']]);
+  assert.deepEqual(p.projects.find((x) => x.slug === 'coding').checklist.items.map((i) => [i.text, i.done]), [['Live sites checked', false]]);
+  assert.equal(p.today, undefined, 'no mixed checklist');
+  const tick = await call(env, 'PATCH', sponsors.columns[0].items[0].tickUrl.replace('/dashboard/api', ''), { jon: true, body: { status: 'done' } });
   assert.equal(tick.body.task.id, mine.id);
-  const after = await snap();
-  assert.deepEqual([list(after), after.today.minutes, after.projects[0].columns[4].items.map((i) => i.title), after.projects[0].waiting],
-    [[['Jon', [['Sign it', 10, true]]], ['sponsors', [['Draft pitches', 15, false]]]], 0, ['Sign it'], 0]);
-  // The bot's own move to done (QC-passed proof) ticks its box.
-  const web = (await call(env, 'GET', `/v1/tasks/${work.id}`, { bot: 'sponsors' })).body.task.proofs.find((x) => x.link.startsWith('https://'));
-  assert.equal((await call(env, 'POST', `/v1/proofs/${web.id}/check`, { bot: 'qc', body: { result: 'passed' } })).status, 200);
-  assert.equal((await call(env, 'PATCH', `/v1/tasks/${work.id}`, { bot: 'sponsors', body: { status: 'done' } })).status, 200);
-  assert.deepEqual(list(await snap())[1], ['sponsors', [['Draft pitches', 15, true]]]);
+  const after = (await snap()).projects[0];
+  assert.deepEqual([after.columns[4].items.map((i) => i.title), after.waiting], [['Sign it'], 0]);
 });

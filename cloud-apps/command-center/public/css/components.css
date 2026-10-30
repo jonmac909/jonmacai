@@ -520,9 +520,8 @@ tfoot td{font-weight:600;color:var(--ink);border-top:1px solid var(--line)}
 .pjsum{font-size:.8rem;color:var(--muted);font-variant-numeric:tabular-nums}
 .pjkan{display:grid;grid-template-columns:repeat(5,minmax(11.5rem,1fr));gap:.7rem;align-items:start;overflow-x:auto;padding-bottom:.5rem;scroll-snap-type:x proximity}
 .pjcol{scroll-snap-align:start;background:var(--kcol-bg);border-radius:.9rem;padding:.65rem;display:flex;flex-direction:column;gap:.55rem;min-width:0;min-height:7rem}
-.pjcol h3,.pjgrp{margin:0;display:flex;justify-content:space-between;align-items:baseline;gap:.5rem;padding:.1rem .2rem;font-size:.84rem;font-weight:650}
-.pjcol h3 .n,.pjgrp .n{font-weight:500;font-size:.78rem;color:var(--muted)}
-.pjtodo+.pjgrp{margin-top:.8rem}
+.pjcol h3{margin:0;display:flex;justify-content:space-between;align-items:baseline;gap:.5rem;padding:.1rem .2rem;font-size:.84rem;font-weight:650}
+.pjcol h3 .n{font-weight:500;font-size:.78rem;color:var(--muted)}
 .pjcards{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:.5rem}
 .pjcard{display:flex;flex-direction:column;gap:.3rem;min-width:0;padding:.7rem .75rem;background:var(--card);border:1px solid var(--line);border-radius:.75rem;box-shadow:var(--shadow)}
 .pjcard.needs{border-left:3px solid var(--ok-fill)}
@@ -602,7 +601,7 @@ tfoot td{font-weight:600;color:var(--ink);border-top:1px solid var(--line)}
 .nylist{gap:0}.nylist .nyi{padding:.8rem 0}.nylist .nyi+.nyi{border-top:1px solid var(--line)}
 .nylist .nyi.crit{padding-left:.7rem}.payload summary{cursor:pointer;font-size:.85rem;color:var(--ink-2)}.payload pre{margin:.4rem 0 0;padding:.5rem .6rem;background:var(--soft);border-radius:.5rem;font-size:.78rem;white-space:pre-wrap;word-break:break-word;max-height:16rem;overflow:auto}
 
-/* Projects (2026-10-29): project list, goals and board, Jon's Today column. Board cards reuse .pj*, questions reuse .qcard. */
+/* Projects (2026-10-29): project list, goals and board, the daily checklist column. Board cards reuse .pj*, questions reuse .qcard. */
 .pjpage{display:grid;grid-template-columns:11rem minmax(0,1fr);gap:1rem;align-items:start}
 .pjpage>.pjright{grid-column:2}
 @media (min-width:1240px){.pjpage{grid-template-columns:11rem minmax(0,1fr) 20rem}.pjpage>.pjright{grid-column:auto}}
@@ -616,7 +615,6 @@ tfoot td{font-weight:600;color:var(--ink);border-top:1px solid var(--line)}
 .pjtodo li{display:flex;align-items:flex-start;gap:.6rem;padding:.45rem 0;font-size:.88rem;line-height:1.35}
 .pjtodo li+li{border-top:1px solid var(--line)}
 .pjtodo .pjci{flex:1}
-.pjtodo .jtneed{font-size:inherit;text-align:left;color:var(--ink)}
 .pjest{flex:none;white-space:nowrap;font-size:.78rem;color:var(--muted);font-variant-numeric:tabular-nums}
 @media (max-width:820px){
   .pjpage{grid-template-columns:minmax(0,1fr)}

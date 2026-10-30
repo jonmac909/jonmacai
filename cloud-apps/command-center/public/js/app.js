@@ -267,14 +267,7 @@ document.addEventListener('click', (e) => {
     return;
   }
   const nav = e.target.closest('[data-page]');
-  if (nav) {
-    // A Projects checklist entry opens its project and scrolls to the card with that answer/decide URL.
-    const url = nav.dataset.card;
-    go(nav.dataset.page).then(() => {
-      if (url) document.querySelector(`#page .pjkan [data-tsend="${url}"], #page .pjkan [data-tdecide="${url}"]`)?.closest('li')?.scrollIntoView({ block: 'center' });
-    });
-    return;
-  }
+  if (nav) { go(nav.dataset.page); return; }
   const b = e.target.closest('[data-msg]');
   if (b) {
     act('ui.toast', { msg: b.dataset.msg });
