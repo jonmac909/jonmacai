@@ -746,3 +746,10 @@ body:has(.cardmodal[open]){overflow:hidden} /* the page behind stays put */
   .ccend{grid-column:2}
   .ocrow{grid-template-columns:6.5rem minmax(0,1fr);gap:.75rem}
 }
+.pill.violet{background:rgba(139,92,246,.14);color:#7c3aed;border-color:transparent}
+.pill.teal{background:rgba(20,184,166,.14);color:#0f766e;border-color:transparent}
+:root[data-theme="dark"] .pill.violet{color:#c4b5fd}
+:root[data-theme="dark"] .pill.teal{color:#5eead4}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .pill.violet{color:#c4b5fd}:root:not([data-theme="light"]) .pill.teal{color:#5eead4}}
+.ccdate small{display:block;font-size:.74rem}
+.ccch{display:block;font-size:.74rem;font-weight:600;color:var(--muted)}

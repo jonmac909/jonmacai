@@ -25,5 +25,17 @@ export function sqliteD1() {
   return {
     sqlite: db,
     prepare: (sql) => statement(sql),
+    async batch(list) { // one transaction, like D1: all or nothing
+      db.exec('BEGIN');
+      try {
+        const out = [];
+        for (const s of list) out.push(await s.run());
+        db.exec('COMMIT');
+        return out;
+      } catch (err) {
+        db.exec('ROLLBACK');
+        throw err;
+      }
+    },
   };
 }

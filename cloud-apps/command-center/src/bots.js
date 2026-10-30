@@ -1003,7 +1003,8 @@ async function listJournal(db, q) {
 
 // Sydney, Scarlett and Elle feed the pages; Developer and Ana fix them. Jon only toggles "selected".
 export const CHANNEL_WRITERS = ['jon-mac-youtube', 'viral-view', 'home-guide-press', 'developer', 'ana'];
-export const CALENDAR_STATUSES = ['planned', 'scheduled', 'published'];
+export const CALENDAR_STATUSES = ['idea', 'planned', 'scripted', 'recording', 'editing', 'qc', 'review', 'scheduled', 'published'];
+const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/; // posting time, PT
 const CHANNEL_SLUGS = CHANNELS.map((c) => c.slug);
 
 function needChannelWriter(who) {
@@ -1031,7 +1032,7 @@ function countOf(body, key, min) {
 }
 
 const calendarOut = (r) => ({
-  id: r.id, channel: r.channel, title: r.title, date: r.day, status: r.status, link: r.link ?? null,
+  id: r.id, channel: r.channel, title: r.title, date: r.day, time: r.time_pt ?? null, status: r.status, link: r.link ?? null,
   createdBy: r.created_by, updatedBy: r.updated_by, createdAt: r.created_at, updatedAt: r.updated_at,
 });
 const outlierOut = (r) => ({
@@ -1062,14 +1063,15 @@ async function addCalendar(db, who, body, now) {
   const channel = channelOf(body.channel);
   const title = text(body, 'title', 300, true);
   const day = matchOf(body, 'date', DAY_RE, '2026-11-03', true);
+  const time = matchOf(body, 'time', TIME_RE, '09:00') || null;
   const status = oneOf(body.status ?? 'planned', CALENDAR_STATUSES, 'status');
   const link = webLinkOf(body, 'link');
   const key = text(body, 'key', 200);
   const id = newId('v');
   const { row, duplicate } = await insertOnce(db, 'yt_calendar', 'created_by', who.bot, key, id,
-    `INSERT INTO yt_calendar (id, channel, title, day, status, link, created_by, updated_by, idem_key, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [id, channel, title, day, status, link, who.bot, who.bot, key, now, now]);
+    `INSERT INTO yt_calendar (id, channel, title, day, time_pt, status, link, created_by, updated_by, idem_key, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [id, channel, title, day, time, status, link, who.bot, who.bot, key, now, now]);
   return json({ ok: true, duplicate, video: calendarOut(row) }, duplicate ? 200 : 201);
 }
 
@@ -1079,12 +1081,36 @@ async function updateCalendar(db, who, id, body, now) {
   const args = [];
   if ('title' in body) { sets.push('title = ?'); args.push(text(body, 'title', 300, true)); }
   if ('date' in body) { sets.push('day = ?'); args.push(matchOf(body, 'date', DAY_RE, '2026-11-03', true)); }
+  if ('time' in body) { sets.push('time_pt = ?'); args.push(matchOf(body, 'time', TIME_RE, '09:00') || null); }
   if ('status' in body) { sets.push('status = ?'); args.push(oneOf(body.status, CALENDAR_STATUSES, 'status')); }
   if ('link' in body) { sets.push('link = ?'); args.push(webLinkOf(body, 'link')); }
-  if (!sets.length) throw new Bad(400, 'Nothing to change: send title, date, status or link');
+  if (!sets.length) throw new Bad(400, 'Nothing to change: send title, date, time, status or link');
   const r = await db.prepare(`UPDATE yt_calendar SET ${sets.join(', ')}, updated_by = ?, updated_at = ? WHERE id = ?`).bind(...args, who.bot, now, id).run();
   if (!changed(r)) throw new Bad(404, 'Calendar video not found');
   return json({ ok: true, video: calendarOut(await db.prepare('SELECT * FROM yt_calendar WHERE id = ?').bind(id).first()) });
+}
+
+// An owner's CSV schedule for one channel (dash.py calendar-import): its rows replace the channel's
+// earlier CSV rows in one batch. Videos added one by one (POST calendar) stay.
+async function putCalendar(db, who, slug, body, now) {
+  needChannelWriter(who);
+  const channel = channelOf(slug);
+  if (!Array.isArray(body.videos) || body.videos.length > 500) throw new Bad(400, 'videos must be a list of at most 500');
+  const rows = body.videos.map((v, i) => {
+    if (!v || typeof v !== 'object' || Array.isArray(v)) throw new Bad(400, `videos[${i}] must be {date, time?, title, status, link?}`);
+    try {
+      return [newId('v'), channel, text(v, 'title', 300, true), matchOf(v, 'date', DAY_RE, '2026-11-03', true),
+        matchOf(v, 'time', TIME_RE, '09:00') || null, oneOf(v.status, CALENDAR_STATUSES, 'status'), webLinkOf(v, 'link'),
+        who.bot, who.bot, `csv:${channel}:${i}`, now, now];
+    } catch (err) {
+      throw err instanceof Bad ? new Bad(400, `videos[${i}]: ${err.message}`) : err;
+    }
+  });
+  const insert = db.prepare(`INSERT INTO yt_calendar (id, channel, title, day, time_pt, status, link, created_by, updated_by, idem_key, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
+  const [gone] = await db.batch([db.prepare("DELETE FROM yt_calendar WHERE channel = ? AND idem_key LIKE 'csv:%'").bind(channel),
+    ...rows.map((r) => insert.bind(...r))]);
+  return json({ ok: true, channel, replaced: gone?.meta?.changes ?? 0, videos: rows.length });
 }
 
 async function listCalendar(db, q) {
@@ -1216,6 +1242,7 @@ async function route(request, db, who, rest, env, ctx) {
     if (method === 'PUT' && rawId) return setChannel(db, who, rawId, await readBody(request), now);
     throw new Bad(404, 'Not found');
   }
+  if (kind === 'calendar' && method === 'PUT' && rawId && !verb) return putCalendar(db, who, rawId, await readBody(request), now);
   const id = rawId ? idOf(rawId) : null;
   const body = method === 'POST' || method === 'PATCH' ? await readBody(request) : {};
 

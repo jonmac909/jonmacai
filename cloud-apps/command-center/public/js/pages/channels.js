@@ -35,19 +35,26 @@ function shell(title, d, sub, body) {
 </div>`;
 }
 
-const STATUS = { planned: ['Planned', ''], scheduled: ['Scheduled', 'blue'], published: ['Published', 'ok'] };
+// One colour per stage, from idea (grey) to published (green).
+const STATUS = {
+  idea: ['Idea', ''], planned: ['Planned', ''], scripted: ['Scripted', 'blue'], recording: ['Recording', 'violet'],
+  editing: ['Editing', 'violet'], qc: ['In QC', 'risk'], review: ['Ready for review', 'risk'], scheduled: ['Scheduled', 'teal'],
+  published: ['Published', 'ok'],
+};
 
-function videoRow(v) {
+function videoRow(v, all) {
   const [label, cls] = STATUS[v.status] || [v.status, ''];
-  return `<li class="ccrow"><span class="ccdate">${esc(v.dateLabel)}</span><span class="cct">${esc(v.title)}</span><span class="ccend">${pill(label, cls)}${linkButton(v.link)}</span></li>`;
+  const when = `${esc(v.dateLabel)}${v.timeLabel ? `<small>${esc(v.timeLabel)}</small>` : ''}`;
+  const title = all ? `<span class="ccch">${esc(v.channel)}</span>${esc(v.title)}` : esc(v.title);
+  return `<li class="ccrow"><span class="ccdate">${when}</span><span class="cct">${title}</span><span class="ccend">${pill(label, cls)}${linkButton(v.link)}</span></li>`;
 }
 
-const videoList = (title, rows) => (rows.length ? `<h3 class="cch">${esc(title)}</h3><ul class="cclist">${rows.map(videoRow).join('')}</ul>` : '');
+const videoList = (title, rows, all) => (rows.length ? `<h3 class="cch">${esc(title)}</h3><ul class="cclist">${rows.map((v) => videoRow(v, all)).join('')}</ul>` : '');
 
 export function calendar(d, _data, sub) {
   return shell('Calendar', d, sub, (c) => `<div class="card pad">
-    <div class="cardhead"><h2>${esc(c.label)}</h2><span class="meta">Posting schedule: ${c.schedule ? `<b>${esc(c.schedule)}</b>` : 'not set'}</span></div>
-    ${c.upcoming.length || c.earlier.length ? videoList('Coming up', c.upcoming) + videoList('Last 60 days', c.earlier) : '<p class="muted">No videos on the calendar yet.</p>'}
+    <div class="cardhead"><h2>${esc(c.label)}</h2><span class="meta">${c.all ? `${c.count} coming up` : `Posting days: ${c.schedule ? `<b>${esc(c.schedule)}</b>` : 'not set'}`}</span></div>
+    ${c.upcoming.length || c.earlier.length ? videoList('Coming up', c.upcoming, c.all) + videoList('Last 60 days', c.earlier, c.all) : '<p class="muted">No videos on the calendar yet.</p>'}
   </div>`);
 }
 
