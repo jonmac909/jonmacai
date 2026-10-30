@@ -194,6 +194,7 @@ test('Approve on the review page moves the linked Review task to Done; Send back
   assert.deepEqual([sent[0].data.data.sentBack, sent[0].data.data.review], [true, { slug: SLUG, submission: 's-changes' }]);
   const history = await db2.prepare("SELECT detail FROM bot_task_events WHERE task_id = ? AND kind = 'status' ORDER BY at DESC, rowid DESC").bind(back.id).first();
   assert.equal(history.detail, 'status review → doing (sent back by Jon)');
+  assert.equal(review.seen.filter((x) => x.path.endsWith('/requeue')).length, 0, 'a delivered card wake needs no requeue');
   assert.deepEqual(told(review), ['dashboard'], 'the card wake is the one notice: the review Worker stores it as delivered, so the GPU2 router skips it');
 
   // Jon's own task wakes no bot, and the browser can't claim the hand-off: both stay with the router.

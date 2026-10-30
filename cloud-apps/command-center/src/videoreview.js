@@ -86,7 +86,7 @@ export async function reviewProxy(request, env, ctx) {
     const now = new Date().toISOString();
     Object.assign(out, hook[2] === 'comments'
       ? await wakeForComment(env, ctx, url.origin, hook[1], out.comment, now)
-      : await moveTask(env, ctx, url.origin, hook[1], out.submission, now));
+      : out.duplicate ? {} : await moveTask(env, ctx, url.origin, hook[1], out.submission, now)); // a double tap moves the card once
   } catch (err) {
     console.error('video review tie-in', err);
     out.taskNote = 'Saved, but the dashboard could not be updated.';
