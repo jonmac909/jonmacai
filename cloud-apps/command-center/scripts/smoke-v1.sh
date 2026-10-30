@@ -79,10 +79,12 @@ else
   req POST "/tasks/$task/proofs" video-editor '{"kind":"url","link":"javascript:alert(1)"}'; expect "POST proof refuses javascript: link" 400
   req GET '/proofs?status=pending' qc; expect "GET /proofs?status=pending" 200 "[p['id'] for p in d['proofs']].count('$proof')" 1
   req POST "/proofs/$proof/check" developer '{"result":"passed"}'; expect "POST /proofs/:id/check by non-QC" 403
-  req PATCH "/tasks/$task" video-editor '{"status":"done"}'; expect "PATCH done before QC passed refused" 409
+  req PATCH "/tasks/$task" video-editor '{"status":"review"}'; expect "PATCH review before QC passed refused" 409
   req POST "/proofs/$proof/check" qc '{"result":"passed","note":"smoke"}'; expect "POST /proofs/:id/check by QC" 200 "d['proof']['status']" passed
-  req PATCH "/tasks/$task" video-editor '{"status":"done"}'; expect "PATCH /tasks/:id done" 200 "d['task']['status']" done
-  req GET "/tasks?owner=video-editor&status=done" qc; expect "GET /tasks?owner&status" 200 "[t['id'] for t in d['tasks']].count('$task')" 1
+  req PATCH "/tasks/$task" video-editor '{"status":"done"}'; expect "PATCH done by a bot refused" 403
+  req PATCH "/tasks/$task" video-editor '{"status":"review"}'; expect "PATCH /tasks/:id review" 200 "d['task']['status']" review
+  req GET "/tasks?owner=video-editor&status=review" qc; expect "GET /tasks?owner&status" 200 "[t['id'] for t in d['tasks']].count('$task')" 1
+  req PATCH "/tasks/$task" jon '{"status":"done"}'; expect "Jon approves review" 200 "d['task']['status']" done
   req GET "/tasks/$task" sponsors; expect "GET /tasks/:id with proof" 200 "len(d['task']['proofs'])" 1
   req POST /questions developer "{\"question\":\"Smoke question?\",\"options\":[\"Yes\",\"No\"],\"task\":\"$task\"}"; expect "POST /questions" 201 "d['question']['options']" "['Yes', 'No']"
   q=$(field "d['question']['id']")

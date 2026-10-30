@@ -23,7 +23,7 @@ from pathlib import Path
 BASE = os.environ.get('DASH_BASE', 'https://jonmac.ai/dashboard/api/v1')
 TOKEN_DIR = Path(os.environ.get('DASH_TOKEN_DIR', r'D:\AgentTeam\secrets\bot-tokens'))
 BOTS_MD = Path(os.environ.get('DASH_BOTS_MD', r'D:\AgentTeam\rules\BOTS.md'))
-TASK_STATUSES = ['todo', 'doing', 'waiting_on_jon', 'qc', 'done', 'cancelled']
+TASK_STATUSES = ['todo', 'doing', 'waiting_on_jon', 'qc', 'review', 'done', 'cancelled']
 PROOF_KINDS = ['render', 'url', 'pdf', 'test']
 FEEDS = ['morning_summary', 'calendar_today', 'claude_usage', 'ebook_sales', 'daily_checklists']
 # Same labels, slugs and order as PROJECTS in src/projects.js. "unsorted" means no project.
@@ -233,6 +233,9 @@ def run(args, ctx):
                                                  'note': args.note, 'project': project, 'minutes': args.minutes,
                                                  'due': args.due, 'key': args.key}))
     if c == 'task-update':
+        if args.status == 'done':
+            raise Fail(2, 'Bots cannot set done. Jon approves a task from review to done on the dashboard; '
+                          'QC passing your proof moves a qc task to review.')
         body = only({'title': args.title, 'owner': args.owner, 'status': args.status, 'note': args.note,
                      'project': project, 'minutes': args.minutes, 'due': args.due})
         if not body:
@@ -332,7 +335,7 @@ def parser():
     a = s.add_parser('task-update', help='change one task')
     a.add_argument('id')
     a.add_argument('--status', choices=TASK_STATUSES,
-                   help='qc needs proof; done needs proof QC passed; cancelled needs --note')
+                   help='qc needs proof; review needs proof QC passed; done is Jon\'s alone; cancelled needs --note')
     a.add_argument('--owner')
     a.add_argument('--note')
     a.add_argument('--title')

@@ -197,5 +197,25 @@ class DashComment(unittest.TestCase):
         call.assert_not_called()
 
 
+class DashTaskUpdate(unittest.TestCase):
+    """dash.py task-update: review is a bot's to set; done is Jon's, refused locally."""
+    CTX = {'bot': 'qc', 'token': 't', 'base': 'https://x'}
+
+    def update(self, *argv):
+        return dash.run(dash.parser().parse_args(['task-update', 't_0123456789abcdef'] + list(argv)), self.CTX)
+
+    def test_review_is_sent(self):
+        with mock.patch.object(dash, 'call', return_value={'ok': True}) as call:
+            self.update('--status', 'review')
+        call.assert_called_once_with(self.CTX, 'PATCH', '/tasks/t_0123456789abcdef', {'status': 'review'})
+
+    def test_done_is_refused_locally(self):
+        with mock.patch.object(dash, 'call') as call, self.assertRaises(dash.Fail) as err:
+            self.update('--status', 'done')
+        self.assertEqual(err.exception.code, 2)
+        self.assertIn('Jon approves', str(err.exception))
+        call.assert_not_called()
+
+
 if __name__ == '__main__':
     unittest.main()

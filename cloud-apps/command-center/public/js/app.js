@@ -6,7 +6,7 @@ import { render as webinar } from './pages/webinar.js';
 import { render as money } from './pages/money.js';
 import { render as life } from './pages/life.js';
 import { formatJobResult, noLoneWords } from './ui.js';
-import { bindModals, openCard, openDraft } from './modals.js';
+import { bindModals, openCard, openDraft, restoreAnswers, typedAnswers } from './modals.js';
 const PREFIX = '/dashboard';
 // Any other #page (old bookmarks to removed pages) falls back to Today. A page may have a
 // sub-path, like #projects/sponsors; the page itself decides what an unknown one shows.
@@ -85,16 +85,6 @@ function todayPost(url, body, okText, button, method = 'POST') {
     .catch(() => { failed(); say('Could not send'); });
 }
 
-// Half-typed answers survive a re-render of the same page (refresh, or after another item is sent).
-function typedAnswers() {
-  const out = {};
-  document.querySelectorAll('#page .qcard').forEach((c) => {
-    const box = c.querySelector('.qtext');
-    const key = c.querySelector('[data-tsend]');
-    if (box && box.value && key) out[key.dataset.tsend] = box.value;
-  });
-  return out;
-}
 let shownPage = null;
 
 function navHtml() {
@@ -175,15 +165,12 @@ export async function go(id, { refetch = false } = {}) {
   });
   const page = data.pages[name];
   const same = shownPage === id;
-  const typed = same ? typedAnswers() : {};
-  document.getElementById('page').innerHTML = pages[name](page, data, sub);
+  const root = document.getElementById('page');
+  // Half-typed answers survive a re-render of the same page (refresh, or after another item is sent).
+  const typed = same ? typedAnswers(root) : {};
+  root.innerHTML = pages[name](page, data, sub);
   shownPage = id;
-  document.querySelectorAll('#page .qcard').forEach((c) => {
-    const key = c.querySelector('[data-tsend]');
-    const box = c.querySelector('.qtext');
-    const text = key && typed[key.dataset.tsend];
-    if (box && text) box.value = text;
-  });
+  restoreAnswers(root, typed);
   if (!same) window.scrollTo(0, 0);
   try { localStorage.setItem('cc-page', id); } catch {}
   bindKanban();
@@ -213,11 +200,24 @@ document.addEventListener('click', (e) => {
     todayPost(tsend.dataset.tsend, { answer }, 'Sent', tsend);
     return;
   }
-  const tick = e.target.closest('[data-ttick]');
+  const tick = e.target.closest('[data-ttick]'); // Done on Jon's own task, or Approve in review
   if (tick) {
     if (tick.disabled) return;
+    if (tick.dataset.confirm && !window.confirm(tick.dataset.confirm)) return;
     tick.disabled = true;
     todayPost(tick.dataset.ttick, { status: 'done' }, 'Done', tick, 'PATCH');
+    return;
+  }
+  // Send back: on the board it opens the card, whose own Send back sends the comment box with it.
+  const sendback = e.target.closest('[data-sendback]');
+  if (sendback) { openCard(sendback.dataset.sendback, data.pages.projects); return; }
+  const back = e.target.closest('[data-tback]');
+  if (back) {
+    const comment = back.closest('dialog')?.querySelector('.cmtext')?.value.trim();
+    if (!comment) { say('Type what to change first'); return; }
+    if (back.disabled) return;
+    back.disabled = true;
+    todayPost(back.dataset.tback, { status: 'doing', comment }, 'Sent back', back, 'PATCH');
     return;
   }
   const tdec = e.target.closest('[data-tdecide]');

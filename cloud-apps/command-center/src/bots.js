@@ -7,7 +7,8 @@ import { ymd } from './life.js';
 import { PROJECTS } from './projects.js';
 import { approvalItem, questionItem } from './today.js';
 
-export const TASK_STATUSES = ['todo', 'doing', 'waiting_on_jon', 'qc', 'done', 'cancelled'];
+// todo/doing → qc (proof) → review (QC passed it) → done (Jon approved it). Only Jon sets done.
+export const TASK_STATUSES = ['todo', 'doing', 'waiting_on_jon', 'qc', 'review', 'done', 'cancelled'];
 const OPEN_STATUSES = ['todo', 'doing', 'waiting_on_jon'];
 export const PROOF_KINDS = ['render', 'url', 'pdf', 'test'];
 export const QC_BOT = 'qc';
@@ -266,11 +267,11 @@ async function logEvent(db, taskId, at, by, kind, detail) {
   }
 }
 
-// Done means proof: qc needs a proof QC hasn't failed, done needs one QC passed.
+// Done means proof: qc needs a proof QC hasn't failed, review and done need one QC passed.
 async function hasProof(db, taskId, status) {
-  const sql = status === 'done'
-    ? "SELECT 1 AS ok FROM bot_proofs WHERE task_id = ? AND status = 'passed' LIMIT 1"
-    : "SELECT 1 AS ok FROM bot_proofs WHERE task_id = ? AND status != 'failed' LIMIT 1";
+  const sql = status === 'qc'
+    ? "SELECT 1 AS ok FROM bot_proofs WHERE task_id = ? AND status != 'failed' LIMIT 1"
+    : "SELECT 1 AS ok FROM bot_proofs WHERE task_id = ? AND status = 'passed' LIMIT 1";
   return !!(await db.prepare(sql).bind(taskId).first());
 }
 
@@ -296,18 +297,19 @@ async function updateTask(db, who, id, body, now) {
   if ('due' in body) { sets.push('due = ?'); args.push(next.due = matchOf(body, 'due', DAY_RE, '2026-10-29')); }
   if ('status' in body) {
     const status = next.status = oneOf(body.status, TASK_STATUSES, 'status');
+    if (status === 'done') throw new Bad(403, 'Bots cannot set done: Jon approves a task from review to done on the dashboard');
     if (status !== row.status) {
       if (status === 'qc' && !(await hasProof(db, id, 'qc'))) throw new Bad(409, 'Add proof before moving a task to qc');
-      if (status === 'done' && !(await hasProof(db, id, 'done'))) throw new Bad(409, 'A task is done only when QC has passed one of its proofs');
+      if (status === 'review' && !(await hasProof(db, id, 'review'))) throw new Bad(409, 'A task goes to review only when QC has passed one of its proofs');
       if (status === 'cancelled' && !text(body, 'note', 4000)) throw new Bad(400, 'Say why in note when cancelling a task');
     }
-    sets.push('status = ?', 'done_at = ?');
-    args.push(status, status === 'done' ? (row.status === 'done' ? row.done_at : now) : null);
+    sets.push('status = ?', 'done_at = NULL');
+    args.push(status);
   }
   if (!sets.length) throw new Bad(400, 'Nothing to change: send title, owner, status, note, project, minutes or due');
   // Re-check the proof inside the UPDATE so a QC fail landing in between can't be skipped.
   const moving = 'status' in body && body.status !== row.status ? String(body.status).trim().toLowerCase() : '';
-  const guard = moving === 'done' ? " AND EXISTS (SELECT 1 FROM bot_proofs WHERE task_id = bot_tasks.id AND status = 'passed')"
+  const guard = moving === 'review' ? " AND EXISTS (SELECT 1 FROM bot_proofs WHERE task_id = bot_tasks.id AND status = 'passed')"
     : moving === 'qc' ? " AND EXISTS (SELECT 1 FROM bot_proofs WHERE task_id = bot_tasks.id AND status != 'failed')" : '';
   const r = await db.prepare(`UPDATE bot_tasks SET ${sets.join(', ')}, updated_by = ?, updated_at = ? WHERE id = ?${guard}`)
     .bind(...args, who.bot, now, id).run();
@@ -318,18 +320,27 @@ async function updateTask(db, who, id, body, now) {
   return json({ ok: true, task: taskOut(await taskRow(db, id)) });
 }
 
-// Jon ticks off a task only he can do (owner jon): done without proof, and nothing else.
-async function tickTask(db, id, body, now) {
-  oneOf(body.status, ['done'], 'status');
-  const r = await db.prepare(
-    "UPDATE bot_tasks SET status = 'done', done_at = ?, updated_by = 'jon', updated_at = ? WHERE id = ? AND owner = 'jon' AND status IN ('todo', 'doing', 'waiting_on_jon')",
-  ).bind(now, now, id).run();
+// Jon's PATCH. {status: done} ticks off an open task only he can do (owner jon, no proof), or approves
+// a task in review. {status: doing, comment} sends a task in review back to its owner: the comment is
+// saved and wakes the owner like any comment of his, with data.sentBack. Nothing else.
+async function tickTask(db, env, ctx, id, body, now) {
+  const status = oneOf(body.status, ['done', 'doing'], 'status');
+  const comment = status === 'doing' ? text(body, 'comment', 4000, true) : null; // what to change
+  const task = await taskRow(db, id);
+  if (!task) throw new Bad(404, 'Task not found');
+  const tick = status === 'done' && task.owner === 'jon' && task.status !== 'review';
+  const from = tick ? OPEN_STATUSES : ['review'];
+  const r = await db.prepare(`UPDATE bot_tasks SET status = ?, done_at = ?, updated_by = 'jon', updated_at = ? WHERE id = ? AND status IN (${from.map(() => '?').join(', ')})`)
+    .bind(status, status === 'done' ? now : null, now, id, ...from).run();
   const row = await taskRow(db, id);
-  if (!row) throw new Bad(404, 'Task not found');
-  if (row.owner !== 'jon') throw new Bad(403, 'Jon can only tick tasks owned by jon');
-  if (!changed(r)) return json({ ok: false, error: `Task is already ${row.status}`, task: taskOut(row) }, 409);
-  await logEvent(db, id, now, 'jon', 'tick', 'ticked done');
-  return json({ ok: true, task: taskOut(row) });
+  if (!changed(r)) {
+    const error = tick ? `Task is already ${row.status}` : `Task is ${row.status.replace(/_/g, ' ')}; only a task in review can be ${comment ? 'sent back' : 'approved'}`;
+    return json({ ok: false, error, task: taskOut(row) }, 409);
+  }
+  await logEvent(db, id, now, 'jon', tick ? 'tick' : 'status', tick ? 'ticked done' : `status review → ${status} (${comment ? 'sent back' : 'approved'} by Jon)`);
+  if (!comment) return json({ ok: true, task: taskOut(row) });
+  const c = await postComment(db, env, ctx, { jon: true }, row, comment, now, { sentBack: true });
+  return json({ ok: true, task: taskOut(row), comment: commentOut(c) });
 }
 
 async function listTasks(db, who, q) {
@@ -353,8 +364,13 @@ async function getTask(db, id) {
   const approvals = await rows("SELECT * FROM bot_approvals WHERE task_id = ? AND status = 'pending' ORDER BY created_at");
   const questions = await rows("SELECT * FROM bot_questions WHERE task_id = ? AND status = 'open' ORDER BY created_at");
   const asks = [...approvals.map((r) => approvalItem(approvalOut(r))), ...questions.map((r) => questionItem(questionOut(r)))];
-  return json({ ok: true, task: { ...taskOut(row), proofs: proofs.map(proofOut), comments: comments.map(commentOut), history: historyOf(row, proofs, events), asks } });
+  const deliverable = deliverableOf(proofs.findLast((p) => p.status === 'passed') || proofs.at(-1));
+  return json({ ok: true, task: { ...taskOut(row), deliverable, proofs: proofs.map(proofOut), comments: comments.map(commentOut), history: historyOf(row, proofs, events), asks } });
 }
+
+// What Jon opens on a Review or Done card: the newest QC-passed proof, else the newest proof.
+// Only an http(s) link is `web` (clickable); a file path on GPU1 shows as text.
+const deliverableOf = (p) => (p?.link ? { link: p.link, kind: p.kind, web: /^https?:\/\//i.test(p.link) } : null);
 
 // Tasks from before history began have no "created" row: start theirs with one, plus the proofs
 // added before their first recorded event.
@@ -378,29 +394,35 @@ const WAKE_PAUSES = [2000, 4000]; // ms before each retry of a 503 or an unreach
 async function addComment(db, env, ctx, who, taskId, body, now) {
   const task = await taskRow(db, taskId);
   if (!task) throw new Bad(404, 'Task not found');
+  const comment = await postComment(db, env, ctx, who, task, text(body, 'body', 4000, true), now);
+  return json({ ok: true, comment: commentOut(comment) }, 201);
+}
+
+// Saves one comment on the task; Jon's wakes its owner with card_comment, `extra` added to its data.
+async function postComment(db, env, ctx, who, task, body, now, extra = {}) {
   const comment = {
-    id: newId('c'), task_id: taskId, author: who.jon ? 'jon' : who.bot, body: text(body, 'body', 4000, true), created_at: now,
+    id: newId('c'), task_id: task.id, author: who.jon ? 'jon' : who.bot, body, created_at: now,
     wake_status: who.jon && task.owner === 'jon' ? JON_OWNS : null, // Jon's note on his own card wakes no one
   };
   await db.prepare('INSERT INTO bot_task_comments (id, task_id, author, body, created_at, wake_status) VALUES (?, ?, ?, ?, ?, ?)')
-    .bind(comment.id, taskId, comment.author, comment.body, now, comment.wake_status).run();
-  await logEvent(db, taskId, now, comment.author, 'comment', 'commented');
+    .bind(comment.id, task.id, comment.author, comment.body, now, comment.wake_status).run();
+  await logEvent(db, task.id, now, comment.author, 'comment', 'commented');
   if (who.jon && task.owner !== 'jon') {
     // In the Worker the wake runs after the reply and retries; without ctx (tests) it is one awaited try.
-    const wake = wakeOwner(env, task, comment, ctx?.waitUntil ? WAKE_PAUSES : []).then(async (status) => {
+    const wake = wakeOwner(env, task, comment, ctx?.waitUntil ? WAKE_PAUSES : [], extra).then(async (status) => {
       await db.prepare('UPDATE bot_task_comments SET wake_status = ? WHERE id = ?').bind(status, comment.id).run();
       return status;
     });
     if (ctx?.waitUntil) ctx.waitUntil(wake.catch(() => console.error('card_comment: wake result not saved')));
     else comment.wake_status = await wake.catch(() => null);
   }
-  return json({ ok: true, comment: commentOut(comment) }, 201);
+  return comment;
 }
 
 // POST card_comment to the owner's OpenBot routine, signed exactly like bots/hook.py. An owner without
 // a complete route (url and secret) goes to Ana with data.forOwner. Returns the final HTTP status as
 // text, "unreachable" or "not configured"; never throws, and never logs the URL or secret.
-async function wakeOwner(env, task, comment, pauses) {
+async function wakeOwner(env, task, comment, pauses, extra) {
   let hooks = null;
   try { hooks = JSON.parse(env.WEBHOOKS || 'null'); } catch { /* treated as not configured */ }
   const usable = (r) => typeof hooks?.[r]?.url === 'string' && typeof hooks[r].secret === 'string' && !!hooks[r].url && !!hooks[r].secret;
@@ -412,7 +434,7 @@ async function wakeOwner(env, task, comment, pauses) {
     occurredAt: new Date().toISOString(),
     data: {
       task: task.id, title: task.title, project: task.project ?? null, owner: task.owner, comment: comment.body, commentId: comment.id, by: 'jon',
-      url: `https://jonmac.ai/dashboard/#projects/${task.project || 'unsorted'}`, ...(route === task.owner ? {} : { forOwner: task.owner }),
+      url: `https://jonmac.ai/dashboard/#projects/${task.project || 'unsorted'}`, ...extra, ...(route === task.owner ? {} : { forOwner: task.owner }),
     },
   });
   // Every try uses the comment id as the delivery id, so the routine runs once however many arrive.
@@ -466,9 +488,16 @@ async function checkProof(db, who, id, body, now) {
   if (!changed(r)) throw new Bad(404, 'Proof not found');
   const row = await db.prepare('SELECT * FROM bot_proofs WHERE id = ?').bind(id).first();
   await logEvent(db, row.task_id, now, who.bot, 'check', `proof ${result}`);
-  // A failed check takes a qc or done task back to doing when no proof still supports it.
   let task = await taskRow(db, row.task_id);
-  if (result === 'failed' && task && (task.status === 'qc' || task.status === 'done') && !(await hasProof(db, task.id, task.status))) {
+  // A pass moves a task waiting in qc on to review, for Jon to approve.
+  if (result === 'passed' && task?.status === 'qc') {
+    const moved = await db.prepare("UPDATE bot_tasks SET status = 'review', updated_by = ?, updated_at = ? WHERE id = ? AND status = 'qc'")
+      .bind(who.bot, now, task.id).run();
+    if (changed(moved)) await logEvent(db, task.id, now, who.bot, 'status', 'status qc → review (QC passed)');
+    task = await taskRow(db, task.id);
+  }
+  // A failed check takes a qc, review or done task back to doing when no proof still supports it.
+  if (result === 'failed' && task && ['qc', 'review', 'done'].includes(task.status) && !(await hasProof(db, task.id, task.status))) {
     const was = task.status;
     await db.prepare("UPDATE bot_tasks SET status = 'doing', done_at = NULL, updated_by = ?, updated_at = ? WHERE id = ? AND status = ?")
       .bind(who.bot, now, task.id, task.status).run();
@@ -860,10 +889,13 @@ export async function todayData(db, nowMs, month) {
     tryRead(db.prepare("SELECT * FROM bot_feed_entries WHERE name = 'ebook_sales' AND json_extract(data, '$.month') = ? ORDER BY created_at DESC LIMIT 1").bind(month).first()),
     tryRead(db.prepare('SELECT COALESCE(SUM(tokens), 0) AS tokens, COUNT(*) AS runs FROM bot_runs WHERE started_at >= ?').bind(since).first()),
     tryRead(latestFeed(db, 'calendar_today')),
-    // The Projects board: open and QC tasks plus the last 7 days of done ones, each with its newest web proof link.
+    // The Projects board: open, QC and review tasks plus the last 7 days of done ones, each with its newest
+    // web proof link and its deliverable (picked as in deliverableOf).
     tryRead(db.prepare(`SELECT t.*, (SELECT p.link FROM bot_proofs p WHERE p.task_id = t.id AND (p.link LIKE 'http://%' OR p.link LIKE 'https://%')
-      ORDER BY p.created_at DESC LIMIT 1) AS proof_link FROM bot_tasks t
-      WHERE t.status IN ('todo', 'doing', 'waiting_on_jon', 'qc') OR (t.status = 'done' AND t.done_at >= ?) ORDER BY t.updated_at DESC LIMIT 500`).bind(since).all()),
+      ORDER BY p.created_at DESC LIMIT 1) AS proof_link,
+      (SELECT json_object('link', p.link, 'kind', p.kind) FROM bot_proofs p WHERE p.task_id = t.id
+      ORDER BY p.status = 'passed' DESC, p.created_at DESC, p.rowid DESC LIMIT 1) AS deliverable FROM bot_tasks t
+      WHERE t.status IN ('todo', 'doing', 'waiting_on_jon', 'qc', 'review') OR (t.status = 'done' AND t.done_at >= ?) ORDER BY t.updated_at DESC LIMIT 500`).bind(since).all()),
     tryRead(latestFeed(db, 'daily_checklists')),
     tryRead(db.prepare('SELECT * FROM bot_daily_ticks WHERE day = ?').bind(ymd(nowMs)).all()), // today's ticks only
   ]);
@@ -873,7 +905,7 @@ export async function todayData(db, nowMs, month) {
     questions: q === FAILED ? null : (q.results || []).map(questionOut),
     approvals: a === FAILED ? null : (a.results || []).map(approvalOut),
     feeds: { morning_summary: feed(summary), calendar_today: feed(calendar), claude_usage: feed(usage), ebook_sales: feed(ebooks), daily_checklists: feed(daily) },
-    tasks: tasks === FAILED ? null : (tasks.results || []).map((r) => ({ ...taskOut(r), proofLink: r.proof_link ?? null })),
+    tasks: tasks === FAILED ? null : (tasks.results || []).map((r) => ({ ...taskOut(r), proofLink: r.proof_link ?? null, deliverable: deliverableOf(parseJson(r.deliverable, null)) })),
     dailyTicks: ticks === FAILED ? null : (ticks.results || []).map(tickOut),
     runs7d: runs === FAILED || !runs ? null : { tokens: Number(runs.tokens) || 0, runs: Number(runs.runs) || 0, since },
   };
@@ -918,7 +950,7 @@ async function route(request, db, who, rest, env, ctx) {
     case 'GET tasks': return listTasks(db, who, q);
     case 'POST tasks': needBot(who); return createTask(db, who, body, now);
     case 'GET tasks/:id': return getTask(db, id);
-    case 'PATCH tasks/:id': return who.jon ? tickTask(db, id, body, now) : updateTask(db, who, id, body, now);
+    case 'PATCH tasks/:id': return who.jon ? tickTask(db, env, ctx, id, body, now) : updateTask(db, who, id, body, now);
     case 'POST tasks/:id/proofs': needBot(who); return addProof(db, who, id, body, now);
     case 'POST tasks/:id/comments': return addComment(db, env, ctx, who, id, body, now);
     case 'GET proofs': return listProofs(db, q);

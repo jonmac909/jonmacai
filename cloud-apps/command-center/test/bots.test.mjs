@@ -128,7 +128,7 @@ test('proof: kinds and links, QC-only checks, and qc/done need usable proof', as
   assert.equal((await call(env, 'POST', `/proofs/${p1.body.proof.id}/check`, { cookie: await jonCookie(), body: { result: 'passed' } })).status, 403);
   assert.equal((await call(env, 'POST', `/proofs/${p1.body.proof.id}/check`, { bot: 'qc', body: { result: 'ok' } })).status, 400);
   assert.equal((await call(env, 'POST', '/proofs/p_0000000000000000/check', { bot: 'qc', body: { result: 'passed' } })).status, 404);
-  assert.equal((await call(env, 'PATCH', `/tasks/${task.id}`, { bot: 'video-editor', body: { status: 'done' } })).status, 409, 'pending proof is not enough for done');
+  assert.equal((await call(env, 'PATCH', `/tasks/${task.id}`, { bot: 'video-editor', body: { status: 'review' } })).status, 409, 'pending proof is not enough for review');
   const failed = await call(env, 'POST', `/proofs/${p1.body.proof.id}/check`, { bot: 'qc', body: { result: 'failed', note: 'audio drops at 3:10' } });
   assert.deepEqual([failed.status, failed.body.proof.status, failed.body.proof.checkedBy, failed.body.proof.checkNote], [200, 'failed', 'qc', 'audio drops at 3:10']);
   assert.deepEqual([failed.body.task.status, failed.body.task.updatedBy], ['doing', 'qc'], 'failing the only proof sends the task back to doing');
@@ -137,8 +137,9 @@ test('proof: kinds and links, QC-only checks, and qc/done need usable proof', as
   const p2 = (await call(env, 'POST', `/tasks/${task.id}/proofs`, { bot: 'video-editor', body: { kind: 'url', link: 'https://jonmac.ai/review/ep4-v2' } })).body.proof;
   assert.equal((await call(env, 'PATCH', `/tasks/${task.id}`, { bot: 'video-editor', body: { status: 'qc' } })).body.task.status, 'qc');
   const passed = await call(env, 'POST', `/proofs/${p2.id}/check`, { bot: 'qc', body: { result: 'passed' } });
-  assert.equal(passed.body.task.status, 'qc', 'passing does not move the task by itself');
-  const done = await call(env, 'PATCH', `/tasks/${task.id}`, { bot: 'qc', body: { status: 'done' } });
+  assert.equal(passed.body.task.status, 'review', 'passing moves a qc task to review');
+  assert.equal((await call(env, 'PATCH', `/tasks/${task.id}`, { bot: 'qc', body: { status: 'done' } })).status, 403, 'only Jon sets done');
+  const done = await call(env, 'PATCH', `/tasks/${task.id}`, { cookie: await jonCookie(), body: { status: 'done' } });
   assert.equal(done.body.task.status, 'done');
   assert.ok(done.body.task.doneAt);
   const refailed = await call(env, 'POST', `/proofs/${p2.id}/check`, { bot: 'qc', body: { result: 'failed', note: 'link 404s' } });

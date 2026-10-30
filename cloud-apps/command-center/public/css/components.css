@@ -617,7 +617,14 @@ tfoot td{font-weight:600;color:var(--ink);border-top:1px solid var(--line)}
 .pjlist{flex-direction:column;flex-wrap:nowrap}
 .pjlist .chip{display:flex;align-items:center;gap:.4rem;font:inherit;font-size:.85rem;text-align:left;cursor:pointer}
 .pjn{margin-left:auto;min-width:1.25rem;padding:0 .35rem;border-radius:1rem;background:var(--crit-fill);color:#fff;font-size:.72rem;font-weight:700;text-align:center}
-.pjpage .pjkan{grid-template-columns:repeat(2,minmax(11.5rem,1fr)) minmax(16rem,1.5fr) repeat(2,minmax(11.5rem,1fr))}
+.pjpage .pjkan{grid-template-columns:repeat(2,minmax(11.5rem,1fr)) minmax(16rem,1.5fr) repeat(3,minmax(11.5rem,1fr))}
+/* Review and Done cards lead with their deliverable: a web link, or a local file path as text. */
+.pjdeliv{font-size:.82rem;font-weight:600;overflow-wrap:anywhere}
+a.pjdeliv{color:var(--accent);text-decoration:none}
+a.pjdeliv:hover{text-decoration:underline}
+span.pjdeliv{color:var(--muted);font-weight:500}
+.cmdeliv{margin:0;font-size:1rem}
+.cmdeliv .pjdeliv{font-size:inherit}
 .pjcards>.qcard{padding:.7rem .75rem;background:var(--card);border:1px solid var(--line);border-radius:.75rem;box-shadow:var(--shadow)}
 .pjtodo{list-style:none;margin:0;padding:0}
 .pjtodo li{display:flex;align-items:flex-start;gap:.6rem;padding:.45rem 0;font-size:.88rem;line-height:1.35}
@@ -632,14 +639,14 @@ tfoot td{font-weight:600;color:var(--ink);border-top:1px solid var(--line)}
 .cardmodal .modal-card{box-sizing:border-box;max-height:86vh;overflow:auto;overscroll-behavior:contain;display:flex;flex-direction:column;gap:.55rem}
 body:has(.cardmodal[open]){overflow:hidden} /* the page behind stays put */
 .cardmodal h2{overflow-wrap:anywhere}
-.cardmodal h3{margin:.5rem 0 0;font-size:.74rem;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}
+.cardmodal h3:not(.qq){margin:.5rem 0 0;font-size:.74rem;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}
 .cmhead{position:sticky;top:-1.2rem;z-index:1;display:flex;justify-content:flex-end;margin:-1.2rem -1.2rem 0;padding:.6rem 1.2rem;background:var(--card)} /* Close stays in reach while the card scrolls */
 .cmfacts{display:flex;flex-wrap:wrap;gap:.3rem 1.2rem;margin:0;font-size:.88rem}
 .cmfacts dt{font-size:.74rem;color:var(--muted)}
 .cmfacts dd{margin:0}
 .cmnote{margin:0;font-size:.9rem;line-height:1.45;white-space:pre-wrap;overflow-wrap:anywhere}
 .cmact{margin:1rem 0;padding:.8rem 1rem;border:1px solid var(--accent);border-radius:14px}
-.cmact h3{margin-top:0}
+.cmact h3:not(.qq){margin-top:0} /* :not(.qq) to outrank .cardmodal h3:not(.qq) */
 .cmact .qlist{margin:0;max-width:none}
 .cmlist{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:.5rem;font-size:.88rem;overflow-wrap:anywhere}
 .cmlist p{margin:.15rem 0 0;white-space:pre-wrap}

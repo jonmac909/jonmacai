@@ -16,7 +16,7 @@ export const PROJECTS = [
 ];
 // Today's goal cards (by key) that each project shows; the webinar funnel is part of Viral View.
 const GOALS = { sponsors: ['sponsors'], 'viral-view': ['viral', 'webinar'], 'home-guide-press': ['ebooks'] };
-const COLUMNS = [['todo', 'To do'], ['doing', 'Doing'], ['waiting_on_jon', 'Waiting on Jon'], ['qc', 'QC'], ['done', 'Done']];
+const COLUMNS = [['todo', 'To do'], ['doing', 'Doing'], ['waiting_on_jon', 'Waiting on Jon'], ['qc', 'QC'], ['review', 'Review'], ['done', 'Done']];
 const OPEN = ['todo', 'doing', 'waiting_on_jon'];
 
 export function buildProjects(out, by, cash, extra = {}, nowMs = Date.now()) {
@@ -48,12 +48,15 @@ export function buildProjects(out, by, cash, extra = {}, nowMs = Date.now()) {
     if (task.status === 'cancelled' || (task.status === 'done' && !(task.doneAt >= weekAgo))) continue;
     const lane = laneOf(task.project);
     const jon = task.owner === 'jon' && OPEN.includes(task.status);
+    const review = task.status === 'review'; // QC passed it; Jon approves it or sends it back
     column(lane, task.status).push({
       kind: 'task', id: task.id, title: task.title, from: task.owner === 'jon' ? 'Jon' : task.owner,
       ageLabel: age(task.createdAt), proof: /^https?:\/\//i.test(task.proofLink || '') ? task.proofLink : '',
+      deliverable: task.deliverable ?? null,
       ...(jon ? { tickUrl: `/dashboard/api/v1/tasks/${task.id}` } : {}),
+      ...(review ? { reviewUrl: `/dashboard/api/v1/tasks/${task.id}` } : {}),
     });
-    if (jon || task.status === 'waiting_on_jon') lane.waiting++;
+    if (jon || review || task.status === 'waiting_on_jon') lane.waiting++;
   }
   const asks = [...(t.approvals || []).map((a) => [a, approvalItem(a)]), ...(t.questions || []).map((q) => [q, questionItem(q)])];
   for (const [row, base] of asks) {

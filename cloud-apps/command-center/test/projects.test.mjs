@@ -86,9 +86,9 @@ test('owner jon: bots assign it, only Jon ticks it done, and only on jon-owned t
   const bots = (await call(env, 'POST', '/v1/tasks', { bot: 'sponsors', body: { title: 'Bot work' } })).body.task;
   assert.deepEqual((await call(env, 'GET', '/v1/tasks?owner=jon', { bot: 'sponsors' })).body.tasks.map((x) => x.id), [mine.id]);
 
-  assert.equal((await call(env, 'PATCH', `/v1/tasks/${mine.id}`, { bot: 'sponsors', body: { status: 'done' } })).status, 409, 'bots still need QC-passed proof');
+  assert.equal((await call(env, 'PATCH', `/v1/tasks/${mine.id}`, { bot: 'sponsors', body: { status: 'done' } })).status, 403, 'bots never set done');
   assert.equal((await call(env, 'PATCH', `/v1/tasks/${mine.id}`, { jon: true, cc: false, body: { status: 'done' } })).status, 403, 'X-CC required');
-  assert.equal((await call(env, 'PATCH', `/v1/tasks/${bots.id}`, { jon: true, body: { status: 'done' } })).status, 403, 'not on bot-owned tasks');
+  assert.equal((await call(env, 'PATCH', `/v1/tasks/${bots.id}`, { jon: true, body: { status: 'done' } })).status, 409, 'a bot task only from review');
   assert.equal((await call(env, 'PATCH', `/v1/tasks/${mine.id}`, { jon: true, body: { status: 'doing' } })).status, 400, 'the tick is done only');
   assert.equal((await call(env, 'PATCH', '/v1/tasks/t_0000000000000000', { jon: true, body: { status: 'done' } })).status, 404);
   const tick = await call(env, 'PATCH', `/v1/tasks/${mine.id}`, { jon: true, body: { status: 'done', title: 'ignored' } });
@@ -170,12 +170,12 @@ test('projects page: lanes, counts, board columns, Unsorted and goal cards; no m
   assert.deepEqual(p.projects.map((x) => x.slug), [...PROJECTS.map((x) => x.slug), 'unsorted']);
   assert.deepEqual(p.projects.map((x) => [x.label, x.waiting]), [['Sponsors', 3], ['YT-JM', 0], ['YT-AI UGC', 0], ['Viral View', 2], ['Home Guide Press', 1],
     ['Short-form', 0], ['Accounting', 0], ['Coding', 0], ['Unsorted', 1]], 'questions + approvals + waiting_on_jon tasks + open jon tasks');
-  assert.deepEqual(lane('sponsors').columns.map((c) => c.label), ['To do', 'Doing', 'Waiting on Jon', 'QC', 'Done']);
+  assert.deepEqual(lane('sponsors').columns.map((c) => c.label), ['To do', 'Doing', 'Waiting on Jon', 'QC', 'Review', 'Done']);
   assert.deepEqual([col('sponsors', 'todo'), col('sponsors', 'waiting_on_jon')], [['t1', 't2'], ['t3', 'q1']]);
   assert.deepEqual([col('viral-view', 'waiting_on_jon'), col('viral-view', 'done'), col('jon-mac', 'qc'), col('unsorted', 'doing')], [['t4', 'a1'], ['t5'], ['t9'], ['t8']]);
   const [t1, t2] = lane('sponsors').columns[0].items;
   assert.deepEqual([t1.from, t1.ageLabel, t1.tickUrl, t2.from, t2.tickUrl], ['sponsors', '2 hr ago', undefined, 'Jon', '/dashboard/api/v1/tasks/t2']);
-  assert.deepEqual([lane('viral-view').columns[4].items[0].proof, lane('jon-mac').columns[3].items[0].proof], ['https://jonmac.ai/review/5', ''], 'web links only');
+  assert.deepEqual([lane('viral-view').columns[5].items[0].proof, lane('jon-mac').columns[3].items[0].proof], ['https://jonmac.ai/review/5', ''], 'web links only');
   const a1 = lane('viral-view').columns[2].items[1];
   assert.deepEqual([a1.kind, a1.decideUrl, a1.payloadPreview], ['approval', '/dashboard/api/v1/approvals/a1/decide', '{\n  "n": 3\n}'], "Today's approval item");
   assert.deepEqual(p.projects.map((x) => x.goals.map((g) => g.key)), [['sponsors'], [], [], ['viral', 'webinar'], ['ebooks'], [], [], [], []]);
@@ -393,5 +393,5 @@ test('snapshot serves Projects from the bot tables: the board with Jon\'s tick, 
   const tick = await call(env, 'PATCH', sponsors.columns[0].items[0].tickUrl.replace('/dashboard/api', ''), { jon: true, body: { status: 'done' } });
   assert.equal(tick.body.task.id, mine.id);
   const after = (await snap()).projects[0];
-  assert.deepEqual([after.columns[4].items.map((i) => i.title), after.waiting], [['Sign it'], 0]);
+  assert.deepEqual([after.columns[5].items.map((i) => i.title), after.waiting], [['Sign it'], 0]);
 });

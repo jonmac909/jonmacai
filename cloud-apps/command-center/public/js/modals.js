@@ -1,5 +1,6 @@
 import { esc, pill } from './ui.js';
 import { needItem } from './pages/today.js';
+import { approveButton, deliverableLink } from './pages/projects.js';
 
 const PREFIX = '/dashboard';
 let sending = false;
@@ -26,13 +27,18 @@ export function taskModal(t, projectLabel) {
     return `<li><span class="cmby"><b>${esc(c.author)}</b> · ${esc(when(c.createdAt))}</span><p>${esc(c.body)}</p>${wake ? `<span class="cmby">${esc(wake)}</span>` : ''}</li>`;
   }).join('');
   const list = (html, none) => (html ? `<ul class="cmlist">${html}</ul>` : `<p class="muted">${none}</p>`);
-  // Jon's actions on this card: the same Answer and Approve/Reject as the board, and Done on his own tasks.
-  const open = !['done', 'cancelled'].includes(t.status);
-  const done = t.owner === 'jon' && open
-    ? `<div class="qopts"><button type="button" class="btn" data-ttick="${esc(`${PREFIX}/api/v1/tasks/${t.id}`)}">Done</button></div>` : '';
+  // Jon's actions on this card: the same Answer and Approve/Reject as the board, Done on his own open
+  // tasks (the only ones the tick accepts), and Approve or Send back (with the comment box) in review.
+  const url = `${PREFIX}/api/v1/tasks/${t.id}`;
+  const done = t.owner === 'jon' && ['todo', 'doing', 'waiting_on_jon'].includes(t.status)
+    ? `<div class="qopts"><button type="button" class="btn" data-ttick="${esc(url)}">Done</button></div>` : '';
+  const review = t.status === 'review' ? `<div class="qopts">${approveButton(url, t.title)}
+    <button type="button" class="btn line" data-tback="${esc(url)}">Send back</button></div>
+    <p class="muted">To send it back, write what to change in the comment box below.</p>` : '';
   const asks = (t.asks || []).map((it) => needItem(it)).join('');
-  const action = done || asks ? `<section class="cmact"><h3>Your action</h3>${done}${asks ? `<ul class="qlist">${asks}</ul>` : ''}</section>` : '';
-  return `<h2>${esc(t.title)}</h2><dl class="cmfacts">${facts}</dl>${t.note ? `<p class="cmnote">${esc(t.note)}</p>` : ''}${action}
+  const action = done || review || asks ? `<section class="cmact"><h3>Your action</h3>${done}${review}${asks ? `<ul class="qlist">${asks}</ul>` : ''}</section>` : '';
+  const deliv = t.status === 'review' || t.status === 'done' ? deliverableLink(t.deliverable) : '';
+  return `<h2>${esc(t.title)}</h2>${deliv ? `<p class="cmdeliv">${deliv}</p>` : ''}<dl class="cmfacts">${facts}</dl>${t.note ? `<p class="cmnote">${esc(t.note)}</p>` : ''}${action}
     <h3>Proof</h3>${list(proofs, 'No proof yet.')}
     <h3>History</h3>${list(history, 'No history yet.')}
     <h3>Comments</h3>${list(comments, 'No comments yet.')}
@@ -67,15 +73,37 @@ async function loadTask(dlg) {
     if (body.querySelector('.cmload')) body.querySelector('.cmload').textContent = 'Could not load this task.';
     return null;
   }
-  // A half-typed comment survives the reload.
+  // A half-typed comment, and half-typed answers to the card's questions, survive the reload.
   const box = body.querySelector('.cmtext');
   const typed = box?.value || '';
   const focused = !!box && document.activeElement === box;
+  const answers = typedAnswers(body);
   body.innerHTML = taskModal(j.task, want.label(j.task.project));
+  restoreAnswers(body, answers);
   const next = body.querySelector('.cmtext');
   next.value = typed;
   if (focused) next.focus();
   return j.task;
+}
+
+// Half-typed answers in question cards under `root`, keyed by their Send URL, to put back after a re-render.
+export function typedAnswers(root) {
+  const out = {};
+  root.querySelectorAll('.qcard').forEach((c) => {
+    const box = c.querySelector('.qtext');
+    const key = c.querySelector('[data-tsend]');
+    if (box && box.value && key) out[key.dataset.tsend] = box.value;
+  });
+  return out;
+}
+
+export function restoreAnswers(root, typed) {
+  root.querySelectorAll('.qcard').forEach((c) => {
+    const key = c.querySelector('[data-tsend]');
+    const box = c.querySelector('.qtext');
+    const text = key && typed[key.dataset.tsend];
+    if (box && text) box.value = text;
+  });
 }
 
 async function sendComment(dlg, button, say) {
