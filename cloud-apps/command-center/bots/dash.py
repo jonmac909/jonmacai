@@ -16,6 +16,7 @@ import json
 import os
 import re
 import sys
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -24,6 +25,9 @@ from pathlib import Path
 BASE = os.environ.get('DASH_BASE', 'https://jonmac.ai/dashboard/api/v1')
 TOKEN_DIR = Path(os.environ.get('DASH_TOKEN_DIR', r'D:\AgentTeam\secrets\bot-tokens'))
 BOTS_MD = Path(os.environ.get('DASH_BOTS_MD', r'D:\AgentTeam\rules\BOTS.md'))
+WAKE_DIR = Path(os.environ.get('DASH_WAKE_DIR', r'D:\AgentTeam\state\qc-wakes'))  # <route>: a wake not read yet
+WAKE_EXPIRES_S = 1800  # QC's video turnaround: a bot that never read its wake gets a new one after this
+NINA_WORKSPACE = 'agent-2661cbff-8f2f-4c2a-a493-4d0cb59a201f'  # both QC bots are the slug qc; the folder tells them apart
 TASK_STATUSES = ['todo', 'doing', 'waiting_on_jon', 'qc', 'review', 'done', 'cancelled']
 PROOF_KINDS = ['render', 'url', 'pdf', 'test']
 FEEDS = ['morning_summary', 'calendar_today', 'claude_usage', 'ebook_sales', 'daily_checklists']
@@ -178,20 +182,62 @@ def feed_data(args):
     return data
 
 
-def wake_qc(out, task_id, bot):
-    """Wake QC through its webhook routine (hook.py beside this file). The proof is saved either way."""
+def qc_route(owner, routes):
+    """Long-form videos go to Jessica ('qc'), everything else to Nina. Until Nina has a webhook, Jessica gets them all."""
+    return 'nina' if owner and owner != 'video-editor' and 'nina' in routes else 'qc'
+
+
+def task_owner(ctx, task_id):
+    try:
+        return (call(ctx, 'GET', '/tasks/%s' % urllib.parse.quote(task_id, safe='')).get('task') or {}).get('owner')
+    except Exception:
+        return None  # qc_route sends an unknown owner to Jessica: a wrong bot beats no bot
+
+
+def wake_unread(route):
+    try:
+        return time.time() - (WAKE_DIR / route).stat().st_mtime < WAKE_EXPIRES_S
+    except OSError:
+        return False
+
+
+def clear_wake(route):
+    try:
+        (WAKE_DIR / route).unlink(missing_ok=True)
+    except OSError:
+        pass
+
+
+def wake_read():
+    """A QC bot is reading its queue, so its wake is read. Runs before the read: a proof posted after it wakes again."""
+    clear_wake('nina' if NINA_WORKSPACE in os.getcwd() else 'qc')
+
+
+def wake_qc(out, task_id, ctx):
+    """Wake the QC bot for this proof through its webhook routine (hook.py beside this file), unless it still has an
+    unread wake: it reads `proofs --status pending`, so 20 proofs are 1 wake. The proof is saved either way."""
     proof = out.get('proof') or {}
     if out.get('duplicate') or not proof.get('id'):
         return
     sys.path.insert(0, str(Path(__file__).resolve().parent))
+    route = None
     try:
         import hook
+        route = qc_route(task_owner(ctx, task_id), hook.load_routes())
+        if wake_unread(route):
+            return
+        WAKE_DIR.mkdir(parents=True, exist_ok=True)
+        (WAKE_DIR / route).touch()  # before the send: a bot that reads at once must clear this wake, not miss the next
         res = hook.fire('proof_posted', {'proof': proof['id'], 'task': task_id, 'kind': proof.get('kind'),
-                                         'link': proof.get('link'), 'by': bot}, key=proof['id'])
+                                         'link': proof.get('link'), 'by': ctx['bot'],
+                                         'read': 'dash.py proofs --status pending, then work through your share of it'},
+                        key=proof['id'], routes=[route])
         bad = {r: s for r, s in res.items() if s not in (200, 202)}
     except Exception as err:  # never fail a saved proof because QC couldn't be woken
         bad = str(err)
     if bad:
+        if route:
+            clear_wake(route)  # the next proof tries again
         print('dash.py: proof saved, but QC was not woken (%s); QC will see it in its queue.' % bad, file=sys.stderr)
 
 
@@ -395,9 +441,11 @@ def run(args, ctx):
     if c == 'proof-add':
         out = call(ctx, 'POST', '/tasks/%s/proofs' % q(args.task_id, safe=''),
                    only({'kind': args.kind, 'link': args.link, 'note': args.note}))
-        wake_qc(out, args.task_id, ctx['bot'])
+        wake_qc(out, args.task_id, ctx)
         return out
     if c == 'proofs':
+        if ctx['bot'] == 'qc' and args.status == 'pending' and not args.task and not args.limit:
+            wake_read()
         return call(ctx, 'GET', '/proofs', query={'status': args.status, 'task': args.task, 'limit': args.limit})
     if c == 'proof-check':
         return call(ctx, 'POST', '/proofs/%s/check' % q(args.id, safe=''), only({'result': args.result, 'note': args.note}))

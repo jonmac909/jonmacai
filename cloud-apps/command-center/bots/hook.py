@@ -35,7 +35,7 @@ EVENTS = {
     'cancellation_spike': ['viral-view', 'ana'],
     'accounting_email': ['accounting'],
 }
-ROUTES = sorted({r for routes in EVENTS.values() for r in routes})
+ROUTES = sorted({r for routes in EVENTS.values() for r in routes} | {'nina'})  # nina: dash.py picks the QC bot per proof
 TRIES = 3
 NO_SECRET = 'no secret'
 
