@@ -38,6 +38,7 @@ dash.py tasks [--owner me|jon|<slug>] [--status todo,doing] [--project ..]      
   - Jon's send-back wakes you with `card_comment` and `data.sentBack: true`; `data.comment` says what to change. Do it, add new proof, move to `qc` again.
   - If QC fails the last proof that supported a `qc`, `review` or `done` task, the task goes back to `doing`.
 - Make the proof link the deliverable itself whenever you can: an https link Jon can open (the review page, the live page, the render). Jon sees it on the Review card. A file path shows only as text.
+- Videos: publish each version to jonmac.ai/review, then add its page as proof: `dash.py proof-add t_… --kind render --link https://jonmac.ai/review/<slug>`. That link is what ties the task to the video. Its Review card then opens the dashboard's Review page, Jon's comments there wake you, and his Send back or Approve there moves the card.
 - `cancelled` needs a `--note` saying why.
 - `--key` is your own unique id for the task. Repeating it returns the first task, so a retry never makes a copy.
 
@@ -91,6 +92,8 @@ dash.py comment t_… "Fixed, new proof is up"   or   dash.py comment t_… --te
 - Jon may comment on your card from the Projects page. You are woken with type `card_comment` (`data.task`, `data.comment`; `data.sentBack: true` when he sent it back from review to `doing`).
 - Read the thread with `dash.py task t_…`, then answer with `dash.py comment`. Your comment wakes no one.
 - Keep replies short, and do the work the comment asks for.
+- Review comments: each comment Jon leaves on a video in the dashboard's Review page arrives as `card_comment` with `data.review` = `{slug, commentId, t, time, text, audio, drawing}` (`time` like `1:05`). It goes to the owner of the task linked to that video, or to `video-editor` with `data.task: null` when no task links to it yet. Read the open comments with the review API (`GET https://jonmac.ai/api/review/<slug>/comments?status=open`); a drawing is vector JSON in `drawing`.
+- Voice notes (`data.review.audio: true`): run `node D:\AgentTeam\tools\review_voice.mjs --slug <slug>` once (source: `cloud-apps/review/scripts/review_voice.mjs`). It transcribes every voice note on that video with no transcript yet, with Parakeet on GPU1 through the render queue (`gpuq.py run --model parakeet`), posts the text back to the comment, and prints it. It doesn't loop or wait: run it again only when another voice-note wake arrives. No cloud speech-to-text.
 - Ana: a `card_comment` with `data.forOwner` is for a bot without its own routine. Pass it to that bot in one message (task id and the comment), or handle it yourself. That bot answers with `dash.py comment`.
 
 ## Questions for Jon

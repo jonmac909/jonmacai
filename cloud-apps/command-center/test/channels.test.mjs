@@ -188,7 +188,7 @@ test('snapshot: Calendar and Content are in the nav, served from D1, never the o
   const { env } = await setup();
   const snap = (await call(env, 'GET', '/snapshot', { jon: true })).body;
   const ids = snap.nav.groups.flatMap((g) => g.items.map((i) => i.id));
-  assert.deepEqual(ids.slice(4, 6), ['calendar', 'content']);
+  assert.deepEqual(ids.slice(5, 7), ['calendar', 'content'], 'after Today, Todo, Projects, Feed and Review');
   assert.equal(snap.pages.content.tiles, undefined, 'no mockup tiles');
   assert.deepEqual([snap.pages.calendar.available, snap.pages.calendar.channels.length, snap.pages.content.channels.length], [true, 25, 24], 'Calendar has All channels first');
   const bare = (await handleApi(new Request('https://jonmac.ai/dashboard/api/snapshot?pages=content', { headers: { Cookie: `${COOKIE}=${await signSession(SECRET, Math.floor(Date.now() / 1000) + 3600)}` } }), { SESSION_SECRET: SECRET })).json();

@@ -339,8 +339,8 @@ async function updateTask(db, who, id, body, now) {
 // a task in review. {status: doing, comment} sends a task in review back to its owner: the comment is
 // saved and wakes the owner like any comment of his, with data.sentBack. {status: cancelled, comment?}
 // closes any unfinished card (Close card); a reason reaches the owner the same way, with data.closed,
-// and bots can't reopen the card. Nothing else.
-async function tickTask(db, env, ctx, id, body, now) {
+// and bots can't reopen the card. `extra` goes with the wake, e.g. the review video. Nothing else.
+export async function tickTask(db, env, ctx, id, body, now, extra = {}) {
   const status = oneOf(body.status, ['done', 'doing', 'cancelled'], 'status');
   const close = status === 'cancelled';
   const comment = status === 'doing' ? text(body, 'comment', 4000, true) : close ? text(body, 'comment', 4000) : null;
@@ -362,7 +362,7 @@ async function tickTask(db, env, ctx, id, body, now) {
     await db.prepare("UPDATE bot_approvals SET status = 'cancelled', done_by = 'jon', done_at = ?, done_note = 'card closed', updated_at = ? WHERE task_id = ? AND status = 'pending'").bind(now, now, id).run();
   }
   if (!comment) return json({ ok: true, task: taskOut(row) });
-  const c = await postComment(db, env, ctx, { jon: true }, row, comment, now, close ? { closed: true } : { sentBack: true });
+  const c = await postComment(db, env, ctx, { jon: true }, row, comment, now, { ...(close ? { closed: true } : { sentBack: true }), ...extra });
   return json({ ok: true, task: taskOut(row), comment: commentOut(c) });
 }
 
@@ -422,7 +422,7 @@ async function addComment(db, env, ctx, who, taskId, body, now) {
 }
 
 // Saves one comment on the task; Jon's wakes its owner with card_comment, `extra` added to its data.
-async function postComment(db, env, ctx, who, task, body, now, extra = {}) {
+export async function postComment(db, env, ctx, who, task, body, now, extra = {}) {
   const comment = {
     id: newId('c'), task_id: task.id, author: who.jon ? 'jon' : who.bot, body, created_at: now,
     wake_status: who.jon && task.owner === 'jon' ? JON_OWNS : null, // Jon's note on his own card wakes no one
@@ -445,7 +445,7 @@ async function postComment(db, env, ctx, who, task, body, now, extra = {}) {
 // POST card_comment to the owner's OpenBot routine, signed exactly like bots/hook.py. An owner without
 // a complete route (url and secret) goes to Ana with data.forOwner. Returns the final HTTP status as
 // text, "unreachable" or "not configured"; never throws, and never logs the URL or secret.
-async function wakeOwner(env, task, comment, pauses, extra) {
+export async function wakeOwner(env, task, comment, pauses, extra) {
   let hooks = null;
   try { hooks = JSON.parse(env.WEBHOOKS || 'null'); } catch { /* treated as not configured */ }
   const usable = (r) => typeof hooks?.[r]?.url === 'string' && typeof hooks[r].secret === 'string' && !!hooks[r].url && !!hooks[r].secret;

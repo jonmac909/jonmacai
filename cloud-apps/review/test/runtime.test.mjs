@@ -202,7 +202,8 @@ test("comments: create, time order, open filter, resolve and reopen, via cookie 
   const listed = await (await fetchApp("/api/review/mina-1-v8/comments?status=open", { headers: agent })).json();
   assert.deepEqual(listed.comments.map((c) => c.text), ["early note", "later note"]);
   const first = listed.comments[0];
-  assert.deepEqual(Object.keys(first).sort(), ["author", "created_at", "id", "resolved", "resolved_at", "resolved_by", "sent", "slug", "submission_id", "t", "text"]);
+  assert.deepEqual(Object.keys(first).sort(), ["audio_url", "author", "created_at", "drawing", "id", "resolved", "resolved_at", "resolved_by", "sent", "slug", "submission_id", "t", "text", "transcript"]);
+  assert.deepEqual([first.audio_url, first.drawing, first.transcript], [null, null, null]);
 
   const resolved = await (await fetchApp(`/api/review/mina-1-v8/comments/${first.id}/resolve`, jsonInit("POST", { by: "video-agent" }))).json();
   assert.equal(resolved.comment.resolved, true);
@@ -322,6 +323,179 @@ test("Approve: works with no open comments, sets approved, a second tap is the s
   await bad.arrayBuffer();
   const video = (await (await fetchApp("/api/review/mina-1-v9", { headers: agent })).json()).video;
   assert.equal(video.status, "approved");
+});
+
+test("dashboard: the agent token plus X-Review-Via is a signed-in reviewer under /dashboard, never an agent", async () => {
+  const dash = { ...agent, "X-Review-Via": "dashboard" };
+  const index = await fetchApp("/review", { headers: dash });
+  assert.equal(index.status, 200);
+  const list = await index.text();
+  assert.match(list, /href="\/dashboard\/review\/mina-1-v8"/);
+  assert.match(list, /href="\/dashboard\/review\/_\/app\.css"/);
+  assert.match(list, /<a href="\/dashboard\/">Dashboard<\/a>/);
+  const page = await (await fetchApp("/review/mina-1-v8", { headers: dash })).text();
+  assert.match(page, /<video id="player"[^>]*src="\/dashboard\/review\/media\/mina-1-v8\/video\.mp4\?v=/);
+  assert.match(page, /<script src="\/dashboard\/review\/_\/app\.js" defer>/);
+  assert.match(page, /id="send-changes"[^>]*>Send back</);
+  assert.match(page, /<canvas id="ink" class="ink"/);
+  const data = JSON.parse(/<script type="application\/json" id="review-data">([^<]+)<\/script>/.exec(page)[1]);
+  assert.deepEqual([data.api, data.base, data.dashboard], ["/dashboard/api/review", "/dashboard/review", true]);
+  const keyed = await fetchApp("/review/mina-1-v8?k=x", { headers: dash });
+  assert.equal(keyed.headers.get("location"), "/dashboard/review/mina-1-v8");
+  await keyed.arrayBuffer();
+  const video = (await (await fetchApp("/api/review/mina-1-v8", { headers: dash })).json()).video;
+  assert.equal(video.page_url, `${runtime.url}/dashboard/review/mina-1-v8`);
+  const media = await fetchApp(new URL(video.video_url).pathname.replace("/dashboard", ""), { headers: { ...dash, Range: "bytes=0-1" } });
+  assert.equal(media.status, 206);
+  await media.arrayBuffer();
+
+  // The header without the token is nothing; the token with the header is never an agent.
+  const bare = await fetchApp("/review", { headers: { "X-Review-Via": "dashboard" } });
+  assert.equal(bare.status, 303);
+  await bare.arrayBuffer();
+  const comment = (await (await fetchApp("/api/review/mina-1-v8/comments", { headers: agent })).json()).comments[0];
+  for (const [path, init] of [
+    ["/api/review/mina-1-v8/uploads", jsonInit("POST", { kind: "video" }, dash)],
+    [`/api/review/mina-1-v8/comments/${comment.id}`, { method: "DELETE", headers: dash }],
+    ["/api/review/mina-1-v8", { method: "DELETE", headers: dash }],
+    ["/api/review/submissions?undelivered=1", { headers: dash }],
+    [`/api/review/mina-1-v8/comments/${comment.id}/transcript`, jsonInit("POST", { text: "x" }, dash)],
+  ]) {
+    const response = await fetchApp(path, init);
+    assert.equal(response.status, 403, path);
+    await response.arrayBuffer();
+  }
+
+  // A Send back the dashboard tells the owner about itself is stored as delivered, so the GPU2 router skips it.
+  // Only the dashboard can say so: the header from a signed-in browser changes nothing.
+  const claim = { "X-Review-Delivered-To": "dashboard" };
+  const sendBack = async (headers) => {
+    await fetchApp("/api/review/mina-1-v8/comments", jsonInit("POST", { author: "Jon", t: 1, text: "tighter" }, headers)).then((r) => r.arrayBuffer());
+    return (await (await fetchApp("/api/review/mina-1-v8/submit", jsonInit("POST", { kind: "changes" }, { ...headers, ...claim }))).json()).submission;
+  };
+  const told = await sendBack(dash);
+  const browser = await sendBack({ Cookie: cookie, Origin: runtime.url });
+  assert.deepEqual([told.delivered_to, browser.delivered_to], ["dashboard", null]);
+  const queue = (await (await fetchApp("/api/review/submissions?undelivered=1", { headers: agent })).json()).submissions.map((x) => x.id);
+  assert.deepEqual([queue.includes(told.id), queue.includes(browser.id)], [false, true]);
+  // The dashboard couldn't wake the owner after all: requeue hands it back to the router (agent token only).
+  const denied = await fetchApp(`/api/review/submissions/${told.id}/requeue`, jsonInit("POST", {}, dash));
+  assert.equal(denied.status, 403);
+  await denied.arrayBuffer();
+  await fetchApp(`/api/review/submissions/${told.id}/requeue`, jsonInit("POST", {}, agent)).then((r) => r.arrayBuffer());
+  const again = (await (await fetchApp("/api/review/submissions?undelivered=1", { headers: agent })).json()).submissions.map((x) => x.id);
+  assert.ok(again.includes(told.id));
+});
+
+test("drawings: stored as checked vector JSON; bad tools, colours, points and extra keys never stored", async () => {
+  const reviewer = { Cookie: cookie, Origin: runtime.url };
+  const drawing = { v: 1, evil: "<script>", shapes: [
+    { tool: "arrow", color: "#ff3b30", points: [[0.1, 0.2], [0.123456, 0.9]], onclick: "x" },
+    { tool: "pen", color: "#ffffff", points: [[0, 0], [0.5, 0.5], [1, 1]] },
+  ] };
+  const made = await fetchApp("/api/review/mina-1-v8/comments", jsonInit("POST", { author: "Jon", t: 2, text: "", drawing }, reviewer));
+  assert.equal(made.status, 201, "a drawing needs no text");
+  const { comment } = await made.json();
+  const want = { v: 1, shapes: [
+    { tool: "arrow", color: "#ff3b30", points: [[0.1, 0.2], [0.1235, 0.9]] },
+    { tool: "pen", color: "#ffffff", points: [[0, 0], [0.5, 0.5], [1, 1]] },
+  ] };
+  assert.deepEqual(comment.drawing, want);
+  const row = await runtime.db.prepare("SELECT drawing, text FROM comments WHERE id = ?").bind(comment.id).first();
+  assert.deepEqual(row, { drawing: JSON.stringify(want), text: "" });
+  const listed = (await (await fetchApp("/api/review/mina-1-v8/comments", { headers: { Cookie: cookie } })).json()).comments;
+  assert.deepEqual(listed.find((c) => c.id === comment.id).drawing, want);
+
+  const shape = (s) => ({ v: 1, shapes: [{ tool: "box", color: "#0a84ff", points: [[0, 0], [1, 1]], ...s }] });
+  for (const bad of [shape({ color: "red" }), shape({ color: "#ff3b30;background:url(x)" }), shape({ tool: "circle" }), shape({ points: [[2, 0], [0, 0]] }),
+    shape({ points: [["0.1", 0], [0, 0]] }), shape({ points: [[0, 0], [0.5, 0.5], [1, 1]] }), shape({ points: [[0, 0]] }),
+    shape({ tool: "pen", points: Array.from({ length: 1001 }, () => [0.5, 0.5]) }), { v: 1, shapes: [] },
+    { v: 1, shapes: Array.from({ length: 51 }, () => shape({}).shapes[0]) }, "not json", 7]) {
+    const response = await fetchApp("/api/review/mina-1-v8/comments", jsonInit("POST", { author: "Jon", t: 2, text: "x", drawing: bad }, reviewer));
+    assert.equal(response.status, 400, JSON.stringify(bad).slice(0, 80));
+    await response.arrayBuffer();
+  }
+});
+
+test("voice notes: webm, mp4 or ogg up to 5 MB, checked by first bytes; ranged playback; GPU1 transcript; gone with the comment", async () => {
+  const reviewer = { Cookie: cookie, Origin: runtime.url };
+  // Encoded here: Miniflare's fetch doesn't take Node's FormData. No Content-Length reaches the Worker either.
+  const note = async (bytes, type, extra = {}) => {
+    const form = new FormData();
+    for (const [k, v] of Object.entries({ author: "Jon", t: "4.5", text: "", ...extra })) form.append(k, v);
+    if (bytes) form.append("audio", new Blob([bytes], { type }), "voice");
+    const encoded = new Response(form);
+    return fetchApp("/api/review/mina-1-v8/comments", {
+      method: "POST", headers: { ...reviewer, "Content-Type": encoded.headers.get("content-type") }, body: new Uint8Array(await encoded.arrayBuffer()),
+    });
+  };
+  const webm = new Uint8Array(2000).fill(7);
+  webm.set([0x1a, 0x45, 0xdf, 0xa3]);
+  const mp4 = new Uint8Array(3000).fill(1);
+  mp4.set([0, 0, 0, 0x18, 0x66, 0x74, 0x79, 0x70]); // ....ftyp
+  const ogg = new TextEncoder().encode("OggS-and-then-some-opus");
+
+  const first = await note(webm, "audio/webm;codecs=opus", { drawing: JSON.stringify({ v: 1, shapes: [{ tool: "box", color: "#34c759", points: [[0.2, 0.2], [0.4, 0.4]] }] }) });
+  assert.equal(first.status, 201);
+  const { comment } = await first.json();
+  assert.equal(comment.audio_url, `${runtime.url}/api/review/mina-1-v8/comments/${comment.id}/audio`);
+  assert.deepEqual([comment.text, comment.t, comment.drawing.shapes[0].tool, comment.transcript], ["", 4.5, "box", null]);
+  const ranged = await fetchApp(new URL(comment.audio_url).pathname, { headers: { Cookie: cookie, Range: "bytes=0-3" } });
+  assert.deepEqual([ranged.status, ranged.headers.get("content-type"), ranged.headers.get("content-range")], [206, "audio/webm", "bytes 0-3/2000"]);
+  assert.deepEqual([...new Uint8Array(await ranged.arrayBuffer())], [0x1a, 0x45, 0xdf, 0xa3]);
+  const iphone = await (await note(mp4, "audio/mp4", { text: "said it" })).json();
+  const firefox = await note(ogg, "audio/ogg;codecs=opus");
+  assert.equal(firefox.status, 201);
+  await firefox.arrayBuffer();
+  const keys = (await runtime.bucket.list({ prefix: "review/mina-1-v8/voice/" })).objects.map((o) => o.key).sort();
+  assert.deepEqual(keys.map((k) => k.split(".").pop()).sort(), ["m4a", "ogg", "webm"]);
+
+  for (const [bytes, type, status, why] of [
+    [webm, "text/html", 415, "not an audio type"], [webm, "audio/mpeg", 415, "mp3 is not what MediaRecorder makes"],
+    [new TextEncoder().encode("<html><script>alert(1)</script>"), "audio/webm", 415, "HTML claiming to be webm"],
+    [mp4, "audio/webm", 415, "mp4 bytes claiming webm"], [new Uint8Array(5 * 1024 * 1024 + 1).fill(0x1a), "audio/webm", 413, "over 5 MB"],
+    [null, null, 400, "no text, drawing or audio"],
+  ]) {
+    const response = await note(bytes, type);
+    assert.equal(response.status, status, why);
+    await response.arrayBuffer();
+  }
+  const huge = await fetchApp("/api/review/mina-1-v8/comments", {
+    method: "POST", headers: { ...reviewer, "Content-Type": "multipart/form-data; boundary=x" }, body: new Uint8Array(6 * 1024 * 1024),
+  });
+  assert.equal(huge.status, 413, "reading stops past the limit");
+  await huge.arrayBuffer();
+  const garbled = await fetchApp("/api/review/mina-1-v8/comments", { method: "POST", headers: { ...reviewer, "Content-Type": "multipart/form-data; boundary=x" }, body: "x" });
+  assert.equal(garbled.status, 400);
+  await garbled.arrayBuffer();
+
+  // GPU1: review_voice.mjs (with a stand-in for gpuq + Parakeet) transcribes every untranscribed note once.
+  const voiceScript = fileURLToPath(new URL("../scripts/review_voice.mjs", import.meta.url));
+  const run = (args) => spawnSync(process.execPath, [voiceScript, "--base", runtime.url, ...args], {
+    encoding: "utf8",
+    env: { ...process.env, REVIEW_API_TOKEN: SECRETS.REVIEW_API_TOKEN, NODE_TLS_REJECT_UNAUTHORIZED: "0", NODE_NO_WARNINGS: "1",
+      GPUQ_PYTHON: process.execPath, GPUQ: fileURLToPath(new URL("./fixtures/fake_gpuq.mjs", import.meta.url)), HOOK_PY: "none" },
+  });
+  const result = run(["--slug", "mina-1-v8"]);
+  assert.equal(result.status, 0, result.stderr);
+  const out = JSON.parse(result.stdout);
+  assert.deepEqual(out.transcribed.map((x) => x.transcript).sort(), ["heard 2000 bytes", "heard 23 bytes", "heard 3000 bytes"]);
+  assert.deepEqual(JSON.parse(run(["--slug", "mina-1-v8"]).stdout).transcribed, [], "a second run has nothing left to do");
+  const again = run(["--slug", "mina-1-v8", "--comment", comment.id]);
+  assert.equal(JSON.parse(again.stdout).transcribed.length, 1, "--comment redoes that one");
+  assert.equal(run(["--slug", "mina-1-v8", "--comment", "nope"]).status, 1);
+  const saved = (await (await fetchApp("/api/review/mina-1-v8/comments", { headers: { Cookie: cookie } })).json()).comments.find((c) => c.id === iphone.comment.id);
+  assert.deepEqual([saved.text, saved.transcript], ["said it", "heard 3000 bytes"]);
+
+  for (const [headers, id, status] of [[reviewer, comment.id, 403], [agent, (await runtime.db.prepare("SELECT id FROM comments WHERE slug = 'mina-1-v8' AND audio_key IS NULL LIMIT 1").first()).id, 404]]) {
+    const response = await fetchApp(`/api/review/mina-1-v8/comments/${id}/transcript`, jsonInit("POST", { text: "x" }, headers));
+    assert.equal(response.status, status);
+    await response.arrayBuffer();
+  }
+  const gone = await fetchApp(`/api/review/mina-1-v8/comments/${comment.id}`, { method: "DELETE", headers: agent });
+  assert.equal(gone.status, 200);
+  await gone.arrayBuffer();
+  assert.equal((await runtime.bucket.list({ prefix: "review/mina-1-v8/voice/" })).objects.length, 2, "its voice note is deleted with it");
 });
 
 test("deleting a test video removes its comments, submissions, media and empty test channel", async () => {

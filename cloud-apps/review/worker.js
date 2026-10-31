@@ -1,7 +1,8 @@
 // jonmac.ai/review: private video review portal (Worker + D1 comments + R2 media).
 // Secrets (wrangler secret put, never committed): REVIEW_SHARE_KEY, REVIEW_PASSCODE,
 // REVIEW_SESSION_SECRET, REVIEW_API_TOKEN. Missing secrets fail closed with 503.
-import { renderGate, renderIndex, renderVideo } from "./pages.js";
+// jonmac.ai/dashboard/review serves these same pages under the dashboard sign-in (see caller()).
+import { INK, renderGate, renderIndex, renderVideo } from "./pages.js";
 
 export const STATUSES = ["needs_review", "changes_requested", "approved"];
 const SECRETS = ["REVIEW_SHARE_KEY", "REVIEW_PASSCODE", "REVIEW_SESSION_SECRET", "REVIEW_API_TOKEN"];
@@ -12,6 +13,15 @@ const LINK_DAYS = 30;
 const SLUG = /^[a-z0-9](?:[a-z0-9-]{0,78}[a-z0-9])?$/;
 const RESERVED = new Set(["login", "media", "api", "submissions", "videos"]);
 const KINDS = { changes: "changes_requested", approve: "approved" };
+const TOOLS = ["pen", "arrow", "box"];
+// Voice notes as MediaRecorder makes them (iPhone Safari mp4/AAC, Chrome webm/Opus, Firefox ogg/Opus),
+// checked by their first bytes as well as the type the browser claims.
+const VOICE = {
+  "audio/webm": { ext: "webm", ok: (b) => b[0] === 0x1a && b[1] === 0x45 && b[2] === 0xdf && b[3] === 0xa3 },
+  "audio/mp4": { ext: "m4a", ok: (b) => String.fromCharCode(...b.subarray(4, 8)) === "ftyp" },
+  "audio/ogg": { ext: "ogg", ok: (b) => String.fromCharCode(...b.subarray(0, 4)) === "OggS" },
+};
+const VOICE_MAX = 5 * 1024 * 1024;
 const enc = new TextEncoder();
 
 export const validSlug = (slug) => typeof slug === "string" && SLUG.test(slug) && !RESERVED.has(slug);
@@ -27,6 +37,38 @@ export function byteRange(value, size) {
     throw new RangeError("Unsatisfiable range");
   }
   return { offset: first, length: last - first + 1 };
+}
+
+// A drawing as the client sends it, checked and rewritten: 1 to 50 shapes (a pen has 2 to 1000 points,
+// an arrow or a box exactly 2, at most 5000 in all), one of the five colours, every coordinate 0 to 1
+// rounded to 4 places. Anything else throws, so nothing unchecked is stored or drawn.
+export function parseDrawing(value) {
+  if (value == null || value === "") return null;
+  let drawing = value;
+  if (typeof drawing === "string") {
+    if (drawing.length > 65536) throw new RangeError("drawing is too big");
+    try { drawing = JSON.parse(drawing); } catch { throw new RangeError("drawing must be JSON"); }
+  }
+  const shapes = drawing && typeof drawing === "object" ? drawing.shapes : null;
+  if (!Array.isArray(shapes) || !shapes.length || shapes.length > 50) throw new RangeError("drawing needs 1 to 50 shapes");
+  let total = 0;
+  const coord = (n) => {
+    if (typeof n !== "number" || !(n >= 0 && n <= 1)) throw new RangeError("drawing points must be from 0 to 1");
+    return Math.round(n * 1e4) / 1e4;
+  };
+  const out = shapes.map((s) => {
+    const max = s?.tool === "pen" ? 1000 : 2;
+    if (!TOOLS.includes(s?.tool) || !Object.hasOwn(INK, s.color) || !Array.isArray(s.points) || s.points.length < 2 || s.points.length > max) {
+      throw new RangeError("each shape must be a pen, arrow or box in one of the five colours");
+    }
+    total += s.points.length;
+    return { tool: s.tool, color: s.color, points: s.points.map((p) => {
+      if (!Array.isArray(p) || p.length !== 2) throw new RangeError("each point must be [x, y]");
+      return [coord(p[0]), coord(p[1])];
+    }) };
+  });
+  if (total > 5000) throw new RangeError("drawing has too many points");
+  return { v: 1, shapes: out };
 }
 
 const b64url = (bytes) => btoa(String.fromCharCode(...new Uint8Array(bytes)))
@@ -78,6 +120,14 @@ async function isAgent(request, env) {
   const match = /^Bearer\s+(\S+)$/i.exec(request.headers.get("Authorization") || "");
   return Boolean(match) && safeEqual(match[1], env.REVIEW_API_TOKEN);
 }
+// The dashboard Worker checks Jon's dashboard sign-in, then forwards to this Worker over a service binding
+// with the agent token and X-Review-Via: dashboard (cloud-apps/command-center/src/videoreview.js). That is a
+// reviewer, never an agent, and its links start with /dashboard. The header alone, without the token, is ignored.
+async function caller(request, env) {
+  const token = await isAgent(request, env);
+  const dashboard = token && request.headers.get("X-Review-Via") === "dashboard";
+  return { agent: token && !dashboard, reviewer: dashboard || (!token && await hasSession(request, env)), prefix: dashboard ? "/dashboard" : "" };
+}
 
 const SECURITY = {
   "X-Robots-Tag": "noindex, nofollow",
@@ -112,15 +162,35 @@ async function readJson(request) {
   }
 }
 
+// A multipart form, keeping at most `max` bytes (null past that; the rest is read and dropped so the client
+// gets the 413). Content-Length can't be trusted to be there: a service binding or a chunked upload may drop it.
+async function readForm(request, max) {
+  const reader = request.body?.getReader();
+  const chunks = [];
+  let size = 0;
+  for (let part = reader && await reader.read(); part && !part.done; part = await reader.read()) {
+    size += part.value.byteLength;
+    if (size <= max) chunks.push(part.value);
+  }
+  if (size > max) return null;
+  const bytes = new Uint8Array(size);
+  chunks.reduce((at, chunk) => (bytes.set(chunk, at), at + chunk.byteLength), 0);
+  return new Response(bytes, { headers: { "Content-Type": request.headers.get("Content-Type") } }).formData().catch(() => undefined);
+}
+
 const text = (value, max) => typeof value === "string" ? value.trim().slice(0, max) : "";
 const now = () => new Date().toISOString();
 
-function publicComment(row) {
+function publicComment(row, base) {
+  let drawing = null;
+  try { drawing = row.drawing ? JSON.parse(row.drawing) : null; } catch {}
   return {
     id: row.id, slug: row.slug, author: row.author, t: row.t, text: row.text,
     created_at: row.created_at, resolved: Boolean(row.resolved),
     resolved_at: row.resolved_at || null, resolved_by: row.resolved_by || null,
     sent: Boolean(row.submission_id), submission_id: row.submission_id || null,
+    drawing, transcript: row.transcript || null,
+    audio_url: row.audio_key ? `${base}/api/review/${row.slug}/comments/${row.id}/audio` : null,
   };
 }
 
@@ -169,13 +239,12 @@ async function listVideos(env) {
 }
 const getVideo = (env, slug) => env.DB.prepare(`${VIDEO_LIST} WHERE v.slug = ?`).bind(slug).first();
 
-async function streamMedia(request, env, row, kind) {
-  const key = row[`${kind}_key`];
+async function streamMedia(request, env, key, type) {
   if (!key) return notFound();
   const info = await env.MEDIA.head(key);
   if (!info) return notFound();
   const headers = new Headers({
-    "Content-Type": "video/mp4",
+    "Content-Type": type,
     "Accept-Ranges": "bytes",
     "ETag": info.httpEtag,
     "Cache-Control": "private, max-age=3600",
@@ -235,37 +304,39 @@ async function pages(request, env, url) {
   const path = url.pathname.replace(/\/+$/, "") || "/review";
   if (!["GET", "HEAD"].includes(request.method)) return new Response("Method not allowed", { status: 405, headers: { Allow: "GET, HEAD" } });
 
+  const who = await caller(request, env);
   const media = /^\/review\/media\/([^/]+)\/(video|source|compare)\.mp4$/.exec(path);
   if (media) {
-    if (!(await hasSession(request, env) || await isAgent(request, env))) {
+    if (!who.reviewer && !who.agent) {
       return new Response("Sign in at /review first.", { status: 401, headers: { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store" } });
     }
     if (!validSlug(media[1])) return notFound();
     const row = await env.DB.prepare("SELECT video_key, source_key, compare_key FROM videos WHERE slug = ?").bind(media[1]).first();
-    return row ? streamMedia(request, env, row, media[2]) : notFound();
+    return row ? streamMedia(request, env, row[`${media[2]}_key`], "video/mp4") : notFound();
   }
 
   const slug = path === "/review" ? null : path.slice("/review/".length);
-  if (!await hasSession(request, env)) return loginRedirect(path, url.searchParams.get("k"));
+  if (!who.reviewer) return loginRedirect(path, url.searchParams.get("k"));
   if (slug !== null && !validSlug(slug)) return notFound();
   // Signed in: drop the share key from the address bar.
-  if (url.searchParams.has("k")) return redirect(path);
+  if (url.searchParams.has("k")) return redirect(who.prefix + path);
 
-  if (slug === null) return html(renderIndex(await listVideos(env)));
+  if (slug === null) return html(renderIndex(await listVideos(env), "", who.prefix));
   const row = await getVideo(env, slug);
-  if (!row) return html(renderIndex(await listVideos(env), `No video called “${slug}”.`), 404);
+  if (!row) return html(renderIndex(await listVideos(env), `No video called “${slug}”.`, who.prefix), 404);
   const versions = await env.DB.prepare(
     "SELECT slug, version, status, created_at FROM videos WHERE channel = ? AND video = ? ORDER BY created_at DESC",
   ).bind(row.channel, row.video).all();
   const channel = await env.DB.prepare("SELECT name FROM channels WHERE slug = ?").bind(row.channel).first();
-  const submissions = (await slugSubmissions(env, slug, 10)).results.map((s) => publicSubmission(s, ""));
-  return html(renderVideo(publicVideo(row, ""), versions.results, channel?.name || row.channel, submissions));
+  const submissions = (await slugSubmissions(env, slug, 10)).results.map((s) => publicSubmission(s, who.prefix));
+  return html(renderVideo(publicVideo(row, who.prefix), versions.results, channel?.name || row.channel, submissions, who.prefix));
 }
 
 async function api(request, env, url) {
-  const agent = await isAgent(request, env);
-  const reviewer = !agent && await hasSession(request, env);
+  const who = await caller(request, env);
+  const { agent, reviewer } = who;
   if (!agent && !reviewer) return fail(401, "unauthorized");
+  const base = url.origin + who.prefix;
   // Cookie-authenticated writes must come from this site (SameSite=Lax plus an Origin check).
   if (reviewer && request.method !== "GET" && request.method !== "HEAD") {
     const origin = request.headers.get("Origin");
@@ -276,7 +347,7 @@ async function api(request, env, url) {
   const method = request.method;
   if (parts.length === 1 && parts[0] === "videos" && method === "GET") {
     const { channels, videos } = await listVideos(env);
-    return json({ channels, videos: videos.map((row) => publicVideo(row, url.origin)) });
+    return json({ channels, videos: videos.map((row) => publicVideo(row, base)) });
   }
   if (parts[0] === "submissions") {
     if (!agent) return fail(403, "agent_token_required");
@@ -293,15 +364,15 @@ async function api(request, env, url) {
   const row = await getVideo(env, slug);
   if (!row) return fail(404, "video_not_found");
 
-  if (resource === undefined && method === "GET") return json({ video: publicVideo(row, url.origin) });
+  if (resource === undefined && method === "GET") return json({ video: publicVideo(row, base) });
   if (resource === undefined && method === "DELETE") {
     if (!agent) return fail(403, "agent_token_required");
     return deleteVideo(env, row);
   }
 
-  if (resource === "submit" && id === undefined && method === "POST") return submit(request, env, url, row);
+  if (resource === "submit" && id === undefined && method === "POST") return submit(request, env, base, row, who);
   if (resource === "submissions" && id === undefined && method === "GET") {
-    return json({ submissions: (await slugSubmissions(env, slug)).results.map((s) => publicSubmission(s, url.origin)) });
+    return json({ submissions: (await slugSubmissions(env, slug)).results.map((s) => publicSubmission(s, base)) });
   }
   if (resource === "next" && id === undefined && method === "POST") {
     if (!agent) return fail(403, "agent_token_required");
@@ -322,23 +393,62 @@ async function api(request, env, url) {
     if (!["all", "open", "resolved"].includes(filter)) return fail(400, "status must be all, open or resolved");
     const where = filter === "open" ? " AND resolved = 0" : filter === "resolved" ? " AND resolved = 1" : "";
     const rows = await env.DB.prepare(`SELECT * FROM comments WHERE slug = ?${where} ORDER BY t, created_at`).bind(slug).all();
-    return json({ video: publicVideo(row, url.origin), comments: rows.results.map(publicComment) });
+    return json({ video: publicVideo(row, base), comments: rows.results.map((c) => publicComment(c, base)) });
   }
 
+  // A comment: JSON {author, t, text, drawing?}, or a multipart form with the same fields plus an audio file
+  // (a voice note). Text may be empty when there is a drawing or a voice note.
   if (id === undefined && method === "POST") {
-    const body = await readJson(request);
+    const form = /^multipart\/form-data\b/i.test(request.headers.get("Content-Type") || "");
+    const fields = form ? await readForm(request, VOICE_MAX + 65536) : null;
+    if (fields === null && form) return fail(413, "Voice notes are limited to 5 MB");
+    const body = form ? fields && Object.fromEntries(["author", "t", "text", "drawing"].map((k) => [k, fields.get(k) ?? undefined])) : await readJson(request);
     if (!body) return fail(400, "send JSON with author, t and text");
     const author = text(body.author, 60);
     const note = text(body.text, 4000);
     const t = typeof body.t === "number" ? body.t : Number(body.t);
     const maxT = row.duration ? row.duration + 1 : 86400;
+    let drawing;
+    try { drawing = parseDrawing(body.drawing); } catch (error) { return fail(400, error.message); }
+    const file = typeof fields?.get("audio") === "object" ? fields.get("audio") : null;
+    const type = String(file?.type || "").split(";")[0].trim().toLowerCase();
+    if (file && !Object.hasOwn(VOICE, type)) return fail(415, "A voice note must be audio/webm, audio/mp4 or audio/ogg");
+    if (file && (!file.size || file.size > VOICE_MAX)) return fail(413, "Voice notes are limited to 5 MB");
     if (!author) return fail(400, "author is required");
-    if (!note) return fail(400, "text is required");
+    if (!note && !drawing && !file) return fail(400, "text is required");
     if (!Number.isFinite(t) || t < 0 || t > maxT) return fail(400, "t must be seconds within the video");
-    const comment = { id: crypto.randomUUID(), slug, author, t: Math.round(t * 1000) / 1000, text: note, created_at: now(), resolved: 0 };
-    await env.DB.prepare("INSERT INTO comments (id, slug, author, t, text, created_at, resolved) VALUES (?, ?, ?, ?, ?, ?, 0)")
-      .bind(comment.id, slug, author, comment.t, note, comment.created_at).run();
-    return json({ comment: publicComment(comment) }, 201);
+    const comment = {
+      id: crypto.randomUUID(), slug, author, t: Math.round(t * 1000) / 1000, text: note, created_at: now(), resolved: 0,
+      drawing: drawing ? JSON.stringify(drawing) : null, audio_key: null, audio_type: null,
+    };
+    if (file) {
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      if (!VOICE[type].ok(bytes)) return fail(415, "That file is not the audio type it says it is");
+      comment.audio_key = `review/${slug}/voice/${comment.id}.${VOICE[type].ext}`;
+      comment.audio_type = type;
+      await env.MEDIA.put(comment.audio_key, bytes, { httpMetadata: { contentType: type } });
+    }
+    await env.DB.prepare("INSERT INTO comments (id, slug, author, t, text, created_at, resolved, drawing, audio_key, audio_type) VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?, ?)")
+      .bind(comment.id, slug, author, comment.t, note, comment.created_at, comment.drawing, comment.audio_key, comment.audio_type).run();
+    return json({ comment: publicComment(comment, base) }, 201);
+  }
+
+  // GET /api/review/<slug>/comments/<id>/audio: the voice note, with byte ranges (Safari plays audio by range).
+  if (id !== undefined && action === "audio" && (method === "GET" || method === "HEAD")) {
+    const voice = await env.DB.prepare("SELECT audio_key, audio_type FROM comments WHERE id = ? AND slug = ?").bind(id, slug).first();
+    return voice?.audio_key ? streamMedia(request, env, voice.audio_key, voice.audio_type) : fail(404, "no_voice_note");
+  }
+
+  // POST /api/review/<slug>/comments/<id>/transcript {text} (agent token only): scripts/review_voice.mjs posts
+  // what Parakeet heard in the voice note.
+  if (id !== undefined && action === "transcript" && method === "POST") {
+    if (!agent) return fail(403, "agent_token_required");
+    const words = text((await readJson(request))?.text, 8000);
+    if (!words) return fail(400, "text is required");
+    const result = await env.DB.prepare("UPDATE comments SET transcript = ? WHERE id = ? AND slug = ? AND audio_key IS NOT NULL")
+      .bind(words, id, slug).run();
+    if (!result.meta.changes) return fail(404, "no_voice_note");
+    return json({ comment: publicComment(await env.DB.prepare("SELECT * FROM comments WHERE id = ?").bind(id).first(), base) });
   }
 
   if (id !== undefined && action === "resolve" && method === "POST") {
@@ -353,12 +463,14 @@ async function api(request, env, url) {
     ).bind(resolved ? 1 : 0, resolved ? now() : null, resolved ? by : null, id, slug).run();
     if (!result.meta.changes) return fail(404, "comment_not_found");
     const updated = await env.DB.prepare("SELECT * FROM comments WHERE id = ?").bind(id).first();
-    return json({ comment: publicComment(updated) });
+    return json({ comment: publicComment(updated, base) });
   }
 
   if (id !== undefined && action === undefined && method === "DELETE") {
     if (!agent) return fail(403, "agent_token_required");
+    const voice = await env.DB.prepare("SELECT audio_key FROM comments WHERE id = ? AND slug = ?").bind(id, slug).first();
     const result = await env.DB.prepare("DELETE FROM comments WHERE id = ? AND slug = ?").bind(id, slug).run();
+    if (voice?.audio_key) await env.MEDIA.delete(voice.audio_key).catch((err) => console.error("voice note delete", err)); // the comment is gone either way
     return result.meta.changes ? json({ deleted: id }) : fail(404, "comment_not_found");
   }
 
@@ -368,7 +480,7 @@ async function api(request, env, url) {
 // Submit changes / Approve (reviewer session or agent). Snapshots the open, unsent comments, locks
 // them to this submission and sets the video status, all in one transaction. The dedupe key
 // (slug, kind, sorted comment ids) is UNIQUE, so a double tap returns the first row, never a second.
-async function submit(request, env, url, row) {
+async function submit(request, env, base, row, who = {}) {
   const body = (await readJson(request)) || {};
   const kind = body.kind === undefined ? "changes" : body.kind;
   if (!Object.hasOwn(KINDS, kind)) return fail(400, "kind must be changes or approve");
@@ -380,9 +492,12 @@ async function submit(request, env, url, row) {
   const dedupe = `${row.slug}|${kind}|${[...ids].sort().join(",")}`;
   const id = crypto.randomUUID();
   const stamp = now();
+  // The dashboard already tells the owner of this Send back (its card wake): stored as delivered, the GPU2 router skips it.
+  const told = who.prefix === "/dashboard" && request.headers.get("X-Review-Delivered-To") === "dashboard";
   await env.DB.batch([
-    env.DB.prepare("INSERT OR IGNORE INTO submissions (id, slug, kind, created_at, comment_ids, dedupe_key) VALUES (?, ?, ?, ?, ?, ?)")
-      .bind(id, row.slug, kind, stamp, JSON.stringify(ids), dedupe),
+    env.DB.prepare(`INSERT OR IGNORE INTO submissions (id, slug, kind, created_at, comment_ids, dedupe_key, delivered_at, delivered_to)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`)
+      .bind(id, row.slug, kind, stamp, JSON.stringify(ids), dedupe, told ? stamp : null, told ? "dashboard" : null),
     env.DB.prepare(`UPDATE comments SET submission_id = ?1 WHERE slug = ?2 AND submission_id IS NULL
         AND id IN (SELECT value FROM json_each(?3)) AND EXISTS (SELECT 1 FROM submissions WHERE id = ?1)`)
       .bind(id, row.slug, JSON.stringify(ids)),
@@ -390,7 +505,7 @@ async function submit(request, env, url, row) {
   ]);
   const saved = await env.DB.prepare("SELECT * FROM submissions WHERE dedupe_key = ?").bind(dedupe).first();
   const duplicate = saved.id !== id;
-  return json({ submission: publicSubmission(saved, url.origin), status: KINDS[kind], duplicate }, duplicate ? 200 : 201);
+  return json({ submission: publicSubmission(saved, base), status: KINDS[kind], duplicate }, duplicate ? 200 : 201);
 }
 
 // The GPU2 router (agent token only):
@@ -418,6 +533,12 @@ async function routerApi(request, env, url, [id, action, extra]) {
         };
       }),
     });
+  }
+  // POST /api/review/submissions/<id>/requeue: the dashboard stored a Send back as delivered (its card wake), then
+  // couldn't wake the owner after all, so the router picks it up again.
+  if (id !== undefined && action === "requeue" && extra === undefined && method === "POST") {
+    await env.DB.prepare("UPDATE submissions SET delivered_at = NULL, delivered_to = NULL WHERE id = ? AND delivered_to = 'dashboard'").bind(id).run();
+    return json({ ok: true });
   }
   if (id !== undefined && action === "delivered" && extra === undefined && method === "POST") {
     const body = await readJson(request);
@@ -449,6 +570,7 @@ async function nextVersion(request, env, url, slug) {
 // DELETE /api/review/<slug> (agent token only): removes a test or mistaken video with its comments,
 // submissions and media; an auto-created channel left empty goes too (the seeded seven stay).
 async function deleteVideo(env, row) {
+  const voices = (await env.DB.prepare("SELECT audio_key FROM comments WHERE slug = ? AND audio_key IS NOT NULL").bind(row.slug).all()).results;
   await env.DB.batch([
     env.DB.prepare("UPDATE submissions SET result_slug = NULL WHERE result_slug = ?").bind(row.slug),
     env.DB.prepare("DELETE FROM submissions WHERE slug = ?").bind(row.slug),
@@ -456,7 +578,7 @@ async function deleteVideo(env, row) {
     env.DB.prepare("DELETE FROM videos WHERE slug = ?").bind(row.slug),
     env.DB.prepare("DELETE FROM channels WHERE slug = ?1 AND sort >= 100 AND NOT EXISTS (SELECT 1 FROM videos WHERE channel = ?1)").bind(row.channel),
   ]);
-  const keys = [row.video_key, row.source_key, row.compare_key].filter(Boolean);
+  const keys = [row.video_key, row.source_key, row.compare_key, ...voices.map((v) => v.audio_key)].filter(Boolean);
   if (keys.length) await env.MEDIA.delete(keys);
   return json({ deleted: row.slug });
 }

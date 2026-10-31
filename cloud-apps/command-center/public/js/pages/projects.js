@@ -5,9 +5,13 @@ import { goalCard, needItem, summaryCard } from './today.js';
 // daily checklist. Questions and approvals use Today's cards and buttons.
 
 // The deliverable of a Review or Done card (also in its modal): a web link opens in a new tab;
-// a file path on GPU1 is plain text, never a link.
+// a file path on GPU1 is plain text, never a link. A review-site video opens in the dashboard's own
+// Review page (same sign-in, no passcode), where Approve and Send back also move this card.
+export const REVIEW_LINK = /^https:\/\/jonmac\.ai\/(?:dashboard\/)?review\/([a-z0-9-]+)\/?(?:[?#].*)?$/i;
 export function deliverableLink(d, cls = '') {
   if (!d?.link) return '';
+  const review = REVIEW_LINK.exec(d.link);
+  if (review) return `<a class="pjdeliv${cls ? ` ${cls}` : ''}" href="/dashboard/review/${esc(review[1].toLowerCase())}" target="_blank" rel="noopener">Open review</a>`;
   return /^https?:\/\//i.test(d.link)
     ? `<a class="pjdeliv${cls ? ` ${cls}` : ''}" href="${esc(d.link)}" target="_blank" rel="noopener">${esc(linkLabel(d.link, d.kind))}</a>`
     : `<span class="pjdeliv">Local file: ${esc(String(d.link).split(/[\\/]/).pop())}</span>`;

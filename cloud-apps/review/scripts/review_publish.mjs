@@ -24,7 +24,7 @@ import { pipeline } from "node:stream/promises";
 
 const PART_SIZE = 50 * 1024 * 1024;
 
-function parseArgs(argv) {
+export function parseArgs(argv) {
   const args = {};
   for (let i = 0; i < argv.length; i++) {
     const match = /^--([a-z-]+)$/.exec(argv[i]);
@@ -35,7 +35,7 @@ function parseArgs(argv) {
   return args;
 }
 
-function loadEnvFile(path) {
+export function loadEnvFile(path) {
   if (!path || !existsSync(path)) return;
   for (const line of readFileSync(path, "utf8").split(/\r?\n/)) {
     const match = /^\s*([A-Z0-9_]+)\s*=\s*(.*?)\s*$/.exec(line);

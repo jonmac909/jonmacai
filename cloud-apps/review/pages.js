@@ -1,5 +1,7 @@
 // Server-rendered HTML for the review portal. Client behaviour lives in public/app.js.
 const STATUS_LABEL = { needs_review: "Needs review", changes_requested: "Changes requested", approved: "Approved" };
+// Drawing colours, the only ones the Worker stores (parseDrawing).
+export const INK = { "#ff3b30": "Red", "#ffcc00": "Yellow", "#34c759": "Green", "#0a84ff": "Blue", "#ffffff": "White" };
 
 export const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (c) =>
   ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
@@ -11,7 +13,8 @@ export function formatTime(seconds) {
   return `${h ? `${h}:` : ""}${mm}:${String(sec).padStart(2, "0")}`;
 }
 
-const layout = (title, body, { script = false } = {}) => `<!doctype html>
+// `prefix` is "" on jonmac.ai/review and "/dashboard" when the dashboard serves the same pages.
+const layout = (title, body, { script = false, prefix = "" } = {}) => `<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -20,8 +23,8 @@ const layout = (title, body, { script = false } = {}) => `<!doctype html>
 <meta name="referrer" content="no-referrer">
 <title>${escapeHtml(title)}</title>
 <link rel="icon" href="data:,">
-<link rel="stylesheet" href="/review/_/app.css">
-${script ? '<script src="/review/_/app.js" defer></script>\n' : ""}</head>
+<link rel="stylesheet" href="${prefix}/review/_/app.css">
+${script ? `<script src="${prefix}/review/_/app.js" defer></script>\n` : ""}</head>
 <body>
 ${body}
 </body>
@@ -44,7 +47,7 @@ export function renderGate({ next, k, error = "" }) {
 </main>`);
 }
 
-export function renderIndex({ channels, videos }, message = "") {
+export function renderIndex({ channels, videos }, message = "", prefix = "") {
   const byChannel = new Map(channels.map((c) => [c.slug, { ...c, videos: [] }]));
   for (const v of videos) {
     if (!byChannel.has(v.channel)) byChannel.set(v.channel, { slug: v.channel, name: v.channel, videos: [] });
@@ -59,7 +62,7 @@ export function renderIndex({ channels, videos }, message = "") {
     }
     const items = [...groups.entries()].map(([video, versions]) => `<li class="video">
       <h3>${escapeHtml(versions[0].title)} <span class="muted">${escapeHtml(video)}</span></h3>
-      <ul class="versions">${versions.map((v) => `<li><a href="/review/${escapeHtml(v.slug)}">
+      <ul class="versions">${versions.map((v) => `<li><a href="${prefix}/review/${escapeHtml(v.slug)}">
         <span class="version">${escapeHtml(v.version)}</span>${chip(v.status)}
         <span class="muted">${v.open_count ? `${v.open_count} open comment${v.open_count === 1 ? "" : "s"}` : v.total_count ? "all comments resolved" : "no comments"}</span>
         <span class="muted when">${escapeHtml((v.created_at || "").slice(0, 10))}</span></a></li>`).join("")}</ul>
@@ -68,10 +71,11 @@ export function renderIndex({ channels, videos }, message = "") {
       ${items ? `<ul class="videos">${items}</ul>` : '<p class="muted">No videos yet.</p>'}</section>`;
   }).join("\n");
   return layout("Video reviews", `<main>
+  ${prefix ? `<p class="crumbs"><a href="${prefix}/">Dashboard</a></p>` : ""}
   <header class="top"><h1>Video reviews</h1><p class="muted">${escapeHtml(counts.join(" · "))}</p></header>
   ${message ? `<p class="error" role="alert">${escapeHtml(message)}</p>` : ""}
   ${sections}
-</main>`);
+</main>`, { prefix });
 }
 
 // Secondary player (first-60 clip): collapsed, muted, never preloaded or autoplayed.
@@ -79,17 +83,22 @@ const extra = (id, label, url) => url ? `<details class="extra" id="${id}"><summ
     <video id="${id}-player" class="extra-player" controls playsinline webkit-playsinline muted preload="none" src="${escapeHtml(url)}" aria-label="${label}"></video>
   </details>` : "";
 
-export function renderVideo(video, versions, channelName, submissions = []) {
-  const data = JSON.stringify({ slug: video.slug, duration: video.duration, chapters: video.chapters, status: video.status, sync: video.sync, submissions })
+// Ours, with the drawing canvas laid over it (public/app.js).
+const ours = (video) => `<div class="stage"><video id="player" controls playsinline webkit-playsinline preload="metadata"
+    src="${escapeHtml(video.video_url)}#t=0.001" aria-label="Our video"></video><canvas id="ink" class="ink" aria-hidden="true"></canvas></div>`;
+
+export function renderVideo(video, versions, channelName, submissions = [], prefix = "") {
+  const data = JSON.stringify({ slug: video.slug, duration: video.duration, chapters: video.chapters, status: video.status, sync: video.sync, submissions,
+    base: `${prefix}/review`, api: `${prefix}/api/review`, dashboard: Boolean(prefix) })
     .replace(/</g, "\\u003c");
   const versionLinks = versions.length > 1 ? `<nav class="version-nav" aria-label="Versions">${versions.map((v) =>
     v.slug === video.slug
       ? `<span class="current">${escapeHtml(v.version)}</span>`
-      : `<a href="/review/${escapeHtml(v.slug)}">${escapeHtml(v.version)}</a>`).join("")}</nav>` : "";
+      : `<a href="${prefix}/review/${escapeHtml(v.slug)}">${escapeHtml(v.version)}</a>`).join("")}</nav>` : "";
   const statusButtons = Object.entries(STATUS_LABEL).map(([value, label]) =>
     `<button type="button" class="status-btn" data-status="${value}" aria-pressed="${video.status === value}">${label}</button>`).join("");
   return layout(`${channelName} · ${video.title} ${video.version}`, `<main class="watch">
-  <p class="crumbs"><a href="/review">All videos</a> / ${escapeHtml(channelName)}</p>
+  <p class="crumbs">${prefix ? `<a href="${prefix}/">Dashboard</a> / ` : ""}<a href="${prefix}/review">All videos</a> / ${escapeHtml(channelName)}</p>
   <header class="top">
     <h1>${escapeHtml(video.title)} <span class="muted">${escapeHtml(video.version)}</span></h1>
     ${versionLinks}
@@ -100,8 +109,7 @@ export function renderVideo(video, versions, channelName, submissions = []) {
         src="${escapeHtml(video.source_url)}#t=0.001" aria-label="Source video"></video>
       <p class="pane-error" id="source-error" hidden>The source video did not load. Ours still plays.</p></figure>
     <figure class="pane"><figcaption>Ours <span class="muted" id="ours-audio">sound on</span></figcaption>
-      <video id="player" controls playsinline webkit-playsinline preload="metadata"
-        src="${escapeHtml(video.video_url)}#t=0.001" aria-label="Our video"></video></figure>
+      ${ours(video)}</figure>
   </div>
   <div class="transport" id="transport">
     <button type="button" class="primary" id="play-both">Play both</button>
@@ -112,8 +120,7 @@ export function renderVideo(video, versions, channelName, submissions = []) {
     <span class="audio-switch" role="radiogroup" aria-label="Sound from">Sound:
       <label><input type="radio" name="audio" value="ours" checked> Ours</label>
       <label><input type="radio" name="audio" value="source"> Source</label></span>
-  </div>` : `<video id="player" controls playsinline webkit-playsinline preload="metadata"
-    src="${escapeHtml(video.video_url)}#t=0.001" aria-label="Our video"></video>`}
+  </div>` : ours(video)}
   ${video.chapters.length ? `<div class="chapters" id="chapters">${video.chapters.map(([t, label]) =>
     `<button type="button" data-t="${Number(t)}">${formatTime(t)} ${escapeHtml(label)}</button>`).join("")}</div>` : ""}
   <div class="status-row"><span class="muted">Status</span><div class="status-btns" id="status">${statusButtons}</div></div>
@@ -130,16 +137,31 @@ export function renderVideo(video, versions, channelName, submissions = []) {
         <span>Comment at</span> <button type="button" class="stamp" id="stamp" title="Jump back to this time">0:00</button>
         <button type="button" class="link" id="stamp-now">use current time</button>
       </div>
-      <textarea id="note" name="text" rows="3" maxlength="4000" placeholder="Pause the video, then type what should change here"></textarea>
+      <div class="tools">
+        <button type="button" id="draw" aria-pressed="false">Draw on frame</button>
+        <span class="ink-tools" id="ink-tools" hidden>
+          <span class="seg" role="group" aria-label="Shape">${["Pen", "Arrow", "Box"].map((t, i) =>
+            `<button type="button" data-tool="${t.toLowerCase()}" aria-pressed="${i === 0}">${t}</button>`).join("")}</span>
+          <span class="seg" role="group" aria-label="Colour">${Object.entries(INK).map(([c, name], i) =>
+            `<button type="button" class="swatch" data-color="${c}" style="--ink:${c}" aria-label="${name}" aria-pressed="${i === 0}"></button>`).join("")}</span>
+          <button type="button" id="ink-undo">Undo</button>
+        </span>
+        <button type="button" id="voice" hidden>Record voice</button>
+        <span class="muted" id="voice-status" role="status"></span>
+        <button type="button" class="link" id="voice-clear" hidden>remove</button>
+      </div>
+      <textarea id="note" name="text" rows="3" maxlength="4000" placeholder="Pause the video, then type, draw or record what should change"></textarea>
       <div class="actions"><button type="submit" class="primary" id="submit">Add comment</button><span class="muted" id="form-status" role="status"></span></div>
     </form>
   </section>
   <section class="send" id="send" aria-label="Send to the agent">
     <div class="send-btns">
-      <button type="button" class="primary big" id="send-changes">Submit changes</button>
+      <button type="button" class="primary big" id="send-changes">${prefix ? "Send back" : "Submit changes"}</button>
       <button type="button" class="big approve" id="approve">Approve</button>
     </div>
-    <p class="send-hint muted" id="send-status" role="status">When you are done commenting, press Submit changes. The agent that made this video gets your open comments.</p>
+    <p class="send-hint muted" id="send-status" role="status">${prefix
+      ? "When you are done commenting, press Send back: its task goes back to Doing with your open comments. Approve moves the task to Done."
+      : "When you are done commenting, press Submit changes. The agent that made this video gets your open comments."}</p>
     <ol class="submissions" id="submissions"></ol>
   </section>
   <section class="comments" aria-label="Comments">
@@ -147,5 +169,5 @@ export function renderVideo(video, versions, channelName, submissions = []) {
     <ol id="comments"></ol>
   </section>
   <script type="application/json" id="review-data">${data}</script>
-</main>`, { script: true });
+</main>`, { script: true, prefix });
 }

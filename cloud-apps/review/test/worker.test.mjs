@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { fileURLToPath } from "node:url";
-import { byteRange, makeSession, mediaTag, safeEqual, validSlug, verifySession } from "../worker.js";
+import { byteRange, makeSession, mediaTag, parseDrawing, safeEqual, validSlug, verifySession } from "../worker.js";
 import { escapeHtml, formatTime } from "../pages.js";
 import { topLevelBoxes } from "../scripts/review_publish.mjs";
 import { SECRETS } from "./harness.mjs";
@@ -49,6 +49,17 @@ test("helpers escape HTML, format times and tag media", () => {
   assert.equal(formatTime(75.9), "1:15");
   assert.equal(formatTime(3725), "1:02:05");
   assert.equal(mediaTag("review/mina-1-v9/video-abc123.mp4"), "video-abc123");
+});
+
+test("drawings are rewritten from known parts only, or refused", () => {
+  assert.equal(parseDrawing(undefined), null);
+  assert.equal(parseDrawing(""), null);
+  const line = { tool: "pen", color: "#ffcc00", points: [[0.333333, 1], [0, 0.5]] };
+  assert.deepEqual(parseDrawing(JSON.stringify({ v: 9, shapes: [{ ...line, style: "x" }], html: "<b>" })), { v: 1, shapes: [{ ...line, points: [[0.3333, 1], [0, 0.5]] }] });
+  for (const bad of ["{", "x".repeat(70000), { shapes: [{ ...line, color: "#FFCC00" }] }, { shapes: [{ ...line, points: [[NaN, 0], [0, 0]] }] },
+    { shapes: [{ ...line, points: [[0, 0, 0], [0, 0]] }] }, { shapes: "nope" }, { shapes: Array.from({ length: 6 }, () => ({ ...line, points: Array(1000).fill([0, 0]) })) }]) {
+    assert.throws(() => parseDrawing(bad), RangeError, JSON.stringify(bad).slice(0, 60));
+  }
 });
 
 test("publish script reads MP4 box order for the fast-start check", () => {

@@ -121,6 +121,8 @@ export function liveNav(orig) {
         { id: 'todo', label: 'Todo', icon: 'check' },
         { id: 'projects', label: 'Projects', icon: 'board' },
         { id: 'feed', label: 'Feed', icon: 'chat' },
+        // Review is a link to the video review pages (src/videoreview.js), not a snapshot page.
+        { id: 'review', label: 'Review', icon: 'film', href: '/dashboard/review' },
       ] },
       { title: 'YouTube', items: [{ id: 'calendar', label: 'Calendar', icon: 'cal' }, { id: 'content', label: 'Content', icon: 'trend' }] },
       { title: 'Business', items: [

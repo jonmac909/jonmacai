@@ -258,10 +258,10 @@ test('card modal: escaped, only http(s) proof links clickable, the thread with w
   assert.doesNotMatch(html, /<script|<b>Edit|<img|<i>ok/);
   assert.match(html, /<h2>&lt;b&gt;Edit&lt;\/b&gt; ep 4<\/h2>/);
   assert.match(html, /<p class="cmmeta">Olivia · Waiting on you · YT-JM · due 2026-10-30 · 15 min of your time<\/p>/);
-  assert.match(html, /<a class="btn line cmopen" href="https:\/\/jonmac.ai\/review\/4[^"]*" target="_blank" rel="noopener">Watch video<\/a>/, 'proof as a labelled button');
+  assert.match(html, /<a class="btn line cmopen" href="\/dashboard\/review\/4" target="_blank" rel="noopener">Watch video<\/a>/, 'proof as a labelled button; a review video opens the dashboard Review page');
   assert.doesNotMatch(html, />https?:\/\//, 'no raw URL as text');
   assert.match(html, /<details class="cmhist"><summary>History \(2\)<\/summary>/, 'history collapsed');
-  assert.deepEqual(html.match(/href="[^"]*"/g), ['href="https://jonmac.ai/review/4?a=1&amp;b=&quot;2&quot;"']);
+  assert.deepEqual(html.match(/href="[^"]*"/g), ['href="/dashboard/review/4"']);
   assert.match(html, /<span class="cmfile">Local file: javascript:alert\(1\)<\/span>/, 'a non-web link is text, not a link');
   assert.match(html, /<span class="cmfile">Local file: ep4\.mp4<\/span>/);
   assert.doesNotMatch(html, /D:\\/, 'no local paths');
