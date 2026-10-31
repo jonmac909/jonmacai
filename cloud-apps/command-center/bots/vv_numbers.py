@@ -21,7 +21,7 @@ TIMEOUT_S = 120
 MONTHS = {30: 1, 365: 12}  # Commas payment_frequency in days; anything else fails loudly
 NOWIN = getattr(subprocess, 'CREATE_NO_WINDOW', 0)
 
-SUBS = ("SELECT COALESCE(fanbasis_subscription_id, id) sid, fanbasis_product_id product, lower(trim(status)) status, "
+SUBS = ("SELECT COALESCE(fanbasis_subscription_id, id) sid, lower(trim(status)) status, "
         "json_extract(raw_json, '$.subscription.payment_frequency') days, json_extract(raw_json, '$.product.price') price "
         "FROM subscriptions WHERE fanbasis_product_id != 'manual_free' ORDER BY updated_at")
 CANCELS = ("SELECT payload_json FROM fanbasis_webhook_events "
@@ -49,8 +49,8 @@ def monthly(row):
 def summarize(subs, cancel_events):
     latest = {r['sid']: r for r in subs}  # oldest first, so the newest row for a subscription wins
     active = [r for r in latest.values() if r['status'] == 'active']
-    products = {r['product'] for r in subs}  # the same Commas account also sells other products
-    cancelled = {e['data']['subscription']['id'] for e in cancel_events if e['data']['item']['id'] in products}
+    cancelled = {e['data']['subscription']['id'] for e in cancel_events
+                 if e['data']['item']['title'].lower().startswith('viral view')}  # the app's own test for its products
     return {'cancellations_24h': len(cancelled), 'mrr': round(sum(map(monthly, active)), 2), 'paying': len(active)}
 
 

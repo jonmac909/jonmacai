@@ -34,8 +34,8 @@ class Db:
                          ('row%d' % self.n, sid or 'sub%d' % self.n, product, status, json.dumps(raw), updated))
         return self
 
-    def cancel(self, sub, hours_ago=1, product='vmqDX', event='subscription.canceled'):
-        body = {'type': event, 'data': {'item': {'id': product}, 'subscription': {'id': sub}}}
+    def cancel(self, sub, hours_ago=1, title='Viral View Pro', event='subscription.canceled'):
+        body = {'type': event, 'data': {'item': {'title': title}, 'subscription': {'id': sub}}}
         self.con.execute('INSERT INTO fanbasis_webhook_events VALUES (?, ?, ?)',
                          (event, json.dumps(body), NOW * 1000 - hours_ago * HOUR_MS))
         return self
@@ -73,8 +73,11 @@ class Numbers(unittest.TestCase):
         self.assertEqual(Db().sub('completed').cancel('a', 23).cancel('b', 25).main()['cancellations_24h'], 1)
 
     def test_other_products_and_other_events_do_not_count(self):
-        db = Db().sub('completed').cancel('a', product='other').cancel('b', event='subscription.renewed')
+        db = Db().sub('completed').cancel('a', title='Some Other Course').cancel('b', event='subscription.renewed')
         self.assertEqual(db.main()['cancellations_24h'], 0)
+
+    def test_a_viral_view_plan_with_no_subscription_row_still_counts(self):
+        self.assertEqual(Db().cancel('a', title='Viral View Discount').main()['cancellations_24h'], 1)
 
     def test_an_empty_receipt_row_is_ignored(self):
         db = Db().sub('completed')
