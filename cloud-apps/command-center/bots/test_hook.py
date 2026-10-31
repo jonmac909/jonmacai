@@ -156,6 +156,7 @@ class Hooks(unittest.TestCase):
         marker = dash.WAKE_DIR / 'qc'
         read = lambda bot, *argv: dash.run(dash.parser().parse_args(['proofs'] + list(argv)), {'bot': bot})
         read('qc', '--status', 'pending', '--task', 't_1')
+        read('qc', '--status', 'pending', '--limit', '1')
         read('developer', '--status', 'pending')
         read('qc', '--status', 'passed')
         self.assertTrue(marker.exists())
@@ -164,6 +165,11 @@ class Hooks(unittest.TestCase):
 
     def test_dashboard_down_after_the_save_still_wakes_jessica(self):
         with mock.patch.object(dash, 'call', side_effect=dash.Fail(3, 'down')):
+            self.proof('p_1')
+        self.assertEqual(self.woken(), [('qc', 'p_1')])
+
+    def test_a_bad_task_reply_still_wakes_jessica(self):
+        with mock.patch.object(dash, 'call', return_value=['not', 'a', 'task']):
             self.proof('p_1')
         self.assertEqual(self.woken(), [('qc', 'p_1')])
 

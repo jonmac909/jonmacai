@@ -190,7 +190,7 @@ def qc_route(owner, routes):
 def task_owner(ctx, task_id):
     try:
         return (call(ctx, 'GET', '/tasks/%s' % urllib.parse.quote(task_id, safe='')).get('task') or {}).get('owner')
-    except Fail:
+    except Exception:
         return None  # qc_route sends an unknown owner to Jessica: a wrong bot beats no bot
 
 
@@ -230,7 +230,7 @@ def wake_qc(out, task_id, ctx):
         (WAKE_DIR / route).touch()  # before the send: a bot that reads at once must clear this wake, not miss the next
         res = hook.fire('proof_posted', {'proof': proof['id'], 'task': task_id, 'kind': proof.get('kind'),
                                          'link': proof.get('link'), 'by': ctx['bot'],
-                                         'read': 'dash.py proofs --status pending, then work through all of it'},
+                                         'read': 'dash.py proofs --status pending, then work through your share of it'},
                         key=proof['id'], routes=[route])
         bad = {r: s for r, s in res.items() if s not in (200, 202)}
     except Exception as err:  # never fail a saved proof because QC couldn't be woken
@@ -444,7 +444,7 @@ def run(args, ctx):
         wake_qc(out, args.task_id, ctx)
         return out
     if c == 'proofs':
-        if ctx['bot'] == 'qc' and args.status == 'pending' and not args.task:
+        if ctx['bot'] == 'qc' and args.status == 'pending' and not args.task and not args.limit:
             wake_read()
         return call(ctx, 'GET', '/proofs', query={'status': args.status, 'task': args.task, 'limit': args.limit})
     if c == 'proof-check':
