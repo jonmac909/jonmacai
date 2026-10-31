@@ -9,7 +9,7 @@
 | `raw_footage` | Video Editor | `watch_footage.ps1`, when files land in `D:\AgentTeam\footage` |
 | `sponsor_email` | Sponsors, Ana | `watch_mail.py`, on new partners@ inbox mail |
 | `accounting_email` | Accounting | `watch_mail.py`, on jon@ mail from gdbookkeeping.com or maxeisner.ca |
-| `cancellation_spike` | Viral View, Ana | Viral View numbers (not built: needs the Commas API key) |
+| `cancellation_spike` | Viral View, Ana | `vv_numbers.py`, on 3+ cancellations in 24 hours |
 
 `hook.py test [ROUTE ...]` wakes each routine once with a "nothing to do" event, to check it works.
 
