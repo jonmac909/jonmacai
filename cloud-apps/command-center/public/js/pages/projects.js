@@ -7,7 +7,7 @@ import { goalCard, needItem, summaryCard } from './today.js';
 // The deliverable of a Review or Done card (also in its modal): a web link opens in a new tab;
 // a file path on GPU1 is plain text, never a link. A review-site video opens in the dashboard's own
 // Review page (same sign-in, no passcode), where Approve and Send back also move this card.
-const REVIEW_LINK = /^https:\/\/jonmac\.ai\/(?:dashboard\/)?review\/([a-z0-9-]+)\/?(?:[?#].*)?$/i;
+export const REVIEW_LINK = /^https:\/\/jonmac\.ai\/(?:dashboard\/)?review\/([a-z0-9-]+)\/?(?:[?#].*)?$/i;
 export function deliverableLink(d, cls = '') {
   if (!d?.link) return '';
   const review = REVIEW_LINK.exec(d.link);
