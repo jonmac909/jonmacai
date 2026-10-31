@@ -1,128 +1,136 @@
-"""python -I bots/test_vv_numbers.py  (stdlib only; runs the real query on an in-memory SQLite table)"""
+"""python -I bots/test_vv_numbers.py  (stdlib only; runs the real queries on an in-memory SQLite table)"""
 import contextlib
 import io
 import json
 import sqlite3
+import subprocess
 import sys
+import tempfile
+import time
 import unittest
-from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import vv_numbers as vv  # noqa: E402
 
-NOW = datetime(2026, 10, 31, 16, 0, tzinfo=timezone.utc)
+NOW = 1793400000
+HOUR_MS = 3600 * 1000
 
 
-def stamp(hours_ago):
-    return (NOW - timedelta(hours=hours_ago)).strftime('%Y-%m-%dT%H:%M:%S.000000Z')
+class Db:
+    def __init__(self):
+        self.con = sqlite3.connect(':memory:')
+        self.con.row_factory = sqlite3.Row
+        self.con.execute('CREATE TABLE subscriptions (id TEXT, fanbasis_subscription_id TEXT, fanbasis_product_id TEXT, '
+                         'status TEXT, raw_json TEXT, updated_at TEXT)')
+        self.con.execute('CREATE TABLE fanbasis_webhook_events (event_type TEXT, payload_json TEXT, received_at INTEGER)')
+        self.n = 0
 
+    def sub(self, status, price='39.00', days=30, sid=None, product='vmqDX', updated='2026-10-31 14:00:00'):
+        self.n += 1
+        raw = {'product': {'price': price}, 'subscription': {'payment_frequency': days}}
+        self.con.execute('INSERT INTO subscriptions VALUES (?, ?, ?, ?, ?, ?)',
+                         ('row%d' % self.n, sid or 'sub%d' % self.n, product, status, json.dumps(raw), updated))
+        return self
 
-def synced(status, price, days, cancelled_at=None):
-    return status, {'product': {'price': price}, 'subscription': {'payment_frequency': days, 'cancelled_at': cancelled_at}}
+    def cancel(self, sub, hours_ago=1, product='vmqDX', event='subscription.canceled'):
+        body = {'type': event, 'data': {'item': {'id': product}, 'subscription': {'id': sub}}}
+        self.con.execute('INSERT INTO fanbasis_webhook_events VALUES (?, ?, ?)',
+                         (event, json.dumps(body), NOW * 1000 - hours_ago * HOUR_MS))
+        return self
 
+    def d1(self, sql):
+        return [dict(r) for r in self.con.execute(sql)]
 
-def webhook(status, price=None, days=30, cancelled_at=None):
-    return status, {'data': {'unit_price': price, 'subscription': {'payment_frequency': days, 'cancelled_at': cancelled_at}}}
-
-
-def query(*subs, product='vmqDX'):
-    """Run the real SQL. Each sub is (status, raw) or (sid, status, raw)."""
-    con = sqlite3.connect(':memory:')
-    con.row_factory = sqlite3.Row
-    con.execute('CREATE TABLE subscriptions (id TEXT, fanbasis_subscription_id TEXT, fanbasis_product_id TEXT, '
-                'status TEXT, raw_json TEXT)')
-    for n, sub in enumerate(subs):
-        sid, status, raw = sub if len(sub) == 3 else ('sub%d' % n, *sub)
-        con.execute('INSERT INTO subscriptions VALUES (?, ?, ?, ?, ?)', ('row%d' % n, sid, product, status, json.dumps(raw)))
-    return [dict(r) for r in con.execute(vv.SQL)]
-
-
-def run_main(rows, fire_result=None):
-    out, err = io.StringIO(), io.StringIO()
-    with mock.patch.object(vv, 'd1_rows', return_value=rows), mock.patch.object(vv.hook, 'fire', return_value=fire_result or {}) as fire, \
-            contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
-        code = vv.main()
-    return code, out.getvalue(), [c.args[0] for c in fire.call_args_list], fire
+    def main(self, fire_result=None):
+        out = io.StringIO()
+        with mock.patch.object(vv, 'd1', self.d1), mock.patch.object(vv.time, 'time', return_value=NOW), \
+                mock.patch.object(vv.hook, 'fire', return_value=fire_result or {}) as fire, \
+                contextlib.redirect_stdout(out), contextlib.redirect_stderr(io.StringIO()):
+            code = vv.main()
+        self.code, self.fire, self.fired = code, fire, [c.args[0] for c in fire.call_args_list]
+        return json.loads(out.getvalue()) if out.getvalue() else None
 
 
 class Numbers(unittest.TestCase):
     def test_mrr_counts_active_only_and_spreads_annual_plans(self):
-        rows = query(synced('active', '39.00', 30), synced('active', '39.00', 30), synced('active', '228.00', 365),
-                     synced('active', '588.00', 365), synced('past_due', '39.00', 30),
-                     synced('cancel_scheduled', '99.00', 30), synced('completed', '39.00', 30, stamp(500)))
-        got = vv.summarize(rows, NOW)
-        self.assertEqual((got['mrr'], got['paying'], got['past_due'], got['past_due_mrr']), (146.0, 4, 1, 39.0))
+        db = Db().sub('active').sub('active').sub('active', '228.00', 365).sub('active', '588.00', 365)
+        db.sub('past_due').sub('cancel_scheduled', '99.00').sub('completed')
+        self.assertEqual(db.main(), {'cancellations_24h': 0, 'mrr': 146.0, 'paying': 4})
 
     def test_free_accounts_are_left_out(self):
-        self.assertEqual(query(synced('active', '0.00', 30), product='manual_free'), [])
+        self.assertEqual(Db().sub('active', '99.00', product='manual_free').main()['mrr'], 0)
 
-    def test_a_row_last_written_by_a_webhook_still_reads(self):
-        rows = query(webhook('active', '39.00'), webhook('completed', cancelled_at=stamp(2)))
-        got = vv.summarize(rows, NOW)
-        self.assertEqual((got['mrr'], got['cancellations_24h']), (39.0, 1))
+    def test_the_newest_row_for_a_subscription_wins(self):
+        db = Db().sub('completed', sid='s1', updated='2026-10-31 14:00:00').sub('active', sid='s1', updated='2026-10-01 14:00:00')
+        self.assertEqual(db.main()['paying'], 0)
+
+    def test_a_cancel_sent_twice_counts_once(self):
+        self.assertEqual(Db().sub('completed').cancel('a').cancel('a').main()['cancellations_24h'], 1)
 
     def test_only_the_last_24_hours_count(self):
-        rows = query(synced('completed', '39.00', 30, stamp(23)), synced('completed', '39.00', 30, stamp(25)))
-        self.assertEqual(vv.summarize(rows, NOW)['cancellations_24h'], 1)
+        self.assertEqual(Db().sub('completed').cancel('a', 23).cancel('b', 25).main()['cancellations_24h'], 1)
 
-    def test_a_webhook_time_in_another_zone_is_not_misread(self):
-        local = timezone(timedelta(hours=-5))
-        recent = (NOW - timedelta(hours=23)).astimezone(local).isoformat()
-        old = (NOW - timedelta(hours=25)).astimezone(local).isoformat()
-        rows = query(webhook('completed', cancelled_at=recent), webhook('completed', cancelled_at=old))
-        self.assertEqual(vv.summarize(rows, NOW)['cancellations_24h'], 1)
+    def test_other_products_and_other_events_do_not_count(self):
+        db = Db().sub('completed').cancel('a', product='other').cancel('b', event='subscription.renewed')
+        self.assertEqual(db.main()['cancellations_24h'], 0)
 
-    def test_two_rows_for_one_subscription_count_once(self):
-        rows = query(('s1', *synced('completed', '39.00', 30, stamp(1))), ('s1', *webhook('cancelled', cancelled_at=stamp(1))),
-                     ('s2', *synced('active', '39.00', 30)), ('s2', *synced('active', '39.00', 30)))
-        got = vv.summarize(rows, NOW)
-        self.assertEqual((got['cancellations_24h'], got['mrr'], got['paying']), (1, 39.0, 1))
+    def test_an_empty_receipt_row_is_ignored(self):
+        db = Db().sub('completed')
+        db.con.execute("INSERT INTO fanbasis_webhook_events VALUES ('receipt', '', ?)", (NOW * 1000,))
+        self.assertEqual(db.main()['cancellations_24h'], 0)
 
 
 class Alerts(unittest.TestCase):
-    cancelled = [synced('completed', '39.00', 30, stamp(1))]
-
-    def rows(self, n):
-        return query(*self.cancelled * n)
-
-    def now_patch(self):
-        real = datetime
-
-        class Fixed(real):
-            @classmethod
-            def now(cls, tz=None):
-                return NOW
-        return mock.patch.object(vv, 'datetime', Fixed)
+    def three(self):
+        return Db().sub('completed').cancel('a').cancel('b').cancel('c')
 
     def test_two_cancellations_stay_quiet(self):
-        with self.now_patch():
-            code, out, fired, _ = run_main(self.rows(2))
-        self.assertEqual((code, fired, json.loads(out)['cancellations_24h']), (0, [], 2))
+        db = Db().sub('completed').cancel('a').cancel('b')
+        db.main()
+        self.assertEqual((db.code, db.fired), (0, []))
 
     def test_three_cancellations_alert_once_a_day(self):
-        with self.now_patch():
-            code, out, fired, fire = run_main(self.rows(3), {'viral-view': 202, 'ana': 202})
-        self.assertEqual((code, fired), (0, ['cancellation_spike']))
-        self.assertEqual(fire.call_args.kwargs['key'], 'cancellation-spike-2026-10-31')
-        self.assertEqual(json.loads(out)['cancellations_24h'], 3)
+        db = self.three()
+        got = db.main({'viral-view': 202, 'ana': 202})
+        self.assertEqual((db.code, db.fired, got['cancellations_24h']), (0, ['cancellation_spike'], 3))
+        self.assertTrue(db.fire.call_args.kwargs['key'].startswith('cancellation-spike-20'))
 
     def test_an_alert_that_was_not_delivered_is_reported(self):
-        with self.now_patch():
-            code, out, fired, _ = run_main(self.rows(3), {'viral-view': 202, 'ana': 503})
-        self.assertEqual((code, out, fired), (1, '', ['cancellation_spike', 'script_failure']))
+        db = self.three()
+        self.assertIsNone(db.main({'viral-view': 202, 'ana': 503}))
+        self.assertEqual((db.code, db.fired), (1, ['cancellation_spike', 'script_failure']))
 
     def test_an_unknown_plan_length_fails_instead_of_misstating_mrr(self):
-        code, out, fired, fire = run_main(query(synced('active', '39.00', 7)))
-        self.assertEqual((code, out, fired), (1, '', ['script_failure']))
-        self.assertEqual(fire.call_args.args[1]['script'], 'vv_numbers')
+        db = Db().sub('active', days=7)
+        self.assertIsNone(db.main())
+        self.assertEqual((db.code, db.fired), (1, ['script_failure']))
+        self.assertEqual(db.fire.call_args.args[1]['script'], 'vv_numbers')
+
+    def test_a_changed_webhook_shape_fails_instead_of_reading_zero(self):
+        db = Db().sub('completed')
+        db.con.execute("INSERT INTO fanbasis_webhook_events VALUES ('subscription.canceled', '{}', ?)", (NOW * 1000,))
+        self.assertIsNone(db.main())
+        self.assertEqual((db.code, db.fired), (1, ['script_failure']))
 
     def test_a_database_failure_is_reported(self):
-        with mock.patch.object(vv, 'd1_rows', side_effect=RuntimeError('wrangler failed: 10000')), \
+        with mock.patch.object(vv, 'd1', side_effect=RuntimeError('wrangler failed: 10000')), \
                 mock.patch.object(vv.hook, 'fire', return_value={}) as fire, contextlib.redirect_stderr(io.StringIO()):
             self.assertEqual(vv.main(), 1)
         self.assertEqual(fire.call_args.args[0], 'script_failure')
+
+
+class Hang(unittest.TestCase):
+    def test_a_hung_wrangler_is_killed_and_fails(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            slow = Path(tmp) / 'slow.cmd'
+            slow.write_text('@ping -n 30 127.0.0.1 >nul\r\n', encoding='ascii')
+            start = time.monotonic()
+            with mock.patch.object(vv.shutil, 'which', return_value=str(slow)), mock.patch.object(vv, 'APP', tmp), \
+                    mock.patch.object(vv, 'TIMEOUT_S', 1), self.assertRaises(subprocess.TimeoutExpired):
+                vv.d1('SELECT 1')
+            self.assertLess(time.monotonic() - start, 10)
 
 
 if __name__ == '__main__':
