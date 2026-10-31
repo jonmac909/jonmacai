@@ -18,6 +18,8 @@ sys.path.insert(0, str(HERE))
 import dash  # noqa: E402
 import hook  # noqa: E402
 
+CTX = {'bot': 'developer'}
+
 
 class Receiver(BaseHTTPRequestHandler):
     """Checks requests the way the OpenBot webhook does: 202 new, 200 repeat, 401 bad signature."""
@@ -54,7 +56,10 @@ class Hooks(unittest.TestCase):
         self.dir = tempfile.TemporaryDirectory()
         self.secrets = Path(self.dir.name) / 'webhooks.json'
         self.write_secrets(self.srv.secrets)
-        patches = [mock.patch.object(hook, 'SECRETS', self.secrets), mock.patch.object(hook.time, 'sleep')]
+        self.owner = 'developer'
+        patches = [mock.patch.object(hook, 'SECRETS', self.secrets), mock.patch.object(hook.time, 'sleep'),
+                   mock.patch.object(dash, 'WAKE_DIR', Path(self.dir.name) / 'wakes'),
+                   mock.patch.object(dash, 'call', lambda *a, **k: {'task': {'owner': self.owner}})]
         for p in patches:
             p.start()
             self.addCleanup(p.stop)
@@ -86,7 +91,7 @@ class Hooks(unittest.TestCase):
     def test_exit_codes(self):
         with mock.patch('sys.stdout'), mock.patch('sys.stderr'):
             self.assertEqual(hook.main(['test']), 0)
-            self.assertEqual(len(self.srv.events), 7)
+            self.assertEqual(len(self.srv.events), 8)
             self.write_secrets({'qc': 'wrong'})
             self.assertEqual(hook.main(['fire', 'proof_posted']), 1)  # 401
             self.assertEqual(hook.main(['fire', 'raw_footage']), 2)  # no secret for video-editor
@@ -94,14 +99,89 @@ class Hooks(unittest.TestCase):
             self.secrets.unlink()
             self.assertEqual(hook.main(['test', 'qc']), 2)
 
-    def test_dash_proof_add_wakes_qc_once(self):
-        dash.wake_qc({'ok': True, 'proof': {'id': 'p_1', 'kind': 'url', 'link': 'https://x'}}, 't_1', 'developer')
-        dash.wake_qc({'ok': True, 'proof': {'id': 'p_1'}, 'duplicate': True}, 't_1', 'developer')
-        self.assertEqual([(r, e['data']['proof'], e['data']['task']) for r, e in self.srv.events], [('qc', 'p_1', 't_1')])
-        self.write_secrets({})
-        with mock.patch('sys.stderr') as err:  # no secret: the proof call still succeeds, with a warning
-            dash.wake_qc({'ok': True, 'proof': {'id': 'p_2'}}, 't_1', 'developer')
+    def proof(self, pid, **out):
+        dash.wake_qc(dict({'ok': True, 'proof': {'id': pid, 'kind': 'url', 'link': 'https://x'}}, **out), 't_1', CTX)
+
+    def woken(self):
+        return [(r, e['data']['proof']) for r, e in self.srv.events]
+
+    def test_proof_wakes_the_right_qc_bot(self):
+        self.owner = 'video-editor'
+        self.proof('p_1')
+        self.owner = 'developer'
+        self.proof('p_2')
+        self.assertEqual(self.woken(), [('qc', 'p_1'), ('nina', 'p_2')])
+        self.assertEqual(self.srv.events[0][1]['data']['task'], 't_1')
+
+    def test_without_nina_route_jessica_gets_everything(self):
+        self.write_secrets({'qc': 'secret-qc'})
+        self.proof('p_1')
+        self.assertEqual(self.woken(), [('qc', 'p_1')])
+
+    def test_duplicate_proof_wakes_no_one(self):
+        self.proof('p_1', duplicate=True)
+        self.assertEqual(self.woken(), [])
+
+    def test_unread_wake_collapses_until_read(self):
+        for n in range(20):
+            self.proof('p_%d' % n)
+        self.assertEqual(self.woken(), [('nina', 'p_0')])
+        with mock.patch('os.getcwd', return_value=r'C:\\Agents\\' + dash.NINA_WORKSPACE):
+            dash.wake_read()
+        self.proof('p_20')
+        self.assertEqual(self.woken(), [('nina', 'p_0'), ('nina', 'p_20')])
+
+    def test_each_bot_reads_only_its_own_wake(self):
+        self.owner = 'video-editor'
+        self.proof('p_1')
+        with mock.patch('os.getcwd', return_value=r'C:\\Agents\\' + dash.NINA_WORKSPACE):
+            dash.wake_read()  # Nina reading must leave Jessica's wake unread
+        self.proof('p_2')
+        self.assertEqual(self.woken(), [('qc', 'p_1')])
+        with mock.patch('os.getcwd', return_value=r'C:\\Agents\\jessica'):
+            dash.wake_read()
+        self.proof('p_3')
+        self.assertEqual(self.woken(), [('qc', 'p_1'), ('qc', 'p_3')])
+
+    def test_unread_wake_expires(self):
+        self.proof('p_1')
+        old = time.time() - dash.WAKE_EXPIRES_S - 1
+        os.utime(dash.WAKE_DIR / 'nina', (old, old))
+        self.proof('p_2')
+        self.assertEqual(self.woken(), [('nina', 'p_1'), ('nina', 'p_2')])
+
+    def test_only_a_full_pending_read_by_qc_clears_the_wake(self):
+        self.owner = 'video-editor'
+        self.proof('p_1')
+        marker = dash.WAKE_DIR / 'qc'
+        read = lambda bot, *argv: dash.run(dash.parser().parse_args(['proofs'] + list(argv)), {'bot': bot})
+        read('qc', '--status', 'pending', '--task', 't_1')
+        read('developer', '--status', 'pending')
+        read('qc', '--status', 'passed')
+        self.assertTrue(marker.exists())
+        read('qc', '--status', 'pending')
+        self.assertFalse(marker.exists())
+
+    def test_dashboard_down_after_the_save_still_wakes_jessica(self):
+        with mock.patch.object(dash, 'call', side_effect=dash.Fail(3, 'down')):
+            self.proof('p_1')
+        self.assertEqual(self.woken(), [('qc', 'p_1')])
+
+    def test_send_crash_warns_and_leaves_no_stuck_wake(self):
+        with mock.patch.object(hook, 'fire', side_effect=RuntimeError('boom')), mock.patch('sys.stderr') as err:
+            self.proof('p_1')
         self.assertIn('QC was not woken', ''.join(c.args[0] for c in err.write.call_args_list))
+        self.assertFalse((dash.WAKE_DIR / 'nina').exists())
+
+    def test_failed_wake_warns_and_the_next_proof_tries_again(self):
+        self.write_secrets({'nina': 'wrong', 'qc': 'secret-qc'})
+        with mock.patch('sys.stderr') as err:  # the proof call still succeeds, with a warning
+            self.proof('p_1')
+        self.assertIn('QC was not woken', ''.join(c.args[0] for c in err.write.call_args_list))
+        self.assertFalse((dash.WAKE_DIR / 'nina').exists())
+        self.write_secrets({'nina': 'secret-nina', 'qc': 'secret-qc'})
+        self.proof('p_2')
+        self.assertEqual(self.woken(), [('nina', 'p_2')])
 
     def test_footage_watcher_fires_once_per_drop(self):
         folder, log = Path(self.dir.name) / 'footage', Path(self.dir.name) / 'w.log'
