@@ -33,7 +33,7 @@ def ago(minutes):
     return tg.iso(T0 - minutes * 60)
 
 
-REAL_DISK_FREE = tg.disk_free_gb
+REAL_DISK_FREE, REAL_STATE, REAL_LOG = tg.disk_free_gb, tg.STATE, tg.LOG
 
 
 class Base(unittest.TestCase):
@@ -905,8 +905,19 @@ class Disk(Base):
         self.disk_free = 5
         self.assertEqual(1, len(self.alerts()))
 
-    def test_the_real_reading_is_a_number_of_gigabytes(self):
-        self.assertGreater(REAL_DISK_FREE(), 0)
+    def test_hovering_at_the_line_alerts_once(self):
+        counts = []
+        for free in (29.9, 30.1, 29.9, 34.9, 29.9):
+            self.disk_free = free
+            counts.append(len(self.alerts()))
+        self.assertEqual([1, 0, 0, 0, 0], counts)
+
+    def test_the_reading_is_in_gigabytes(self):
+        with mock.patch.object(tg.shutil, 'disk_usage', lambda path: types.SimpleNamespace(free=30 * 1024 ** 3)):
+            self.assertEqual(30, REAL_DISK_FREE())
+
+    def test_the_guard_keeps_its_files_off_d(self):
+        self.assertEqual({'C:'}, {REAL_STATE.drive, REAL_LOG.drive})
 
 
 class Failures(Base):
