@@ -353,6 +353,61 @@ class AnaRestart(Base):
         self.answers[self.blocked()] = {'status': 'answered', 'answer': 'Restart after the render finishes'}
         self.assertEqual([], self.run_guard())
 
+    def test_words_after_the_button_are_no_button(self):
+        self.answers[self.blocked()] = {'status': 'answered', 'answer': 'Restart OpenBot now (Recommended) once the render is done'}
+        self.assertEqual([], self.run_guard())
+
+    def test_a_used_answer_never_restarts_over_a_render(self):
+        self.queue(tg.ANA, minutes=46)
+        self.run_guard()
+        self.run_guard()
+        self.answers[tg.load()['questions']['turns:blocked:queue']] = {'status': 'answered', 'answer': 'Restart OpenBot now (Recommended)'}
+        self.assertEqual(['restart'], [s[0] for s in self.run_guard()])
+        self.t += tg.RESTART_CAP_S
+        self.assertEqual(['restart'], [s[0] for s in self.run_guard()])
+        self.render = True
+        self.t += tg.RESTART_CAP_S
+        self.assertEqual([], self.run_guard())
+
+    def test_an_answer_and_the_automatic_restart_together_restart_once(self):
+        self.queue(tg.ANA, minutes=46)
+        self.run_guard()
+        self.run_guard()
+        self.answers[tg.load()['questions']['turns:blocked:queue']] = {'status': 'answered', 'answer': 'Restart OpenBot now (Recommended)'}
+        self.t += tg.RESTART_CAP_S
+        self.assertEqual(['restart'], [s[0] for s in self.run_guard()])
+        self.render = True
+        self.assertEqual([], self.run_guard())
+
+    def test_the_button_works_during_a_hold_and_is_used_up(self):
+        qid = self.blocked()
+        self.transcript('team', 'agent-x', self.refused())
+        self.run_guard()
+        self.answers[qid] = {'status': 'answered', 'answer': 'Restart OpenBot now (Recommended)'}
+        self.assertEqual(['restart'], [s[0] for s in self.run_guard()])
+        state = tg.load()
+        state['holds'] = {}
+        tg.save(state)
+        self.assertEqual([], self.run_guard())
+
+    def test_a_dashboard_blip_keeps_the_used_answer_used(self):
+        self.queue(tg.ANA, minutes=46)
+        self.run_guard()
+        self.run_guard()
+        self.answers[tg.load()['questions']['turns:blocked:queue']] = {'status': 'answered', 'answer': 'Restart OpenBot now (Recommended)'}
+        self.run_guard()
+        with mock.patch.object(tg, 'dash', side_effect=RuntimeError('down')):
+            self.assertEqual([], [s for s in self.run_guard() if s[0] == 'restart'])
+        self.assertEqual([], self.run_guard())
+
+    def test_an_expired_hold_blocks_nothing_when_the_limits_check_crashes(self):
+        self.transcript('team', 'agent-x', self.refused(1))
+        self.run_guard()
+        self.t += 7200
+        self.queue(tg.ANA, minutes=46)
+        with mock.patch.object(tg, 'scan_holds', side_effect=RuntimeError('boom')):
+            self.assertIn('restart', [s[0] for s in self.run_guard()])
+
     def test_a_queue_freeze_restarts_again_after_the_cap(self):
         self.queue(tg.ANA, minutes=46)
         self.assertEqual(['fire', 'restart'], [s[0] for s in self.run_guard()])

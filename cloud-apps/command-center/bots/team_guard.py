@@ -13,8 +13,9 @@ Runs hidden every 10 minutes (see HOOKS.md). Reads OpenBot's database and transc
   Jon gets a question instead if a prompt is open, OpenBot restarted in the last 3 hours, or a render still
   blocks it at 90 minutes. His "Restart OpenBot now" button restarts it, whatever was in the way.
 
-Each incident acts once. A failed send stays unmarked and retries next run. A check that crashes
-reports script_failure once and the others still run.
+Each incident alerts once and takes one restart from Jon's button; a freeze that outlasts the 3-hour cap
+restarts again. A failed send stays unmarked and retries next run. A check that crashes reports script_failure
+once and the others still run.
 
 python -I team_guard.py [--dry-run]    (--dry-run prints what it would do and sends nothing; crashes still log)
 """
@@ -67,7 +68,7 @@ PY = str(Path(sys.executable).with_name('python.exe'))  # pythonw has no output 
 
 URGENT, RESTART, JON, FAILURE = 'urgent', 'restart', 'jon', 'failure'  # other targets are agent ids
 SEEN = ['Seen']  # the answer button of a question that is information only
-RESTART_NOW = 'Restart OpenBot now'  # only this button restarts: a typed answer may say "restart" and mean later
+RESTART_NOW = 'Restart OpenBot now (Recommended)'  # exact: the buttons fill a text box, so words can follow
 PACK_USED = {'doing', 'waiting_on_jon', 'qc', 'review', 'done'}
 VIDEO_LINK = re.compile(r'youtube\.com|youtu\.be|jonmac\.ai/(dashboard/)?review', re.I)
 
@@ -201,15 +202,18 @@ def jon_said_restart(state, key):
     except Exception as err:  # the dashboard being down must not stop the alerts
         log('could not read %s: %r' % (key, err))
         return False
-    return q['status'] == 'answered' and (q['answer'] or '').startswith(RESTART_NOW)
+    return q['status'] == 'answered' and (q['answer'] or '').strip() == RESTART_NOW
 
 
 def ana_frozen(found, tag, idle, prompt, held, now, state):
     """Alert, then restart OpenBot. A prompt, a recent restart or a long render asks Jon instead."""
     found['turns:ana:' + tag] = (URGENT, 'Ana quiet %d minutes. OpenBot restarts once no render is running.' % idle)
-    restart, asked = 'turns:restart:' + tag, 'turns:blocked:' + tag
-    if asked in state['seen']:  # one question per incident, whatever blocks it next
-        found[asked] = None
+    restart, asked, jon = 'turns:restart:' + tag, 'turns:blocked:' + tag, 'turns:jon:' + tag
+    for key in (asked, jon):
+        if key in state['seen']:  # one question, and one restart from his answer, per incident
+            found[key] = None
+    if jon_said_restart(state, asked):  # first: his button beats a hold
+        found[jon] = (RESTART, 'Restarting OpenBot, as Jon chose.')
     if held:  # check_limits tells Jon
         return
     capped = now - state.get('last_restart', 0) < RESTART_CAP_S
@@ -221,9 +225,7 @@ def ana_frozen(found, tag, idle, prompt, held, now, state):
         return
     if not render or idle >= BLOCKED_MIN:
         found[asked] = (JON, 'Ana is frozen and %s. Restart OpenBot?' % why,
-                        [RESTART_NOW + ' (Recommended)', 'Wait (restarts by itself when clear)'])
-    if jon_said_restart(state, asked):  # its own key: this turn may have had its automatic restart already
-        found['turns:jon:' + tag] = (RESTART, 'Restarting OpenBot, as Jon chose.')
+                        [RESTART_NOW, 'Wait (restarts by itself when clear)'])
 
 
 def check_turns(now, state):
@@ -235,7 +237,7 @@ def check_turns(now, state):
         prompts = {t for t, in con.execute(OPEN_PROMPTS)}
         team = agents(con)
     names = {a: j.get('name', a) for a, j in team.items()}
-    held = (team.get(ANA, {}).get('providerAccountId') or DEFAULT_ACCOUNT) in state.get('holds', {})
+    held = state.get('holds', {}).get(team.get(ANA, {}).get('providerAccountId') or DEFAULT_ACCOUNT, 0) > now
 
     def alert(agent, text):  # Ana can't alert herself
         return (JON, text, SEEN) if agent == ANA else (URGENT, text)
