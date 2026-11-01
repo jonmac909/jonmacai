@@ -117,6 +117,63 @@ test("publish script uploads MP4 + source + compare; republish replaces media an
   assert.deepEqual(v8.chapters, [[0, "Intro"], [4, "Middle"]]);
 });
 
+test("adding a source: page goes side by side, status, comments and media kept, an existing source is never replaced", async () => {
+  publish(["--slug", "mina-3-v1", "--channel", "mina", "--video", "mina-3", "--version", "v1", "--title", "No source yet", "--file", clipPath]);
+  const addSource = async (slug) => {
+    const started = await (await fetchApp(`/api/review/${slug}/uploads`, jsonInit("POST", { kind: "source" }))).json();
+    const id = encodeURIComponent(started.uploadId), key = encodeURIComponent(started.key);
+    const part = await (await fetchApp(`/api/review/${slug}/uploads/${id}/1?key=${key}`, {
+      method: "PUT", headers: { ...agent, "Content-Length": String(clip.length) }, body: clip })).json();
+    const done = await fetchApp(`/api/review/${slug}/uploads/${id}/complete`, jsonInit("POST", { key: started.key, parts: [part] }));
+    assert.equal(done.status, 200);
+    await done.arrayBuffer();
+    return started.key;
+  };
+  const video = async () => (await (await fetchApp("/api/review/mina-3-v1", { headers: agent })).json()).video;
+  await fetchApp("/api/review/mina-3-v1/status", jsonInit("POST", { status: "changes_requested" })).then((r) => r.arrayBuffer());
+  await fetchApp("/api/review/mina-3-v1/comments", jsonInit("POST", { author: "Agent", t: 1, text: "keep me" })).then((r) => r.arrayBuffer());
+  const before = await video();
+  assert.equal(before.source_url, null);
+
+  const first = await addSource("mina-3-v1");
+  const added = await fetchApp("/api/review/mina-3-v1/source", jsonInit("POST", { source_key: first }));
+  assert.equal(added.status, 200);
+  await added.arrayBuffer();
+  const after = await video();
+  assert.ok(after.source_url);
+  assert.equal(after.video_url, before.video_url);
+  assert.equal(after.status, "changes_requested");
+  const comments = await (await fetchApp("/api/review/mina-3-v1/comments", { headers: agent })).json();
+  assert.equal(comments.comments.length, 1);
+  const stream = await fetchApp(new URL(after.source_url).pathname + new URL(after.source_url).search, { headers: { ...agent, Range: "bytes=0-9" } });
+  assert.equal(stream.status, 206);
+  await stream.arrayBuffer();
+
+  const second = await addSource("mina-3-v1");
+  const replaced = await fetchApp("/api/review/mina-3-v1/source", jsonInit("POST", { source_key: second }));
+  assert.equal(replaced.status, 409);
+  await replaced.arrayBuffer();
+  assert.ok(await runtime.bucket.head(first), "the first source stays");
+  assert.equal((await video()).source_url, after.source_url);
+
+  const bad = [
+    ["review/mina-1-v8/source-x.mp4", 400],
+    ["review/mina-3-v1/never-uploaded.mp4", 400],
+  ];
+  for (const [source_key, status] of bad) {
+    const response = await fetchApp("/api/review/mina-3-v1/source", jsonInit("POST", { source_key }));
+    assert.equal(response.status, status, source_key);
+    await response.arrayBuffer();
+  }
+  const nobody = await fetchApp("/api/review/mina-9-v1/source", jsonInit("POST", { source_key: "review/mina-9-v1/x.mp4" }));
+  assert.equal(nobody.status, 400);
+  await nobody.arrayBuffer();
+  const reviewer = await fetchApp("/api/review/mina-3-v1/source", jsonInit("POST", { source_key: first }, { Cookie: cookie, Origin: runtime.url }));
+  assert.equal(reviewer.status, 403);
+  await reviewer.arrayBuffer();
+  await fetchApp("/api/review/mina-3-v1", { method: "DELETE", headers: agent }).then((r) => r.arrayBuffer());
+});
+
 test("media streams with video/mp4, HEAD, byte ranges, 416 and ETag revalidation", async () => {
   const { video } = await (await fetchApp("/api/review/mina-1-v9", { headers: agent })).json();
   const path = new URL(video.video_url).pathname + new URL(video.video_url).search;

@@ -356,7 +356,7 @@ async function api(request, env, url) {
   const [slug, resource, id, action, extra] = parts;
   if (!validSlug(slug) || extra !== undefined) return fail(404, "not_found");
 
-  if (resource === "uploads" || resource === "publish") {
+  if (resource === "uploads" || resource === "publish" || resource === "source") {
     if (!agent) return fail(403, "agent_token_required");
     return publishApi(request, env, url, slug, resource, id, action);
   }
@@ -589,6 +589,7 @@ async function deleteVideo(env, row) {
 //   PUT  /api/review/<slug>/uploads/<uploadId>/<part>?key=  raw bytes                -> {partNumber, etag}
 //   POST /api/review/<slug>/uploads/<uploadId>/complete     {key, parts}             -> {key, size}
 //   POST /api/review/<slug>/publish                         {channel, video, version, title, video_key, ...}
+//   POST /api/review/<slug>/source                          {source_key}  adds an original to a video with none
 async function publishApi(request, env, url, slug, resource, uploadId, action) {
   const method = request.method;
   const ownKey = (key) => typeof key === "string" && key.startsWith(`review/${slug}/`) && /^[\w./-]+\.mp4$/.test(key) && !key.includes("..");
@@ -623,6 +624,17 @@ async function publishApi(request, env, url, slug, resource, uploadId, action) {
     if (!ownKey(key)) return fail(400, "bad key");
     await env.MEDIA.resumeMultipartUpload(key, uploadId).abort();
     return json({ aborted: uploadId });
+  }
+
+  // Adds the original to a video that has none. Unlike publish it replaces nothing and deletes nothing.
+  if (resource === "source" && uploadId === undefined && method === "POST") {
+    const body = await readJson(request);
+    if (!body || !ownKey(body.source_key)) return fail(400, "source_key must come from this slug's uploads");
+    if (!await env.MEDIA.head(body.source_key)) return fail(400, "source_key was not uploaded");
+    const saved = await env.DB.prepare("UPDATE videos SET source_key = ?, updated_at = ? WHERE slug = ? AND source_key IS NULL")
+      .bind(body.source_key, now(), slug).run();
+    if (!saved.meta.changes) return fail(409, "no such video, or it already has a source");
+    return json({ video: publicVideo(await getVideo(env, slug), url.origin) });
   }
 
   if (resource === "publish" && uploadId === undefined && method === "POST") {
