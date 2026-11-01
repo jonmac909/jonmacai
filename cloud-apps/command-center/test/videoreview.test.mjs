@@ -250,7 +250,7 @@ test('the cron moves a Review card only for a newer Approve on its newest proof 
 
   review.hooks.submissions = { [SLUG]: approve('2026-01-01T00:00:00.000Z'), 'other-v1': approve(later) };
   await settleApproved(env);
-  assert.equal(await status(task.id), 'review', 'an Approve older than the card was for earlier work');
+  assert.equal(await status(task.id), 'review', 'an Approve older than the proof was for earlier work');
 
   review.hooks.submissions[SLUG] = approve(later);
   review.hooks.videos[0].status = 'changes_requested';
