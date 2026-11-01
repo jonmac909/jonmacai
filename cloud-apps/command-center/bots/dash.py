@@ -231,9 +231,10 @@ def wake_qc(out, task_id, ctx):
         data = {'proof': proof['id'], 'task': task_id, 'kind': proof.get('kind'), 'link': proof.get('link'), 'by': ctx['bot'],
                 'read': 'dash.py proofs --status pending, then work through your share of it'}
         send_to = route
-        nina = hook.load_routes().get('nina') or {}
-        if route == 'nina' and not (nina.get('url') and nina.get('secret')):
-            send_to, data['forOwner'] = 'ana', 'nina'  # no webhook of her own: Ana forwards it, as with card comments
+        if route == 'nina':
+            nina = hook.load_routes().get('nina')
+            if not (isinstance(nina, dict) and nina.get('url') and nina.get('secret')):
+                send_to, data['forOwner'] = 'ana', 'nina'  # no webhook of her own: Ana forwards it, as with card comments
         res = hook.fire('proof_posted', data, key=proof['id'], routes=[send_to])
         bad = {r: s for r, s in res.items() if s not in (200, 202)}
     except Exception as err:  # never fail a saved proof because QC couldn't be woken

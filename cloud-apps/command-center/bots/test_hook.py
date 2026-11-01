@@ -121,10 +121,15 @@ class Hooks(unittest.TestCase):
         self.assertEqual(self.srv.events[0][1]['data']['forOwner'], 'nina')
         self.assertEqual(sorted(p.name for p in dash.WAKE_DIR.iterdir()), ['nina'])
 
-    def test_a_nina_route_with_no_secret_is_not_used(self):
+    def test_an_incomplete_nina_route_is_not_used(self):
         self.write_secrets({'nina': '', 'qc': 'secret-qc', 'ana': 'secret-ana'})
-        self.proof('p_1')
-        self.assertEqual(self.woken(), [('ana', 'p_1')])
+        routes = json.loads(self.secrets.read_text())
+        for n, entry in enumerate(({'url': routes['nina']['url'], 'secret': ''}, {'url': '', 'secret': 'x'}, 'x')):
+            routes['nina'] = entry
+            self.secrets.write_text(json.dumps(routes))
+            self.proof('p_%d' % n)
+            dash.clear_wake('nina')
+        self.assertEqual(self.woken(), [('ana', 'p_0'), ('ana', 'p_1'), ('ana', 'p_2')])
 
     def test_without_a_nina_route_videos_still_go_to_jessica(self):
         self.write_secrets({'qc': 'secret-qc', 'ana': 'secret-ana'})
