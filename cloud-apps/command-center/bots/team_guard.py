@@ -9,6 +9,7 @@ Runs hidden every 10 minutes (see HOOKS.md). Reads OpenBot's database and transc
 - A bot whose current or main account is capped by a usage limit: bot_stuck to Ana. If it's Ana's own
   current account she can't read that, so it also goes on Jon's Questions page.
 - GPU2's heartbeat logged low UDP or TCP ports in the last 30 minutes: bot_stuck to Ana, naming who holds them.
+- GPU1's D: under 30 GB free: bot_stuck to Ana.
 - Ana's open turn quiet 45 minutes, or a message queued 45 minutes with no open turn: restarts OpenBot,
   unless her own account is capped: a restart can't lift a limit.
   Jon gets a question instead if a prompt is open, OpenBot restarted in the last 3 hours, or a render still
@@ -27,6 +28,7 @@ import json
 import msvcrt
 import os
 import re
+import shutil
 import sqlite3
 import subprocess
 import sys
@@ -43,6 +45,7 @@ PREFLIGHT_S = 280
 PACKS_RECHECK_S = 3600
 PACKS_BUDGET_S = 600  # preflight time per run; packs past it count as unchecked
 PORTS_FRESH_S = 1800
+DISK_LOW_GB = 30  # about two days of team output
 RESTART_CAP_S = 3 * 3600
 TAIL = 2_000_000  # a refusal is at the end of a transcript; don't read the rest
 FIRST_SCAN_S = 7 * 86400
@@ -430,8 +433,19 @@ def check_ports(now, state):
     return {'ports:gpu2': (URGENT, 'GPU2 is running low on %s ports: %d of 16384 in use, %s.' % (kind.upper(), used, who))}
 
 
-CHECKS = [('turns', check_turns), ('qc', check_qc), ('limits', check_limits), ('ports', check_ports),
-          ('packs', check_packs)]  # slowest last
+def disk_free_gb():
+    return shutil.disk_usage('D:\\').free / 1024 ** 3
+
+
+def check_disk(now, state):
+    free = disk_free_gb()
+    if free >= DISK_LOW_GB:
+        return {}
+    return {'disk:d': (URGENT, 'GPU1 D: has %.1f GB free. The team writes about 15 GB a day and saves fail at zero.' % free)}
+
+
+CHECKS = [('disk', check_disk), ('turns', check_turns), ('qc', check_qc), ('limits', check_limits),
+          ('ports', check_ports), ('packs', check_packs)]  # slowest last
 
 
 def send_urgent(texts, tag):

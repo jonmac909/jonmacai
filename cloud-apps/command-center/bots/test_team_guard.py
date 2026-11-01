@@ -33,6 +33,9 @@ def ago(minutes):
     return tg.iso(T0 - minutes * 60)
 
 
+REAL_DISK_FREE = tg.disk_free_gb
+
+
 class Base(unittest.TestCase):
     def setUp(self):
         tmp = tempfile.TemporaryDirectory(ignore_cleanup_errors=True)
@@ -43,6 +46,7 @@ class Base(unittest.TestCase):
         self.status, self.render, self.restart_error, self.ask_error = 202, False, None, None
         self.owners, self.answers, self.route_status = {}, {}, {}
         self.ports_line = ''
+        self.disk_free = 500
         (self.root / 'edits').mkdir()
         (self.root / 'accounts').mkdir()
         self.db = sqlite3.connect(self.root / 'o.db', isolation_level=None)
@@ -59,7 +63,7 @@ class Base(unittest.TestCase):
                 (tg, 'DEFAULT_PROJECTS', self.root / 'default'), (tg, 'EDITS', self.root / 'edits'),
                 (tg, 'dash', self.fake_dash), (tg, 'preflight', lambda d: self.pass_codes.get(d.name, 0)),
                 (tg, 'render_running', lambda: self.render), (tg, 'restart_openbot', self.fake_restart),
-                (tg, 'gpu2_ports_line', lambda: self.ports_line),
+                (tg, 'gpu2_ports_line', lambda: self.ports_line), (tg, 'disk_free_gb', lambda: self.disk_free),
                 (hook, 'fire', self.fake_fire), (tg.time, 'time', lambda: self.t)]:
             patcher = mock.patch.object(target, name, value)
             patcher.start()
@@ -878,6 +882,31 @@ class Ports(Base):
         self.assertEqual([], self.alerts())
         self.low()
         self.assertEqual([], self.alerts())
+
+
+class Disk(Base):
+    def alerts(self):
+        return [t for s in self.run_guard() if s[0] == 'fire' for t in s[2]['alerts']]
+
+    def test_plenty_free_stays_quiet(self):
+        self.disk_free = 30
+        self.assertEqual([], self.alerts())
+
+    def test_low_disk_alerts_ana_once(self):
+        self.disk_free = 12.34
+        self.assertEqual(['GPU1 D: has 12.3 GB free. The team writes about 15 GB a day and saves fail at zero.'], self.alerts())
+        self.assertEqual([], self.alerts())
+
+    def test_a_new_incident_alerts_again(self):
+        self.disk_free = 5
+        self.alerts()
+        self.disk_free = 500
+        self.assertEqual([], self.alerts())
+        self.disk_free = 5
+        self.assertEqual(1, len(self.alerts()))
+
+    def test_the_real_reading_is_a_number_of_gigabytes(self):
+        self.assertGreater(REAL_DISK_FREE(), 0)
 
 
 class Failures(Base):

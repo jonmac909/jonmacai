@@ -44,6 +44,8 @@ A pack counts as ready for Olivia when its folder in `aieditor\edits` (`hgp-*` o
 
 GPU2's 60-second heartbeat (`collectors/lib/machine_stats.py`) counts its sockets. At 10000 UDP or TCP it adds a line to `~/.command-center/logs/ports.log` on GPU2 with who holds them; the guard reads that file over SSH and sends Ana one `bot_stuck` per incident.
 
+GPU1's D: under 30 GB free also sends Ana one `bot_stuck`.
+
 The schedule, installed only after Jon approves it:
 ```powershell
 $run = New-ScheduledTaskAction -Execute 'C:\Users\jonst\AppData\Local\Programs\Python\Python310\pythonw.exe' -Argument '-I D:\AgentTeam\tools\team_guard.py'
