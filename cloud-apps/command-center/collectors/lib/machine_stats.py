@@ -14,10 +14,13 @@ import socket
 import subprocess
 import sys
 import threading
+import time
+from collections import Counter
 from pathlib import Path
 
 NO_WINDOW = getattr(subprocess, 'CREATE_NO_WINDOW', 0)
 GB = 1024 ** 3
+PORTS_LOW = 10000  # of Windows' 16384 per protocol
 
 
 def bounded(fn, secs, default, errors=None, label=''):
@@ -251,6 +254,34 @@ def gaming(names, tools_dir=None):
             pass
 
 
+def parse_netstat(text):
+    """{'TCP': {pid: sockets}, 'UDP': {pid: sockets}} from `netstat -ano`, IPv4 and IPv6 together."""
+    out = {'TCP': Counter(), 'UDP': Counter()}
+    for line in (text or '').splitlines():
+        cols = line.split()
+        if len(cols) >= 4 and cols[0] in out and cols[-1].isdigit():
+            out[cols[0]][int(cols[-1])] += 1
+    return out
+
+
+def watch_ports(rows, log=None):
+    """Sockets per protocol with the biggest holders. When ports run low, keep who holds them in
+    ports.log: a reboot wipes that, and team_guard.py alerts Ana from the file's last line.
+    The holder's command line stays on this machine."""
+    names = {pid: n for n, pid in rows}
+    seen = parse_netstat(_run(['netstat', '-ano'], timeout=10))
+    out = {k.lower(): {'used': sum(c.values()), 'top': [[names.get(pid, str(pid)), n, pid] for pid, n in c.most_common(3)]}
+           for k, c in seen.items()}
+    low = [k for k in ('udp', 'tcp') if out[k]['used'] >= PORTS_LOW]
+    if low:
+        ps = '(Get-CimInstance Win32_Process -Filter "ProcessId=%d").CommandLine' % out[low[0]]['top'][0][2]
+        cmd = _run(['powershell', '-NoProfile', '-NonInteractive', '-WindowStyle', 'Hidden', '-Command', ps], timeout=15)
+        path = Path(log or Path.home() / '.command-center' / 'logs' / 'ports.log')
+        with path.open('a', encoding='utf-8') as f:
+            f.write(json.dumps({'at': time.time(), 'low': low, 'cmd': cmd.strip()[:300], **out}) + '\n')
+    return out
+
+
 def summarize(names, pyjobs, titles):
     has = set(names)
     resolve_open = 'resolve.exe' in has
@@ -299,6 +330,7 @@ def collect(machine):
     data['running'] = summarize(names, pyjobs, titles)
     if machine == 'gpu2':
         data['gaming'] = gaming(names)
+        data['ports'] = bounded(lambda: watch_ports(rows), 20, None, errors, 'ports')
     data['errors'] = errors
     return data
 

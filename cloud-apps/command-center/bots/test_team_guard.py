@@ -42,6 +42,7 @@ class Base(unittest.TestCase):
         self.sent, self.proofs, self.cards, self.pass_codes, self.keys = [], [], [], {}, set()
         self.status, self.render, self.restart_error, self.ask_error = 202, False, None, None
         self.owners, self.answers, self.route_status = {}, {}, {}
+        self.ports_line = ''
         (self.root / 'edits').mkdir()
         (self.root / 'accounts').mkdir()
         self.db = sqlite3.connect(self.root / 'o.db', isolation_level=None)
@@ -58,6 +59,7 @@ class Base(unittest.TestCase):
                 (tg, 'DEFAULT_PROJECTS', self.root / 'default'), (tg, 'EDITS', self.root / 'edits'),
                 (tg, 'dash', self.fake_dash), (tg, 'preflight', lambda d: self.pass_codes.get(d.name, 0)),
                 (tg, 'render_running', lambda: self.render), (tg, 'restart_openbot', self.fake_restart),
+                (tg, 'gpu2_ports_line', lambda: self.ports_line),
                 (hook, 'fire', self.fake_fire), (tg.time, 'time', lambda: self.t)]:
             patcher = mock.patch.object(target, name, value)
             patcher.start()
@@ -832,6 +834,43 @@ class Limits(Base):
         self.assertEqual(1, len(self.alerts(self.run_guard())))
 
 
+class Ports(Base):
+    def low(self, minutes=1):
+        self.ports_line = json.dumps({'at': self.t - minutes * 60, 'low': ['udp'], 'cmd': 'python serve.py',
+                                      'udp': {'used': 13000, 'top': [['python.exe', 12900, 42]]},
+                                      'tcp': {'used': 100, 'top': []}})
+
+    def alerts(self):
+        return [t for s in self.run_guard() if s[0] == 'fire' for t in s[2]['alerts']]
+
+    def test_low_ports_alert_ana_once_and_name_the_holder(self):
+        self.low()
+        self.assertEqual(['GPU2 is running low on UDP ports: 13000 of 16384 in use, 12900 held by python.exe. '
+                          'python serve.py'], self.alerts())
+        self.low()
+        self.assertEqual([], self.alerts())
+
+    def test_a_new_incident_alerts_again(self):
+        self.low()
+        self.alerts()
+        self.ports_line = ''
+        self.assertEqual([], self.alerts())
+        self.low()
+        self.assertEqual(1, len(self.alerts()))
+
+    def test_an_old_line_stays_quiet(self):
+        self.low(minutes=31)
+        self.assertEqual([], self.alerts())
+
+    def test_gpu2_off_the_network_keeps_the_incident_open(self):
+        self.low()
+        self.alerts()
+        self.ports_line = None
+        self.assertEqual([], self.alerts())
+        self.low()
+        self.assertEqual([], self.alerts())
+
+
 class Failures(Base):
     def test_crashed_check_reports_once_and_the_others_run(self):
         self.proof()
@@ -930,6 +969,22 @@ class Failures(Base):
         with mock.patch.object(tg, 'run', side_effect=ValueError('boom')):
             self.assertEqual(1, tg.main([]))
         self.assertEqual('script_failure', self.sent[0][1])
+
+
+class RealPortsLine(unittest.TestCase):
+    def line(self, rc, out):
+        done = types.SimpleNamespace(returncode=rc, stdout=out)
+        with mock.patch.object(tg.subprocess, 'run', return_value=done):
+            return tg.gpu2_ports_line()
+
+    def test_reads_the_json_line_past_powershell_noise(self):
+        self.assertEqual('{"at": 1}', self.line(0, '#< CLIXML\n{"at": 1}\n'))
+
+    def test_no_log_yet_is_empty(self):
+        self.assertEqual('', self.line(0, ''))
+
+    def test_ssh_failure_is_none(self):
+        self.assertIsNone(self.line(255, ''))
 
 
 class RealFunctions(unittest.TestCase):

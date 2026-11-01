@@ -8,6 +8,7 @@ Runs hidden every 10 minutes (see HOOKS.md). Reads OpenBot's database and transc
 - Fewer than 2 packs ready for Olivia: wakes Elle and Scarlett. Preflight runs at most hourly.
 - A bot whose current or main account is capped by a usage limit: bot_stuck to Ana. If it's Ana's own
   current account she can't read that, so it also goes on Jon's Questions page.
+- GPU2's heartbeat logged low UDP or TCP ports in the last 30 minutes: bot_stuck to Ana, naming who holds them.
 - Ana's open turn quiet 45 minutes, or a message queued 45 minutes with no open turn: restarts OpenBot,
   unless her own account is capped: a restart can't lift a limit.
   Jon gets a question instead if a prompt is open, OpenBot restarted in the last 3 hours, or a render still
@@ -41,6 +42,7 @@ IDLE_MIN, QUEUE_MIN, QC_MIN, ANA_MIN, BLOCKED_MIN, MIN_PACKS = 30, 120, 30, 45, 
 PREFLIGHT_S = 280
 PACKS_RECHECK_S = 3600
 PACKS_BUDGET_S = 600  # preflight time per run; packs past it count as unchecked
+PORTS_FRESH_S = 1800
 RESTART_CAP_S = 3 * 3600
 TAIL = 2_000_000  # a refusal is at the end of a transcript; don't read the rest
 FIRST_SCAN_S = 7 * 86400
@@ -62,6 +64,7 @@ DEFAULT_ACCOUNT = 'default sign-in'
 EXE = Path(os.environ.get('LOCALAPPDATA', '')) / 'Programs' / 'OpenBot' / 'OpenBot.exe'
 EDITS = Path(r'C:\Users\jonst\aieditor\edits')
 GPUQ = Path(r'D:\gpu-queue')
+PORTS_LOG = 'C:/Users/partn/.command-center/logs/ports.log'  # on GPU2, written by its heartbeat
 STATE = Path(r'D:\AgentTeam\logs\team-guard.json')
 LOG = Path(r'D:\AgentTeam\logs\team-guard.log')
 PY = str(Path(sys.executable).with_name('python.exe'))  # pythonw has no output to read back
@@ -400,7 +403,32 @@ def check_packs(now, state):
     return pack_alerts(state)
 
 
-CHECKS = [('turns', check_turns), ('qc', check_qc), ('limits', check_limits), ('packs', check_packs)]  # slowest last
+def gpu2_ports_line():
+    """The last line of GPU2's ports log, '' if it has none, None if GPU2 can't be reached."""
+    ps = "Get-Content %s -Tail 1 -ErrorAction SilentlyContinue" % PORTS_LOG
+    r = subprocess.run(['ssh', '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=8', 'gpu2',
+                        'powershell -NoProfile -NonInteractive -OutputFormat Text -Command "%s"' % ps],
+                       capture_output=True, encoding='utf-8', errors='replace', creationflags=NO_WINDOW, timeout=30)
+    if r.returncode:
+        return None
+    return next((x for x in reversed(r.stdout.splitlines()) if x.startswith('{')), '')
+
+
+def check_ports(now, state):
+    line = gpu2_ports_line()
+    if line is None:  # GPU2 is off the network: everything stays as it was
+        return None
+    p = json.loads(line) if line else None
+    if not p or now - p['at'] > PORTS_FRESH_S:
+        return {}
+    kind = p['low'][0]
+    name, count, _pid = p[kind]['top'][0]
+    return {'ports:gpu2': (URGENT, 'GPU2 is running low on %s ports: %d of 16384 in use, %d held by %s. %s'
+                           % (kind.upper(), p[kind]['used'], count, name, p['cmd'][:120]))}
+
+
+CHECKS = [('turns', check_turns), ('qc', check_qc), ('limits', check_limits), ('ports', check_ports),
+          ('packs', check_packs)]  # slowest last
 
 
 def send_urgent(texts, tag):
