@@ -1,7 +1,6 @@
 """python -I bots/test_review_source.py from cloud-apps/command-center. Uses real ffmpeg; touches nothing live."""
 import io
 import json
-import os
 import subprocess
 import sys
 import tempfile
@@ -137,11 +136,19 @@ class WebCopy(Base):
                 rs.web_copy(src, 'gail-1')
 
     def test_a_corrected_original_gets_its_own_copy(self):
-        src = self.root / 'in.mp4'
+        src = self.root / 'source.mp4'
         make(src, '-c:v', 'mpeg4', '-c:a', 'mp3')
         first = rs.web_copy(src, 'gail-1')
-        make(self.root / 'right.mp4', '-c:v', 'mpeg4', '-c:a', 'mp3', '-b:v', '20k')
-        self.assertNotEqual(rs.web_copy(self.root / 'right.mp4', 'gail-1'), first)
+        make(src, '-c:v', 'mpeg4', '-c:a', 'mp3', '-vf', 'scale=32:32')
+        self.assertNotEqual(rs.web_copy(src, 'gail-1'), first)
+
+    def test_a_same_size_original_with_another_name_gets_its_own_copy(self):
+        src = self.root / 'a.mp4'
+        make(src, '-c:v', 'mpeg4', '-c:a', 'mp3')
+        first = rs.web_copy(src, 'gail-1')
+        other = self.root / 'b.mp4'
+        other.write_bytes(src.read_bytes())
+        self.assertNotEqual(rs.web_copy(other, 'gail-1'), first)
 
     def test_second_call_uses_the_copy_and_leaves_no_temp_file(self):
         src = self.root / 'in.mp4'
@@ -188,24 +195,51 @@ class Add(Base):
         self.assertEqual(rs.add('topview-2-v5'), 'not stored')
         self.assertEqual(calls, [('GET', '/topview-2-v5'), ('GET', '/videos')])
 
-    def test_a_new_version_with_nothing_stored_uses_the_newest_earlier_source(self):
+    def carry(self, sent=b'the original', promised=None):
         rows = {'videos': [{'slug': 'mina-1-v9', 'source_url': 'https://x/old'}, {'slug': 'mina-1-v11', 'source_url': 'https://x/new'},
-                           {'slug': 'mina-1-v10', 'source_url': None}, {'slug': 'mina-2-v1', 'source_url': 'https://x/other'}]}
-        asked = []
+                           {'slug': 'mina-1-v10', 'source_url': None}, {'slug': 'mina-2-v99', 'source_url': 'https://x/other'},
+                           {'slug': 'mina-1-v13', 'source_url': 'https://x/later'}]}
+        asked, attached = [], []
 
         def fake(method, path, body=None, raw=None):
+            attached.extend([path] if path.endswith('/source') else [])
             if path == '/videos':
                 return rows
             return {'video': {}} if method == 'GET' else {'key': 'k', 'uploadId': 'u', 'partNumber': 1, 'etag': 'e'}
 
         def urlopen(request, timeout):
             asked.append((request.full_url, request.get_header('Authorization')))
-            return io.BytesIO(b'the original')
+            reply = io.BytesIO(sent)
+            reply.headers = {'Content-Length': str(len(sent) if promised is None else promised)}
+            return reply
         with mock.patch.object(rs, 'api', fake), mock.patch.object(rs, 'token', return_value='tok'), \
-                mock.patch.object(rs.urllib.request, 'urlopen', urlopen):
-            self.assertEqual(rs.add('mina-1-v12'), 'added')
+                mock.patch.object(rs.urllib.request, 'urlopen', urlopen), \
+                mock.patch.object(rs, 'web_copy', side_effect=lambda src, video: src) as web_copy:
+            try:
+                return asked, attached, web_copy, rs.add('mina-1-v12')
+            except RuntimeError as err:
+                return asked, attached, web_copy, str(err)
+
+    def test_a_new_version_with_nothing_stored_uses_the_newest_earlier_source(self):
+        asked, attached, web_copy, result = self.carry()
+        self.assertEqual(result, 'added')
         self.assertEqual(asked, [('https://x/new', 'Bearer tok')])
-        self.assertEqual((rs.CACHE / 'carried-mina-1-v12.mp4').read_bytes(), b'the original')
+        carried = rs.CACHE / 'carried-mina-1-v12.mp4'
+        self.assertEqual(carried.read_bytes(), b'the original')
+        web_copy.assert_called_once_with(carried, 'mina-1')  # an old upload may not play on an iPhone
+        self.assertEqual(attached, ['/mina-1-v12/source'])
+
+    def test_a_cut_off_download_is_never_attached(self):
+        _, attached, _, result = self.carry(sent=b'the', promised=1000)
+        self.assertIn('cut off', result)
+        self.assertEqual(attached, [])
+
+    def test_several_references_never_fall_back_to_an_older_version(self):
+        self.file('vv', 'aria-1', 'reference', 'source_a.mp4')
+        self.file('vv', 'aria-1', 'reference', 'source_b.mp4')
+        calls = self.api()
+        self.assertEqual(rs.add('aria-1-v6'), 'not stored')
+        self.assertNotIn(('GET', '/videos'), calls)
 
     def test_a_stored_original_beats_an_earlier_version(self):
         calls = self.api()
@@ -322,11 +356,16 @@ class Backfill(Base):
         self.assertIn('a-1-v1, b-1-v1', fire.call_args.args[1]['error'])
 
     def test_a_typo_in_the_command_runs_nothing(self):
-        script = str(Path(rs.__file__).resolve())
-        done = subprocess.run([sys.executable, '-I', script, 'backfill', '--dryrun'], capture_output=True, encoding='utf-8',
-                              creationflags=HIDDEN, env={**os.environ})
-        self.assertEqual(done.returncode, 1)
-        self.assertIn('backfill [--dry-run]', done.stderr)
+        with mock.patch.object(rs, 'backfill', side_effect=AssertionError('ran')), mock.patch.object(rs, 'api', side_effect=AssertionError('called')):
+            for args in (['backfill', '--dryrun'], ['clear'], ['clear', 'a', 'b'], []):
+                with self.assertRaises(SystemExit) as stopped:
+                    rs.main(args)
+                self.assertIn('backfill [--dry-run]', stopped.exception.code)
+
+    def test_clear_takes_one_slugs_source_off(self):
+        with mock.patch.object(rs, 'api', return_value={'video': {}}) as api:
+            self.assertEqual(rs.main(['clear', 'gail-1-v3']), 0)
+        api.assert_called_once_with('DELETE', '/gail-1-v3/source')
 
 
 if __name__ == '__main__':

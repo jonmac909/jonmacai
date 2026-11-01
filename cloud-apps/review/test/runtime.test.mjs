@@ -124,8 +124,8 @@ test("publish script uploads MP4 + source + compare; republish replaces media, k
 
 test("adding a source: page goes side by side, status, comments and media kept, an existing source is never replaced", async () => {
   publish(["--slug", "mina-3-v1", "--channel", "mina", "--video", "mina-3", "--version", "v1", "--title", "No source yet", "--file", clipPath]);
-  const addSource = async (slug) => {
-    const started = await (await fetchApp(`/api/review/${slug}/uploads`, jsonInit("POST", { kind: "source" }))).json();
+  const addSource = async (slug, kind = "source") => {
+    const started = await (await fetchApp(`/api/review/${slug}/uploads`, jsonInit("POST", { kind }))).json();
     const id = encodeURIComponent(started.uploadId), key = encodeURIComponent(started.key);
     const part = await (await fetchApp(`/api/review/${slug}/uploads/${id}/1?key=${key}`, {
       method: "PUT", headers: { ...agent, "Content-Length": String(clip.length) }, body: clip })).json();
@@ -173,9 +173,10 @@ test("adding a source: page goes side by side, status, comments and media kept, 
   assert.ok(await runtime.bucket.head(first), "repeating the attached key keeps it");
 
   const elsewhere = await addSource("mina-1-v8");
+  const ownVideo = await addSource("mina-3-v1", "video");
   const bad = [
     [elsewhere, 400],
-    [(await fetchApp("/api/review/mina-3-v1/uploads", jsonInit("POST", { kind: "video" })).then((r) => r.json())).key, 400],
+    [ownVideo, 400],
     ["review/mina-3-v1/source-never-uploaded.mp4", 400],
   ];
   for (const [source_key, status] of bad) {
@@ -184,7 +185,9 @@ test("adding a source: page goes side by side, status, comments and media kept, 
     await response.arrayBuffer();
   }
   assert.ok(await runtime.bucket.head(elsewhere), "another video's upload is untouched");
+  assert.ok(await runtime.bucket.head(ownVideo), "a finished upload that is no source is refused, not removed");
   await runtime.bucket.delete(elsewhere);
+  await runtime.bucket.delete(ownVideo);
   const orphan = await addSource("mina-9-v1");
   const nobody = await fetchApp("/api/review/mina-9-v1/source", jsonInit("POST", { source_key: orphan }));
   assert.equal(nobody.status, 409, "no such video");
@@ -193,6 +196,23 @@ test("adding a source: page goes side by side, status, comments and media kept, 
   const reviewer = await fetchApp("/api/review/mina-3-v1/source", jsonInit("POST", { source_key: first }, dash));
   assert.equal(reviewer.status, 403);
   await reviewer.arrayBuffer();
+
+  const clear = (headers) => fetchApp("/api/review/mina-3-v1/source", { method: "DELETE", headers });
+  const notAgent = await clear(dash);
+  assert.equal(notAgent.status, 403);
+  await notAgent.arrayBuffer();
+  assert.ok(await runtime.bucket.head(first));
+  const cleared = await clear(agent);
+  assert.equal(cleared.status, 200);
+  await cleared.arrayBuffer();
+  const without = await video();
+  assert.equal(without.source_url, null);
+  assert.equal(without.video_url, before.video_url);
+  assert.equal(without.status, "changes_requested");
+  assert.equal(await runtime.bucket.head(first), null);
+  const nothing = await clear(agent);
+  assert.equal(nothing.status, 404);
+  await nothing.arrayBuffer();
   await fetchApp("/api/review/mina-3-v1", { method: "DELETE", headers: agent }).then((r) => r.arrayBuffer());
 });
 

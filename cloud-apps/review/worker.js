@@ -590,6 +590,7 @@ async function deleteVideo(env, row) {
 //   POST /api/review/<slug>/uploads/<uploadId>/complete     {key, parts}             -> {key, size}
 //   POST /api/review/<slug>/publish                         {channel, video, version, title, video_key, ...}
 //   POST /api/review/<slug>/source                          {source_key}  adds an original to a video with none
+//   DELETE /api/review/<slug>/source                        takes a wrong original off the page
 async function publishApi(request, env, url, slug, resource, uploadId, action) {
   const method = request.method;
   const ownKey = (key) => typeof key === "string" && key.startsWith(`review/${slug}/`) && /^[\w./-]+\.mp4$/.test(key) && !key.includes("..");
@@ -627,7 +628,16 @@ async function publishApi(request, env, url, slug, resource, uploadId, action) {
     return json({ aborted: uploadId });
   }
 
-  // Adds the original to a video that has none. Unlike publish it replaces nothing and deletes nothing.
+  // Takes a wrong original off a page, and only that: republishing would also reset the rest of the row.
+  if (resource === "source" && uploadId === undefined && method === "DELETE") {
+    const row = await env.DB.prepare("SELECT source_key FROM videos WHERE slug = ?").bind(slug).first();
+    if (!row?.source_key) return fail(404, "no source on this video");
+    await env.DB.prepare("UPDATE videos SET source_key = NULL, updated_at = ? WHERE slug = ?").bind(now(), slug).run();
+    await env.MEDIA.delete(row.source_key);
+    return json({ video: publicVideo(await getVideo(env, slug), url.origin) });
+  }
+
+  // Adds the original to a video that has none. It never replaces one, and an upload it refuses is removed.
   if (resource === "source" && uploadId === undefined && method === "POST") {
     const body = await readJson(request);
     if (!body || !ownSource(body.source_key)) return fail(400, "source_key must be a source from this slug's uploads");

@@ -1,10 +1,11 @@
 """Puts the original source video beside our edit on review pages.
 
   review_source.py backfill [--dry-run]   every review video with no source: add it, or list it as not stored
+  review_source.py clear <slug>           takes a wrong original off a page, so the right one can be added
 
-aieditor's review_upload.py calls add_or_report() after each publish. This only adds: the Worker refuses to
-replace a source. Token from ~/.jonmac-review.env, never printed. Failures and videos with no stored original go
-to Ana through script_failure.
+aieditor's review_upload.py calls add_or_report() after each publish. Adding never replaces: the Worker refuses to.
+Token from ~/.jonmac-review.env, never printed. Failures and videos with no stored original go to Ana through
+script_failure.
 """
 import glob
 import json
@@ -41,6 +42,10 @@ def version(slug):
     return int(found.group(1)) if found else 0
 
 
+def references(video):
+    return [Path(p) for p in glob.glob(str(VV / video / 'reference' / 'source_*.mp4'))]
+
+
 def original(video):
     """The stored original of a video such as gail-1 or theo-1, or None. A wrong original is worse than none, and
     the Worker won't replace one: a host's bare pack folder only answers for that host's first video, and a
@@ -48,8 +53,8 @@ def original(video):
     hosts = [video] + ([video[:-2]] if video.endswith('-1') else [])
     stored = [HGP_PACKS / h / 'source' / 'source.mp4' for h in hosts]
     stored += [REMAKES / video.removesuffix('-selfie') / 'src' / 'source.mp4']
-    references = glob.glob(str(VV / video / 'reference' / 'source_*.mp4'))
-    stored += [Path(p) for p in references if len(references) == 1]
+    found = references(video)
+    stored += found if len(found) == 1 else []
     return next((p for p in stored if p.exists()), None)
 
 
@@ -94,16 +99,19 @@ def api(method, path, body=None, raw=None):
 
 
 def carried(slug):
-    """A new version whose original isn't kept here uses the newest other version's source, or None."""
-    others = [v for v in api('GET', '/videos')['videos'] if stem(v['slug']) == stem(slug) and v['slug'] != slug and v.get('source_url')]
-    if not others:
+    """A new version whose original isn't kept here uses the newest earlier version's source, or None."""
+    earlier = [v for v in api('GET', '/videos')['videos']
+               if stem(v['slug']) == stem(slug) and version(v['slug']) < version(slug) and v.get('source_url')]
+    if not earlier:
         return None
     CACHE.mkdir(parents=True, exist_ok=True)
     out = CACHE / ('carried-%s.mp4' % slug)
-    request = urllib.request.Request(max(others, key=lambda v: version(v['slug']))['source_url'],
+    request = urllib.request.Request(max(earlier, key=lambda v: version(v['slug']))['source_url'],
                                      headers={'Authorization': 'Bearer ' + token(), 'User-Agent': UA})
     with urllib.request.urlopen(request, timeout=600) as r, open(out, 'wb') as f:
         shutil.copyfileobj(r, f, 1024 * 1024)
+        if f.tell() != int(r.headers['Content-Length']):
+            raise RuntimeError('download of the earlier source was cut off')
     return out
 
 
@@ -141,10 +149,11 @@ def add(slug):
         return 'has source'
     video = stem(slug)
     src = original(video)
-    copy = web_copy(src, video) if src else carried(slug)
-    if not copy:
+    if not src and not references(video):  # several references mean the topic changed: an older version's may be wrong
+        src = carried(slug)
+    if not src:
         return 'not stored'
-    api('POST', '/%s/source' % slug, {'source_key': upload(slug, copy)})
+    api('POST', '/%s/source' % slug, {'source_key': upload(slug, web_copy(src, video))})
     return 'added'
 
 
@@ -188,12 +197,17 @@ def backfill(dry):
     return 1 if failed else 0
 
 
-if __name__ == '__main__':
-    args = sys.argv[1:]
+def main(args):
+    if len(args) == 2 and args[0] == 'clear':
+        return api('DELETE', '/%s/source' % args[1]) and 0
     if args not in (['backfill'], ['backfill', '--dry-run']):
         sys.exit(__doc__)
     try:
-        sys.exit(backfill(len(args) == 2))
+        return backfill(len(args) == 2)
     except Exception as err:
         report('backfill', err)
         raise
+
+
+if __name__ == '__main__':
+    sys.exit(main(sys.argv[1:]))
