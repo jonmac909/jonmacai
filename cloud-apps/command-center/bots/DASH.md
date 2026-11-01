@@ -94,7 +94,7 @@ dash.py comment t_… "Fixed, new proof is up"   or   dash.py comment t_… --te
 - Keep replies short, and do the work the comment asks for.
 - Review comments: each comment Jon leaves on a video in the dashboard's Review page arrives as `card_comment` with `data.review` = `{slug, commentId, t, time, text, audio, drawing}` (`time` like `1:05`). It goes to the owner of the task linked to that video, or to `video-editor` with `data.task: null` when no task links to it yet. Read the open comments with the review API (`GET https://jonmac.ai/api/review/<slug>/comments?status=open`); a drawing is vector JSON in `drawing`.
 - Voice notes (`data.review.audio: true`): run `node D:\AgentTeam\tools\review_voice.mjs --slug <slug>` once (source: `cloud-apps/review/scripts/review_voice.mjs`). It transcribes every voice note on that video with no transcript yet, with Parakeet on GPU1 through the render queue (`gpuq.py run --model parakeet`), posts the text back to the comment, and prints it. It doesn't loop or wait: run it again only when another voice-note wake arrives. No cloud speech-to-text.
-- Ana: a `card_comment` with `data.forOwner` is for a bot without its own routine. Pass it to that bot in one message (task id and the comment), or handle it yourself. That bot answers with `dash.py comment`.
+- Ana: a `card_comment` with `data.forOwner` is for a bot without its own routine. Pass it to that bot in one message (task id and the comment), or handle it yourself. That bot answers with `dash.py comment`. A `proof_posted` with `data.forOwner: "nina"` is Nina's QC ping: pass it to her in one message.
 
 ## Questions for Jon
 ```

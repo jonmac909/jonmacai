@@ -112,11 +112,46 @@ class Hooks(unittest.TestCase):
         self.proof('p_2')
         self.assertEqual(self.woken(), [('qc', 'p_1'), ('nina', 'p_2')])
         self.assertEqual(self.srv.events[0][1]['data']['task'], 't_1')
+        self.assertNotIn('forOwner', self.srv.events[1][1]['data'])
 
-    def test_without_nina_route_jessica_gets_everything(self):
-        self.write_secrets({'qc': 'secret-qc'})
+    def test_without_a_nina_route_her_proofs_go_to_ana_marked_for_nina(self):
+        self.write_secrets({'qc': 'secret-qc', 'ana': 'secret-ana'})
+        self.proof('p_1')
+        self.assertEqual(self.woken(), [('ana', 'p_1')])
+        self.assertEqual(self.srv.events[0][1]['data']['forOwner'], 'nina')
+        self.assertEqual(sorted(p.name for p in dash.WAKE_DIR.iterdir()), ['nina'])
+
+    def test_a_nina_route_with_no_secret_is_not_used(self):
+        self.write_secrets({'nina': '', 'qc': 'secret-qc', 'ana': 'secret-ana'})
+        self.proof('p_1')
+        self.assertEqual(self.woken(), [('ana', 'p_1')])
+
+    def test_without_a_nina_route_videos_still_go_to_jessica(self):
+        self.write_secrets({'qc': 'secret-qc', 'ana': 'secret-ana'})
+        self.owner = 'video-editor'
         self.proof('p_1')
         self.assertEqual(self.woken(), [('qc', 'p_1')])
+        self.assertNotIn('forOwner', self.srv.events[0][1]['data'])
+
+    def test_a_ping_through_ana_collapses_until_nina_reads(self):
+        self.write_secrets({'qc': 'secret-qc', 'ana': 'secret-ana'})
+        for n in range(20):
+            self.proof('p_%d' % n)
+        self.assertEqual(self.woken(), [('ana', 'p_0')])
+        with mock.patch('os.getcwd', return_value=r'C:\\Agents\\' + dash.NINA_WORKSPACE):
+            dash.wake_read()
+        self.proof('p_20')
+        self.assertEqual(self.woken(), [('ana', 'p_0'), ('ana', 'p_20')])
+
+    def test_a_failed_ping_through_ana_warns_and_the_next_proof_tries_again(self):
+        self.write_secrets({'qc': 'secret-qc', 'ana': 'wrong'})
+        with mock.patch('sys.stderr') as err:
+            self.proof('p_1')
+        self.assertIn('QC was not woken', ''.join(c.args[0] for c in err.write.call_args_list))
+        self.assertFalse((dash.WAKE_DIR / 'nina').exists())
+        self.write_secrets({'qc': 'secret-qc', 'ana': 'secret-ana'})
+        self.proof('p_2')
+        self.assertEqual(self.woken(), [('ana', 'p_2')])
 
     def test_duplicate_proof_wakes_no_one(self):
         self.proof('p_1', duplicate=True)
