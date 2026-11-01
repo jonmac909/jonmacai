@@ -1,9 +1,12 @@
 """python -I bots/test_review_source.py from cloud-apps/command-center. Uses real ffmpeg; touches nothing live."""
+import io
 import json
+import os
 import subprocess
 import sys
 import tempfile
 import unittest
+import urllib.error
 from pathlib import Path
 from unittest import mock
 
@@ -56,10 +59,14 @@ class Original(Base):
         own = self.file('packs', 'gail-2', 'source', 'source.mp4')
         self.assertEqual(rs.original('gail-2'), own)
 
-    def test_viral_view_takes_the_first_reference_like_preflight(self):
-        self.file('vv', 'theo-1', 'reference', 'source_b.mp4')
-        first = self.file('vv', 'theo-1', 'reference', 'source_a.mp4')
-        self.assertEqual(rs.original('theo-1'), first)
+    def test_viral_view_with_one_reference(self):
+        only = self.file('vv', 'theo-1', 'reference', 'source_a.mp4')
+        self.assertEqual(rs.original('theo-1'), only)
+
+    def test_several_references_are_not_a_guess(self):
+        self.file('vv', 'aria-1', 'reference', 'source_a.mp4')
+        self.file('vv', 'aria-1', 'reference', 'source_b.mp4')
+        self.assertIsNone(rs.original('aria-1'))
 
     def test_short_form_remake(self):
         remake = self.file('remakes', 'aygramm', 'src', 'source.mp4')
@@ -81,8 +88,60 @@ class WebCopy(Base):
     def test_h264_aac_is_only_remuxed_with_moov_first(self):
         src = self.root / 'in.mp4'
         make(src, '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-c:a', 'aac')
-        data = rs.web_copy(src, 'zane-1').read_bytes()
+        with mock.patch.object(rs.subprocess, 'run', wraps=subprocess.run) as ran:
+            data = rs.web_copy(src, 'zane-1').read_bytes()
         self.assertLess(data.find(b'moov'), data.find(b'mdat'))
+        self.assertNotIn('libx264', ran.call_args.args[0])
+
+    def test_a_source_with_no_sound_still_copies(self):
+        src = self.root / 'in.mp4'
+        src.parent.mkdir(parents=True, exist_ok=True)
+        subprocess.run(['ffmpeg', '-y', '-v', 'error', '-f', 'lavfi', '-i', 'testsrc=d=1:s=64x64:r=10', '-c:v', 'mpeg4', str(src)],
+                       check=True, capture_output=True, creationflags=HIDDEN)
+        self.assertEqual(codecs(rs.web_copy(src, 'gail-1')), ['h264'])
+
+    def test_odd_picture_sizes_encode(self):
+        src = self.root / 'in.mp4'
+        make(src, '-c:v', 'mpeg4', '-c:a', 'mp3', '-vf', 'scale=63:63')
+        self.assertEqual(codecs(rs.web_copy(src, 'gail-1')), ['h264', 'aac'])
+
+    def test_the_first_video_stream_decides_like_the_map(self):
+        src = self.root / 'in.mp4'
+        make(src, '-c:v', 'mpeg4', '-c:a', 'mp3')
+        listing = json.dumps({'streams': [
+            {'codec_type': 'video', 'codec_name': 'mpeg4', 'pix_fmt': 'yuv420p'},
+            {'codec_type': 'video', 'codec_name': 'h264', 'pix_fmt': 'yuv420p'},
+            {'codec_type': 'audio', 'codec_name': 'aac'}]})
+        real = subprocess.run
+
+        def probe_then_ffmpeg(args, **kw):
+            if args[0] == 'ffprobe':
+                return subprocess.CompletedProcess(args, 0, listing, '')
+            return real(args, **kw)
+        with mock.patch.object(rs.subprocess, 'run', probe_then_ffmpeg):
+            out = rs.web_copy(src, 'gail-1')
+        self.assertEqual(codecs(out), ['h264', 'aac'])
+
+    def test_a_failed_encode_says_why(self):
+        src = self.root / 'in.mp4'
+        src.write_bytes(b'not a video')
+        listing = json.dumps({'streams': [{'codec_type': 'video', 'codec_name': 'mpeg4', 'pix_fmt': 'yuv420p'}]})
+        real = subprocess.run
+
+        def probe_then_ffmpeg(args, **kw):
+            if args[0] == 'ffprobe':
+                return subprocess.CompletedProcess(args, 0, listing, '')
+            return real(args, **kw)
+        with mock.patch.object(rs.subprocess, 'run', probe_then_ffmpeg):
+            with self.assertRaisesRegex(RuntimeError, '(?s)ffmpeg failed: .*Invalid data'):
+                rs.web_copy(src, 'gail-1')
+
+    def test_a_corrected_original_gets_its_own_copy(self):
+        src = self.root / 'in.mp4'
+        make(src, '-c:v', 'mpeg4', '-c:a', 'mp3')
+        first = rs.web_copy(src, 'gail-1')
+        make(self.root / 'right.mp4', '-c:v', 'mpeg4', '-c:a', 'mp3', '-b:v', '20k')
+        self.assertNotEqual(rs.web_copy(self.root / 'right.mp4', 'gail-1'), first)
 
     def test_second_call_uses_the_copy_and_leaves_no_temp_file(self):
         src = self.root / 'in.mp4'
@@ -90,7 +149,7 @@ class WebCopy(Base):
         out = rs.web_copy(src, 'gail-1')
         with mock.patch.object(rs.subprocess, 'run', side_effect=AssertionError('ran again')):
             self.assertEqual(rs.web_copy(src, 'gail-1'), out)
-        self.assertEqual([p.name for p in rs.CACHE.iterdir()], ['gail-1.mp4'])
+        self.assertEqual([p for p in rs.CACHE.iterdir()], [out])
 
 
 class Add(Base):
@@ -101,6 +160,8 @@ class Add(Base):
             calls.append((method, path))
             if fail_on and fail_on in path:
                 raise OSError('boom')
+            if path == '/videos':
+                return {'videos': []}
             if method == 'GET':
                 return {'video': video or {}}
             if path.endswith('/uploads'):
@@ -125,7 +186,32 @@ class Add(Base):
     def test_no_stored_original_uploads_nothing(self):
         calls = self.api()
         self.assertEqual(rs.add('topview-2-v5'), 'not stored')
-        self.assertEqual(len(calls), 1)
+        self.assertEqual(calls, [('GET', '/topview-2-v5'), ('GET', '/videos')])
+
+    def test_a_new_version_with_nothing_stored_uses_the_newest_earlier_source(self):
+        rows = {'videos': [{'slug': 'mina-1-v9', 'source_url': 'https://x/old'}, {'slug': 'mina-1-v11', 'source_url': 'https://x/new'},
+                           {'slug': 'mina-1-v10', 'source_url': None}, {'slug': 'mina-2-v1', 'source_url': 'https://x/other'}]}
+        asked = []
+
+        def fake(method, path, body=None, raw=None):
+            if path == '/videos':
+                return rows
+            return {'video': {}} if method == 'GET' else {'key': 'k', 'uploadId': 'u', 'partNumber': 1, 'etag': 'e'}
+
+        def urlopen(request, timeout):
+            asked.append((request.full_url, request.get_header('Authorization')))
+            return io.BytesIO(b'the original')
+        with mock.patch.object(rs, 'api', fake), mock.patch.object(rs, 'token', return_value='tok'), \
+                mock.patch.object(rs.urllib.request, 'urlopen', urlopen):
+            self.assertEqual(rs.add('mina-1-v12'), 'added')
+        self.assertEqual(asked, [('https://x/new', 'Bearer tok')])
+        self.assertEqual((rs.CACHE / 'carried-mina-1-v12.mp4').read_bytes(), b'the original')
+
+    def test_a_stored_original_beats_an_earlier_version(self):
+        calls = self.api()
+        self.stored()
+        self.assertEqual(rs.add('gail-1-v3'), 'added')
+        self.assertNotIn(('GET', '/videos'), calls)
 
     def test_upload_then_attach_in_order(self):
         calls = self.api()
@@ -147,6 +233,63 @@ class Add(Base):
         with mock.patch.object(rs.hook, 'fire') as fire:
             self.assertEqual(rs.add_or_report('gail-1-v3'), 'failed')
         self.assertEqual(fire.call_args.args[0], 'script_failure')
+
+    def test_a_page_left_with_no_source_is_reported(self):
+        self.api()
+        with mock.patch.object(rs.hook, 'fire') as fire:
+            self.assertEqual(rs.add_or_report('topview-2-v5'), 'not stored')
+        self.assertIn('topview-2-v5: no stored original', fire.call_args.args[1]['error'])
+
+    def test_a_page_with_a_source_reports_nothing(self):
+        self.api({'source_url': 'https://x'})
+        with mock.patch.object(rs.hook, 'fire') as fire:
+            self.assertEqual(rs.add_or_report('gail-1-v3'), 'has source')
+        fire.assert_not_called()
+
+    def test_a_broken_report_never_reaches_the_publisher(self):
+        self.api(fail_on='/gail-1-v3')
+        with mock.patch.object(rs.hook, 'fire', side_effect=rs.hook.Fail('webhooks', 'unreadable')), mock.patch('sys.stderr', io.StringIO()) as err:
+            self.assertEqual(rs.add_or_report('gail-1-v3'), 'failed')
+        self.assertIn('could not report', err.getvalue())
+
+
+class Requests(Base):
+    def test_api_sends_the_token_and_reads_json(self):
+        seen = []
+
+        class Reply(io.BytesIO):
+            def __enter__(self):
+                return self
+
+        def urlopen(request, timeout):
+            seen.append(request)
+            return Reply(b'{"ok": true}')
+        env = self.root / '.jonmac-review.env'
+        env.write_text('OTHER=1\nREVIEW_API_TOKEN="tok"\n', encoding='utf-8')
+        with mock.patch.object(rs.Path, 'home', return_value=self.root), mock.patch.object(rs.urllib.request, 'urlopen', urlopen):
+            self.assertEqual(rs.api('POST', '/a/source', {'source_key': 'k'}), {'ok': True})
+        self.assertEqual(seen[0].full_url, rs.BASE + '/a/source')
+        self.assertEqual(seen[0].get_header('Authorization'), 'Bearer tok')
+        self.assertEqual(json.loads(seen[0].data), {'source_key': 'k'})
+
+    def test_a_dropped_part_is_sent_again(self):
+        replies = [OSError('reset'), urllib.error.HTTPError('u', 502, 'bad', {}, None), {'partNumber': 1}]
+        with mock.patch.object(rs, 'api', side_effect=replies) as api, mock.patch.object(rs.time, 'sleep'):
+            self.assertEqual(rs.put_part('/p', b'x'), {'partNumber': 1})
+        self.assertEqual(api.call_count, 3)
+
+    def test_a_part_stops_after_three_tries(self):
+        with mock.patch.object(rs, 'api', side_effect=OSError('reset')) as api, mock.patch.object(rs.time, 'sleep'):
+            with self.assertRaises(OSError):
+                rs.put_part('/p', b'x')
+        self.assertEqual(api.call_count, 3)
+
+    def test_a_refused_part_is_not_sent_again(self):
+        refused = urllib.error.HTTPError('u', 400, 'bad', {}, None)
+        with mock.patch.object(rs, 'api', side_effect=refused) as api:
+            with self.assertRaises(urllib.error.HTTPError):
+                rs.put_part('/p', b'x')
+        self.assertEqual(api.call_count, 1)
 
 
 class Backfill(Base):
@@ -170,6 +313,20 @@ class Backfill(Base):
     def test_dry_run_changes_nothing(self):
         with mock.patch.object(rs, 'api', return_value=self.rows(('a-1-v1', None))), mock.patch.object(rs, 'add', side_effect=AssertionError('added')):
             self.assertEqual(rs.backfill(True), 0)
+
+    def test_videos_with_nothing_stored_are_listed_once_and_are_no_failure(self):
+        with mock.patch.object(rs, 'api', return_value=self.rows(('a-1-v1', None), ('b-1-v1', None))), \
+                mock.patch.object(rs, 'add', return_value='not stored'), mock.patch.object(rs.hook, 'fire') as fire:
+            self.assertEqual(rs.backfill(False), 0)
+        self.assertEqual(fire.call_count, 1)
+        self.assertIn('a-1-v1, b-1-v1', fire.call_args.args[1]['error'])
+
+    def test_a_typo_in_the_command_runs_nothing(self):
+        script = str(Path(rs.__file__).resolve())
+        done = subprocess.run([sys.executable, '-I', script, 'backfill', '--dryrun'], capture_output=True, encoding='utf-8',
+                              creationflags=HIDDEN, env={**os.environ})
+        self.assertEqual(done.returncode, 1)
+        self.assertIn('backfill [--dry-run]', done.stderr)
 
 
 if __name__ == '__main__':

@@ -3,14 +3,17 @@
   review_source.py backfill [--dry-run]   every review video with no source: add it, or list it as not stored
 
 aieditor's review_upload.py calls add_or_report() after each publish. This only adds: the Worker refuses to
-replace a source. Token from ~/.jonmac-review.env, never printed. Failures go to Ana through script_failure.
+replace a source. Token from ~/.jonmac-review.env, never printed. Failures and videos with no stored original go
+to Ana through script_failure.
 """
 import glob
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
+import time
 import urllib.parse
 import urllib.request
 from pathlib import Path
@@ -25,6 +28,7 @@ REMAKES = Path(r'D:\AgentTeam\footage\short-form\remakes')
 CACHE = Path(r'D:\AgentTeam\tmp\review-sources')
 PART = 50 * 1024 * 1024
 HIDDEN_LOW = 0x08000000 | 0x00004000  # no window, below normal priority
+UA = 'review-source/1.0'
 quote = lambda s: urllib.parse.quote(s, safe='')  # noqa: E731
 
 
@@ -32,32 +36,46 @@ def stem(slug):
     return re.sub(r'-v\d+$', '', slug)
 
 
+def version(slug):
+    found = re.search(r'-v(\d+)$', slug)
+    return int(found.group(1)) if found else 0
+
+
 def original(video):
-    """The stored original of a video such as gail-1 or theo-1, or None. A wrong original is worse than none,
-    so a host's bare pack folder only answers for that host's first video."""
+    """The stored original of a video such as gail-1 or theo-1, or None. A wrong original is worse than none, and
+    the Worker won't replace one: a host's bare pack folder only answers for that host's first video, and a
+    reference folder holding several sources doesn't say which one was used."""
     hosts = [video] + ([video[:-2]] if video.endswith('-1') else [])
     stored = [HGP_PACKS / h / 'source' / 'source.mp4' for h in hosts]
     stored += [REMAKES / video.removesuffix('-selfie') / 'src' / 'source.mp4']
-    stored += [Path(p) for p in sorted(glob.glob(str(VV / video / 'reference' / 'source_*.mp4')))]
+    references = glob.glob(str(VV / video / 'reference' / 'source_*.mp4'))
+    stored += [Path(p) for p in references if len(references) == 1]
     return next((p for p in stored if p.exists()), None)
 
 
+def run(args, timeout):
+    done = subprocess.run(args, capture_output=True, encoding='utf-8', errors='replace', timeout=timeout, creationflags=HIDDEN_LOW)
+    if done.returncode:
+        raise RuntimeError('%s failed: %s' % (Path(args[0]).name, done.stderr[-300:].strip()))
+    return done
+
+
 def web_copy(src, video):
-    """H.264/AAC fast-start copy that iPhones play, kept per video. The stored original stays as it is."""
-    out = CACHE / (video + '.mp4')
-    if out.exists() and out.stat().st_mtime >= src.stat().st_mtime:
+    """H.264/AAC fast-start copy that iPhones play, kept per video and original. The stored original stays as it is."""
+    out = CACHE / ('%s-%s-%d.mp4' % (video, src.stem, src.stat().st_size))
+    if out.exists():
         return out
     CACHE.mkdir(parents=True, exist_ok=True)
     tmp = out.with_suffix('.tmp.mp4')
-    probe = subprocess.run(['ffprobe', '-v', 'error', '-show_entries', 'stream=codec_type,codec_name,pix_fmt', '-of', 'json', str(src)],
-                           capture_output=True, encoding='utf-8', check=True, creationflags=HIDDEN_LOW)
-    streams = {s['codec_type']: s for s in json.loads(probe.stdout)['streams']}
+    probe = run(['ffprobe', '-v', 'error', '-show_entries', 'stream=codec_type,codec_name,pix_fmt', '-of', 'json', str(src)], 120)
+    streams = {}
+    for stream in json.loads(probe.stdout)['streams']:
+        streams.setdefault(stream['codec_type'], stream)  # first of each kind, as -map takes
     picture, sound = streams['video'], streams.get('audio')
     plays = picture['codec_name'] == 'h264' and picture.get('pix_fmt') == 'yuv420p' and (not sound or sound['codec_name'] == 'aac')
-    codec = ['-c', 'copy'] if plays else ['-c:v', 'libx264', '-preset', 'veryfast', '-crf', '23', '-pix_fmt', 'yuv420p', '-threads', '4',
-                                          '-c:a', 'aac', '-b:a', '128k']
-    subprocess.run(['ffmpeg', '-y', '-v', 'error', '-i', str(src), '-map', '0:v:0', '-map', '0:a:0?', *codec, '-movflags', '+faststart', str(tmp)],
-                   capture_output=True, check=True, creationflags=HIDDEN_LOW)
+    codec = ['-c', 'copy'] if plays else ['-vf', 'scale=trunc(iw/2)*2:trunc(ih/2)*2', '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '23',
+                                          '-pix_fmt', 'yuv420p', '-threads', '4', '-c:a', 'aac', '-b:a', '128k']
+    run(['ffmpeg', '-y', '-v', 'error', '-i', str(src), '-map', '0:v:0', '-map', '0:a:0?', *codec, '-movflags', '+faststart', str(tmp)], 3600)
     os.replace(tmp, out)
     return out
 
@@ -69,10 +87,34 @@ def token():
 
 def api(method, path, body=None, raw=None):
     data = raw if raw is not None else None if body is None else json.dumps(body).encode()
-    headers = {'Authorization': 'Bearer ' + token(), 'User-Agent': 'review-source/1.0',
+    headers = {'Authorization': 'Bearer ' + token(), 'User-Agent': UA,
                'Content-Type': 'application/octet-stream' if raw is not None else 'application/json'}
     with urllib.request.urlopen(urllib.request.Request(BASE + path, method=method, data=data, headers=headers), timeout=600) as r:
         return json.loads(r.read().decode() or 'null')
+
+
+def carried(slug):
+    """A new version whose original isn't kept here uses the newest other version's source, or None."""
+    others = [v for v in api('GET', '/videos')['videos'] if stem(v['slug']) == stem(slug) and v['slug'] != slug and v.get('source_url')]
+    if not others:
+        return None
+    CACHE.mkdir(parents=True, exist_ok=True)
+    out = CACHE / ('carried-%s.mp4' % slug)
+    request = urllib.request.Request(max(others, key=lambda v: version(v['slug']))['source_url'],
+                                     headers={'Authorization': 'Bearer ' + token(), 'User-Agent': UA})
+    with urllib.request.urlopen(request, timeout=600) as r, open(out, 'wb') as f:
+        shutil.copyfileobj(r, f, 1024 * 1024)
+    return out
+
+
+def put_part(path, chunk):
+    for attempt in range(3):
+        try:
+            return api('PUT', path, raw=chunk)
+        except OSError as err:  # HTTPError is one: only a server fault or a dropped connection is worth another try
+            if attempt == 2 or 400 <= getattr(err, 'code', 500) < 500:
+                raise
+            time.sleep(5 * (attempt + 1))
 
 
 def upload(slug, path):
@@ -82,13 +124,7 @@ def upload(slug, path):
     try:
         with open(path, 'rb') as f:
             for n, chunk in enumerate(iter(lambda: f.read(PART), b''), 1):
-                for attempt in range(3):
-                    try:
-                        parts.append(api('PUT', '%s/%d?key=%s' % (base, n, quote(key)), raw=chunk))
-                        break
-                    except OSError:
-                        if attempt == 2:
-                            raise
+                parts.append(put_part('%s/%d?key=%s' % (base, n, quote(key)), chunk))
         api('POST', base + '/complete', {'key': key, 'parts': parts})
     except Exception:
         try:
@@ -105,48 +141,59 @@ def add(slug):
         return 'has source'
     video = stem(slug)
     src = original(video)
-    if not src:
+    copy = web_copy(src, video) if src else carried(slug)
+    if not copy:
         return 'not stored'
-    api('POST', '/%s/source' % slug, {'source_key': upload(slug, web_copy(src, video))})
+    api('POST', '/%s/source' % slug, {'source_key': upload(slug, copy)})
     return 'added'
 
 
 def report(what, err):
-    hook.fire('script_failure', {'script': 'review_source', 'error': ('%s: %s' % (what, err))[:200]})
+    """Never raises: a publisher calls this after its publish, and that publish stands."""
+    try:
+        hook.fire('script_failure', {'script': 'review_source', 'error': ('%s: %s' % (what, err))[:800]})
+    except Exception as failure:
+        print('could not report:', failure, file=sys.stderr, flush=True)
 
 
 def add_or_report(slug):
-    """For publishers: the publish stands even if this fails, and QC fails a page with no source."""
+    """For publishers: the publish stands whatever happens here. A page left with no source is reported."""
     try:
-        return add(slug)
+        result = add(slug)
     except Exception as err:
         report(slug, err)
         return 'failed'
+    if result == 'not stored':
+        report(slug, 'no stored original, the owner must supply it')
+    return result
 
 
 def backfill(dry):
     rows = [v['slug'] for v in api('GET', '/videos')['videos'] if not v.get('source_url')]
-    failed = []
+    failed, missing = [], []
     for slug in rows:
         if dry:
             print(slug, original(stem(slug)) or 'not stored', flush=True)
             continue
         try:
-            print(slug, add(slug), flush=True)
+            result = add(slug)
+            print(slug, result, flush=True)
+            if result == 'not stored':
+                missing.append(slug)
         except Exception as err:
             print(slug, 'failed', err, flush=True)
             failed.append('%s (%s)' % (slug, err))
-    if failed:
-        report('backfill', '; '.join(failed))
+    if failed or missing:
+        report('backfill', 'no stored original: %s. failed: %s' % (', '.join(missing) or 'none', '; '.join(failed) or 'none'))
     return 1 if failed else 0
 
 
 if __name__ == '__main__':
     args = sys.argv[1:]
-    if args[:1] != ['backfill']:
+    if args not in (['backfill'], ['backfill', '--dry-run']):
         sys.exit(__doc__)
     try:
-        sys.exit(backfill('--dry-run' in args))
+        sys.exit(backfill(len(args) == 2))
     except Exception as err:
         report('backfill', err)
         raise
