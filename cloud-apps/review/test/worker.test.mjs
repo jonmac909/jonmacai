@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { fileURLToPath } from "node:url";
 import { byteRange, makeSession, mediaTag, parseDrawing, safeEqual, validSlug, verifySession } from "../worker.js";
-import { escapeHtml, formatTime } from "../pages.js";
+import { escapeHtml, formatTime, openVideos, renderIndex } from "../pages.js";
 import { topLevelBoxes } from "../scripts/review_publish.mjs";
 import { SECRETS } from "./harness.mjs";
 
@@ -65,4 +65,24 @@ test("drawings are rewritten from known parts only, or refused", () => {
 test("publish script reads MP4 box order for the fast-start check", () => {
   const boxes = topLevelBoxes(fileURLToPath(new URL("./fixtures/clip.mp4", import.meta.url)));
   assert.ok(boxes.indexOf("moov") < boxes.indexOf("mdat"), boxes.join(","));
+});
+
+test("the review list shows each video's newest version, until it is approved", () => {
+  const v = (slug, video, status, created_at, channel = "mina") => ({ slug, video, status, created_at, channel, title: slug, version: slug.split("-").pop() });
+  const videos = [
+    v("a-1-v2", "a-1", "approved", "2026-11-01T10:00:00Z"), // approved: its older open version leaves with it
+    v("a-1-v1", "a-1", "needs_review", "2026-10-31T10:00:00Z"),
+    v("b-1-v2", "b-1", "changes_requested", "2026-11-01T10:00:00Z"), // newest open version only
+    v("b-1-v1", "b-1", "needs_review", "2026-10-31T10:00:00Z"),
+    v("c-1-v2", "c-1", "needs_review", "2026-11-01T10:00:00Z", "viral-view"), // versions can move channel
+    v("c-1-v1", "c-1", "changes_requested", "2026-10-31T10:00:00Z"),
+    v("d-1-v1", "d-1", "changes_requested", "2026-10-16T23:00:00Z"), // the Oct 14 to 16 batch Jon cleared
+    v("e-1-v1", "e-1", "needs_review", "2026-10-17T00:00:00Z"),
+  ];
+  assert.deepEqual(openVideos(videos).map((x) => x.slug), ["b-1-v2", "c-1-v2", "e-1-v1"]);
+  const page = renderIndex({ channels: [{ slug: "mina", name: "Mina" }, { slug: "empty", name: "Empty" }], videos });
+  assert.deepEqual([...page.matchAll(/href="\/review\/([a-z0-9-]+)"/g)].map((m) => m[1]), ["b-1-v2", "e-1-v1", "c-1-v2"]);
+  assert.match(page, /2 needs review · 1 changes requested</);
+  assert.doesNotMatch(page, /approved</i);
+  assert.match(page, /<h2>Empty<\/h2>\s*<p class="muted">Nothing to review\.<\/p>/);
 });

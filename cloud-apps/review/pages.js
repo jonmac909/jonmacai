@@ -47,28 +47,35 @@ export function renderGate({ next, k, error = "" }) {
 </main>`);
 }
 
+// The review list is a to-do list (Jon, 2026-11-01): one row per video, its newest version, gone once approved. A video
+// can change channel between versions, so the video key alone groups them. This only hides rows: direct links, the
+// version nav and /api/review/videos keep every version.
+const CLEARED_BEFORE = "2026-10-17"; // Jon cleared the Oct 14 to 16 batch off the list
+export function openVideos(videos) {
+  const newest = new Map();
+  for (const v of videos) if (!(newest.get(v.video)?.created_at >= v.created_at)) newest.set(v.video, v);
+  return [...newest.values()].filter((v) => v.status !== "approved" && v.created_at >= CLEARED_BEFORE);
+}
+
 export function renderIndex({ channels, videos }, message = "", prefix = "") {
+  const open = openVideos(videos);
   const byChannel = new Map(channels.map((c) => [c.slug, { ...c, videos: [] }]));
-  for (const v of videos) {
+  for (const v of open) {
     if (!byChannel.has(v.channel)) byChannel.set(v.channel, { slug: v.channel, name: v.channel, videos: [] });
     byChannel.get(v.channel).videos.push(v);
   }
-  const counts = Object.entries(STATUS_LABEL).map(([s, label]) => `${videos.filter((v) => v.status === s).length} ${label.toLowerCase()}`);
+  const counts = Object.entries(STATUS_LABEL).filter(([s]) => s !== "approved")
+    .map(([s, label]) => `${open.filter((v) => v.status === s).length} ${label.toLowerCase()}`);
   const sections = [...byChannel.values()].map((channel) => {
-    const groups = new Map();
-    for (const v of channel.videos) {
-      if (!groups.has(v.video)) groups.set(v.video, []);
-      groups.get(v.video).push(v);
-    }
-    const items = [...groups.entries()].map(([video, versions]) => `<li class="video">
-      <h3>${escapeHtml(versions[0].title)} <span class="muted">${escapeHtml(video)}</span></h3>
-      <ul class="versions">${versions.map((v) => `<li><a href="${prefix}/review/${escapeHtml(v.slug)}">
+    const items = channel.videos.map((v) => `<li class="video">
+      <h3>${escapeHtml(v.title)} <span class="muted">${escapeHtml(v.video)}</span></h3>
+      <ul class="versions"><li><a href="${prefix}/review/${escapeHtml(v.slug)}">
         <span class="version">${escapeHtml(v.version)}</span>${chip(v.status)}
         <span class="muted">${v.open_count ? `${v.open_count} open comment${v.open_count === 1 ? "" : "s"}` : v.total_count ? "all comments resolved" : "no comments"}</span>
-        <span class="muted when">${escapeHtml((v.created_at || "").slice(0, 10))}</span></a></li>`).join("")}</ul>
+        <span class="muted when">${escapeHtml((v.created_at || "").slice(0, 10))}</span></a></li></ul>
     </li>`).join("");
     return `<section class="channel"><h2>${escapeHtml(channel.name)}</h2>
-      ${items ? `<ul class="videos">${items}</ul>` : '<p class="muted">No videos yet.</p>'}</section>`;
+      ${items ? `<ul class="videos">${items}</ul>` : '<p class="muted">Nothing to review.</p>'}</section>`;
   }).join("\n");
   return layout("Video reviews", `<main>
   ${prefix ? `<p class="crumbs"><a href="${prefix}/">Dashboard</a></p>` : ""}

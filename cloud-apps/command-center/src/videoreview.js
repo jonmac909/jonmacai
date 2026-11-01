@@ -121,6 +121,26 @@ async function wakeForComment(env, ctx, origin, slug, comment, now) {
   return { wakes: NO_TASK_OWNER };
 }
 
+// Approve while the card was still in QC, or on the public jonmac.ai/review page, leaves the card behind. The 10-minute
+// cron finishes the move once the card is in Review: only the Approve button counts (not the status buttons), and only
+// on a video's newest version, so a card with a newer version waiting stays.
+export async function settleApproved(env, now = new Date().toISOString()) {
+  if (!env.REVIEW || !env.REVIEW_API_TOKEN) return;
+  const read = async (what) => {
+    const res = await env.REVIEW.fetch(new Request(`https://jonmac.ai/api/review/${what}`, { headers: { Authorization: `Bearer ${env.REVIEW_API_TOKEN}` } }));
+    if (!res.ok) throw new Error(`review ${what}: ${res.status}`);
+    return (await res.json())[what];
+  };
+  const [videos, submissions] = await Promise.all([read('videos'), read('submissions')]);
+  const newest = new Map();
+  for (const v of videos) if (!(newest.get(v.video)?.created_at >= v.created_at)) newest.set(v.video, v);
+  for (const v of newest.values()) {
+    if (v.status !== 'approved' || !submissions.some((s) => s.kind === 'approve' && s.slug === v.slug)) continue;
+    const task = await linkedTask(env.DB, v.slug);
+    if (task?.status === 'review') await tickTask(env.DB, env, null, task.id, { status: 'done' }, now);
+  }
+}
+
 // Approve or Send back on a linked task in Review: the same PATCH Jon makes from the board (tickTask).
 async function moveTask(env, ctx, origin, slug, submission, now) {
   const task = await linkedTask(env.DB, slug);
