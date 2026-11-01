@@ -85,7 +85,7 @@ class Hooks(unittest.TestCase):
         self.assertEqual(hook.fire('raw_footage', {}, key='drop-2'), {'video-editor': 202})
 
     def test_503_is_retried(self):
-        self.srv.busy['qc'] = 2
+        self.srv.busy['qc'] = 5
         self.assertEqual(hook.fire('proof_posted', {}), {'qc': 202})
 
     def test_exit_codes(self):
@@ -257,6 +257,13 @@ class Hooks(unittest.TestCase):
                 for name in ('take1.mp4', 'take2.MOV', 'notes.txt'):
                     (folder / 'jon' / name).write_bytes(b'x' * 1000)
             drop(first_drop, 1)
+
+            def generated_clips():  # the Short-form bot's working folder, not raw footage
+                (folder / 'short-form' / 'remakes' / 'qc').mkdir(parents=True)
+                (folder / 'short-form' / 'remakes' / 'clip.mp4').write_bytes(b'x' * 1000)
+                (folder / 'short-form' / 'remakes' / 'qc' / 'audio.wav').write_bytes(b'x' * 1000)
+            drop(generated_clips, 2)  # no new event
+
             drop(lambda: (folder / 'jon' / 'done').mkdir() or (folder / 'jon' / 'take1.mp4').rename(
                 folder / 'jon' / 'done' / 'take1.mp4'), 2)  # already announced: no new event
 
@@ -287,7 +294,7 @@ class Hooks(unittest.TestCase):
                 outside = Path(self.dir.name) / 'screen'
                 outside.mkdir()
                 (outside / 'rec1.mp4').write_bytes(b'y' * 500)
-                outside.rename(folder / 'screen')
+                outside.rename(folder / 'short-form-screen')  # only short-form itself is skipped
             drop(folder_moved_in, 2)
         finally:
             ps.kill()

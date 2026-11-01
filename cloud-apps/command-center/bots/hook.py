@@ -36,7 +36,7 @@ EVENTS = {
     'accounting_email': ['accounting'],
 }
 ROUTES = sorted({r for routes in EVENTS.values() for r in routes} | {'nina'})  # nina: dash.py picks the QC bot per proof
-TRIES = 3
+TRIES = 6  # 30 s of back-off, enough to outlast an OpenBot app freeze: the relay answers 503 until it thaws
 NO_SECRET = 'no secret'
 
 

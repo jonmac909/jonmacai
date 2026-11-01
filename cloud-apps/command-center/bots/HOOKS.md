@@ -14,7 +14,7 @@
 
 `hook.py test [ROUTE ...]` wakes each routine once with a "nothing to do" event, to check it works.
 
-Exit codes: 0 delivered (202, or 200 for a repeat). 1 refused (401: wrong secret) or unreachable after 3 tries. 2 local problem (bad JSON, no secrets file, no secret for that routine).
+Exit codes: 0 delivered (202, or 200 for a repeat). 1 refused (401: wrong secret) or unreachable after 6 tries (about 30 s of back-off, so a short OpenBot app freeze doesn't lose a wake; a 503 means the app didn't answer in time). 2 local problem (bad JSON, no secrets file, no secret for that routine).
 
 ## Script failures
 Every script reports its own failure, for example from PowerShell:
@@ -22,7 +22,7 @@ Every script reports its own failure, for example from PowerShell:
 Pipe the JSON on stdin in PowerShell 5.1; it breaks quotes in command-line arguments.
 
 ## Raw footage
-Drop raw files for a video into `D:\AgentTeam\footage` (any subfolder; copying or moving a whole folder in works too). After 60 s with no changes and no file still copying, Video Editor gets one `raw_footage` event listing the new video and audio files. Files that were already there when the watcher started, or that were already announced (moved to a `done\` subfolder, say), are not announced again. If the event can't be delivered, the watcher sends `script_failure` once and retries for 10 minutes. If it stops (e.g. the folder was deleted), it sends `script_failure`; restart it with `Start-ScheduledTask AgentTeam-watch-footage`. Log: `D:\AgentTeam\logs\watch_footage.log`.
+Drop raw files for a video into `D:\AgentTeam\footage` (any subfolder; copying or moving a whole folder in works too). After 60 s with no changes and no file still copying, Video Editor gets one `raw_footage` event listing the new video and audio files. Files that were already there when the watcher started, or that were already announced (moved to a `done\` subfolder, say), are not announced again. Nothing under `footage\short-form\` is announced: that's the Short-form bot's working folder (generated clips, QC audio, downloads), not raw footage. If the event can't be delivered, the watcher sends `script_failure` once and retries for 10 minutes. If it stops (e.g. the folder was deleted), it sends `script_failure`; restart it with `Start-ScheduledTask AgentTeam-watch-footage`. Log: `D:\AgentTeam\logs\watch_footage.log`.
 
 Start at logon (only after Jon approves `start_watchers`). It runs hidden with no console window, and has no 72-hour run limit:
 ```powershell

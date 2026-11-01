@@ -16,6 +16,7 @@ $OutputEncoding = New-Object Text.UTF8Encoding $false  # JSON piped to Python ke
 $hook = Join-Path $PSScriptRoot 'hook.py'
 $media = '.mp4', '.mov', '.mkv', '.m4v', '.avi', '.webm', '.mxf', '.wav', '.mp3', '.m4a', '.aac'
 $maxTries = 10  # undelivered drop: retried every quiet spell, then given up (it's in the log)
+$work = Join-Path $Folder 'short-form\'  # the Short-form bot's working folder: generated clips and QC audio, not raw footage
 
 function Note($text) {
   New-Item -ItemType Directory -Force (Split-Path $Log) | Out-Null
@@ -36,10 +37,11 @@ function Id($path) {  # survives a move between subfolders
 
 function Media($path) {  # media files at $path, or under it if it is a folder
   # .NET checks, not Test-Path: a file or folder another program is deleting throws "Access is denied" there
-  if ([IO.Directory]::Exists($path)) {
+  $(if ([IO.Directory]::Exists($path)) {
     Get-ChildItem -LiteralPath $path -Recurse -File -ErrorAction Ignore | Where-Object { $media -contains $_.Extension.ToLowerInvariant() } |
       ForEach-Object { $_.FullName }
-  } elseif ($media -contains [IO.Path]::GetExtension($path).ToLowerInvariant()) { $path }
+  } elseif ($media -contains [IO.Path]::GetExtension($path).ToLowerInvariant()) { $path }) |
+    Where-Object { -not $_.StartsWith($work, [StringComparison]::OrdinalIgnoreCase) }
 }
 
 function Busy($path) {  # still being written: a writer holds it open
