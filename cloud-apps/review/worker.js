@@ -356,7 +356,7 @@ async function api(request, env, url) {
   const [slug, resource, id, action, extra] = parts;
   if (!validSlug(slug) || extra !== undefined) return fail(404, "not_found");
 
-  if (resource === "uploads" || resource === "publish") {
+  if (resource === "uploads" || resource === "publish" || resource === "source") {
     if (!agent) return fail(403, "agent_token_required");
     return publishApi(request, env, url, slug, resource, id, action);
   }
@@ -589,9 +589,12 @@ async function deleteVideo(env, row) {
 //   PUT  /api/review/<slug>/uploads/<uploadId>/<part>?key=  raw bytes                -> {partNumber, etag}
 //   POST /api/review/<slug>/uploads/<uploadId>/complete     {key, parts}             -> {key, size}
 //   POST /api/review/<slug>/publish                         {channel, video, version, title, video_key, ...}
+//   POST /api/review/<slug>/source                          {source_key}  adds an original to a video with none
+//   DELETE /api/review/<slug>/source                        takes a wrong original off the page
 async function publishApi(request, env, url, slug, resource, uploadId, action) {
   const method = request.method;
   const ownKey = (key) => typeof key === "string" && key.startsWith(`review/${slug}/`) && /^[\w./-]+\.mp4$/.test(key) && !key.includes("..");
+  const ownSource = (key) => ownKey(key) && key.startsWith(`review/${slug}/source-`);
 
   if (resource === "uploads" && uploadId === undefined && method === "POST") {
     const body = await readJson(request);
@@ -625,6 +628,32 @@ async function publishApi(request, env, url, slug, resource, uploadId, action) {
     return json({ aborted: uploadId });
   }
 
+  // Takes a wrong original off a page, and only that: republishing would also reset the rest of the row.
+  if (resource === "source" && uploadId === undefined && method === "DELETE") {
+    const row = await env.DB.prepare("SELECT source_key FROM videos WHERE slug = ?").bind(slug).first();
+    if (!row?.source_key) return fail(404, "no source on this video");
+    // The cut map only fits the original it was made for.
+    await env.DB.prepare("UPDATE videos SET source_key = NULL, sync_map = NULL, updated_at = ? WHERE slug = ?").bind(now(), slug).run();
+    await env.MEDIA.delete(row.source_key);
+    return json({ video: publicVideo(await getVideo(env, slug), url.origin) });
+  }
+
+  // Adds the original to a video that has none. It never replaces one, and an upload it refuses is removed.
+  if (resource === "source" && uploadId === undefined && method === "POST") {
+    const body = await readJson(request);
+    if (!body || !ownSource(body.source_key)) return fail(400, "source_key must be a source from this slug's uploads");
+    if (!await env.MEDIA.head(body.source_key)) return fail(400, "source_key was not uploaded");
+    const saved = await env.DB.prepare("UPDATE videos SET source_key = ?, updated_at = ? WHERE slug = ? AND source_key IS NULL")
+      .bind(body.source_key, now(), slug).run();
+    if (!saved.meta.changes) {
+      // This upload attached to nothing, so nothing else would ever remove it. A repeat of the attached key stays.
+      const row = await env.DB.prepare("SELECT source_key FROM videos WHERE slug = ?").bind(slug).first();
+      if (body.source_key !== row?.source_key) await env.MEDIA.delete(body.source_key);
+      return fail(409, "no such video, or it already has a source");
+    }
+    return json({ video: publicVideo(await getVideo(env, slug), url.origin) });
+  }
+
   if (resource === "publish" && uploadId === undefined && method === "POST") {
     const body = await readJson(request);
     if (!body) return fail(400, "send JSON metadata");
@@ -648,6 +677,7 @@ async function publishApi(request, env, url, slug, resource, uploadId, action) {
     const syncMap = Array.isArray(body.sync) && body.sync.length && body.sync.length <= 5000 && body.sync.every(syncOk)
       ? JSON.stringify(body.sync.map((s) => s.map((n) => Math.round(n * 1000) / 1000))) : null;
     const previous = await env.DB.prepare("SELECT video_key, source_key, compare_key FROM videos WHERE slug = ?").bind(slug).first();
+    const sourceKey = body.source_key || previous?.source_key || null; // a recut of the same video keeps its original
     const stamp = now();
     await env.DB.batch([
       env.DB.prepare("INSERT OR IGNORE INTO channels (slug, name, sort) VALUES (?, ?, 100)")
@@ -661,10 +691,10 @@ async function publishApi(request, env, url, slug, resource, uploadId, action) {
           chapters = excluded.chapters, sync_map = excluded.sync_map, notes = excluded.notes, updated_at = excluded.updated_at`)
         .bind(slug, channel, video, version, title, status, body.video_key, videoInfo.size,
           /^[a-f0-9]{64}$/.test(body.video_sha256 || "") ? body.video_sha256 : null,
-          body.source_key || null, body.compare_key || null, Number.isFinite(duration) && duration > 0 ? duration : null,
+          sourceKey, body.compare_key || null, Number.isFinite(duration) && duration > 0 ? duration : null,
           chapters, syncMap, text(body.notes, 2000) || null, stamp, stamp),
     ]);
-    const kept = new Set([body.video_key, body.source_key, body.compare_key]);
+    const kept = new Set([body.video_key, sourceKey, body.compare_key]);
     const stale = [previous?.video_key, previous?.source_key, previous?.compare_key].filter((k) => k && !kept.has(k));
     if (stale.length) await env.MEDIA.delete(stale);
     return json({ video: publicVideo(await getVideo(env, slug), url.origin) }, previous ? 200 : 201);
