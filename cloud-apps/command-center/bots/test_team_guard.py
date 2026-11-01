@@ -41,7 +41,7 @@ class Base(unittest.TestCase):
         self.t = T0
         self.sent, self.proofs, self.cards, self.pass_codes, self.keys = [], [], [], {}, set()
         self.status, self.render, self.restart_error, self.ask_error = 202, False, None, None
-        self.owners, self.answers = {}, {}
+        self.owners, self.answers, self.route_status = {}, {}, {}
         (self.root / 'edits').mkdir()
         (self.root / 'accounts').mkdir()
         self.db = sqlite3.connect(self.root / 'o.db', isolation_level=None)
@@ -132,7 +132,7 @@ class Base(unittest.TestCase):
         if self.status in (200, 202) and key not in self.keys:  # like the real route: a repeated key delivers once
             self.keys.add(key)
             self.sent.append(('fire', event, data))
-        return {r: self.status for r in routes or ['developer', 'ana']}
+        return {r: self.route_status.get(r, self.status) for r in routes or ['developer', 'ana']}
 
     def fake_restart(self, before_kill):
         if self.restart_error:
@@ -349,17 +349,46 @@ class AnaRestart(Base):
         self.answers[self.blocked()] = {'status': 'answered', 'answer': 'Wait'}
         self.assertEqual([], self.run_guard())
 
+    def test_a_typed_answer_is_not_the_restart_button(self):
+        self.answers[self.blocked()] = {'status': 'answered', 'answer': 'Restart after the render finishes'}
+        self.assertEqual([], self.run_guard())
+
+    def test_a_queue_freeze_restarts_again_after_the_cap(self):
+        self.queue(tg.ANA, minutes=46)
+        self.assertEqual(['fire', 'restart'], [s[0] for s in self.run_guard()])
+        self.assertEqual(['ask'], [s[0] for s in self.run_guard()])
+        self.t += tg.RESTART_CAP_S
+        self.assertEqual(['restart'], [s[0] for s in self.run_guard()])
+
+    def test_one_question_lasts_the_whole_incident(self):
+        self.turn(tg.ANA, 'a1', 60, last=46, kind='prompt.requested')
+        self.assertEqual(['fire', 'ask'], [s[0] for s in self.run_guard()])
+        qid = tg.load()['questions']['turns:blocked:a1']
+        self.activity('a1', 46, 'prompt.resolved')
+        self.render = True
+        self.assertEqual([], self.run_guard())  # a render now, under 90 minutes: the question stays
+        self.t += 3000
+        self.assertEqual([], self.run_guard())  # past 90 minutes: no second question
+        self.answers[qid] = {'status': 'answered', 'answer': 'Restart OpenBot now (Recommended)'}
+        self.assertEqual(['restart'], [s[0] for s in self.run_guard()])
+
+    def test_a_capped_ana_gets_no_restart(self):
+        self.transcript('team', 'agent-x', self.refused())
+        self.run_guard()  # the limits check learns the hold
+        self.queue(tg.ANA, minutes=46)
+        self.assertEqual(['fire'], [s[0] for s in self.run_guard()])
+
     def test_jons_answer_overrides_the_restart_cap(self):
         self.refrozen()
         self.run_guard()
-        self.answers[tg.load()['questions']['turns:blocked:a2']] = {'status': 'answered', 'answer': 'restart'}
+        self.answers[tg.load()['questions']['turns:blocked:a2']] = {'status': 'answered', 'answer': 'Restart OpenBot now (Recommended)'}
         self.assertEqual(['restart'], [s[0] for s in self.run_guard()])
 
     def test_jons_answer_works_after_the_automatic_restart_of_that_turn(self):
         self.turn(tg.ANA, 'a1', 60, last=46)
         self.run_guard()
         self.run_guard()
-        self.answers[tg.load()['questions']['turns:blocked:a1']] = {'status': 'answered', 'answer': 'Restart'}
+        self.answers[tg.load()['questions']['turns:blocked:a1']] = {'status': 'answered', 'answer': 'Restart OpenBot now (Recommended)'}
         self.assertEqual(['restart'], [s[0] for s in self.run_guard()])
 
     def test_an_unreadable_answer_does_not_stop_the_check(self):
@@ -377,7 +406,7 @@ class AnaRestart(Base):
         self.render = True
         self.queue(tg.ANA, minutes=91)
         self.assertEqual(['fire', 'ask'], [s[0] for s in self.run_guard()])
-        self.answers[tg.load()['questions']['turns:blocked:queue']] = {'status': 'answered', 'answer': 'Restart'}
+        self.answers[tg.load()['questions']['turns:blocked:queue']] = {'status': 'answered', 'answer': 'Restart OpenBot now (Recommended)'}
         self.db.execute("update projection_deliveries set status = 'completed'")
         self.assertEqual([], self.run_guard())
         self.queue(tg.ANA, minutes=91)
@@ -407,6 +436,7 @@ class AnaRestart(Base):
         out = self.run_guard()
         self.assertEqual(['fire', 'ask'], [s[0] for s in out])
         self.assertIn('Other (type your own)', out[1][2])
+        self.assertIn('Restart OpenBot now (Recommended)', out[1][2])
         self.assertEqual([], self.run_guard())
 
     def test_a_failed_restart_retries(self):
@@ -536,17 +566,28 @@ class Packs(Base):
             self.assertEqual([], self.run_guard())
             preflight.assert_called()
 
-    def test_packs_that_could_still_be_enough_report_instead_of_guessing(self):
+    def test_unchecked_packs_wake_the_builders_and_report_once(self):
         self.pass_codes.update({'hgp-one': 2, 'hgp-two': None})
         out = self.run_guard()
-        self.assertEqual([('fire', 'script_failure')], [s[:2] for s in out])
+        self.assertEqual({tg.ELLE, tg.SCARLETT}, {s[1] for s in out if s[0] == 'wake'})
+        self.assertEqual(['script_failure'], [s[1] for s in out if s[0] == 'fire'])
         self.assertEqual([], self.run_guard())
 
     def test_an_unchecked_pack_does_not_hide_a_shortage(self):
         self.pass_codes.update({'hgp-one': 1, 'hgp-two': None})
         out = self.run_guard()
-        self.assertEqual({tg.ELLE, tg.SCARLETT}, {s[1] for s in out})
+        self.assertEqual({tg.ELLE, tg.SCARLETT}, {s[1] for s in out if s[0] == 'wake'})
         self.assertIn('Could not check: hgp-two', out[0][2])
+
+    def test_one_ready_and_one_unchecked_is_a_shortage(self):
+        self.pass_codes['hgp-two'] = None
+        self.assertEqual({tg.ELLE, tg.SCARLETT}, {s[1] for s in self.run_guard() if s[0] == 'wake'})
+
+    def test_a_pack_with_a_finished_video_does_not_count(self):
+        final = self.root / 'edits' / 'hgp-one' / 'final'
+        final.mkdir()
+        (final / 'cut.mp4').write_bytes(b'x')
+        self.assertEqual({tg.ELLE, tg.SCARLETT}, {s[1] for s in self.run_guard()})
 
     def test_a_healthy_check_waits_an_hour_too(self):
         self.assertEqual([], self.run_guard())
@@ -563,7 +604,7 @@ class Packs(Base):
         with mock.patch.object(tg, 'preflight') as preflight:
             self.assertEqual([], self.run_guard())
             preflight.assert_not_called()
-        self.assertIn('fail:packs', tg.load()['seen'])
+        self.assertIn('packs:unchecked', tg.load()['seen'])
 
     def test_a_partial_wake_retries_next_run_without_preflight(self):
         self.pass_codes['hgp-two'] = 1
@@ -620,9 +661,34 @@ class Packs(Base):
         self.assertEqual(2, len(self.run_guard()))
 
 
+class Unreachable(Base):
+    def outage(self):
+        self.status = 503
+        self.turn(LUCY, 'u%d' % self.t, 40, last=31)
+        return [s for _ in range(tg.SEND_FAILS_TO_JON) for s in self.run_guard()]
+
+    def test_a_second_outage_tells_jon_again(self):
+        self.assertEqual(['ask'], [s[0] for s in self.outage()])
+        self.status = 202
+        self.run_guard()
+        self.t += 3600
+        self.assertEqual(['ask'], [s[0] for s in self.outage()])
+
+    def test_one_refusing_route_is_a_failed_send(self):
+        self.route_status = {'ana': 503}
+        with self.assertRaises(RuntimeError):
+            tg.send_failure(['boom'], 'tag')
+
+
 class Limits(Base):
     def alerts(self, out):
         return [t for s in out if s[1] == 'bot_stuck' for t in s[2]['alerts']]
+
+    def test_the_latest_reset_wins_whatever_the_order(self):
+        self.transcript('team', 'agent-x', self.refused(48))
+        self.transcript('team', 'agent-x', self.refused(24))
+        self.run_guard()
+        self.assertEqual(int(T0 + 48 * 3600), tg.load()['holds']['team'])
 
     def test_idle_bot_on_a_capped_account_is_flagged_once(self):
         self.transcript('team', 'agent-x', self.refused())
@@ -819,9 +885,10 @@ class RealFunctions(unittest.TestCase):
         self.addCleanup(tmp.cleanup)
         self.root = Path(tmp.name)
 
-    def proc(self, name, args=()):
+    def proc(self, name, args=(), cwd='C:\\elsewhere'):
         p = mock.Mock(info={'name': name})
         p.cmdline.return_value = ['OpenBot.exe', *args]
+        p.cwd.return_value = cwd
         return p
 
     def psutil(self, procs, alive=()):
@@ -845,9 +912,21 @@ class RealFunctions(unittest.TestCase):
         with mock.patch.object(tg, 'GPUQ', self.root), self.psutil([self.proc('chrome-headless-shell.exe')]):
             self.assertTrue(tg.render_running())
 
-    def test_ffmpeg_counts_as_a_render(self):
-        with mock.patch.object(tg, 'GPUQ', self.root), self.psutil([self.proc('ffmpeg.exe')]):
+    def test_aieditors_ffmpeg_counts_as_a_render(self):
+        running = self.proc('ffmpeg.exe', cwd=r'C:\Users\jonst\AIEditor\renderer')
+        with mock.patch.object(tg, 'GPUQ', self.root), self.psutil([running]):
             self.assertTrue(tg.render_running())
+
+    def test_any_other_ffmpeg_is_no_render(self):
+        running = self.proc('ffmpeg.exe', cwd=r'D:\AgentTeam\viral-view\sienna-2')
+        with mock.patch.object(tg, 'GPUQ', self.root), self.psutil([running]):
+            self.assertFalse(tg.render_running())
+
+    def test_an_ffmpeg_that_exits_mid_check_is_no_render(self):
+        running = self.proc('ffmpeg.exe')
+        running.cwd.side_effect = OSError('gone')
+        with mock.patch.object(tg, 'GPUQ', self.root), self.psutil([running]):
+            self.assertFalse(tg.render_running())
 
     def test_restart_marks_the_cap_before_the_kill(self):
         main, order = self.proc('OpenBot.exe'), []

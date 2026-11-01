@@ -8,14 +8,15 @@ Runs hidden every 10 minutes (see HOOKS.md). Reads OpenBot's database and transc
 - Fewer than 2 packs ready for Olivia: wakes Elle and Scarlett. Preflight runs at most hourly.
 - A bot whose current or main account is capped by a usage limit: bot_stuck to Ana. If it's Ana's own
   current account she can't read that, so it also goes on Jon's Questions page.
-- Ana's open turn quiet 45 minutes, or a message queued 45 minutes with no open turn: restarts OpenBot.
+- Ana's open turn quiet 45 minutes, or a message queued 45 minutes with no open turn: restarts OpenBot,
+  unless her own account is capped: a restart can't lift a limit.
   Jon gets a question instead if a prompt is open, OpenBot restarted in the last 3 hours, or a render still
-  blocks it at 90 minutes. His "restart" answer restarts it, whatever was in the way.
+  blocks it at 90 minutes. His "Restart OpenBot now" button restarts it, whatever was in the way.
 
 Each incident acts once. A failed send stays unmarked and retries next run. A check that crashes
 reports script_failure once and the others still run.
 
-python -I team_guard.py [--dry-run]    (--dry-run prints what it would do and changes nothing)
+python -I team_guard.py [--dry-run]    (--dry-run prints what it would do and sends nothing; crashes still log)
 """
 import argparse
 import contextlib
@@ -66,8 +67,8 @@ PY = str(Path(sys.executable).with_name('python.exe'))  # pythonw has no output 
 
 URGENT, RESTART, JON, FAILURE = 'urgent', 'restart', 'jon', 'failure'  # other targets are agent ids
 SEEN = ['Seen']  # the answer button of a question that is information only
+RESTART_NOW = 'Restart OpenBot now'  # only this button restarts: a typed answer may say "restart" and mean later
 PACK_USED = {'doing', 'waiting_on_jon', 'qc', 'review', 'done'}
-RENDER_PROCS = {'chrome-headless-shell.exe', 'ffmpeg.exe'}  # render_logged.py and finish_*.sh skip gpuq's locks
 VIDEO_LINK = re.compile(r'youtube\.com|youtu\.be|jonmac\.ai/(dashboard/)?review', re.I)
 
 OPEN_TURNS = """
@@ -125,6 +126,15 @@ def dash(*args):
     return json.loads(r.stdout)
 
 
+def render_proc(p, psutil):
+    """render_logged.py and finish_*.sh skip gpuq's locks. ffmpeg also runs for clips and transcodes all day: only aieditor's counts."""
+    if p.info['name'] == 'chrome-headless-shell.exe':
+        return True
+    with contextlib.suppress(psutil.Error):
+        return p.info['name'] == 'ffmpeg.exe' and 'aieditor' in (p.cwd() or '').lower()
+    return False
+
+
 def render_running():
     import psutil
     for f in GPUQ.glob('cpu-render-*.lock'):
@@ -136,7 +146,7 @@ def render_running():
                 return True
             h.seek(0)
             msvcrt.locking(h.fileno(), msvcrt.LK_UNLCK, 1)
-    return any(p.info['name'] in RENDER_PROCS for p in psutil.process_iter(['name']))
+    return any(render_proc(p, psutil) for p in psutil.process_iter(['name']))
 
 
 def restart_openbot(before_kill):
@@ -191,13 +201,17 @@ def jon_said_restart(state, key):
     except Exception as err:  # the dashboard being down must not stop the alerts
         log('could not read %s: %r' % (key, err))
         return False
-    return q['status'] == 'answered' and (q['answer'] or '').lower().startswith('restart')
+    return q['status'] == 'answered' and (q['answer'] or '').startswith(RESTART_NOW)
 
 
-def ana_frozen(found, tag, idle, prompt, now, state):
+def ana_frozen(found, tag, idle, prompt, held, now, state):
     """Alert, then restart OpenBot. A prompt, a recent restart or a long render asks Jon instead."""
     found['turns:ana:' + tag] = (URGENT, 'Ana quiet %d minutes. OpenBot restarts once no render is running.' % idle)
     restart, asked = 'turns:restart:' + tag, 'turns:blocked:' + tag
+    if asked in state['seen']:  # one question per incident, whatever blocks it next
+        found[asked] = None
+    if held:  # check_limits tells Jon
+        return
     capped = now - state.get('last_restart', 0) < RESTART_CAP_S
     render = not prompt and not capped and render_running()
     why = ('a prompt is waiting for an answer' if prompt else 'OpenBot already restarted in the last 3 hours'
@@ -205,10 +219,9 @@ def ana_frozen(found, tag, idle, prompt, now, state):
     if not why:
         found[restart] = (RESTART, 'Restarting OpenBot.')
         return
-    found[restart] = None
     if not render or idle >= BLOCKED_MIN:
         found[asked] = (JON, 'Ana is frozen and %s. Restart OpenBot?' % why,
-                        ['Restart OpenBot now (Recommended)', 'Wait'])
+                        [RESTART_NOW + ' (Recommended)', 'Wait (restarts by itself when clear)'])
     if jon_said_restart(state, asked):  # its own key: this turn may have had its automatic restart already
         found['turns:jon:' + tag] = (RESTART, 'Restarting OpenBot, as Jon chose.')
 
@@ -220,7 +233,9 @@ def check_turns(now, state):
             "select recipient_agent_id, count(*), min(created_at) from projection_deliveries "
             "where status = 'queued' group by 1")}
         prompts = {t for t, in con.execute(OPEN_PROMPTS)}
-        names = {a: j.get('name', a) for a, j in agents(con).items()}
+        team = agents(con)
+    names = {a: j.get('name', a) for a, j in team.items()}
+    held = (team.get(ANA, {}).get('providerAccountId') or DEFAULT_ACCOUNT) in state.get('holds', {})
 
     def alert(agent, text):  # Ana can't alert herself
         return (JON, text, SEEN) if agent == ANA else (URGENT, text)
@@ -233,7 +248,7 @@ def check_turns(now, state):
         name = names.get(agent, agent)
         if agent == ANA:
             if idle >= ANA_MIN:
-                ana_frozen(found, turn, idle, turn in prompts, now, state)
+                ana_frozen(found, turn, idle, turn in prompts, held, now, state)
         elif idle >= IDLE_MIN:
             found['turns:idle:' + turn] = (URGENT, '%s quiet %d minutes in an open turn.' % (name, idle))
         if age >= QUEUE_MIN:  # one alert per turn, even if its queue empties and fills again
@@ -246,7 +261,7 @@ def check_turns(now, state):
         wait, free = (now - ts(oldest)) / 60, agent not in working
         if agent == ANA and free:
             if wait >= ANA_MIN:
-                ana_frozen(found, 'queue', wait, False, now, state)
+                ana_frozen(found, 'queue', wait, False, held, now, state)
         elif wait >= (IDLE_MIN if free else QUEUE_MIN) and agent not in covered:
             found['turns:waiting:' + agent] = alert(agent, '%s has %d queued, the oldest %d minutes old%s.' % (
                 names.get(agent, agent), n, wait, ', with no open turn' if free else ''))
@@ -348,21 +363,24 @@ def pack_started(folder, titles):
 
 
 def waiting_packs():
-    """Edit folders Olivia has not started. Only her cards count: other cards just share the author's name."""
+    """Edit folders Olivia has not started: no finished video and no card of hers. Other cards just share the author's name."""
     titles = [t['title'] for t in dash('tasks', '--owner', 'video-editor', '--limit', '500')['tasks']
               if t['status'] in PACK_USED]
     return [d for d in sorted(EDITS.iterdir()) if re.fullmatch(r'hgp-.+|.+-\d+', d.name)
-            and (d / 'edit-plan.json').exists() and not pack_started(d.name, titles)]
+            and (d / 'edit-plan.json').exists() and not any((d / 'final').glob('*.mp4'))
+            and not pack_started(d.name, titles)]
 
 
-def pack_wakes(text):
-    return {'packs:low:' + a: (a, text) for a in (ELLE, SCARLETT)}
+def pack_alerts(state):
+    found = {'packs:low:' + a: (a, state['packs_short']) for a in (ELLE, SCARLETT)}
+    if state.get('packs_unknown'):
+        found['packs:unchecked'] = (FAILURE, 'preflight could not check ' + ', '.join(state['packs_unknown']))
+    return found
 
 
 def check_packs(now, state):
     if now - state.get('packs_at', 0) < PACKS_RECHECK_S:  # a failing pack costs minutes of CPU; a failed wake retries
-        short = state.get('packs_short')
-        return pack_wakes(short) if short else None
+        return pack_alerts(state) if state.get('packs_short') else None
     state['packs_at'], state['packs_short'] = now, None
     ready, unknown = 0, []
     for folder in waiting_packs():
@@ -372,13 +390,12 @@ def check_packs(now, state):
             return {}
         if code not in (0, 1):
             unknown.append(folder.name)
-    if ready + len(unknown) >= MIN_PACKS:  # it may be fine: report it so this rule can't go quiet for good
-        raise RuntimeError('preflight could not check ' + ', '.join(unknown))
+    state['packs_unknown'] = unknown  # an unchecked pack hasn't passed
     state['packs_short'] = ('Only %d pack(s) pass preflight and wait for Olivia. The team keeps at least %d, '
                             'so build the next one.' % (ready, MIN_PACKS))
     if unknown:
         state['packs_short'] += ' Could not check: %s.' % ', '.join(unknown)
-    return pack_wakes(state['packs_short'])
+    return pack_alerts(state)
 
 
 CHECKS = [('turns', check_turns), ('qc', check_qc), ('limits', check_limits), ('packs', check_packs)]  # slowest last

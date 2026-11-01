@@ -40,7 +40,7 @@ Register-ScheduledTask AgentTeam-watch-mail -Action $run -Trigger (New-Scheduled
 ## Team guard
 `team_guard.py` runs hidden every 10 minutes and needs no bot awake, so it still works when Ana is frozen. Each incident acts once; a failed send retries next run. Rules are in its docstring, and `--dry-run` shows what it would do without sending anything. State is `D:\AgentTeam\logs\team-guard.json`, log `team-guard.log` beside it.
 
-A pack counts as ready for Olivia when its folder in `aieditor\edits` (`hgp-*` or `*-<number>`) passes preflight and no video-editor card naming it is doing, waiting on Jon, in QC, in review or done. A numbered folder needs its number in the card title (`theo-2`: `#2`); a title with no number counts as video 1.
+A pack counts as ready for Olivia when its folder in `aieditor\edits` (`hgp-*` or `*-<number>`) passes preflight, has no finished video in `final`, and no video-editor card naming it is doing, waiting on Jon, in QC, in review or done. A numbered folder needs its number in the card title (`theo-2`: `#2`); a title with no number counts as video 1.
 
 The schedule, installed only after Jon approves it:
 ```powershell
