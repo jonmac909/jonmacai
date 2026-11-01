@@ -405,7 +405,7 @@ def check_packs(now, state):
 
 def gpu2_ports_line():
     """The last line of GPU2's ports log, '' if it has none, None if GPU2 can't be reached."""
-    ps = "Get-Content %s -Tail 1 -ErrorAction SilentlyContinue" % PORTS_LOG
+    ps = "Get-Content %s -Tail 1 -ErrorAction SilentlyContinue; exit 0" % PORTS_LOG
     r = subprocess.run(['ssh', '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=8', 'gpu2',
                         'powershell -NoProfile -NonInteractive -OutputFormat Text -Command "%s"' % ps],
                        capture_output=True, encoding='utf-8', errors='replace', creationflags=NO_WINDOW, timeout=30)
@@ -422,9 +422,10 @@ def check_ports(now, state):
     if not p or now - p['at'] > PORTS_FRESH_S:
         return {}
     kind = p['low'][0]
-    name, count, _pid = p[kind]['top'][0]
-    return {'ports:gpu2': (URGENT, 'GPU2 is running low on %s ports: %d of 16384 in use, %d held by %s. %s'
-                           % (kind.upper(), p[kind]['used'], count, name, p['cmd'][:120]))}
+    top = p[kind]['top']
+    who = 'biggest holder %s with %d' % (top[0][0], top[0][1]) if top else 'all closed connections'
+    return {'ports:gpu2': (URGENT, 'GPU2 is running low on %s ports: %d of 16384 in use, %s. Its command line is in '
+                                   'ports.log on GPU2.' % (kind.upper(), p[kind]['used'], who))}
 
 
 CHECKS = [('turns', check_turns), ('qc', check_qc), ('limits', check_limits), ('ports', check_ports),

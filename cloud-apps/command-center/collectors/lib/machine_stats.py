@@ -267,15 +267,20 @@ def parse_netstat(text):
 def watch_ports(rows, log=None):
     """Sockets per protocol with the biggest holders. When ports run low, keep who holds them in
     ports.log: a reboot wipes that, and team_guard.py alerts Ana from the file's last line.
-    The holder's command line stays on this machine."""
+    The holder's command line stays on this machine. PID 0 is closed connections: they count, nobody holds them."""
     names = {pid: n for n, pid in rows}
-    seen = parse_netstat(_run(['netstat', '-ano'], timeout=10))
-    out = {k.lower(): {'used': sum(c.values()), 'top': [[names.get(pid, str(pid)), n, pid] for pid, n in c.most_common(3)]}
+    text = _run(['netstat', '-ano'], timeout=10)
+    if not text:
+        raise RuntimeError('netstat gave no data')
+    seen = parse_netstat(text)
+    out = {k.lower(): {'used': sum(c.values()),
+                       'top': [[names.get(pid, str(pid)), n, pid] for pid, n in c.most_common(4) if pid][:3]}
            for k, c in seen.items()}
     low = [k for k in ('udp', 'tcp') if out[k]['used'] >= PORTS_LOW]
     if low:
-        ps = '(Get-CimInstance Win32_Process -Filter "ProcessId=%d").CommandLine' % out[low[0]]['top'][0][2]
-        cmd = _run(['powershell', '-NoProfile', '-NonInteractive', '-WindowStyle', 'Hidden', '-Command', ps], timeout=15)
+        top = out[low[0]]['top']
+        ps = '(Get-CimInstance Win32_Process -Filter "ProcessId=%d").CommandLine' % (top[0][2] if top else 0)
+        cmd = _run(['powershell', '-NoProfile', '-NonInteractive', '-WindowStyle', 'Hidden', '-Command', ps], timeout=8)
         path = Path(log or Path.home() / '.command-center' / 'logs' / 'ports.log')
         with path.open('a', encoding='utf-8') as f:
             f.write(json.dumps({'at': time.time(), 'low': low, 'cmd': cmd.strip()[:300], **out}) + '\n')
@@ -302,6 +307,7 @@ def summarize(names, pyjobs, titles):
 
 
 def collect(machine):
+    started = time.time()
     errors = []
     data = {'machine': machine, 'hostname': socket.gethostname()}
     data['gpus'] = bounded(gpus, 15, [], errors, 'nvidia-smi')
@@ -330,7 +336,7 @@ def collect(machine):
     data['running'] = summarize(names, pyjobs, titles)
     if machine == 'gpu2':
         data['gaming'] = gaming(names)
-        data['ports'] = bounded(lambda: watch_ports(rows), 20, None, errors, 'ports')
+        bounded(lambda: watch_ports(rows), max(1, 35 - (time.time() - started)), None, errors, 'ports')  # leaves main() time to send
     data['errors'] = errors
     return data
 

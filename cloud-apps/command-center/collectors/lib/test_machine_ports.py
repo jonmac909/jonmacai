@@ -49,9 +49,28 @@ class Ports(unittest.TestCase):
         self.assertEqual('python serve.py', line['cmd'])
         self.assertEqual([['python.exe', ms.PORTS_LOW, 7]], line['udp']['top'])
 
-    def test_no_netstat_output_is_zero(self):
+    def test_closed_connections_count_but_nobody_holds_them(self):
+        log = Path(tempfile.mkdtemp()) / 'ports.log'
+        closed = '\n'.join('  TCP    10.0.0.1:%d    20.1.1.1:443    TIME_WAIT    0' % i for i in range(ms.PORTS_LOW))
+        answers = {'netstat': closed + '\n  TCP    0.0.0.0:135    0.0.0.0:0    LISTENING    7\n', 'powershell': 'python serve.py\n'}
+        with mock.patch.object(ms, '_run', side_effect=lambda a, timeout=0: answers[a[0]]):
+            ms.watch_ports([('python.exe', 7)], log)
+        line = json.loads(log.read_text(encoding='utf-8'))
+        self.assertEqual(ms.PORTS_LOW + 1, line['tcp']['used'])
+        self.assertEqual([['python.exe', 1, 7]], line['tcp']['top'])
+
+    def test_only_closed_connections_still_log(self):
+        log = Path(tempfile.mkdtemp()) / 'ports.log'
+        closed = '\n'.join('  TCP    10.0.0.1:%d    20.1.1.1:443    TIME_WAIT    0' % i for i in range(ms.PORTS_LOW))
+        answers = {'netstat': closed, 'powershell': ''}
+        with mock.patch.object(ms, '_run', side_effect=lambda a, timeout=0: answers[a[0]]):
+            ms.watch_ports([], log)
+        line = json.loads(log.read_text(encoding='utf-8'))
+        self.assertEqual([], line['tcp']['top'])
+
+    def test_a_failed_netstat_is_an_error_not_zero(self):
         with mock.patch.object(ms, '_run', return_value=''):
-            self.assertEqual(0, ms.watch_ports([], 'unused')['tcp']['used'])
+            self.assertRaises(RuntimeError, ms.watch_ports, [], 'unused')
 
 
 if __name__ == '__main__':
