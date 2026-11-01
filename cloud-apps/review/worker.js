@@ -632,7 +632,8 @@ async function publishApi(request, env, url, slug, resource, uploadId, action) {
   if (resource === "source" && uploadId === undefined && method === "DELETE") {
     const row = await env.DB.prepare("SELECT source_key FROM videos WHERE slug = ?").bind(slug).first();
     if (!row?.source_key) return fail(404, "no source on this video");
-    await env.DB.prepare("UPDATE videos SET source_key = NULL, updated_at = ? WHERE slug = ?").bind(now(), slug).run();
+    // The cut map only fits the original it was made for.
+    await env.DB.prepare("UPDATE videos SET source_key = NULL, sync_map = NULL, updated_at = ? WHERE slug = ?").bind(now(), slug).run();
     await env.MEDIA.delete(row.source_key);
     return json({ video: publicVideo(await getVideo(env, slug), url.origin) });
   }

@@ -1,7 +1,9 @@
 """Puts the original source video beside our edit on review pages.
 
   review_source.py backfill [--dry-run]   every review video with no source: add it, or list it as not stored
-  review_source.py clear <slug>           takes a wrong original off a page, so the right one can be added
+  review_source.py clear <slug>           takes a wrong original off a page. Put the right file in place first and
+                                          clear every version holding the wrong one. Deletes the copy: Jon's click
+                                          unless you uploaded it.
 
 aieditor's review_upload.py calls add_or_report() after each publish. Adding never replaces: the Worker refuses to.
 Token from ~/.jonmac-review.env, never printed. Failures and videos with no stored original go to Ana through
@@ -198,14 +200,16 @@ def backfill(dry):
 
 
 def main(args):
-    if len(args) == 2 and args[0] == 'clear':
-        return api('DELETE', '/%s/source' % args[1]) and 0
-    if args not in (['backfill'], ['backfill', '--dry-run']):
+    clear = len(args) == 2 and args[0] == 'clear'
+    if not clear and args not in (['backfill'], ['backfill', '--dry-run']):
         sys.exit(__doc__)
     try:
+        if clear:
+            api('DELETE', '/%s/source' % args[1])
+            return 0
         return backfill(len(args) == 2)
     except Exception as err:
-        report('backfill', err)
+        report(args[0], err)
         raise
 
 

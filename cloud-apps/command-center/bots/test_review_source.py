@@ -229,6 +229,12 @@ class Add(Base):
         web_copy.assert_called_once_with(carried, 'mina-1')  # an old upload may not play on an iPhone
         self.assertEqual(attached, ['/mina-1-v12/source'])
 
+    def test_another_videos_source_is_never_carried(self):
+        rows = {'videos': [{'slug': 'mina-2-v1', 'source_url': 'https://x/other'}]}
+        with mock.patch.object(rs, 'api', return_value=rows), mock.patch.object(rs, 'token', return_value='t'), \
+                mock.patch.object(rs.urllib.request, 'urlopen', side_effect=AssertionError('downloaded')):
+            self.assertIsNone(rs.carried('mina-1-v12'))
+
     def test_a_cut_off_download_is_never_attached(self):
         _, attached, _, result = self.carry(sent=b'the', promised=1000)
         self.assertIn('cut off', result)
@@ -366,6 +372,12 @@ class Backfill(Base):
         with mock.patch.object(rs, 'api', return_value={'video': {}}) as api:
             self.assertEqual(rs.main(['clear', 'gail-1-v3']), 0)
         api.assert_called_once_with('DELETE', '/gail-1-v3/source')
+
+    def test_a_failed_clear_is_reported(self):
+        with mock.patch.object(rs, 'api', side_effect=OSError('down')), mock.patch.object(rs.hook, 'fire') as fire:
+            with self.assertRaises(OSError):
+                rs.main(['clear', 'gail-1-v3'])
+        self.assertIn('clear: down', fire.call_args.args[1]['error'])
 
 
 if __name__ == '__main__':

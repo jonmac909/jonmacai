@@ -202,11 +202,13 @@ test("adding a source: page goes side by side, status, comments and media kept, 
   assert.equal(notAgent.status, 403);
   await notAgent.arrayBuffer();
   assert.ok(await runtime.bucket.head(first));
+  await runtime.db.prepare("UPDATE videos SET sync_map = '[[0,5,100,105]]' WHERE slug = 'mina-3-v1'").run();
   const cleared = await clear(agent);
   assert.equal(cleared.status, 200);
   await cleared.arrayBuffer();
   const without = await video();
   assert.equal(without.source_url, null);
+  assert.deepEqual(without.sync, [], "the wrong original's cut map goes with it");
   assert.equal(without.video_url, before.video_url);
   assert.equal(without.status, "changes_requested");
   assert.equal(await runtime.bucket.head(first), null);
