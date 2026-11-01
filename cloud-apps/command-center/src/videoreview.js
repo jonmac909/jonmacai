@@ -34,9 +34,10 @@ const SENT_BACK = 'Its task went back to Doing with these notes.';
 export const reviewSlug = (link) => REVIEW_LINK.exec(String(link || ''))?.[1].toLowerCase() || null;
 
 // The task a review video belongs to: one with that review page as proof, a task in review first, then the newest proof.
+// A Coding card that cites the page as a test of the tool isn't the video's card, so it never takes its notes or Approve.
 export async function linkedTask(db, slug) {
   const { results } = await db.prepare(`SELECT t.*, p.link AS review_link FROM bot_proofs p JOIN bot_tasks t ON t.id = p.task_id
-    WHERE (p.link LIKE ? OR p.link LIKE ? OR p.link LIKE ? OR p.link LIKE ?) AND t.status != 'cancelled'
+    WHERE (p.link LIKE ? OR p.link LIKE ? OR p.link LIKE ? OR p.link LIKE ?) AND t.status != 'cancelled' AND t.project IS NOT 'coding'
     ORDER BY t.status = 'review' DESC, p.created_at DESC LIMIT 20`).bind(...['', '/%', '?%', '#%'].map((end) => `%/review/${slug}${end}`)).all();
   return (results || []).find((r) => reviewSlug(r.review_link) === slug) || null;
 }
@@ -128,7 +129,7 @@ async function wakeForComment(env, ctx, origin, slug, comment, now) {
 export async function settleApproved(env, now = new Date().toISOString()) {
   if (!env.REVIEW || !env.REVIEW_API_TOKEN) return;
   const { results } = await env.DB.prepare(`SELECT t.id, p.link, p.created_at FROM bot_tasks t JOIN bot_proofs p
-    ON p.id = (SELECT id FROM bot_proofs WHERE task_id = t.id ORDER BY created_at DESC LIMIT 1) WHERE t.status = 'review'`).all();
+    ON p.id = (SELECT id FROM bot_proofs WHERE task_id = t.id ORDER BY created_at DESC LIMIT 1) WHERE t.status = 'review' AND t.project IS NOT 'coding'`).all();
   const cards = (results || []).filter((c) => reviewSlug(c.link));
   if (!cards.length) return;
   const read = async (path) => {
