@@ -42,6 +42,8 @@ Register-ScheduledTask AgentTeam-watch-mail -Action $run -Trigger (New-Scheduled
 
 A pack counts as ready for Olivia when its folder in `aieditor\edits` (`hgp-*` or `*-<number>`) passes preflight, has no finished video in `final`, and no video-editor card naming it is doing, waiting on Jon, in QC, in review or done. A numbered folder needs its number in the card title (`theo-2`: `#2`); a title with no number counts as video 1.
 
+GPU2's 60-second heartbeat (`collectors/lib/machine_stats.py`) counts its sockets. At 10000 UDP or TCP it adds a line to `~/.command-center/logs/ports.log` on GPU2 with who holds them; the guard reads that file over SSH and sends Ana one `bot_stuck` per incident.
+
 The schedule, installed only after Jon approves it:
 ```powershell
 $run = New-ScheduledTaskAction -Execute 'C:\Users\jonst\AppData\Local\Programs\Python\Python310\pythonw.exe' -Argument '-I D:\AgentTeam\tools\team_guard.py'
