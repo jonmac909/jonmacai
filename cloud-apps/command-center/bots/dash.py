@@ -182,9 +182,9 @@ def feed_data(args):
     return data
 
 
-def qc_route(owner, routes):
-    """Long-form videos go to Jessica ('qc'), everything else to Nina. Until Nina has a webhook, Jessica gets them all."""
-    return 'nina' if owner and owner != 'video-editor' and 'nina' in routes else 'qc'
+def qc_route(owner):
+    """Long-form videos go to Jessica ('qc'), everything else to Nina. This also names the bot's wake marker."""
+    return 'nina' if owner and owner != 'video-editor' else 'qc'
 
 
 def task_owner(ctx, task_id):
@@ -223,15 +223,19 @@ def wake_qc(out, task_id, ctx):
     route = None
     try:
         import hook
-        route = qc_route(task_owner(ctx, task_id), hook.load_routes())
+        route = qc_route(task_owner(ctx, task_id))
         if wake_unread(route):
             return
         WAKE_DIR.mkdir(parents=True, exist_ok=True)
         (WAKE_DIR / route).touch()  # before the send: a bot that reads at once must clear this wake, not miss the next
-        res = hook.fire('proof_posted', {'proof': proof['id'], 'task': task_id, 'kind': proof.get('kind'),
-                                         'link': proof.get('link'), 'by': ctx['bot'],
-                                         'read': 'dash.py proofs --status pending, then work through your share of it'},
-                        key=proof['id'], routes=[route])
+        data = {'proof': proof['id'], 'task': task_id, 'kind': proof.get('kind'), 'link': proof.get('link'), 'by': ctx['bot'],
+                'read': 'dash.py proofs --status pending, then work through your share of it'}
+        send_to = route
+        if route == 'nina':
+            nina = hook.load_routes().get('nina')
+            if not (isinstance(nina, dict) and nina.get('url') and nina.get('secret')):
+                send_to, data['forOwner'] = 'ana', 'nina'  # no webhook of her own: Ana forwards it, as with card comments
+        res = hook.fire('proof_posted', data, key=proof['id'], routes=[send_to])
         bad = {r: s for r, s in res.items() if s not in (200, 202)}
     except Exception as err:  # never fail a saved proof because QC couldn't be woken
         bad = str(err)

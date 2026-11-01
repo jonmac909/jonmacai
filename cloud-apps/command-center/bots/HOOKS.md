@@ -5,7 +5,7 @@
 | Event | Wakes | Sent by |
 |---|---|---|
 | `script_failure` | Developer, Ana | every team script, when it fails |
-| `proof_posted` | QC: Jessica (route `qc`) for tasks owned by video-editor, Nina (route `nina`) for the rest. Jessica gets all of them until `nina` is in the secrets file. A bot with an unread wake gets no second one: `proofs --status pending` reads it, and it expires after 30 minutes | `dash.py proof-add`, automatically |
+| `proof_posted` | QC: Jessica (route `qc`) for tasks owned by video-editor, Nina for the rest. Nina's go to her route `nina` once it has a url and a secret; until then they go to route `ana` with `data.forOwner: "nina"`, and Ana forwards them. A bot with an unread wake gets no second one: `proofs --status pending` reads it, and it expires after 30 minutes | `dash.py proof-add`, automatically |
 | `raw_footage` | Video Editor | `watch_footage.ps1`, when files land in `D:\AgentTeam\footage` |
 | `sponsor_email` | Sponsors, Ana | `watch_mail.py`, on new partners@ inbox mail |
 | `accounting_email` | Accounting | `watch_mail.py`, on jon@ mail from gdbookkeeping.com or maxeisner.ca |
