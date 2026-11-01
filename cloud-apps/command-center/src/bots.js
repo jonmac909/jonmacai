@@ -412,7 +412,7 @@ function historyOf(task, proofs, events) {
 
 const commentOut = (r) => ({ id: r.id, taskId: r.task_id, author: r.author, body: r.body, createdAt: r.created_at, wakeStatus: r.wake_status ?? null });
 const JON_OWNS = 'owner is Jon';
-const WAKE_PAUSES = [2000, 4000]; // ms before each retry of a 503 or an unreachable routine, as in hook.py
+const WAKE_PAUSES = [2000, 4000]; // ms before each retry of a 503 or an unreachable routine
 
 async function addComment(db, env, ctx, who, taskId, body, now) {
   const task = await taskRow(db, taskId);

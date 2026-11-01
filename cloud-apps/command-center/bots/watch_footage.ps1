@@ -16,7 +16,6 @@ $OutputEncoding = New-Object Text.UTF8Encoding $false  # JSON piped to Python ke
 $hook = Join-Path $PSScriptRoot 'hook.py'
 $media = '.mp4', '.mov', '.mkv', '.m4v', '.avi', '.webm', '.mxf', '.wav', '.mp3', '.m4a', '.aac'
 $maxTries = 10  # undelivered drop: retried every quiet spell, then given up (it's in the log)
-$work = Join-Path $Folder 'short-form\'  # the Short-form bot's working folder: generated clips and QC audio, not raw footage
 
 function Note($text) {
   New-Item -ItemType Directory -Force (Split-Path $Log) | Out-Null
@@ -50,6 +49,7 @@ function Busy($path) {  # still being written: a writer holds it open
 
 try {
   New-Item -ItemType Directory -Force $Folder | Out-Null
+  $work = Join-Path $Folder 'short-form\'  # the Short-form bot's working folder: generated clips and QC audio, not raw footage
   $seen = @{}
   Media $Folder | ForEach-Object { $seen[(Id $_)] = $true }
   $w = New-Object IO.FileSystemWatcher $Folder

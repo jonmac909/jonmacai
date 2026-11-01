@@ -64,7 +64,7 @@ main().catch((error) => {
   const hook = setting("HOOK_PY", "D:\\AgentTeam\\tools\\hook.py");
   if (existsSync(hook)) {
     spawnSync("python", ["-I", hook, "fire", "script_failure", "--data", "-"],
-      { input: JSON.stringify({ script: "review_voice", error: error.message.slice(0, 500) }), windowsHide: true, timeout: 60000 });
+      { input: JSON.stringify({ script: "review_voice", error: error.message.slice(0, 500) }), windowsHide: true, timeout: 120000 });
   }
   process.exit(1);
 });

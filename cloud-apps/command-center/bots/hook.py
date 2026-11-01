@@ -36,7 +36,7 @@ EVENTS = {
     'accounting_email': ['accounting'],
 }
 ROUTES = sorted({r for routes in EVENTS.values() for r in routes} | {'nina'})  # nina: dash.py picks the QC bot per proof
-TRIES = 6  # 30 s of back-off, enough to outlast an OpenBot app freeze: the relay answers 503 until it thaws
+TRIES = 6  # OpenBot app freezes (57 s logged) answer 503: 30 s of back-off plus the relay's wait on each try outlast them
 NO_SECRET = 'no secret'
 
 
@@ -67,7 +67,7 @@ def send(cfg, body, delivery):
             'Content-Type': 'application/json', 'x-openbot-timestamp': ts,
             'x-openbot-delivery-id': delivery, 'x-openbot-signature': 'sha256=' + sig.hexdigest()})
         try:
-            with urllib.request.urlopen(req, timeout=20) as r:
+            with urllib.request.urlopen(req, timeout=10) as r:
                 return r.status
         except urllib.error.HTTPError as err:
             if err.code != 503:
