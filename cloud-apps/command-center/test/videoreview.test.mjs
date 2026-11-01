@@ -291,6 +291,16 @@ test('the review link convention: proof links (and only exact slugs) tie a task 
   assert.equal((await linkedTask(db, SLUG)).id, task.id);
   assert.notEqual(longer.id, task.id);
 
+  // Zane #1, 2026-11-01: a Coding card citing the page outranked the video's own card and took Jon's note.
+  const { task: tool } = await v1(env, 'POST', '/tasks', { bot: 'video-editor', body: { title: 'Review pages tool', project: 'coding', status: 'doing' } });
+  const { proof: cited } = await v1(env, 'POST', `/tasks/${tool.id}/proofs`, { bot: 'video-editor', body: { kind: 'url', link: `https://jonmac.ai/dashboard/review/${SLUG}` } });
+  await v1(env, 'PATCH', `/tasks/${tool.id}`, { bot: 'video-editor', body: { status: 'qc' } });
+  await v1(env, 'POST', `/proofs/${cited.id}/check`, { bot: 'qc', body: { result: 'passed' } });
+  assert.equal((await taskRow(db, tool.id)).status, 'review');
+  assert.equal((await linkedTask(db, SLUG)).id, task.id, 'the video card, though the Coding card is newer and in Review');
+  await db.prepare('DELETE FROM bot_proofs WHERE task_id = ?').bind(task.id).run();
+  assert.equal(await linkedTask(db, SLUG), null, 'a Coding card alone is not the video card');
+
   assert.equal(deliverableLink({ link: `https://jonmac.ai/review/${SLUG}?k=x`, kind: 'render' }),
     `<a class="pjdeliv" href="/dashboard/review/${SLUG}" target="_blank" rel="noopener">Open review</a>`);
   assert.match(deliverableLink({ link: 'https://jonmac.ai/other', kind: 'url' }), /href="https:\/\/jonmac.ai\/other"/);
