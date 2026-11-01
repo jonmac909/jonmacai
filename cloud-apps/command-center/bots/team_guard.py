@@ -422,10 +422,12 @@ def check_ports(now, state):
     if not p or now - p['at'] > PORTS_FRESH_S:
         return {}
     kind = p['low'][0]
-    top = p[kind]['top']
-    who = 'biggest holder %s with %d' % (top[0][0], top[0][1]) if top else 'all closed connections'
-    return {'ports:gpu2': (URGENT, 'GPU2 is running low on %s ports: %d of 16384 in use, %s. Its command line is in '
-                                   'ports.log on GPU2.' % (kind.upper(), p[kind]['used'], who))}
+    used, top = p[kind]['used'], p[kind]['top']
+    if top and top[0][1] * 2 >= used:
+        who = 'mostly %s with %d. Its command line is in ports.log on GPU2' % (top[0][0], top[0][1])
+    else:  # closed connections or many small holders: naming the biggest would blame the wrong process
+        who = 'no single process holds most of them'
+    return {'ports:gpu2': (URGENT, 'GPU2 is running low on %s ports: %d of 16384 in use, %s.' % (kind.upper(), used, who))}
 
 
 CHECKS = [('turns', check_turns), ('qc', check_qc), ('limits', check_limits), ('ports', check_ports),

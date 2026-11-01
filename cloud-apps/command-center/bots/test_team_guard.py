@@ -845,16 +845,19 @@ class Ports(Base):
 
     def test_low_ports_alert_ana_once_and_name_the_holder(self):
         self.low()
-        self.assertEqual(['GPU2 is running low on UDP ports: 13000 of 16384 in use, biggest holder python.exe with 12900. '
+        self.assertEqual(['GPU2 is running low on UDP ports: 13000 of 16384 in use, mostly python.exe with 12900. '
                           'Its command line is in ports.log on GPU2.'], self.alerts())
         self.low()
         self.assertEqual([], self.alerts())
 
-    def test_closed_connections_alone_still_alert(self):
-        self.ports_line = json.dumps({'at': self.t, 'low': ['tcp'], 'cmd': '', 'udp': {'used': 9, 'top': []},
-                                      'tcp': {'used': 12000, 'top': []}})
-        self.assertEqual(['GPU2 is running low on TCP ports: 12000 of 16384 in use, all closed connections. '
-                          'Its command line is in ports.log on GPU2.'], self.alerts())
+    def test_closed_connections_blame_nobody(self):
+        for top in ([], [['tailscaled.exe', 22, 10]]):
+            self.ports_line = json.dumps({'at': self.t, 'low': ['tcp'], 'cmd': 'tailscaled', 'udp': {'used': 9, 'top': []},
+                                          'tcp': {'used': 12000, 'top': top}})
+            self.assertEqual(['GPU2 is running low on TCP ports: 12000 of 16384 in use, no single process holds most of them.'],
+                             self.alerts())
+            self.ports_line = ''
+            self.alerts()
 
     def test_a_new_incident_alerts_again(self):
         self.low()
