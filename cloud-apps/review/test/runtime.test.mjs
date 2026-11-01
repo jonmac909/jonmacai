@@ -308,6 +308,8 @@ test("router API: token only, undelivered list with comment text, delivered, nex
 
 test("Approve: works with no open comments, sets approved, a second tap is the same submission", async () => {
   const reviewer = { Cookie: cookie, Origin: runtime.url };
+  const byBot = await fetchApp("/api/review/mina-1-v9/submit", jsonInit("POST", { kind: "approve" }, agent));
+  assert.equal(byBot.status, 403, "a bot cannot approve: it would finish its own card");
   const first = await fetchApp("/api/review/mina-1-v9/submit", jsonInit("POST", { kind: "approve" }, reviewer));
   assert.equal(first.status, 201);
   const made = await first.json();

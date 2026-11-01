@@ -121,6 +121,35 @@ async function wakeForComment(env, ctx, origin, slug, comment, now) {
   return { wakes: NO_TASK_OWNER };
 }
 
+// Approve while the card was still in QC, or on the public jonmac.ai/review page, leaves the card behind. The 10-minute
+// cron finishes the move for a Review card whose newest proof is the video, when Jon pressed Approve after that proof and
+// that video's newest version is still approved. So new work on a card, or a later card citing the same page, never
+// closes on an old Approve. The stem groups versions: the video key can differ between them.
+export async function settleApproved(env, now = new Date().toISOString()) {
+  if (!env.REVIEW || !env.REVIEW_API_TOKEN) return;
+  const { results } = await env.DB.prepare(`SELECT t.id, p.link, p.created_at FROM bot_tasks t JOIN bot_proofs p
+    ON p.id = (SELECT id FROM bot_proofs WHERE task_id = t.id ORDER BY created_at DESC LIMIT 1) WHERE t.status = 'review'`).all();
+  const cards = (results || []).filter((c) => reviewSlug(c.link));
+  if (!cards.length) return;
+  const read = async (path) => {
+    const res = await env.REVIEW.fetch(new Request(`https://jonmac.ai/api/review/${path}`, { headers: { Authorization: `Bearer ${env.REVIEW_API_TOKEN}` } }));
+    if (!res.ok) throw new Error(`review ${path}: ${res.status}`);
+    return res.json();
+  };
+  const stem = (slug) => slug.replace(/-v\d+$/, '');
+  const newest = new Map();
+  for (const v of (await read('videos')).videos) if (!(newest.get(stem(v.slug))?.created_at >= v.created_at)) newest.set(stem(v.slug), v);
+  for (const card of cards) {
+    const slug = reviewSlug(card.link);
+    const video = newest.get(stem(slug));
+    if (video?.slug !== slug || video.status !== 'approved') continue;
+    const { submissions } = await read(`${slug}/submissions`);
+    if (submissions.some((s) => s.kind === 'approve' && s.created_at > card.created_at)) {
+      await tickTask(env.DB, env, null, card.id, { status: 'done' }, now);
+    }
+  }
+}
+
 // Approve or Send back on a linked task in Review: the same PATCH Jon makes from the board (tickTask).
 async function moveTask(env, ctx, origin, slug, submission, now) {
   const task = await linkedTask(env.DB, slug);

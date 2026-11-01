@@ -484,6 +484,7 @@ async function submit(request, env, base, row, who = {}) {
   const body = (await readJson(request)) || {};
   const kind = body.kind === undefined ? "changes" : body.kind;
   if (!Object.hasOwn(KINDS, kind)) return fail(400, "kind must be changes or approve");
+  if (kind === "approve" && who.agent) return fail(403, "only_a_reviewer_can_approve"); // Approve finishes the card; only Jon does that
   const open = await env.DB.prepare(
     "SELECT id FROM comments WHERE slug = ? AND resolved = 0 AND submission_id IS NULL ORDER BY t, created_at",
   ).bind(row.slug).all();

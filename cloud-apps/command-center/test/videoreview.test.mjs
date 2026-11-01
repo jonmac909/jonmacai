@@ -7,7 +7,8 @@ import { createHmac } from 'node:crypto';
 import worker from '../src/worker.js';
 import { handleApi } from '../src/api.js';
 import { sha256Hex } from '../src/bots.js';
-import { linkedTask, reviewSlug } from '../src/videoreview.js';
+import { linkedTask, reviewSlug, settleApproved } from '../src/videoreview.js';
+import { handleCron } from '../src/cron.js';
 import { signSession, COOKIE } from '../src/auth.js';
 import { deliverableLink } from '../public/js/pages/projects.js';
 import { sqliteD1 } from './sqlited1.mjs';
@@ -51,6 +52,9 @@ function fakeReview() {
         return Response.json({ comment }, { status: 201 });
       }
       if (url.pathname.endsWith('/requeue') && request.method === 'POST') return Response.json({ ok: true });
+      if (url.pathname === '/api/review/videos') return Response.json({ videos: hooks.videos || [] });
+      const perVideo = /^\/api\/review\/([a-z0-9-]+)\/submissions$/.exec(url.pathname);
+      if (perVideo) return Response.json({ submissions: hooks.submissions?.[perVideo[1]] || [] });
       if (url.pathname === `/api/review/${SLUG}/submit`) {
         await hooks.onSubmit?.();
         const { kind } = JSON.parse(body);
@@ -228,6 +232,51 @@ test('a task not in Review, or no task, stays put; the review is still saved', a
   const kept = await (await hit(env, 'POST', `/dashboard/api/review/${SLUG}/submit`, { body: { kind: 'approve' } })).json();
   assert.equal(kept.taskNote, 'Its task is doing, so it stays there.');
   assert.equal((await taskRow(db, doing.id)).status, 'doing');
+});
+
+test('the cron moves a Review card only for a newer Approve on its newest proof and the newest version', async (t) => {
+  mockFetch(t);
+  const { env, db, review } = await setup();
+  const task = await videoTask(env);
+  const qc = await videoTask(env, 'qc', 'https://jonmac.ai/review/other-v1');
+  const status = async (id) => (await taskRow(db, id)).status;
+  const video = (slug, state, created_at = '2026-11-01T10:00:00.000Z') => ({ slug, status: state, created_at });
+  const approve = (created_at) => [{ kind: 'approve', created_at }];
+  const later = new Date(Date.now() + 60000).toISOString();
+
+  review.hooks.videos = [video(SLUG, 'approved'), video('other-v1', 'approved')];
+  await settleApproved(env);
+  assert.equal(await status(task.id), 'review', 'the status button alone moves nothing');
+
+  review.hooks.submissions = { [SLUG]: approve('2026-01-01T00:00:00.000Z'), 'other-v1': approve(later) };
+  await settleApproved(env);
+  assert.equal(await status(task.id), 'review', 'an Approve older than the proof was for earlier work');
+
+  review.hooks.submissions[SLUG] = approve(later);
+  review.hooks.videos[0].status = 'changes_requested';
+  await settleApproved(env);
+  assert.equal(await status(task.id), 'review', 'Approve then Send back: the Send back wins');
+
+  review.hooks.videos[0].status = 'approved';
+  review.hooks.videos.push(video('topview-2-v3', 'needs_review', '2026-11-01T11:00:00.000Z'));
+  await settleApproved(env);
+  assert.equal(await status(task.id), 'review', 'a newer version is still waiting for Jon');
+  review.hooks.videos.pop();
+
+  await db.prepare("UPDATE bot_proofs SET created_at = '2026-01-01T00:00:00.000Z' WHERE task_id = ?").bind(task.id).run();
+  const { proof } = await v1(env, 'POST', `/tasks/${qc.id}/proofs`, { bot: 'video-editor', body: { kind: 'render', link: 'https://example.com/other.png' } });
+  await db.prepare('UPDATE bot_proofs SET task_id = ? WHERE id = ?').bind(task.id, proof.id).run();
+  await settleApproved(env);
+  assert.equal(await status(task.id), 'review', 'a newer proof on the card is new work Jon has not seen');
+  await db.prepare('DELETE FROM bot_proofs WHERE id = ?').bind(proof.id).run();
+
+  await handleCron(env);
+  const done = await taskRow(db, task.id);
+  assert.deepEqual([done.status, done.updated_by, !!done.done_at], ['done', 'jon', true], 'the 10-minute cron runs it');
+  assert.equal(await status(qc.id), 'qc', 'a card in QC waits until it reaches Review');
+  const read = review.seen.find((x) => x.path === '/api/review/videos');
+  assert.deepEqual([read.headers.authorization, read.headers['x-review-via']], [`Bearer ${REVIEW_TOKEN}`, undefined], 'it reads as an agent');
+  await settleApproved({ ...env, REVIEW: undefined });
 });
 
 test('the review link convention: proof links (and only exact slugs) tie a task to a video; cards open the dashboard page', async () => {
