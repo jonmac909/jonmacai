@@ -47,13 +47,14 @@ export function renderGate({ next, k, error = "" }) {
 </main>`);
 }
 
-// The review list is a to-do list (Jon, 2026-11-01): one row per video, its newest version, gone once approved. A video
-// can change channel between versions, so the video key alone groups them. This only hides rows: direct links, the
+// The review list is a to-do list (Jon, 2026-11-01): one row per video, its newest version, gone once approved. The slug
+// stem groups versions: the video key and the channel can differ between them. This only hides rows: direct links, the
 // version nav and /api/review/videos keep every version.
 const CLEARED_BEFORE = "2026-10-17"; // Jon cleared the Oct 14 to 16 batch off the list
+const stem = (slug) => slug.replace(/-v\d+$/, "");
 export function openVideos(videos) {
   const newest = new Map();
-  for (const v of videos) if (!(newest.get(v.video)?.created_at >= v.created_at)) newest.set(v.video, v);
+  for (const v of videos) if (!(newest.get(stem(v.slug))?.created_at >= v.created_at)) newest.set(stem(v.slug), v);
   return [...newest.values()].filter((v) => v.status !== "approved" && v.created_at >= CLEARED_BEFORE);
 }
 

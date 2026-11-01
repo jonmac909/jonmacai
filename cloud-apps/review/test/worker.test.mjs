@@ -76,6 +76,7 @@ test("the review list shows each video's newest version, until it is approved", 
     v("b-1-v1", "b-1", "needs_review", "2026-10-31T10:00:00Z"),
     v("c-1-v2", "c-1", "needs_review", "2026-11-01T10:00:00Z", "viral-view"), // versions can move channel
     v("c-1-v1", "c-1", "changes_requested", "2026-10-31T10:00:00Z"),
+    v("b-1-v0", "b-trial", "changes_requested", "2026-10-30T10:00:00Z"), // the video key can differ too
     v("d-1-v1", "d-1", "changes_requested", "2026-10-16T23:00:00Z"), // the Oct 14 to 16 batch Jon cleared
     v("e-1-v1", "e-1", "needs_review", "2026-10-17T00:00:00Z"),
   ];

@@ -122,22 +122,31 @@ async function wakeForComment(env, ctx, origin, slug, comment, now) {
 }
 
 // Approve while the card was still in QC, or on the public jonmac.ai/review page, leaves the card behind. The 10-minute
-// cron finishes the move once the card is in Review: only the Approve button counts (not the status buttons), and only
-// on a video's newest version, so a card with a newer version waiting stays.
+// cron finishes the move for a Review card whose newest proof is the video, when Jon pressed Approve after the card was
+// made and that video's newest version is still approved. So new work on a card, or a later card citing the same page,
+// never closes on an old Approve. The stem groups versions: the video key can differ between them.
 export async function settleApproved(env, now = new Date().toISOString()) {
   if (!env.REVIEW || !env.REVIEW_API_TOKEN) return;
-  const read = async (what) => {
-    const res = await env.REVIEW.fetch(new Request(`https://jonmac.ai/api/review/${what}`, { headers: { Authorization: `Bearer ${env.REVIEW_API_TOKEN}` } }));
-    if (!res.ok) throw new Error(`review ${what}: ${res.status}`);
-    return (await res.json())[what];
+  const { results } = await env.DB.prepare(`SELECT t.id, t.created_at, (SELECT p.link FROM bot_proofs p WHERE p.task_id = t.id
+    ORDER BY p.created_at DESC LIMIT 1) AS link FROM bot_tasks t WHERE t.status = 'review'`).all();
+  const cards = (results || []).filter((c) => reviewSlug(c.link));
+  if (!cards.length) return;
+  const read = async (path) => {
+    const res = await env.REVIEW.fetch(new Request(`https://jonmac.ai/api/review/${path}`, { headers: { Authorization: `Bearer ${env.REVIEW_API_TOKEN}` } }));
+    if (!res.ok) throw new Error(`review ${path}: ${res.status}`);
+    return res.json();
   };
-  const [videos, submissions] = await Promise.all([read('videos'), read('submissions')]);
+  const stem = (slug) => slug.replace(/-v\d+$/, '');
   const newest = new Map();
-  for (const v of videos) if (!(newest.get(v.video)?.created_at >= v.created_at)) newest.set(v.video, v);
-  for (const v of newest.values()) {
-    if (v.status !== 'approved' || !submissions.some((s) => s.kind === 'approve' && s.slug === v.slug)) continue;
-    const task = await linkedTask(env.DB, v.slug);
-    if (task?.status === 'review') await tickTask(env.DB, env, null, task.id, { status: 'done' }, now);
+  for (const v of (await read('videos')).videos) if (!(newest.get(stem(v.slug))?.created_at >= v.created_at)) newest.set(stem(v.slug), v);
+  for (const card of cards) {
+    const slug = reviewSlug(card.link);
+    const video = newest.get(stem(slug));
+    if (video?.slug !== slug || video.status !== 'approved') continue;
+    const { submissions } = await read(`${slug}/submissions`);
+    if (submissions.some((s) => s.kind === 'approve' && s.created_at > card.created_at)) {
+      await tickTask(env.DB, env, null, card.id, { status: 'done' }, now);
+    }
   }
 }
 
