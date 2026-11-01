@@ -10,6 +10,7 @@
 | `sponsor_email` | Sponsors, Ana | `watch_mail.py`, on new partners@ inbox mail |
 | `accounting_email` | Accounting | `watch_mail.py`, on jon@ mail from gdbookkeeping.com or maxeisner.ca |
 | `cancellation_spike` | Viral View, Ana | `vv_numbers.py`, on 3+ cancellations in 24 hours |
+| `bot_stuck` | Ana (route `ana`) | `team_guard.py`, with `{"alerts": [...]}`: a frozen bot, a queue behind a long turn, or a capped account |
 
 `hook.py test [ROUTE ...]` wakes each routine once with a "nothing to do" event, to check it works.
 
@@ -34,6 +35,18 @@ Register-ScheduledTask AgentTeam-watch-footage -Action $run -Trigger (New-Schedu
 ```powershell
 $run = New-ScheduledTaskAction -Execute 'C:\Users\jonst\AppData\Local\Programs\Python\Python310\pythonw.exe' -Argument '-I D:\AgentTeam\tools\watch_mail.py'
 Register-ScheduledTask AgentTeam-watch-mail -Action $run -Trigger (New-ScheduledTaskTrigger -AtLogOn -User $env:USERNAME) -Settings (New-ScheduledTaskSettingsSet -ExecutionTimeLimit 0)
+```
+
+## Team guard
+`team_guard.py` runs hidden every 10 minutes and needs no bot awake, so it still works when Ana is frozen. Each incident acts once; a failed send retries next run. Rules are in its docstring, and `--dry-run` shows what it would do without sending anything. State is `D:\AgentTeam\logs\team-guard.json`, log `team-guard.log` beside it.
+
+A pack counts as ready for Olivia when its folder in `aieditor\edits` (`hgp-*` or `*-<number>`) passes preflight and no video-editor card naming it is doing, in QC, in review or done.
+
+The schedule, installed only after Jon approves it:
+```powershell
+$run = New-ScheduledTaskAction -Execute 'C:\Users\jonst\AppData\Local\Programs\Python\Python310\pythonw.exe' -Argument '-I D:\AgentTeam\tools\team_guard.py'
+$every = New-ScheduledTaskTrigger -Once -At (Get-Date) -RepetitionInterval (New-TimeSpan -Minutes 10)
+Register-ScheduledTask AgentTeam-team-guard -Action $run -Trigger $every -Settings (New-ScheduledTaskSettingsSet -ExecutionTimeLimit 0)
 ```
 
 ## Secrets
