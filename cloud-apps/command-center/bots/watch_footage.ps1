@@ -48,6 +48,8 @@ function Busy($path) {  # still being written: a writer holds it open
   try { [IO.File]::Open($path, 'Open', 'Read', 'Read').Dispose(); $false } catch { $true }
 }
 
+function NextQuiet { [DateTime]::UtcNow.AddSeconds($QuietSeconds) }  # UTC: a clock change must not stretch the wait
+
 try {
   $Folder = (New-Item -ItemType Directory -Force $Folder).FullName  # absolute, like the event paths the skip compares
   $work = Join-Path $Folder 'short-form\'
@@ -64,9 +66,9 @@ try {
   Note "watching $Folder"
   $pending = @{}
   $tries = 0
-  $quietUntil = Get-Date  # only raw footage restarts the quiet spell: busy short-form writes must not hold a drop back
+  $quietUntil = [DateTime]::UtcNow
   while ($true) {
-    $left = [math]::Ceiling(($quietUntil - (Get-Date)).TotalSeconds)
+    $left = [math]::Ceiling(($quietUntil - [DateTime]::UtcNow).TotalSeconds)
     $e = if (-not $pending.Count) { Wait-Event } elseif ($left -gt 0) { Wait-Event -Timeout $left }
     if ($e) {
       Remove-Event -EventIdentifier $e.EventIdentifier
@@ -75,15 +77,18 @@ try {
           throw "lost $Folder ($($e.SourceEventArgs.GetException().Message))"
         }
         Note 'missed file events; rescanning'  # buffer overflow: trust the folder, not the events
-        Media $Folder | ForEach-Object { $pending[$_] = $true; $quietUntil = (Get-Date).AddSeconds($QuietSeconds) }
+        Media $Folder | ForEach-Object { $pending[$_] = $true }
+        $quietUntil = NextQuiet
         continue
       }
-      Media $e.SourceEventArgs.FullPath | ForEach-Object { $pending[$_] = $true; $quietUntil = (Get-Date).AddSeconds($QuietSeconds) }
+      $path = $e.SourceEventArgs.FullPath
+      Media $path | ForEach-Object { $pending[$_] = $true }
+      # Any change outside short-form restarts the wait, even a .crdownload; busy short-form writes must not hold a drop back
+      if (-not "$path\".StartsWith($work, [StringComparison]::OrdinalIgnoreCase)) { $quietUntil = NextQuiet }
       continue
     }
-    $quietUntil = (Get-Date).AddSeconds($QuietSeconds)  # a busy file or a retry waits another quiet spell
     $files = @($pending.Keys | Where-Object { [IO.File]::Exists($_) } | Where-Object { -not $seen[(Id $_)] } | Sort-Object)
-    if (@($files | Where-Object { Busy $_ }).Count) { continue }  # still copying: wait another quiet spell
+    if (@($files | Where-Object { Busy $_ }).Count) { $quietUntil = NextQuiet; continue }  # still copying: wait another quiet spell
     if (-not $files.Count) { $pending.Clear(); continue }
     $list = @($files | ForEach-Object { @{ path = $_; bytes = (Get-Item -LiteralPath $_ -ErrorAction Ignore).Length } })
     $ids = @($files | ForEach-Object { Id $_ })
@@ -96,7 +101,7 @@ try {
       if ($tries -eq 1) {
         Fire 'script_failure' @{ script = 'watch_footage'; error = "raw_footage for $($list.Count) files not delivered; see $Log" } "undelivered-$key" | Out-Null
       }
-      if ($tries -lt $maxTries) { continue }
+      if ($tries -lt $maxTries) { $quietUntil = NextQuiet; continue }
     }
     $pending.Clear()
     $tries = 0

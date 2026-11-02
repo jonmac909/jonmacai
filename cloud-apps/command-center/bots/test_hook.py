@@ -301,18 +301,28 @@ class Hooks(unittest.TestCase):
 
             def drop_beside_busy_short_form():
                 (folder / 'jon' / 'late.mp4').write_bytes(b'z' * 300)
-                for n in range(12):  # 6 s of writes; the quiet spell is 2 s
-                    (work / 'remakes' / 'busy.mp4').write_bytes(b'x' * (n + 1))
+                n, end = 0, time.time() + 30
+                while len(self.srv.events) < 3 and time.time() < end:  # writes outpace the 2 s quiet spell
+                    n += 1
+                    (work / 'remakes' / 'busy.mp4').write_bytes(b'x' * n)
                     wait(0.5)
                 self.assertEqual(len(self.srv.events), 3, 'the drop waited for short-form to go quiet')
             drop(drop_beside_busy_short_form, 3)
 
+            def download_beside_a_clip():  # still arriving as a .crdownload: one drop, not two
+                (folder / 'jon' / 'a.mp4').write_bytes(b'a' * 300)
+                for n in range(8):
+                    (folder / 'jon' / 'b.mp4.crdownload').write_bytes(b'b' * (n + 1))
+                    wait(0.5)
+                (folder / 'jon' / 'b.mp4.crdownload').rename(folder / 'jon' / 'b.mp4')
+            drop(download_beside_a_clip, 4)
+
             # out of short-form it counts as footage
-            drop(lambda: (work / 'remakes' / 'clip.mp4').rename(folder / 'jon' / 'picked.mp4'), 4)
+            drop(lambda: (work / 'remakes' / 'clip.mp4').rename(folder / 'jon' / 'picked.mp4'), 5)
         finally:
             ps.kill()
         names = [sorted(Path(f['path']).name for f in e['data']['files']) for _, e in self.srv.events]
-        self.assertEqual(names, [['take1.mp4', 'take2.MOV'], ['rec1.mp4'], ['late.mp4'], ['picked.mp4']])
+        self.assertEqual(names, [['take1.mp4', 'take2.MOV'], ['rec1.mp4'], ['late.mp4'], ['a.mp4', 'b.mp4'], ['picked.mp4']])
         self.assertEqual({(r, e['type']) for r, e in self.srv.events}, {('video-editor', 'raw_footage')})
 
 
