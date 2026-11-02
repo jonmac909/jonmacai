@@ -11,7 +11,7 @@ export const SECRETS = {
 };
 
 const root = new URL("../", import.meta.url);
-const TYPES = { js: "text/javascript; charset=utf-8", css: "text/css; charset=utf-8" };
+const TYPES = { js: "text/javascript; charset=utf-8", css: "text/css; charset=utf-8", woff2: "font/woff2" };
 
 export function migrationStatements() {
   const dir = new URL("migrations/", root);
@@ -34,7 +34,7 @@ export async function startRuntime({ listen = false, https = true, bindings = SE
     serviceBindings: {
       ASSETS: async (request) => {
         const name = new URL(request.url).pathname.slice(1);
-        if (!/^app\.(js|css)$/.test(name)) return new MFResponse("missing", { status: 404 });
+        if (!/^(app\.(js|css)|geist\.woff2)$/.test(name)) return new MFResponse("missing", { status: 404 });
         return new MFResponse(readFileSync(new URL(`public/${name}`, root)), { headers: { "Content-Type": TYPES[name.split(".").pop()] } });
       },
     },

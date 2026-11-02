@@ -243,6 +243,7 @@ async function main() {
     assert.ok(report.media.some((m) => /^video 206 video\/mp4/.test(m)) && report.media.some((m) => /^source 206 video\/mp4/.test(m)), `both media 206: ${report.media}`);
     assert.deepEqual(report.consoleErrors, [], "console errors");
     assert.deepEqual(report.pageErrors, [], "page errors");
+    assert.ok(await page.evaluate(async () => { await document.fonts.ready; return [...document.fonts].some((f) => f.family === "Geist" && f.status === "loaded"); }), "hosted Geist loaded");
 
     // 8. Fresh browser, bare link (no key): passcode page, never a 404.
     const bareContext = await browser.newContext();
@@ -264,7 +265,28 @@ async function main() {
     report.sourceFailure = { errorShown: true, playBothDisabled: await failPage.isDisabled("#play-both"), oursPlayedTo: await failPage.evaluate(() => document.getElementById("player").currentTime) };
     await failContext.close();
 
-    // 10. Phone width: Submit / Approve visible and tappable, no sideways scroll.
+    // 10. Stalled network: the font and every outside host hang forever, and the page still paints and app.js still runs.
+    // The hung font also holds the load event, so this waits on paint and app.js, not on page.goto's default.
+    const seedContext = await browser.newContext();
+    await signIn(await seedContext.newPage(), shareLink, secrets.REVIEW_PASSCODE, base, slug);
+    const storageState = await seedContext.storageState();
+    await seedContext.close();
+    const stallContext = await browser.newContext({ storageState, viewport: { width: 1440, height: 900 } });
+    const stalled = { font: 0, outside: [] };
+    await stallContext.route((url) => !url.href.startsWith(base) || url.pathname.endsWith("/geist.woff2"), (route) => {
+      const url = route.request().url();
+      if (url.startsWith(base)) stalled.font += 1; else stalled.outside.push(url);
+    });
+    const stallPage = await stallContext.newPage();
+    await stallPage.goto(`${base}/review/${slug}`, { waitUntil: "domcontentloaded", timeout: 15000 });
+    await stallPage.waitForFunction(() => performance.getEntriesByName("first-contentful-paint").length > 0, null, { timeout: 15000 });
+    await stallPage.waitForFunction(() => window.reviewSync && document.getElementById("counts").textContent, null, { timeout: 15000 });
+    report.stalledNetwork = { ...stalled, painted: true, appJsRan: true };
+    assert.ok(stalled.font >= 1, "the font request was really held");
+    assert.deepEqual(stalled.outside, [], "no outside requests");
+    await stallContext.close();
+
+    // 11. Phone width: Submit / Approve visible and tappable, no sideways scroll.
     const phone = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, hasTouch: true });
     const phonePage = await phone.newPage();
     await signIn(phonePage, shareLink, secrets.REVIEW_PASSCODE, base, slug);
