@@ -27,6 +27,18 @@ function publish(args) {
 before(async () => { runtime = await startRuntime({ listen: true }); });
 after(async () => { await runtime?.mf.dispose(); });
 
+test("review pages are served in the dashboard's light theme, with its font allowed to load", async () => {
+  const css = await (await fetchApp("/review/_/app.css")).text();
+  assert.match(css, /color-scheme: light/);
+  for (const value of ["--bg: #f3f4f7", "--panel: #ffffff", "--text: #0e1526", "--accent: #0a84ff", "--on-accent: #ffffff", 'font-family: "Geist"']) assert.ok(css.includes(value), value);
+  for (const dark of ["color-scheme: dark", "#0b0e13", "#131821", "#04121b"]) assert.ok(!css.includes(dark), dark);
+  const page = await fetchApp("/review/login");
+  assert.ok((await page.text()).includes('href="https://fonts.googleapis.com/css2?family=Geist'));
+  const csp = page.headers.get("Content-Security-Policy");
+  assert.ok(csp.includes("https://fonts.googleapis.com;"), csp);
+  assert.ok(csp.includes("font-src https://fonts.gstatic.com;"), csp);
+});
+
 test("signed in to the dashboard, a review link opens the same page there, and the passcode page stays reachable", async () => {
   const headers = { Cookie: "__Host-cc_session=checked-by-the-dashboard" };
   const cases = [

@@ -136,7 +136,7 @@ const SECURITY = {
   "Referrer-Policy": "no-referrer",
 };
 // WebKit's native video controls inject inline styles that a page CSP would block (console error).
-const CSP = "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; media-src 'self'; connect-src 'self'; " +
+const CSP = "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; media-src 'self'; connect-src 'self'; " +
   "img-src 'self' data:; form-action 'self'; frame-ancestors 'none'; base-uri 'none'";
 
 export function json(body, status = 200, extra = {}) {

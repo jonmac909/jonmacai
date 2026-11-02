@@ -23,6 +23,7 @@ const layout = (title, body, { script = false, prefix = "" } = {}) => `<!doctype
 <meta name="referrer" content="no-referrer">
 <title>${escapeHtml(title)}</title>
 <link rel="icon" href="data:,">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&display=swap">
 <link rel="stylesheet" href="${prefix}/review/_/app.css">
 ${script ? `<script src="${prefix}/review/_/app.js" defer></script>\n` : ""}</head>
 <body>
