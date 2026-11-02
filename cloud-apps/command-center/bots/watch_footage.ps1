@@ -3,6 +3,7 @@ Wake Video Editor when new raw footage lands in the footage folder: one raw_foot
 A drop is every new video or audio file under -Folder (copied, moved or saved there) until nothing has
 changed for -QuietSeconds and no file is still being written. Files already there at start, or already
 announced (same name, size and time, e.g. moved into a done\ subfolder), are not announced again.
+short-form\ is skipped: it holds the Short-form bot's generated clips and QC audio, not raw footage.
 Waits on file-system events (no polling) and runs until stopped. See HOOKS.md.
 #>
 param(
@@ -48,8 +49,8 @@ function Busy($path) {  # still being written: a writer holds it open
 }
 
 try {
-  New-Item -ItemType Directory -Force $Folder | Out-Null
-  $work = Join-Path $Folder 'short-form\'  # the Short-form bot's working folder: generated clips and QC audio, not raw footage
+  $Folder = (New-Item -ItemType Directory -Force $Folder).FullName  # absolute, like the event paths the skip compares
+  $work = Join-Path $Folder 'short-form\'
   $seen = @{}
   Media $Folder | ForEach-Object { $seen[(Id $_)] = $true }
   $w = New-Object IO.FileSystemWatcher $Folder
@@ -63,8 +64,10 @@ try {
   Note "watching $Folder"
   $pending = @{}
   $tries = 0
+  $quietUntil = Get-Date  # only raw footage restarts the quiet spell: busy short-form writes must not hold a drop back
   while ($true) {
-    $e = if ($pending.Count) { Wait-Event -Timeout $QuietSeconds } else { Wait-Event }
+    $left = [math]::Ceiling(($quietUntil - (Get-Date)).TotalSeconds)
+    $e = if (-not $pending.Count) { Wait-Event } elseif ($left -gt 0) { Wait-Event -Timeout $left }
     if ($e) {
       Remove-Event -EventIdentifier $e.EventIdentifier
       if ($e.SourceIdentifier -eq 'footage.Error') {
@@ -72,12 +75,13 @@ try {
           throw "lost $Folder ($($e.SourceEventArgs.GetException().Message))"
         }
         Note 'missed file events; rescanning'  # buffer overflow: trust the folder, not the events
-        Media $Folder | ForEach-Object { $pending[$_] = $true }
+        Media $Folder | ForEach-Object { $pending[$_] = $true; $quietUntil = (Get-Date).AddSeconds($QuietSeconds) }
         continue
       }
-      Media $e.SourceEventArgs.FullPath | ForEach-Object { $pending[$_] = $true }
+      Media $e.SourceEventArgs.FullPath | ForEach-Object { $pending[$_] = $true; $quietUntil = (Get-Date).AddSeconds($QuietSeconds) }
       continue
     }
+    $quietUntil = (Get-Date).AddSeconds($QuietSeconds)  # a busy file or a retry waits another quiet spell
     $files = @($pending.Keys | Where-Object { [IO.File]::Exists($_) } | Where-Object { -not $seen[(Id $_)] } | Sort-Object)
     if (@($files | Where-Object { Busy $_ }).Count) { continue }  # still copying: wait another quiet spell
     if (-not $files.Count) { $pending.Clear(); continue }
