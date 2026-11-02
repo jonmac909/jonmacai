@@ -3,6 +3,7 @@ Wake Video Editor when new raw footage lands in the footage folder: one raw_foot
 A drop is every new video or audio file under -Folder (copied, moved or saved there) until nothing has
 changed for -QuietSeconds and no file is still being written. Files already there at start, or already
 announced (same name, size and time, e.g. moved into a done\ subfolder), are not announced again.
+short-form\ is skipped: it holds the Short-form bot's generated clips and QC audio, not raw footage.
 Waits on file-system events (no polling) and runs until stopped. See HOOKS.md.
 #>
 param(
@@ -36,18 +37,22 @@ function Id($path) {  # survives a move between subfolders
 
 function Media($path) {  # media files at $path, or under it if it is a folder
   # .NET checks, not Test-Path: a file or folder another program is deleting throws "Access is denied" there
-  if ([IO.Directory]::Exists($path)) {
+  $(if ([IO.Directory]::Exists($path)) {
     Get-ChildItem -LiteralPath $path -Recurse -File -ErrorAction Ignore | Where-Object { $media -contains $_.Extension.ToLowerInvariant() } |
       ForEach-Object { $_.FullName }
-  } elseif ($media -contains [IO.Path]::GetExtension($path).ToLowerInvariant()) { $path }
+  } elseif ($media -contains [IO.Path]::GetExtension($path).ToLowerInvariant()) { $path }) |
+    Where-Object { -not $_.StartsWith($work, [StringComparison]::OrdinalIgnoreCase) }
 }
 
 function Busy($path) {  # still being written: a writer holds it open
   try { [IO.File]::Open($path, 'Open', 'Read', 'Read').Dispose(); $false } catch { $true }
 }
 
+function NextQuiet { [DateTime]::UtcNow.AddSeconds($QuietSeconds) }  # UTC: a clock change must not stretch the wait
+
 try {
-  New-Item -ItemType Directory -Force $Folder | Out-Null
+  $Folder = (New-Item -ItemType Directory -Force $Folder).FullName  # absolute, like the event paths the skip compares
+  $work = Join-Path $Folder 'short-form\'
   $seen = @{}
   Media $Folder | ForEach-Object { $seen[(Id $_)] = $true }
   $w = New-Object IO.FileSystemWatcher $Folder
@@ -61,8 +66,10 @@ try {
   Note "watching $Folder"
   $pending = @{}
   $tries = 0
+  $quietUntil = [DateTime]::UtcNow
   while ($true) {
-    $e = if ($pending.Count) { Wait-Event -Timeout $QuietSeconds } else { Wait-Event }
+    $left = [math]::Ceiling(($quietUntil - [DateTime]::UtcNow).TotalSeconds)
+    $e = if (-not $pending.Count) { Wait-Event } elseif ($left -gt 0) { Wait-Event -Timeout $left }
     if ($e) {
       Remove-Event -EventIdentifier $e.EventIdentifier
       if ($e.SourceIdentifier -eq 'footage.Error') {
@@ -71,13 +78,17 @@ try {
         }
         Note 'missed file events; rescanning'  # buffer overflow: trust the folder, not the events
         Media $Folder | ForEach-Object { $pending[$_] = $true }
+        $quietUntil = NextQuiet
         continue
       }
-      Media $e.SourceEventArgs.FullPath | ForEach-Object { $pending[$_] = $true }
+      $path = $e.SourceEventArgs.FullPath
+      Media $path | ForEach-Object { $pending[$_] = $true }
+      # Any change outside short-form restarts the wait, even a .crdownload; busy short-form writes must not hold a drop back
+      if (-not "$path\".StartsWith($work, [StringComparison]::OrdinalIgnoreCase)) { $quietUntil = NextQuiet }
       continue
     }
     $files = @($pending.Keys | Where-Object { [IO.File]::Exists($_) } | Where-Object { -not $seen[(Id $_)] } | Sort-Object)
-    if (@($files | Where-Object { Busy $_ }).Count) { continue }  # still copying: wait another quiet spell
+    if (@($files | Where-Object { Busy $_ }).Count) { $quietUntil = NextQuiet; continue }  # still copying: wait another quiet spell
     if (-not $files.Count) { $pending.Clear(); continue }
     $list = @($files | ForEach-Object { @{ path = $_; bytes = (Get-Item -LiteralPath $_ -ErrorAction Ignore).Length } })
     $ids = @($files | ForEach-Object { Id $_ })
@@ -90,7 +101,7 @@ try {
       if ($tries -eq 1) {
         Fire 'script_failure' @{ script = 'watch_footage'; error = "raw_footage for $($list.Count) files not delivered; see $Log" } "undelivered-$key" | Out-Null
       }
-      if ($tries -lt $maxTries) { continue }
+      if ($tries -lt $maxTries) { $quietUntil = NextQuiet; continue }
     }
     $pending.Clear()
     $tries = 0

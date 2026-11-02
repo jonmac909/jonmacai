@@ -1,4 +1,4 @@
-"""python -I bots/test_hook.py  (stdlib only; the footage test runs watch_footage.ps1 for ~10 s)"""
+"""python -I bots/test_hook.py  (stdlib only; the footage test runs watch_footage.ps1 for about a minute)"""
 import hashlib
 import hmac
 import json
@@ -85,8 +85,9 @@ class Hooks(unittest.TestCase):
         self.assertEqual(hook.fire('raw_footage', {}, key='drop-2'), {'video-editor': 202})
 
     def test_503_is_retried(self):
-        self.srv.busy['qc'] = 2
+        self.srv.busy['qc'] = 5
         self.assertEqual(hook.fire('proof_posted', {}), {'qc': 202})
+        self.assertEqual(sum(c.args[0] for c in hook.time.sleep.call_args_list), 30)  # back-off that outlasts an app freeze
 
     def test_exit_codes(self):
         with mock.patch('sys.stdout'), mock.patch('sys.stderr'):
@@ -231,6 +232,8 @@ class Hooks(unittest.TestCase):
 
     def test_footage_watcher_fires_once_per_drop(self):
         folder, log = Path(self.dir.name) / 'footage', Path(self.dir.name) / 'w.log'
+        work = folder / 'Short-Form'  # the skip ignores case, as Windows paths do
+        wait = threading.Event().wait  # time.sleep is patched out in setUp
         env = dict(os.environ, HOOK_SECRETS=str(self.secrets))
         ps = subprocess.Popen(['powershell', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File',
                                str(HERE / 'watch_footage.ps1'), '-Folder', str(folder), '-QuietSeconds', '2',
@@ -257,6 +260,13 @@ class Hooks(unittest.TestCase):
                 for name in ('take1.mp4', 'take2.MOV', 'notes.txt'):
                     (folder / 'jon' / name).write_bytes(b'x' * 1000)
             drop(first_drop, 1)
+
+            def generated_clips():  # the Short-form bot's working folder, not raw footage
+                (work / 'remakes' / 'qc').mkdir(parents=True)
+                (work / 'remakes' / 'clip.mp4').write_bytes(b'x' * 1000)
+                (work / 'remakes' / 'qc' / 'audio.wav').write_bytes(b'x' * 1000)
+            drop(generated_clips, 2)  # no new event
+
             drop(lambda: (folder / 'jon' / 'done').mkdir() or (folder / 'jon' / 'take1.mp4').rename(
                 folder / 'jon' / 'done' / 'take1.mp4'), 2)  # already announced: no new event
 
@@ -270,7 +280,6 @@ class Hooks(unittest.TestCase):
                 h = k.CreateFileW(str(folder / 'part.m4a'), 0xC0010000, 7, None, 1, 0, None)  # read/write/delete, new
                 if h in (None, wintypes.HANDLE(-1).value):
                     raise ctypes.WinError(ctypes.get_last_error())
-                wait = threading.Event().wait  # time.sleep is patched out in setUp
                 try:
                     if not k.SetFileInformationByHandle(h, 4, ctypes.byref(ctypes.c_ubyte(1)), 1):  # delete on close
                         raise ctypes.WinError(ctypes.get_last_error())
@@ -287,12 +296,33 @@ class Hooks(unittest.TestCase):
                 outside = Path(self.dir.name) / 'screen'
                 outside.mkdir()
                 (outside / 'rec1.mp4').write_bytes(b'y' * 500)
-                outside.rename(folder / 'screen')
+                outside.rename(folder / 'short-form-screen')  # only short-form itself is skipped
             drop(folder_moved_in, 2)
+
+            def drop_beside_busy_short_form():
+                (folder / 'jon' / 'late.mp4').write_bytes(b'z' * 300)
+                n, end = 0, time.time() + 30
+                while len(self.srv.events) < 3 and time.time() < end:  # writes outpace the 2 s quiet spell
+                    n += 1
+                    (work / 'remakes' / 'busy.mp4').write_bytes(b'x' * n)
+                    wait(0.5)
+                self.assertEqual(len(self.srv.events), 3, 'the drop waited for short-form to go quiet')
+            drop(drop_beside_busy_short_form, 3)
+
+            def download_beside_a_clip():  # still arriving as a .crdownload: one drop, not two
+                (folder / 'jon' / 'a.mp4').write_bytes(b'a' * 300)
+                for n in range(8):
+                    (folder / 'jon' / 'b.mp4.crdownload').write_bytes(b'b' * (n + 1))
+                    wait(0.5)
+                (folder / 'jon' / 'b.mp4.crdownload').rename(folder / 'jon' / 'b.mp4')
+            drop(download_beside_a_clip, 4)
+
+            # out of short-form it counts as footage
+            drop(lambda: (work / 'remakes' / 'clip.mp4').rename(folder / 'jon' / 'picked.mp4'), 5)
         finally:
             ps.kill()
         names = [sorted(Path(f['path']).name for f in e['data']['files']) for _, e in self.srv.events]
-        self.assertEqual(names, [['take1.mp4', 'take2.MOV'], ['rec1.mp4']])
+        self.assertEqual(names, [['take1.mp4', 'take2.MOV'], ['rec1.mp4'], ['late.mp4'], ['a.mp4', 'b.mp4'], ['picked.mp4']])
         self.assertEqual({(r, e['type']) for r, e in self.srv.events}, {('video-editor', 'raw_footage')})
 
 
