@@ -136,7 +136,7 @@ const SECURITY = {
   "Referrer-Policy": "no-referrer",
 };
 // WebKit's native video controls inject inline styles that a page CSP would block (console error).
-const CSP = "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; media-src 'self'; connect-src 'self'; " +
+const CSP = "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; media-src 'self'; connect-src 'self'; " +
   "img-src 'self' data:; form-action 'self'; frame-ancestors 'none'; base-uri 'none'";
 
 export function json(body, status = 200, extra = {}) {
@@ -712,7 +712,7 @@ async function publishApi(request, env, url, slug, resource, uploadId, action) {
 
 async function asset(request, env, url) {
   const name = url.pathname.slice("/review/_/".length);
-  if (!["app.js", "app.css"].includes(name)) return notFound();
+  if (!["app.js", "app.css", "geist.woff2"].includes(name)) return notFound();
   const response = await env.ASSETS.fetch(new Request(new URL(`/${name}`, url), { method: request.method }));
   const headers = new Headers(response.headers);
   headers.set("Cache-Control", "no-cache");
