@@ -177,7 +177,7 @@ def restart_openbot(before_kill):
 
 def preflight(folder):
     try:
-        return subprocess.run([PY, '-I', str(TOOLS / 'preflight.py'), str(folder)], capture_output=True,
+        return subprocess.run([PY, '-I', str(TOOLS / 'preflight.py'), '--quick', str(folder)], capture_output=True,
                               creationflags=NO_WINDOW, timeout=PREFLIGHT_S).returncode
     except subprocess.TimeoutExpired:
         return None

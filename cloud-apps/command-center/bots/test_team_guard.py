@@ -15,6 +15,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import team_guard as tg  # noqa: E402
 import hook  # noqa: E402
 
+real_preflight = tg.preflight
+
 T0 = tg.ts('2026-11-01T12:00:00.000Z')
 LUCY = 'agent-lucy'
 ACTIVITY = 'conversation.snapshot-updated'  # the commonest real activity type in OpenBot's data
@@ -680,6 +682,11 @@ class Packs(Base):
         with mock.patch.object(tg, 'preflight') as preflight:
             self.assertEqual([tg.ELLE], [s[1] for s in self.run_guard()])
             preflight.assert_not_called()
+
+    def test_preflight_runs_the_quick_check(self):  # frame reads take minutes and need the full Python
+        with mock.patch.object(tg.subprocess, 'run', return_value=mock.Mock(returncode=1)) as run:
+            self.assertEqual(1, real_preflight('pack'))
+        self.assertIn('--quick', run.call_args[0][0])
 
     def test_preflight_stops_at_the_time_cap(self):
         def slow(folder):
