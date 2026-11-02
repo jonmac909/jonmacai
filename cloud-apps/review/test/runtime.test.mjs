@@ -2,7 +2,7 @@
 import test, { after, before } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { SECRETS, startRuntime } from "./harness.mjs";
 
@@ -26,6 +26,41 @@ function publish(args) {
 
 before(async () => { runtime = await startRuntime({ listen: true }); });
 after(async () => { await runtime?.mf.dispose(); });
+
+// A stylesheet's first :root block as { "--name": value }.
+const rootTokens = (css) => {
+  const plain = css.replace(/\/\*[\s\S]*?\*\//g, "");
+  return Object.fromEntries([...plain.slice(plain.indexOf(":root")).split("}")[0].matchAll(/(--[\w-]+):\s*([^;]+);/g)].map((m) => [m[1], m[2].trim()]));
+};
+// Review token -> dashboard token. --muted takes --ink-2 because notes and transcripts are read in it.
+const DASHBOARD_TOKEN = { "--bg": "--bg", "--panel": "--card", "--line": "--line", "--text": "--ink", "--muted": "--ink-2",
+  "--accent": "--accent", "--on-accent": "--on-accent", "--amber": "--risk-ink", "--green": "--ok-ink", "--red": "--crit-ink" };
+const dashboardTokens = new URL("../../command-center/public/css/tokens.css", import.meta.url);
+
+// The Docker checks build with cloud-apps/review alone as context, so the dashboard's file is not there.
+test("review pages serve the dashboard's light theme values", { skip: existsSync(dashboardTokens) ? false : "no command-center in this build context" }, async () => {
+  const dashboard = rootTokens(readFileSync(dashboardTokens, "utf8"));
+  const review = rootTokens(await (await fetchApp("/review/_/app.css")).text());
+  assert.deepEqual(Object.keys(review).sort(), Object.keys(DASHBOARD_TOKEN).sort());
+  for (const [ours, theirs] of Object.entries(DASHBOARD_TOKEN)) assert.equal(review[ours], dashboard[theirs], `${ours} is the dashboard's ${theirs}`);
+});
+
+test("review pages are light and load the font from this site only", async () => {
+  const css = await (await fetchApp("/review/_/app.css")).text();
+  assert.match(css, /color-scheme: light/);
+  assert.match(css, /font-family: "Geist"/);
+  assert.match(css, /font-display: swap/);
+  for (const dark of ["color-scheme: dark", "#0b0e13", "#131821", "#04121b"]) assert.ok(!css.includes(dark), dark);
+  const page = await fetchApp("/review/login");
+  assert.doesNotMatch(await page.text(), /https?:\/\/(?!www\.w3\.org)/);
+  const csp = page.headers.get("Content-Security-Policy");
+  assert.doesNotMatch(csp, /google|gstatic/i);
+  assert.match(csp, /font-src 'self';/);
+  const font = await fetchApp("/review/_/geist.woff2");
+  assert.equal(font.status, 200);
+  assert.equal(font.headers.get("Content-Type"), "font/woff2");
+  assert.equal(Buffer.from(await font.arrayBuffer()).toString("latin1", 0, 4), "wOF2");
+});
 
 test("signed in to the dashboard, a review link opens the same page there, and the passcode page stays reachable", async () => {
   const headers = { Cookie: "__Host-cc_session=checked-by-the-dashboard" };
