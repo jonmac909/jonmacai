@@ -26,7 +26,8 @@ export async function channelData(db, nowMs) {
   try {
     const [channels, calendar, outliers] = await Promise.all([
       db.prepare('SELECT * FROM yt_channels').all(),
-      db.prepare("SELECT * FROM yt_calendar WHERE day >= ? ORDER BY day, IFNULL(time_pt, '99'), created_at LIMIT 3000").bind(ymd(nowMs - 60 * 86400000)).all(),
+      db.prepare(`SELECT v.*, s.scheduled_at AS yt_scheduled_at, s.status AS yt_status FROM yt_calendar v LEFT JOIN yt_stats s ON s.youtube_id = v.youtube_id
+        WHERE v.day >= ?1 OR s.scheduled_at >= ?1 ORDER BY v.day, IFNULL(v.time_pt, '99'), v.created_at LIMIT 3000`).bind(ymd(nowMs - 60 * 86400000)).all(),
       db.prepare(`SELECT * FROM yt_outliers ORDER BY ${MULTIPLE_SQL} LIMIT 3000`).all(),
     ]);
     return { channels: channels.results || [], calendar: calendar.results || [], outliers: outliers.results || [] };
@@ -65,6 +66,30 @@ export function timeLabel(hhmm) {
   return `${h % 12 || 12}:${String(m).padStart(2, '0')} ${h < 12 ? 'AM' : 'PM'}`;
 }
 
+const PACIFIC = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Los_Angeles', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+
+// A UTC moment as the calendar's own Pacific day and time.
+export function pacific(iso) {
+  const p = Object.fromEntries(PACIFIC.formatToParts(new Date(iso)).map((x) => [x.type, x.value]));
+  return { day: `${p.year}-${p.month}-${p.day}`, time: `${p.hour}:${p.minute}` };
+}
+
+const YOUTUBE_STATUS = { scheduled: 'scheduled', live: 'published' };
+
+// YouTube's date, time and status win over the calendar's, on read only. differs names what they disagree on;
+// a row with no time planned has no time to disagree with.
+export function withYoutube(r, today) {
+  if (!r.yt_scheduled_at && !r.yt_status) return r;
+  const at = r.yt_scheduled_at ? pacific(r.yt_scheduled_at) : { day: r.day, time: r.time_pt };
+  const status = YOUTUBE_STATUS[r.yt_status] || r.status;
+  const differs = [];
+  if (at.day !== r.day) differs.push('date');
+  if (r.time_pt && at.time !== r.time_pt) differs.push('time');
+  if (status !== r.status) differs.push('status');
+  const planned = { date: dayLabel(r.day, today), time: r.time_pt ? `${timeLabel(r.time_pt)} PT` : '', status: r.status };
+  return { ...r, day: at.day, time_pt: at.time, status, differs, planned };
+}
+
 // With no schedule set, the weekdays its coming videos post on: "Tue, Fri".
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 function postingDays(upcoming) {
@@ -84,13 +109,16 @@ export function buildChannelPages(out, data, nowMs = Date.now()) {
     const video = (r) => ({
       id: r.id, title: r.title, status: r.status, date: r.day, dateLabel: dayLabel(r.day, today),
       timeLabel: r.time_pt ? `${timeLabel(r.time_pt)} PT` : '', link: r.link || null, channel: label.get(r.channel) || r.channel,
+      differs: r.differs || [], planned: r.planned || null,
     });
     const tab = (c, rows) => {
       const videos = rows.map(video);
       const upcoming = videos.filter((v) => v.date >= today);
       return { ...c, count: upcoming.length, upcoming, earlier: videos.filter((v) => v.date < today).reverse() };
     };
-    const known = (data?.calendar || []).filter((r) => label.has(r.channel));
+    const when = (r) => `${r.day} ${r.time_pt || '99'}`; // YouTube's date can move a row
+    const known = (data?.calendar || []).filter((r) => label.has(r.channel)).map((r) => withYoutube(r, today))
+      .sort((a, b) => when(a).localeCompare(when(b)));
     out.pages.calendar = {
       title: 'Calendar',
       available: !!data,

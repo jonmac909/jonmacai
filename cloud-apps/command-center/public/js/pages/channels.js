@@ -23,7 +23,7 @@ function tabs(page, all, current) {
   }).join('')}</div>`).join('')}</nav>`;
 }
 
-function shell(title, d, sub, body) {
+export function shell(title, d, sub, body) {
   const all = d?.channels || [];
   if (!all.length) return `<div class="wrap"><div class="card pad"><p class="muted">${esc(title)} has no data yet.</p></div></div>`;
   const c = all.find((x) => x.slug === sub) || all[0];
@@ -36,17 +36,24 @@ function shell(title, d, sub, body) {
 }
 
 // One colour per stage, from idea (grey) to published (green).
-const STATUS = {
+export const STATUS = {
   idea: ['Idea', ''], planned: ['Planned', ''], scripted: ['Scripted', 'blue'], recording: ['Recording', 'violet'],
   editing: ['Editing', 'violet'], qc: ['In QC', 'risk'], review: ['Ready for review', 'risk'], scheduled: ['Scheduled', 'teal'],
   published: ['Published', 'ok'],
 };
 
+// The calendar and YouTube disagree: says so on the row, with what the calendar has.
+export function youtubeFlag(v) {
+  if (!v.differs?.length) return '';
+  const says = v.differs.map((k) => (k === 'status' ? STATUS[v.planned.status]?.[0] || v.planned.status : v.planned[k]));
+  return `<small class="ccdiff">${pill('Differs from YouTube', 'crit')} Calendar says ${esc(says.join(', '))}</small>`;
+}
+
 function videoRow(v, all) {
   const [label, cls] = STATUS[v.status] || [v.status, ''];
   const when = `${esc(v.dateLabel)}${v.timeLabel ? `<small>${esc(v.timeLabel)}</small>` : ''}`;
   const title = all ? `<span class="ccch">${esc(v.channel)}</span>${esc(v.title)}` : esc(v.title);
-  return `<li class="ccrow"><span class="ccdate">${when}</span><span class="cct">${title}</span><span class="ccend">${pill(label, cls)}${linkButton(v.link)}</span></li>`;
+  return `<li class="ccrow"><span class="ccdate">${when}</span><span class="cct">${title}${youtubeFlag(v)}</span><span class="ccend">${pill(label, cls)}${linkButton(v.link)}</span></li>`;
 }
 
 const videoList = (title, rows, all) => (rows.length ? `<h3 class="cch">${esc(title)}</h3><ul class="cclist">${rows.map((v) => videoRow(v, all)).join('')}</ul>` : '');

@@ -36,7 +36,7 @@ LABELS = {'Sponsors': 'sponsors', 'YT-JM': 'jon-mac', 'YT-AI UGC': 'jonmacai', '
           'Home Guide Press': 'home-guide-press', 'Short-form': 'short-form', 'Accounting': 'accounting', 'Coding': 'coding'}
 PROJECTS = list(LABELS.values())
 CALENDAR_STATUSES = ['idea', 'planned', 'scripted', 'recording', 'editing', 'qc', 'review', 'scheduled', 'published']
-CALENDAR_DIR = Path(r'D:\AgentTeam\calendar')  # one CSV per channel: date,time_pt,channel,title,status,link
+CALENDAR_DIR = Path(r'D:\AgentTeam\calendar')  # one CSV per channel: date,time_pt,channel,title,status,link[,youtube_id]
 CONTENT_DIR = Path(r'D:\AgentTeam\content')  # channel,outlier_title,source_channel,url,views,channel_avg,multiple,published_date,selected[,thumbnail_url]
 WEB_RE = re.compile(r'^https?://[^\s/?#]+\S*$', re.I)
 DAILY_FILE = r'D:\AgentTeam\rules\facts\daily-checklists.md'
@@ -354,7 +354,7 @@ def day_or_fail(value, name):
 
 
 def calendar_row(row):
-    """A Calendar CSV row: date,time_pt,channel,title,status,link. A link that isn't http(s) is left off."""
+    """A Calendar CSV row: date,time_pt,channel,title,status,link[,youtube_id]. A link that isn't http(s) is left off."""
     status = row.get('status', '').lower()
     if status not in CALENDAR_STATUSES:
         raise ValueError('status %r is not one of %s' % (row.get('status'), ', '.join(CALENDAR_STATUSES)))
@@ -362,7 +362,7 @@ def calendar_row(row):
         raise ValueError('title is empty')
     link = row.get('link', '')
     return only({'date': day_or_fail(row.get('date'), 'date'), 'time': time_of(row.get('time_pt')), 'title': row['title'],
-                 'status': status, 'link': link if WEB_RE.match(link) else None})
+                 'status': status, 'link': link if WEB_RE.match(link) else None, 'youtube_id': row.get('youtube_id') or None})
 
 
 def whole(value, name):
@@ -515,12 +515,12 @@ def run(args, ctx):
     if c == 'calendar-add':
         return call(ctx, 'POST', '/calendar', only({'channel': args.channel, 'title': args.title, 'date': day_of(args.date, '--date'),
                                                    'time': time, 'status': args.status, 'link': web_of(args.link, '--link'),
-                                                   'key': args.key}))
+                                                   'youtube_id': args.youtube_id, 'key': args.key}))
     if c == 'calendar-update':
         body = only({'title': args.title, 'date': day_of(args.date, '--date'), 'time': time, 'status': args.status,
-                     'link': web_of(args.link, '--link')})
+                     'link': web_of(args.link, '--link'), 'youtube_id': args.youtube_id})
         if not body:
-            raise Fail(2, 'Nothing to change: pass --title, --date, --time, --status or --link.')
+            raise Fail(2, 'Nothing to change: pass --title, --date, --time, --status, --link or --youtube-id.')
         return call(ctx, 'PATCH', '/calendar/%s' % q(args.id, safe=''), body)
     if c == 'outliers':
         return call(ctx, 'GET', '/outliers', query={'channel': args.channel, 'selected': '1' if args.selected else None,
@@ -698,7 +698,7 @@ def parser():
     a.add_argument('--to', dest='end', help='YYYY-MM-DD')
     a.add_argument('--limit', type=int)
 
-    a = s.add_parser('calendar-import', help="load channel schedules from <channel-slug>.csv files (date,time_pt,channel,title,status,link); "
+    a = s.add_parser('calendar-import', help="load channel schedules from <channel-slug>.csv files (date,time_pt,channel,title,status,link[,youtube_id]); "
                                                "each file replaces that channel's CSV rows")
     a.add_argument('files', nargs='*', help='CSV files (default: every one in D:\\AgentTeam\\calendar)')
 
@@ -714,6 +714,7 @@ def parser():
     a.add_argument('--time', help='posting time PT, e.g. 09:00 or 9:30 PM')
     a.add_argument('--status', required=True, choices=CALENDAR_STATUSES)
     a.add_argument('--link', help='https:// link to the video, Studio page or script')
+    a.add_argument('--youtube-id', help="the upload's 11-character YouTube ID")
     a.add_argument('--key', help='your own unique key; repeating it returns the first video instead of a copy')
 
     a = s.add_parser('calendar-update', help='change one calendar video')
@@ -723,6 +724,7 @@ def parser():
     a.add_argument('--time', help="posting time PT, or '' to remove it")
     a.add_argument('--status', choices=CALENDAR_STATUSES)
     a.add_argument('--link', help="https:// link, or '' to remove it")
+    a.add_argument('--youtube-id', help="the upload's 11-character YouTube ID, or '' to remove it")
 
     a = s.add_parser('outliers', help='list outliers, best first (what Jon picked: --selected)')
     a.add_argument('--channel')

@@ -3,6 +3,7 @@ import { handleCron } from './cron.js';
 import { readSession } from './auth.js';
 import { handleCall } from './call.js';
 import { reviewProxy } from './videoreview.js';
+import { trackRedirect } from './track.js';
 
 export { CallRelay } from './call.js';
 
@@ -23,6 +24,7 @@ export default {
     const url = new URL(request.url);
     // Only the separate preview Worker (wrangler --env preview, its own D1) answers on workers.dev.
     if (url.hostname.endsWith('.workers.dev') && env.PREVIEW !== '1') return new Response('Not found', { status: 404 });
+    if (url.pathname.startsWith('/v/')) return trackRedirect(request, env, ctx);
     if (url.pathname === PREFIX) {
       url.pathname = `${PREFIX}/`;
       return Response.redirect(url.toString(), 308);

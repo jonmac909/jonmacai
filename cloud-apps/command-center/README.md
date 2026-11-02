@@ -2,7 +2,7 @@
 
 Live: [https://jonmac.ai/dashboard](https://jonmac.ai/dashboard)
 
-Cloudflare Worker `jonmac-command-center`. Routes `jonmac.ai/dashboard` and `jonmac.ai/dashboard/*`. Pages render from `GET /dashboard/api/snapshot`, which starts from `fixtures/snapshot.json` and overlays live D1 snapshots. Twelve pages: Today, Todo, Projects, Feed, Calendar, Content and Journal (below), Sponsors (`sponsors` from the Mac collector, `sponsors_cash` deposits), Viral View (`viralview` cron every 10 min), Webinar (clone funnel D1), Money (`moneyclaw` cron every 10 min, `bank_scan`) and Life (Google Calendar + habits). Critical alerts (bank code needed, payment over 7 days late) go to Today and, once each, to Telegram from the cron. Any other `#page` opens Today.
+Cloudflare Worker `jonmac-command-center`. Routes `jonmac.ai/dashboard` and `jonmac.ai/dashboard/*`. Pages render from `GET /dashboard/api/snapshot`, which starts from `fixtures/snapshot.json` and overlays live D1 snapshots. Thirteen pages: Today, Todo, Projects, Feed, Calendar, Content, Track and Journal (below), Sponsors (`sponsors` from the Mac collector, `sponsors_cash` deposits), Viral View (`viralview` cron every 10 min), Webinar (clone funnel D1), Money (`moneyclaw` cron every 10 min, `bank_scan`) and Life (Google Calendar + habits). Critical alerts (bank code needed, payment over 7 days late) go to Today and, once each, to Telegram from the cron. Any other `#page` opens Today.
 
 ## Snapshot shape (`fixtures/snapshot.json`)
 
@@ -35,7 +35,7 @@ Every page object is render-ready copy from the mockup: tiles (`icon, label, val
 | `money` | `personal, business, categories, fix, bankScan, netWorth, charges` |
 | `life` | `tiles, workouts, dateNight, today` |
 
-`GET /dashboard/api/snapshot?pages=today,sponsors` returns `{ pages, nav, sources }` with only the asked-for page keys; the nav lists exactly the twelve pages.
+`GET /dashboard/api/snapshot?pages=today,sponsors` returns `{ pages, nav, sources }` with only the asked-for page keys; the nav lists exactly the thirteen pages.
 
 Regenerate compact JSON: `node scripts/build-snapshot.mjs`
 
@@ -84,11 +84,14 @@ Each of the 14 bots (D:\AgentTeam\rules\BOTS.md) writes one row at a time with i
 | `GET /v1/daily?day=YYYY-MM-DD` | bot or Jon | that day's ticks (default today, PT) |
 | `GET /v1/activity?bot=&before=&limit=` | bot or Jon | the Feed, newest first: task history, comments, proofs, questions and answers, approvals and decisions. `bot` keeps rows by that bot or on its work (`jon` too); `limit` up to 300 (default 100); `next` is the `before` of the next page |
 | `GET /v1/journal`, `POST /v1/journal`, `PATCH` and `DELETE /v1/journal/:id` | Jon only (bots get 403) | Jon's journal (`0013_journal.sql`). `{title?, link?, note?, tags?}`: title 1 to 300 characters (default: the link's site), link http(s) only, note up to 4000, tags a list or one string of up to 10 words |
-| `GET /v1/channels` | bot or Jon | the channels (`CHANNELS` in `src/channels.js`) with their `schedule` (null = not set) |
-| `PUT /v1/channels/:slug` | `CHANNEL_WRITERS` | `{schedule}` (≤200 chars; `""` clears it) |
-| `POST /v1/calendar` | `CHANNEL_WRITERS` | `{channel, title, date (YYYY-MM-DD), status: planned\|scheduled\|published (default planned), link?, key?}` |
-| `PATCH /v1/calendar/:id` | `CHANNEL_WRITERS` | `{title?, date?, status?, link?}` |
+| `GET /v1/channels` | bot or Jon | the channels (`CHANNELS` in `src/channels.js`) with their `schedule` and `landing` (null = not set) |
+| `PUT /v1/channels/:slug` | `CHANNEL_WRITERS` | `{schedule?, landing?}`, at least one (schedule ≤200 chars; landing http(s); `""` clears) |
+| `POST /v1/calendar` | `CHANNEL_WRITERS` | `{channel, title, date (YYYY-MM-DD), status: planned\|scheduled\|published (default planned), link?, youtube_id?, key?}` |
+| `PATCH /v1/calendar/:id` | `CHANNEL_WRITERS` | `{title?, date?, status?, link?, youtube_id?}` |
 | `GET /v1/calendar?channel=&from=&to=&limit=` | bot or Jon | by date |
+| `GET /v1/links?channel=` | bot or Jon | each Calendar video's tracked link: `{code, url, channel, title, date, status, clicks, ...}`; `url` is null until it has a landing page |
+| `POST /v1/links/stats` | `CHANNEL_WRITERS` | `{stats: [{youtube_id, impressions?, ctr? (percent), views?, scheduled_at? (UTC), status? (scheduled\|live)}]}`, 1 to 500, all or none; a field left out keeps its value; answers `{saved, notOnCalendar}` |
+| `PUT /v1/links/:code` | `CHANNEL_WRITERS` | `{landing}`: this video's landing page, over its channel's (`""` goes back to the channel's) |
 | `POST /v1/outliers` | `CHANNEL_WRITERS` | `{channel, title, link, views, avg (≥1), published (YYYY-MM-DD), thumb?, key?}` |
 | `POST /v1/outliers/:id/select` | `CHANNEL_WRITERS`, or Jon (session + `X-CC: 1`) | `{selected: true\|false}`; the same value again changes nothing |
 | `GET /v1/outliers?channel=&selected=1\|0&limit=` | bot or Jon | best first: `views / avg`, then views |
@@ -122,10 +125,19 @@ Default page (`#today`). Built by `src/today.js` from the snapshot. Each card sh
 - Feed (`#feed`, `#feed/<bot>`): `/v1/activity`, 100 rows per page, bots by first name (`BOT_NAMES` in `public/js/ui.js`). A row on a task opens its card, even one off the board.
 - Journal (`#journal`, `#journal/<tag>`): one box takes a pasted link or text, tags optional; edit and delete in place. Links show as their title and site, never as a raw URL.
 
+### Track page
+
+`#track/<channel>`: for each channel, videos created, posted, scheduled and live (each video counts once, at its current status); for each Calendar video, its status, stats, clicks and a copyable link. Migration `0017_track_links.sql`, additive. It reads `yt_calendar`; there is no second video list.
+- Links: `jonmac.ai/v/<code>` (`src/track.js`, its own Worker route) adds 1 to `yt_links.clicks` after answering, then a 302 to the landing page stored in D1 (the video's, else the channel's) with `utm_source=youtube`, `utm_campaign=<channel>`, `utm_content=<code>`. Nothing about the visitor is kept; the request's query string is ignored. It does not touch checkout.
+- An import keeps a video's calendar id (same title, else same YouTube ID), so its link and clicks stay.
+- Impressions, click-through rate and views show "not connected" until a refresh script posts them to `POST /v1/links/stats`. Nothing here connects to Google.
+- Deploy: apply the migration first. Without it Calendar and Track say their tables can't be read, and calendar writes answer 503.
+
 ### Calendar and Content pages
 
 `#calendar/<channel>` and `#content/<channel>`: one tab per channel in `CHANNELS` (`src/channels.js`, from `D:\AgentTeam\rules\facts\channels.md`), a row of tabs per group that scrolls sideways on phones. Tables `yt_channels`, `yt_calendar`, `yt_outliers` (migration `0014_calendar_content.sql`, additive). Only `CHANNEL_WRITERS` (`src/bots.js`: jon-mac-youtube, viral-view, home-guide-press, developer, ana) write; Jon only toggles an outlier's "Selected for production".
-- Calendar: the channel's posting schedule (or "not set"), then its videos by date: Coming up, then the last 60 days. Each has its status and, when it has one, a labelled link button.
+- Calendar: the channel's posting schedule (or "not set"), then its videos by date: Coming up, then the last 60 days. Each has its status and, when it has one, a labelled link button. For a row with a YouTube ID and YouTube data (`yt_stats`), YouTube's date, time and status show instead of the calendar's, in Pacific time, and a row that disagrees with the calendar is flagged. The calendar's own columns are never rewritten, so an import can't undo it.
+- A row's YouTube ID (`yt_calendar.youtube_id`) comes from the CSV's optional `youtube_id` column, else from the link of a video at QC or later (earlier rows link their source video). An import that leaves it blank keeps the ID the row already has.
 - Content: the channel's outliers, best first by views over their channel's average ("4.2× avg"), with thumbnail, views, age, a link button and the Select toggle.
 - Links and thumbnails are http(s) only, on the way in and again on the page.
 
