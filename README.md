@@ -48,7 +48,8 @@ here as a normal video; its old release notes are in git history (`67b55b0`).
 
 Send plain links (`https://jonmac.ai/review/<slug>`). A signed-out visitor, with or without
 a share key, always lands on the passcode page and then goes on to the page they opened;
-a missing or wrong key never returns 404. Sign-in lasts 30 days. A valid share key
+a missing or wrong key never returns 404. A browser signed in to the dashboard goes to the same
+page under `/dashboard/review/` instead, with no passcode. Sign-in lasts 30 days. A valid share key
 (`?k=<REVIEW_SHARE_KEY>`) is remembered in a cookie for 30 days after sign-in. Changing the
 passcode or share key signs everyone out. Signed-out media requests get 401. Plain http is sent to https. All pages and
 media are `noindex`. The values live outside the repo in `C:\Users\partn\.jonmac-review.env`

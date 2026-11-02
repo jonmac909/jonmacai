@@ -27,6 +27,33 @@ function publish(args) {
 before(async () => { runtime = await startRuntime({ listen: true }); });
 after(async () => { await runtime?.mf.dispose(); });
 
+test("signed in to the dashboard, a review link opens the same page there, and the passcode page stays reachable", async () => {
+  const headers = { Cookie: "__Host-cc_session=checked-by-the-dashboard" };
+  const cases = [
+    ["/review", "/dashboard/review"],
+    ["/review/theo-1-v4", "/dashboard/review/theo-1-v4"],
+    ["/review/theo-1-v4/", "/dashboard/review/theo-1-v4"],
+    ["/review/theo-1-v4?k=wrong-key", "/dashboard/review/theo-1-v4"],
+    ["/review/Not_A_Slug", "/dashboard/review"],
+    ["/review//evil.example", "/dashboard/review"],
+  ];
+  for (const [path, location] of cases) {
+    const response = await fetchApp(path, { headers });
+    assert.equal(response.status, 303, path);
+    assert.equal(response.headers.get("location"), location, path);
+    await response.arrayBuffer();
+  }
+  const gate = await fetchApp("/review/login?next=%2Freview", { headers });
+  assert.equal(gate.status, 200);
+  assert.match(await gate.text(), /name="passcode"/);
+  const media = await fetchApp("/review/media/theo-1-v4/video.mp4", { headers });
+  assert.equal(media.status, 401, "the cookie alone opens nothing");
+  await media.arrayBuffer();
+  const other = await fetchApp("/review/theo-1-v4", { headers: { Cookie: "__Host-cc_session_old=x; other=y" } });
+  assert.match(other.headers.get("location"), /^\/review\/login/, "only the dashboard cookie counts");
+  await other.arrayBuffer();
+});
+
 test("signed out, any review link (no key, wrong key, unknown slug) goes to the passcode page, never 404", async () => {
   const cases = [
     ["/review", "/review/login?next=%2Freview"],

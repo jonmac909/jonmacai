@@ -8,6 +8,7 @@ export const STATUSES = ["needs_review", "changes_requested", "approved"];
 const SECRETS = ["REVIEW_SHARE_KEY", "REVIEW_PASSCODE", "REVIEW_SESSION_SECRET", "REVIEW_API_TOKEN"];
 const SESSION_COOKIE = "review_session";
 const LINK_COOKIE = "review_link";
+const DASHBOARD_COOKIE = "__Host-cc_session"; // cloud-apps/command-center/src/auth.js
 const SESSION_DAYS = 30;
 const LINK_DAYS = 30;
 const SLUG = /^[a-z0-9](?:[a-z0-9-]{0,78}[a-z0-9])?$/;
@@ -316,7 +317,13 @@ async function pages(request, env, url) {
   }
 
   const slug = path === "/review" ? null : path.slice("/review/".length);
-  if (!who.reviewer) return loginRedirect(path, url.searchParams.get("k"));
+  if (!who.reviewer) {
+    // The dashboard sign-in opens these same pages with no passcode, so QC bots never meet the passcode box, where
+    // OpenBot can freeze them on a person-waiting card. Presence is enough: the dashboard Worker checks the session,
+    // and it strips this cookie when it calls us, so this cannot loop.
+    if (cookies(request)[DASHBOARD_COOKIE]) return redirect(`/dashboard${safeNext(path)}`);
+    return loginRedirect(path, url.searchParams.get("k"));
+  }
   if (slug !== null && !validSlug(slug)) return notFound();
   // Signed in: drop the share key from the address bar.
   if (url.searchParams.has("k")) return redirect(who.prefix + path);
