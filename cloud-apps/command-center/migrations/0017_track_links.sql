@@ -14,7 +14,7 @@ CREATE TABLE IF NOT EXISTS yt_links (
   created_at TEXT NOT NULL
 );
 
--- What a refresh script posts, by YouTube video. Separate from yt_calendar so a calendar import can't reach it,
+-- What the YouTube Studio script posts, by YouTube video. Separate from yt_calendar so a calendar import can't reach it,
 -- and the pages prefer it on read. No titles: a video shows only through its calendar row.
 CREATE TABLE IF NOT EXISTS yt_stats (
   youtube_id TEXT PRIMARY KEY,
@@ -22,36 +22,39 @@ CREATE TABLE IF NOT EXISTS yt_stats (
   ctr REAL, -- click-through rate in percent, 4.7 = 4.7%
   views INTEGER,
   scheduled_at TEXT, -- UTC
-  status TEXT, -- scheduled, live
-  updated_at TEXT NOT NULL
+  status TEXT, -- scheduled, live, private, unlisted
+  updated_at TEXT NOT NULL -- when the script last posted this video
 );
+CREATE INDEX IF NOT EXISTS yt_stats_scheduled ON yt_stats(scheduled_at);
+CREATE INDEX IF NOT EXISTS yt_calendar_youtube ON yt_calendar(youtube_id);
 
 INSERT OR IGNORE INTO yt_links (code, video_id, channel, created_at)
   SELECT lower(hex(randomblob(5))), id, channel, strftime('%Y-%m-%dT%H:%M:%fZ', 'now') FROM yt_calendar;
 
 -- Landing pages on record in the team's channel facts, each checked live on 2026-11-02. Only the new column
 -- changes on a channel that already has a row. Jon's own channels and Eleanor Whitfield have none on record.
+-- As VALUES: D1 refuses a compound SELECT of more than 5 terms.
 INSERT INTO yt_channels (slug, landing, updated_by, updated_at)
-  SELECT slug, landing, 'developer', strftime('%Y-%m-%dT%H:%M:%fZ', 'now') FROM (
-    SELECT 'theo-creates' AS slug, 'https://viralview.io' AS landing
-    UNION ALL SELECT 'sienna-creates', 'https://viralview.io'
-    UNION ALL SELECT 'zane-creates', 'https://viralview.io'
-    UNION ALL SELECT 'aria-creates', 'https://viralview.io'
-    UNION ALL SELECT 'ash-creates', 'https://viralview.io'
-    UNION ALL SELECT 'mina-creates', 'https://viralview.io'
-    UNION ALL SELECT 'max-creates', 'https://viralview.io'
-    UNION ALL SELECT 'peter-collins', 'https://homeguidepress.com/drivers-bundle'
-    UNION ALL SELECT 'jack-mercer', 'https://homeguidepress.com/ready-at-home'
-    UNION ALL SELECT 'rosa-cooks', 'https://homeguidepress.com/the-hand-me-down-kitchen'
-    UNION ALL SELECT 'rosas-clean-home', 'https://homeguidepress.com/the-old-way-to-a-clean-house'
-    UNION ALL SELECT 'rosas-house-hacks', 'https://homeguidepress.com/fix-it-like-family-did'
-    UNION ALL SELECT 'giovanni-moretti', 'https://homeguidepress.com/finally-written-down'
-    UNION ALL SELECT 'frank-bennett-dogs', 'https://homeguidepress.com/the-long-life-dog'
-    UNION ALL SELECT 'ruth-calder', 'https://homeguidepress.com/the-dark-house-plan'
-    UNION ALL SELECT 'dale-whitaker-pitbulls', 'https://homeguidepress.com/the-pitbull-playbook'
-    UNION ALL SELECT 'nora-fairweather-cats', 'https://homeguidepress.com/reading-your-cat'
-    UNION ALL SELECT 'gail-merriman-golf', 'https://homeguidepress.com/yards-back'
-    UNION ALL SELECT 'naomi-takeda-japan', 'https://homeguidepress.com/japan-before-you-go'
-    UNION ALL SELECT 'walter-brandt-dogs', 'https://homeguidepress.com/the-good-old-dog'
+  SELECT column1, column2, 'developer', strftime('%Y-%m-%dT%H:%M:%fZ', 'now') FROM (VALUES
+    ('theo-creates', 'https://viralview.io'),
+    ('sienna-creates', 'https://viralview.io'),
+    ('zane-creates', 'https://viralview.io'),
+    ('aria-creates', 'https://viralview.io'),
+    ('ash-creates', 'https://viralview.io'),
+    ('mina-creates', 'https://viralview.io'),
+    ('max-creates', 'https://viralview.io'),
+    ('peter-collins', 'https://homeguidepress.com/drivers-bundle'),
+    ('jack-mercer', 'https://homeguidepress.com/ready-at-home'),
+    ('rosa-cooks', 'https://homeguidepress.com/the-hand-me-down-kitchen'),
+    ('rosas-clean-home', 'https://homeguidepress.com/the-old-way-to-a-clean-house'),
+    ('rosas-house-hacks', 'https://homeguidepress.com/fix-it-like-family-did'),
+    ('giovanni-moretti', 'https://homeguidepress.com/finally-written-down'),
+    ('frank-bennett-dogs', 'https://homeguidepress.com/the-long-life-dog'),
+    ('ruth-calder', 'https://homeguidepress.com/the-dark-house-plan'),
+    ('dale-whitaker-pitbulls', 'https://homeguidepress.com/the-pitbull-playbook'),
+    ('nora-fairweather-cats', 'https://homeguidepress.com/reading-your-cat'),
+    ('gail-merriman-golf', 'https://homeguidepress.com/yards-back'),
+    ('naomi-takeda-japan', 'https://homeguidepress.com/japan-before-you-go'),
+    ('walter-brandt-dogs', 'https://homeguidepress.com/the-good-old-dog')
   ) WHERE true
   ON CONFLICT (slug) DO UPDATE SET landing = excluded.landing;

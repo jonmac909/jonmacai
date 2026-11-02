@@ -89,8 +89,8 @@ Each of the 14 bots (D:\AgentTeam\rules\BOTS.md) writes one row at a time with i
 | `POST /v1/calendar` | `CHANNEL_WRITERS` | `{channel, title, date (YYYY-MM-DD), status: planned\|scheduled\|published (default planned), link?, youtube_id?, key?}` |
 | `PATCH /v1/calendar/:id` | `CHANNEL_WRITERS` | `{title?, date?, status?, link?, youtube_id?}` |
 | `GET /v1/calendar?channel=&from=&to=&limit=` | bot or Jon | by date |
-| `GET /v1/links?channel=` | bot or Jon | each Calendar video's tracked link: `{code, url, channel, title, date, status, clicks, ...}`; `url` is null until it has a landing page |
-| `POST /v1/links/stats` | `CHANNEL_WRITERS` | `{stats: [{youtube_id, impressions?, ctr? (percent), views?, scheduled_at? (UTC), status? (scheduled\|live)}]}`, 1 to 500, all or none; a field left out keeps its value; answers `{saved, notOnCalendar}` |
+| `GET /v1/links?channel=` | bot or Jon | each Calendar video's tracked link: `{code, url, channel, title, date, status, clicks, ...}`; `url` is null until it has a landing page. Leaves out channels with links switched off and Complete Histories |
+| `POST /v1/links/stats` | `CHANNEL_WRITERS` | what the YouTube Studio script reads: `{stats: [{youtube_id, impressions?, ctr? (percent), views?, scheduled_at? (UTC), status? (scheduled\|live\|private\|unlisted)}]}`, 1 to 500, all or none; a field left out keeps its value, `null` clears it; answers `{saved, notOnCalendar}` |
 | `PUT /v1/links/:code` | `CHANNEL_WRITERS` | `{landing}`: this video's landing page, over its channel's (`""` goes back to the channel's) |
 | `POST /v1/outliers` | `CHANNEL_WRITERS` | `{channel, title, link, views, avg (≥1), published (YYYY-MM-DD), thumb?, key?}` |
 | `POST /v1/outliers/:id/select` | `CHANNEL_WRITERS`, or Jon (session + `X-CC: 1`) | `{selected: true\|false}`; the same value again changes nothing |
@@ -127,11 +127,18 @@ Default page (`#today`). Built by `src/today.js` from the snapshot. Each card sh
 
 ### Track page
 
-`#track/<channel>`: for each channel, videos created, posted, scheduled and live (each video counts once, at its current status); for each Calendar video, its status, stats, clicks and a copyable link. Migration `0017_track_links.sql`, additive. It reads `yt_calendar`; there is no second video list.
+`#track/<channel>`: for each channel, videos created (QC or later), posted (everything on YouTube), scheduled and live; for each Calendar video, its status, stats, clicks, a copyable link and when Studio data last arrived. Migration `0017_track_links.sql`, additive. It reads `yt_calendar`; there is no second video list. Complete Histories is Spotify only, so it is left out (`NOT_ON_YOUTUBE` in `src/channels.js`) and YouTube data never touches its Calendar rows. The page loads through `/snapshot?pages=track` when opened, not on the default snapshot or the 60 s poll, and follows the dashboard's Light/Dark toggle.
 - Links: `jonmac.ai/v/<code>` (`src/track.js`, its own Worker route) adds 1 to `yt_links.clicks` after answering, then a 302 to the landing page stored in D1 (the video's, else the channel's) with `utm_source=youtube`, `utm_campaign=<channel>`, `utm_content=<code>`. Nothing about the visitor is kept; the request's query string is ignored. It does not touch checkout.
 - An import keeps a video's calendar id (same title, else same YouTube ID), so its link and clicks stay.
-- Impressions, click-through rate and views show "not connected" until a refresh script posts them to `POST /v1/links/stats`. Nothing here connects to Google.
-- Deploy: apply the migration first. Without it Calendar and Track say their tables can't be read, and calendar writes answer 503.
+- Links are off for Home Guide Press: its videos carry none in their descriptions yet, so its link and clicks columns are blank and the link list skips it. Switch: `NO_LINKS_GROUPS` in `src/track.js`.
+- Impressions, click-through rate, views, schedule and YouTube status come from a script reading YouTube Studio, posted to `POST /v1/links/stats`. Nothing here connects to Google. A value Studio doesn't have stays blank. Studio lags, so the page shows when data last arrived.
+
+Deploy in this order:
+1. Apply the migration: `wrangler d1 migrations apply command_center --remote`.
+2. Deploy the Worker. Before it, the old Worker keeps working: it ignores the new tables. If the new Worker runs first, Calendar and Content still show as planned, Track says its tables can't be read and calendar writes answer 503.
+3. Copy `bots/dash.py` to `D:\AgentTeam\tools\dash.py`, so the CSV `youtube_id` column reaches the API.
+
+**Rollback warning:** after this migration, rolling back to the old Worker lets a calendar import delete rows and give them new ids, which orphans their tracked links and clicks. Roll forward, or block calendar imports during a rollback.
 
 ### Calendar and Content pages
 

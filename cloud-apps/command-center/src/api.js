@@ -265,7 +265,8 @@ export async function handleApi(request, env, ctx) {
     const extra = { habits: await listHabits(env.DB), funnel: await listFunnel(env.CLONE_DB) };
     if (base.pages.today || base.pages.projects || base.pages.todo) extra.today = await todayData(env.DB, now, monthWindow(now).key);
     if (base.pages.calendar || base.pages.content) extra.channels = await channelData(env.DB, now);
-    if (base.pages.track) extra.track = await trackData(env.DB, url.origin, now);
+    // Only when Track is opened (?pages=track), never on the snapshot every page load and 60 s poll fetch.
+    if ((url.searchParams.get('pages') || '').split(',').some((p) => p.trim() === 'track')) extra.track = await trackData(env.DB, url.origin, now);
     const build = env.CF_VERSION_METADATA?.id ?? null; // this deploy; an open page reloads when it changes (app.js)
     return json({ ...mergeSnapshot(base, await listSnapshots(env.DB), now, await listDealStages(env.DB), extra), build });
   }

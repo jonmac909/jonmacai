@@ -177,6 +177,10 @@ export async function go(id, { refetch = false } = {}) {
     if (stale(data)) { location.reload(); return; }
     document.getElementById('navs').innerHTML = navHtml();
   }
+  if (name === 'track' && (shownPage?.split('/')[0] !== 'track' || !data.pages.track?.title)) { // loaded on opening; sorting and tabs reuse it
+    const r = await fetch(`${PREFIX}/api/snapshot?pages=track&v=${Date.now()}`);
+    if (r.ok) data.pages.track = (await r.json()).pages.track;
+  }
   document.querySelectorAll('.nav').forEach((n) => {
     if (n.dataset.page === name) n.setAttribute('aria-current', 'page');
     else n.removeAttribute('aria-current');

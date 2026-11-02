@@ -1034,7 +1034,7 @@ function keyOf(body) {
 }
 
 // A YouTube video's id, so youtu.be/x and youtube.com/watch?v=x match; any other link is its own key.
-const YOUTUBE_LINK_RE = /(?:[?&]v=|youtu\.be\/|\/shorts\/|\/embed\/|studio\.youtube\.com\/video\/)([\w-]{11})/;
+const YOUTUBE_LINK_RE = /^https?:\/\/(?:[\w-]+\.)?(?:youtube\.com\/(?:watch\?(?:[^#]*&)?v=|shorts\/|embed\/|video\/)|youtu\.be\/)([\w-]{11})(?![\w-])/i;
 const videoKey = (link) => String(link).match(YOUTUBE_LINK_RE)?.[1] || link;
 const YOUTUBE_ID_RE = /^[\w-]{11}$/;
 const UTC_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?Z$/;
@@ -1077,7 +1077,7 @@ async function setChannel(db, who, slug, body, now) {
   await db.prepare(`INSERT INTO yt_channels (slug, ${fields.join(', ')}, updated_by, updated_at) VALUES (?, ${fields.map(() => '?').join(', ')}, ?, ?)
     ON CONFLICT (slug) DO UPDATE SET ${fields.map((k) => `${k} = excluded.${k}`).join(', ')}, updated_by = excluded.updated_by, updated_at = excluded.updated_at`)
     .bind(channel, ...values, who.bot, now).run();
-  const { schedule, landing } = await db.prepare('SELECT schedule, landing FROM yt_channels WHERE slug = ?').bind(channel).first();
+  const { schedule, landing = null } = await db.prepare('SELECT * FROM yt_channels WHERE slug = ?').bind(channel).first(); // no landing before migration 0017
   return json({ ok: true, channel: { ...CHANNELS.find((c) => c.slug === channel), schedule, landing } });
 }
 
@@ -1115,24 +1115,32 @@ async function updateCalendar(db, who, id, body, now) {
   if ('link' in body) { sets.push('link = ?'); args.push(webLinkOf(body, 'link')); }
   if ('youtube_id' in body) { sets.push('youtube_id = ?'); args.push(matchOf(body, 'youtube_id', YOUTUBE_ID_RE, 'dQw4w9WgXcQ') || null); }
   if (!sets.length) throw new Bad(400, 'Nothing to change: send title, date, time, status, link or youtube_id');
-  const r = await db.prepare(`UPDATE yt_calendar SET ${sets.join(', ')}, updated_by = ?, updated_at = ? WHERE id = ?`).bind(...args, who.bot, now, id).run();
-  if (!changed(r)) throw new Bad(404, 'Calendar video not found');
-  const row = await db.prepare('SELECT * FROM yt_calendar WHERE id = ?').bind(id).first();
-  const found = 'youtube_id' in body || row.youtube_id ? null : youtubeIdOf({}, row.status, row.link);
-  if (found) {
-    await db.prepare('UPDATE yt_calendar SET youtube_id = ? WHERE id = ?').bind(found, id).run();
-    row.youtube_id = found;
-  }
-  return json({ ok: true, video: calendarOut(row) });
+  const before = await db.prepare('SELECT * FROM yt_calendar WHERE id = ?').bind(id).first();
+  if (!before) throw new Bad(404, 'Calendar video not found');
+  const found = 'youtube_id' in body || before.youtube_id ? null : youtubeIdOf({}, body.status ?? before.status, 'link' in body ? body.link : before.link);
+  if (found) { sets.push('youtube_id = ?'); args.push(found); } // one write, so it can't half land
+  await db.prepare(`UPDATE yt_calendar SET ${sets.join(', ')}, updated_by = ?, updated_at = ? WHERE id = ?`).bind(...args, who.bot, now, id).run();
+  return json({ ok: true, video: calendarOut(await db.prepare('SELECT * FROM yt_calendar WHERE id = ?').bind(id).first()) });
 }
 
-// The earlier row a re-imported video continues, so its calendar id, tracked link and clicks stay with it: same
-// title, else same YouTube video. Any other link can't match: many rows share one project or doc link.
-// shortcut: a video retitled with no YouTube ID, or dropped and re-added, gets a new link and the old one keeps redirecting; fine until links in descriptions get retitled in bulk.
-function keptRow(old, title, youtubeId) {
-  let i = old.findIndex((o) => o.title.toLowerCase() === title.toLowerCase());
-  if (i < 0 && youtubeId) i = old.findIndex((o) => o.youtube_id === youtubeId);
-  return i < 0 ? null : old.splice(i, 1)[0];
+// The earlier row each imported row continues, so a video keeps its calendar id, tracked link and clicks, and its
+// YouTube ID if the row has none: the same YouTube ID across every row first, then the same title among rows left
+// over, never onto a different video's ID. A repeated title can't tell videos apart, so it also needs the same date
+// and passes on no ID. No other link can match: many rows share one project or doc link.
+// shortcut: a video retitled with no YouTube ID, moved while its title repeats, or dropped and re-added gets a new link and the old one keeps redirecting; fine until descriptions carry links at scale.
+function continued(old, rows) {
+  const free = new Set(old);
+  const same = (a, b) => a.toLowerCase() === b.toLowerCase();
+  const repeated = (list, title) => list.filter((x) => same(x.title, title)).length > 1;
+  const claim = (hit) => { if (hit) free.delete(hit); return hit ?? null; };
+  const byId = rows.map((r) => (r.youtubeId ? claim([...free].find((o) => o.youtube_id === r.youtubeId)) : null));
+  return rows.map((r, i) => {
+    if (byId[i]) return { id: byId[i].id, youtubeId: r.youtubeId };
+    const twin = repeated(rows, r.title) || repeated(old, r.title);
+    const hit = claim([...free].find((o) => same(o.title, r.title) && (!twin || o.day === r.day)
+      && !(o.youtube_id && r.youtubeId)));
+    return { id: hit?.id ?? newId('v'), youtubeId: r.youtubeId ?? (twin ? null : hit?.youtube_id ?? null) };
+  });
 }
 
 // An owner's CSV schedule for one channel (dash.py calendar-import): its rows replace the channel's
@@ -1141,26 +1149,24 @@ async function putCalendar(db, who, slug, body, now) {
   needChannelWriter(who);
   const channel = channelOf(slug);
   if (!Array.isArray(body.videos) || body.videos.length > 500) throw new Bad(400, 'videos must be a list of at most 500');
-  const { results: old } = await db.prepare("SELECT id, title, youtube_id FROM yt_calendar WHERE channel = ? AND idem_key LIKE 'csv:%'").bind(channel).all();
+  const { results: old } = await db.prepare("SELECT id, title, day, youtube_id FROM yt_calendar WHERE channel = ? AND idem_key LIKE 'csv:%'").bind(channel).all();
   const rows = body.videos.map((v, i) => {
     if (!v || typeof v !== 'object' || Array.isArray(v)) throw new Bad(400, `videos[${i}] must be {date, time?, title, status, link?, youtube_id?}`);
     try {
-      const title = text(v, 'title', 300, true);
       const status = oneOf(v.status, CALENDAR_STATUSES, 'status');
       const link = webLinkOf(v, 'link');
-      const youtubeId = youtubeIdOf(v, status, link);
-      const kept = keptRow(old, title, youtubeId);
-      return [kept?.id ?? newId('v'), channel, title, matchOf(v, 'date', DAY_RE, '2026-11-03', true),
-        matchOf(v, 'time', TIME_RE, '09:00') || null, status, link, youtubeId ?? kept?.youtube_id ?? null,
-        who.bot, who.bot, `csv:${channel}:${i}`, now, now];
+      return { title: text(v, 'title', 300, true), day: matchOf(v, 'date', DAY_RE, '2026-11-03', true), time: matchOf(v, 'time', TIME_RE, '09:00') || null,
+        status, link, youtubeId: youtubeIdOf(v, status, link) };
     } catch (err) {
       throw err instanceof Bad ? new Bad(400, `videos[${i}]: ${err.message}`) : err;
     }
   });
+  const ids = continued(old, rows);
   const insert = db.prepare(`INSERT INTO yt_calendar (id, channel, title, day, time_pt, status, link, youtube_id, created_by, updated_by, idem_key, created_at, updated_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
   const [gone] = await db.batch([db.prepare("DELETE FROM yt_calendar WHERE channel = ? AND idem_key LIKE 'csv:%'").bind(channel),
-    ...rows.map((r) => insert.bind(...r)), addLinks(db, channel, now)]);
+    ...rows.map((r, i) => insert.bind(ids[i].id, channel, r.title, r.day, r.time, r.status, r.link, ids[i].youtubeId, who.bot, who.bot, `csv:${channel}:${i}`, now, now)),
+    addLinks(db, channel, now)]);
   return json({ ok: true, channel, replaced: gone?.meta?.changes ?? 0, videos: rows.length });
 }
 
@@ -1187,33 +1193,38 @@ async function setLinkLanding(db, who, code, body) {
   return json({ ok: true, code, landing });
 }
 
-// A refresh script's numbers and schedule by YouTube video, all or none. A field left out keeps its value.
-// shortcut: a video pulled back to private keeps its last YouTube status, upgrade when the refresh script needs to clear one.
+// What the YouTube Studio script reads, by YouTube video, all or none. A field left out keeps its value; null clears it.
+const STATS_FIELDS = {
+  impressions: (s) => countOf(s, 'impressions', 0),
+  ctr: (s) => numberOf(s, 'ctr', 0, 100, true),
+  views: (s) => countOf(s, 'views', 0),
+  scheduled_at: (s) => {
+    if (!UTC_RE.test(s.scheduled_at) || Number.isNaN(Date.parse(s.scheduled_at))) throw new Bad(400, 'scheduled_at must be UTC, like 2026-11-03T17:00:00Z');
+    return new Date(s.scheduled_at).toISOString();
+  },
+  status: (s) => oneOf(s.status, ['scheduled', 'live', 'private', 'unlisted'], 'status'),
+};
+
 async function postLinkStats(db, who, body, now) {
   needChannelWriter(who);
   if (!Array.isArray(body.stats) || !body.stats.length || body.stats.length > 500) throw new Bad(400, 'stats must be a list of 1 to 500');
   const rows = body.stats.map((s, i) => {
     if (!s || typeof s !== 'object' || Array.isArray(s)) throw new Bad(400, `stats[${i}] must be {youtube_id, impressions?, ctr?, views?, scheduled_at?, status?}`);
     try {
-      const youtubeId = matchOf(s, 'youtube_id', YOUTUBE_ID_RE, 'dQw4w9WgXcQ', true);
-      const count = (key) => (s[key] == null ? null : countOf(s, key, 0));
-      if (s.scheduled_at != null && (!UTC_RE.test(s.scheduled_at) || Number.isNaN(Date.parse(s.scheduled_at)))) throw new Bad(400, 'scheduled_at must be UTC, like 2026-11-03T17:00:00Z');
-      const row = [count('impressions'), numberOf(s, 'ctr', 0, 100), count('views'), s.scheduled_at == null ? null : new Date(s.scheduled_at).toISOString(),
-        s.status == null ? null : oneOf(s.status, ['scheduled', 'live'], 'status')];
-      if (row.every((n) => n === null)) throw new Bad(400, 'send impressions, ctr, views, scheduled_at or status');
-      return [youtubeId, ...row, now];
+      const id = matchOf(s, 'youtube_id', YOUTUBE_ID_RE, 'dQw4w9WgXcQ', true);
+      const fields = Object.keys(STATS_FIELDS).filter((k) => k in s);
+      if (!fields.length) throw new Bad(400, 'send impressions, ctr, views, scheduled_at or status');
+      const values = fields.map((k) => (s[k] === null ? null : STATS_FIELDS[k](s)));
+      return { id, statement: db.prepare(`INSERT INTO yt_stats (youtube_id, ${fields.join(', ')}, updated_at) VALUES (?, ${fields.map(() => '?').join(', ')}, ?)
+        ON CONFLICT (youtube_id) DO UPDATE SET ${fields.map((k) => `${k} = excluded.${k}`).join(', ')}, updated_at = excluded.updated_at`).bind(id, ...values, now) };
     } catch (err) {
       throw err instanceof Bad ? new Bad(400, `stats[${i}]: ${err.message}`) : err;
     }
   });
-  const upsert = db.prepare(`INSERT INTO yt_stats (youtube_id, impressions, ctr, views, scheduled_at, status, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)
-    ON CONFLICT (youtube_id) DO UPDATE SET impressions = COALESCE(excluded.impressions, impressions), ctr = COALESCE(excluded.ctr, ctr),
-      views = COALESCE(excluded.views, views), scheduled_at = COALESCE(excluded.scheduled_at, scheduled_at), status = COALESCE(excluded.status, status),
-      updated_at = excluded.updated_at`);
-  await db.batch(rows.map((r) => upsert.bind(...r)));
+  await db.batch(rows.map((r) => r.statement));
   const { results } = await db.prepare('SELECT DISTINCT youtube_id FROM yt_calendar WHERE youtube_id IS NOT NULL').all();
   const known = new Set((results || []).map((r) => r.youtube_id));
-  return json({ ok: true, saved: rows.length, notOnCalendar: rows.map((r) => r[0]).filter((id) => !known.has(id)) });
+  return json({ ok: true, saved: rows.length, notOnCalendar: rows.map((r) => r.id).filter((id) => !known.has(id)) });
 }
 
 async function addOutlier(db, who, body, now) {
@@ -1364,7 +1375,7 @@ async function route(request, db, who, rest, env, ctx) {
   if (kind === 'links') {
     if (method === 'GET' && !rawId) {
       const channel = q.get('channel') ? channelOf(q.get('channel')) : null;
-      return json({ ok: true, links: await trackVideos(db, new URL(request.url).origin, channel) });
+      return json({ ok: true, links: (await trackVideos(db, new URL(request.url).origin, channel)).filter((v) => v.linked) });
     }
     if (method === 'POST' && rawId === 'stats' && !verb) return postLinkStats(db, who, await readBody(request), now);
     if (method === 'PUT' && rawId && !verb) return setLinkLanding(db, who, rawId, await readBody(request));
@@ -1435,7 +1446,7 @@ export async function handleV1(request, env, rest, ctx) {
     return await route(request, db, who, rest, env, ctx);
   } catch (err) {
     if (err instanceof Bad) return json({ ok: false, error: err.message }, err.status);
-    if (/no such table/i.test(String(err?.message))) return json({ ok: false, error: 'Bot tables are not set up yet' }, 503);
+    if (/no such (table|column)|has no column named/i.test(String(err?.message))) return json({ ok: false, error: 'Bot tables are not set up yet' }, 503);
     console.error('v1 api error', err);
     return json({ ok: false, error: 'Server error' }, 500);
   }

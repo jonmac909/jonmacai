@@ -39,7 +39,7 @@ export function shell(title, d, sub, body) {
 export const STATUS = {
   idea: ['Idea', ''], planned: ['Planned', ''], scripted: ['Scripted', 'blue'], recording: ['Recording', 'violet'],
   editing: ['Editing', 'violet'], qc: ['In QC', 'risk'], review: ['Ready for review', 'risk'], scheduled: ['Scheduled', 'teal'],
-  published: ['Published', 'ok'],
+  published: ['Published', 'ok'], private: ['Private on YouTube', 'risk'], unlisted: ['Unlisted on YouTube', 'risk'],
 };
 
 // The calendar and YouTube disagree: says so on the row, with what the calendar has.
