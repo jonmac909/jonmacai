@@ -17,7 +17,7 @@ Runs hidden every 10 minutes (see HOOKS.md). Reads OpenBot's database and transc
 
 Each incident alerts once and takes one restart from Jon's button; a freeze that outlasts the 3-hour cap
 restarts again. A failed send stays unmarked and retries next run. A check that crashes reports script_failure
-once and the others still run.
+once and the others still run; one that times out reports only after 3 runs in a row.
 
 python -I team_guard.py [--dry-run]    (--dry-run prints what it would do and sends nothing; crashes still log)
 """
@@ -44,6 +44,7 @@ IDLE_MIN, QUEUE_MIN, QC_MIN, ANA_MIN, BLOCKED_MIN, MIN_PACKS = 30, 120, 30, 45, 
 PREFLIGHT_S = 280
 PACKS_RECHECK_S = 3600
 PACKS_BUDGET_S = 600  # preflight time per run; packs past it count as unchecked
+TIMEOUTS_TO_REPORT = 3  # runs in a row, half an hour: one slow moment isn't a failure, a stuck dashboard is
 PORTS_FRESH_S = 1800
 DISK_LOW_GB = 30  # about two days of team output
 DISK_CLEAR_GB = 35  # the incident ends here, so hovering at the line doesn't alert again and again
@@ -390,9 +391,10 @@ def pack_alerts(state):
 def check_packs(now, state):
     if now - state.get('packs_at', 0) < PACKS_RECHECK_S:  # a failing pack costs minutes of CPU; a failed wake retries
         return pack_alerts(state) if state.get('packs_short') else None
+    folders = waiting_packs()  # first: a timeout here must leave the last result and retry next run
     state['packs_at'], state['packs_short'] = now, None
     ready, unknown = 0, []
-    for folder in waiting_packs():
+    for folder in folders:
         code = preflight(folder) if time.time() < now + PACKS_BUDGET_S else None
         ready += code == 0
         if ready >= MIN_PACKS:
@@ -546,6 +548,7 @@ def load():
     except (FileNotFoundError, ValueError):
         state = {}
     state.setdefault('seen', {})
+    state.setdefault('timeouts', {})
     return state
 
 
@@ -556,12 +559,19 @@ def run(dry=False):
     for name, check in CHECKS:
         try:
             found = check(now, state)
+        except subprocess.TimeoutExpired as err:
+            state['timeouts'][name] = state['timeouts'].get(name, 0) + 1
+            log('check %s timed out, %d in a row: %r' % (name, state['timeouts'][name], err))
+            if state['timeouts'][name] < TIMEOUTS_TO_REPORT:
+                continue
+            found = {'fail:' + name: (FAILURE, '%s check: %r' % (name, err))}
         except Exception as err:
             log('check %s crashed: %s' % (name, traceback.format_exc()))
             found = {'fail:' + name: (FAILURE, '%s check: %r' % (name, err))}
         else:
             if found is None:  # not its hour: everything stays as it was
                 continue
+            state['timeouts'].pop(name, None)
             for k in list(state['seen']):  # the incident is over, so the next one alerts again
                 if k == 'fail:' + name or (k.startswith(name + ':') and k not in found):
                     del state['seen'][k]

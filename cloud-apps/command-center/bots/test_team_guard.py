@@ -4,6 +4,7 @@ import json
 import msvcrt
 import os
 import sqlite3
+import subprocess
 import sys
 import tempfile
 import types
@@ -944,6 +945,46 @@ class Failures(Base):
         with mock.patch.object(tg, 'CHECKS', [('turns', mock.Mock(side_effect=ValueError('boom')))]):
             self.run_guard()
         self.assertEqual([], self.run_guard())
+
+    def test_a_timed_out_check_stays_quiet_and_keeps_its_open_incidents(self):
+        self.turn(LUCY, 'u1', 40, last=31)
+        self.assertEqual(1, len(self.run_guard()))
+        hang = subprocess.TimeoutExpired('dash', 60)
+        with mock.patch.object(tg, 'CHECKS', [('turns', mock.Mock(side_effect=hang))]):
+            self.assertEqual([], self.run_guard())
+        self.assertEqual([], self.run_guard())
+        self.assertIn('check turns timed out', tg.LOG.read_text(encoding='utf-8'))
+
+    def test_a_timed_out_check_does_not_stop_the_checks_after_it(self):
+        self.proof()
+        hang = subprocess.TimeoutExpired('dash', 60)
+        with mock.patch.object(tg, 'CHECKS', [('turns', mock.Mock(side_effect=hang)), ('qc', tg.check_qc)]):
+            self.assertEqual(1, len(self.run_guard()))
+
+    def test_timeouts_in_a_row_report_once_and_a_good_run_resets_the_count(self):
+        hang = mock.Mock(side_effect=subprocess.TimeoutExpired('dash', 60))
+        with mock.patch.object(tg, 'CHECKS', [('qc', hang)]):
+            for _ in range(tg.TIMEOUTS_TO_REPORT - 1):
+                self.assertEqual([], self.run_guard())
+            self.assertEqual(['script_failure'], [s[1] for s in self.run_guard() if s[0] == 'fire'])
+            self.assertEqual([], self.run_guard())
+        self.assertEqual([], self.run_guard())
+        with mock.patch.object(tg, 'CHECKS', [('qc', hang)]):
+            for _ in range(tg.TIMEOUTS_TO_REPORT - 1):
+                self.assertEqual([], self.run_guard())
+            self.assertEqual(['script_failure'], [s[1] for s in self.run_guard() if s[0] == 'fire'])
+
+    def test_a_dashboard_timeout_keeps_the_pack_result_and_retries_next_run(self):
+        self.pass_codes['hgp-two'] = 1
+        self.assertEqual(2, len(self.run_guard()))
+        self.t += tg.PACKS_RECHECK_S
+        hung = mock.Mock(side_effect=subprocess.TimeoutExpired('dash', 60))
+        with mock.patch.object(tg, 'waiting_packs', hung):
+            self.assertEqual([], self.run_guard())
+        self.assertIn('build the next one', json.loads(tg.STATE.read_text(encoding='utf-8'))['packs_short'])
+        with mock.patch.object(tg, 'preflight', return_value=1) as preflight:  # next run, not an hour later
+            self.assertEqual([], self.run_guard())
+            preflight.assert_called()
 
     def test_a_refused_alert_stays_unmarked_and_retries(self):
         self.turn(LUCY, 'u1', 40, last=31)
