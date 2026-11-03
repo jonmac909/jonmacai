@@ -129,7 +129,7 @@ Default page (`#today`). Built by `src/today.js` from the snapshot. Each card sh
 
 `#track/<channel>`: for each channel, videos created (QC or later), posted (everything on YouTube), scheduled and live; for each Calendar video, its status, stats, clicks, a copyable link and when Studio data last arrived. Migration `0017_track_links.sql`, additive. It reads `yt_calendar`; there is no second video list. Complete Histories is Spotify only, so it is left out (`NOT_ON_YOUTUBE` in `src/channels.js`) and YouTube data never touches its Calendar rows. The page loads through `/snapshot?pages=track` when opened, not on the default snapshot or the 60 s poll, and follows the dashboard's Light/Dark toggle.
 - Links: `jonmac.ai/v/<code>` (`src/track.js`, its own Worker route) adds 1 to `yt_links.clicks` after answering, then a 302 to the landing page stored in D1 (the video's, else the channel's) with `utm_source=youtube`, `utm_campaign=<channel>`, `utm_content=<code>`. Nothing about the visitor is kept; the request's query string is ignored. It does not touch checkout.
-- An import keeps a video's calendar id (same title, else same YouTube ID), so its link and clicks stay.
+- An import keeps a video's calendar id (same YouTube ID, else same title, else a lone retitled video on its date), so its link and clicks stay. A row before QC only takes a video's link on that video's date. A YouTube ID sits on one Calendar row: repeated in a CSV is a 400, already on another row or channel is a 409.
 - Links are off for Home Guide Press: its videos carry none in their descriptions yet, so its link and clicks columns are blank and the link list skips it. Switch: `NO_LINKS_GROUPS` in `src/track.js`.
 - Impressions, click-through rate, views, schedule and YouTube status come from a script reading YouTube Studio, posted to `POST /v1/links/stats`. Nothing here connects to Google. A value Studio doesn't have stays blank. Studio lags, so the page shows when data last arrived.
 
@@ -138,13 +138,15 @@ Deploy in this order:
 2. Deploy the Worker. Before it, the old Worker keeps working: it ignores the new tables. If the new Worker runs first, Calendar and Content still show as planned, Track says its tables can't be read and calendar writes answer 503.
 3. Copy `bots/dash.py` to `D:\AgentTeam\tools\dash.py`, so the CSV `youtube_id` column reaches the API.
 
+An import by the old Worker in the gap between steps 1 and 2 gives its rows new ids with no links, until the next import by the new Worker.
+
 **Rollback warning:** after this migration, rolling back to the old Worker lets a calendar import delete rows and give them new ids, which orphans their tracked links and clicks. Roll forward, or block calendar imports during a rollback.
 
 ### Calendar and Content pages
 
 `#calendar/<channel>` and `#content/<channel>`: one tab per channel in `CHANNELS` (`src/channels.js`, from `D:\AgentTeam\rules\facts\channels.md`), a row of tabs per group that scrolls sideways on phones. Tables `yt_channels`, `yt_calendar`, `yt_outliers` (migration `0014_calendar_content.sql`, additive). Only `CHANNEL_WRITERS` (`src/bots.js`: jon-mac-youtube, viral-view, home-guide-press, developer, ana) write; Jon only toggles an outlier's "Selected for production".
 - Calendar: the channel's posting schedule (or "not set"), then its videos by date: Coming up, then the last 60 days. Each has its status and, when it has one, a labelled link button. For a row with a YouTube ID and YouTube data (`yt_stats`), YouTube's date, time and status show instead of the calendar's, in Pacific time, and a row that disagrees with the calendar is flagged. The calendar's own columns are never rewritten, so an import can't undo it.
-- A row's YouTube ID (`yt_calendar.youtube_id`) comes from the CSV's optional `youtube_id` column, else from the link of a video at QC or later (earlier rows link their source video). An import that leaves it blank keeps the ID the row already has.
+- A row's YouTube ID (`yt_calendar.youtube_id`) comes from the CSV's optional `youtube_id` column, else from the link of a video at QC or later (earlier rows link their source video). An import that leaves it blank keeps the ID the row already has, unless its title and date both repeat or the row can't be matched (a new title and a new date).
 - Content: the channel's outliers, best first by views over their channel's average ("4.2× avg"), with thumbnail, views, age, a link button and the Select toggle.
 - Links and thumbnails are http(s) only, on the way in and again on the page.
 

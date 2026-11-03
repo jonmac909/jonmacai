@@ -26,7 +26,8 @@ CREATE TABLE IF NOT EXISTS yt_stats (
   updated_at TEXT NOT NULL -- when the script last posted this video
 );
 CREATE INDEX IF NOT EXISTS yt_stats_scheduled ON yt_stats(scheduled_at);
-CREATE INDEX IF NOT EXISTS yt_calendar_youtube ON yt_calendar(youtube_id);
+-- One Calendar row per YouTube video, whichever route or channel wrote it.
+CREATE UNIQUE INDEX IF NOT EXISTS yt_calendar_youtube ON yt_calendar(youtube_id) WHERE youtube_id IS NOT NULL;
 
 INSERT OR IGNORE INTO yt_links (code, video_id, channel, created_at)
   SELECT lower(hex(randomblob(5))), id, channel, strftime('%Y-%m-%dT%H:%M:%fZ', 'now') FROM yt_calendar;

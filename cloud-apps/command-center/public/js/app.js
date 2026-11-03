@@ -180,6 +180,7 @@ export async function go(id, { refetch = false } = {}) {
   if (name === 'track' && (shownPage?.split('/')[0] !== 'track' || !data.pages.track?.title)) { // loaded on opening; sorting and tabs reuse it
     const r = await fetch(`${PREFIX}/api/snapshot?pages=track&v=${Date.now()}`);
     if (r.ok) data.pages.track = (await r.json()).pages.track;
+    if (hashPage() !== id) return; // moved on while it loaded
   }
   document.querySelectorAll('.nav').forEach((n) => {
     if (n.dataset.page === name) n.setAttribute('aria-current', 'page');

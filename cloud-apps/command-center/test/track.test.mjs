@@ -138,6 +138,8 @@ test('stage: a YouTube link only means posted on a finished video', () => {
   assert.equal(stageOf('qc', null), 'created');
   assert.equal(stageOf('review', 'https://docs.google.com/x'), 'created');
   assert.equal(stageOf('review', 'https://youtu.be/abcdefghijk'), 'posted');
+  assert.equal(stageOf('review', null, YT), 'posted', 'an ID counts like a link');
+  assert.equal(stageOf('idea', null, YT), null);
 });
 
 test('stats are checked, all or none, and shown once posted', async () => {
@@ -256,8 +258,8 @@ test('a YouTube ID comes from the CSV column, else a finished video\'s link, nev
 
   const add = await call(env, 'POST', '/v1/calendar', { bot: 'developer', body: { channel: 'jon-mac', title: 'Added', date: '2026-11-05', status: 'planned' } });
   assert.equal(add.body.video.youtubeId, null);
-  const found = await call(env, 'PATCH', `/v1/calendar/${add.body.video.id}`, { bot: 'developer', body: { status: 'scheduled', link: `https://youtu.be/${YT}` } });
-  assert.equal(found.body.video.youtubeId, YT);
+  const found = await call(env, 'PATCH', `/v1/calendar/${add.body.video.id}`, { bot: 'developer', body: { status: 'scheduled', link: 'https://youtu.be/zzzzzzzzzzz' } });
+  assert.equal(found.body.video.youtubeId, 'zzzzzzzzzzz');
   const cleared = await call(env, 'PATCH', `/v1/calendar/${add.body.video.id}`, { bot: 'developer', body: { youtube_id: '' } });
   assert.equal(cleared.body.video.youtubeId, null);
 });
@@ -366,18 +368,13 @@ test('the same title with a different YouTube ID is a different video, so it get
 
 test('two imported rows never claim the one earlier row', async () => {
   const { db, env } = await setup();
-  await importCsv(env, 'theo-creates', [
-    { date: '2026-11-03', title: 'Recap', status: 'qc' },
-    { date: '2026-11-04', title: 'Twin', status: 'scheduled', youtube_id: YT },
-  ]);
+  await importCsv(env, 'theo-creates', [{ date: '2026-11-03', title: 'Recap', status: 'qc' }]);
   const r = await importCsv(env, 'theo-creates', [
-    { date: '2026-11-03', title: 'Recap', status: 'qc' },
+    { date: '2026-11-03', title: 'Recap', status: 'qc', youtube_id: YT },
     { date: '2026-11-03', title: 'recap', status: 'qc' },
-    { date: '2026-11-04', title: 'Twin', status: 'scheduled', youtube_id: YT },
-    { date: '2026-11-05', title: 'Twin part 2', status: 'scheduled', youtube_id: YT },
   ]);
   assert.equal(r.status, 200);
-  assert.equal(db.sqlite.prepare('SELECT count(*) AS n FROM yt_calendar').get().n, 4);
+  assert.equal(db.sqlite.prepare('SELECT count(*) AS n FROM yt_calendar').get().n, 2);
 });
 
 test('two rows with one title keep their own links when the CSV order changes', async () => {
@@ -395,14 +392,177 @@ test('two rows with one title keep their own links when the CSV order changes', 
   assert.deepEqual(codes(), before);
 });
 
-test('a repeated title never inherits a YouTube ID', async () => {
+const idsByDay = (db) => Object.fromEntries(db.sqlite.prepare('SELECT day, youtube_id FROM yt_calendar').all().map((r) => [r.day, r.youtube_id]));
+
+test('a repeated title on different dates keeps each row\'s ID when the CSV leaves it blank', async () => {
   const { db, env } = await setup();
-  await importCsv(env, 'theo-creates', [{ date: '2026-11-03', title: 'Recap', status: 'scheduled', youtube_id: YT }]);
   await importCsv(env, 'theo-creates', [
-    { date: '2026-11-03', title: 'Recap', status: 'scheduled' },
-    { date: '2026-11-10', title: 'Recap', status: 'scheduled' },
+    { date: '2026-11-03', title: 'Q&A', status: 'scheduled', youtube_id: YT },
+    { date: '2026-11-10', title: 'Q&A', status: 'scheduled', youtube_id: 'lmnopqrstuv' },
   ]);
-  assert.equal(db.sqlite.prepare('SELECT count(*) AS n FROM yt_calendar WHERE youtube_id IS NOT NULL').get().n, 0);
+  await importCsv(env, 'theo-creates', [
+    { date: '2026-11-03', title: 'Q&A', status: 'scheduled' },
+    { date: '2026-11-10', title: 'Q&A', status: 'scheduled' },
+  ]);
+  assert.deepEqual(idsByDay(db), { '2026-11-03': YT, '2026-11-10': 'lmnopqrstuv' });
+});
+
+test('a second row with a title keeps the first row\'s ID, and a new date takes none', async () => {
+  const { db, env } = await setup();
+  await importCsv(env, 'theo-creates', [{ date: '2026-11-03', title: 'Series', status: 'scheduled', youtube_id: YT }]);
+  await importCsv(env, 'theo-creates', [
+    { date: '2026-11-03', title: 'Series', status: 'scheduled' },
+    { date: '2026-11-10', title: 'Series', status: 'scheduled' },
+  ]);
+  assert.deepEqual(idsByDay(db), { '2026-11-03': YT, '2026-11-10': null });
+});
+
+test('when title and date both repeat, a blank row is not given an ID', async () => {
+  const { db, env } = await setup();
+  await importCsv(env, 'theo-creates', [
+    { date: '2026-11-03', title: 'Recap', status: 'scheduled', youtube_id: YT },
+    { date: '2026-11-03', title: 'Recap', status: 'scheduled', youtube_id: 'lmnopqrstuv' },
+  ]);
+  await importCsv(env, 'theo-creates', [
+    { date: '2026-11-03', title: 'Recap', status: 'scheduled', youtube_id: YT },
+    { date: '2026-11-03', title: 'Recap', status: 'scheduled' },
+  ]);
+  assert.deepEqual(db.sqlite.prepare('SELECT youtube_id FROM yt_calendar ORDER BY youtube_id').all().map((r) => r.youtube_id), [null, YT]);
+
+  await importCsv(env, 'theo-creates', [
+    { date: '2026-11-03', title: 'Recap', status: 'scheduled', youtube_id: YT },
+    { date: '2026-11-03', title: 'Recap', status: 'scheduled', youtube_id: 'lmnopqrstuv' },
+  ]);
+  await importCsv(env, 'theo-creates', [{ date: '2026-11-03', title: 'Recap', status: 'scheduled' }]);
+  assert.deepEqual(idsByDay(db), { '2026-11-03': null }, 'one row left, and it could be either video');
+});
+
+test('a new idea using a renamed video\'s old title takes neither its ID nor its link', async () => {
+  const { db, env } = await setup();
+  await importCsv(env, 'theo-creates', [{ date: '2026-11-03', title: 'Hooks', status: 'scheduled', youtube_id: YT }]);
+  const { code } = await linkOf(db, 'Hooks');
+  await importCsv(env, 'theo-creates', [
+    { date: '2026-12-01', title: 'Hooks', status: 'idea' },
+    { date: '2026-11-03', title: 'Better hooks', status: 'scheduled' },
+  ]);
+  const rows = Object.fromEntries(db.sqlite.prepare('SELECT title, youtube_id FROM yt_calendar').all().map((r) => [r.title, r.youtube_id]));
+  assert.deepEqual(rows, { Hooks: null, 'Better hooks': YT }, 'and the retitled row keeps them');
+  assert.equal((await linkOf(db, 'Better hooks')).code, code);
+  assert.notEqual((await linkOf(db, 'Hooks')).code, code);
+});
+
+test('a video set back to an idea on its own date keeps its ID', async () => {
+  const { db, env } = await setup();
+  await importCsv(env, 'theo-creates', [{ date: '2026-11-03', title: 'Hooks', status: 'scheduled', youtube_id: YT }]);
+  await importCsv(env, 'theo-creates', [{ date: '2026-11-03', title: 'Hooks', status: 'idea' }]);
+  assert.deepEqual(idsByDay(db), { '2026-11-03': YT });
+});
+
+test('a video moved in the CSV keeps its ID by title once the row is at QC or later', async () => {
+  const { db, env } = await setup();
+  await importCsv(env, 'theo-creates', [{ date: '2026-11-03', title: 'Hooks', status: 'scheduled', youtube_id: YT }]);
+  await importCsv(env, 'theo-creates', [{ date: '2026-11-20', title: 'Hooks', status: 'scheduled' }]);
+  assert.deepEqual(idsByDay(db), { '2026-11-20': YT });
+});
+
+test('a retitled row with a blank ID keeps YouTube\'s values, only when the match is the only one', async () => {
+  const { db, env } = await setup();
+  const seed = [
+    { date: '2026-11-03', title: 'Hooks', status: 'scheduled', youtube_id: YT },
+    { date: '2026-11-05', title: 'Links', status: 'scheduled', youtube_id: 'lmnopqrstuv' },
+    { date: '2026-11-05', title: 'Thumbs', status: 'scheduled', youtube_id: 'zzzzzzzzzzz' },
+    { date: '2026-11-07', title: 'Dropped', status: 'scheduled', youtube_id: 'yyyyyyyyyyy' },
+    { date: '2026-11-09', title: 'Own ID', status: 'scheduled', youtube_id: 'xxxxxxxxxxx' },
+    { date: '2026-11-11', title: 'Two ways', status: 'scheduled', youtube_id: 'wwwwwwwwwww' },
+  ];
+  await importCsv(env, 'theo-creates', seed);
+  const { code } = await linkOf(db, 'Hooks');
+  await postStats(env, [{ youtube_id: YT, views: 7, status: 'scheduled', scheduled_at: '2026-11-03T17:00:00Z' }]);
+  await importCsv(env, 'theo-creates', [
+    { date: '2026-11-03', title: 'Hooks, retitled', status: 'scheduled' }, // the one match
+    { date: '2026-11-05', title: 'Two leftovers', status: 'scheduled' }, // which of two?
+    { date: '2026-11-07', title: 'New idea', status: 'idea' }, // not made, so not that video
+    { date: '2026-11-09', title: 'Own ID, retitled', status: 'scheduled', youtube_id: 'vvvvvvvvvvv' }, // says it's another video
+    { date: '2026-11-11', title: 'One', status: 'scheduled' }, // which of two?
+    { date: '2026-11-11', title: 'Other', status: 'scheduled' },
+  ]);
+  const rows = Object.fromEntries(db.sqlite.prepare('SELECT title, youtube_id FROM yt_calendar').all().map((r) => [r.title, r.youtube_id]));
+  assert.deepEqual(rows, { 'Hooks, retitled': YT, 'Two leftovers': null, 'New idea': null, 'Own ID, retitled': 'vvvvvvvvvvv', One: null, Other: null });
+  assert.equal((await linkOf(db, 'Hooks, retitled')).code, code);
+  assert.equal((await trackPage(db)).videos.find((v) => v.title === 'Hooks, retitled').views, 7);
+});
+
+test('a YouTube ID sits on one Calendar row', async () => {
+  const { db, env } = await setup();
+  const add = (body) => call(env, 'POST', '/v1/calendar', { bot: 'developer', body: { title: 'Added', date: '2026-11-05', status: 'planned', ...body } });
+  const dupe = await importCsv(env, 'theo-creates', [
+    { date: '2026-11-03', title: 'One', status: 'scheduled', youtube_id: YT },
+    { date: '2026-11-04', title: 'Two', status: 'scheduled', link: `https://youtu.be/${YT}` },
+  ]);
+  assert.equal(dupe.status, 400);
+  assert.match(dupe.body.error, /videos\[1\].*abcdefghijk/);
+
+  await importCsv(env, 'theo-creates', [{ date: '2026-11-03', title: 'One', status: 'scheduled', youtube_id: YT }]);
+  assert.equal((await importCsv(env, 'aria-creates', [{ date: '2026-11-03', title: 'Other', status: 'qc' }])).status, 200);
+  const other = await importCsv(env, 'aria-creates', [{ date: '2026-11-04', title: 'Clash', status: 'scheduled', youtube_id: YT }]);
+  assert.equal(other.status, 409, 'another channel');
+  assert.deepEqual(db.sqlite.prepare("SELECT title FROM yt_calendar WHERE channel = 'aria-creates'").all().map((r) => r.title), ['Other'], 'and the import did nothing');
+  const first = await add({ channel: 'jon-mac', youtube_id: 'lmnopqrstuv', key: 'k1' });
+  assert.equal(first.status, 201);
+  assert.equal((await add({ channel: 'jon-mac', youtube_id: 'lmnopqrstuv', key: 'k1' })).body.duplicate, true, 'a retry is still a retry');
+  assert.equal((await add({ channel: 'jon-mac', youtube_id: YT })).status, 409, 'POST onto a CSV row');
+  assert.equal((await importCsv(env, 'jon-mac', [{ date: '2026-11-03', title: 'x', status: 'review', youtube_id: 'lmnopqrstuv' }])).status, 409, 'CSV onto a POST row');
+  assert.equal((await call(env, 'PATCH', `/v1/calendar/${first.body.video.id}`, { bot: 'developer', body: { youtube_id: YT } })).status, 409);
+});
+
+test('a CSV can\'t hold the same title on the same date twice with no ID', async () => {
+  const { db, env } = await setup();
+  const twice = await importCsv(env, 'theo-creates', [
+    { date: '2026-11-03', title: 'Recap', status: 'planned' },
+    { date: '2026-11-03', title: 'recap', status: 'qc' },
+  ]);
+  assert.equal(twice.status, 400);
+  assert.match(twice.body.error, /videos\[1\]/);
+  assert.equal(db.sqlite.prepare('SELECT count(*) AS n FROM yt_calendar').get().n, 0);
+  assert.equal((await importCsv(env, 'theo-creates', [
+    { date: '2026-11-03', title: 'Recap', status: 'qc', youtube_id: YT },
+    { date: '2026-11-03', title: 'Recap', status: 'qc' },
+    { date: '2026-11-04', title: 'Recap', status: 'qc' },
+  ])).status, 200, 'an ID or a date tells them apart');
+});
+
+test('a review row with a YouTube ID counts as posted', async () => {
+  const { db, env } = await setup();
+  await importCsv(env, 'theo-creates', [{ date: '2026-11-03', title: 'Hooks', status: 'review', youtube_id: YT }]);
+  const page = await trackPage(db);
+  assert.equal(page.videos[0].status, 'posted');
+  assert.equal(page.channels.find((c) => c.slug === 'theo-creates').counts.posted, 1);
+});
+
+test('stats refuse a date before YouTube or one that doesn\'t exist', async () => {
+  const { db, env } = await setup();
+  for (const at of ['0001-01-01T00:00:00Z', '1999-12-31T00:00:00Z', '2004-12-31T23:59:59Z', '2026-02-30T12:00:00Z', '2026-04-31T12:00:00Z', '2026-11-03T24:00:00Z', '2026-13-01T00:00:00Z']) {
+    assert.equal((await postStats(env, [{ youtube_id: YT, scheduled_at: at }])).status, 400, at);
+  }
+  assert.equal(db.sqlite.prepare('SELECT count(*) AS n FROM yt_stats').get().n, 0);
+  for (const at of ['2005-01-01T00:00:00Z', '2028-02-29T12:00:00Z']) assert.equal((await postStats(env, [{ youtube_id: YT, scheduled_at: at }])).status, 200, at);
+});
+
+test('a bad stored date is ignored, so the snapshot still answers', async () => {
+  const { db, env } = await setup();
+  await importCsv(env, 'theo-creates', ['0001-01-01T00:00:00.000Z', 'garbage', '2026-02-30T12:00:00.000Z'].map((at, i) => {
+    db.sqlite.prepare('INSERT INTO yt_stats (youtube_id, scheduled_at, updated_at) VALUES (?, ?, ?)').run(`bad${i}aaaaaaa`, at, at);
+    return { date: `2026-11-0${i + 3}`, time: '09:00', title: `Row ${i}`, status: 'scheduled', youtube_id: `bad${i}aaaaaaa` };
+  }));
+  assert.equal((await call(env, 'GET', '/snapshot', { jon: true })).status, 200);
+  assert.equal((await call(env, 'GET', '/snapshot?pages=track', { jon: true })).status, 200);
+  const page = await calendarPage(db);
+  for (const i of [0, 1, 2]) {
+    const row = calendarRow(page, 'theo-creates', `Row ${i}`);
+    assert.equal(row.date, `2026-11-0${i + 3}`, 'as planned');
+    assert.deepEqual(row.differs, []);
+  }
+  assert.equal((await trackPage(db)).videos.length, 3);
 });
 
 test('an import only matches rows on its own channel', async () => {
@@ -519,12 +679,13 @@ test('the 60-day window starts on the Pacific day', async () => {
 
 test('only youtube.com and youtu.be links give a YouTube ID', async () => {
   const { db, env } = await setup();
-  const yes = [`https://www.youtube.com/watch?v=${YT}`, `https://m.youtube.com/watch?t=3&v=${YT}`, `https://youtu.be/${YT}?si=1`, `https://www.youtube.com/shorts/${YT}`, `https://www.youtube.com/embed/${YT}`, `https://studio.youtube.com/video/${YT}/edit`];
+  const yes = [(id) => `https://www.youtube.com/watch?v=${id}`, (id) => `https://m.youtube.com/watch?t=3&v=${id}`, (id) => `https://youtu.be/${id}?si=1`, (id) => `https://www.youtube.com/shorts/${id}`, (id) => `https://www.youtube.com/embed/${id}`,
+    (id) => `https://www.youtube-nocookie.com/embed/${id}`, (id) => `https://www.youtube.com/live/${id}?feature=share`, (id) => `https://studio.youtube.com/video/${id}/edit`].map((link, i) => [link(`abcdefghij${i}`), `abcdefghij${i}`]);
   const no = [`https://evil.example/watch?v=${YT}`, `https://notyoutube.com/shorts/${YT}`, `https://youtube.com.evil.example/shorts/${YT}`, `https://evil.example/?x=youtu.be/${YT}`, `https://evil.example/youtube.com/watch?v=${YT}`, `https://youtu.be/${YT}extra`];
-  await importCsv(env, 'jon-mac', [...yes, ...no].map((link, i) => ({ date: '2026-11-03', title: `r${i}`, status: 'review', link })));
+  await importCsv(env, 'jon-mac', [...yes.map(([link]) => link), ...no].map((link, i) => ({ date: '2026-11-03', title: `r${i}`, status: 'review', link })));
   const ids = db.sqlite.prepare('SELECT title, youtube_id FROM yt_calendar').all();
   for (let i = 0; i < yes.length + no.length; i++) {
-    assert.equal(ids.find((r) => r.title === `r${i}`).youtube_id, i < yes.length ? YT : null, [...yes, ...no][i]);
+    assert.equal(ids.find((r) => r.title === `r${i}`).youtube_id, yes[i]?.[1] ?? null, String(yes[i]?.[0] ?? no[i - yes.length]));
   }
 });
 
@@ -646,4 +807,5 @@ test('the /v route is on the Worker, and no migration uses a compound SELECT D1 
   const root = new URL('..', import.meta.url);
   assert.match(readFileSync(new URL('wrangler.jsonc', root), 'utf8'), /"pattern":\s*"jonmac\.ai\/v\/\*",\s*"zone_name":\s*"jonmac\.ai"/);
   assert.doesNotMatch(readFileSync(new URL('migrations/0017_track_links.sql', root), 'utf8'), /UNION/);
+  assert.match(readFileSync(new URL('public/css/components.css', root), 'utf8'), /^\.wrap\{[^}]*min-width:0/m, 'a wide table scrolls inside the page at every width');
 });

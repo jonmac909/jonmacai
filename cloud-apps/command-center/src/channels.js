@@ -95,15 +95,28 @@ export function pacific(iso) {
   return { day: `${p.year}-${p.month}-${p.day}`, time: `${p.hour}:${p.minute}` };
 }
 
-export const stamp = (at, today) => { const { day, time } = pacific(at); return `${dayLabel(day, today)}, ${timeLabel(time)} PT`; };
+// A UTC moment YouTube could hold: a real calendar day (2026-02-30 is not), since YouTube began. The stats route
+// refuses anything else and the pages ignore it, so one bad stored value can't break a snapshot.
+export function realUtc(iso) {
+  if (typeof iso !== 'string' || iso < '2005') return false;
+  const t = new Date(iso);
+  return !Number.isNaN(t.getTime()) && t.toISOString().slice(0, 10) === iso.slice(0, 10);
+}
+
+export const stamp = (at, today) => {
+  if (!realUtc(at)) return '';
+  const { day, time } = pacific(at);
+  return `${dayLabel(day, today)}, ${timeLabel(time)} PT`;
+};
 
 const YOUTUBE_STATUS = { scheduled: 'scheduled', live: 'published', private: 'private', unlisted: 'unlisted' };
 
 // YouTube's date, time and status win over the calendar's, on read only. differs names what they disagree on;
 // a row with no time planned has no time to disagree with.
 export function withYoutube(r, today) {
-  if (!r.yt_scheduled_at && !r.yt_status) return r;
-  const at = r.yt_scheduled_at ? pacific(r.yt_scheduled_at) : { day: r.day, time: r.time_pt };
+  const scheduled = realUtc(r.yt_scheduled_at);
+  if (!scheduled && !r.yt_status) return r;
+  const at = scheduled ? pacific(r.yt_scheduled_at) : { day: r.day, time: r.time_pt };
   const status = YOUTUBE_STATUS[r.yt_status] || r.status;
   const differs = [];
   if (at.day !== r.day) differs.push('date');
