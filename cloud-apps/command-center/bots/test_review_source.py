@@ -192,8 +192,15 @@ class Add(Base):
 
     def test_no_stored_original_uploads_nothing(self):
         calls = self.api()
-        self.assertEqual(rs.add('topview-2-v5'), 'not stored')
-        self.assertEqual(calls, [('GET', '/topview-2-v5'), ('GET', '/videos')])
+        self.assertEqual(rs.add('mina-3-v5'), 'not stored')
+        self.assertEqual(calls, [('GET', '/mina-3-v5'), ('GET', '/videos')])
+
+    def test_a_video_made_without_an_original_is_skipped_and_never_reported(self):
+        calls = self.api()
+        with mock.patch.object(rs.hook, 'fire') as fire:
+            self.assertEqual(rs.add_or_report('topview-2-v5'), 'no original')
+        self.assertEqual(calls, [])
+        fire.assert_not_called()
 
     def carry(self, sent=b'the original', promised=None):
         rows = {'videos': [{'slug': 'mina-1-v9', 'source_url': 'https://x/old'}, {'slug': 'mina-1-v11', 'source_url': 'https://x/new'},
@@ -277,8 +284,8 @@ class Add(Base):
     def test_a_page_left_with_no_source_is_reported(self):
         self.api()
         with mock.patch.object(rs.hook, 'fire') as fire:
-            self.assertEqual(rs.add_or_report('topview-2-v5'), 'not stored')
-        self.assertIn('topview-2-v5: no stored original', fire.call_args.args[1]['error'])
+            self.assertEqual(rs.add_or_report('mina-3-v5'), 'not stored')
+        self.assertIn('mina-3-v5: no stored original', fire.call_args.args[1]['error'])
 
     def test_a_page_with_a_source_reports_nothing(self):
         self.api({'source_url': 'https://x'})
