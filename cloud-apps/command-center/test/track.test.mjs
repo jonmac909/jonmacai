@@ -162,12 +162,12 @@ test('stats are checked, all or none, and shown once posted', async () => {
   assert.match(html, /950/, 'a field left out keeps its value');
 });
 
-test('Pacific time is right on both sides of the Nov 1 2026 clock change', () => {
-  assert.deepEqual(pacific('2026-10-31T16:00:00Z'), { day: '2026-10-31', time: '09:00' }, 'PDT, UTC-7');
-  assert.deepEqual(pacific('2026-11-01T08:30:00Z'), { day: '2026-11-01', time: '01:30' }, 'the last minutes of PDT');
-  assert.deepEqual(pacific('2026-11-01T09:30:00Z'), { day: '2026-11-01', time: '01:30' }, 'the first minutes of PST');
-  assert.deepEqual(pacific('2026-11-02T17:00:00Z'), { day: '2026-11-02', time: '09:00' }, 'PST, UTC-8');
-  assert.deepEqual(pacific('2026-11-03T02:00:00Z'), { day: '2026-11-02', time: '18:00' }, 'the Pacific day, not the UTC one');
+test('Kelowna time: UTC-7 on both sides of Nov 1 2026, when BC stopped falling back', () => {
+  assert.deepEqual(pacific('2026-10-31T16:00:00Z'), { day: '2026-10-31', time: '09:00' }, 'UTC-7');
+  assert.deepEqual(pacific('2026-11-01T08:30:00Z'), { day: '2026-11-01', time: '01:30' }, 'before 2 am Nov 1');
+  assert.deepEqual(pacific('2026-11-01T09:30:00Z'), { day: '2026-11-01', time: '02:30' }, 'no fall back: not 01:30 again');
+  assert.deepEqual(pacific('2026-11-02T17:00:00Z'), { day: '2026-11-02', time: '10:00' }, 'still UTC-7, an hour ahead of US Pacific');
+  assert.deepEqual(pacific('2026-11-03T02:00:00Z'), { day: '2026-11-02', time: '19:00' }, 'the Kelowna day, not the UTC one');
 });
 
 test("YouTube's date, time and status win over the CSV and the disagreement is flagged, with no CSV column rewritten", async () => {
@@ -178,8 +178,8 @@ test("YouTube's date, time and status win over the CSV and the disagreement is f
     { date: '2026-11-05', time: '12:00', title: 'Agrees', status: 'scheduled', youtube_id: 'lmnopqrstuv' },
   ]);
   await postStats(env, [
-    { youtube_id: YT, scheduled_at: '2026-11-06T22:30:00Z', status: 'live' },
-    { youtube_id: 'lmnopqrstuv', scheduled_at: '2026-11-05T20:00:00Z', status: 'scheduled' },
+    { youtube_id: YT, scheduled_at: '2026-11-06T21:30:00Z', status: 'live' },
+    { youtube_id: 'lmnopqrstuv', scheduled_at: '2026-11-05T19:00:00Z', status: 'scheduled' },
   ]);
   const page = await calendarPage(db);
   const won = calendarRow(page, 'jon-mac', 'Tiny houses');
@@ -213,7 +213,7 @@ test('a row with an ID but no YouTube data stays as planned', async () => {
 test('a row with no planned time takes YouTube\'s time and is not a time disagreement', async () => {
   const { db, env } = await setup();
   await importCsv(env, 'jon-mac', [{ date: '2026-11-03', title: 'Tiny houses', status: 'scheduled', youtube_id: YT }]);
-  await postStats(env, [{ youtube_id: YT, scheduled_at: '2026-11-03T17:00:00Z', status: 'scheduled' }]);
+  await postStats(env, [{ youtube_id: YT, scheduled_at: '2026-11-03T16:00:00Z', status: 'scheduled' }]);
   const row = calendarRow(await calendarPage(db), 'jon-mac', 'Tiny houses');
   assert.deepEqual([row.timeLabel, row.differs], ['9:00 AM PT', []]);
 });
@@ -238,7 +238,7 @@ test("Studio's date with no time moves a scheduled row, flags it and keeps the p
 test("a calendar import after a stats post keeps YouTube's values, the link and its clicks", async () => {
   const { db, env } = await setup();
   await importCsv(env, 'rosa-cooks', [PLANNED, { date: '2026-11-04', title: 'No ID', status: 'planned' }]);
-  await postStats(env, [{ youtube_id: YT, scheduled_at: '2026-11-07T17:00:00Z', status: 'scheduled', views: 5 }]);
+  await postStats(env, [{ youtube_id: YT, scheduled_at: '2026-11-07T16:00:00Z', status: 'scheduled', views: 5 }]);
   const before = await linkOf(db, 'Tiny houses');
   await visit(env, `/v/${before.code}`);
 
@@ -702,28 +702,28 @@ test('a row YouTube moved past the 60 days stays on the Calendar, and only rows 
   assert.equal(page.channels.find((c) => c.slug === 'jon-mac').earlier.length, 0, 'older than the window, even with data');
 });
 
-test('the Calendar and Track use Pacific (Los Angeles) time for today, not Vancouver', async () => {
+test('the Calendar and Track use Kelowna time for today, not Los Angeles', async () => {
   const { db, env } = await setup();
-  const late = Date.parse('2026-11-03T07:30:00Z'); // 11:30 PM Nov 2 in Los Angeles, already Nov 3 in Vancouver
+  const late = Date.parse('2026-11-03T07:30:00Z'); // 12:30 AM Nov 3 in Kelowna, still 11:30 PM Nov 2 in Los Angeles
   await importCsv(env, 'jon-mac', [
-    { date: '2026-11-02', title: 'Tonight', status: 'scheduled', youtube_id: YT },
-    { date: '2026-11-03', title: 'Tomorrow', status: 'planned' },
+    { date: '2026-11-03', title: 'Midnight', status: 'scheduled', youtube_id: YT },
+    { date: '2026-11-04', title: 'Tomorrow', status: 'planned' },
   ]);
   await postStats(env, [{ youtube_id: YT, status: 'scheduled', scheduled_at: '2026-11-03T07:00:00Z' }]);
   const out = { pages: { calendar: {} } };
   buildChannelPages(out, await channelData(db, late), late);
-  const row = calendarRow(out.pages.calendar, 'jon-mac', 'Tonight');
-  assert.deepEqual([row.date, row.timeLabel, row.differs], ['2026-11-02', '11:00 PM PT', []]);
+  const row = calendarRow(out.pages.calendar, 'jon-mac', 'Midnight');
+  assert.deepEqual([row.date, row.timeLabel, row.differs], ['2026-11-03', '12:00 AM PT', []]);
   assert.equal(row.dateLabel.split(',')[0], 'Today');
   db.sqlite.exec("UPDATE yt_stats SET updated_at = '2026-11-03T07:00:00.000Z'");
   const tracked = await trackData(db, 'https://jonmac.ai', late);
-  assert.equal(tracked.find((v) => v.title === 'Tonight').updated, 'Today, 11:00 PM PT');
+  assert.equal(tracked.find((v) => v.title === 'Midnight').updated, 'Today, 12:00 AM PT');
 });
 
-test('the 60-day window starts on the Pacific day', async () => {
+test('the 60-day window starts on the Kelowna day', async () => {
   const { db, env } = await setup();
-  const late = Date.parse('2027-01-05T07:30:00Z'); // 60 days back: Nov 5 in Los Angeles, Nov 6 in Vancouver
-  await importCsv(env, 'jon-mac', [{ date: '2026-11-05', title: 'Edge', status: 'published' }]);
+  const late = Date.parse('2027-01-05T07:30:00Z'); // 60 days back: Nov 6 in Kelowna, Nov 5 in Los Angeles
+  await importCsv(env, 'jon-mac', [{ date: '2026-11-05', title: 'Before', status: 'published' }, { date: '2026-11-06', title: 'Edge', status: 'published' }]);
   assert.deepEqual((await channelData(db, late)).calendar.map((r) => r.title), ['Edge']);
 });
 
