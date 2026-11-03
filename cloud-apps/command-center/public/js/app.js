@@ -4,6 +4,7 @@ import { render as projects } from './pages/projects.js';
 import { render as feed, mount as mountFeed } from './pages/feed.js';
 import { render as journal, mount as mountJournal } from './pages/journal.js';
 import { calendar, content } from './pages/channels.js';
+import { track, setSort } from './pages/track.js';
 import { render as sponsors } from './pages/sponsors.js';
 import { render as viral } from './pages/viral.js';
 import { render as webinar } from './pages/webinar.js';
@@ -14,7 +15,7 @@ import { bindModals, openCard, openDraft, restoreAnswers, typedAnswers } from '.
 const PREFIX = '/dashboard';
 // Any other #page (old bookmarks to removed pages) falls back to Today. A page may have a
 // sub-path, like #projects/sponsors; the page itself decides what an unknown one shows.
-const pages = { today, todo, projects, feed, calendar, content, sponsors, viral, webinar, money, life, journal };
+const pages = { today, todo, projects, feed, calendar, content, track, sponsors, viral, webinar, money, life, journal };
 // Feed and Journal fetch their own rows (from /v1) once rendered.
 const mounts = { feed: mountFeed, journal: mountJournal };
 let data = null;
@@ -176,6 +177,11 @@ export async function go(id, { refetch = false } = {}) {
     if (stale(data)) { location.reload(); return; }
     document.getElementById('navs').innerHTML = navHtml();
   }
+  if (name === 'track' && (shownPage?.split('/')[0] !== 'track' || !data.pages.track?.title)) { // loaded on opening; sorting and tabs reuse it
+    const r = await fetch(`${PREFIX}/api/snapshot?pages=track&v=${Date.now()}`);
+    if (r.ok) data.pages.track = (await r.json()).pages.track;
+    if (hashPage() !== id) return; // moved on while it loaded
+  }
   document.querySelectorAll('.nav').forEach((n) => {
     if (n.dataset.page === name) n.setAttribute('aria-current', 'page');
     else n.removeAttribute('aria-current');
@@ -259,6 +265,10 @@ document.addEventListener('click', (e) => {
     todayPost(osel.dataset.osel, { selected: on }, on ? 'Selected for production' : 'Unselected', osel);
     return;
   }
+  const sort = e.target.closest('[data-tsort]'); // Track: sort a table by this column
+  if (sort) { setSort(sort.dataset.tsort); go(hashPage()); return; }
+  const copy = e.target.closest('[data-copy]'); // Track: copy a video's link
+  if (copy) { navigator.clipboard.writeText(copy.dataset.copy).then(() => say('Link copied'), () => say('Could not copy')); return; }
   const tdec = e.target.closest('[data-tdecide]');
   if (tdec) {
     if (tdec.disabled) return;

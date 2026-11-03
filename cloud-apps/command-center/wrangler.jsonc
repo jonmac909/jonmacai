@@ -49,7 +49,9 @@
   "migrations": [{ "tag": "call-relay-v1", "new_sqlite_classes": ["CallRelay"] }],
   "routes": [
     { "pattern": "jonmac.ai/dashboard", "zone_name": "jonmac.ai" },
-    { "pattern": "jonmac.ai/dashboard/*", "zone_name": "jonmac.ai" }
+    { "pattern": "jonmac.ai/dashboard/*", "zone_name": "jonmac.ai" },
+    // Tracked video links (src/track.js).
+    { "pattern": "jonmac.ai/v/*", "zone_name": "jonmac.ai" }
   ],
   // Preview: `wrangler deploy --env preview`. Separate Worker on workers.dev with its own D1,
   // no routes, no cron, no review/funnel D1s, no R2 and no production secrets (only a

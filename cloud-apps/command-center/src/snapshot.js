@@ -9,6 +9,7 @@ import { buildToday } from './today.js';
 import { buildProjects } from './projects.js';
 import { buildTodo } from './todo.js';
 import { buildChannelPages } from './channels.js';
+import { buildTrackPage } from './track.js';
 
 export const COLLECTOR_INTERVAL_MS = 5 * 60 * 1000;
 
@@ -94,5 +95,6 @@ export function mergeSnapshot(fixture, rows, nowMs = Date.now(), overrides = {},
   buildProjects(out, by, cash, extra, nowMs);
   buildTodo(out, extra, nowMs);
   buildChannelPages(out, extra.channels, nowMs);
+  buildTrackPage(out, extra.track);
   return out;
 }
