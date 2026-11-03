@@ -90,7 +90,7 @@ Each of the 14 bots (D:\AgentTeam\rules\BOTS.md) writes one row at a time with i
 | `PATCH /v1/calendar/:id` | `CHANNEL_WRITERS` | `{title?, date?, status?, link?, youtube_id?}` |
 | `GET /v1/calendar?channel=&from=&to=&limit=` | bot or Jon | by date |
 | `GET /v1/links?channel=` | bot or Jon | each Calendar video's tracked link: `{code, url, channel, title, date, status, clicks, ...}`; `url` is null until it has a landing page. Leaves out channels with links switched off and Complete Histories |
-| `POST /v1/links/stats` | `CHANNEL_WRITERS` | what the YouTube Studio script reads: `{stats: [{youtube_id, impressions?, ctr? (percent), views?, scheduled_at? (UTC), status? (scheduled\|live\|private\|unlisted)}]}`, 1 to 500, all or none; a field left out keeps its value, `null` clears it; answers `{saved, notOnCalendar}` |
+| `POST /v1/links/stats` | `CHANNEL_WRITERS` | what the YouTube Studio script reads: `{stats: [{youtube_id, impressions?, ctr? (percent), views?, scheduled_at? (UTC), scheduled_date? (YYYY-MM-DD), status? (scheduled\|live\|private\|unlisted)}]}`, 1 to 500, all or none; a field left out keeps its value, `null` clears it; answers `{saved, notOnCalendar}` |
 | `PUT /v1/links/:code` | `CHANNEL_WRITERS` | `{landing}`: this video's landing page, over its channel's (`""` goes back to the channel's) |
 | `POST /v1/outliers` | `CHANNEL_WRITERS` | `{channel, title, link, views, avg (≥1), published (YYYY-MM-DD), thumb?, key?}` |
 | `POST /v1/outliers/:id/select` | `CHANNEL_WRITERS`, or Jon (session + `X-CC: 1`) | `{selected: true\|false}`; the same value again changes nothing |
@@ -137,6 +137,8 @@ Deploy in this order:
 1. Run `wrangler d1 migrations list command_center --remote`. If only 0017 is unapplied, apply it: `wrangler d1 migrations apply command_center --remote`. If older migrations show as unapplied too, don't replay them: `wrangler d1 execute command_center --remote --file migrations/0017_track_links.sql`.
 2. Deploy the Worker. Before it, the old Worker keeps working: it ignores the new tables. If the new Worker runs first, Calendar and Content still show as planned, Track says its tables can't be read and calendar writes answer 503.
 3. Copy `bots/dash.py` to `D:\AgentTeam\tools\dash.py`, so the CSV `youtube_id` column reaches the API.
+
+Migration `0018_stats_scheduled_date.sql` is additive too and has the same order: run it with `wrangler d1 execute`, then deploy the Worker.
 
 An import by the old Worker in the gap between steps 1 and 2 gives its rows new ids with no links, until the next import by the new Worker.
 
