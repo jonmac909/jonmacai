@@ -1128,8 +1128,10 @@ async function updateCalendar(db, who, id, body, now) {
 // The earlier row each imported row continues, so a video keeps its calendar id, tracked link and clicks, and its
 // YouTube ID if the row has none. In order: the same YouTube ID across every row; the same title among rows left over,
 // never onto a different video's ID; a lone leftover video and a lone unmatched finished row on one date (a retitle).
-// A repeated title also needs the same date, and if that repeats too it passes on no ID. A new row before QC only
-// takes a video's ID and link on its date: a new idea can reuse the title of a video since renamed.
+// That last one may be a different video put on that date, so it keeps the link but no ID: a real retitle that keeps
+// its YouTube link in the CSV already matched by ID. A repeated title also needs the same date, a title repeated on a
+// date the same time, and if that repeats too it passes on no ID. A new row before QC only takes a video's ID and
+// link on its date: a new idea can reuse the title of a video since renamed.
 // No other link can match: many rows share one project or doc link.
 // shortcut: a video retitled and moved with no YouTube ID, moved while its title repeats, or dropped and re-added gets a new link and the old one keeps redirecting; fine until descriptions carry links at scale.
 function continued(old, rows) {
@@ -1143,17 +1145,19 @@ function continued(old, rows) {
   rows.forEach((r, i) => {
     if (out[i]) return;
     const titled = [rows, old].map((list) => list.filter((x) => same(x.title, r.title)));
+    const onDay = (x) => x.day === r.day;
     const repeated = titled.some((list) => list.length > 1);
-    const hit = claim([...free].find((o) => same(o.title, r.title) && (!repeated || o.day === r.day)
-      && !(o.youtube_id && r.youtubeId) && (!o.youtube_id || o.day === r.day || finished(r.status))));
-    const held = titled.some((list) => list.filter((x) => x.day === r.day).length > 1);
+    const crowded = titled.some((list) => list.filter(onDay).length > 1);
+    const hit = claim([...free].find((o) => same(o.title, r.title) && (!repeated || onDay(o)) && (!crowded || o.time === r.time)
+      && !(o.youtube_id && r.youtubeId) && (!o.youtube_id || onDay(o) || finished(r.status))));
+    const held = titled.some((list) => list.filter((x) => onDay(x) && x.time === r.time).length > 1);
     if (hit) out[i] = { id: hit.id, youtubeId: r.youtubeId ?? (held ? null : hit.youtube_id ?? null) };
   });
   rows.forEach((r, i) => {
     if (out[i] || r.youtubeId || !finished(r.status)) return;
     const left = [...free].filter((o) => o.youtube_id && o.day === r.day);
     if (left.length === 1 && rows.filter((x, j) => !out[j] && x.day === r.day).length === 1) {
-      out[i] = { id: claim(left[0]).id, youtubeId: left[0].youtube_id };
+      out[i] = { id: claim(left[0]).id, youtubeId: null };
     }
   });
   return out.map((o, i) => o ?? { id: newId('v'), youtubeId: rows[i].youtubeId });
@@ -1165,7 +1169,7 @@ async function putCalendar(db, who, slug, body, now) {
   needChannelWriter(who);
   const channel = channelOf(slug);
   if (!Array.isArray(body.videos) || body.videos.length > 500) throw new Bad(400, 'videos must be a list of at most 500');
-  const { results: old } = await db.prepare("SELECT id, title, day, youtube_id FROM yt_calendar WHERE channel = ? AND idem_key LIKE 'csv:%'").bind(channel).all();
+  const { results: old } = await db.prepare("SELECT id, title, day, time_pt AS time, youtube_id FROM yt_calendar WHERE channel = ? AND idem_key LIKE 'csv:%'").bind(channel).all();
   const rows = body.videos.map((v, i) => {
     if (!v || typeof v !== 'object' || Array.isArray(v)) throw new Bad(400, `videos[${i}] must be {date, time?, title, status, link?, youtube_id?}`);
     try {
@@ -1178,11 +1182,15 @@ async function putCalendar(db, who, slug, body, now) {
     }
   });
   const seen = new Set();
-  rows.forEach((r, i) => { // one row per video: an ID, else a title on a date, can't name two
-    const key = r.youtubeId ?? `${r.title.toLowerCase()} on ${r.day}`;
+  rows.forEach((r, i) => { // one row per video: an ID, else a title at a date and time, can't name two
+    const key = r.youtubeId ?? `${r.title.toLowerCase()} on ${r.day}${r.time ? ` at ${r.time}` : ''}`;
     if (seen.has(key)) throw new Bad(400, `videos[${i}]: ${key} is already on another row`);
     seen.add(key);
   });
+  // json_each: D1 binds at most 100 values and an import has 500 rows. The unique index still catches a race.
+  const taken = await db.prepare(`SELECT channel, title, day, youtube_id FROM yt_calendar WHERE youtube_id IN (SELECT value FROM json_each(?1))
+    AND (channel <> ?2 OR COALESCE(idem_key, '') NOT LIKE 'csv:%')`).bind(JSON.stringify(rows.flatMap((r) => r.youtubeId ?? [])), channel).first();
+  if (taken) throw new Bad(409, `YouTube ID ${taken.youtube_id} is already on "${taken.title}" (${taken.day}) in channel ${taken.channel}. Take it off one of the two rows, then import again.`);
   const ids = continued(old, rows);
   const insert = db.prepare(`INSERT INTO yt_calendar (id, channel, title, day, time_pt, status, link, youtube_id, created_by, updated_by, idem_key, created_at, updated_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);

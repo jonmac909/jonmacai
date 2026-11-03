@@ -31,7 +31,8 @@ a.nav{text-decoration:none}
 
 /* main */
 .main{padding:1.5rem clamp(16px,2vw,2.5rem) 3rem;min-width:0}
-.wrap{max-width:112rem;min-width:0;margin:0 auto;display:flex;flex-direction:column;gap:1.5rem}
+.wrap{max-width:112rem;margin:0 auto;display:flex;flex-direction:column;gap:1.5rem}
+.wrap .wrap{width:100%} /* auto margins would size a page to its content, and a wide table would widen the window */
 .head{display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap}
 .head h1{margin:0;font-size:1.45rem;font-weight:600;text-wrap:balance}
 .head p{margin:.15rem 0 0;color:var(--muted);font-size:.9rem}
