@@ -559,7 +559,6 @@ def run(dry=False):
     for name, check in CHECKS:
         try:
             found = check(now, state)
-            state['timeouts'].pop(name, None)
         except subprocess.TimeoutExpired as err:
             state['timeouts'][name] = state['timeouts'].get(name, 0) + 1
             log('check %s timed out, %d in a row: %r' % (name, state['timeouts'][name], err))
@@ -572,6 +571,7 @@ def run(dry=False):
         else:
             if found is None:  # not its hour: everything stays as it was
                 continue
+            state['timeouts'].pop(name, None)
             for k in list(state['seen']):  # the incident is over, so the next one alerts again
                 if k == 'fail:' + name or (k.startswith(name + ':') and k not in found):
                     del state['seen'][k]

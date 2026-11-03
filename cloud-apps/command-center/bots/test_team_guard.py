@@ -972,6 +972,7 @@ class Failures(Base):
         with mock.patch.object(tg, 'CHECKS', [('qc', hang)]):
             for _ in range(tg.TIMEOUTS_TO_REPORT - 1):
                 self.assertEqual([], self.run_guard())
+            self.assertEqual(['script_failure'], [s[1] for s in self.run_guard() if s[0] == 'fire'])
 
     def test_a_dashboard_timeout_keeps_the_pack_result_and_retries_next_run(self):
         self.pass_codes['hgp-two'] = 1
