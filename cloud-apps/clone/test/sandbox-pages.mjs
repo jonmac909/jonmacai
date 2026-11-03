@@ -23,7 +23,7 @@ const mf = new Miniflare({ modules: true, scriptPath: fileURLToPath(new URL('../
       headers: { 'content-type': path.endsWith('.html') ? 'text/html' : path.endsWith('.js') ? 'text/javascript' : 'text/css' } }); }
     catch { return new MFResponse('missing', { status: 404 }); }
   } } });
-const browser = await chromium.launch({ headless: true });
+const browser = await chromium.launch({ headless: true, channel: 'chrome', chromiumSandbox: !process.env.CHROME_NO_SANDBOX });
 try {
   await mf.ready; const db = await mf.getD1Database('CLONE_UPSELLS');
   for (const name of readdirSync(new URL('../migrations/', import.meta.url)).sort()) {

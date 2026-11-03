@@ -392,7 +392,6 @@ Returning to a URL without `sandbox=1` selects the normal production funnel.
 
 ```powershell
 npm ci --prefix cloud-apps/clone
-node cloud-apps/clone/node_modules/playwright/cli.js install chromium
 npm run test:sandbox --prefix cloud-apps/clone
 ```
 

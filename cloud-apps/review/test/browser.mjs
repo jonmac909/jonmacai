@@ -91,7 +91,7 @@ async function main() {
   const shareLink = `${base}/review/${slug}?k=${encodeURIComponent(secrets.REVIEW_SHARE_KEY)}`;
   const report = { url: `${base}/review/${slug}`, browser: "", device: "Desktop 1440x900", consoleErrors: [], pageErrors: [], media: [] };
   const created = [];
-  const browser = await chromium.launch({ channel: "chrome" });
+  const browser = await chromium.launch({ channel: "chrome", chromiumSandbox: !process.env.CHROME_NO_SANDBOX });
   try {
     report.browser = `Google Chrome ${browser.version()} (headless, Chromium)`;
     const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
