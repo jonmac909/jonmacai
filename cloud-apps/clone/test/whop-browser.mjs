@@ -23,7 +23,7 @@ const mf = new Miniflare({ modules: true, scriptPath: fileURLToPath(new URL('../
     } catch { return new MFResponse('missing', { status: 404 }); }
   } },
 });
-const browser = await chromium.launch({ headless: true, channel: 'chrome', chromiumSandbox: !process.env.CHROME_NO_SANDBOX });
+const browser = await chromium.launch({ headless: true, channel: 'chrome', chromiumSandbox: process.env.CHROME_NO_SANDBOX !== '1' });
 try {
   await mf.ready;
   const base = new URL('https://jonmac.ai'), db = await mf.getD1Database('CLONE_UPSELLS');

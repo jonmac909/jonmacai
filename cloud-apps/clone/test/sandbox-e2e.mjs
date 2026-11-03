@@ -52,7 +52,7 @@ export async function runSandbox(options = {}) {
   // Test a not-yet-live Worker version (0% traffic) via Cloudflare's version override, jonmac.ai only.
   const versionHeader = /^[0-9a-f-]{36}$/.test(settings.CLONE_SANDBOX_VERSION_OVERRIDE || '') ?
     { 'Cloudflare-Workers-Version-Overrides': 'jonmac-agency="' + settings.CLONE_SANDBOX_VERSION_OVERRIDE + '"' } : null;
-  const browser = await chromium.launch({ headless: true, channel: 'chrome', chromiumSandbox: !process.env.CHROME_NO_SANDBOX });
+  const browser = await chromium.launch({ headless: true, channel: 'chrome', chromiumSandbox: process.env.CHROME_NO_SANDBOX !== '1' });
   const providerFetch = options.providerFetch || fetch;
   const createdSubscriptions = [];
   let stage = 'preflight';
