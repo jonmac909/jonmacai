@@ -410,9 +410,12 @@ def check_packs(now, state):
 def gpu2_ports_line():
     """The last line of GPU2's ports log, '' if it has none, None if GPU2 can't be reached."""
     ps = "Get-Content %s -Tail 1 -ErrorAction SilentlyContinue; exit 0" % PORTS_LOG
-    r = subprocess.run(['ssh', '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=8', 'gpu2',
-                        'powershell -NoProfile -NonInteractive -OutputFormat Text -Command "%s"' % ps],
-                       capture_output=True, encoding='utf-8', errors='replace', creationflags=NO_WINDOW, timeout=30)
+    try:
+        r = subprocess.run(['ssh', '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=8', 'gpu2',
+                            'powershell -NoProfile -NonInteractive -OutputFormat Text -Command "%s"' % ps],
+                           capture_output=True, encoding='utf-8', errors='replace', creationflags=NO_WINDOW, timeout=30)
+    except subprocess.TimeoutExpired:
+        return None
     if r.returncode:
         return None
     return next((x for x in reversed(r.stdout.splitlines()) if x.startswith('{')), '')

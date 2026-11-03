@@ -1042,6 +1042,10 @@ class RealPortsLine(unittest.TestCase):
     def test_ssh_failure_is_none(self):
         self.assertIsNone(self.line(255, ''))
 
+    def test_ssh_hang_is_none(self):
+        with mock.patch.object(tg.subprocess, 'run', side_effect=tg.subprocess.TimeoutExpired('ssh', 30)):
+            self.assertIsNone(tg.gpu2_ports_line())
+
 
 class RealFunctions(unittest.TestCase):
     """The two functions that touch the real machine, with psutil stubbed. Nothing is killed."""
