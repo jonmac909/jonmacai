@@ -27,7 +27,7 @@ const sdk = `window.PaymentCheckout={create:function(options){window.mockCheckou
  setFirstName:async function(){},setLastName:async function(){},setEmail:async function(){},setPhone:async function(){},
  isFormReady:function(){return true;},submitForm:function(){throw Error('No payment submission allowed');}
 };}};`;
-const browser = await chromium.launch({ headless: true });
+const browser = await chromium.launch({ headless: true, channel: 'chrome', chromiumSandbox: process.env.CHROME_NO_SANDBOX !== '1' });
 try {
   await mf.ready;
   const db = await mf.getD1Database('CLONE_UPSELLS'), kv = await mf.getKVNamespace('CLONE_LEADS');
