@@ -1232,7 +1232,11 @@ const STATS_FIELDS = {
     if (!UTC_RE.test(s.scheduled_at) || !realUtc(s.scheduled_at)) throw new Bad(400, 'scheduled_at must be a real UTC date from 2005 on, like 2026-11-03T17:00:00Z');
     return new Date(s.scheduled_at).toISOString();
   },
-  scheduled_date: (s) => matchOf(s, 'scheduled_date', DAY_RE, '2026-11-03', true),
+  scheduled_date: (s) => {
+    const day = matchOf(s, 'scheduled_date', DAY_RE, '2026-11-03', true);
+    if (!realUtc(`T12:00:00Z`)) throw new Bad(400, 'scheduled_date must be a real date from 2005 on, like 2026-11-03');
+    return day;
+  },
   status: (s) => oneOf(s.status, ['scheduled', 'live', 'private', 'unlisted'], 'status'),
 };
 

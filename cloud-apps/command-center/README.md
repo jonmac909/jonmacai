@@ -138,6 +138,8 @@ Deploy in this order:
 2. Deploy the Worker. Before it, the old Worker keeps working: it ignores the new tables. If the new Worker runs first, Calendar and Content still show as planned, Track says its tables can't be read and calendar writes answer 503.
 3. Copy `bots/dash.py` to `D:\AgentTeam\tools\dash.py`, so the CSV `youtube_id` column reaches the API.
 
+Migration `0018_stats_scheduled_date.sql` is additive too and has the same order: run it with `wrangler d1 execute`, then deploy the Worker.
+
 An import by the old Worker in the gap between steps 1 and 2 gives its rows new ids with no links, until the next import by the new Worker.
 
 **Rollback warning:** after this migration, rolling back to the old Worker lets a calendar import delete rows and give them new ids, which orphans their tracked links and clicks. Roll forward, or block calendar imports during a rollback.

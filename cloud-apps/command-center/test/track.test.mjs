@@ -227,7 +227,12 @@ test("Studio's date with no time moves a scheduled row, flags it and keeps the p
   await postStats(env, [{ youtube_id: YT, status: 'live' }]);
   row = calendarRow(await calendarPage(db), 'jon-mac', 'Tiny houses');
   assert.deepEqual([row.date, row.status, row.differs], ['2026-11-03', 'published', ['status']]);
-  assert.equal((await postStats(env, [{ youtube_id: YT, scheduled_date: 'Nov 5' }])).status, 400);
+  for (const day of ['Nov 5', '2026-02-30']) assert.equal((await postStats(env, [{ youtube_id: YT, scheduled_date: day }])).status, 400, day);
+
+  // An old exact time loses to a newer Studio date.
+  await postStats(env, [{ youtube_id: YT, scheduled_at: '2026-11-03T15:00:00Z', scheduled_date: '2026-11-05', status: 'scheduled' }]);
+  row = calendarRow(await calendarPage(db), 'jon-mac', 'Tiny houses');
+  assert.deepEqual([row.date, row.timeLabel, row.differs], ['2026-11-05', '7:00 AM PT', ['date']]);
 });
 
 test("a calendar import after a stats post keeps YouTube's values, the link and its clicks", async () => {
