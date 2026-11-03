@@ -390,9 +390,10 @@ def pack_alerts(state):
 def check_packs(now, state):
     if now - state.get('packs_at', 0) < PACKS_RECHECK_S:  # a failing pack costs minutes of CPU; a failed wake retries
         return pack_alerts(state) if state.get('packs_short') else None
+    folders = waiting_packs()  # first: a timeout here must leave the last result and retry next run
     state['packs_at'], state['packs_short'] = now, None
     ready, unknown = 0, []
-    for folder in waiting_packs():
+    for folder in folders:
         code = preflight(folder) if time.time() < now + PACKS_BUDGET_S else None
         ready += code == 0
         if ready >= MIN_PACKS:
@@ -556,6 +557,9 @@ def run(dry=False):
     for name, check in CHECKS:
         try:
             found = check(now, state)
+        except subprocess.TimeoutExpired as err:  # a slow moment, not a broken check; a dead dashboard still fails fast
+            log('check %s timed out: %r' % (name, err))
+            continue
         except Exception as err:
             log('check %s crashed: %s' % (name, traceback.format_exc()))
             found = {'fail:' + name: (FAILURE, '%s check: %r' % (name, err))}
