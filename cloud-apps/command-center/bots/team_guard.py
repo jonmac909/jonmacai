@@ -17,7 +17,7 @@ Runs hidden every 10 minutes (see HOOKS.md). Reads OpenBot's database and transc
 
 Each incident alerts once and takes one restart from Jon's button; a freeze that outlasts the 3-hour cap
 restarts again. A failed send stays unmarked and retries next run. A check that crashes reports script_failure
-once and the others still run.
+once and the others still run; one that times out reports only after 3 runs in a row.
 
 python -I team_guard.py [--dry-run]    (--dry-run prints what it would do and sends nothing; crashes still log)
 """
@@ -44,6 +44,7 @@ IDLE_MIN, QUEUE_MIN, QC_MIN, ANA_MIN, BLOCKED_MIN, MIN_PACKS = 30, 120, 30, 45, 
 PREFLIGHT_S = 280
 PACKS_RECHECK_S = 3600
 PACKS_BUDGET_S = 600  # preflight time per run; packs past it count as unchecked
+TIMEOUTS_TO_REPORT = 3  # runs in a row, half an hour: one slow moment isn't a failure, a stuck dashboard is
 PORTS_FRESH_S = 1800
 DISK_LOW_GB = 30  # about two days of team output
 DISK_CLEAR_GB = 35  # the incident ends here, so hovering at the line doesn't alert again and again
@@ -547,6 +548,7 @@ def load():
     except (FileNotFoundError, ValueError):
         state = {}
     state.setdefault('seen', {})
+    state.setdefault('timeouts', {})
     return state
 
 
@@ -557,9 +559,13 @@ def run(dry=False):
     for name, check in CHECKS:
         try:
             found = check(now, state)
-        except subprocess.TimeoutExpired as err:  # a slow moment, not a broken check; a dead dashboard still fails fast
-            log('check %s timed out: %r' % (name, err))
-            continue
+            state['timeouts'].pop(name, None)
+        except subprocess.TimeoutExpired as err:
+            state['timeouts'][name] = state['timeouts'].get(name, 0) + 1
+            log('check %s timed out, %d in a row: %r' % (name, state['timeouts'][name], err))
+            if state['timeouts'][name] < TIMEOUTS_TO_REPORT:
+                continue
+            found = {'fail:' + name: (FAILURE, '%s check: %r' % (name, err))}
         except Exception as err:
             log('check %s crashed: %s' % (name, traceback.format_exc()))
             found = {'fail:' + name: (FAILURE, '%s check: %r' % (name, err))}
