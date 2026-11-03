@@ -1,6 +1,7 @@
 # dash.py — write to the dashboard as your bot
 
 `python D:\AgentTeam\tools\dash.py COMMAND ...` (Python stdlib only). It prints JSON.
+**Times:** every date and time here is Kelowna time (America/Vancouver). BC stays on UTC-7 all year from Nov 2026, an hour ahead of US Pacific in winter. "PT" below means Kelowna time; a YouTube publishAt for 7 am is `T07:00:00-07:00`, never `-08:00`.
 Exit codes: 0 = ok. 1 = the dashboard refused (the reason is on stderr). 2 = a local problem (usage, unknown bot, no token, bad payload). 3 = the dashboard can't be reached or failed.
 
 **Who you are:** run it from your own OpenBot workspace (BOTS.md maps the folder to your bot). Scripts that run outside every workspace set `DASH_BOT=<your slug>`. Inside a workspace, the folder wins, and a different `DASH_BOT` is refused.

@@ -87,7 +87,8 @@ export function timeLabel(hhmm) {
   return `${h % 12 || 12}:${String(m).padStart(2, '0')} ${h < 12 ? 'AM' : 'PM'}`;
 }
 
-const PACIFIC = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Los_Angeles', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+// Kelowna time (Jon, 2026-11-03): BC stays on UTC-7 from Nov 2026, an hour ahead of US Pacific in winter.
+const PACIFIC = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Vancouver', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
 
 // A moment as the calendar's own Pacific day and time: the one zone for the Calendar's dates, times and "today".
 export function pacific(iso) {
