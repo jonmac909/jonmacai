@@ -26,10 +26,10 @@ export const byMultiple = (a, b) => b.views / b.avg - a.views / a.avg || b.views
 // each side walks its index. Before migration 0017 this is empty, and the Calendar shows the rows as planned.
 async function youtubeRows(db, since) {
   try {
-    const { results } = await db.prepare(`SELECT v.*, s.scheduled_at AS yt_scheduled_at, s.status AS yt_status
+    const { results } = await db.prepare(`SELECT v.*, s.scheduled_at AS yt_scheduled_at, s.scheduled_date AS yt_scheduled_date, s.status AS yt_status
       FROM yt_calendar v CROSS JOIN yt_stats s ON s.youtube_id = v.youtube_id WHERE v.day >= ?1
-      UNION ALL SELECT v.*, s.scheduled_at, s.status
-      FROM yt_stats s CROSS JOIN yt_calendar v ON v.youtube_id = s.youtube_id WHERE s.scheduled_at >= ?1 AND v.day < ?1 LIMIT 3000`).bind(since).all();
+      UNION ALL SELECT v.*, s.scheduled_at, s.scheduled_date, s.status
+      FROM yt_stats s CROSS JOIN yt_calendar v ON v.youtube_id = s.youtube_id WHERE (s.scheduled_at >= ?1 OR s.scheduled_date >= ?1) AND v.day < ?1 LIMIT 3000`).bind(since).all();
     return (results || []).filter((r) => !NOT_ON_YOUTUBE.includes(r.channel));
   } catch (err) {
     console.error('youtubeRows', err);
@@ -116,7 +116,8 @@ const YOUTUBE_STATUS = { scheduled: 'scheduled', live: 'published', private: 'pr
 export function withYoutube(r, today) {
   const scheduled = realUtc(r.yt_scheduled_at);
   if (!scheduled && !r.yt_status) return r;
-  const at = scheduled ? pacific(r.yt_scheduled_at) : { day: r.day, time: r.time_pt };
+  // Studio's date with no time: only while it's scheduled, so the calendar's time stands and an old date can't move a live video.
+  const at = scheduled ? pacific(r.yt_scheduled_at) : { day: (r.yt_status === 'scheduled' && r.yt_scheduled_date) || r.day, time: r.time_pt };
   const status = YOUTUBE_STATUS[r.yt_status] || r.status;
   const differs = [];
   if (at.day !== r.day) differs.push('date');

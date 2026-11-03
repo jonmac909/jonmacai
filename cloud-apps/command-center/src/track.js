@@ -50,7 +50,7 @@ export async function trackRedirect(request, env, ctx) {
 export async function trackVideos(db, origin, channel = null, nowMs = Date.now()) {
   const today = pacific(nowMs).day;
   const { results } = await db.prepare(`SELECT v.channel, v.title, v.day, v.time_pt, v.status, v.link, v.youtube_id, l.code, l.clicks, s.impressions, s.ctr, s.views,
-    s.scheduled_at AS yt_scheduled_at, s.status AS yt_status, s.updated_at, COALESCE(l.landing, c.landing) AS landing
+    s.scheduled_at AS yt_scheduled_at, s.scheduled_date AS yt_scheduled_date, s.status AS yt_status, s.updated_at, COALESCE(l.landing, c.landing) AS landing
     FROM yt_calendar v LEFT JOIN yt_links l ON l.video_id = v.id LEFT JOIN yt_stats s ON s.youtube_id = v.youtube_id
     LEFT JOIN yt_channels c ON c.slug = v.channel
     ${channel ? 'WHERE v.channel = ?' : ''} ORDER BY v.day DESC, v.created_at LIMIT 5000`).bind(...(channel ? [channel] : [])).all();

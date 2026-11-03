@@ -218,6 +218,18 @@ test('a row with no planned time takes YouTube\'s time and is not a time disagre
   assert.deepEqual([row.timeLabel, row.differs], ['9:00 AM PT', []]);
 });
 
+test("Studio's date with no time moves a scheduled row, flags it and keeps the planned time, until the video goes live", async () => {
+  const { db, env } = await setup();
+  await importCsv(env, 'jon-mac', [{ date: '2026-11-03', time: '07:00', title: 'Tiny houses', status: 'scheduled', youtube_id: YT }]);
+  await postStats(env, [{ youtube_id: YT, scheduled_date: '2026-11-05', status: 'scheduled' }]);
+  let row = calendarRow(await calendarPage(db), 'jon-mac', 'Tiny houses');
+  assert.deepEqual([row.date, row.timeLabel, row.status, row.differs], ['2026-11-05', '7:00 AM PT', 'scheduled', ['date']]);
+  await postStats(env, [{ youtube_id: YT, status: 'live' }]);
+  row = calendarRow(await calendarPage(db), 'jon-mac', 'Tiny houses');
+  assert.deepEqual([row.date, row.status, row.differs], ['2026-11-03', 'published', ['status']]);
+  assert.equal((await postStats(env, [{ youtube_id: YT, scheduled_date: 'Nov 5' }])).status, 400);
+});
+
 test("a calendar import after a stats post keeps YouTube's values, the link and its clicks", async () => {
   const { db, env } = await setup();
   await importCsv(env, 'rosa-cooks', [PLANNED, { date: '2026-11-04', title: 'No ID', status: 'planned' }]);
