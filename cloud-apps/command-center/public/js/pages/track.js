@@ -40,7 +40,7 @@ function videoRow(v) {
   const [label, cls] = STAGE[v.status] || STATUS[v.calendarStatus] || [v.calendarStatus, ''];
   const none = v.linked ? '<span class="muted">No landing page</span>' : '';
   const link = v.url
-    ? `<code class="tklink">${esc(v.url.replace(/^https?:\/\//, ''))}</code><button type="button" class="btn sm line" data-copy="${esc(v.url)}">Copy</button>`
+    ? `<code class="tklink" title="${esc(v.url)}">${esc(v.url.replace(/^https?:\/\/[^/]+/, ''))}</code><button type="button" class="btn sm line" data-copy="${esc(v.url)}">Copy</button>`
     : none;
   return `<tr><td>${esc(v.channelLabel)}</td><td>${esc(v.title)}</td><td>${pill(label, cls)}${youtubeFlag(v)}</td>
     <td class="num">${stat(v.impressions, Number(v.impressions).toLocaleString('en-US'))}</td>
@@ -62,7 +62,7 @@ export function track(d, _data, sub) {
   </div>
   <div class="card pad">
     <div class="cardhead"><h2>Videos</h2><span class="meta">${videos.length} on the calendar. ${last ? `Studio data last updated ${esc(last.updated)}` : 'No Studio data yet'}</span></div>
-    ${videos.length ? `<div class="tblwrap"><table><thead><tr>${th('videos', 'channelLabel', 'Channel')}${th('videos', 'title', 'Title')}${th('videos', 'status', 'Status')}${th('videos', 'impressions', 'Impressions', true)}${th('videos', 'ctr', 'Click-through rate', true)}${th('videos', 'views', 'Views', true)}${th('videos', 'clicks', 'Clicks', true)}<th>Link</th>${th('videos', 'updatedAt', 'Updated')}</tr></thead>
+    ${videos.length ? `<div class="tblwrap"><table class="tktable"><thead><tr>${th('videos', 'channelLabel', 'Channel')}${th('videos', 'title', 'Title')}${th('videos', 'status', 'Status')}${th('videos', 'impressions', 'Impressions', true)}${th('videos', 'ctr', 'CTR', true)}${th('videos', 'views', 'Views', true)}${th('videos', 'clicks', 'Clicks', true)}<th>Link</th>${th('videos', 'updatedAt', 'Updated')}</tr></thead>
     <tbody>${sorted(videos, sorts.videos).map(videoRow).join('')}</tbody></table></div>` : '<p class="muted">No videos on the calendar yet.</p>'}
   </div>`;
   });

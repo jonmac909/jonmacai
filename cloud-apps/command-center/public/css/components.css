@@ -759,5 +759,6 @@ body:has(.cardmodal[open]){overflow:hidden} /* the page behind stays put */
 /* Track page */
 .thsort{background:none;border:0;padding:0;font:inherit;color:inherit;cursor:pointer}
 .tkcell{white-space:nowrap;font-size:.82rem}
+.tktable th,.tktable td{padding-inline:.6rem}
 .tklink{font-size:.8rem;margin-right:.5rem}
 .ccdiff{display:block;margin-top:.25rem;color:var(--muted);font-size:.8rem}
