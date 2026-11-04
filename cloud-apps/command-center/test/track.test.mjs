@@ -124,8 +124,8 @@ test('the page lists every channel with correct counts, one row per video, filte
   const all = track(page, {}, '');
   for (const c of YOUTUBE_CHANNELS) assert.ok(all.includes(`<tr data-page="track/${c.slug}">`), c.slug);
   assert.doesNotMatch(all, /Not made yet|Added by hand|data-copy/, 'All lists channels, not videos');
-  assert.deepEqual(allRow(all, 'aria-creates'), [labelOf('aria-creates'), 'Yes', '3', '1', '1'], 'on YouTube, scheduled, public; no Studio data is blank');
-  assert.deepEqual(allRow(all, 'rosa-cooks'), [labelOf('rosa-cooks'), 'No', '0', '0', '0']);
+  assert.deepEqual(allRow(all, 'aria-creates'), [labelOf('aria-creates'), 'Yes', '3', '1', '1', '-'], 'on YouTube, scheduled, public; no Studio data is blank, AVD a dash');
+  assert.deepEqual(allRow(all, 'rosa-cooks'), [labelOf('rosa-cooks'), 'No', '0', '0', '0', '-']);
   assert.match(all, /as in Studio. (Views and subs updated|No YouTube data yet)/, 'a space before the data note');
   setSort('all:onAir');
   const live = track(page, {}, '').match(/<tr data-page="track\/[^"]+">.*?<\/tr>/gs).map((r) => /Yes/.test(r));
@@ -153,7 +153,7 @@ test('All sums Studio impressions, views and net subscribers per channel', async
   assert.equal((await postStats(env, [{ youtube_id: YT, impressions: 1200, views: 30, subs: 3 }, { youtube_id: 'lmnopqrstuv', subs: -1 }])).status, 200);
   assert.equal((await postStats(env, [{ youtube_id: YT, subs: 1.5 }])).status, 400);
   const page = await trackPage(db);
-  assert.deepEqual(allRow(track(page, {}, ''), 'theo-creates'), [labelOf('theo-creates'), 'Yes', '2', '1', '1', '1,200', '30', '2']);
+  assert.deepEqual(allRow(track(page, {}, ''), 'theo-creates'), [labelOf('theo-creates'), 'Yes', '2', '1', '1', '1,200', '-', '30', '2']);
 });
 
 test('stage: a YouTube link only means posted on a finished video', () => {
@@ -826,7 +826,8 @@ test('Home Guide Press shows no links or clicks and is off the link list, with i
   assert.deepEqual([v.url, v.code, v.clicks, v.landing, v.views], [null, null, null, null, 7]);
   const html = track(page, {}, 'peter-collins');
   assert.doesNotMatch(html, /data-copy|\/v\/|No landing page/);
-  assert.equal(html.match(/<tr>[\s\S]*?<\/tr>/g).at(-1).match(/<td class="(?:num|tkcell)">\s*<\/td>/g).length, 5, 'blank: impressions, CTR, AVD, clicks, link');
+  assert.equal(html.match(/<tr>[\s\S]*?<\/tr>/g).at(-1).match(/<td class="(?:num|tkcell)">\s*<\/td>/g).length, 4, 'blank: impressions, CTR, clicks, link');
+  assert.match(html, /<td class="num">-<\/td>/, 'AVD unavailable: a dash');
 
   const { links } = (await call(env, 'GET', '/v1/links', { bot: 'qc' })).body;
   assert.deepEqual(links.map((l) => l.title), ['Hooks']);
