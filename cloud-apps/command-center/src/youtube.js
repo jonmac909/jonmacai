@@ -366,7 +366,6 @@ export async function syncReach(env, fetchFn = globalThis.fetch, nowMs = Date.no
     .catch((err) => env.DB.prepare('UPDATE yt_api SET reach_error = ? WHERE channel = ?').bind(err.message, row.channel).run())));
 }
 
-// GET /youtube/status (Jon's session or a bot token): where each channel stands. No secrets.
 // Lucy's check of one channel's Analytics (2026-11-04): numbers only, never a token. Day by day since Oct 1, and the
 // aggregate for MINE and for the channel's own id, so a window or id problem shows apart from Analytics lag.
 export async function youtubeAnalyticsCheck(env, slug, fetchFn = globalThis.fetch, nowMs = Date.now()) {
@@ -393,6 +392,7 @@ export async function youtubeAnalyticsCheck(env, slug, fetchFn = globalThis.fetc
   });
 }
 
+// GET /youtube/status (Jon's session or a bot token): where each channel stands. No secrets.
 export async function youtubeStatus(env) {
   let rows;
   try {
