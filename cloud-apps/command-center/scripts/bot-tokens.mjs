@@ -9,9 +9,8 @@
 // Rotate a lost or leaked token: run with --rotate <slug> (production), then again with
 // --env preview and no --rotate so the preview database revokes the old one too.
 import { randomBytes, createHash } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync, writeFileSync, rmSync, mkdtempSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
-import { tmpdir } from 'node:os';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { spawnSync } from 'node:child_process';
 
@@ -54,7 +53,7 @@ export const hashOf = (token) => createHash('sha256').update(token, 'utf8').dige
 export function tokenSql(slug, hash, now) {
   return [
     `INSERT OR IGNORE INTO bot_tokens (token_hash, bot, created_at) VALUES ('${hash}', '${slug}', '${now}');`,
-    `UPDATE bot_tokens SET revoked_at = '${now}' WHERE bot = '${slug}' AND token_hash != '${hash}' AND revoked_at IS NULL;`,
+    `UPDATE bot_tokens SET revoked_at = '${now}' WHERE bot = '${slug}' AND token_hash <> '${hash}' AND revoked_at IS NULL;`,
   ];
 }
 
@@ -79,26 +78,24 @@ function main() {
     const token = readFileSync(file, 'utf8').trim();
     if (!/^ccb_[A-Za-z0-9_-]{32,128}$/.test(token)) throw new Error(`${file} does not hold a valid token`);
     const hash = hashOf(token);
-    rows.push(...tokenSql(slug, hash, now));
+    rows.push(tokenSql(slug, hash, now).join(' '));
     console.log(`${slug.padEnd(18)} ${name.padEnd(18)} ${state.padEnd(15)} sha256 ${hash.slice(0, 8)}…`);
   }
   if (opt['dry-run']) return;
 
-  const dir = mkdtempSync(join(tmpdir(), 'bot-tokens-'));
-  const sqlFile = join(dir, 'bot-tokens.sql');
-  try {
-    writeFileSync(sqlFile, `${rows.join('\n')}\n`);
-    const wrangler = process.env.WRANGLER ? `"${process.env.WRANGLER}"` : 'npx wrangler';
-    const cmd = `${wrangler} d1 execute ${database} --remote --file "${sqlFile}"${opt.env ? ` --env ${opt.env}` : ''}`;
+  // One --command per bot: --file goes through D1's import API, which rejects wrangler's OAuth
+  // login (Authentication error 10000); --command uses the query API. The SQL holds only hex,
+  // slugs and an ISO time, so it is safe inside double quotes on cmd.exe and sh.
+  const wrangler = process.env.WRANGLER ? `"${process.env.WRANGLER}"` : 'npx wrangler';
+  for (const sql of rows) {
+    const cmd = `${wrangler} d1 execute ${database} --remote --command "${sql}"${opt.env ? ` --env ${opt.env}` : ''}`;
     const r = spawnSync(cmd, { cwd: APP_DIR, shell: true, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
     if (r.status !== 0) {
       console.error((r.stdout || '').slice(-1500), (r.stderr || '').slice(-1500));
-      throw new Error(`wrangler d1 execute failed (${r.status})`);
+      throw new Error(`wrangler d1 execute failed (${r.status}) at ${sql.match(/bot = '([a-z0-9-]+)'/)[1]}; earlier bots are registered, re-running is safe`);
     }
-    console.log(`Registered ${bots.length} token hashes in ${database}; older hashes for these bots are revoked.`);
-  } finally {
-    rmSync(dir, { recursive: true, force: true });
   }
+  console.log(`Registered ${bots.length} token hashes in ${database}; older hashes for these bots are revoked.`);
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
