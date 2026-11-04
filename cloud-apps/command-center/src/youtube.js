@@ -228,7 +228,7 @@ async function syncChannel(env, fetchFn, row, nowMs) {
     const base = { ids: 'channel==MINE', startDate: '2005-01-01', endDate: pacific(nowMs).day, metrics: 'views,averageViewDuration,subscribersGained,subscribersLost' };
     for (const [id, ...m] of (await getJson(fetchFn, `${ANALYTICS}?${new URLSearchParams({ ...base, dimensions: 'video', sort: '-views', maxResults: '200' })}`, token)).rows || []) studio.set(id, studioOf(m));
     const [all] = (await getJson(fetchFn, `${ANALYTICS}?${new URLSearchParams(base)}`, token)).rows || [];
-    channel = all ? studioOf(all) : { views: null, avd: null, subs: null };
+    channel = Number(all?.[0]) > 0 ? studioOf(all) : { views: null, avd: null, subs: null }; // a new channel's all-zero row too
   } catch (err) {
     problem = `Analytics not read: ${err.message}`;
   }
@@ -366,7 +366,7 @@ export async function youtubeStatus(env) {
     rows = (await env.DB.prepare(`SELECT channel, channel_id, name, subscribers, views, videos, studio_views, studio_subs, studio_avd, synced_at, sync_error,
       reach_job, reach_as_of, reach_error FROM yt_api`).all()).results || [];
   } catch {
-    return json({ error: 'Migration 0020 is not applied' }, 503);
+    return json({ error: 'Migration 0020 or 0021 is not applied' }, 503);
   }
   const by = new Map(rows.map((r) => [r.channel, r]));
   return json({

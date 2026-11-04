@@ -286,7 +286,7 @@ test('with no Analytics rows yet, views fall back to the public count and subs t
   const { db, env } = await setup();
   await connect(env, google());
   await call(env, '/v1/calendar/peter-collins', { jon: false, bot: true, method: 'PUT', body: { videos: [{ date: '2026-11-01', title: 'Road test', status: 'published', youtube_id: VID }] } });
-  await syncStats(env, google({ analytics: () => new Response(JSON.stringify({ rows: [] })) }).fetchFn);
+  await syncStats(env, google({ analytics: (_i, url) => new Response(JSON.stringify({ rows: url.includes('dimensions=video') ? [] : [['0', '0', '0', '0']] })) }).fetchFn);
   const snap = await (await call(env, '/snapshot?pages=track')).json();
   const row = allRow(track(snap.pages.track, {}, ''), 'peter-collins');
   assert.deepEqual(row.slice(-2), ['950', '120']);
