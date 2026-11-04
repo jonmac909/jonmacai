@@ -71,8 +71,8 @@ export async function trackVideos(db, origin, channel = null, nowMs = Date.now()
 // Each connected channel's lifetime numbers as Studio shows them (src/youtube.js): Analytics views, AVD and net subs,
 // with the public subscriber count for when Analytics has nothing yet.
 async function channelTotals(db) {
-  const { results } = await db.prepare('SELECT channel, subscribers, studio_views, studio_subs, studio_avd FROM yt_api').all();
-  return Object.fromEntries((results || []).map((r) => [r.channel, { views: r.studio_views, avd: r.studio_avd, subs: r.studio_subs ?? r.subscribers }]));
+  const { results } = await db.prepare('SELECT channel, subscribers, views, studio_views, studio_subs, studio_avd FROM yt_api').all();
+  return Object.fromEntries((results || []).map((r) => [r.channel, { views: r.studio_views ?? r.views, avd: r.studio_avd, subs: r.studio_subs ?? r.subscribers }]));
 }
 
 // Null when the tables can't be read (migration 0017 or 0021 not applied), so the page says so instead of failing.

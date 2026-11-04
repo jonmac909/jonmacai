@@ -240,7 +240,7 @@ async function syncChannel(env, fetchFn, row, nowMs) {
   if (behind(channel, ch.statistics?.viewCount)) channel = { views: null, avd: null, subs: null };
   for (const v of videos) {
     const a = studio.get(v.id);
-    const s = { ...statsOf(v, nowMs), ...(behind(a, v.statistics?.viewCount) ? { avd: null } : a) };
+    const s = { ...statsOf(v, nowMs), ...(behind(a, v.statistics?.viewCount) ? { avd: null, subs: null } : a) };
     const fields = Object.keys(s);
     if (!YOUTUBE_ID_RE.test(v.id || '') || !fields.length) continue;
     // A field YouTube didn't give keeps its value, like the old stats route.
