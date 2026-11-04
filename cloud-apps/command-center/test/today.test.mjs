@@ -183,7 +183,8 @@ test('snapshot serves Today end to end and Jon can answer and approve from it', 
   assert.equal(t.goals.length, 4);
   assert.deepEqual(t.needs.items.map((i) => i.kind), ['approval', 'question']);
   assert.equal(t.usage.level.cls, 'crit');
-  assert.equal(t.goals[2].why, 'The funnel figure for October has not been read yet.');
+  const month = new Date().toLocaleString('en-US', { month: 'long', timeZone: 'America/Vancouver' });
+  assert.equal(t.goals[2].why, `The funnel figure for ${month} has not been read yet.`);
   const ok = await call(env, 'POST', t.needs.items[0].decideUrl.replace('/dashboard/api', ''), { jon: true, body: { decision: 'approve' } });
   assert.equal(ok.body.approval.status, 'approved');
   assert.equal(ok.body.approval.id, appr.id);
