@@ -6,7 +6,7 @@ import { pushCriticalTelegram } from './alerts.js';
 import { funnelMonth } from './webinar.js';
 import { monthWindow } from './today.js';
 import { settleApproved } from './videoreview.js';
-import { syncReach } from './youtube.js';
+import { syncReach, syncStats } from './youtube.js';
 
 const VIRAL_URL = 'https://app.viralview.io/api/internal/dashboard-summary';
 const MONEY_URL = 'https://moneyclaw.jonmac.ai/api/internal/dashboard-summary';
@@ -54,6 +54,7 @@ export async function handleCron(env) {
   jobs.push(pullCalendar(env));
   jobs.push(settleApproved(env).catch((err) => console.error('settle approved', err)));
   jobs.push(syncReach(env).catch((err) => console.error('youtube reach', err.message))); // impressions and CTR, 6-hourly a channel
+  jobs.push(syncStats(env).catch((err) => console.error('youtube stats', err.message))); // views, status, subs, hourly a channel
   await Promise.allSettled(jobs);
   const snap = mergeSnapshot(snapshot, await listSnapshots(env.DB), Date.now());
   await pushCriticalTelegram(env, snap);

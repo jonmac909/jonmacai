@@ -1,6 +1,6 @@
 // Track from the YouTube APIs (Jon, 2026-11-04), replacing the Studio scraper (D:\AgentTeam\tools\studio_read.py).
 // Each channel is its own Google identity, so Jon connects each once with read-only consent. Then:
-// - views, status and subs come from the Data and Analytics APIs when Track is opened (at most every 15 minutes);
+// - views, status and subs come from the Data and Analytics APIs when Track is opened (at most every 20 minutes) and hourly from the cron;
 // - impressions and CTR come from Reporting API reach reports in the 10-minute cron (at most every 6 hours a channel).
 // Both fill yt_stats, the rows the Track and Calendar pages already read.
 import { YOUTUBE_CHANNELS, pacific } from './channels.js';
@@ -12,10 +12,13 @@ const DATA = 'https://www.googleapis.com/youtube/v3';
 const ANALYTICS = 'https://youtubeanalytics.googleapis.com/v2/reports';
 const REPORTING = 'https://youtubereporting.googleapis.com/v1';
 const REACH = 'channel_reach_basic_a1';
-const SYNC_EVERY_MS = 15 * 60 * 1000;
+// Quota: 10,000 Data API units a day for this project (Track only). A sync is at most 5 units a channel, so even Track
+// open all day (72 syncs) plus the hourly cron stays under it for 23 channels.
+const SYNC_EVERY_MS = 20 * 60 * 1000;
+const CRON_SYNC_EVERY_MS = 3600 * 1000;
 const REACH_EVERY_MS = 6 * 3600 * 1000;
 const SYNC_WAIT_MS = 8000; // Track answers with what's stored after this; the sync finishes in the background
-const MAX_VIDEOS = 200; // newest uploads per channel: 4 playlist pages + 4 video pages at most
+const MAX_VIDEOS = 100; // newest uploads per channel: 2 playlist pages + 2 video pages at most
 const REPORTS_PER_RUN = 10; // the first run has ~30 days of backfill; the rest waits for the next cron
 const YOUTUBE_ID_RE = /^[\w-]{11}$/;
 const NOT_SET_UP = 'YouTube is not set up yet: a Google client or token key secret is missing.';
@@ -236,35 +239,41 @@ async function claim(db, column, everyMs, nowMs) {
   return results || [];
 }
 
-// Track opened: sync channels not synced for 15 minutes, all at once (23 channels x ~6 calls is far under the paid
+// Track opened: sync channels not synced for 20 minutes, all at once (23 channels x ~6 calls is far under the paid
 // plan's 10,000 subrequests). Answers after SYNC_WAIT_MS at most; the rest finishes in the background.
-export async function freshen(env, ctx, fetchFn = globalThis.fetch, nowMs = Date.now()) {
+// The cron passes no ctx and an hourly everyMs, so Track and Calendar stay fresh with nobody opening Track; it waits for the work.
+export async function freshen(env, ctx, fetchFn = globalThis.fetch, nowMs = Date.now(), everyMs = SYNC_EVERY_MS) {
   if (!ready(env)) return;
   let rows;
   try {
-    rows = await claim(env.DB, 'sync_tried_at', SYNC_EVERY_MS, nowMs);
+    rows = await claim(env.DB, 'sync_tried_at', everyMs, nowMs);
   } catch (err) {
     console.error('youtube freshen', err.message); // migration 0020 not applied
     return;
   }
   if (!rows.length) return;
   const work = Promise.allSettled(rows.map((row) => syncChannel(env, fetchFn, row, nowMs).catch((err) => env.DB.prepare('UPDATE yt_api SET sync_error = ? WHERE channel = ?').bind(err.message, row.channel).run())));
-  ctx?.waitUntil?.(work);
+  if (!ctx?.waitUntil) {
+    await work;
+    return;
+  }
+  ctx.waitUntil(work);
   let timer;
   await Promise.race([work, new Promise((r) => { timer = setTimeout(r, SYNC_WAIT_MS); })]);
   clearTimeout(timer);
 }
 
-// A reach report CSV as one row per (video, day): impressions, and CTR in percent. The docs call the ctr metric a
-// percentage worked out as clicks / impressions without saying the unit; a fraction can't pass 1, so a report with any
-// value over 1 is read as percent already. Check against Studio when the first reports land.
+// A reach report CSV as one row per (video, day): impressions, and CTR in percent. The report's ctr is read as a
+// fraction (clicks / impressions). A value over 1 can't be a fraction, so it stops the import loudly (reach_error)
+// instead of guessing per report. Check against Studio when the first reports land.
 export function parseReach(csv) {
   const [head = '', ...lines] = String(csv).trim().split(/\r?\n/);
   const col = head.split(',');
   const [d, v, n, c] = ['date', 'video_id', 'video_thumbnail_impressions', 'video_thumbnail_impressions_ctr'].map((k) => col.indexOf(k));
   if (d < 0 || v < 0 || n < 0 || c < 0) throw new Error('Reach report has unexpected columns');
   const rows = lines.map((l) => l.split(',')).filter((x) => YOUTUBE_ID_RE.test(x[v] || '') && /^\d{8}$/.test(x[d] || ''));
-  const scale = rows.some((x) => Number(x[c]) > 1) ? 1 : 100;
+  if (rows.some((x) => Number(x[c]) > 1)) throw new Error('Reach report CTR is over 1, so it is not a fraction: check the unit against Studio');
+  const scale = 100;
   const by = new Map();
   for (const x of rows) {
     const day = `${x[d].slice(0, 4)}-${x[d].slice(4, 6)}-${x[d].slice(6)}`;
@@ -293,6 +302,7 @@ async function reachChannel(env, fetchFn, row, nowMs) {
   const batch = reports.slice(0, REPORTS_PER_RUN);
   const statements = [];
   for (const r of batch) {
+    if (!String(r.downloadUrl).startsWith('https://youtubereporting.googleapis.com/')) throw new Error('Reach report download is not on youtubereporting.googleapis.com');
     const res = await fetchFn(r.downloadUrl, { headers: { authorization: `Bearer ${token}` } });
     if (!res.ok) throw new Error(`Reach report download answered ${res.status}`);
     for (const x of parseReach(await res.text())) {
@@ -303,11 +313,14 @@ async function reachChannel(env, fetchFn, row, nowMs) {
   }
   if (batch.length) {
     // Totals over every stored day: impressions summed, CTR weighted by impressions. updated_at moves only on a new row:
-    // it stays the views/subs sync time.
+    // it stays the views/subs sync time. Reports start ~30 days before the job, so an older video's sum can be under its
+    // lifetime count from Studio; lifetime impressions never shrink, so a smaller sum keeps the Studio numbers.
     statements.push(env.DB.prepare(`INSERT INTO yt_stats (youtube_id, impressions, ctr, reach_as_of, updated_at)
       SELECT youtube_id, SUM(impressions), ROUND(SUM(impressions * ctr) / NULLIF(SUM(impressions), 0), 1), MAX(day), ?2
       FROM yt_reach WHERE channel = ?1 GROUP BY youtube_id
-      ON CONFLICT (youtube_id) DO UPDATE SET impressions = excluded.impressions, ctr = excluded.ctr, reach_as_of = excluded.reach_as_of`)
+      ON CONFLICT (youtube_id) DO UPDATE SET
+        ctr = CASE WHEN yt_stats.impressions IS NULL OR excluded.impressions >= yt_stats.impressions THEN excluded.ctr ELSE yt_stats.ctr END,
+        impressions = MAX(COALESCE(yt_stats.impressions, 0), excluded.impressions), reach_as_of = excluded.reach_as_of`)
       .bind(row.channel, iso(nowMs)));
   }
   // More reports waiting: clear the lease so the next cron run carries on.
@@ -351,3 +364,6 @@ export async function youtubeStatus(env) {
     }),
   });
 }
+
+// 10-minute cron: views, status and subs for channels not synced for an hour, so Track and Calendar are fresh at 07:00.
+export const syncStats = (env, fetchFn = globalThis.fetch, nowMs = Date.now()) => freshen(env, null, fetchFn, nowMs, CRON_SYNC_EVERY_MS);

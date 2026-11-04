@@ -3,7 +3,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { handleApi } from '../src/api.js';
 import { sha256Hex } from '../src/bots.js';
-import { parseReach, statsOf, syncReach } from '../src/youtube.js';
+import { parseReach, statsOf, syncReach, syncStats } from '../src/youtube.js';
 import { track } from '../public/js/pages/track.js';
 import { signSession, COOKIE } from '../src/auth.js';
 import { sqliteD1 } from './sqlited1.mjs';
@@ -143,7 +143,7 @@ test('the callback refuses the wrong channel and missing permissions', async () 
   assert.equal(await db.prepare('SELECT COUNT(*) AS n FROM yt_api').first().then((x) => x.n), 0);
 });
 
-test('opening Track syncs views, status and subs once per 15 minutes, and status shows it', async () => {
+test('opening Track syncs views, status and subs once per 20 minutes, and status shows it', async () => {
   const { db, env } = await setup();
   await connect(env, google());
   await call(env, '/v1/calendar/peter-collins', { jon: false, bot: true, method: 'PUT', body: { videos: [{ date: '2026-11-01', title: 'Road test', status: 'published', youtube_id: VID }] } });
@@ -160,7 +160,7 @@ test('opening Track syncs views, status and subs once per 15 minutes, and status
     assert.equal(dataCalls, 3, 'about 3 Data API units a channel');
     const before = g.calls.length;
     await call(env, '/snapshot?pages=track');
-    assert.equal(g.calls.length, before, 'no second sync within 15 minutes');
+    assert.equal(g.calls.length, before, 'no second sync within 20 minutes');
     await call(env, '/snapshot?pages=today');
     assert.equal(g.calls.length, before, 'other pages never sync');
   } finally {
@@ -221,7 +221,32 @@ test('statsOf and parseReach read YouTube the way studio_read posted', () => {
   // 2026-11-05T05:00Z is Nov 4 in Kelowna
   assert.equal(statsOf({ status: { privacyStatus: 'private', publishAt: '2026-11-05T05:00:00Z' } }, now).scheduled_date, '2026-11-04');
   const head = 'date,channel_id,video_id,video_thumbnail_impressions,video_thumbnail_impressions_ctr';
-  assert.deepEqual(parseReach(`${head}\n20261101,UCx,${VID},200,4.5\n`), [{ youtube_id: VID, day: '2026-11-01', impressions: 200, ctr: 4.5 }], 'already percent');
+  assert.deepEqual(parseReach(`${head}\n20261101,UCx,${VID},200,0.045\n`), [{ youtube_id: VID, day: '2026-11-01', impressions: 200, ctr: 4.5 }], 'fraction to percent');
+  assert.deepEqual(parseReach(`${head}\n20261101,UCx,${VID},200,0.8\n`)[0].ctr, 80, 'one report under 1 is never guessed as percent');
+  assert.throws(() => parseReach(`${head}\n20261101,UCx,${VID},200,4.5\n`), /not a fraction/);
   assert.deepEqual(parseReach(`${head}\n20261101,UCx,${VID},0,0\n`), [{ youtube_id: VID, day: '2026-11-01', impressions: 0, ctr: null }]);
   assert.throws(() => parseReach('a,b\n1,2'), /unexpected columns/);
+});
+
+test('a lifetime count from Studio larger than the reports sum stays', async () => {
+  const { db, env } = await setup();
+  await connect(env, google());
+  await db.prepare("INSERT INTO yt_stats (youtube_id, impressions, ctr, updated_at) VALUES (?, 5000, 3.1, 'x')").bind(VID).run();
+  await syncReach(env, google().fetchFn, Date.parse('2026-11-04T20:00:00Z'));
+  const s = await db.prepare('SELECT impressions, ctr, reach_as_of FROM yt_stats WHERE youtube_id = ?').bind(VID).first();
+  assert.deepEqual({ ...s }, { impressions: 5000, ctr: 3.1, reach_as_of: '2026-11-02' });
+});
+
+test('the cron syncs views, status and subs hourly with nobody opening Track', async () => {
+  const { db, env } = await setup();
+  await connect(env, google());
+  const g = google();
+  const t = Date.parse('2026-11-04T14:00:00Z');
+  await syncStats(env, g.fetchFn, t);
+  assert.equal((await db.prepare('SELECT views FROM yt_stats WHERE youtube_id = ?').bind(VID).first()).views, 950);
+  const n = g.calls.length;
+  await syncStats(env, g.fetchFn, t + 30 * 60 * 1000);
+  assert.equal(g.calls.length, n, 'not again within the hour');
+  await syncStats(env, g.fetchFn, t + 61 * 60 * 1000);
+  assert.ok(g.calls.length > n);
 });
