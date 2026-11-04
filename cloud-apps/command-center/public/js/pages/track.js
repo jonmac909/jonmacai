@@ -66,7 +66,7 @@ function allTable(d, last) {
   const rows = sorted(d.channels.slice(1).map((c) => channelRow(c, d.videos)), sorts.all);
   const cols = [['impressions', 'Impressions'], ['views', 'Views'], ['subs', 'Subs']];
   return `<div class="card pad">
-    <div class="cardhead"><h2>Channels</h2><span class="meta">Videos is everything on YouTube. Subs is net subscribers from each channel's videos. ${last ? `Studio data last updated ${esc(last.updated)}` : 'No Studio data yet'}</span></div>
+    <div class="cardhead"><h2>Channels</h2><span class="meta">Videos counts every calendar video on YouTube, private ones too. Totals add up those videos; Subs is net subscribers from them.${last ? `Studio data last updated ${esc(last.updated)}` : 'No Studio data yet'}</span></div>
     <div class="tblwrap"><table><thead><tr>${th('all', 'label', 'Channel')}${th('all', 'onAir', 'Live')}${th('all', 'videos', 'Videos', true)}${th('all', 'scheduled', 'Scheduled', true)}${th('all', 'posted', 'Posted', true)}${cols.map(([k, l]) => th('all', k, l, true)).join('')}</tr></thead>
     <tbody>${rows.map((x) => `<tr data-page="track/${esc(x.slug)}"><td>${esc(x.label)}</td><td>${pill(x.onAir, x.onAir === 'Yes' ? 'ok' : '')}</td><td class="num">${x.videos}</td><td class="num">${x.scheduled}</td><td class="num">${x.posted}</td>${cols.map(([k]) => `<td class="num">${num(x[k])}</td>`).join('')}</tr>`).join('')}</tbody></table></div>
   </div>`;
