@@ -17,7 +17,10 @@ test('adding a source is one module with source() and collect()', () => {
   const file = join(root, 'collectors/mac/sources/heartbeat.py');
   assert.equal(existsSync(file), true);
   const r = run(
-    'from sources.heartbeat import source, collect\n'
+    // Stub the SSH report so the test doesn't depend on reaching the Mac.
+    'import sources.heartbeat as h\n'
+    + 'h.collect_report = lambda machine: {}\n'
+    + 'from sources.heartbeat import source, collect\n'
     + 'd = collect("mac")\n'
     + 'print(source("mac"))\n'
     + 'print(d["ok"])\n'
