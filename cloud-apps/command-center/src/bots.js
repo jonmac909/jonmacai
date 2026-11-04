@@ -3,7 +3,7 @@
 // (answer a question, approve or reject, tick off a task owned by jon) needs the dashboard session
 // and is never open to a bot.
 import { readSession } from './auth.js';
-import { CHANNELS, MULTIPLE_SQL, realUtc } from './channels.js';
+import { CHANNELS, GROUPS, MULTIPLE_SQL, allChannels, realUtc } from './channels.js';
 import { ymd } from './life.js';
 import { PROJECTS } from './projects.js';
 import { approvalItem, questionItem } from './today.js';
@@ -1006,13 +1006,41 @@ async function listJournal(db, q) {
 export const CHANNEL_WRITERS = ['jon-mac-youtube', 'viral-view', 'home-guide-press', 'developer', 'ana'];
 export const CALENDAR_STATUSES = ['idea', 'planned', 'scripted', 'recording', 'editing', 'qc', 'review', 'scheduled', 'published'];
 const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/; // posting time, PT
-const CHANNEL_SLUGS = CHANNELS.map((c) => c.slug);
+// Indy (yt-strategy) researches outliers into Content files, so it may run content-import only (Jon, 2026-11-04).
+const IMPORTERS = [...CHANNEL_WRITERS, 'yt-strategy'];
 
-function needChannelWriter(who) {
-  if (!CHANNEL_WRITERS.includes(who.bot)) throw new Bad(403, `Only ${CHANNEL_WRITERS.join(', ')} can write channels, calendar and outliers`);
+function needChannelWriter(who, writers = CHANNEL_WRITERS) {
+  if (!writers.includes(who.bot)) throw new Bad(403, `Only ${writers.join(', ')} can write ${writers === IMPORTERS ? 'outliers' : 'channels, calendar and outliers'}`);
 }
 
-const channelOf = (value) => oneOf(value, CHANNEL_SLUGS, 'channel');
+// The fixed list plus the channels dash.py registered; the fixed list alone before migration 0022.
+async function channelList(db) {
+  try {
+    return allChannels((await db.prepare('SELECT slug, label, grp FROM yt_channels WHERE label IS NOT NULL').all()).results);
+  } catch {
+    return CHANNELS;
+  }
+}
+const channelOf = async (db, value) => oneOf(value, (await channelList(db)).map((c) => c.slug), 'channel');
+
+// dash.py calendar-import and content-import register each CSV's channel (the file name) first, so a new
+// clone imports without a code change. A fixed channel stays as it is.
+const CHANNEL_SLUG_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+async function registerChannel(db, who, body, now) {
+  needChannelWriter(who, IMPORTERS);
+  const slug = matchOf(body, 'slug', CHANNEL_SLUG_RE, 'diane-kowalski', true);
+  const fixed = CHANNELS.find((c) => c.slug === slug);
+  if (fixed) return json({ ok: true, channel: fixed, added: false });
+  const label = text(body, 'label', 80) || slug.split('-').map((w) => w[0].toUpperCase() + w.slice(1)).join(' ');
+  const group = body.group == null ? 'Home Guide Press' : GROUPS.find((g) => g.toLowerCase() === String(body.group).trim().toLowerCase());
+  if (!group) throw new Bad(400, `group must be one of: ${GROUPS.join(', ')}`);
+  const before = await db.prepare('SELECT label FROM yt_channels WHERE slug = ?').bind(slug).first();
+  await db.prepare(`INSERT INTO yt_channels (slug, label, grp, updated_by, updated_at) VALUES (?, ?, ?, ?, ?)
+    ON CONFLICT (slug) DO UPDATE SET label = COALESCE(yt_channels.label, excluded.label), grp = COALESCE(yt_channels.grp, excluded.grp)`)
+    .bind(slug, label, group, who.bot, now).run();
+  const row = await db.prepare('SELECT label, grp FROM yt_channels WHERE slug = ?').bind(slug).first();
+  return json({ ok: true, channel: { slug, label: row.label, group: row.grp }, added: !before?.label });
+}
 
 // A web link only (the pages show these as links, buttons and images): http(s) with a host, no spaces or
 // control characters. "" clears an optional one.
@@ -1067,12 +1095,12 @@ const outlierOut = (r) => ({
 async function listChannels(db) {
   const { results } = await db.prepare('SELECT * FROM yt_channels').all();
   const rows = new Map((results || []).map((r) => [r.slug, r]));
-  return json({ ok: true, channels: CHANNELS.map((c) => ({ ...c, schedule: rows.get(c.slug)?.schedule ?? null, landing: rows.get(c.slug)?.landing ?? null })) });
+  return json({ ok: true, channels: allChannels(results).map((c) => ({ ...c, schedule: rows.get(c.slug)?.schedule ?? null, landing: rows.get(c.slug)?.landing ?? null })) });
 }
 
 async function setChannel(db, who, slug, body, now) {
   needChannelWriter(who);
-  const channel = channelOf(slug);
+  const channel = await channelOf(db, slug);
   const fields = ['schedule', 'landing'].filter((k) => k in body);
   if (!fields.length) throw new Bad(400, 'schedule or landing is required ("" clears it)');
   const values = fields.map((k) => (k === 'landing' ? webLinkOf(body, k) : text(body, k, 200)));
@@ -1080,7 +1108,7 @@ async function setChannel(db, who, slug, body, now) {
     ON CONFLICT (slug) DO UPDATE SET ${fields.map((k) => `${k} = excluded.${k}`).join(', ')}, updated_by = excluded.updated_by, updated_at = excluded.updated_at`)
     .bind(channel, ...values, who.bot, now).run();
   const { schedule, landing = null } = await db.prepare('SELECT * FROM yt_channels WHERE slug = ?').bind(channel).first(); // no landing before migration 0017
-  return json({ ok: true, channel: { ...CHANNELS.find((c) => c.slug === channel), schedule, landing } });
+  return json({ ok: true, channel: { ...(await channelList(db)).find((c) => c.slug === channel), schedule, landing } });
 }
 
 // A video's tracked link (yt_links) hangs off its calendar id. Covers every video in the channel that has none.
@@ -1089,7 +1117,7 @@ const addLinks = (db, channel, now) => db.prepare(`INSERT OR IGNORE INTO yt_link
 
 async function addCalendar(db, who, body, now) {
   needChannelWriter(who);
-  const channel = channelOf(body.channel);
+  const channel = await channelOf(db, body.channel);
   const title = text(body, 'title', 300, true);
   const day = matchOf(body, 'date', DAY_RE, '2026-11-03', true);
   const time = matchOf(body, 'time', TIME_RE, '09:00') || null;
@@ -1167,7 +1195,7 @@ function continued(old, rows) {
 // earlier CSV rows in one batch. Videos added one by one (POST calendar) stay.
 async function putCalendar(db, who, slug, body, now) {
   needChannelWriter(who);
-  const channel = channelOf(slug);
+  const channel = await channelOf(db, slug);
   if (!Array.isArray(body.videos) || body.videos.length > 500) throw new Bad(400, 'videos must be a list of at most 500');
   const { results: old } = await db.prepare("SELECT id, title, day, time_pt AS time, youtube_id FROM yt_calendar WHERE channel = ? AND idem_key LIKE 'csv:%'").bind(channel).all();
   const rows = body.videos.map((v, i) => {
@@ -1203,7 +1231,7 @@ async function putCalendar(db, who, slug, body, now) {
 async function listCalendar(db, q) {
   const where = [];
   const args = [];
-  if (q.get('channel')) { where.push('channel = ?'); args.push(channelOf(q.get('channel'))); }
+  if (q.get('channel')) { where.push('channel = ?'); args.push(await channelOf(db, q.get('channel'))); }
   for (const [key, op] of [['from', '>='], ['to', '<=']]) {
     if (!q.get(key)) continue;
     if (!DAY_RE.test(q.get(key))) throw new Bad(400, `${key} must look like 2026-11-03`);
@@ -1266,7 +1294,7 @@ async function postLinkStats(db, who, body, now) {
 
 async function addOutlier(db, who, body, now) {
   needChannelWriter(who);
-  const channel = channelOf(body.channel);
+  const channel = await channelOf(db, body.channel);
   const title = text(body, 'title', 300, true);
   const link = webLinkOf(body, 'link', true);
   const thumb = webLinkOf(body, 'thumb');
@@ -1298,8 +1326,8 @@ async function selectOutlier(db, who, id, body, now) {
 // An owner's Content CSV for one channel (dash.py content-import): its rows replace the channel's earlier
 // CSV rows in one batch. Where Jon toggled Select on the same video, his choice stays over the CSV's.
 async function putOutliers(db, who, slug, body, now) {
-  needChannelWriter(who);
-  const channel = channelOf(slug);
+  needChannelWriter(who, IMPORTERS);
+  const channel = await channelOf(db, slug);
   if (!Array.isArray(body.outliers) || body.outliers.length > 500) throw new Bad(400, 'outliers must be a list of at most 500');
   const { results } = await db.prepare("SELECT link, selected, selected_at FROM yt_outliers WHERE channel = ? AND selected_by = 'jon'").bind(channel).all();
   const jon = new Map((results || []).map((r) => [videoKey(r.link), r]));
@@ -1327,7 +1355,7 @@ async function putOutliers(db, who, slug, body, now) {
 async function listOutliers(db, q) {
   const where = [];
   const args = [];
-  if (q.get('channel')) { where.push('channel = ?'); args.push(channelOf(q.get('channel'))); }
+  if (q.get('channel')) { where.push('channel = ?'); args.push(await channelOf(db, q.get('channel'))); }
   if (q.get('selected')) { where.push('selected = ?'); args.push(oneOf(q.get('selected'), ['1', '0'], 'selected') === '1' ? 1 : 0); }
   const rows = await list(db, 'yt_outliers', where, args, MULTIPLE_SQL, limitOf(q));
   return json({ ok: true, outliers: rows.map(outlierOut) });
@@ -1406,12 +1434,13 @@ async function route(request, db, who, rest, env, ctx) {
   }
   if (kind === 'channels' && !verb) {
     if (method === 'GET' && !rawId) return listChannels(db);
+    if (method === 'POST' && !rawId) return registerChannel(db, who, await readBody(request), now);
     if (method === 'PUT' && rawId) return setChannel(db, who, rawId, await readBody(request), now);
     throw new Bad(404, 'Not found');
   }
   if (kind === 'links') {
     if (method === 'GET' && !rawId) {
-      const channel = q.get('channel') ? channelOf(q.get('channel')) : null;
+      const channel = q.get('channel') ? await channelOf(db, q.get('channel')) : null;
       return json({ ok: true, links: (await trackVideos(db, new URL(request.url).origin, channel)).filter((v) => v.linked) });
     }
     if (method === 'POST' && rawId === 'stats' && !verb) return postLinkStats(db, who, await readBody(request), now);

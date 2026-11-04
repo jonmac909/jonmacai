@@ -8,7 +8,7 @@ import { signSession, COOKIE } from '../src/auth.js';
 import { sqliteD1 } from './sqlited1.mjs';
 
 const SECRET = 'test-session-secret-32-bytes-ok!';
-const BOTS = [...CHANNEL_WRITERS, 'sponsors', 'qc', 'video-editor'];
+const BOTS = [...CHANNEL_WRITERS, 'sponsors', 'qc', 'video-editor', 'yt-strategy'];
 const TOK = Object.fromEntries(BOTS.map((b) => [b, `ccb_${b.padEnd(43, 'x')}`]));
 const NOW = Date.parse('2026-10-30T19:00:00Z'); // Fri Oct 30, 12:00 PT
 
@@ -289,4 +289,25 @@ test('CSV imports: hand-added rows cannot take csv: keys; Jon\'s Select matches 
   await put([o('https://youtu.be/AbCdEfGhIjK')]);
   const [again] = (await call(env, 'GET', '/v1/outliers?channel=jonmacai', { bot: 'developer' })).body.outliers;
   assert.deepEqual([again.selected, again.selectedBy], [true, 'jon']);
+});
+
+test('a new clone registers from its CSV name and imports; Indy may import outliers only (Jon, 2026-11-04)', async () => {
+  const { db, env } = await setup();
+  const items = { outliers: [{ title: 'Ten pantry fixes', link: 'https://www.youtube.com/watch?v=y', views: 30000, avg: 9000, published: '2026-10-20' }] };
+  assert.equal((await call(env, 'PUT', '/v1/outliers/diane-kowalski', { bot: 'yt-strategy', body: items })).status, 400, 'unknown before it registers');
+  const r = await call(env, 'POST', '/v1/channels', { bot: 'yt-strategy', body: { slug: 'diane-kowalski' } });
+  assert.deepEqual([r.status, r.body.channel, r.body.added], [200, { slug: 'diane-kowalski', label: 'Diane Kowalski', group: 'Home Guide Press' }, true]);
+  assert.equal((await call(env, 'POST', '/v1/channels', { bot: 'yt-strategy', body: { slug: 'diane-kowalski', label: 'Other' } })).body.added, false, 'repeat is a no-op');
+  assert.equal((await call(env, 'POST', '/v1/channels', { bot: 'home-guide-press', body: { slug: 'peter-collins' } })).body.added, false, 'a fixed channel stays');
+  assert.equal((await call(env, 'POST', '/v1/channels', { bot: 'home-guide-press', body: { slug: 'Bad Slug' } })).status, 400);
+  assert.equal((await call(env, 'POST', '/v1/channels', { bot: 'sponsors', body: { slug: 'x-y' } })).status, 403);
+  assert.equal((await call(env, 'PUT', '/v1/outliers/diane-kowalski', { bot: 'yt-strategy', body: items })).status, 200);
+  assert.equal((await call(env, 'PUT', '/v1/calendar/diane-kowalski', { bot: 'yt-strategy', body: { videos: [] } })).status, 403, 'Indy: content-import only');
+  assert.equal((await call(env, 'PUT', '/v1/calendar/diane-kowalski', { bot: 'home-guide-press', body: { videos: [] } })).status, 200);
+  const list = (await call(env, 'GET', '/v1/channels', { bot: 'ana' })).body.channels;
+  assert.equal(list.at(-1).slug, 'diane-kowalski');
+  const out = { pages: { calendar: {}, content: {} } };
+  buildChannelPages(out, { channels: (await db.prepare('SELECT * FROM yt_channels').all()).results, calendar: [], outliers: [] }, NOW);
+  assert.equal(out.pages.content.channels.find((c) => c.slug === 'diane-kowalski').group, 'Home Guide Press', 'the new tab shows on Content');
+  assert.ok(out.pages.calendar.channels.some((c) => c.slug === 'diane-kowalski'), 'and on Calendar');
 });

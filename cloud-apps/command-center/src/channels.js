@@ -14,6 +14,15 @@ export const CHANNELS = [
     ['naomi-takeda-japan', 'Naomi Takeda Japan'], ['walter-brandt-dogs', 'Walter Brandt Dogs'], ['eleanor-whitfield', 'Eleanor Whitfield']]],
 ].flatMap(([group, list]) => list.map(([slug, label]) => ({ slug, label, group })));
 
+// Channels dash.py registered from a CSV file name (yt_channels rows with a label), after the fixed list.
+export const GROUPS = [...new Set(CHANNELS.map((c) => c.group))];
+export function allChannels(rows) {
+  const fixed = new Set(CHANNELS.map((c) => c.slug));
+  const extra = (rows || []).filter((r) => r.label && !fixed.has(r.slug))
+    .map((r) => ({ slug: r.slug, label: r.label, group: GROUPS.includes(r.grp) ? r.grp : 'Home Guide Press' }));
+  return [...CHANNELS, ...extra.sort((a, b) => a.label.localeCompare(b.label))];
+}
+
 // Outliers rank by views over their channel's average.
 export const MULTIPLE_SQL = 'CAST(views AS REAL) / avg_views DESC, views DESC';
 // Spotify only: out of Track and every YouTube count, and YouTube data never touches its Calendar rows.
@@ -146,7 +155,8 @@ export function buildChannelPages(out, data, nowMs = Date.now()) {
   const schedules = new Map((data?.channels || []).map((r) => [r.slug, r.schedule || null]));
   const rowsOf = (list, slug) => (list || []).filter((r) => r.channel === slug);
   if (out.pages?.calendar) {
-    const label = new Map(CHANNELS.map((c) => [c.slug, c.label]));
+    const list = allChannels(data?.channels);
+    const label = new Map(list.map((c) => [c.slug, c.label]));
     const video = (r) => ({
       id: r.id, title: r.title, status: r.status, date: r.day, dateLabel: dayLabel(r.day, today),
       timeLabel: r.time_pt ? `${timeLabel(r.time_pt)} PT` : '', link: r.link || null, channel: label.get(r.channel) || r.channel,
@@ -164,7 +174,7 @@ export function buildChannelPages(out, data, nowMs = Date.now()) {
       title: 'Calendar',
       available: !!data,
       channels: [{ ...tab({ slug: 'all', label: 'All channels', group: 'All' }, known), all: true },
-        ...CHANNELS.map((c) => {
+        ...list.map((c) => {
           const t = tab(c, rowsOf(known, c.slug));
           return { ...t, schedule: schedules.get(c.slug) || postingDays(t.upcoming) };
         })],
@@ -174,7 +184,7 @@ export function buildChannelPages(out, data, nowMs = Date.now()) {
     out.pages.content = {
       title: 'Content',
       available: !!data,
-      channels: CHANNELS.map((c) => {
+      channels: allChannels(data?.channels).map((c) => {
         const outliers = rowsOf(data?.outliers, c.slug).map((r) => ({ ...r, avg: r.avg_views })).sort(byMultiple).map((r) => ({
           id: r.id, title: r.title, source: r.source || null, link: r.link, thumb: r.thumb || null, views: r.views, avg: r.avg,
           multipleLabel: multipleLabel(r.views / r.avg), viewsLabel: `${compact(r.views)} views vs ${compact(r.avg)} avg`,
