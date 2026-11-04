@@ -18,7 +18,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import google_connect  # noqa: E402
 import short_post as sp  # noqa: E402
 import youtube_upload as yu  # noqa: E402
-from test_youtube_upload import TOKEN_URI, FakeGoogle  # noqa: E402
+from test_youtube_upload import TOKEN_URI, FakeGoogle, fake_scrub  # noqa: E402
 
 REAL_PROBE = sp.probe
 TT_UPLOAD = 'https://open-upload.tiktokapis.com/video/?upload_id=1'
@@ -163,6 +163,7 @@ class Base(unittest.TestCase):
                                                              'refresh_token': 'rt'}))
         self.clip = self.tmp / 'clip1.mp4'
         self.clip.write_bytes(os.urandom(300 * 1024))
+        fake_scrub(self, self.tmp)
         self.fake = FakeSocial(self.clip.stat().st_size)
         self.dash_calls = []
         self.approval = self.make()
@@ -223,6 +224,16 @@ class Post(Base):
         rec = self.record('instagram_reels', 'IG1')
         self.assertEqual((rec['state'], rec['id'], rec['link'], rec['approval']), ('posted', 'M1', PERMALINK, 'a_0123abcd'))
         self.assertEqual(list((sp.DIR / 'posts').glob('*.lock')), [])
+
+    def test_a_clip_that_fails_the_scrub_check_is_refused_before_the_claim(self):
+        fake_scrub(self, self.tmp, code=1)
+        for dry in (False, True):
+            with self.assertRaises(sp.Fail) as e:
+                sp.post('a_0123abcd', dry_run=dry)
+            self.assertEqual(e.exception.code, 2)
+            self.assertIn('upload the .scrubbed.mp4', str(e.exception))
+        self.assertEqual(self.dash_calls, [('GET', '/approvals/a_0123abcd')] * 2)  # never claimed
+        self.assertEqual(self.fake.got, {})
 
     def test_waits_while_each_platform_processes(self):
         self.fake.ig_status = ['IN_PROGRESS', 'IN_PROGRESS', 'FINISHED']
