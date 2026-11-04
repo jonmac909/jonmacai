@@ -115,6 +115,9 @@ async function reachJob(fetchFn, token) {
   return made.id;
 }
 
+// The Google account each channel consents from (Jon, 2026-11-04). Every other channel is on partners@.
+const OWNER_LOGIN = { 'jon-mac': 'jon@jonmac.co', jonmacai: 'jon@thejonmac.com', default: 'partners@thejonmac.com' };
+
 // GET /youtube/connect?channel=<slug> (Jon's session): off to Google's consent with a one-use state.
 export async function youtubeConnect(request, env, nowMs = Date.now()) {
   const url = new URL(request.url);
@@ -129,6 +132,7 @@ export async function youtubeConnect(request, env, nowMs = Date.now()) {
   const params = new URLSearchParams({
     client_id: env.YT_CLIENT_ID, redirect_uri: `${url.origin}${CALLBACK}`, response_type: 'code', scope: SCOPES.join(' '),
     access_type: 'offline', prompt: 'select_account consent', include_granted_scopes: 'false', state, // select_account: Google shows the brand-channel picker
+    login_hint: OWNER_LOGIN[slug] || OWNER_LOGIN.default, // the account that owns the channel, never Jon's personal Gmail
   });
   return new Response(null, { status: 302, headers: { Location: `https://accounts.google.com/o/oauth2/v2/auth?${params}`, 'Cache-Control': 'no-store' } });
 }
@@ -144,8 +148,11 @@ export async function youtubeCallback(request, env, fetchFn = globalThis.fetch, 
   if (q.get('error') || !q.get('code')) return page(400, 'Google did not give access, so nothing was connected.');
   const slug = row.channel;
   const label = YOUTUBE_CHANNELS.find((c) => c.slug === slug)?.label || slug;
-  const { data: tok } = await tokenCall(env, fetchFn, { grant_type: 'authorization_code', code: q.get('code'), redirect_uri: `${url.origin}${CALLBACK}` });
-  if (!tok.access_token || !tok.refresh_token) return page(502, 'Google did not give lasting access. Try the connect link again.');
+  const { status: tokStatus, data: tok } = await tokenCall(env, fetchFn, { grant_type: 'authorization_code', code: q.get('code'), redirect_uri: `${url.origin}${CALLBACK}` });
+  if (!tok.access_token || !tok.refresh_token) {
+    console.error('youtube callback token', tokStatus, tok.error, tok.error_description);
+    return page(502, `Google did not give lasting access (${tokStatus} ${String(tok.error || 'no refresh token').slice(0, 80)}). Try the connect link again.`);
+  }
   const granted = String(tok.scope || '').split(' ');
   if (!SCOPES.every((s) => granted.includes(s))) return page(400, 'Both read-only permissions are needed (YouTube and YouTube Analytics). Try again and tick both.');
   let me;
@@ -153,7 +160,7 @@ export async function youtubeCallback(request, env, fetchFn = globalThis.fetch, 
     me = (await getJson(fetchFn, `${DATA}/channels?part=id,snippet&mine=true`, tok.access_token)).items?.[0];
   } catch (err) {
     console.error('youtube callback channels', err.message);
-    return page(502, 'YouTube did not answer. Try the connect link again.');
+    return page(502, `YouTube did not answer (${err.message}). Try the connect link again.`); // Google's reason, never the token
   }
   if (!me) return page(400, `That Google login has no YouTube channel. Pick ${label} when Google asks.`);
   const name = me.snippet?.title || me.id;
