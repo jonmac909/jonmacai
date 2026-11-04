@@ -50,7 +50,7 @@ export async function trackRedirect(request, env, ctx) {
 export async function trackVideos(db, origin, channel = null, nowMs = Date.now()) {
   const today = pacific(nowMs).day;
   const { results } = await db.prepare(`SELECT v.channel, v.title, v.day, v.time_pt, v.status, v.link, v.youtube_id, l.code, l.clicks, s.impressions, s.ctr, s.views, s.subs,
-    s.scheduled_at AS yt_scheduled_at, s.scheduled_date AS yt_scheduled_date, s.status AS yt_status, s.updated_at, COALESCE(l.landing, c.landing) AS landing
+    s.scheduled_at AS yt_scheduled_at, s.scheduled_date AS yt_scheduled_date, s.status AS yt_status, s.updated_at, s.reach_as_of, COALESCE(l.landing, c.landing) AS landing
     FROM yt_calendar v LEFT JOIN yt_links l ON l.video_id = v.id LEFT JOIN yt_stats s ON s.youtube_id = v.youtube_id
     LEFT JOIN yt_channels c ON c.slug = v.channel
     ${channel ? 'WHERE v.channel = ?' : ''} ORDER BY v.day DESC, v.created_at LIMIT 5000`).bind(...(channel ? [channel] : [])).all();
@@ -63,6 +63,7 @@ export async function trackVideos(db, origin, channel = null, nowMs = Date.now()
       landing: linked ? r.landing ?? null : null, clicks: linked ? r.clicks ?? 0 : null,
       impressions: r.impressions ?? null, ctr: r.ctr ?? null, views: r.views ?? null, subs: r.subs ?? null, differs: r.differs ?? null, planned: r.planned ?? null,
       updatedAt: r.updated_at ?? null, updated: r.updated_at ? stamp(r.updated_at, today) : '',
+      reachAsOf: r.reach_as_of ?? null, // the newest reach report day behind impressions and CTR (src/youtube.js)
     };
   });
 }

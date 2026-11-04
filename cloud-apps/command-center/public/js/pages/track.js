@@ -50,6 +50,13 @@ function videoRow(v) {
     <td class="tkcell">${esc(v.updated)}</td></tr>`;
 }
 
+// Views and subs come from each sync; impressions and CTR from YouTube's daily reach reports, a day or two behind (2026-11-04).
+const DAY = new Intl.DateTimeFormat('en-US', { timeZone: 'UTC', month: 'short', day: 'numeric' });
+function dataNote(videos, last) {
+  const asOf = videos.reduce((a, v) => (v.reachAsOf > a ? v.reachAsOf : a), '');
+  const reach = asOf ? ` Impressions and CTR as of ${DAY.format(new Date(`${asOf}T12:00:00Z`))}.` : '';
+  return `${last ? `Views and subs updated ${esc(last.updated)}.` : 'No YouTube data yet.'}${reach}`;
+}
 const num = (n) => (n != null ? Number(n).toLocaleString('en-US') : '');
 const total = (vs, key) => (vs.some((v) => v[key] != null) ? vs.reduce((a, v) => a + (v[key] ?? 0), 0) : null); // blank when Studio has none
 
@@ -66,7 +73,7 @@ function allTable(d, last) {
   const rows = sorted(d.channels.slice(1).map((c) => channelRow(c, d.videos)), sorts.all);
   const cols = [['impressions', 'Impressions'], ['views', 'Views'], ['subs', 'Subs']];
   return `<div class="card pad">
-    <div class="cardhead"><h2>Channels</h2><span class="meta">Videos counts every calendar video on YouTube, private ones too. Totals add up those videos; Subs is net subscribers from them. ${last ? `Studio data last updated ${esc(last.updated)}` : 'No Studio data yet'}</span></div>
+    <div class="cardhead"><h2>Channels</h2><span class="meta">Videos counts every calendar video on YouTube, private ones too. Totals add up those videos; Subs is net subscribers from them. ${dataNote(d.videos, last)}</span></div>
     <div class="tblwrap"><table><thead><tr>${th('all', 'label', 'Channel')}${th('all', 'onAir', 'Live')}${th('all', 'videos', 'Videos', true)}${th('all', 'scheduled', 'Scheduled', true)}${th('all', 'posted', 'Posted', true)}${cols.map(([k, l]) => th('all', k, l, true)).join('')}</tr></thead>
     <tbody>${rows.map((x) => `<tr data-page="track/${esc(x.slug)}"><td>${esc(x.label)}</td><td>${pill(x.onAir, x.onAir === 'Yes' ? 'ok' : '')}</td><td class="num">${x.videos}</td><td class="num">${x.scheduled}</td><td class="num">${x.posted}</td>${cols.map(([k]) => `<td class="num">${num(x[k])}</td>`).join('')}</tr>`).join('')}</tbody></table></div>
   </div>`;
@@ -84,7 +91,7 @@ export function track(d, _data, sub) {
     <tbody>${sorted(channels, sorts.channels).map((x) => `<tr data-page="track/${esc(x.slug)}"><td>${esc(x.label)}</td>${RANK.map((s) => `<td class="num">${x[s]}</td>`).join('')}</tr>`).join('')}</tbody></table></div>
   </div>
   <div class="card pad">
-    <div class="cardhead"><h2>Videos</h2><span class="meta">${videos.length} on the calendar. ${last ? `Studio data last updated ${esc(last.updated)}` : 'No Studio data yet'}</span></div>
+    <div class="cardhead"><h2>Videos</h2><span class="meta">${videos.length} on the calendar. ${dataNote(videos, last)}</span></div>
     ${videos.length ? `<div class="tblwrap"><table class="tktable"><thead><tr>${th('videos', 'channelLabel', 'Channel')}${th('videos', 'title', 'Title')}${th('videos', 'status', 'Status')}${th('videos', 'impressions', 'Impressions', true)}${th('videos', 'ctr', 'CTR', true)}${th('videos', 'views', 'Views', true)}${th('videos', 'clicks', 'Clicks', true)}<th>Link</th>${th('videos', 'updatedAt', 'Updated')}</tr></thead>
     <tbody>${sorted(videos, sorts.videos).map(videoRow).join('')}</tbody></table></div>` : '<p class="muted">No videos on the calendar yet.</p>'}
   </div>`;
