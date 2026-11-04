@@ -138,7 +138,7 @@ test('a non-RBC or Reported deposit stays when the RBC feed covers its date, an 
   const nov10 = Date.parse('2026-11-10T18:00:00Z');
   const ledger = { collected_at: new Date(nov10).toISOString(), data: JSON.stringify({ ledgerEditedAt: '2026-11-04T20:00:00Z', rows: [
     { date: '2026-11-04', sponsor: 'Arcads', usd: 1500, status: 'Reported', nonRbc: true },
-    { date: '2026-11-05', sponsor: 'Wise payout', usd: 300, status: 'Observed', nonRbc: true },
+    { date: '2026-11-05', sponsor: 'TD deposit', usd: 300, status: 'Observed', nonRbc: true },
     { date: '2026-11-06', sponsor: 'Topview', usd: 700, status: 'Observed', nonRbc: false },
   ] }) };
   const bank = { collected_at: new Date(nov10).toISOString(), data: JSON.stringify({ income: { since: '2026-11-01', asOf: '2026-11-09',
@@ -147,7 +147,7 @@ test('a non-RBC or Reported deposit stays when the RBC feed covers its date, an 
   assert.equal(c.source.kind, 'bank');
   assert.equal(c.month.label, 'November');
   assert.equal(c.month.usd, 2500);
-  assert.deepEqual(c.recent.map((r) => r.sponsor), ['TOPVIEW PTE. LTD.', 'Wise payout', 'Arcads']);
+  assert.deepEqual(c.recent.map((r) => r.sponsor), ['TOPVIEW PTE. LTD.', 'TD deposit', 'Arcads']);
   const arcadsOnly = buildCash({ ...ledger, data: JSON.stringify({ ledgerEditedAt: '2026-11-04T20:00:00Z', rows: [{ date: '2026-11-04', sponsor: 'Arcads', usd: 1500, status: 'Reported' }] }) }, null, nov10,
     { ...bank, data: JSON.stringify({ income: { since: '2026-11-01', asOf: '2026-11-09', deposits: [] } }) });
   assert.equal(arcadsOnly.month.usd, 1500);

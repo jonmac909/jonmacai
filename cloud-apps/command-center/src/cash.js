@@ -1,7 +1,8 @@
 // Sponsor income is every deposit into the RBC USD account for the month (Jon, Oct 22). That includes
 // payouts that are not sponsor invoices, such as Commas / DIVISIBLE. Two feeds supply the deposits:
 //   - the MoneyClaw `income` block (bank transactions), authoritative for the dates it covers;
-//   - GPU2 `sponsors_cash` (cash_ledger.csv, kept by hand), used for every date the bank feed does not cover.
+//   - GPU2 `sponsors_cash` (cash_ledger.csv, kept by hand), used for every date the bank feed does not cover,
+//     and for deposits the RBC feed can't see (Reported or another bank) on any date.
 // Invoices owed come from the `sponsors` collections feed and never count as income.
 // See docs/sponsor-income.md.
 export const SPONSOR_TARGET = 10000;
@@ -73,7 +74,7 @@ function bankFeed(moneyRow, nowMs) {
   return { since: inc.since, asOf, asOfMs: Date.parse(`${asOf}T12:00:00Z`), deposits, stale };
 }
 
-// The feed sees RBC only. A ledger row it can never see (another bank, PayPal, or Reported = not seen in RBC)
+// The feed sees RBC only. A ledger row it can never see (another bank, or Reported = not seen in RBC)
 // stays inside the feed window; an Observed RBC row there is dropped so the feed doesn't count it twice.
 const outsideRbc = (r) => r.nonRbc === true || /^reported$/i.test(String(r.status || '').trim());
 

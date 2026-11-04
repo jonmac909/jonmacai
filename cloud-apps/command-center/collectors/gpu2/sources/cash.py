@@ -1,5 +1,5 @@
 """Sponsor cash received, from my-agent/state/sponsors/cash_ledger.csv (date, sponsor, amount).
-Only date, sponsor, invoice number, USD amount and status leave the machine; never the evidence column."""
+Only date, sponsor, invoice number, USD amount, status and a nonRbc yes/no leave the machine; never the evidence column."""
 import csv
 import os
 import re
@@ -7,8 +7,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 # Evidence naming a bank the RBC feed can't see. Only this yes/no leaves the machine, never the text.
-NON_RBC = re.compile(r'not RBC|\bTD\b|PayPal', re.I)
-LEDGER =Path(os.environ.get('CC_CASH_LEDGER') or (Path.home() / 'my-agent' / 'state' / 'sponsors' / 'cash_ledger.csv'))
+NON_RBC = re.compile(r'not RBC|\bTD\b', re.I)
+LEDGER = Path(os.environ.get('CC_CASH_LEDGER') or (Path.home() / 'my-agent' / 'state' / 'sponsors' / 'cash_ledger.csv'))
 
 
 def source(_machine):

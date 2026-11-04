@@ -36,7 +36,7 @@ Invoices owed never count as income. When no deposit data is available the Spons
    - No account number or mask in the payload.
 2. **`sponsors_cash`** from `cash_ledger.csv` on GPU2 (`collectors/gpu2/sources/cash.py`), kept by hand. Used for every date the bank feed does not cover.
 
-Merge rule: ledger rows dated inside `[since, asOf]` are dropped and the bank deposits replace them, so nothing counts twice. Ledger rows outside the window stay.
+Merge rule: ledger rows dated inside `[since, asOf]` are dropped and the bank deposits replace them, so nothing counts twice. Ledger rows outside the window stay. Inside the window, a row the RBC feed can't see also stays: status Reported (money not seen in RBC), or `nonRbc` (its evidence names TD or says "not RBC"; 2026-11-04, Arcads $1,500 at TD). When a Reported deposit later lands in RBC, change its status to Observed so it doesn't count twice.
 
 Until MoneyClaw ships the `income` block, the ledger is the only feed. That is how October went wrong.
 
@@ -51,7 +51,7 @@ Nothing reads RBC for the ledger, so a missed deposit is invisible unless someon
 
 | File | Where | Updated by |
 | --- | --- | --- |
-| `cash_ledger.csv` | GPU2 `C:\Users\partn\my-agent\state\sponsors\cash_ledger.csv` | by hand. Columns: date, sponsor, invoice, amount_usd, amount_cad, evidence, status. The collector sends only date, sponsor, invoice, usd, status and the file's edit time, never the evidence column. |
+| `cash_ledger.csv` | GPU2 `C:\Users\partn\my-agent\state\sponsors\cash_ledger.csv` | by hand. Columns: date, sponsor, invoice, amount_usd, amount_cad, evidence, status. The collector sends only date, sponsor, invoice, usd, status, nonRbc and the file's edit time, never the evidence column. |
 | `collections.json` | Mac mini `/Users/jonmac/Projects/2026/YouTube/sponsor-kanban/data/collections.json` | by hand or by Ana. Holds invoice paid/owed per sponsor and the month totals used when no deposit data exists. |
 
 GPU2 task `CommandCenterCollect` ships both every 5 minutes.
