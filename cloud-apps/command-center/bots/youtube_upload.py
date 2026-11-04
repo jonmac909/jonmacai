@@ -78,7 +78,7 @@ PLAYLIST_ID_RE = re.compile(r'[A-Za-z0-9_-]{10,64}')
 APPROVAL_ID_RE = re.compile(r'a_[0-9a-f]{6,40}')
 IMAGE_TYPES = {'.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png'}
 OCTET = {'Content-Type': 'application/octet-stream'}  # else urllib labels the bytes as a form
-SCRUB = os.environ.get('SCRUB_PY', r'D:\OpenMausBot\tools\scrub-meta\scrub.py')
+SCRUB = r'D:\OpenMausBot\tools\scrub-meta\scrub.py'
 
 
 class Fail(Exception):

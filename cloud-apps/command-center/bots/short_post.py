@@ -8,7 +8,7 @@ Ask Jon first: dash.py approval-request post_clips "<clip titles>" --project sho
   {"platforms": ["instagram_reels", "facebook_reels", "tiktok", "youtube_shorts"], "youtube_channel": "jonmacai",
    "clips": [{"file": "D:/AgentTeam/footage/short-form/clip1.mp4", "sha256": "<Get-FileHash -Algorithm SHA256>",
               "title": "YouTube title", "caption": "...", "hashtags": "#a #b", "synthetic": true}]}
-  Clips: vertical .mp4, 3 to 90 s, passing scrub.py --check (the .scrubbed.mp4)."sha256" pins the exact file Jon watched: a re-rendered file is refused.
+  Clips: vertical .mp4, 3 to 90 s, passing scrub.py --check (the .scrubbed.mp4). "sha256" pins the exact file Jon watched: a re-rendered file is refused.
   "synthetic": true when realistic AI people, voices or scenes appear.
 post refuses anything but an approved post_clips approval of this bot, and posts only the clips it lists. It claims the
 approval, posts each clip once per platform and account (keyed by the file's SHA-256, so a rerun, a copy or a second run
