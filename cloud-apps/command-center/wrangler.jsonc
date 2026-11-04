@@ -4,7 +4,7 @@
   "main": "src/worker.js",
   "compatibility_date": "2026-08-31",
   "workers_dev": false,
-  "observability": { "enabled": true },
+  "observability": { "enabled": true, "logs": { "invocation_logs": false } }, // console.error only: request URLs carry OAuth codes
   "assets": {
     "directory": "./public",
     "binding": "ASSETS",

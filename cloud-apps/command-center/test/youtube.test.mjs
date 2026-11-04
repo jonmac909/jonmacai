@@ -107,6 +107,10 @@ test('connect needs Jon, says plainly when not set up, and sends him to read-onl
   assert.equal(q.get('scope'), SCOPE);
   assert.deepEqual([q.get('access_type'), q.get('include_granted_scopes'), q.get('client_id')], ['offline', 'false', 'cid']);
   assert.match(q.get('prompt'), /consent/);
+  assert.match(q.get('prompt'), /select_account/);
+  assert.equal(q.get('login_hint'), 'partners@thejonmac.com');
+  const hint = async (slug) => new URL((await call(env, `/youtube/connect?channel=${slug}`)).headers.get('Location')).searchParams.get('login_hint');
+  assert.deepEqual([await hint('jon-mac'), await hint('jonmacai')], ['jon@jonmac.co', 'jon@thejonmac.com'], 'each channel hints its owner account');
   const row = await db.prepare('SELECT channel, expires_at FROM yt_oauth_states WHERE state = ?').bind(q.get('state')).first();
   assert.equal(row.channel, 'peter-collins');
 });

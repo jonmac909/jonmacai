@@ -115,6 +115,9 @@ async function reachJob(fetchFn, token) {
   return made.id;
 }
 
+// The Google account each channel consents from (Jon, 2026-11-04). Every other channel is on partners@.
+const OWNER_LOGIN = { 'jon-mac': 'jon@jonmac.co', jonmacai: 'jon@thejonmac.com', default: 'partners@thejonmac.com' };
+
 // GET /youtube/connect?channel=<slug> (Jon's session): off to Google's consent with a one-use state.
 export async function youtubeConnect(request, env, nowMs = Date.now()) {
   const url = new URL(request.url);
@@ -129,6 +132,7 @@ export async function youtubeConnect(request, env, nowMs = Date.now()) {
   const params = new URLSearchParams({
     client_id: env.YT_CLIENT_ID, redirect_uri: `${url.origin}${CALLBACK}`, response_type: 'code', scope: SCOPES.join(' '),
     access_type: 'offline', prompt: 'select_account consent', include_granted_scopes: 'false', state, // select_account: Google shows the brand-channel picker
+    login_hint: OWNER_LOGIN[slug] || OWNER_LOGIN.default, // the account that owns the channel, never Jon's personal Gmail
   });
   return new Response(null, { status: 302, headers: { Location: `https://accounts.google.com/o/oauth2/v2/auth?${params}`, 'Cache-Control': 'no-store' } });
 }
