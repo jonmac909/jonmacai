@@ -41,13 +41,14 @@ test('no ledger means no data, not a number', () => {
 });
 
 test('collector drops the evidence column', () => {
-  const code = 'import json, os, tempfile, sys\nsys.path.insert(0, "collectors/gpu2/sources")\np = os.path.join(tempfile.mkdtemp(), "l.csv")\nopen(p, "w").write(chr(10).join(["date,sponsor,invoice,amount_usd,amount_cad,evidence,status", "2026-10-02,Topview,1070,734.37,,RBC USD deposit acct 1234,Observed", "2026-08-12,Eezy,,,,fee row,Observed"]))\nimport cash\nprint(json.dumps(cash.read_ledger(p)))';
+  const code = 'import json, os, tempfile, sys\nsys.path.insert(0, "collectors/gpu2/sources")\np = os.path.join(tempfile.mkdtemp(), "l.csv")\nopen(p, "w").write(chr(10).join(["date,sponsor,invoice,amount_usd,amount_cad,evidence,status", "2026-10-02,Topview,1070,734.37,,RBC USD deposit acct 1234,Observed", "2026-08-12,Eezy,,,,fee row,Observed", "2026-11-04,Arcads,,1500.00,,TD bank (not RBC),Reported"]))\nimport cash\nprint(json.dumps(cash.read_ledger(p)))';
   const r = spawnSync(py, ['-c', code], { encoding: 'utf8', cwd: root });
   assert.equal(r.status, 0, r.stderr);
   const rows = JSON.parse(r.stdout);
   assert.equal(rows[0].usd, 734.37);
   assert.equal(rows[1].usd, null);
   assert.ok(!JSON.stringify(rows).includes('RBC'));
+  assert.deepEqual(rows.map((x) => x.nonRbc), [false, false, true]);
 });
 
 test('Coursiv and GoLogin are never counted or shown', async () => {
@@ -131,6 +132,25 @@ test('the bank feed wins for the dates it covers and the ledger fills the rest',
   assert.equal(c.recent.some((r) => /123456789/.test(r.sponsor)), false);
   assert.equal(c.recent.find((r) => r.sponsor === 'Hand entry').date, '2026-10-22');
   assert.equal(c.recent.filter((r) => r.usd === 4200).length, 1);
+});
+
+test('a non-RBC or Reported deposit stays when the RBC feed covers its date, an RBC one is not counted twice', () => {
+  const nov10 = Date.parse('2026-11-10T18:00:00Z');
+  const ledger = { collected_at: new Date(nov10).toISOString(), data: JSON.stringify({ ledgerEditedAt: '2026-11-04T20:00:00Z', rows: [
+    { date: '2026-11-04', sponsor: 'Arcads', usd: 1500, status: 'Reported', nonRbc: true },
+    { date: '2026-11-05', sponsor: 'Wise payout', usd: 300, status: 'Observed', nonRbc: true },
+    { date: '2026-11-06', sponsor: 'Topview', usd: 700, status: 'Observed', nonRbc: false },
+  ] }) };
+  const bank = { collected_at: new Date(nov10).toISOString(), data: JSON.stringify({ income: { since: '2026-11-01', asOf: '2026-11-09',
+    deposits: [{ date: '2026-11-06', amount: 700, description: 'TOPVIEW PTE. LTD.' }] } }) };
+  const c = buildCash(ledger, null, nov10, bank);
+  assert.equal(c.source.kind, 'bank');
+  assert.equal(c.month.label, 'November');
+  assert.equal(c.month.usd, 2500);
+  assert.deepEqual(c.recent.map((r) => r.sponsor), ['TOPVIEW PTE. LTD.', 'Wise payout', 'Arcads']);
+  const arcadsOnly = buildCash({ ...ledger, data: JSON.stringify({ ledgerEditedAt: '2026-11-04T20:00:00Z', rows: [{ date: '2026-11-04', sponsor: 'Arcads', usd: 1500, status: 'Reported' }] }) }, null, nov10,
+    { ...bank, data: JSON.stringify({ income: { since: '2026-11-01', asOf: '2026-11-09', deposits: [] } }) });
+  assert.equal(arcadsOnly.month.usd, 1500);
 });
 
 test('a bank feed with no coverage window is ignored, and a stale one is flagged', () => {

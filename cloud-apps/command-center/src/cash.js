@@ -73,9 +73,14 @@ function bankFeed(moneyRow, nowMs) {
   return { since: inc.since, asOf, asOfMs: Date.parse(`${asOf}T12:00:00Z`), deposits, stale };
 }
 
+// The feed sees RBC only. A ledger row it can never see (another bank, PayPal, or Reported = not seen in RBC)
+// stays inside the feed window; an Observed RBC row there is dropped so the feed doesn't count it twice.
+const outsideRbc = (r) => r.nonRbc === true || /^reported$/i.test(String(r.status || '').trim());
+
 function mergeDeposits(ledger, feed) {
-  const rows = ledger.filter((r) => isDay(r?.date)).map((r) => ({ date: r.date, sponsor: r.sponsor, usd: r.usd }));
-  const merged = feed ? rows.filter((r) => r.date < feed.since || r.date > feed.asOf).concat(feed.deposits) : rows;
+  const rows = ledger.filter((r) => isDay(r?.date));
+  const kept = feed ? rows.filter((r) => r.date < feed.since || r.date > feed.asOf || outsideRbc(r)) : rows;
+  const merged = kept.map((r) => ({ date: r.date, sponsor: r.sponsor, usd: r.usd })).concat(feed ? feed.deposits : []);
   return merged.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
 }
 

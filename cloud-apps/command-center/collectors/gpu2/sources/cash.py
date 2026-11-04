@@ -2,10 +2,13 @@
 Only date, sponsor, invoice number, USD amount and status leave the machine; never the evidence column."""
 import csv
 import os
+import re
 from datetime import datetime, timezone
 from pathlib import Path
 
-LEDGER = Path(os.environ.get('CC_CASH_LEDGER') or (Path.home() / 'my-agent' / 'state' / 'sponsors' / 'cash_ledger.csv'))
+# Evidence naming a bank the RBC feed can't see. Only this yes/no leaves the machine, never the text.
+NON_RBC = re.compile(r'not RBC|\bTD\b|PayPal', re.I)
+LEDGER =Path(os.environ.get('CC_CASH_LEDGER') or (Path.home() / 'my-agent' / 'state' / 'sponsors' / 'cash_ledger.csv'))
 
 
 def source(_machine):
@@ -30,6 +33,7 @@ def read_ledger(path=LEDGER):
                 'invoice': (r.get('invoice') or '').strip()[:12],
                 'usd': usd,
                 'status': (r.get('status') or '').strip()[:20],
+                'nonRbc': bool(NON_RBC.search(r.get('evidence') or '')),
             })
     return rows
 
