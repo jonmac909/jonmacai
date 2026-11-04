@@ -301,5 +301,12 @@ test('Analytics far behind the public count (a new channel) keeps the public vie
   const snap = await (await call(env, '/snapshot?pages=track')).json();
   const v = snap.pages.track.videos.find((x) => x.title === 'Road test');
   assert.deepEqual([v.views, v.avd], [950, null]);
+  await env.DB.prepare('UPDATE yt_api SET sync_tried_at = NULL, synced_at = NULL').run();
+  // YouTube's channel count still at 0 (Giovanni, 2026-11-04): the videos' 950 public views count instead
+  const zero = google({ channel: () => new Response(JSON.stringify({ items: [{ id: PETER, contentDetails: { relatedPlaylists: { uploads: 'UU1' } }, statistics: { subscriberCount: '120', viewCount: '0', videoCount: '2' } }] })),
+    analytics: (_i, url) => new Response(JSON.stringify({ rows: url.includes('dimensions=video') ? [[VID, '1', '55', '0', '0']] : [['1', '55', '0', '0']] })) });
+  await syncStats(env, zero.fetchFn);
+  const z = await env.DB.prepare('SELECT views, studio_views FROM yt_api').first();
+  assert.deepEqual({ ...z }, { views: 950, studio_views: null });
   assert.deepEqual(allRow(track(snap.pages.track, {}, ''), 'peter-collins').slice(-2), ['1,100', '120']);
 });

@@ -237,7 +237,9 @@ async function syncChannel(env, fetchFn, row, nowMs) {
   // Analytics runs 2-3 days behind on a new channel (Giovanni: 1 view there vs 82 public, 2026-11-04). Until its
   // count reaches half the public one, keep the public views and show no AVD rather than a number that far behind.
   const behind = (a, pub) => a && pub != null && Number.isFinite(Number(pub)) && a.views < Number(pub) / 2;
-  if (behind(channel, ch.statistics?.viewCount)) channel = { views: null, avd: null, subs: null };
+  // The channel's own public count is slow too (Giovanni: 0), so its public views are at least its videos' sum.
+  const publicViews = Math.max(Number(ch.statistics?.viewCount) || 0, videos.reduce((t, v) => t + (Number(v.statistics?.viewCount) || 0), 0));
+  if (behind(channel, publicViews)) channel = { views: null, avd: null, subs: null };
   for (const v of videos) {
     const a = studio.get(v.id);
     const s = { ...statsOf(v, nowMs), ...(behind(a, v.statistics?.viewCount) ? { avd: null, subs: null } : a) };
@@ -249,7 +251,7 @@ async function syncChannel(env, fetchFn, row, nowMs) {
   }
   const n = (x) => (x == null || !Number.isFinite(Number(x)) ? null : Number(x));
   statements.push(env.DB.prepare('UPDATE yt_api SET subscribers = ?, views = ?, videos = ?, synced_at = ?, sync_error = ? WHERE channel = ?')
-    .bind(n(ch.statistics?.subscriberCount), n(ch.statistics?.viewCount), n(ch.statistics?.videoCount), now, problem, row.channel));
+    .bind(n(ch.statistics?.subscriberCount), publicViews, n(ch.statistics?.videoCount), now, problem, row.channel));
   if (channel) {
     statements.push(env.DB.prepare('UPDATE yt_api SET studio_views = ?, studio_subs = ?, studio_avd = ? WHERE channel = ?')
       .bind(channel.views, channel.subs, channel.avd, row.channel));
