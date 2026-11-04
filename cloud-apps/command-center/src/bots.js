@@ -1017,7 +1017,8 @@ function needChannelWriter(who, writers = CHANNEL_WRITERS) {
 async function channelList(db) {
   try {
     return allChannels((await db.prepare('SELECT slug, label, grp FROM yt_channels WHERE label IS NOT NULL').all()).results);
-  } catch {
+  } catch (err) {
+    if (!/no such column/i.test(String(err?.message))) throw err; // only a missing migration falls back
     return CHANNELS;
   }
 }
