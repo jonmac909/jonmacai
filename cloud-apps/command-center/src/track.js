@@ -49,7 +49,7 @@ export async function trackRedirect(request, env, ctx) {
 // has no url, so nobody pastes a link that can't redirect yet.
 export async function trackVideos(db, origin, channel = null, nowMs = Date.now()) {
   const today = pacific(nowMs).day;
-  const { results } = await db.prepare(`SELECT v.channel, v.title, v.day, v.time_pt, v.status, v.link, v.youtube_id, l.code, l.clicks, s.impressions, s.ctr, s.views,
+  const { results } = await db.prepare(`SELECT v.channel, v.title, v.day, v.time_pt, v.status, v.link, v.youtube_id, l.code, l.clicks, s.impressions, s.ctr, s.views, s.subs,
     s.scheduled_at AS yt_scheduled_at, s.scheduled_date AS yt_scheduled_date, s.status AS yt_status, s.updated_at, COALESCE(l.landing, c.landing) AS landing
     FROM yt_calendar v LEFT JOIN yt_links l ON l.video_id = v.id LEFT JOIN yt_stats s ON s.youtube_id = v.youtube_id
     LEFT JOIN yt_channels c ON c.slug = v.channel
@@ -61,7 +61,7 @@ export async function trackVideos(db, origin, channel = null, nowMs = Date.now()
       linked, code: linked ? r.code ?? null : null, url: linked && r.code && r.landing ? `${origin}/v/${r.code}` : null,
       channel: r.channel, title: r.title, date: r.day, status: stageOf(r.status, r.link, r.youtube_id), calendarStatus: r.status,
       landing: linked ? r.landing ?? null : null, clicks: linked ? r.clicks ?? 0 : null,
-      impressions: r.impressions ?? null, ctr: r.ctr ?? null, views: r.views ?? null, differs: r.differs ?? null, planned: r.planned ?? null,
+      impressions: r.impressions ?? null, ctr: r.ctr ?? null, views: r.views ?? null, subs: r.subs ?? null, differs: r.differs ?? null, planned: r.planned ?? null,
       updatedAt: r.updated_at ?? null, updated: r.updated_at ? stamp(r.updated_at, today) : '',
     };
   });
