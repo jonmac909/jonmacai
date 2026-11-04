@@ -234,20 +234,23 @@ async function syncChannel(env, fetchFn, row, nowMs) {
   }
   const now = iso(nowMs);
   const statements = [];
-  // Analytics runs 2-3 days behind on a new channel (Giovanni: 1 view there vs 82 public, 2026-11-04). Until its
-  // count reaches half the public one, keep the public views and show no AVD rather than a number that far behind.
-  const behind = (a, pub) => a && pub != null && Number.isFinite(Number(pub)) && a.views < Number(pub) / 2;
+  // Analytics can run days behind on a new channel (Giovanni, 2026-11-04: 1 view through Nov 2 there, 71 in Studio).
+  // Until it reaches half the public count, Studio's own numbers win: views, AVD and subs the Studio reader
+  // (D:\AgentTeam	ools\studio_read.py) posted stay, and the public count only fills a video that has none.
+  const behind = (a, pub) => !a || (pub != null && Number.isFinite(Number(pub)) && a.views < Number(pub) / 2);
   // The channel's own public count is slow too (Giovanni: 0), so its public views are at least its videos' sum.
   const publicViews = Math.max(Number(ch.statistics?.viewCount) || 0, videos.reduce((t, v) => t + (Number(v.statistics?.viewCount) || 0), 0));
-  if (behind(channel, publicViews)) channel = { views: null, avd: null, subs: null };
+  if (channel && behind(channel, publicViews)) channel = { views: null, avd: null, subs: null };
   for (const v of videos) {
     const a = studio.get(v.id);
-    const s = { ...statsOf(v, nowMs), ...(behind(a, v.statistics?.viewCount) ? { avd: null, subs: null } : a) };
+    const lag = behind(a, v.statistics?.viewCount);
+    const s = { ...statsOf(v, nowMs), ...(lag ? {} : a) };
     const fields = Object.keys(s);
     if (!YOUTUBE_ID_RE.test(v.id || '') || !fields.length) continue;
+    const set = (k) => (lag && k === 'views' ? `views = COALESCE(yt_stats.views, excluded.views)` : `${k} = excluded.${k}`);
     // A field YouTube didn't give keeps its value, like the old stats route.
     statements.push(env.DB.prepare(`INSERT INTO yt_stats (youtube_id, ${fields.join(', ')}, updated_at) VALUES (?, ${fields.map(() => '?').join(', ')}, ?)
-      ON CONFLICT (youtube_id) DO UPDATE SET ${fields.map((k) => `${k} = excluded.${k}`).join(', ')}, updated_at = excluded.updated_at`).bind(v.id, ...fields.map((k) => s[k]), now));
+      ON CONFLICT (youtube_id) DO UPDATE SET ${fields.map(set).join(', ')}, updated_at = excluded.updated_at`).bind(v.id, ...fields.map((k) => s[k]), now));
   }
   const n = (x) => (x == null || !Number.isFinite(Number(x)) ? null : Number(x));
   statements.push(env.DB.prepare('UPDATE yt_api SET subscribers = ?, views = ?, videos = ?, synced_at = ?, sync_error = ? WHERE channel = ?')

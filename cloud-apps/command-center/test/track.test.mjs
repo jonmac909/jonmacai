@@ -126,7 +126,7 @@ test('the page lists every channel with correct counts, one row per video, filte
   assert.doesNotMatch(all, /Not made yet|Added by hand|data-copy/, 'All lists channels, not videos');
   assert.deepEqual(allRow(all, 'aria-creates'), [labelOf('aria-creates'), 'Yes', '3', '1', '1'], 'on YouTube, scheduled, public; no Studio data is blank');
   assert.deepEqual(allRow(all, 'rosa-cooks'), [labelOf('rosa-cooks'), 'No', '0', '0', '0']);
-  assert.match(all, /calendar videos\. (Views and subs updated|No YouTube data yet)/, 'a space before the data note');
+  assert.match(all, /as in Studio. (Views and subs updated|No YouTube data yet)/, 'a space before the data note');
   setSort('all:onAir');
   const live = track(page, {}, '').match(/<tr data-page="track\/[^"]+">.*?<\/tr>/gs).map((r) => /Yes/.test(r));
   assert.ok(live[0] && live.indexOf(false) > live.lastIndexOf(true), 'first click on Live puts Yes first');

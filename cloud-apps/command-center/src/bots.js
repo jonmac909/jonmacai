@@ -1229,6 +1229,7 @@ const STATS_FIELDS = {
   ctr: (s) => numberOf(s, 'ctr', 0, 100, true),
   views: (s) => countOf(s, 'views', 0),
   subs: (s) => countOf(s, 'subs', -1e12), // Studio's net subscribers per video: losses can outnumber gains
+  avd: (s) => numberOf(s, 'avd', 0, 86400 * 7, true), // Studio's average view duration, seconds
   scheduled_at: (s) => {
     if (!UTC_RE.test(s.scheduled_at) || !realUtc(s.scheduled_at)) throw new Bad(400, 'scheduled_at must be a real UTC date from 2005 on, like 2026-11-03T17:00:00Z');
     return new Date(s.scheduled_at).toISOString();
@@ -1245,11 +1246,11 @@ async function postLinkStats(db, who, body, now) {
   needChannelWriter(who);
   if (!Array.isArray(body.stats) || !body.stats.length || body.stats.length > 500) throw new Bad(400, 'stats must be a list of 1 to 500');
   const rows = body.stats.map((s, i) => {
-    if (!s || typeof s !== 'object' || Array.isArray(s)) throw new Bad(400, `stats[${i}] must be {youtube_id, impressions?, ctr?, views?, subs?, scheduled_at?, scheduled_date?, status?}`);
+    if (!s || typeof s !== 'object' || Array.isArray(s)) throw new Bad(400, `stats[${i}] must be {youtube_id, impressions?, ctr?, views?, subs?, avd?, scheduled_at?, scheduled_date?, status?}`);
     try {
       const id = matchOf(s, 'youtube_id', YOUTUBE_ID_RE, 'dQw4w9WgXcQ', true);
       const fields = Object.keys(STATS_FIELDS).filter((k) => k in s);
-      if (!fields.length) throw new Bad(400, 'send impressions, ctr, views, subs, scheduled_at, scheduled_date or status');
+      if (!fields.length) throw new Bad(400, 'send impressions, ctr, views, subs, avd, scheduled_at, scheduled_date or status');
       const values = fields.map((k) => (s[k] === null ? null : STATS_FIELDS[k](s)));
       return { id, statement: db.prepare(`INSERT INTO yt_stats (youtube_id, ${fields.join(', ')}, updated_at) VALUES (?, ${fields.map(() => '?').join(', ')}, ?)
         ON CONFLICT (youtube_id) DO UPDATE SET ${fields.map((k) => `${k} = excluded.${k}`).join(', ')}, updated_at = excluded.updated_at`).bind(id, ...values, now) };

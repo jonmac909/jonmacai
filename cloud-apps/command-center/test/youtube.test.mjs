@@ -289,7 +289,7 @@ test('with no Analytics rows yet, views fall back to the public count and subs t
   await syncStats(env, google({ analytics: (_i, url) => new Response(JSON.stringify({ rows: url.includes('dimensions=video') ? [] : [['0', '0', '0', '0']] })) }).fetchFn);
   const snap = await (await call(env, '/snapshot?pages=track')).json();
   const row = allRow(track(snap.pages.track, {}, ''), 'peter-collins');
-  assert.deepEqual(row.slice(-2), ['1,100', '120']);
+  assert.deepEqual(row.slice(-2), ['950', '120']);
   assert.equal((await db.prepare('SELECT sync_error FROM yt_api').first()).sync_error, null);
 });
 
@@ -308,5 +308,18 @@ test('Analytics far behind the public count (a new channel) keeps the public vie
   await syncStats(env, zero.fetchFn);
   const z = await env.DB.prepare('SELECT views, studio_views FROM yt_api').first();
   assert.deepEqual({ ...z }, { views: 950, studio_views: null });
-  assert.deepEqual(allRow(track(snap.pages.track, {}, ''), 'peter-collins').slice(-2), ['1,100', '120']);
+  assert.deepEqual(allRow(track(snap.pages.track, {}, ''), 'peter-collins').slice(-2), ['950', '120']);
+});
+
+test('while Analytics lags, the Studio reader\'s views, AVD and subs stay (Giovanni: 71 views, 3:25)', async () => {
+  const { env } = await setup();
+  await connect(env, google());
+  await call(env, '/v1/calendar/peter-collins', { jon: false, bot: true, method: 'PUT', body: { videos: [{ date: '2026-11-01', title: 'Road test', status: 'published', youtube_id: VID }] } });
+  const posted = await call(env, '/v1/links/stats', { jon: false, bot: true, method: 'POST', body: { stats: [{ youtube_id: VID, views: 71, avd: 205, subs: 1 }] } });
+  assert.equal(posted.status, 200);
+  await syncStats(env, google({ analytics: (_i, url) => new Response(JSON.stringify({ rows: url.includes('dimensions=video') ? [[VID, '1', '55', '0', '0']] : [['1', '55', '0', '0']] })) }).fetchFn);
+  const snap = await (await call(env, '/snapshot?pages=track')).json();
+  const v = snap.pages.track.videos.find((x) => x.title === 'Road test');
+  assert.deepEqual([v.views, v.avd, v.subs], [71, 205, 1]);
+  assert.deepEqual(allRow(track(snap.pages.track, {}, ''), 'peter-collins').slice(-3), ['3:25', '71', '120']);
 });
