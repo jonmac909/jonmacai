@@ -152,7 +152,7 @@ test('Today: Needs you is alerts, then bot approvals, then bot questions', () =>
   assert.deepEqual(items.map((i) => i.kind), ['alert', 'approval', 'question']);
   assert.equal(items[0].title, 'Bank code needed: RBC');
   assert.equal(items[1].decideUrl, '/dashboard/api/v1/approvals/a_1/decide');
-  assert.equal(items[1].payloadPreview, '{\n  "count": 20\n}', 'Jon sees the values the bot will run with');
+  assert.equal(items[1].detail, 'Runs send pitches.', 'Jon sees plain words, not the payload');
   assert.equal('payload' in items[1], false, 'the full payload is not sent to the page');
   assert.deepEqual([items[2].answerUrl, items[2].options], ['/dashboard/api/v1/questions/q_1/answer', ['A']]);
   assert.deepEqual(out.pages.today.needs.sources.map((s) => [s.label, s.stale]), [['Bot questions and approvals', false]],

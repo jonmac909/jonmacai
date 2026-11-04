@@ -177,7 +177,7 @@ test('projects page: lanes, counts, board columns, Unsorted and goal cards; no m
   assert.deepEqual([t1.from, t1.ageLabel, t1.tickUrl, t2.from, t2.tickUrl], ['sponsors', '2 hr ago', undefined, 'Jon', '/dashboard/api/v1/tasks/t2']);
   assert.deepEqual([lane('viral-view').columns[5].items[0].proof, lane('jon-mac').columns[3].items[0].proof], ['https://jonmac.ai/review/5', ''], 'web links only');
   const a1 = lane('viral-view').columns[2].items[1];
-  assert.deepEqual([a1.kind, a1.decideUrl, a1.payloadPreview], ['approval', '/dashboard/api/v1/approvals/a1/decide', '{\n  "n": 3\n}'], "Today's approval item");
+  assert.deepEqual([a1.kind, a1.decideUrl, a1.detail], ['approval', '/dashboard/api/v1/approvals/a1/decide', 'Runs post clips.'], "Today's approval item");
   assert.deepEqual(p.projects.map((x) => x.goals.map((g) => g.key)), [['sponsors'], [], [], ['viral', 'webinar'], ['ebooks'], [], [], [], []]);
   assert.deepEqual([p.summary.text, p.calendar.events, p.available, p.today], ['All good', [{ time: '09:30-10:00', title: 'Call' }], true, undefined]);
 

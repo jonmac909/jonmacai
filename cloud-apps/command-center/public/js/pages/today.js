@@ -36,9 +36,11 @@ export function needItem(it, attrs = '') {
       <textarea class="qtext" rows="2" maxlength="4000" placeholder="Type your answer" aria-label="Your answer to: ${esc(it.title)}"></textarea>
       <button type="button" class="btn qsend" data-tsend="${esc(it.answerUrl)}">Send</button></div>`;
   } else if (it.kind === 'approval') {
-    const preview = it.payloadPreview || '{}';
-    const confirm = `Approve "${it.title}"? The bot will run ${it.action} with:\n${preview.length > 600 ? `${preview.slice(0, 600)}\n… (see the full list on the card)` : preview}`;
-    act = `<details class="payload" open><summary>What it will run</summary><pre>${esc(preview)}</pre></details>
+    // Plain words only (Jon, 2026-11-04): what it does, a short note, labelled links. No payload.
+    const notes = (it.notes || []).length ? `<ul class="qctx">${it.notes.map((n) => `<li>${esc(n)}</li>`).join('')}</ul>` : '';
+    const links = (it.links || []).filter((l) => safeHref(l.href)).map((l) => `<a class="btn line" href="${esc(l.href)}" target="_blank" rel="noopener">${esc(l.label)}</a>`).join('');
+    const confirm = `Approve "${it.title}"? ${it.detail || ''}`;
+    act = `${notes}${links ? `<div class="qopts">${links}</div>` : ''}
     <div class="qopts">
       <button type="button" class="btn" data-tdecide="${esc(it.decideUrl)}" data-decision="approve" data-confirm="${esc(confirm)}">Approve</button>
       <button type="button" class="btn line" data-tdecide="${esc(it.decideUrl)}" data-decision="reject">Reject</button></div>`;

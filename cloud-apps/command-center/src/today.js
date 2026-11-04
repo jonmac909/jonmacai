@@ -152,14 +152,37 @@ function itemAt(at) {
   return Number.isFinite(t) ? t : Infinity;
 }
 
+// Approvals in plain words (Jon, 2026-11-04: "never show code like this for Todo"). The payload stays in
+// the backend; Jon sees what it does, a short note and labelled links. Local file paths never show.
+const PLATFORMS = { instagram: 'Instagram', instagram_reels: 'Instagram', facebook: 'Facebook', facebook_reels: 'Facebook', tiktok: 'TikTok', youtube: 'YouTube', youtube_shorts: 'YouTube Shorts', x: 'X', threads: 'Threads', linkedin: 'LinkedIn' };
+const LINK_LABELS = { review_link: 'Watch video', source_link: 'Source' };
+const andList = (a) => (a.length < 2 ? a.join('') : `${a.slice(0, -1).join(', ')} and ${a[a.length - 1]}`);
+const words = (t) => String(t).replace(/[A-Za-z]:[\\/][^\s,;)]*/g, (m) => m.split(/[\\/]/).filter(Boolean).pop()).trim();
+const short = (t) => (t.length > 160 ? `${t.slice(0, 157).trimEnd()}…` : t);
+
+export function plainApproval(action, p) {
+  p = p && typeof p === 'object' ? p : {};
+  const does = [];
+  if (Array.isArray(p.platforms) && p.platforms.length) does.push(`Posts to ${andList([...new Set(p.platforms.map((x) => PLATFORMS[x] || String(x).replace(/_/g, ' ')))])}`);
+  if (p.x) does.push('saves an X draft for you to post');
+  if (Array.isArray(p.channels) && p.channels.length) {
+    const hosts = p.channels.map((c) => c?.host || c?.name).filter(Boolean);
+    does.push(`Creates ${p.channels.length} channel${p.channels.length > 1 ? 's' : ''}${p.price ? ` at $${p.price}` : ''}${hosts.length ? `: ${andList(hosts)}` : ''}`);
+  }
+  if (!does.length) does.push(`Runs ${String(action || 'the task').replace(/_/g, ' ')}`);
+  const note = typeof p.note === 'string' ? p.note.split(/(?<=[.!?])\s+/).filter(Boolean).slice(0, 2) : [];
+  const steps = Array.isArray(p.steps) ? p.steps : typeof p.steps === 'string' ? [p.steps] : [];
+  const links = Object.entries(p).filter(([k, v]) => typeof v === 'string' && /^https?:\/\//i.test(v))
+    .map(([k, v]) => ({ label: LINK_LABELS[k] || k.replace(/_(link|url)$/, '').replace(/_/g, ' ').replace(/^./, (c) => c.toUpperCase()), href: v }));
+  return { does: `${does.join('; ')}.`.replace(/^./, (c) => c.toUpperCase()), notes: [...note, ...steps].slice(0, 3).map((t) => short(words(t))).filter(Boolean), links };
+}
+
 // One bot approval or question as Jon acts on it; the Projects board shows the same items.
 export function approvalItem(a) {
-  // Jon must see exactly what the bot will run, not just its own title for it (payloads are
-  // capped at 4000 formatted characters when requested, so this is always the whole thing).
+  const plain = plainApproval(a.action, a.payload);
   return {
     id: a.id, kind: 'approval', rank: 1, cls: 'risk', title: a.title, from: a.requestedBy, at: a.createdAt,
-    detail: `Runs ${a.action}`, action: a.action,
-    payloadPreview: JSON.stringify(a.payload || {}, null, 2),
+    detail: plain.does, notes: plain.notes, links: plain.links,
     decideUrl: `/dashboard/api/v1/approvals/${a.id}/decide`,
   };
 }
