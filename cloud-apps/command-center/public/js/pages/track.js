@@ -35,8 +35,8 @@ function th(table, key, label, num) {
 }
 
 const stat = (n, text) => (n != null ? text : ''); // blank when Studio has no value, never a guess
-// Average view duration, seconds as Studio shows it: 205 is 3:25.
-const mss = (s) => (s != null ? `${Math.floor(Math.round(s) / 60)}:${String(Math.round(s) % 60).padStart(2, '0')}` : '');
+// Average view duration, seconds as Studio shows it: 205 is 3:25. A dash while neither Analytics nor Studio has one (Jon, 2026-11-04).
+const mss = (s) => (s != null ? `${Math.floor(Math.round(s) / 60)}:${String(Math.round(s) % 60).padStart(2, '0')}` : '-');
 
 function videoRow(v) {
   const [label, cls] = STAGE[v.status] || STATUS[v.calendarStatus] || [v.calendarStatus, ''];

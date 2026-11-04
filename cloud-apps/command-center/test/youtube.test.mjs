@@ -157,7 +157,7 @@ test('opening Track syncs views, status and subs once per 20 minutes, and status
   try {
     const snap = await (await call(env, '/snapshot?pages=track')).json();
     const v = snap.pages.track.videos.find((x) => x.title === 'Road test');
-    assert.deepEqual([v.views, v.subs, v.avd, v.status], [900, 7, 205, 'live'], 'Analytics views, not the public 950');
+    assert.deepEqual([v.views, v.subs, v.avd, v.status], [950, 7, 205, 'live'], 'the larger of Analytics 900 and public 950 (Jon, 2026-11-04)');
     const soon = await db.prepare('SELECT status, scheduled_at, scheduled_date FROM yt_stats WHERE youtube_id = ?').bind(SOON).first();
     assert.deepEqual({ ...soon }, { status: 'scheduled', scheduled_at: '2099-01-02T17:00:00.000Z', scheduled_date: '2099-01-02' });
     const dataCalls = g.calls.filter((c) => ['channel', 'playlist', 'videos'].includes(c.name)).length;
@@ -248,7 +248,7 @@ test('the cron syncs views, status and subs hourly with nobody opening Track', a
   const g = google();
   const t = Date.parse('2026-11-04T14:00:00Z');
   await syncStats(env, g.fetchFn, t);
-  assert.equal((await db.prepare('SELECT views FROM yt_stats WHERE youtube_id = ?').bind(VID).first()).views, 900);
+  assert.equal((await db.prepare('SELECT views FROM yt_stats WHERE youtube_id = ?').bind(VID).first()).views, 950, 'the larger of Analytics 900 and public 950');
   const n = g.calls.length;
   await syncStats(env, g.fetchFn, t + 30 * 60 * 1000);
   assert.equal(g.calls.length, n, 'not again within the hour');
@@ -320,6 +320,6 @@ test('while Analytics lags, the Studio reader\'s views, AVD and subs stay (Giova
   await syncStats(env, google({ analytics: (_i, url) => new Response(JSON.stringify({ rows: url.includes('dimensions=video') ? [[VID, '1', '55', '0', '0']] : [['1', '55', '0', '0']] })) }).fetchFn);
   const snap = await (await call(env, '/snapshot?pages=track')).json();
   const v = snap.pages.track.videos.find((x) => x.title === 'Road test');
-  assert.deepEqual([v.views, v.avd, v.subs], [71, 205, 1]);
-  assert.deepEqual(allRow(track(snap.pages.track, {}, ''), 'peter-collins').slice(-3), ['3:25', '71', '120']);
+  assert.deepEqual([v.views, v.avd, v.subs], [950, 205, 1], 'views: the larger of Studio 71 and public 950');
+  assert.deepEqual(allRow(track(snap.pages.track, {}, ''), 'peter-collins').slice(-3), ['3:25', '950', '120']);
 });
