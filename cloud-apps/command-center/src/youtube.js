@@ -247,7 +247,7 @@ async function syncChannel(env, fetchFn, row, nowMs) {
     const s = { ...statsOf(v, nowMs), ...(lag ? {} : a) };
     const fields = Object.keys(s);
     if (!YOUTUBE_ID_RE.test(v.id || '') || !fields.length) continue;
-    const set = (k) => (lag && k === 'views' ? `views = COALESCE(yt_stats.views, excluded.views)` : `${k} = excluded.${k}`);
+    const set = (k) => (lag && k === 'views' ? 'views = CASE WHEN yt_stats.views > 0 THEN yt_stats.views ELSE excluded.views END' : `${k} = excluded.${k}`);
     // A field YouTube didn't give keeps its value, like the old stats route.
     statements.push(env.DB.prepare(`INSERT INTO yt_stats (youtube_id, ${fields.join(', ')}, updated_at) VALUES (?, ${fields.map(() => '?').join(', ')}, ?)
       ON CONFLICT (youtube_id) DO UPDATE SET ${fields.map(set).join(', ')}, updated_at = excluded.updated_at`).bind(v.id, ...fields.map((k) => s[k]), now));
