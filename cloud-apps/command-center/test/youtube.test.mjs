@@ -250,3 +250,15 @@ test('the cron syncs views, status and subs hourly with nobody opening Track', a
   await syncStats(env, g.fetchFn, t + 61 * 60 * 1000);
   assert.ok(g.calls.length > n);
 });
+
+test('a failed connect shows Google\'s reason, never the token', async () => {
+  const { db, env } = await setup();
+  const off = await connect(env, google({ me: () => new Response(JSON.stringify({ error: { message: 'YouTube Data API v3 has not been used in project 1 before or it is disabled.' } }), { status: 403 }) }));
+  assert.equal(off.status, 502);
+  const html = await off.text();
+  assert.match(html, /YouTube did not answer \(www channels answered 403: YouTube Data API v3 has not been used/);
+  assert.doesNotMatch(html, /refresh-token|"at"/);
+  const bad = await connect(env, google({ token: () => new Response(JSON.stringify({ error: 'redirect_uri_mismatch' }), { status: 400 }) }));
+  assert.match(await bad.text(), /Google did not give lasting access \(400 redirect_uri_mismatch\)/);
+  assert.equal(await db.prepare('SELECT COUNT(*) AS n FROM yt_api').first().then((x) => x.n), 0);
+});
