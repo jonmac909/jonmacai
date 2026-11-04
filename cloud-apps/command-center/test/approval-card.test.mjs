@@ -22,3 +22,9 @@ test('steps show as bullets with local paths cut to the last folder or file name
   assert.deepEqual(it.notes, ['Open handoff and double-click it', 'Restart GPU1']);
   assert.deepEqual(it.links, []);
 });
+
+test('links inside notes stay whole; odd step and platform values are dropped', () => {
+  const it = approvalItem({ id: 'a7', action: 'x', title: 't', payload: { platforms: [null, 'tiktok'], note: 'Review at https://jonmac.ai/review/x first.', steps: [null, { a: 1 }, 'Then post'] } });
+  assert.equal(it.detail, 'Posts to TikTok.');
+  assert.deepEqual(it.notes, ['Review at https://jonmac.ai/review/x first.', 'Then post']);
+});

@@ -157,13 +157,13 @@ function itemAt(at) {
 const PLATFORMS = { instagram: 'Instagram', instagram_reels: 'Instagram', facebook: 'Facebook', facebook_reels: 'Facebook', tiktok: 'TikTok', youtube: 'YouTube', youtube_shorts: 'YouTube Shorts', x: 'X', threads: 'Threads', linkedin: 'LinkedIn' };
 const LINK_LABELS = { review_link: 'Watch video', source_link: 'Source' };
 const andList = (a) => (a.length < 2 ? a.join('') : `${a.slice(0, -1).join(', ')} and ${a[a.length - 1]}`);
-const words = (t) => String(t).replace(/[A-Za-z]:[\\/][^\s,;)]*/g, (m) => m.split(/[\\/]/).filter(Boolean).pop()).trim();
+const words = (t) => String(t).replace(/(^|[\s"'(])([A-Za-z]:[\\/][^\s,;)]*)/g, (m, pre, path) => pre + path.split(/[\\/]/).filter(Boolean).pop()).trim();
 const short = (t) => (t.length > 160 ? `${t.slice(0, 157).trimEnd()}…` : t);
 
 export function plainApproval(action, p) {
   p = p && typeof p === 'object' ? p : {};
   const does = [];
-  if (Array.isArray(p.platforms) && p.platforms.length) does.push(`Posts to ${andList([...new Set(p.platforms.map((x) => PLATFORMS[x] || String(x).replace(/_/g, ' ')))])}`);
+  if (Array.isArray(p.platforms) && p.platforms.length) does.push(`Posts to ${andList([...new Set(p.platforms.filter((x) => typeof x === 'string').map((x) => PLATFORMS[x] || String(x).replace(/_/g, ' ')))])}`);
   if (p.x) does.push('saves an X draft for you to post');
   if (Array.isArray(p.channels) && p.channels.length) {
     const hosts = p.channels.map((c) => c?.host || c?.name).filter(Boolean);
@@ -171,9 +171,9 @@ export function plainApproval(action, p) {
   }
   if (!does.length) does.push(`Runs ${String(action || 'the task').replace(/_/g, ' ')}`);
   const note = typeof p.note === 'string' ? p.note.split(/(?<=[.!?])\s+/).filter(Boolean).slice(0, 2) : [];
-  const steps = Array.isArray(p.steps) ? p.steps : typeof p.steps === 'string' ? [p.steps] : [];
+  const steps = Array.isArray(p.steps) ? p.steps.filter((x) => typeof x === 'string') : typeof p.steps === 'string' ? [p.steps] : [];
   const links = Object.entries(p).filter(([k, v]) => typeof v === 'string' && /^https?:\/\//i.test(v))
-    .map(([k, v]) => ({ label: LINK_LABELS[k] || k.replace(/_(link|url)$/, '').replace(/_/g, ' ').replace(/^./, (c) => c.toUpperCase()), href: v }));
+    .map(([k, v]) => ({ label: LINK_LABELS[k] || k.replace(/_(link|url)$/, '').replace(/_/g, ' ').replace(/^./, (c) => c.toUpperCase()), href: v })).slice(0, 3);
   return { does: `${does.join('; ')}.`.replace(/^./, (c) => c.toUpperCase()), notes: [...note, ...steps].slice(0, 3).map((t) => short(words(t))).filter(Boolean), links };
 }
 
