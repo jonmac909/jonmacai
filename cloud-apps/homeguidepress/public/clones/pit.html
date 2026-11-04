@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Pitbull Playbook · Build the Pitbull of your dreams in 14 days</title>
+<meta name="description" content="Build the Pitbull of your dreams in 14 days with 20 minutes a day: calm on walks, polite with guests, and a watchful dog who listens. $27 once, 30-day money back.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 64 64%27%3E%3Crect width=%2764%27 height=%2764%27 rx=%2712%27 fill=%27%231d2a1e%27/%3E%3Ctext x=%2732%27 y=%2744%27 font-family=%27Arial%27 font-weight=%27bold%27 font-size=%2734%27 fill=%27%23e9c877%27 text-anchor=%27middle%27%3EP%3C/text%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400&display=swap" rel="stylesheet">
+<style>
+  :root{--navy:#1d2a1e;--purple:#7a1f0e;--purple2:#8c3520;--black:#15110b;--ink:#15110b;--gray:#3d3426;--panel:#e9e0c2;--paper:#f2ebd4;--gold:#e9c877}
+  *{margin:0;padding:0;box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{font-family:'Poppins',system-ui,-apple-system,sans-serif;color:var(--ink);background:var(--paper);line-height:1.5}
+  a{color:inherit}
+  img{max-width:100%;display:block}
+  .wrap{max-width:1080px;margin:0 auto;padding:0 20px}
+  .center{text-align:center}
+  .btn{display:inline-block;background:var(--purple);color:#fff;font-weight:700;font-size:22px;text-transform:uppercase;padding:22px 56px;border-radius:8px;text-decoration:none;letter-spacing:.2px;transition:background .15s,transform .15s}
+  .btn:hover{background:var(--purple2);transform:translateY(-1px)}
+  @media(max-width:640px){.btn{font-size:17px;padding:18px 34px;width:100%;text-align:center}}
+
+  /* ---- top bar ---- */
+  .top{background:var(--black);padding:11px 0;text-align:center;position:sticky;top:0;z-index:50}
+  .top span{display:inline-flex;align-items:center;gap:7px;background:var(--paper);color:var(--ink);font-weight:700;font-size:11px;letter-spacing:.06em;text-transform:uppercase;padding:6px 14px;border-radius:3px}
+  .top i{width:8px;height:8px;border-radius:50%;background:var(--purple);display:inline-block;animation:blink 1.4s infinite}
+  .top .cd{margin-left:6px;padding-left:10px;border-left:1px solid #b9ad8b;color:var(--purple);font-variant-numeric:tabular-nums;letter-spacing:.04em}
+  @keyframes blink{50%{opacity:.25}}
+
+  /* ---- hero ---- */
+  .hero{background:var(--navy);color:#fff;text-align:center;padding:64px 0 0}
+  .hero h1{font-size:64px;line-height:1.05;font-weight:800;text-transform:uppercase;max-width:900px;margin:0 auto 26px}
+  .hero .sub{font-size:32px;font-weight:300;line-height:1.3;max-width:820px;margin:0 auto 28px;color:#d9d2b6}
+  @media(max-width:760px){.hero{padding-top:44px}.hero h1{font-size:36px}.hero .sub{font-size:20px}}
+  .vwrap{max-width:490px;margin:0 auto -140px;position:relative;z-index:2}
+  .video{position:relative;aspect-ratio:16/9;background:#000;overflow:hidden}
+  .video img{width:100%;height:100%;object-fit:cover;opacity:.75}
+  .video .play{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;cursor:pointer}
+  .video .play b{width:70px;height:70px;border-radius:50%;background:rgba(40,40,60,.75);border:2px solid rgba(255,255,255,.4);display:flex;align-items:center;justify-content:center}
+  .video .play b::after{content:'';border-left:22px solid #fff;border-top:13px solid transparent;border-bottom:13px solid transparent;margin-left:5px}
+  .video iframe,.video video{position:absolute;inset:0;width:100%;height:100%;border:0}
+  .herospace{height:170px;background:var(--paper)}
+  @media(max-width:640px){.vwrap{max-width:100%;padding:0 20px;margin-bottom:-95px}.herospace{height:120px}}
+
+  /* ---- lead ---- */
+  .lead{padding:30px 0 56px;text-align:center}
+  .lead p{font-size:22px;font-weight:400;max-width:680px;margin:0 auto 34px;line-height:1.45}
+  .lead p b{font-weight:700}
+  @media(max-width:640px){.lead p{font-size:18px}}
+
+  /* ---- textured panel ---- */
+  .panel{margin:0 auto;background:var(--panel);border-radius:32px;padding:44px 20px 40px;position:relative;overflow:hidden;max-width:1110px}
+  .panel::before{content:'';position:absolute;inset:0;opacity:.35;background-image:radial-gradient(#9a8c6a 0.6px,transparent 0.7px);background-size:5px 5px;pointer-events:none}
+  .panel>*{position:relative}
+  .panel h2{font-size:30px;font-weight:700;text-align:center;margin-bottom:26px}
+  .vreview{width:340px;aspect-ratio:9/16;margin:0 auto 26px;background:#222;position:relative;overflow:hidden}
+  .vreview img{width:100%;height:100%;object-fit:cover}
+  .vreview .play{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;cursor:pointer}
+  .vreview .play b{width:60px;height:60px;border-radius:50%;background:rgba(40,40,60,.7);border:2px solid rgba(255,255,255,.4);display:flex;align-items:center;justify-content:center}
+  .vreview .play b::after{content:'';border-left:18px solid #fff;border-top:11px solid transparent;border-bottom:11px solid transparent;margin-left:4px}
+  .vreview video,.vreview iframe{position:absolute;inset:0;width:100%;height:100%;border:0}
+  @media(max-width:640px){.vreview{width:min(300px,100%)}}
+
+  /* google-style review cards */
+  .greviews{position:relative;display:flex;justify-content:center;gap:16px;flex-wrap:wrap;align-items:flex-start;max-width:900px;margin:0 auto}
+  .grev{background:#faf6e8;border-radius:6px;box-shadow:0 8px 24px rgba(0,0,0,.14);padding:14px 16px;width:290px;font-size:11.5px;line-height:1.45;color:#222;text-align:left}
+  .grev .h{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+  .grev .av{width:30px;height:30px;border-radius:50%;object-fit:cover;background:#c33;color:#fff;font-weight:600;display:flex;align-items:center;justify-content:center;font-size:13px;flex:none}
+  .grev .nm{font-weight:600;font-size:12.5px}
+  .grev .meta{color:#666;font-size:10.5px}
+  .grev .st{color:#f5a623;font-size:11px;letter-spacing:1px;margin:2px 0 6px}
+  .grev .st small{color:#666;letter-spacing:0;margin-left:6px;font-family:inherit}
+  .grev .new{display:inline-block;border:1px solid #ccc;border-radius:3px;font-size:9px;padding:0 4px;margin-left:6px;color:#444}
+  .grev mark{background:#f3e08a;padding:0 1px}
+  .grev .ph{width:64px;height:64px;object-fit:cover;border-radius:3px;margin-top:8px}
+  .grev.r1{transform:rotate(-3deg)}.grev.r2{transform:rotate(2deg) translateY(10px)}.grev.r3{transform:rotate(4deg)}
+  .disc{max-width:520px;margin:30px auto 0;text-align:center;font-size:16px;line-height:1.35;color:#333;transform:rotate(-2deg);opacity:.85}
+  @media(max-width:640px){.grev{width:100%;transform:none!important}.disc{transform:none;font-size:13px}}
+
+
+  /* Five customer reviews together, in the Tyler card style. */
+  .customer-reviews{margin:0 auto 46px;max-width:1110px;padding:42px 28px 36px;background:var(--panel);border-radius:32px;position:relative}
+  .customer-reviews h2{font-size:30px;font-weight:700;text-align:center;margin:0 0 30px}
+  .customer-reviews .greviews{max-width:970px;display:flex;flex-wrap:wrap;justify-content:center;gap:22px 16px;align-items:stretch;margin:0 auto}
+  .customer-reviews .grev{flex:0 1 305px;width:305px;background:#faf6e8;border-radius:6px;box-shadow:0 8px 24px rgba(0,0,0,.14);padding:18px 19px;font-size:13px;line-height:1.48;color:#222;text-align:left}
+  .customer-reviews .grev:nth-child(3n+1){transform:rotate(-1.1deg)}
+  .customer-reviews .grev:nth-child(3n+2){transform:rotate(.8deg)}
+  .customer-reviews .grev:nth-child(3n){transform:rotate(1deg)}
+  .customer-reviews .grev .h{display:flex;align-items:center;gap:9px;margin-bottom:8px}
+  .customer-reviews .grev .av{width:38px;height:38px;border-radius:50%;object-fit:cover;background:#d4c8aa;flex:none}
+  .customer-reviews .grev .av.avatar-initial{display:flex;align-items:center;justify-content:center;background:#647c8a;color:#fff;font-size:18px;font-weight:600}
+  .customer-reviews .grev.r5 .av.avatar-initial{background:#91806a}
+  .customer-reviews .grev .nm{font-size:13.5px;font-weight:700}
+  .customer-reviews .grev .st{color:#f5a623;font-size:13px;letter-spacing:1px;margin:2px 0 8px}
+  .customer-reviews .grev .st small{color:#666;letter-spacing:0;margin-left:7px;font-size:11px;font-family:inherit}
+  .customer-reviews .grev p{margin:0}
+  @media(max-width:760px){.customer-reviews{margin:0 14px 40px;padding:34px 18px}.customer-reviews h2{font-size:25px}.customer-reviews .grev{flex-basis:100%;width:100%;transform:none!important}}
+
+  /* ---- torn banner ---- */
+  .torn{margin:40px auto;max-width:1110px;background:var(--black);color:#fff;text-align:center;padding:46px 20px;clip-path:polygon(0 8%,3% 2%,7% 9%,11% 3%,15% 8%,19% 1%,24% 7%,28% 3%,33% 9%,37% 2%,41% 8%,46% 3%,50% 9%,54% 2%,58% 7%,63% 3%,67% 9%,71% 2%,75% 8%,80% 3%,84% 9%,88% 2%,92% 8%,96% 3%,100% 8%,100% 92%,97% 98%,93% 91%,89% 97%,85% 92%,81% 99%,76% 93%,72% 97%,67% 91%,63% 98%,59% 92%,54% 97%,50% 91%,46% 98%,42% 93%,37% 97%,33% 91%,29% 98%,25% 92%,20% 97%,16% 91%,12% 98%,8% 92%,4% 97%,0 92%)}
+  .torn h2{font-size:38px;font-weight:700;line-height:1.15}
+  .torn h2 u{text-decoration:underline;text-underline-offset:6px;color:var(--gold)}
+  @media(max-width:640px){.torn h2{font-size:24px}}
+
+  /* ---- 3 columns ---- */
+  .cols{display:grid;grid-template-columns:repeat(3,1fr);gap:22px;margin:60px auto 40px;max-width:940px}
+  @media(max-width:760px){.cols{grid-template-columns:1fr;gap:40px}}
+  .col{text-align:center}
+  .col h3{font-size:18px;font-weight:700;margin-bottom:22px;min-height:54px;display:flex;align-items:flex-start;justify-content:center}
+  .col img{width:100%;aspect-ratio:3/2;object-fit:cover;border-radius:6px;margin-bottom:16px}
+  .col p{font-size:15px;line-height:1.45;color:#222}
+  .col p b{font-weight:700}
+
+  /* ---- scattered reviews 2 ---- */
+  .scatter{position:relative;max-width:900px;margin:60px auto 40px;display:grid;grid-template-columns:1fr 1fr;gap:20px;align-items:start}
+  .scatter .grev{width:auto;font-size:12.5px}
+  .scatter .grev.big{grid-column:2;transform:translateY(-30px)}
+  .scatter .grev.mid{grid-column:1/3;width:60%;margin:-20px auto 0}
+  .scatter .grev .ph{width:100px;height:100px}
+  @media(max-width:760px){.scatter{grid-template-columns:1fr}.scatter .grev.big{grid-column:1;transform:none}.scatter .grev.mid{grid-column:1;width:100%;margin:0}}
+
+  /* ---- order card ---- */
+  .order{max-width:520px;margin:50px auto 60px;background:#faf6e8;border:1px solid #cfc4a6;border-radius:8px;box-shadow:0 10px 30px rgba(0,0,0,.08);overflow:hidden}
+  .order .steps{display:flex;justify-content:center;gap:22px;font-size:12px;color:#888;padding:12px;border-bottom:1px solid #e3d9b8}
+  .order .steps i{display:inline-block;width:7px;height:7px;border-radius:50%;background:#ccc;margin-right:6px}
+  .order .steps .on{color:#222}.order .steps .on i{background:var(--purple)}
+  .order .body{padding:22px 22px 10px}
+  .order h3{font-size:17px;font-weight:600;margin-bottom:6px}
+  .order .s{font-size:13px;color:#555;margin-bottom:14px}
+  .order .row{display:flex;justify-content:space-between;font-size:14px;padding:8px 0;border-top:1px solid #e3d9b8}
+  .order .row.tot{font-weight:600;font-size:16px}
+  .order .row s{color:#999;margin-right:6px;font-weight:400}
+  .order .cta{padding:16px 22px 10px}
+  .order .cta .btn{width:100%;text-align:center;font-size:16px;padding:16px;text-transform:none;font-weight:500}
+  .order .fine{font-size:11px;color:#777;padding:0 22px 18px;text-align:center}
+
+  /* ---- FAQ ---- */
+  .faq{max-width:740px;margin:60px auto 30px}
+  .faq details{margin-bottom:32px}
+  .faq summary{list-style:none;cursor:pointer;background:var(--navy);color:#fff;font-weight:700;font-size:20px;text-align:center;padding:18px 44px;border-radius:6px;position:relative}
+  .faq summary::-webkit-details-marker{display:none}
+  .faq summary::after{content:'+';position:absolute;right:18px;top:50%;transform:translateY(-50%);font-size:22px;font-weight:400}
+  .faq details[open] summary::after{content:'×'}
+  .faq .a{padding:22px 12px 0;font-size:17px;line-height:1.35;color:var(--gray)}
+  .faq .a p{margin-bottom:16px}
+  .faq .a b{font-weight:700}
+  @media(max-width:640px){.faq summary{font-size:16px;padding:14px 40px}.faq .a{font-size:15px}}
+
+  .gline{display:flex;justify-content:center;align-items:center;gap:6px;margin-top:12px;font-size:13px;font-weight:600;color:#5a5240;letter-spacing:.01em}
+  .gline svg{color:var(--purple)}
+  /* ---- footer ---- */
+  footer{background:var(--navy);color:#e8e1c7;padding:36px 0 40px;margin-top:60px}
+  footer .logo{font-weight:800;font-size:18px;letter-spacing:.02em;text-transform:uppercase;margin-bottom:20px}
+  footer .links{text-align:center;font-size:14px;margin-bottom:22px}
+  footer .links a{margin:0 10px;text-decoration:none}
+  footer .disc{transform:none;opacity:1;color:#fff;font-size:11.5px;line-height:1.35;max-width:880px;margin:0 auto;text-align:center}
+  .hero h1{font-size:54px;max-width:960px;text-transform:none}
+  .hero h1 em{font-style:normal;color:var(--gold)}
+  .hero .sub{font-size:20px;font-weight:400;max-width:780px;line-height:1.5}
+  .hero .sub b{font-weight:700;color:#fff}
+  @media(max-width:760px){.hero h1{font-size:32px}.hero .sub{font-size:16px}}
+  .hero h1{font-size:54px;max-width:960px;text-transform:none}
+  .hero h1 em{font-style:normal;color:var(--gold)}
+  .hero .sub{font-size:20px;font-weight:400;max-width:780px;line-height:1.5}
+  .hero .sub b{font-weight:700;color:#fff}
+  @media(max-width:760px){.hero h1{font-size:32px}.hero .sub{font-size:16px}}
+
+  /* ---- no-VSL hero ---- */
+  .hero{padding-bottom:0}
+  .herogrid{display:grid;grid-template-columns:1.15fr .85fr;gap:40px;align-items:end;max-width:1040px;margin:0 auto;text-align:left}
+  .herogrid h1{margin:0 0 22px;text-align:left}
+  .herogrid .sub{margin:0 0 26px;text-align:left}
+  .heroimg{position:relative;align-self:end;width:100%}
+  .heroimg img,.heroimg .mono{width:100%;aspect-ratio:4/5;object-fit:cover;border-radius:18px 18px 0 0;display:block}
+  .heroimg img.book{aspect-ratio:auto;object-fit:contain;border-radius:4px;box-shadow:0 18px 40px rgba(0,0,0,.45);margin-bottom:40px;outline:1px solid rgba(233,200,119,.35)}
+  .heroimg .mono{background:linear-gradient(160deg,#2c3d2d,#15110b);display:flex;align-items:center;justify-content:center;font-size:120px;font-weight:800;color:var(--gold)}
+  .heroimg .tag{position:absolute;left:-18px;bottom:28px;background:var(--paper);color:var(--ink);border-radius:8px;padding:10px 14px;font-size:13px;line-height:1.3;box-shadow:0 8px 24px rgba(0,0,0,.25)}
+  .heroimg .tag b{display:block;font-size:15px}
+  .hero .btn{margin-bottom:12px}
+  .hero .gline{justify-content:flex-start;color:#d9d2b6}
+  .hero .gline svg{color:var(--gold)}
+  .herostats{display:flex;gap:26px;margin:22px 0 40px;flex-wrap:wrap}
+  .herostats div{font-size:13px;color:#cfc7a8;line-height:1.25}
+  .herostats b{display:block;font-size:24px;color:#fff;font-weight:800}
+  @media(max-width:860px){.herogrid{grid-template-columns:1fr;gap:10px;text-align:center}.herogrid h1,.herogrid .sub{text-align:center}.hero .gline{justify-content:center}.herostats{justify-content:center;margin-bottom:26px}.heroimg{max-width:340px;margin:0 auto;width:100%}.heroimg .tag{left:8px}}
+  .lead{padding-top:56px}
+
+  /* ---- story letter ---- */
+  .story{max-width:760px;margin:10px auto 60px;padding:0 20px}
+  .story .kick{font-size:13px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--purple);text-align:center;margin-bottom:10px}
+  .story h2{font-size:36px;line-height:1.15;font-weight:800;text-align:center;margin-bottom:28px}
+  .story p{font-size:18px;line-height:1.6;margin-bottom:18px;color:#2b241a}
+  .story p b{font-weight:700}
+  .story .pull{font-size:22px;font-weight:600;border-left:5px solid var(--purple);padding:4px 0 4px 18px;margin:26px 0;color:var(--ink)}
+  .story .sig{font-style:italic;font-size:20px;margin-top:24px}
+  @media(max-width:640px){.story h2{font-size:26px}.story p{font-size:16px}.story .pull{font-size:18px}}
+
+  /* ---- ledger cards (no-review variant) ---- */
+  .ledger{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;max-width:940px;margin:0 auto}
+  .lcard{background:#faf6e8;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.12);padding:20px 18px;text-align:left}
+  .lcard .n{font-size:30px;font-weight:800;color:var(--purple);line-height:1}
+  .lcard .k{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#6b604a;margin:6px 0 10px;font-weight:600}
+  .lcard p{font-size:14px;line-height:1.5;color:#2b241a}
+  @media(max-width:760px){.ledger{grid-template-columns:1fr}}
+
+  /* ---- math table ---- */
+  .math{max-width:940px;margin:70px auto 30px;padding:0 20px}
+  .math h2{font-size:36px;font-weight:800;text-align:center;line-height:1.15;margin-bottom:12px}
+  .math .intro{text-align:center;font-size:17px;max-width:680px;margin:0 auto 30px;color:var(--gray)}
+  .mgrid{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+  .mcol{background:#faf6e8;border:1px solid #cfc4a6;border-radius:10px;overflow:hidden;display:flex;flex-direction:column}
+  .mcol .mrow.tot{margin-top:auto}
+  .mcol h3{font-size:15px;text-transform:uppercase;letter-spacing:.06em;padding:14px 18px;color:#fff}
+  .mcol.old h3{background:var(--purple)}.mcol.new h3{background:var(--navy)}
+  .mrow{display:flex;justify-content:space-between;gap:10px;padding:11px 18px;border-top:1px solid #e3d9b8;font-size:15px}
+  .mrow span:last-child{font-weight:700;white-space:nowrap}
+  .mrow small{display:block;color:#2f7a3d;font-weight:600;font-size:12px}
+  .mrow.tot{font-size:18px;font-weight:800;background:#efe6c8}
+  .keep{margin:22px auto 0;background:var(--black);color:#fff;border-radius:12px;text-align:center;padding:26px 20px}
+  .keep .l{font-size:13px;letter-spacing:.12em;text-transform:uppercase;color:var(--gold);font-weight:700}
+  .keep .v{font-size:54px;font-weight:800;line-height:1.1;margin:6px 0}
+  .keep p{font-size:15px;color:#d9d2b6;max-width:620px;margin:0 auto}
+  .math .src{font-size:12px;color:#7a705a;text-align:center;margin-top:12px}
+  @media(max-width:760px){.mgrid{grid-template-columns:1fr}.math h2{font-size:26px}.keep .v{font-size:40px}}
+
+  /* ---- 6 cols + icon tiles ---- */
+  .cols.six{grid-template-columns:repeat(3,1fr);row-gap:44px}
+  @media(max-width:760px){.cols.six{grid-template-columns:1fr}}
+  .tile{width:100%;aspect-ratio:3/2;border-radius:6px;margin-bottom:16px;display:flex;align-items:center;justify-content:center;background:var(--navy);position:relative;overflow:hidden}
+  .tile::before{content:'';position:absolute;inset:0;opacity:.18;background-image:radial-gradient(#e9c877 0.8px,transparent 0.9px);background-size:7px 7px}
+  .tile svg{width:74px;height:74px;color:var(--gold);position:relative}
+  .tile .num{position:absolute;left:14px;top:10px;font-size:13px;font-weight:700;color:#d9d2b6;letter-spacing:.08em}
+
+  /* ---- breed section ---- */
+  .breed{max-width:980px;margin:70px auto 20px;padding:0 20px}
+  .breed h2{font-size:36px;font-weight:800;text-align:center;line-height:1.15;margin-bottom:12px}
+  .breed .intro{text-align:center;font-size:17px;max-width:700px;margin:0 auto 30px;color:var(--gray)}
+  .bgrid{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+  .bitem{background:var(--panel);border-radius:14px;padding:22px 22px 18px;position:relative;overflow:hidden}
+  .bitem::before{content:'';position:absolute;inset:0;opacity:.3;background-image:radial-gradient(#9a8c6a 0.6px,transparent 0.7px);background-size:5px 5px;pointer-events:none}
+  .bitem>*{position:relative}
+  .bitem h3{font-size:19px;font-weight:700;margin-bottom:8px}
+  .bitem p{font-size:15px;line-height:1.5;color:#2b241a}
+  .bitem .sv{display:inline-block;margin-top:10px;background:var(--navy);color:#fff;font-size:12px;font-weight:700;padding:4px 10px;border-radius:20px;letter-spacing:.03em}
+  @media(max-width:760px){.bgrid{grid-template-columns:1fr}.breed h2{font-size:26px}}
+
+  .storyimg{width:100%;border-radius:12px;margin:6px 0 26px;box-shadow:0 10px 30px rgba(0,0,0,.15)}
+  .breedimg{width:100%;max-height:440px;object-fit:cover;border-radius:14px;margin:0 0 22px}
+  .bookshow{display:grid;grid-template-columns:240px 1fr;gap:30px;align-items:center;max-width:820px;margin:60px auto 0;padding:0 20px}
+  .bookshow img{width:100%;box-shadow:0 18px 40px rgba(0,0,0,.35);border-radius:3px}
+  .bookshow h2{font-size:30px;font-weight:800;line-height:1.15;margin-bottom:10px}.bookshow p{font-size:16px;color:var(--gray);line-height:1.5}
+  .lastcall{max-width:940px;margin:40px auto 10px;padding:0 20px;display:grid;grid-template-columns:1.1fr .9fr;gap:30px;align-items:center}
+  .lastcall img{width:100%;border-radius:14px;box-shadow:0 10px 30px rgba(0,0,0,.15)}
+  .lastcall h2{font-size:30px;font-weight:800;line-height:1.15;margin-bottom:12px}.lastcall p{font-size:16px;color:var(--gray);margin-bottom:18px}
+  @media(max-width:760px){.bookshow,.lastcall{grid-template-columns:1fr;text-align:center}.bookshow img{max-width:240px;margin:0 auto}}
+  /* ---- guarantee ---- */
+  .guar{max-width:760px;margin:10px auto 20px;display:flex;gap:24px;align-items:center;background:#faf6e8;border:2px dashed #b9ad8b;border-radius:14px;padding:26px}
+  .guar .seal{flex:none;width:110px;height:110px;border-radius:50%;background:var(--purple);color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;font-weight:800;line-height:1.05;box-shadow:0 0 0 6px #faf6e8,0 0 0 8px var(--purple)}
+  .guar .seal b{font-size:38px}.guar .seal span{font-size:11px;letter-spacing:.08em;text-transform:uppercase}
+  .guar h3{font-size:22px;font-weight:800;margin-bottom:6px}
+  .guar p{font-size:15.5px;line-height:1.5;color:#2b241a}
+  @media(max-width:640px){.guar{flex-direction:column;text-align:center}}
+  /* ---- what you'll learn (carousel) ---- */
+  .learn{background:#0f0e0d;color:#f5efe4;padding:70px 0 64px;margin:50px 0 0}
+  .learn h2{font-size:40px;font-weight:800;line-height:1.1;margin-bottom:8px}
+  .learn h2 em{font-style:normal;color:var(--gold)}
+  .learn .lsub{font-size:17px;color:#cfc6b6;margin-bottom:28px}
+  .lrail{display:flex;gap:18px;overflow-x:auto;scroll-snap-type:x mandatory;scroll-padding-left:20px;padding:4px 20px 18px;margin:0 -20px;scrollbar-width:none}
+  .lrail::-webkit-scrollbar{display:none}
+  .lcard{flex:0 0 290px;scroll-snap-align:start;background:linear-gradient(180deg,#1b1916,#121110);border:1px solid #2c2925;border-radius:16px;overflow:hidden}
+  .lviz{height:190px;position:relative;display:flex;align-items:center;justify-content:center;overflow:hidden;background:radial-gradient(120% 90% at 50% 100%,rgba(214,187,138,.22),transparent 60%)}
+  .lcard .lt{padding:18px 20px 22px}
+  .lcard h3{font-size:18px;font-weight:700;margin-bottom:8px;color:#fff}.lcard h3 em{font-style:normal;color:var(--gold)}
+  .lcard p{font-size:14.5px;line-height:1.5;color:#d8d0c2}.lcard p b{color:#fff}
+  .lnav{display:flex;gap:10px;justify-content:flex-end;margin-top:6px}
+  .lnav button{width:44px;height:44px;border-radius:50%;border:1px solid #3a352f;background:#1b1916;color:var(--gold);font-size:20px;cursor:pointer}
+  .v-word{font-family:Georgia,'Times New Roman',serif;font-size:76px;font-weight:700;color:#efe4cf;letter-spacing:-1px;text-shadow:0 6px 30px rgba(214,187,138,.35)}
+  .chip{position:absolute;background:#24211d;border:1px solid #3a352f;color:#efe4cf;font-size:12px;font-weight:600;padding:6px 10px;border-radius:8px}
+  .chip.g{background:var(--gold);color:#141210;border-color:var(--gold)}
+  .bars{display:flex;align-items:flex-end;gap:12px;height:150px;padding-top:24px}
+  .bars div{width:38px;border-radius:8px 8px 3px 3px;background:linear-gradient(180deg,#5a544c,#26231f);position:relative}
+  .bars div.g{background:linear-gradient(180deg,#f1dcae,#b8955c);box-shadow:0 0 30px rgba(214,187,138,.5)}
+  .bars div span{position:absolute;top:-22px;left:50%;transform:translateX(-50%);font-size:11px;font-weight:600;color:#cfc6b6;white-space:nowrap}
+  .bars div.g span{color:var(--gold);font-size:13px}
+  .vs{display:flex;flex-direction:column;gap:10px;width:78%}
+  .vs div{display:flex;justify-content:space-between;align-items:center;padding:12px 14px;border-radius:10px;font-weight:700;font-size:15px}
+  .vs .no{background:#24211d;color:#8f877b;text-decoration:line-through}.vs .yes{background:var(--gold);color:#141210}
+  .sw{display:flex;gap:10px}.sw i{width:34px;height:34px;border-radius:50%;display:block;border:2px solid #2c2925}
+  .sw i.on{outline:2px solid var(--gold);outline-offset:3px}
+  .hair{width:78%;height:34px;border-radius:20px;background:linear-gradient(90deg,#2b1d14,#5b3d27,#9a7451,#c9a77c,#e3cfae,#d9d6d2)}
+  .timer{font-family:Georgia,serif;font-size:70px;color:#efe4cf}
+  .steps4{display:flex;flex-direction:column;gap:8px;width:80%}
+  .steps4 div{display:flex;gap:10px;align-items:center;background:#24211d;border:1px solid #3a352f;border-radius:10px;padding:8px 12px;font-size:13px;font-weight:600;color:#efe4cf}
+  .steps4 div b{width:22px;height:22px;border-radius:50%;background:#3a352f;display:flex;align-items:center;justify-content:center;font-size:12px}
+  .steps4 div.g{background:rgba(214,187,138,.18);border-color:var(--gold)}.steps4 div.g b{background:var(--gold);color:#141210}
+  @media(max-width:640px){.learn h2{font-size:30px}.lcard{flex-basis:82%}}
+
+  /* ---- why listen (timeline) ---- */
+  .why{padding:70px 0 20px}
+  .why .kick{text-align:center;font-size:12px;font-weight:700;letter-spacing:.2em;text-transform:uppercase;color:#8d6e3f}
+  .why h2{text-align:center;font-size:40px;font-weight:800;margin:8px 0 8px}
+  .why .wsub{text-align:center;color:var(--gray);font-size:17px;max-width:620px;margin:0 auto}
+  .tl{position:relative;margin:50px auto 0;max-width:960px}
+  .tl:before{content:"";position:absolute;left:50%;top:0;bottom:0;width:1px;background:#d8cbb4}
+  .ts{display:grid;grid-template-columns:1fr 1fr;gap:64px;align-items:center;margin-bottom:56px;position:relative}
+  .ts:after{content:"✦";position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);color:#8d6e3f;background:var(--paper);padding:6px;font-size:16px}
+  .ts .n{font-size:12px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:#8d6e3f}
+  .ts h3{font-size:26px;font-weight:700;line-height:1.2;margin:8px 0 12px}
+  .ts p{font-size:16.5px;line-height:1.55;color:var(--gray);margin-bottom:10px}
+  .ts .ph{border-radius:16px;overflow:hidden;box-shadow:0 16px 40px rgba(0,0,0,.14);background:#141210}
+  .ts .ph img{width:100%;aspect-ratio:3/2;object-fit:cover;object-position:center 30%}
+  .ts .ph.tall{max-width:380px;margin:0 auto}
+  .ts .ph .q{padding:40px 30px;font-family:Georgia,serif;font-style:italic;font-size:24px;color:#efe4cf;text-align:center;line-height:1.35}
+  .ts.rev .tx{order:2}
+  @media(max-width:800px){.tl:before,.ts:after{display:none}.ts{grid-template-columns:1fr;gap:18px;margin-bottom:40px}.ts.rev .tx{order:0}.why h2{font-size:30px}}
+  /* Tyler palette for the Alex-style sections */
+  .learn{background:var(--navy)}
+  .lcard{background:linear-gradient(180deg,#273a2a,#18241a);border-color:#34493a}
+  .lviz{background:radial-gradient(120% 90% at 50% 100%,rgba(233,200,119,.22),transparent 60%)}
+  .chip{background:#22321f;border-color:#3c5240;color:#f2ebd4}
+  .vs .no{background:#22321f}.steps4 div{background:#22321f;border-color:#3c5240}
+  .bars div{background:linear-gradient(180deg,#5b6a58,#26352a)}
+  .lnav button{background:#22321f;border-color:#3c5240}
+  .why .kick,.ts .n{color:var(--purple)}
+  .ts:after{color:var(--purple)}
+  .tl:before{background:#cfc4a6}
+  .two{max-width:740px;margin:10px auto 30px;text-align:center}
+  .two h2{font-size:32px;font-weight:700;margin-bottom:14px}
+  .two p{font-size:19px;line-height:1.5;margin-bottom:12px;color:var(--gray)}
+  footer .links{display:flex;flex-wrap:wrap;justify-content:center;gap:6px 18px}footer .links a{margin:0}
+  @media(max-width:640px){.top span{flex-wrap:wrap;justify-content:center;font-size:10px;padding:6px 10px;max-width:calc(100% - 24px);line-height:1.4}.top .cd{border-left:0;padding-left:0;margin-left:0}}
+  .hero .vwrap .video img{opacity:1;object-position:center 25%}
+  .ts .ph img{object-position:center 25%}
+  .video{cursor:pointer}.video video{position:absolute;inset:0;width:100%;height:100%;border:0}
+</style>
+</head>
+<body>
+
+<div class="top"><span id="topbar"><i></i>20 minutes a day · 30-day money-back guarantee</span></div>
+
+<section class="hero">
+  <div class="wrap">
+    <h1>Build The <em>Pitbull Of Your Dreams</em> In The Next <em>14 Days</em> With Just 20 Minutes A Day</h1>
+    <p class="sub">Calm on walks. Polite with guests. Waits at the door. Comes when called. <b>And a watchful dog who tells you someone is at the door:</b> he alerts you when someone knocks, then settles the moment you tell him. No trainer bill, no shock collar, no yelling, just a simple day-by-day plan you can start tonight.</p>
+    <div class="vwrap"><div class="video" id="video"><img src="/clones/pit-assets/hero.jpg" alt="Dale Whitaker with his two Pitbulls on the porch"><div class="play" id="play"><b></b></div></div></div>
+  </div>
+</section>
+<div class="herospace"></div>
+
+<section class="lead" id="lead">
+  <div class="wrap">
+    <p>It's a 194-page book with <b>a complete 14-day plan</b> for turning a pulling, jumping, out-of-control bully into the dog you pictured when you brought him home: calm, polite, easy to walk, and <b>a watchful dog who listens</b>. About 20 minutes a day in short sessions. Plus <b>40 simple fixes</b> that help you spend less on food, toys, grooming and vet costs.</p>
+    <a class='btn buy' href='/go/dale'>Train my Pitbull · $27</a>
+    <div class="gline"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l8 3v6c0 5-3.5 9-8 11-4.5-2-8-6-8-11V5z"/><path d="M9 12l2 2 4-4"/></svg>30-day money-back guarantee</div>
+  </div>
+</section>
+
+<div class="torn"><h2>What you'll get in the <u>Playbook</u>:</h2></div>
+<div class="wrap">
+  <div class="cols">
+    <div class="col">
+      <h3>#1: The 14-Day Dream-Dog Plan</h3>
+      <img src="/clones/pit-assets/col-plan.jpg" alt="">
+      <p>Day-by-day sessions for the calm mat, the lead, the door, greetings, recall, leave it and being left alone. <b>Short sessions that add up to about 20 minutes a day.</b></p>
+    </div><div class="col">
+      <h3>#2: The Watchful Dog Routine</h3>
+      <img src="/clones/pit-assets/col-protector.jpg" alt="Dale answering the door while his Pitbulls stay calm on their bed">
+      <p>A gentle alert when someone's at the door, then <b>straight to his mat the moment you say the word</b>. Watchful, steady, and always listening to you.</p>
+    </div><div class="col">
+      <h3>#3: 40 Fixes To Spend Less</h3>
+      <img src="/clones/pit-assets/col-kitchen.jpg" alt="">
+      <p>Forty plain fixes for food, toys, grooming and vet costs. <b>Habits and smart choices that never mean skipping the care your dog needs.</b></p>
+    </div>
+  </div>
+  <div class="center"><a class='btn buy' href='/go/dale'>Train my Pitbull · $27</a><div class="gline"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l8 3v6c0 5-3.5 9-8 11-4.5-2-8-6-8-11V5z"/><path d="M9 12l2 2 4-4"/></svg>30-day money-back guarantee</div></div>
+</div>
+
+<div style="height:30px"></div>
+<section class="customer-reviews" id="reviews" aria-labelledby="reviews-heading"><h2 id="reviews-heading">Who this Playbook is for:</h2><div class="greviews"><article class="grev r1"><div class="h"><div class="av avatar-initial" aria-hidden="true">1</div><div class="nm">The owner whose dog pulls</div></div><p>Walks have turned into a tug of war. The Playbook gives you a loose-lead plan in small steps, with sniff breaks and a way to keep distance from other dogs, so walks stop being something you dread.</p></article><article class="grev r2"><div class="h"><div class="av avatar-initial" aria-hidden="true">2</div><div class="nm">The owner who wants good manners</div></div><p>You want a dog who is calm around guests, waits at doors, walks beside you and listens the first time. The 14 days build that one habit at a time, and the book tells you honestly what to expect.</p></article><article class="grev r3"><div class="h"><div class="av avatar-initial" aria-hidden="true">3</div><div class="nm">The owner of a very friendly dog</div></div><p>He is friendly, but a muscular dog who lunges to say hello worries other people. You get distance and attention exercises, and a plan for meetings with other dogs that includes when to simply walk away.</p></article><article class="grev r4"><div class="h"><div class="av avatar-initial" aria-hidden="true">4</div><div class="nm">The owner with a bolting door-dasher</div></div><p>Doors and gates are where powerful dogs get into trouble. The wait-at-the-door days teach him to stay put until you release him, and the doorbell routine gives the excitement somewhere to go.</p></article><article class="grev r5"><div class="h"><div class="av avatar-initial" aria-hidden="true">5</div><div class="nm">The owner who loves the breed</div></div><p>Your dog is affectionate and wants to be part of everything, and he needs structure, not harsh methods. Everything in the book is kind, reward-based training, with no shock, no yelling and no dominance myths.</p></article></div></section>
+
+<section class="learn" id="learn">
+  <div class="wrap">
+    <h2>What You'll Learn In <em>The Playbook</em></h2>
+    <p class="lsub">The 14-day plan and everything around it, in seven parts. This is how you build the dog you pictured, 20 minutes a day.</p>
+    <div class="lrail" id="lrail">
+      <div class="lcard"><div class="lviz"><div class="timer" style="font-size:58px">20 min</div><span class="chip g" style="bottom:26px;left:50%;transform:translateX(-50%)">On the mat</span></div>
+        <div class="lt"><h3>The <em>Calm-Dog</em> Method</h3><p>The short daily sessions that teach a high-energy bully to <b>settle on his own</b>, at home and around guests.</p></div></div>
+      <div class="lcard"><div class="lviz"><div class="vs"><div class="no">Pulling <span>✕</span></div><div class="no">Lunging <span>✕</span></div><div class="yes">Loose lead <span>✓</span></div></div></div>
+        <div class="lt"><h3>Lead Manners <em>Step By Step</em></h3><p>The simple "stop when he pulls" rule and a walking routine with sniff breaks, so <b>most dogs pull far less</b>.</p></div></div>
+      <div class="lcard"><div class="lviz"><img src="/clones/pit-assets/learn-protector.jpg" alt="Dale sending his Pitbull to the mat" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center 30%"><span class="chip g" style="bottom:14px;right:14px;z-index:1">Alert, then settle</span></div>
+        <div class="lt"><h3>The <em>Watchful Dog</em> Routine</h3><p>The Alert-and-Settle Routine: <b>one soft bark to tell you, then calm on his mat</b> the moment you ask. A settled dog is a better watch dog.</p></div></div>
+      <div class="lcard"><div class="lviz"><div class="v-word" style="font-size:76px">Wait</div><span class="chip" style="top:22px;left:20px">Front door</span><span class="chip" style="top:28px;right:20px">Car door</span><span class="chip g" style="bottom:22px;left:50%;transform:translateX(-50%)">Gate</span></div>
+        <div class="lt"><h3>The <em>Doorway</em> Rule</h3><p>He sits, the door opens, he waits for your word. <b>No more bolting out the second the door cracks open.</b></p></div></div>
+      <div class="lcard"><div class="lviz"><div class="v-word" style="font-size:76px">4 paws</div><span class="chip" style="top:22px;left:20px">Guests</span><span class="chip" style="top:28px;right:20px">Kids</span><span class="chip g" style="bottom:22px;left:50%;transform:translateX(-50%)">Neighbors</span></div>
+        <div class="lt"><h3><em>No More</em> Jumping</h3><p>Calm greetings with four paws on the floor, so <b>visitors meet a gentle dog, not a battering ram.</b></p></div></div>
+      <div class="lcard"><div class="lviz"><div class="timer" style="font-size:58px">Come!</div><span class="chip g" style="bottom:26px;left:50%;transform:translateX(-50%)">House first</span></div>
+        <div class="lt"><h3>A Recall <em>Built Up Slowly</em></h3><p>The name-then-come game, built up from the living room to the garden, <b>so he learns to turn back to you.</b></p></div></div>
+      <div class="lcard"><div class="lviz"><div class="vs"><div class="no">Shoes <span>✕</span></div><div class="no">Sofa <span>✕</span></div><div class="yes">The right chew <span>✓</span></div></div></div>
+        <div class="lt"><h3>Chewing & <em>Boredom</em></h3><p>Give that powerful jaw a job, and ease the barking and boredom chewing <b>without yelling or crating all day.</b></p></div></div>
+      <div class="lcard"><div class="lviz"><div class="bars"><div class="" style="height:40px"><span>2m</span></div><div class="" style="height:70px"><span>10m</span></div><div class="g" style="height:110px"><span>30m</span></div><div class="" style="height:140px"><span>2h</span></div></div></div>
+        <div class="lt"><h3>Being <em>Left Alone</em></h3><p>Short absences that grow bit by bit, so he stays calm <b>instead of barking and wrecking the house.</b></p></div></div>
+      <div class="lcard"><div class="lviz"><div class="steps4"><div class="g"><b>1</b>Days 1 to 7: name, sit, mat, lead</div><div class=""><b>2</b>Days 8 to 11: leave it, doors, visitors</div><div class=""><b>3</b>Days 12 and 13: handling, alone time</div><div class=""><b>4</b>Day 14: review & next steps</div></div></div>
+        <div class="lt"><h3>Your <em>14-Day</em> Plan</h3><p>Exactly what to do each day for two weeks, and <b>what to honestly expect by day 14.</b></p></div></div>
+    </div>
+    <div class="lnav"><button type="button" aria-label="Previous" onclick="document.getElementById('lrail').scrollBy({left:-310,behavior:'smooth'})">‹</button><button type="button" aria-label="Next" onclick="document.getElementById('lrail').scrollBy({left:310,behavior:'smooth'})">›</button></div>
+  </div>
+</section>
+
+<div class="wrap">
+  <section class="why" id="why">
+    <div class="kick">Meet your guide / Dale</div>
+    <h2>Why Should You Listen To Me?</h2>
+    <p class="wsub">The dog I couldn't keep calm. The routine that turned the walks around. And why I finally wrote it all down.</p>
+    <div class="tl">
+      <div class="ts"><div class="tx"><div class="n">01 / Where it started</div><h3>My Pitbull Was Out Of Control, And I Dreaded Every Walk</h3><p>He dragged me down the street, jumped on every guest and chewed through anything left on the floor. On top of that came the worry about what a trainer would cost.</p><p>I'd wanted a Pitbull my whole life: loyal, strong, the dog who keeps watch over the family. Instead I had a dog I couldn't trust around guests, and <b>I dreaded every walk.</b></p></div><div class="ph"><img src="/clones/pit-assets/why-1.jpg" alt="Dale worried at the kitchen counter with his Pitbulls"></div></div>
+      <div class="ts rev"><div class="tx"><div class="n">02 / The living room rug</div><h3>So I Stopped Fighting Him And Built A 20-Minute Routine</h3><p>Short sessions in the morning and the evening. The mat. The lead. The door. The same rules from everyone in the house. I wrote down what worked and dropped what didn't.</p><p>Within a couple of weeks the walks were different. He waited at the door, greeted guests calmly, and when someone knocked he'd bark once, look at me, and go to his mat. <b>That's when I knew I finally had the dog I'd always wanted.</b></p></div><div class="ph"><img src="/clones/pit-assets/why-2.jpg" alt="Dale teaching his Pitbull on the living room rug"></div></div>
+      <div class="ts"><div class="tx"><div class="n">03 / Other owners</div><h3>Then Other Bully Owners Started Asking Me How</h3><p>On walks. At the park. Always the same question: <b>"How did you get him this calm?"</b></p><p>Every Pitbull had the same problems: pulling, jumping, going wild at the door, the chewing. And the same short daily routine helped them settle, again and again.</p></div><div class="ph"><img src="/clones/pit-assets/why-3.jpg" alt="Dale talking with other Pitbull owners at the park"></div></div>
+      <div class="ts rev"><div class="tx"><div class="n">04 / The playbook</div><h3>So I Wrote It All Down For Pitbull Owners</h3><p>The 14-day plan, the Alert-and-Settle routine, the everyday problems, the health basics and the 40 fixes, written in plain English.</p><p>It's the book I wish I'd had with my first Pitbull. <b>Now it's yours.</b> And if it's not for you, you have 30 days to get every cent back.</p></div><div class="ph"><img src="/clones/pit-assets/why-4.jpg" alt="Dale holding a book with his two Pitbulls"></div></div>
+    </div>
+    <div class="center"><a class='btn buy' href='/go/dale'>Train my Pitbull · $27</a></div>
+  </section>
+
+  <div class="order" id="order">
+    <div class="steps"><span class="on"><i></i>Get the Playbook</span><span><i></i>Download &amp; read</span></div>
+    <div class="body">
+      <h3>The Pitbull Playbook</h3>
+      <div class="s">Pay once below. Your download link is emailed to you right after checkout.</div>
+      <div class="row"><span>The book, 194 pages, 41 chapters</span><span>Included</span></div><div class="row"><span>The 14-day dream-dog plan</span><span>Included</span></div><div class="row"><span>The 40 spend-less fixes</span><span>Included</span></div><div class="row"><span>The Alert-and-Settle watchful dog routine</span><span>Included</span></div><div class="row"><span>The 14-day progress log</span><span>Included</span></div><div class="row"><span>8 printable cards and checklists</span><span>Included</span></div>
+      <div class="row tot"><span>Today</span><span>$27</span></div>
+    </div>
+    <div class="cta"><a class='btn buy' href='/go/dale'>Continue · $27 &nbsp;›</a></div>
+    <div class="fine">Instant PDF download · Pay once, no subscription · 30-day money-back guarantee · Secure checkout by Commas</div>
+  </div>
+
+  <div class="faq">
+<details open><summary>What actually is the book?</summary><div class="a"><p>It's a <b>194-page book</b> you download and read on your <b>phone, tablet or computer</b>, or print out. <b>Not a course, not a subscription.</b></p><p>It's written in <b>plain English for Pitbull owners</b>. No fluff, no lectures. Just <b>what to do, step by step</b>.</p><p>It starts with <b>the 14-day training plan: 20 minutes a day, day by day</b>. Then the Watchful Dog routine, the everyday problems, and the health, food and safe-care basics.</p><p>It finishes with <b>40 short fixes for spending less</b> on food, toys, grooming and vet costs. Each one is a single paragraph with a <b>"Do this" line</b>, and none of them ask you to skip care your dog needs.</p></div></details>
+<details open><summary>What will I get out of it?</summary><div class="a"><p><b>The Pitbull you pictured when you brought him home</b>: <b>nicer walks, waiting at the door, polite with guests, coming when called</b>, and <b>a watchful dog who alerts you and then listens</b>. <b>No trainer needed.</b></p><p>Most dogs that do the daily sessions are noticeably calmer, pull less, greet people with four paws on the floor and settle after an alert <b>by day 14</b>. Recall around other dogs and longer alone time usually take <b>several more weeks</b>, and the book shows you how to keep going.</p><p>Plus 40 fixes that help your money go further on food, toys, grooming and vet costs.</p></div></details>
+<details open><summary>Will training make him less watchful?</summary><div class="a"><p><b>No.</b> Most Pitbulls already care deeply about their family and their front door. You don't take that away. You give it an <b>off switch</b>.</p><p>The Alert-and-Settle routine teaches him to <b>give one soft bark or stand at the door to tell you, then go to his mat</b> when you say the word. A dog who alerts and then listens is a good watch dog. A dog who can't stop is a worry.</p><p>The book does <b>not</b> teach guard, bite or protection-sport training, and you shouldn't try that at home.</p></div></details>
+<details open><summary>Is this right for me?</summary><div class="a"><p><b>Puppy or older dog: yes.</b> The plan works for any age, and the health chapters cover <b>weight, teeth and joints at home</b>.</p><p><b>American Pit Bull Terrier, AmStaff, Staffy, American Bully or a bully mix: yes.</b> Every dog is an individual, and the book says so.</p><p><b>A health condition:</b> the care chapters tell you plainly <b>when to see your vet first</b>.</p><p><b>New to dog training: yes.</b> Every day has what you need, a timed plan, the steps, what to expect and one common slip with its fix.</p><p><b>Not a fit</b> if your dog has <b>bitten someone or shows real aggression</b>. Work with a vet and a qualified behaviour professional first. The book says the same.</p></div></details>
+<details open><summary>How much is it?</summary><div class="a"><p><b>$27, once. No subscription.</b> Less than a single session with a trainer.</p><p>If it's not for you, email <b>partners@thejonmac.com within 30 days</b> and <b>the $27 comes back</b>. <b>No form, no questions.</b></p><p>If your Pitbull already walks perfectly, waits at the door and greets guests calmly, you don't need it. If he doesn't, <b>20 minutes a day for 14 days is a small price for the dog you've always wanted</b>.</p></div></details>
+<details open><summary>How do I get it?</summary><div class="a"><p>Checkout takes <b>about a minute</b>. A <b>download link lands in your email</b>, so you can read the book on your phone, tablet or computer, or print it.</p><p>Payments run through Commas, a secure checkout, so <b>we never see your card details</b>.</p></div></details>
+  </div>
+
+  <div class="two">
+    <h2>You've got two choices.</h2>
+    <p><b>One:</b> keep going as you are. The pulling, the jumping, the chaos every time someone knocks, the chewed shoes, and walks you dread.</p>
+    <p><b>Two:</b> spend $27 once, give it 20 minutes a day for 14 days, and start building the calm, loyal dog you pictured when you brought him home.</p>
+  </div>
+  <div class="center" style="margin-bottom:20px"><a class='btn buy' href='/go/dale'>Train my Pitbull · $27</a><div class="gline"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l8 3v6c0 5-3.5 9-8 11-4.5-2-8-6-8-11V5z"/><path d="M9 12l2 2 4-4"/></svg>30-day money-back guarantee</div></div>
+</div>
+
+<footer>
+  <div class="wrap">
+    <div class="logo center">The Pitbull Playbook</div>
+    <div class="links"><a href="/">Home Guide Press</a><a href='/terms'>Terms and Conditions</a><a href='/privacy'>Privacy</a><a href='/refunds'>Refunds</a><a href="mailto:partners@thejonmac.com">Contact</a></div>
+    <p class="disc">The Pitbull Playbook is written by Dale Whitaker (Dale Whitaker Pitbulls) and published by Home Guide Press. General dog care and training only. Nothing here is veterinary or legal advice: always consult a veterinarian if your dog is unwell, injured, or before changing the diet of a dog with a medical condition, and check the rules where you live. The content of this website and the Playbook may not be copied or redistributed without written permission. Copyright © 2026. All Rights Reserved.</p>
+  </div>
+</footer>
+
+<script>
+(function(){var v=document.getElementById('video'),p=document.getElementById('play');if(!v||!p)return;
+p.onclick=function(){fetch('/clones/pit-assets/vsl.mp4',{method:'HEAD'}).then(function(r){if(!r.ok)return;var el=document.createElement('video');el.src='/clones/pit-assets/vsl.mp4';el.controls=true;el.autoplay=true;el.playsInline=true;el.setAttribute('playsinline','');el.style.cssText='position:absolute;inset:0;width:100%;height:100%;background:#000';v.innerHTML='';v.appendChild(el);try{el.play()}catch(e){}}).catch(function(){});};})();
+(function(){var q=location.search;if(!q)return;document.querySelectorAll('a.buy').forEach(function(b){b.href=b.getAttribute('href')+q;});})();
+</script>
+</body>
+</html>

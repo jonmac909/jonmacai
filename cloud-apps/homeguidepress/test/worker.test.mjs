@@ -62,7 +62,7 @@ async function hook(f, payload, { secret = SECRET, path = '/api/commas/webhook',
 }
 
 const get = (f, path, init) => worker.fetch(new Request('https://homeguidepress.com' + path, init), f.env, f.ctx);
-const linkFrom = mail => mail.text.match(/https:\/\/homeguidepress\.com\/download\/\S+/)[0].replace('https://homeguidepress.com', '');
+const linkFrom = mail => mail.html.match(/https:\/\/homeguidepress\.com\/download\/[^"]+/)[0].replace('https://homeguidepress.com', '');
 
 test('landing page: noindex, chapters, buy link keeps src and utm', async () => {
   const f = fixture();
@@ -73,7 +73,7 @@ test('landing page: noindex, chapters, buy link keeps src and utm', async () => 
   const body = await r.text();
   assert.match(body, /<meta name="robots" content="noindex, nofollow">/);
   assert.match(body, /Sauces and Sunday Gravy/);
-  assert.match(body, /Carmine Russo, Carmine&#39;s Italian Kitchen/);
+  assert.match(body, /By Giovanni Moretti./);
   assert.match(body, /href="\/go\/angelo\?src=aff-angelo-1&amp;utm_source=youtube"|href="\/go\/angelo\?src=aff-angelo-1&utm_source=youtube"/);
   assert.doesNotMatch(body, /junk/);
   assert.doesNotMatch(body, /testimonial|countdown|bestsell/i);
@@ -84,7 +84,7 @@ test('landing page: noindex, chapters, buy link keeps src and utm', async () => 
 test('missing checkout link shows a placeholder, never a buy link', async () => {
   const f = fixture();
   const body = await (await get(f, '/the-long-life-dog')).text();
-  assert.match(body, /Marco Bellandi, Marco&#39;s Dog Sense/);
+  assert.match(body, /By Frank Bennett./);
   assert.match(body, /Checkout opens soon/);
   assert.doesNotMatch(body, /href="\/go\/steve/);
   const go = await get(f, '/go/steve?src=x', { redirect: 'manual' });
@@ -130,17 +130,17 @@ test('paid webhook: exactly one email per transaction, link downloads the right 
   assert.equal(sent.length, 1);
   const mail = sent[0];
   assert.deepEqual(mail.to, [BUYER]);
-  assert.equal(mail.from, "Carmine's Italian Kitchen <books@homeguidepress.com>");
+  assert.equal(mail.from, "Giovanni Moretti <books@homeguidepress.com>");
   assert.equal(mail.reply_to, 'partners@thejonmac.com');
   assert.equal(mail.idempotency, 'hgp-delivery-ORD-MOCK-0001');
-  assert.match(mail.text, /30 days/);
+  assert.match(mail.html, /30 days/);
   const link = linkFrom(mail);
   const page = await get(f, link);
   assert.equal(page.status, 200);
-  assert.match(await page.text(), /Download Finally Written Down\.pdf/);
+  assert.match(await page.text(), /Download Giovanni Moretti - Finally Written Down\.pdf/);
   const file = await get(f, link + '/0');
   assert.equal(file.status, 200);
-  assert.match(file.headers.get('content-disposition'), /attachment; filename="Finally Written Down.pdf"/);
+  assert.match(file.headers.get('content-disposition'), /attachment; filename="Giovanni Moretti - Finally Written Down.pdf"/);
   assert.equal(await file.text(), '%PDF-mock-angelo');
   assert.equal(f.sql.prepare('SELECT downloads FROM orders').get().downloads, 1);
 });
@@ -186,7 +186,7 @@ test('fresh-link form: sends once per 10 minutes, never reveals whether an email
   assert.equal(a.status, 303);
   assert.equal(a.headers.get('location'), 'https://homeguidepress.com/thanks?p=angelo&sent=1');
   assert.equal(sent.length, 2);
-  assert.match(sent[1].subject, /new download link/);
+  assert.match(sent[1].subject, /fresh link/);
   await form(BUYER);
   assert.equal(sent.length, 2);
   const stranger = await form('nobody@example.com');
@@ -224,14 +224,19 @@ test('unknown Commas product stores the order but sends nothing', async t => {
   assert.equal((await hook(f, paid({ item: { id: 'ZZZ99' } }))).body.result, 'unknown product');
   assert.equal(sent.length, 0);
   assert.equal(keyForProduct(f.env, 'AbC12'), 'angelo');
-  assert.equal(keyForProduct({ ...f.env, PRODUCT_IDS: '{"teruko":"Q9q9q"}' }, 'Q9q9q'), 'teruko');
+  assert.equal(keyForProduct({ ...f.env, PRODUCT_IDS: '{"rosa-cooks":"Q9q9q"}' }, 'Q9q9q'), 'rosa-cooks');
 });
 
 test('every public page renders', async () => {
   const f = fixture();
-  for (const path of ['/', '/finally-written-down', '/the-long-life-dog', '/guardian-dog-field-books', '/drivers-bundle', '/light-and-orderly', '/grahams-whisky-shelf', '/ready-at-home', '/thanks?p=angelo', '/privacy', '/terms', '/refunds']) {
+  for (const path of ['/', '/drivers-bundle', '/ready-at-home', '/the-hand-me-down-kitchen', '/fix-it-like-family-did', '/the-old-way-to-a-clean-house', '/the-long-life-dog', '/finally-written-down', '/thanks?p=angelo', '/privacy', '/terms', '/refunds']) {
     const r = await get(f, path);
     assert.equal(r.status, 200, path);
   }
+  for (const path of ['/rosa-cooks', '/rosa-hacks', '/rosa-clean']) {
+    const r = await get(f, path, { redirect: 'manual' });
+    assert.equal(r.status, 301, path);
+  }
+  assert.match(await (await get(f, '/the-hand-me-down-kitchen')).text(), /Checkout opens soon/);
   assert.equal((await get(f, '/nope')).status, 404);
 });

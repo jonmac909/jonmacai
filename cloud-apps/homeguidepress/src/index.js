@@ -3,6 +3,13 @@ import { BY_KEY, BY_PATH } from './products.js';
 import { download, index, landing, linkProblem, notFound, policy, thanks } from './pages.js';
 import { commasWebhook, downloadFile, json, resendLink, retryUnsent } from './delivery.js';
 
+// Finished clone pages (public/clones/<file>.html) served in place of the template landing pages.
+const CLONES = { '/drivers-bundle': ['gary', 'gary'], '/ready-at-home': ['ray', 'prepared'], '/the-hand-me-down-kitchen': ['cook', 'rosa-cooks'],
+  '/the-old-way-to-a-clean-house': ['clean', 'rosa-clean'], '/fix-it-like-family-did': ['house', 'rosa-hacks'], '/finally-written-down': ['angelo', 'angelo'], '/the-long-life-dog': ['dog', 'steve'],
+  '/the-pitbull-playbook': ['pit', 'dale'], '/the-dark-house-plan': ['ruth', 'ruth'], '/yards-back': ['yards-back', 'gail'], '/reading-your-cat': ['reading-your-cat', 'nora'],
+  '/japan-before-you-go': ['naomi', 'naomi'], '/the-good-old-cat-and-dog': ['the-good-old-cat-and-dog', 'helenwalter'] };
+const CLONE_CSP = "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; script-src 'self' 'unsafe-inline'; frame-src https://www.youtube.com https://www.youtube-nocookie.com; form-action 'self' mailto:; frame-ancestors 'none'; base-uri 'none'";
+
 export const TRACKED = ['src', 'utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term'];
 
 const SECURITY = {
@@ -74,6 +81,16 @@ export default {
     }
     if (method !== 'GET' && method !== 'HEAD') return new Response('Method not allowed', { status: 405, headers: { allow: 'GET, HEAD, POST' } });
 
+    const clone = CLONES[path];
+    if (clone && env.ASSETS) {
+      const res = await env.ASSETS.fetch(new URL(`/clones/${clone[0]}.html`, url));
+      if (res.ok) {
+        if (clone[1]) record(env, ctx, 'view', clone[1], request, url);
+        const out = html(await res.text(), 200, env);
+        out.headers.set('content-security-policy', CLONE_CSP);
+        return out;
+      }
+    }
     if (path === '/') return html(index(), 200, env);
     if (path === '/robots.txt') return new Response(env.INDEXING === 'true' ? 'User-agent: *\nAllow: /\n' : 'User-agent: *\nDisallow: /\n', { headers: { 'content-type': 'text/plain' } });
     if (path === '/thanks') return html(thanks(url.searchParams.get('p'), url.searchParams.has('sent')), 200, env);

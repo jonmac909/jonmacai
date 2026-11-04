@@ -1,0 +1,438 @@
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Dark House Plan</title>
+<meta name="description" content="The Dark House Plan by Ruth Calder: a calm, practical, 213-page plan for when the power goes out, with eight printable cards. $27.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Lora:ital,wght@0,400;0,500;0,700;1,400&display=swap" rel="stylesheet">
+<style>
+:root{--ink:#1f2310;--ink2:#2f3418;--olive:#2f3418;--cream:#f4efe0;--cream2:#e9e3cf;--rust:#9a3b1e;--rust2:#c4572f;--gold:#c9a227;--mute:#9a9d7e;--line:#4a5228;color-scheme:dark}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--ink);color:var(--cream);font:18px/1.65 Lora,Georgia,serif;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-inline:0}
+.wrap{max-width:1080px;margin:0 auto;padding-left:max(20px,env(safe-area-inset-left,0px));padding-right:max(20px,env(safe-area-inset-right,0px))}
+h1,h2,h3,.eyebrow,.btn,.bar,.num{font-family:Oswald,Impact,'Arial Narrow',sans-serif;text-transform:uppercase;letter-spacing:.02em}
+h1{font-size:clamp(40px,7vw,78px);line-height:1.02;margin:.2em 0 .3em;font-weight:700;text-wrap:balance}
+h2{font-size:clamp(30px,4.6vw,50px);line-height:1.08;margin:.1em 0 .5em;font-weight:700;text-wrap:balance}
+h3{font-size:22px;margin:0 0 .3em;font-weight:600}
+p{margin:0 0 1em}
+.eyebrow{color:var(--gold);font-size:15px;letter-spacing:.18em;font-weight:600;margin:0 0 6px}
+.rule{height:4px;width:72px;background:var(--rust);margin:0 0 28px}
+.btn{display:inline-block;background:var(--rust);color:#fff;text-decoration:none;font-weight:600;font-size:21px;letter-spacing:.06em;padding:16px 30px;border:2px solid var(--rust);border-radius:2px;transition:.15s}
+.btn:hover{background:var(--rust2);border-color:var(--rust2)}
+.btn.ghost{background:transparent;border-color:var(--cream);color:var(--cream)}
+.btn.ghost:hover{background:var(--cream);color:var(--ink)}
+.btn.dark{background:var(--ink);border-color:var(--ink)}
+.btn.dark:hover{background:var(--olive);border-color:var(--olive)}
+s{text-decoration-thickness:3px;text-decoration-color:var(--rust2)}
+/* announcement bar */
+.bar{background:var(--rust);color:#fff;text-align:center;font-size:17px;letter-spacing:.07em;padding:10px 16px;font-weight:500}
+.bar s{opacity:.85;text-decoration-color:#fff}
+.bar b{font-weight:700}
+.bar a{color:#fff;text-decoration:underline;text-underline-offset:3px;margin-left:10px}
+/* nav */
+.nav{background:var(--ink);border-bottom:1px solid var(--line)}
+.nav .wrap{display:flex;align-items:center;gap:16px;justify-content:space-between;padding-top:14px;padding-bottom:14px;flex-wrap:wrap}
+.logo{font-family:Oswald,sans-serif;text-transform:uppercase;font-weight:700;font-size:22px;letter-spacing:.08em;color:var(--cream);text-decoration:none}
+.logo span{color:var(--gold)}
+.nav a.btn{padding:9px 18px;font-size:16px}
+/* hero */
+.hero{background:linear-gradient(90deg,rgba(18,21,11,.97) 0%,rgba(18,21,11,.9) 45%,rgba(18,21,11,.55) 100%),url(/clones/ruth-assets/hero.jpg) center/cover;padding:64px 0 72px}
+.hero .grid{display:grid;grid-template-columns:1.25fr .9fr;gap:48px;align-items:center}
+.hero .sub{font-size:21px;max-width:34em;color:var(--cream2)}
+.hero .sub b{color:#fff}
+.hero .price{display:flex;align-items:baseline;gap:14px;margin:22px 0 18px;font-family:Oswald,sans-serif}
+.hero .price .now{font-size:54px;font-weight:700;color:var(--gold);line-height:1}
+.hero .price s{font-size:30px;color:var(--mute)}
+.hero .price small{font-size:15px;letter-spacing:.12em;color:var(--cream2);text-transform:uppercase}
+.hero .ctas{display:flex;gap:14px;flex-wrap:wrap}
+.micro{font-size:15px;color:var(--mute);margin-top:14px}
+.cover{position:relative}
+.cover img{width:100%;max-width:440px;display:block;margin:0 auto;border:3px solid var(--cream);box-shadow:14px 14px 0 var(--rust)}
+.badge{position:absolute;right:2%;top:-14px;background:var(--gold);color:var(--ink);font-family:Oswald,sans-serif;font-weight:700;text-transform:uppercase;letter-spacing:.06em;padding:8px 14px;transform:rotate(4deg);font-size:18px;border:2px solid var(--ink)}
+/* stats row (static) */
+.stats{background:var(--gold);color:var(--ink);border-block:3px solid var(--ink)}
+.stats .wrap{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;padding-top:18px;padding-bottom:18px;text-align:center}
+.stats b{display:block;font-family:Oswald,sans-serif;font-size:42px;line-height:1;font-weight:700}
+.stats span{font-family:Oswald,sans-serif;text-transform:uppercase;letter-spacing:.12em;font-size:14px;font-weight:600}
+/* anchor strip */
+.anchors{background:var(--ink2);border-bottom:1px solid var(--line)}
+.anchors .wrap{display:flex;gap:26px;flex-wrap:wrap;justify-content:center;padding-top:12px;padding-bottom:12px}
+.anchors a{color:var(--cream2);text-decoration:none;font-family:Oswald,sans-serif;text-transform:uppercase;letter-spacing:.12em;font-size:14px;font-weight:600}
+.anchors a:hover,.anchors a.hot{color:var(--gold)}
+/* power chapters */
+.chap{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:30px}
+.chap .part{background:var(--ink2);border-color:var(--ink2)}
+.chap .part.big{grid-column:1/-1;border-left-color:var(--gold);background:var(--ink)}
+.chap .part h3{color:var(--cream)}
+.tag{display:inline-block;background:var(--rust);color:#fff;font-family:Oswald,sans-serif;font-size:13px;letter-spacing:.12em;padding:3px 10px;text-transform:uppercase;margin-left:10px;vertical-align:middle}
+/* sections */
+section{padding:76px 0}
+.light{background:var(--cream);color:var(--ink)}
+.light td,.light summary,.light h2,.light h3,.light li,.light .row b{color:var(--ink)}
+.light .tbl td.bad{color:var(--rust)}.light .tbl td.good{color:var(--olive)}
+.light .eyebrow{color:var(--rust)}
+.light p{color:#2a2d1b}
+.dark2{background:var(--ink2)}
+.num{color:var(--rust2)}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:48px;align-items:center}
+.two>*{min-width:0}
+.two img{width:100%;display:block;border:3px solid var(--ink);box-shadow:10px 10px 0 var(--rust)}
+.dark2 .two img,.hero .two img{border-color:var(--cream)}
+#inside .two img{aspect-ratio:1/.78;object-fit:cover;object-position:top}
+/* math table */
+.tbl{width:100%;border-collapse:collapse;font-size:18px;margin:6px 0 20px}
+.tbl th,.tbl td{padding:14px 12px;text-align:left;border-bottom:2px solid #c9bd98}
+.tbl th{font-family:Oswald,sans-serif;text-transform:uppercase;letter-spacing:.1em;font-size:15px;color:var(--olive)}
+.tbl td:last-child,.tbl th:last-child{text-align:right;white-space:nowrap}
+.tbl .bad{color:var(--rust);font-weight:700}
+.tbl .good{color:var(--olive);font-weight:700}
+.tbl tr.tot td{border-bottom:0;border-top:4px solid var(--ink);font-family:Oswald,sans-serif;font-size:24px;text-transform:uppercase}
+.scroll{overflow-x:auto}
+/* inside */
+.parts{display:grid;grid-template-columns:repeat(2,1fr);gap:18px;margin-top:30px}
+.part{background:var(--ink);border:1px solid var(--line);border-left:6px solid var(--rust);padding:20px 22px}
+.part .num{font-size:15px;letter-spacing:.16em;font-weight:600}
+.part h3{color:var(--cream)}
+.part p{margin:0;color:var(--cream2);font-size:16.5px;line-height:1.55}
+/* value stack */
+.stack{max-width:680px;margin:30px auto 0;border:3px solid var(--ink);background:#fbf6e6}
+.stack .row{display:flex;justify-content:space-between;gap:16px;padding:14px 20px;border-bottom:2px dashed #c9bd98;align-items:baseline}
+.stack .row b{font-family:Oswald,sans-serif;text-transform:uppercase;letter-spacing:.04em;font-size:19px}
+.stack .row span{color:#4a4d33;font-size:16px}
+.stack .row em{font-style:normal;font-family:Oswald,sans-serif;color:var(--olive);white-space:nowrap;font-weight:600}
+.stack .total{display:flex;justify-content:space-between;align-items:center;padding:20px;background:var(--ink);color:var(--cream);font-family:Oswald,sans-serif;text-transform:uppercase;flex-wrap:wrap;gap:10px}
+.stack .total s{color:var(--mute);font-size:28px;margin-right:12px}
+.stack .total .now{color:var(--gold);font-size:46px;font-weight:700;line-height:1}
+/* honest list */
+.x{list-style:none;padding:0;margin:20px 0 0}
+.x li{padding:16px 0 16px 46px;border-bottom:1px solid var(--line);position:relative}
+.x li:before{content:"\2715";position:absolute;left:0;top:14px;color:var(--rust2);font-family:Oswald,sans-serif;font-size:26px}
+.x b{color:#fff}
+/* about */
+.about{display:grid;grid-template-columns:260px 1fr;gap:40px;align-items:center}
+.about img{width:100%;border-radius:50%;border:4px solid var(--gold);aspect-ratio:1;object-fit:cover}
+/* faq */
+details{border-bottom:2px solid #c9bd98;padding:6px 0}
+summary{cursor:pointer;list-style:none;font-family:Oswald,sans-serif;text-transform:uppercase;letter-spacing:.04em;font-size:21px;padding:16px 36px 16px 0;position:relative;font-weight:600}
+summary::-webkit-details-marker{display:none}
+summary:after{content:"+";position:absolute;right:4px;top:10px;font-size:32px;color:var(--rust)}
+details[open] summary:after{content:"\2212"}
+details p{padding:0 0 16px;margin:0}
+/* order + close */
+.order{text-align:center}
+.order .lead{max-width:36em;margin:0 auto 24px}
+.fine{font-size:15px;color:#4a4d33;margin-top:16px}
+.close{background:var(--rust);color:#fff;text-align:center}
+.close .btn{background:var(--ink);border-color:var(--ink)}
+.close .btn:hover{background:#000}
+.close .eyebrow{color:#ffe6a0}
+footer{background:#0b0d06;color:var(--mute);font-size:14.5px;padding:34px 0 46px}
+footer nav{display:flex;gap:22px;flex-wrap:wrap;margin-bottom:16px}
+footer a{color:var(--cream2);text-decoration:none;font-family:Oswald,sans-serif;text-transform:uppercase;letter-spacing:.1em;font-size:14px}
+footer a:hover{color:var(--gold)}
+@media (max-width:820px){
+ .stats .wrap{grid-template-columns:repeat(2,1fr)}.chap{grid-template-columns:1fr}
+ .hero .grid,.two,.parts,.about{grid-template-columns:1fr}
+ .hero{padding:40px 0 56px}
+ .cover{order:-1}.cover img{max-width:300px}
+ .about{text-align:center}.about img{max-width:200px;margin:0 auto}
+ section{padding:56px 0}
+ .two.flip>:first-child{order:2}
+}
+
+/* v3 lighter, larger, high-contrast (55+ readers) */
+body{background:#fffdf6;color:#2a2e14;font-size:20px;line-height:1.7}
+p{color:#2f3318}
+.nav{background:#fffdf6;border-bottom:1px solid #ddd2b2}
+.logo{color:#2f3418}.logo span{color:#9a3b1e}
+.anchors{background:#f3ead2;border-bottom:1px solid #ddd2b2}
+.anchors a{color:#2f3418;font-size:15px}.anchors a:hover,.anchors a.hot{color:#9a3b1e}
+.hero{background:linear-gradient(90deg,rgba(255,253,246,.98) 0%,rgba(255,253,246,.93) 48%,rgba(255,253,246,.45) 100%),url(/clones/ruth-assets/hero.jpg) center/cover}
+.hero .sub{color:#2f3318;font-size:22px}.hero .sub b{color:#1b1e0b}
+.hero h1{color:#232710}.hero .eyebrow{color:#9a3b1e}
+.hero .price .now{color:#9a3b1e}.hero .price s{color:#7d7f60}.hero .price small{color:#3a3e20}
+.micro{color:#4f5238;font-size:16.5px}
+.btn.ghost{border-color:#2f3418;color:#2f3418}.btn.ghost:hover{background:#2f3418;color:#fffdf6}
+.cover img,.dark2 .two img{border-color:#2f3418}
+.badge{border-color:#2a2e14}
+.eyebrow{color:#9a3b1e}
+h2{color:#232710}
+.dark2{background:#f3ead2;color:#2a2e14;border-block:1px solid #e0d6b6}
+.dark2 .num,.num{color:#9a3b1e}
+.light{background:#fffdf6}
+.part,.chap .part{background:#fffdf6;border:1px solid #ddd2b2;border-left:6px solid #9a3b1e}
+.chap .part.big{background:#fff6d8;border-left-color:#c9a227}
+.part h3,.chap .part h3{color:#232710}.part p{color:#34381f;font-size:18px}
+.part .num{color:#9a3b1e}
+.x li{border-bottom:1px solid #ddd2b2;color:#2f3318}.x b{color:#1b1e0b}
+.x li:before{color:#9a3b1e}
+.tbl th{color:#2f3418}
+.about img{border-color:#c9a227}
+.stack{background:#fffdf6}
+.stack .total{background:#2f3418}
+.order{background:#f3ead2!important}
+.close{background:#9a3b1e}
+footer{background:#2f3418;color:#d9d3b4}footer a{color:#f0e9cc}
+details p,summary{color:#2a2e14}
+@media (max-width:820px){body{font-size:19px}.hero .sub{font-size:20px}}
+
+/* v3 mobile: simple, decide-to-buy */
+.mbuy{display:none}
+@media (max-width:820px){
+ .anchors,.stats,.badge,.hero .btn.ghost,.hero .micro,#inside,#house,#free,#honest .two,.bar a,.nav a.btn{display:none!important}
+ .bar{font-size:14px;padding:8px 14px}
+ .nav .wrap{padding-top:12px;padding-bottom:12px}
+ .hero{padding:28px 0 36px}
+ .hero .grid{gap:24px}
+ .cover img{max-width:240px;box-shadow:8px 8px 0 #9a3b1e}
+ .hero h1{font-size:40px;margin:.1em 0 .25em}
+ .hero .eyebrow{font-size:13px}
+ .hero .sub{font-size:19px;line-height:1.55}
+ .hero .price{margin:14px 0 14px}.hero .price .now{font-size:48px}
+ .hero .btn{display:block;text-align:center;width:100%;font-size:22px;padding:18px 16px}
+ section{padding:40px 0}
+ h2{font-size:30px}
+ .chap .part p{display:none}
+ .chap .part.big p{display:block}
+ .chap{gap:10px;margin-top:18px}
+ .chap .part{padding:14px 16px}
+ .chap .part h3{margin:0;font-size:21px}
+ #power p[style]{font-size:18px}
+ #power .btn{display:none}
+ .x li{padding-top:12px;padding-bottom:12px;font-size:18px}
+ #about .about{gap:18px}.about img{max-width:130px}
+ #about p{font-size:18px}#about .btn{display:none}
+ .stack .row span{display:none}
+ details:nth-of-type(n+5){display:none}
+ .close{padding:8px 0}
+ .close .btn,.order .btn{display:block;width:100%;text-align:center}
+ .fine{font-size:14.5px}
+ footer nav{display:none}
+ body{padding-bottom:86px}
+ .mbuy{display:block;position:fixed;left:0;right:0;bottom:0;z-index:50;background:#fffdf6;border-top:2px solid #2f3418;padding:10px max(16px,env(safe-area-inset-right,0px)) calc(10px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px))}
+ .mbuy a{display:block;text-align:center;background:#9a3b1e;color:#fff;font-family:Oswald,sans-serif;text-transform:uppercase;letter-spacing:.06em;font-weight:600;font-size:21px;padding:14px;text-decoration:none;border-radius:2px}
+}
+
+.close h2,.close p{color:#fff}.close .eyebrow{color:#ffe6a0}
+footer p{color:#d9d3b4}
+@media (max-width:820px){.hero{background:#fffdf6!important}footer{padding:24px 0 100px}.close{padding:28px 0}}
+
+.mfree{display:none}
+@media (max-width:820px){
+ .mfree{display:block;background:#fffdf6;text-align:center;padding:26px 0 8px}
+ .mfree p{margin:0 0 12px;font-size:18px}
+ .mfree b{display:block;font-family:Oswald,sans-serif;text-transform:uppercase;letter-spacing:.03em;font-size:22px;margin-bottom:4px;color:#232710}
+ .mfree a{display:inline-block;color:#9a3b1e;font-weight:700;font-size:19px;text-decoration:underline;text-underline-offset:4px}
+}
+
+/* v3.1 (2026-10-21): one bright BUY button, nothing competing with it */
+.btn:not(.ghost),.mbuy a{background:#16883a!important;border:3px solid #0d5a24!important;color:#fff!important;border-radius:10px!important;font-size:26px!important;font-weight:700!important;letter-spacing:.02em!important;text-transform:none!important;padding:20px 40px!important;box-shadow:0 6px 0 #0d5a24,0 12px 24px rgba(22,136,58,.35)!important;transition:transform .1s,box-shadow .1s!important}
+.btn:not(.ghost):hover,.mbuy a:hover{background:#0f7030!important;transform:translateY(2px);box-shadow:0 4px 0 #0d5a24,0 8px 16px rgba(22,136,58,.3)!important}
+.nav{position:sticky;top:0;z-index:60;box-shadow:0 2px 10px rgba(0,0,0,.12)}
+.nav a.btn{font-size:20px!important;padding:11px 24px!important;box-shadow:0 4px 0 #0d5a24!important}
+.anchors,.hero .btn.ghost{display:none!important}
+.close{background:#2f3418}
+.close .btn{border-color:#fff!important}
+.hero .micro{font-size:18px;font-weight:600;color:#2f3418}
+@media (max-width:820px){
+ .hero .micro{display:block!important;text-align:center;margin-top:12px}
+ .hero .btn,.close .btn,.order .btn{font-size:24px!important;padding:20px 14px!important}
+ .mbuy a{font-size:23px!important;padding:15px!important;box-shadow:0 4px 0 #0d5a24!important}
+}
+
+/* button attention pulse: short, soft, only when a button scrolls into view or the reader pauses scrolling */
+@keyframes btnpop{0%{transform:scale(1)}30%{transform:scale(1.07)}55%{transform:scale(.99)}75%{transform:scale(1.04)}100%{transform:scale(1)}}
+@keyframes btnshine{0%{background-position:-160% 0}100%{background-position:260% 0}}
+.btn.pop,.mbuy a.pop{background-image:linear-gradient(105deg,transparent 35%,rgba(255,255,255,.38) 50%,transparent 65%)!important;background-size:60% 100%!important;background-repeat:no-repeat!important;animation:btnpop .9s ease-out 1,btnshine .9s ease-out 1}
+@media (prefers-reduced-motion:reduce){.btn.pop,.mbuy a.pop{animation:none!important;background-image:none!important}}
+
+/* secondary buttons (free card, watch channel): muted, smaller, never animated */
+.btn.quiet:not(.ghost),.btn.quiet:not(.ghost):hover,.btn.quiet.pop{background:#ece4cb!important;background-image:none!important;border:2px solid #2f3418!important;color:#2f3418!important;border-radius:8px!important;font-size:19px!important;font-weight:600!important;padding:11px 24px!important;box-shadow:none!important;transform:none!important;animation:none!important}
+.btn.quiet:not(.ghost):hover{background:#2f3418!important;color:#fffdf6!important}
+@media (max-width:820px){.btn.quiet:not(.ghost){font-size:18px!important;padding:12px 18px!important}}
+</style>
+
+<div class="bar">One-time price <b>$27</b> &nbsp;&middot;&nbsp; The power-out plan + 8 printables, instant PDF <a class="buy" href="/go/ruth">Get it now</a></div>
+
+<header class="nav"><div class="wrap">
+ <a class="logo" href="#top">The Dark House <span>Plan</span></a>
+ <a class="btn buy" href="/go/ruth">Get the book for $27 &rarr;</a>
+</div></header>
+
+<div class="hero" id="top"><div class="wrap grid">
+ <div>
+  <p class="eyebrow">The Dark House Plan &nbsp;&middot;&nbsp; by Ruth Calder</p>
+  <h1>The power goes out. You already have a plan.</h1>
+  <p class="sub">Outages are usually short and sometimes last for days. <b>This is a calm, step-by-step plan for the ones that do</b>: the first hour, the first night, light, warmth, water, food, staying in touch and the sick week, plus a 72-hour plan and eight printable cards.</p>
+  <div class="price"><span class="now">$27</span><small>One-time price<br>213-page PDF, yours to keep</small></div>
+  <div class="ctas"><a class="btn buy" href="/go/ruth">Get the book for $27 &rarr;</a></div>
+  <p class="micro">Instant download &nbsp;&middot;&nbsp; 30-day refund &nbsp;&middot;&nbsp; Print it or read it on your phone</p>
+ </div>
+ <div class="cover"><span class="badge">213 pages</span><img src="/clones/ruth-assets/cover.jpg" alt="Cover of The Dark House Plan by Ruth Calder"></div>
+</div></div>
+
+<div class="stats"><div class="wrap">
+ <div><b>213</b><span>Pages</span></div>
+ <div><b>9</b><span>Parts, 40 chapters</span></div>
+ <div><b>8</b><span>Printables</span></div>
+ <div><b>30 days</b><span>Refund window</span></div>
+</div></div>
+
+<section class="light" id="power"><div class="wrap">
+ <p class="eyebrow">When the lights go out</p>
+ <h2>Nine parts for the first hour, the first night and the first three days</h2>
+ <div class="rule"></div>
+ <p style="max-width:40em">Most outages are a small inconvenience that a little planning turns into a quiet few days at home. This book gives you the plan in plain words: what to do, in what order, and the safety rule that goes with it. Every chapter ends with something to do this week, and the printable cards go on the fridge or beside the bed.</p>
+ <div class="chap">
+ <div class="part big"><div class="num">PART NINE <span class="tag">Start here</span></div><h3>The 72-Hour Plan</h3><p>The first 60 minutes as a numbered plan, then night one, days two and three, and what to do when the lights come back, with eight printable cards at the end.</p></div>
+ <div class="part"><div class="num">PART ONE</div><h3>Know Your House</h3><p>How outages happen and how long they usually last, a calm way to think about them, a walk through your house in the dark, and a needs sheet for everyone who lives there.</p></div>
+ <div class="part"><div class="num">PART TWO</div><h3>Light</h3><p>Flashlights, headlamps and lanterns for each job, how to use candles safely if you must, batteries and power banks, and safe movement in the dark.</p></div>
+ <div class="part"><div class="num">PART THREE</div><h3>Warmth, Cool and Carbon Monoxide</h3><p>Staying warm in one room, what never comes indoors, the silent danger of carbon monoxide, generators the safe way, and staying cool when it is hot.</p></div>
+ <div class="part"><div class="num">PART FOUR</div><h3>Water</h3><p>How much to store and where, making doubtful water safe to drink, toilets and washing with little water, and finding your shut-offs before you need them.</p></div>
+ <div class="part"><div class="num">PART FIVE</div><h3>Food</h3><p>The fridge and freezer clock, when to keep food and when to throw it out, a no-cook pantry for three days, and cooking safely away from the house.</p></div>
+ <div class="part"><div class="num">PART SIX</div><h3>Staying Connected</h3><p>Saving phone battery, radios and trusted alerts, a paper contact plan, and how to decide whether to stay or go.</p></div>
+ <div class="part"><div class="num">PART SEVEN</div><h3>Health</h3><p>Medicines and prescriptions, powered medical equipment, first aid basics, and the warning signs of heat and cold illness.</p></div>
+ <div class="part"><div class="num">PART EIGHT</div><h3>Every Kind of Home</h3><p>Apartments and high-rises, children, pets, and looking out for older neighbors.</p></div>
+ </div>
+ <p style="text-align:center;margin-top:34px"><a class="btn dark buy" href="/go/ruth">Get the book for $27 &rarr;</a></p>
+</div></section>
+
+<section class="dark2" id="inside"><div class="wrap">
+ <p class="eyebrow">Inside the book</p>
+ <h2>Something to do in every chapter</h2>
+ <div class="rule"></div>
+ <div class="two flip">
+  <img src="/clones/ruth-assets/inside.jpg" alt="Inside pages: a chapter with a checklist and a picture">
+  <div>
+   <p>Each of the 40 chapters gives you the steps, a checklist or worksheet to fill in, and a picture. Boxes mark every real safety rule, so the important ones are easy to find again.</p>
+   <p>Eight printable cards at the back, from the Power-Out Card to the 72-Hour Checklist, are ready to print and put where you will need them when the lights are out.</p>
+   <p><a class="btn buy" href="/go/ruth">Get the book for $27 &rarr;</a></p>
+  </div>
+ </div>
+</div></section>
+
+<section class="light" id="house"><div class="wrap">
+ <p class="eyebrow">And every kind of home</p>
+ <h2>A plan that fits the way you live</h2>
+ <div class="rule"></div>
+ <div class="two">
+  <div>
+   <p>A house with a basement, a third-floor apartment and a farmhouse need slightly different plans. Part Eight covers apartments and high-rises, children, pets and the older neighbor down the hall, and Part One helps you fill in a household needs sheet for the people and pets who live with you.</p>
+   <p>The plan works in three layers: the first hour, the first night and the first 72 hours. Each layer asks only for what that moment needs, so nothing has to be done all at once.</p>
+  </div>
+  <div class="scroll"><table class="tbl">
+   <tr><th>The three layers</th><th></th></tr>
+   <tr><td>The first hour</td><td class="good">Light, safety, information</td></tr>
+   <tr><td>The first night</td><td class="good">Warmth or cool, water, food</td></tr>
+   <tr><td>The first 72 hours</td><td class="good">Health, contact, a steady routine</td></tr>
+  </table></div>
+ </div>
+</div></section>
+
+<section class="dark2" id="free"><div class="wrap">
+ <p class="eyebrow">Start free</p>
+ <h2>Try one page first: the Power-Out Card</h2>
+ <div class="rule"></div>
+ <div class="two">
+  <img src="/clones/ruth-assets/free-card.jpg" alt="The Power-Out Card, a one-page printable">
+  <div>
+   <p>The first hour in one page. Download it, print it and put it beside the bed or on the fridge, so the plan is there when the lights go out.</p>
+   <p>One page, no email needed.</p>
+   <a class="btn quiet" href="/clones/ruth-assets/power-out-card.pdf" download>Download the free card</a>
+  </div>
+ </div>
+</div></section>
+
+<section class="light" id="honest"><div class="wrap">
+ <p class="eyebrow">The honest part</p>
+ <h2>What this book is not</h2>
+ <div class="rule"></div>
+ <ul class="x">
+  <li><b>Not a scare book.</b> There is no doom, no collapse and no fear selling. Outages are ordinary, usually short, and easier with a plan.</li>
+  <li><b>Not a gadget catalog.</b> Things are described by type, such as a headlamp or a battery radio, with no brand names and no shopping spree. Most homes already have a lot of it.</li>
+  <li><b>Not medical or electrical advice.</b> It is general household information. It tells you when to follow your appliance manuals, your utility and local authority, and when to ask a doctor, pharmacist or equipment supplier.</li>
+ </ul>
+ <div class="two" style="margin-top:44px">
+  <img src="/clones/ruth-assets/printables.jpg" alt="Eight printable cards to put around the house">
+  <div><h3 style="font-size:30px">Eight printables, included</h3><p>The Power-Out Card, Household Needs Sheet, Food Safety Clock, Carbon Monoxide Rules, Water Plan, Three-Day Kit List, Contact Card and 72-Hour Checklist, at the end of the book. Print them on plain paper and put them by the front door, on the fridge and beside the bed.</p></div>
+ </div>
+</div></section>
+
+<section class="dark2" id="about"><div class="wrap">
+ <p class="eyebrow">A note from Ruth</p>
+ <div class="about">
+  <img src="/clones/ruth-assets/ruth.jpg" alt="Ruth Calder">
+  <div>
+   <h2 style="margin-bottom:.3em">I'm not a guru. I like a plan.</h2>
+   <p>Ruth Calder is the author of The Dark House Plan, published by Home Guide Press. The book is general household information for ordinary families. It is not an emergency service, and it does not replace your doctor, your utility or your local authority. Questions about the book can go to the contact address at the bottom of the page.</p>
+   <a class="btn quiet" href="#faq">Read the questions</a>
+  </div>
+ </div>
+</div></section>
+
+<section class="light order" id="order" style="background:var(--cream2);border-top:6px solid var(--ink)"><div class="wrap">
+ <p class="eyebrow">Order the book</p>
+ <h2>Not useful? Get your money back</h2>
+ <p class="lead">If the book isn't useful to you, email us within 30 days of buying and we'll refund you.</p>
+ <div class="stack">
+  <div class="row"><div><b>The Dark House Plan</b><br><span>213-page PDF, nine parts, 40 chapters</span></div><em>Included</em></div>
+  <div class="row"><div><b>Eight printables</b><br><span>Tape-up cards and sheets at the back of the book</span></div><em>Included</em></div>
+  <div class="row"><div><b>The 72-hour plan</b><br><span>Hour by hour and day by day, ready to follow</span></div><em>Included</em></div>
+  <div class="total"><div>One-time price</div><div><span class="now">$27</span></div></div>
+ </div>
+ <p style="margin-top:28px"><a class="btn buy" href="/go/ruth">Get the book for $27 &rarr;</a></p>
+ <p class="fine">Instant download &nbsp;&middot;&nbsp; Read on phone, tablet or computer &nbsp;&middot;&nbsp; 30-day refund &nbsp;&middot;&nbsp; Yours to keep, no subscription</p>
+</div></section>
+
+<section class="mfree"><div class="wrap">
+ <p><b>Not ready yet?</b>Start with one free page: the Power-Out Card.</p>
+ <a href="/clones/ruth-assets/power-out-card.pdf" download>Download the free card</a>
+</div></section>
+
+<section class="light" id="faq" style="padding-top:20px"><div class="wrap" style="max-width:820px">
+ <p class="eyebrow">Questions</p>
+ <h2>Quick answers</h2>
+ <details><summary>Is it only about power outages?</summary><p>Yes. It covers light, warmth and cooling, carbon monoxide safety, water, food, phones and radios, health, and different kinds of homes, all for the days when the power is off.</p></details>
+ <details><summary>What do I get?</summary><p>A 213-page PDF book with eight printable pages at the end. You get the download link straight away, and by email.</p></details>
+ <details><summary>Can I read it on my phone?</summary><p>Yes. It's a normal PDF, so it opens on a phone, tablet or computer.</p></details>
+ <details><summary>Can I print it?</summary><p>Yes. The eight printables are made to print on plain paper. You can print the whole book too if you like.</p></details>
+ <details><summary>I live in an apartment or rent. Is this for me?</summary><p>Yes. Part Eight is written for apartments and high-rises, and the rest works in any home. Ask your landlord before you change anything in the building.</p></details>
+ <details><summary>Do I need to buy special equipment?</summary><p>No. The book describes things by type and starts with what most homes already have. Buy only what your own plan needs.</p></details>
+ <details><summary>Is this medical or electrical advice?</summary><p>No. It is general information. For medical equipment, medicines, generators and wiring, the book tells you to ask your doctor, pharmacist, equipment supplier or a qualified electrician.</p></details>
+ <details><summary>Refunds?</summary><p>If the book isn't useful to you, email us within 30 days of buying and we'll refund you.</p></details>
+</div></section>
+
+<section class="close"><div class="wrap">
+ <p class="eyebrow">Before the next outage</p>
+ <h2>Be ready before the lights go out</h2>
+ <p style="max-width:32em;margin:0 auto 24px">The first hour, the first night, light, warmth, water, food, staying in touch, health and every kind of home, plus a 72-hour plan and eight pages to print. $27, one time.</p>
+ <a class="btn buy" href="/go/ruth">Get the book for $27 &rarr;</a>
+</div></section>
+
+<div class="mbuy"><a class="buy" href="/go/ruth">Get the book for $27 &rarr;</a></div>
+
+<footer><div class="wrap">
+ <nav><a href="#power">The nine parts</a><a href="#inside">Inside</a><a href="#house">Every home</a><a href="#free">Free card</a><a href="#order">Order</a><a href="#faq">Questions</a><a href="/">Home Guide Press</a><a href="/terms">Terms</a><a href="/privacy">Privacy</a><a href="/refunds">Refunds</a><a href="mailto:partners@thejonmac.com">Contact</a></nav>
+ <p>The Dark House Plan is written by Ruth Calder and published by Home Guide Press. For general information only, not medical, electrical, legal or emergency advice. Follow your appliance manuals and the guidance of your local authority and utility, and call your emergency number in an emergency. &copy; 2026 Ruth Calder.</p>
+</div></footer>
+<script>
+(function(){
+ try{
+  if(window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches)return;
+  function pop(el){el.classList.remove('pop');void el.offsetWidth;el.classList.add('pop');setTimeout(function(){el.classList.remove('pop')},1000)}
+  if('IntersectionObserver' in window){
+   var io=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting&&e.target.offsetParent!==null)pop(e.target)})},{threshold:.9});
+   document.querySelectorAll('.btn:not(.ghost):not(.quiet)').forEach(function(b){io.observe(b)});
+  }
+  var t,last=0;
+  window.addEventListener('scroll',function(){
+   clearTimeout(t);
+   t=setTimeout(function(){
+    var now=Date.now();if(now-last<6000||window.scrollY<300)return;last=now;
+    document.querySelectorAll('.nav a.btn,.mbuy a').forEach(function(b){if(b.offsetParent!==null||getComputedStyle(b).position==='fixed')pop(b)});
+   },1200);
+  },{passive:true});
+ }catch(e){}
+})();
+</script>
+<script>(function(){var q=location.search;if(!q)return;document.querySelectorAll('a.buy').forEach(function(b){b.href=b.getAttribute('href')+q;});})();</script>

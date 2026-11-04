@@ -147,7 +147,7 @@ export async function sendLinkEmail(env, order, { first, idempotency }) {
     headers: { authorization: `Bearer ${env.RESEND_API_KEY}`, 'content-type': 'application/json', 'Idempotency-Key': idempotency },
     body: JSON.stringify({
       from: `${fromName(p)} <${env.RESEND_FROM_ADDRESS}>`, to: [order.email], reply_to: SUPPORT_EMAIL,
-      subject: message.subject, html: message.html, text: message.text,
+      subject: message.subject, html: message.html,
       tags: [{ name: 'product', value: p.key }, { name: 'kind', value: first ? 'delivery' : 'relink' }],
     }),
     signal: AbortSignal.timeout(15000),
@@ -158,31 +158,30 @@ export async function sendLinkEmail(env, order, { first, idempotency }) {
 }
 
 export function email(p, link, first, site = 'https://homeguidepress.com') {
+  const subject = first ? `${p.title} is ready` : `here's a fresh link for ${p.title}`;
+  const a = 'style="color:#1f5f3a"';
   const who = p.persona ? p.persona.host.split(' ')[0] : BRAND;
-  const subject = first ? `Your copy of ${p.title}` : `Your new download link for ${p.title}`;
-  const opening = first ? `Thank you for buying ${p.title}. Your copy is ready.` : `Here is the fresh download link you asked for.`;
-  const text = `${opening}
-
-Download it here: ${link}
-
-Save the file to your computer, phone or tablet. This link works for ${LINK_DAYS} days. After that, you can get a new one at ${site}/thanks?p=${p.key}
-
-Your card statement shows this charge as ${STATEMENT_NAME}.
-
-If it isn't for you, just reply within ${REFUND_DAYS} days of buying and we'll refund you in full.
-
-${who}
-${byline(p)}`;
+  const thanks = `${site}/thanks?p=${p.key}`;
+  const opening = first
+    ? `<p style="margin:0 0 18px">Thank you for buying ${esc(p.title)}. Your copy is ready.</p>
+<p style="margin:0 0 24px"><a href="${esc(link)}" style="display:inline-block;background:#1f5f3a;color:#ffffff;text-decoration:none;font-family:Arial,sans-serif;font-weight:bold;font-size:20px;padding:16px 28px;border-radius:8px">Download it here</a></p>
+<p style="margin:0 0 18px">The link works for ${LINK_DAYS} days, then grab a fresh one at <a href="${esc(thanks)}" ${a}>${esc(thanks)}</a>. Your card statement shows this charge as ${STATEMENT_NAME}.</p>`
+    : `<p style="margin:0 0 18px"><a href="${esc(link)}" ${a}>Someone asked for a new download link, so here it is</a>.</p>
+<p style="margin:0 0 18px">The link works for ${LINK_DAYS} days. After that you can <a href="${esc(site)}/thanks?p=${p.key}" ${a}>get another here</a>.</p>`;
+  const refund = first
+    ? `Not for you? Reply within ${REFUND_DAYS} days and I'll refund you in full. No form, no hoops.`
+    : `Same promise as before. If it isn't for you, reply within ${REFUND_DAYS} days of buying and I'll refund you in full.`;
+  const statement = first ? '' : `<p style="margin:0 0 18px">Your card statement shows this charge as ${STATEMENT_NAME}.</p>
+`;
+  const help = first ? '' : `\n<p style="margin:0 0 18px">And if the link somehow doesn't work, reply and tell me what you see. I'll sort it out.</p>`;
   const html = `<!doctype html><html><body style="margin:0;padding:0;background:#f6f1e7">
 <div style="max-width:560px;margin:0 auto;padding:28px 22px;font-family:Georgia,'Times New Roman',serif;font-size:19px;line-height:1.55;color:#231b14">
-<p style="margin:0 0 18px">${esc(opening)}</p>
-<p style="margin:0 0 24px"><a href="${esc(link)}" style="display:inline-block;background:#1f5f3a;color:#ffffff;text-decoration:none;font-family:Arial,sans-serif;font-weight:bold;font-size:20px;padding:16px 28px;border-radius:8px">Download ${esc(p.title)}</a></p>
-<p style="margin:0 0 18px">Save the file to your computer, phone or tablet. This link works for ${LINK_DAYS} days. After that, you can <a href="${esc(site)}/thanks?p=${p.key}" style="color:#1f5f3a">get a new link here</a>.</p>
-<p style="margin:0 0 18px">Your card statement shows this charge as ${STATEMENT_NAME}.</p>
-<p style="margin:0 0 18px">If it isn't for you, just reply within ${REFUND_DAYS} days of buying and we'll refund you in full.</p>
-<p style="margin:0">${esc(who)}<br><span style="color:#6b5d4f">${esc(byline(p))}</span></p>
+<p style="margin:0 0 18px">Hi,</p>
+${opening}
+${statement}<p style="margin:0 0 18px">${refund}</p>${help}
+<p style="margin:0">${first ? `${esc(who)}<br>` : ''}${esc(byline(p))}</p>
 </div></body></html>`;
-  return { subject, text, html };
+  return { subject, html };
 }
 
 // POST /api/resend-link (form). Always answers the same way, so it never reveals who bought what.
@@ -224,7 +223,7 @@ export async function downloadFile(env, token, index) {
   await env.DB.prepare('UPDATE orders SET downloads = downloads + 1 WHERE transaction_id = ?').bind(t.t).run();
   return { response: new Response(object.body, { headers: {
     'content-type': object.httpMetadata?.contentType || 'application/pdf',
-    'content-disposition': `attachment; filename="${file.name.replace(/[^\w .()-]/g, '')}"`,
+    'content-disposition': `attachment; filename="${file.name.replace(/[^\w .()'-]/g, '')}"`,
     'cache-control': 'private, no-store', 'x-robots-tag': 'noindex',
   } }) };
 }

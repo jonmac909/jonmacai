@@ -1,0 +1,608 @@
+<link href="/favicon.png" rel="icon" type="image/png"/>
+<title>Finally Written Down | Home Guide Press</title>
+<meta content="Finally Written Down: 100 Italian-American recipes from Giovanni Moretti's mother's kitchen in Bensonhurst, each with the one old trick that makes it work." name="description"/>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&amp;family=Nunito+Sans:ital,opsz,wght@0,6..12,400..800;1,6..12,400&amp;family=Caveat:wght@600&amp;display=swap" rel="stylesheet"/>
+<style>
+
+:root{
+  --linen:#F5EFE2; --card:#FFFCF5; --ink:#241A13; --ink-2:#5E5247; --line:#DDD2BE;
+  --basil:#27402B; --basil-2:#1B2E1F; --basil-soft:#E3E9DA;
+  --sauce:#C8401F; --sauce-deep:#A1321A; --gold:#E0A526; --cream-on-dark:#F1E7D2;
+  --display:"DM Serif Display",Georgia,"Times New Roman",serif;
+  --sans:"Nunito Sans","Helvetica Neue",Arial,sans-serif;
+  --hand:"Caveat","Segoe Script",cursive;
+  --wrap:1160px;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{background:var(--linen);color:var(--ink);font-family:var(--sans);font-size:18px;line-height:1.65;-webkit-font-smoothing:antialiased;padding-bottom:96px}
+img{max-width:100%;height:auto;display:block}
+a{color:inherit}
+h1,h2,h3{font-family:var(--display);font-weight:400;line-height:1.05;letter-spacing:-.005em;text-wrap:balance;margin:0}
+p{margin:0}
+.accent{font-style:italic;color:var(--sauce)}
+.wrap{max-width:var(--wrap);margin:0 auto;padding-inline:24px}
+.eyebrow{font-weight:800;font-size:13px;letter-spacing:.18em;text-transform:uppercase;color:var(--basil);display:flex;align-items:center;gap:10px}
+.eyebrow::before{content:"";width:22px;height:2px;background:var(--sauce)}
+.section{padding-block:104px}
+.section-head{display:grid;gap:18px;max-width:760px;margin-bottom:56px}
+.section-head h2{font-size:clamp(36px,4.8vw,58px)}
+.section-head p{color:var(--ink-2);font-size:19px}
+:focus-visible{outline:3px solid var(--gold);outline-offset:3px;border-radius:4px}
+
+
+.check{height:26px;background-color:var(--card);background-image:linear-gradient(45deg,rgba(200,64,31,.9) 25%,transparent 25%,transparent 75%,rgba(200,64,31,.9) 75%),linear-gradient(45deg,rgba(200,64,31,.9) 25%,transparent 25%,transparent 75%,rgba(200,64,31,.9) 75%);background-size:26px 26px;background-position:0 0,13px 13px;opacity:.9}
+
+
+.btn{display:inline-flex;align-items:center;gap:10px;background:var(--sauce);color:#fff;text-decoration:none;font-weight:800;font-size:18px;padding:17px 30px;border-radius:12px;box-shadow:0 4px 0 var(--sauce-deep);transition:transform .12s ease,box-shadow .12s ease}
+.btn:hover{transform:translateY(2px);box-shadow:0 2px 0 var(--sauce-deep)}
+.btn s{opacity:.7;font-weight:400}
+.btn-gold{background:var(--gold);color:var(--basil-2);box-shadow:0 4px 0 #A57712}
+.btn-gold:hover{box-shadow:0 2px 0 #A57712}
+
+
+.topbar{background:var(--basil-2);color:var(--cream-on-dark);text-align:center;font-size:13px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;padding:11px 16px;display:flex;justify-content:center;align-items:center;gap:12px;flex-wrap:wrap}
+.topbar .pill{background:var(--gold);color:var(--basil-2);border-radius:6px;padding:3px 9px;letter-spacing:.06em}
+
+
+.hero{background:var(--basil);color:var(--cream-on-dark);padding-block:72px 80px;overflow:hidden}
+.hero-grid{display:grid;grid-template-columns:.9fr 1.1fr;gap:64px;align-items:center}
+.hero .eyebrow{color:var(--gold)}
+.hero .eyebrow::before{background:var(--gold)}
+.hero h1{font-size:clamp(46px,6.2vw,82px);margin:18px 0 26px;color:#fff}
+.hero h1 .accent{color:var(--gold);display:block}
+.lede{font-size:19px;color:rgba(241,231,210,.85);max-width:32em}
+.lede b{color:#fff}
+.cta-row{display:flex;align-items:center;gap:18px;flex-wrap:wrap;margin-top:32px}
+.cta-note{font-size:14px;color:rgba(241,231,210,.75);max-width:13em;line-height:1.4}
+.chips{display:grid;grid-template-columns:repeat(2,max-content);gap:10px 28px;margin-top:32px;font-size:15px;color:rgba(241,231,210,.85)}
+.chips span{display:flex;align-items:center;gap:8px}
+.chips span::before{content:"✓";color:var(--gold);font-weight:800}
+
+.book-stage{position:relative;display:flex;justify-content:center;padding:10px 0 20px}
+.book-stage::before{content:"";position:absolute;width:88%;aspect-ratio:1;border-radius:50%;background:radial-gradient(circle,rgba(224,165,38,.28),transparent 65%);top:50%;left:50%;transform:translate(-50%,-50%)}
+.book{position:relative;width:min(380px,82%);aspect-ratio:3/4.5;border-radius:3px 9px 9px 3px;overflow:hidden;background:#A22018;box-shadow:-10px 0 0 -4px #6f140f inset,0 40px 60px -24px rgba(0,0,0,.6);transform:rotate(3deg)}
+.book::before{content:"";position:absolute;inset:0 auto 0 0;width:16px;background:linear-gradient(90deg,rgba(0,0,0,.3),rgba(255,255,255,.12) 60%,transparent);z-index:1}
+.book-title{position:absolute;inset:0 0 auto 0;padding:24px 20px 0;text-align:center;color:#fff}
+.book-title small{display:block;font-weight:800;font-size:11px;letter-spacing:.3em;text-transform:uppercase}
+.book-title strong{display:block;font-family:var(--display);font-weight:400;font-size:clamp(32px,4.4vw,48px);line-height:.92;margin-top:10px;text-transform:uppercase}
+.book-title strong em{display:block;font-style:italic;text-transform:none;font-size:.6em;color:var(--gold);margin-bottom:4px}
+.book-title span{display:block;font-size:9.5px;font-weight:700;letter-spacing:.16em;white-space:nowrap;text-transform:uppercase;margin-top:10px;opacity:.9}
+.badge{position:absolute;right:4%;bottom:8%;width:112px;height:112px;border-radius:50%;background:var(--gold);color:var(--basil-2);display:grid;place-content:center;text-align:center;transform:rotate(12deg);box-shadow:0 12px 24px -10px rgba(0,0,0,.5);z-index:2}
+.badge b{font-family:var(--display);font-size:34px;line-height:1;font-weight:400}
+.badge small{font-size:12px;font-weight:800;line-height:1.15}
+
+
+.strip{overflow:hidden;padding-block:56px}
+.strip-track{display:flex;gap:18px;width:max-content;animation:roll 80s linear infinite}
+.strip:hover .strip-track{animation-play-state:paused}
+.dish{width:210px;flex:none;background:var(--card);padding:10px 10px 12px;border-radius:4px;box-shadow:0 10px 24px -14px rgba(36,26,19,.45)}
+.dish:nth-child(odd){transform:rotate(-1.5deg)}
+.dish:nth-child(even){transform:rotate(1.5deg)}
+.dish img{width:100%;aspect-ratio:1;object-fit:cover}
+.dish span{display:block;font-family:var(--hand);font-size:22px;line-height:1.1;color:var(--ink);margin-top:8px;text-align:center}
+@keyframes roll{to{transform:translateX(-50%)}}
+
+
+.truths-wrap h2{font-size:clamp(38px,5.2vw,64px);max-width:15em;margin-top:18px}
+.truths{display:grid;grid-template-columns:repeat(3,1fr);gap:24px;margin-top:56px}
+.truths > div{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:32px 28px;border-top:6px solid var(--sauce)}
+.truths h3{font-size:30px;margin-bottom:10px}
+.truths p{color:var(--ink-2)}
+.closer{font-family:var(--display);font-size:clamp(24px,2.6vw,32px);line-height:1.3;max-width:24em;margin-top:56px}
+.closer em{color:var(--sauce)}
+
+
+.letter-sec{background:var(--basil-soft)}
+.letter-grid{display:grid;grid-template-columns:1.2fr .8fr;gap:72px;align-items:center}
+.letter h2{font-size:clamp(34px,4.4vw,54px);margin:16px 0 28px}
+.letter-body{display:grid;gap:18px;font-size:19px;color:var(--ink-2);max-width:34em}
+.letter-body b{color:var(--ink)}
+.sig{font-family:var(--hand);font-size:56px;color:var(--sauce);line-height:1;margin-top:10px}
+.polaroid{margin:0;background:#fff;padding:14px 14px 18px;box-shadow:0 30px 50px -28px rgba(36,26,19,.55);transform:rotate(2.5deg)}
+.polaroid img{width:100%;height:auto;aspect-ratio:1;object-fit:cover}
+.polaroid figcaption{font-family:var(--hand);font-size:26px;text-align:center;margin-top:10px;color:var(--ink)}
+
+
+.tricks{display:grid;grid-template-columns:repeat(2,1fr);gap:22px}
+.trick{background:var(--card);border:1px solid var(--line);border-radius:16px;overflow:hidden;display:grid;grid-template-rows:auto 1fr}
+.trick .told{padding:14px 22px;background:#F7E4DC;color:var(--sauce-deep);font-weight:700;font-size:15px;display:flex;gap:10px;align-items:baseline}
+.trick .told::before{content:"✕";font-weight:800}
+.trick .told s{text-decoration-thickness:1.5px}
+.trick .does{padding:20px 22px 22px;display:grid;gap:12px;align-content:space-between}
+.trick .does p{font-family:var(--display);font-size:23px;line-height:1.3}
+.trick .recipe{font-size:13px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--basil)}
+
+
+.feat-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:40px 48px}
+.feat h3{font-size:26px;margin-bottom:8px}
+.feat p{color:var(--ink-2)}
+.feat .ico{width:44px;height:44px;border-radius:12px;background:var(--basil);color:var(--gold);display:grid;place-content:center;font-weight:800;margin-bottom:16px;font-size:20px}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);margin-top:72px;background:var(--basil);border-radius:20px;color:var(--cream-on-dark);overflow:hidden}
+.stats div{padding:30px 26px;border-left:1px solid rgba(241,231,210,.15)}
+.stats div:first-child{border-left:0}
+.stats b{display:block;font-family:var(--display);font-weight:400;font-size:clamp(44px,5vw,64px);color:var(--gold);line-height:1;font-variant-numeric:tabular-nums}
+.stats span{font-size:16px}
+
+
+.menu{background:var(--basil-2);color:var(--cream-on-dark);border-radius:24px;padding:56px clamp(22px,5vw,64px);position:relative}
+.menu::before{content:"";position:absolute;inset:12px;border:1px solid rgba(224,165,38,.35);border-radius:16px;pointer-events:none}
+.menu-head{text-align:center;margin-bottom:40px}
+.menu-head .eyebrow{justify-content:center;color:var(--gold)}
+.menu-head .eyebrow::before{display:none}
+.menu-head h2{font-size:clamp(34px,4.4vw,54px);color:#fff;margin-top:10px}
+.chapters{display:grid;grid-template-columns:1fr 1fr;gap:6px 64px}
+.ch{padding:14px 0}
+.ch .row{display:flex;align-items:baseline;gap:10px}
+.ch h3{font-size:23px;color:#fff}
+.ch .dots{flex:1;border-bottom:2px dotted rgba(241,231,210,.3);transform:translateY(-5px)}
+.ch .v{font-weight:800;color:var(--gold);font-variant-numeric:tabular-nums}
+.ch p{font-size:15px;color:rgba(241,231,210,.7);margin-top:2px}
+.ch p b{color:rgba(241,231,210,.9);font-weight:700}
+.total{display:flex;flex-wrap:wrap;gap:24px 40px;align-items:center;justify-content:center;margin-top:40px;padding-top:32px;border-top:1px solid rgba(241,231,210,.2);text-align:center}
+.total .t1{font-size:15px;opacity:.75}
+.total .t1 s{font-family:var(--display);font-size:32px;display:block}
+.total .t2{font-size:15px;color:var(--gold)}
+.total .t2 b{font-family:var(--display);font-weight:400;font-size:54px;color:#fff;display:block;line-height:1}
+
+
+.spread{display:grid;grid-template-columns:1fr 1fr;background:var(--card);border-radius:6px;box-shadow:0 40px 70px -40px rgba(36,26,19,.6),0 2px 0 var(--line);overflow:hidden;max-width:1000px;margin:0 auto}
+.pg{padding:44px 40px;position:relative;font-size:15.5px}
+.pg + .pg{border-left:1px solid var(--line);background:linear-gradient(90deg,rgba(36,26,19,.05),transparent 30px)}
+.pg-photo{padding:0;display:grid;grid-template-rows:1fr auto}
+.pg-photo img{width:100%;height:100%;object-fit:cover;min-height:340px}
+.pg-photo .cap{padding:22px 26px}
+.pg-photo .cap h3{font-size:32px}
+.pg-photo .cap p{color:var(--ink-2);font-size:15px;margin-top:4px}
+.pg h4{font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:var(--basil);margin:0 0 10px}
+.ingr{display:grid;grid-template-columns:1fr 1fr;gap:4px 18px;margin-bottom:22px;font-size:14.5px}
+.steps{margin:0 0 20px;padding-left:22px;display:grid;gap:8px}
+.box{border-left:4px solid var(--sauce);border-radius:4px;padding:12px 16px;background:#FBEDE6;margin-top:8px}
+.box h4{margin-bottom:4px;color:var(--sauce-deep)}
+.box.green{border-color:var(--basil);background:var(--basil-soft)}
+.box.green h4{color:var(--basil)}
+.folio{position:absolute;bottom:14px;right:22px;font-size:12px;color:var(--ink-2);font-style:italic}
+.sample-note{text-align:center;color:var(--ink-2);font-size:14px;margin-top:18px}
+
+
+.quotes{display:grid;grid-template-columns:repeat(3,1fr);gap:22px}
+.q{background:var(--card);border-radius:4px;padding:26px 24px 22px;box-shadow:0 12px 30px -20px rgba(36,26,19,.5);position:relative}
+.q::before{content:"“";position:absolute;top:-6px;left:18px;font-family:var(--display);font-size:72px;color:var(--gold);line-height:1}
+.q p{font-size:18px;line-height:1.5;margin-top:14px}
+.q small{display:block;margin-top:14px;font-size:14px;color:var(--ink-2);font-weight:700}
+.callout{margin-top:28px;background:var(--basil);color:var(--cream-on-dark);border-radius:20px;padding:36px;display:grid;grid-template-columns:auto 1fr;gap:26px;align-items:center}
+.callout img{width:88px;height:88px;border-radius:50%;border:3px solid var(--gold)}
+.callout blockquote{margin:0;font-family:var(--display);font-size:24px;line-height:1.4;color:#fff}
+.callout blockquote span{display:block;font-family:var(--sans);font-size:14px;color:rgba(241,231,210,.7);margin-top:6px}
+.callout p{margin-top:12px;font-size:17px}
+
+
+.fit{display:grid;grid-template-columns:1fr 1fr;gap:0;border:1px solid var(--line);border-radius:20px;overflow:hidden;background:var(--card)}
+.fit > div{padding:40px}
+.fit .no{background:var(--linen);border-left:1px solid var(--line)}
+.fit h3{font-size:30px;margin-bottom:18px}
+.fit ul{margin:0;padding:0;list-style:none;display:grid;gap:12px}
+.fit li{display:grid;grid-template-columns:24px 1fr;gap:10px}
+.fit .yes li::before{content:"✓";color:var(--basil);font-weight:800}
+.fit .no li::before{content:"✕";color:var(--sauce);font-weight:800}
+
+
+.offer{display:grid;grid-template-columns:.8fr 1.2fr;background:var(--card);border-radius:22px;overflow:hidden;box-shadow:0 40px 80px -40px rgba(36,26,19,.45);border:1px solid var(--line)}
+.offer-l{padding:48px}
+.offer-l h2{font-size:clamp(32px,3.6vw,46px);margin:12px 0 26px}
+.offer-l ul{list-style:none;margin:0;padding:0;display:grid;gap:14px}
+.offer-l li{display:grid;grid-template-columns:26px 1fr;gap:10px}
+.offer-l li::before{content:"✓";color:var(--gold);background:var(--basil);width:22px;height:22px;border-radius:50%;display:grid;place-content:center;font-size:13px;font-weight:800;margin-top:3px}
+.offer-r{background:var(--basil);color:var(--cream-on-dark);padding:48px 36px;display:grid;align-content:center;justify-items:center;text-align:center;gap:14px}
+.offer-r .price{font-family:var(--display);font-size:104px;line-height:1;color:#fff}
+.offer-r .wasline{font-size:17px;opacity:.85}
+.was{opacity:.6;text-decoration:line-through;font-weight:400;margin-right:2px}
+#clock{font-variant-numeric:tabular-nums;letter-spacing:.02em}
+.guarantee{display:grid;grid-template-columns:auto 1fr;gap:28px;align-items:center;max-width:760px;margin:64px auto 0}
+.seal{width:120px;height:120px;border-radius:50%;background:var(--gold);color:var(--basil-2);display:grid;place-content:center;text-align:center;box-shadow:0 0 0 6px var(--linen),0 0 0 8px var(--gold)}
+.seal b{font-family:var(--display);font-weight:400;font-size:46px;line-height:1}
+.seal small{font-weight:800;letter-spacing:.2em;font-size:12px}
+.guarantee p{font-family:var(--display);font-size:22px;line-height:1.45}
+
+
+.faq-grid{display:grid;grid-template-columns:.8fr 1.2fr;gap:56px;align-items:start}
+.faq-grid .section-head{position:sticky;top:30px}
+.faq{border-top:2px solid var(--ink)}
+.faq details{border-bottom:1px solid var(--line)}
+.faq summary{cursor:pointer;list-style:none;padding:22px 44px 22px 0;font-family:var(--display);font-size:23px;position:relative}
+.faq summary::-webkit-details-marker{display:none}
+.faq summary::after{content:"+";position:absolute;right:6px;top:16px;font-size:30px;color:var(--sauce);font-family:var(--sans);transition:transform .2s}
+.faq details[open] summary::after{transform:rotate(45deg)}
+.faq details p{padding:0 0 24px;color:var(--ink-2);max-width:40em}
+
+
+.final{background:var(--basil);color:var(--cream-on-dark);text-align:center;padding-block:112px}
+.final h2{font-size:clamp(40px,5.6vw,72px);max-width:13em;margin:0 auto 20px;color:#fff}
+.final h2 .accent{color:var(--gold)}
+.final p{font-size:19px;margin-bottom:34px;opacity:.85}
+.final .cta-note{margin:16px auto 0;max-width:none}
+footer{background:var(--basil-2);color:rgba(241,231,210,.7);padding-block:30px;font-size:14px}
+footer .wrap{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap}
+
+
+.sticky{position:fixed;left:50%;bottom:calc(16px + env(safe-area-inset-bottom,0px));transform:translate(-50%,140%);transition:transform .35s cubic-bezier(.2,.8,.2,1);z-index:50;width:min(600px,calc(100% - 32px));background:var(--basil-2);color:var(--cream-on-dark);border-radius:16px;box-shadow:0 18px 40px -14px rgba(0,0,0,.5);display:flex;align-items:center;gap:14px;padding:10px 10px 10px 14px}
+.sticky.show{transform:translate(-50%,0)}
+.sticky .mini{width:36px;height:48px;border-radius:2px 5px 5px 2px;background:#A22018;flex:none}
+.sticky div{flex:1;line-height:1.25;min-width:0}
+.sticky b{font-family:var(--display);font-weight:400;font-size:19px;display:block;color:#fff}
+.sticky small{opacity:.7;font-size:13px}
+.sticky .btn{padding:11px 18px;font-size:16px}
+
+
+.reveal{transition:opacity .7s ease,transform .7s ease}
+.js .reveal.pending{opacity:0;transform:translateY(24px)}
+@media (prefers-reduced-motion:reduce){.strip-track{animation:none}.reveal{transition:none}.js .reveal.pending{opacity:1;transform:none}html{scroll-behavior:auto}}
+
+
+@media (max-width:920px){
+  .hero-grid,.letter-grid,.offer,.fit,.faq-grid{grid-template-columns:1fr}
+  .hero-grid{gap:36px}
+  .polaroid{max-width:420px;margin:0 auto}
+  .faq-grid .section-head{position:static;margin-bottom:0}
+  .truths,.feat-grid,.quotes{grid-template-columns:1fr 1fr}
+  .chapters{grid-template-columns:1fr}
+  .stats{grid-template-columns:1fr 1fr}
+  .stats div:nth-child(3){border-left:0}
+  .stats div:nth-child(n+3){border-top:1px solid rgba(241,231,210,.15)}
+  .spread{grid-template-columns:1fr}
+  .pg-photo img{height:auto;aspect-ratio:246/285;min-height:0}
+  .pg + .pg{border-left:0;border-top:1px solid var(--line)}
+  .fit .no{border-left:0;border-top:1px solid var(--line)}
+}
+@media (max-width:600px){
+  body{font-size:17px}
+  .wrap{padding-inline:18px}
+  .section{padding-block:72px}
+  .truths,.feat-grid,.quotes,.tricks{grid-template-columns:1fr}
+  .chips{grid-template-columns:1fr}
+  .pg{padding:30px 22px}
+  .ingr{grid-template-columns:1fr}
+  .offer-l,.offer-r,.fit > div{padding:32px 24px}
+  .callout{grid-template-columns:1fr;padding:26px}
+  .guarantee{grid-template-columns:1fr;justify-items:center;text-align:center}
+  .badge{width:88px;height:88px}.badge b{font-size:26px}
+  .sticky small{display:none}
+  .dish{width:160px}
+}
+</style>
+<div class="topbar">Sale · <span class="pill" id="topPrice"><span class="now">$37.99</span></span> · ends in <b id="clock">--:--:--</b></div>
+<header class="hero">
+<div class="wrap hero-grid">
+<div class="book-stage reveal">
+<div aria-label="Cover of Finally Written Down by Giovanni Moretti, showing Giovanni holding a tray of chicken parm" class="book" role="img">
+<div class="book-title">
+<small>Giovanni Moretti</small>
+<strong>Finally Written Down</strong>
+<span>100 recipes my family never wrote down</span>
+</div>
+</div>
+<div class="badge"><b>300</b><small>fixes for when something goes wrong</small></div>
+</div>
+<div class="reveal">
+<div class="eyebrow">The cookbook from Giovanni's kitchen</div>
+<h1>Your grandmother's cooking was never hard. <span class="accent">She just never wrote it down.</span></h1>
+<p class="lede">100 Italian-American recipes from thirty years at my mother's stove in Bensonhurst. Sunday gravy, cutlets, lasagna, Friday fish. Each one comes with <b>the one old trick that makes it work</b>, so it comes out right the first time.</p>
+<div class="cta-row">
+<a class="btn buy" href="https://homeguidepress.com/go/angelo">Get the book · <s class="was">$59</s> <span class="now">$37.99</span></a>
+<span class="cta-note">Instant PDF download · less than one tray from the pizzeria</span>
+</div>
+<div class="chips"><span>326 pages</span><span>A full-page photo of every dish</span><span>Free lifetime updates</span><span>30-day money-back guarantee</span></div>
+</div>
+</div>
+</header>
+<div aria-hidden="true" class="check"></div>
+<div aria-label="Some of the dishes in the book" class="strip">
+<div class="strip-track" id="strip"></div>
+</div>
+<section class="section truths-wrap" style="padding-top:40px">
+<div class="wrap">
+<div class="eyebrow">What the jar doesn't tell you</div>
+<h2>They made Italian cooking look <span class="accent">complicated</span>, so you'd keep buying it.</h2>
+<div class="truths">
+<div class="reveal"><h3>The jar</h3><p>Tomatoes, salt, a little oil and a lot of sugar, cooked flat and sold back to you for five times what a can of whole peeled costs.</p></div>
+<div class="reveal"><h3>The tray</h3><p>A tray of chicken parm from the place on the avenue is a few chicken breasts, a pot of sauce and somebody else's hour.</p></div>
+<div class="reveal"><h3>The myth</h3><p>That you need a fryer, a pasta machine or a grandmother from the old country standing behind you. You need a few old tricks.</p></div>
+</div>
+<p class="closer reveal">If your eggplant came out greasy or your cutlets went soft on the plate, <em>that was never your fault.</em> Nobody showed you the old way.</p>
+</div>
+</section>
+<section class="section letter-sec">
+<div class="wrap letter-grid">
+<div class="letter reveal">
+<div class="eyebrow">A letter from Giovanni</div>
+<h2>My mother never wrote a word of it down. <span class="accent">So I did.</span></h2>
+<div class="letter-body">
+<p>I was eight when my family came to Brooklyn. My mother Assunta took a small place on 18th Avenue in Bensonhurst, and I started at nine, peeling garlic on a milk crate by the back door, long before I was tall enough to see over the counter.</p>
+<p>Thirty years later I am still at that stove. And in thirty years I never once saw her measure anything. How much salt the water takes, when the gravy has cooked long enough, which bread is stale enough for meatballs. <b>It lived in her hands, and nowhere else.</b></p>
+<p>I am not a chef, and I never pretend to be one. What I learned is simpler: the old way is almost always the easier way. She did less than you think, and she did it in the right order.</p>
+<p>So I wrote it all down. Her dishes, the ones from my videos, and every small trick that makes them work. Learn the tricks, and the recipes become yours.</p>
+</div>
+<div class="sig">Giovanni</div>
+</div>
+<figure class="polaroid reveal">
+<img alt="Giovanni Moretti in his white cook's jacket, leaning on the counter of his Brooklyn kitchen" height="900" loading="lazy" src="/clones/shared/portrait-giovanni.jpg" width="900"/>
+<figcaption>Brooklyn, in the kitchen</figcaption>
+</figure>
+</div>
+</section>
+<section class="section">
+<div class="wrap">
+<div class="section-head reveal">
+<div class="eyebrow">A trick with every recipe</div>
+<h2>What the shows tell you, and what my mother did.</h2>
+<p>Six of the 100 tricks inside. Each recipe carries one.</p>
+</div>
+<div class="tricks">
+<div class="trick reveal"><div class="told"><s>Fry the eggplant in a deep pan of oil</s></div><div class="does"><p>Salt the slices, press them under a plate and a can for an hour, then brush two spoons of oil on them and bake.</p><span class="recipe">Eggplant, the old way</span></div></div>
+<div class="trick reveal"><div class="told"><s>Tip the sauce over the drained pasta</s></div><div class="does"><p>Drain it a minute early and finish it in the pan, with the sauce and a splash of the water it cooked in.</p><span class="recipe">Spaghetti al pomodoro</span></div></div>
+<div class="trick reveal"><div class="told"><s>Boil the lasagna sheets first</s></div><div class="does"><p>Soak the sheets in the hottest tap water for 25 minutes, and rest the tray half an hour before it goes in.</p><span class="recipe">Sunday lasagna</span></div></div>
+<div class="trick reveal"><div class="told"><s>Fry the cutlets in a deep pan</s></div><div class="does"><p>Bread them, chill them on a rack for 20 minutes, then drain on the rack they chilled on.</p><span class="recipe">Chicken cutlets</span></div></div>
+<div class="trick reveal"><div class="told"><s>Brown the meatballs first</s></div><div class="does"><p>Stale bread soaked in milk, and the meat goes in raw, straight into the simmering gravy for an hour.</p><span class="recipe">Sunday meatballs</span></div></div>
+<div class="trick reveal"><div class="told"><s>Add more tomato paste when it tastes thin</s></div><div class="does"><p>Cook it longer. If it still bites, an eighth of a teaspoon of baking soda, and stir.</p><span class="recipe">Sunday gravy</span></div></div>
+</div>
+</div>
+</section>
+<section class="section" style="padding-top:0">
+<div class="wrap">
+<div class="section-head reveal">
+<div class="eyebrow">Built for the kitchen counter</div>
+<h2>Any page you open, you can cook from.</h2>
+<p>Every recipe is two pages: the finished dish first, then the whole recipe on one page. No flipping back and forth with wet hands.</p>
+</div>
+<div class="feat-grid">
+<div class="feat reveal"><div class="ico">1</div><h3>The finished dish, first</h3><p>You see what you are making before you start.</p></div>
+<div class="feat reveal"><div class="ico">2</div><h3>The pantry, pictured</h3><p>The twelve things that were always in her cupboard, and what to skip at the store.</p></div>
+<div class="feat reveal"><div class="ico">3</div><h3>Short, numbered steps</h3><p>With the cues to watch for: the sizzle, the colour, the smell of the garlic.</p></div>
+<div class="feat reveal"><div class="ico">4</div><h3>Giovanni's trick</h3><p>The small thing my mother did that makes the dish, and why.</p></div>
+<div class="feat reveal"><div class="ico">5</div><h3>If it goes wrong</h3><p>What you are seeing, why it happened, and how to save dinner.</p></div>
+<div class="feat reveal"><div class="ico">6</div><h3>Monday's lunch</h3><p>What last night's dinner turns into by Monday. Nothing thrown away.</p></div>
+</div>
+<div class="stats reveal">
+<div><b>100</b><span>recipes across 10 chapters</span></div>
+<div><b>300</b><span>pages</span></div>
+<div><b>10</b><span>stories from the Sunday table</span></div>
+<div><b>300</b><span>rescue notes for when it goes wrong</span></div>
+</div>
+</div>
+</section>
+<section class="section" style="padding-top:0">
+<div class="wrap">
+<div class="menu reveal">
+<div class="menu-head">
+<div class="eyebrow">What you'll cook</div>
+<h2>From Tuesday pasta to the Sunday table.</h2>
+</div>
+<div class="chapters" id="chapters"></div>
+<div class="total">
+<div class="t1">Total value<s id="totalValue">$150</s></div>
+<div class="t2">You pay today<b><s class="was">$59</s> <span class="now">$37.99</span></b></div>
+<a class="btn btn-gold buy" href="https://homeguidepress.com/go/angelo">Get every recipe</a>
+</div>
+</div>
+</div>
+</section>
+<section class="section" style="padding-top:0">
+<div class="wrap">
+<div class="section-head reveal">
+<div class="eyebrow">Look inside</div>
+<h2>This is what a recipe looks like.</h2>
+<p>The eggplant from the video everybody asked about, written out in full.</p>
+</div>
+<div class="spread reveal">
+<div class="pg pg-photo">
+<img alt="Baked eggplant layered with tomato sauce and mozzarella" loading="lazy" src="/clones/angelo-assets/spread-eggplant.jpg"/>
+<div class="cap"><h3>Eggplant, the old way</h3><p>Salted, pressed, brushed, never fried. Serves 4 · 1 hour pressing · 25 minutes in the oven</p></div>
+</div>
+<div class="pg">
+<h4>You need</h4>
+<div class="ingr">
+<span>2 young eggplants, heavy for their size</span><span>1 tbsp coarse salt</span>
+<span>3 tbsp olive oil</span><span>1 can (28 oz / 800 g) whole peeled tomatoes, for the weight</span>
+<span>½ lemon</span><span>Basil, a few leaves</span>
+</div>
+<h4>Do this</h4>
+<ol class="steps">
+<li>Slice into rounds as thick as your finger, about ½ in / 1.5 cm. Leave the skin on.</li>
+<li>Salt both sides, layer in a colander, and put a plate on top with the can of tomatoes on the plate. One hour.</li>
+<li>Oven to 425°F / 220°C with the empty tray inside. Wipe every slice dry with a towel.</li>
+<li>Brush the oil on the eggplant, not the tray. One layer on the hot tray, no slice touching.</li>
+<li>20 to 25 minutes, turning once, until deep gold. Lemon and salt only at the end.</li>
+</ol>
+<div class="box"><h4>Giovanni's trick</h4><p>The weight. Eggplant is a honeycomb full of air, and the air is what drinks the oil. Press the air out and a sponge stops being a sponge.</p></div>
+<div class="box green"><h4>If it goes wrong</h4><p>Pale and soft? The slices were crowded and steamed. Use two trays next time, and never cover them.</p></div>
+<span class="folio">p. 30</span>
+</div>
+</div>
+<p class="sample-note">Sample layout. Every recipe in the book follows this two-page format.</p>
+</div>
+</section>
+<section class="section" id="buyers">
+<div class="wrap">
+<div class="section-head reveal">
+<div class="eyebrow">From readers</div>
+<h2>What buyers say about the book.</h2>
+<p>The book is new, so these are my promises, not reviews. When readers write to me, their words go here, good and bad.</p>
+</div>
+<div class="quotes">
+<div class="q reveal"><p>I am not going to invent reviews. When readers write to me, I will put what they say here, exactly as they wrote it.</p><small>Giovanni Moretti &middot; the author</small></div>
+<div class="q reveal"><p>What I can promise now: the amounts, the order and the one thing that goes wrong in every recipe, and your money back within 30 days if it is not for you.</p><small>Giovanni Moretti &middot; the author</small></div>
+<div class="q reveal"><p>It is a PDF, yours for good, with free updates. There is nothing else to buy and nothing to cancel.</p><small>Giovanni Moretti &middot; the author</small></div>
+</div>
+</div>
+</section>
+<section class="section letter-sec">
+<div class="wrap">
+<div class="section-head reveal">
+<div class="eyebrow">From the videos</div>
+<h2>What the videos teach about Giovanni's tricks.</h2>
+<p>Six tricks from the channel, written out in plain words. The book is brand new, and the videos are where most people meet them first.</p>
+</div>
+<div class="quotes">
+<div class="q reveal"><p>Salt the slices, press them for an hour, and the eggplant stops drinking all that oil.</p><small>From the book · eggplant</small></div>
+<div class="q reveal"><p>Pull the pasta a minute early and finish it in the pan with the sauce and a little water.</p><small>From the book · spaghetti</small></div>
+<div class="q reveal"><p>Soak the sheets in hot tap water instead of boiling them, and the lasagna stays loose.</p><small>From the book · lasagna</small></div>
+<div class="q reveal"><p>Rest the cutlets on a rack in the fridge before frying, and the crust stays crisp.</p><small>From the book · cutlets</small></div>
+<div class="q reveal"><p>Raw meat into the simmering gravy, and the meatballs stay soft all the way through.</p><small>From the book · meatballs</small></div>
+<div class="q reveal"><p>An eighth of a teaspoon of baking soda fixes a sauce that bites. Stir it in and taste.</p><small>From the book · gravy</small></div>
+</div>
+<div class="callout reveal">
+<img alt="Giovanni" height="88" loading="lazy" src="/clones/shared/portrait-giovanni.jpg" width="88"/>
+<div>
+<blockquote>The old way is almost always the easier way. She did less than you think, and she did it in the right order.<span>From the book · Giovanni</span></blockquote>
+<p>That is every trick in the book, written out with the amounts, so you never have to wonder again.</p>
+</div>
+</div>
+</div>
+</section>
+<section class="section">
+<div class="wrap">
+<div class="fit reveal">
+<div class="yes">
+<h3>This book is for you if…</h3>
+<ul>
+<li>You've paid for a tray of chicken parm and thought, "I could make this."</li>
+<li>Your sauce still tastes like the jar.</li>
+<li>You remember your grandmother's cooking and never got the recipes.</li>
+<li>You want real dinners that are cheap and on the table in 30 minutes.</li>
+<li>You cook for people you love and want them asking for seconds.</li>
+</ul>
+</div>
+<div class="no">
+<h3>Skip it if…</h3>
+<ul>
+<li>You want tweezers and restaurant plating.</li>
+<li>You think Sunday gravy should come from a can.</li>
+<li>You never plan to turn on the stove.</li>
+</ul>
+</div>
+</div>
+</div>
+</section>
+<section class="section" id="get" style="padding-top:0">
+<div class="wrap">
+<div class="offer reveal">
+<div class="offer-r">
+<div class="wasline">Regular price <s class="was">$59</s></div>
+<div class="price"><span class="now">$37.99</span></div>
+<div>less than one tray from the pizzeria</div>
+<a class="btn btn-gold buy" href="https://homeguidepress.com/go/angelo">Get the book now</a>
+<small style="opacity:.8">Instant download · lifetime updates</small>
+</div>
+<div class="offer-l">
+<div class="eyebrow">Finally Written Down</div>
+<h2>Everything you need to cook it tonight.</h2>
+<ul>
+<li>The 326-page ebook, instant PDF download</li>
+<li>100 recipes in 10 chapters, each with Giovanni's trick</li>
+<li>100 full-page photos, one for every dish</li>
+<li>300 fixes for when something goes wrong, indexed, plus a what's-in-the-fridge index</li>
+<li>Assunta's pantry: the 12 things always in the cupboard</li>
+<li>Cups and grams, °F and °C, on every recipe</li>
+<li>Lifetime access to every future update, free</li>
+</ul>
+</div>
+</div>
+<div class="guarantee reveal">
+<div class="seal"><b>30</b><small>DAYS</small></div>
+<p>Cook from it for 30 days. If it does not change how you cook, write to us and you get every cent back. No questions.</p>
+</div>
+</div>
+</section>
+<section class="section" style="padding-top:0">
+<div class="wrap faq-grid">
+<div class="section-head reveal">
+<div class="eyebrow">Questions</div>
+<h2>Before you cook.</h2>
+<p>Anything else, ask us under any video. We read every one.</p>
+</div>
+<div class="faq reveal">
+<details><summary>What exactly do I get?</summary><p>A 326-page PDF cookbook with 100 recipes, the pantry list, Sunday menus, and an index of every fix. You download it right after you pay, and every future update is free.</p></details>
+<details><summary>Is this a printed book?</summary><p>No. It is a digital PDF you read on your phone, tablet or computer, or print the pages you want by the stove.</p></details>
+<details><summary>I'm not a confident cook. Is this for me?</summary><p>That is who I wrote it for. Every step tells you what to look for and smell for, and every recipe has a section for when it goes wrong.</p></details>
+<details><summary>Can I find the ingredients?</summary><p>Yes. Everything is in a normal supermarket. Where a deli makes a difference, I say so, and I say what to buy if you do not have one.</p></details>
+<details><summary>Are the recipes from the videos in here?</summary><p>Yes. The recipes from the videos are in the book, written out in full, in numbered steps, with the amounts.</p></details>
+<details><summary>Cups or grams?</summary><p>Both. Every recipe gives cups and grams, and °F and °C.</p></details>
+<details><summary>What about food safety?</summary><p>Every meat and fish recipe gives the safe internal temperature, and the leftover notes say how long things keep.</p></details>
+<details><summary>What if I don't like it?</summary><p>Email partners@thejonmac.com within 30 days of buying and we refund you in full.</p></details>
+</div>
+</div>
+</section>
+<div aria-hidden="true" class="check"></div>
+<section class="final">
+<div class="wrap">
+<h2>Sunday dinner could be the one they <span class="accent">talk about.</span></h2>
+<p>My mother never wrote it down. I did. All you have to do is cook.</p>
+<a class="btn btn-gold buy" href="https://homeguidepress.com/go/angelo">Get the book · <s class="was">$59</s> <span class="now">$37.99</span></a>
+<p class="cta-note">Instant download · lifetime access · 30-day money-back guarantee</p>
+</div>
+</section>
+<footer>
+<div class="wrap"><span>© 2026 Giovanni Moretti · Finally Written Down</span><span>Bensonhurst, New York</span></div>
+</footer>
+<div aria-hidden="true" class="sticky" id="sticky">
+<span class="mini"></span>
+<div><b>Finally Written Down</b><small>100 recipes · instant PDF</small></div>
+<a class="btn buy" href="https://homeguidepress.com/go/angelo" tabindex="-1">Get it · <s class="was">$59</s> <span class="now">$37.99</span></a>
+</div>
+<script>
+
+const CONFIG = {
+  checkoutUrl: "https://homeguidepress.com/go/angelo",          // checkout link
+  price: 37.99,
+  wasPrice: 59
+};
+
+document.documentElement.classList.add('js');
+
+const dishes=[["meatballs","Sunday meatballs"],["eggplant","Eggplant, the old way"],["cutlets","Chicken cutlets"],["lasagna","Christmas lasagna"],["pasta","Spaghetti al pomodoro"],["parm","Chicken parm"],["sauce","Sunday gravy"],["zucchini","Zucchini a scapece"],["thighs","Rosemary chicken thighs"],["sausage","Sausage and peppers"],["clams","Linguine with clams"],["caponata","Caponata"],["fagioli","Pasta e fagioli"],["ziti","Baked ziti"]];
+const strip=document.getElementById('strip');
+const card=([f,n],hidden)=>`<div class="dish"${hidden?' aria-hidden="true"':''}><img src="/clones/angelo-assets/strip-${f}.jpg" alt="${hidden?'':n}" loading="lazy" width="420" height="420"><span>${n}</span></div>`;
+strip.innerHTML=dishes.map(d=>card(d)).join('')+dishes.map(d=>card(d,true)).join('');
+
+const chapters=[["Sauces and Sunday Gravy","Sunday gravy, quick marinara, slow meat sauce, vodka sauce, pesto, arrabbiata, puttanesca","8 recipes",19],["Weeknight Pasta","Aglio e olio, cacio e pepe, carbonara, Alfredo","14 recipes",19],["Baked Pasta, Fresh Pasta and Gnocchi","Sunday lasagna, baked ziti, stuffed shells, manicotti, fresh egg pasta, ravioli, gnocchi","10 recipes",15],["Soups","Wedding soup, pasta e fagioli, minestrone, lentils","6 recipes",12],["Meat","Sunday meatballs, braciole, sausage and peppers, steak pizzaiola, osso buco, porchetta-style roast","12 recipes",19],["Chicken","Chicken parm, cacciatore, piccata, Marsala","14 recipes",15],["Fish and Seafood","Shrimp scampi, fra diavolo, calamari, baccala","10 recipes",15],["Vegetables and Sides","Eggplant parm, broccoli rabe, caponata, artichokes","12 recipes",15],["Pizza, Bread and Antipasti","Grandma pie, focaccia, garlic bread, arancini","8 recipes",12],["Desserts and Cookies","Cannoli, tiramisu, pizzelle, ricotta cheesecake","6 recipes",9]];
+document.getElementById('chapters').innerHTML=chapters.map(c=>`<div class="ch"><div class="row"><h3>${c[0]}</h3><span class="dots"></span><span class="v">$${c[3]}</span></div><p><b>${c[2]}</b> · ${c[1]}</p></div>`).join('');
+document.getElementById('totalValue').textContent='$'+chapters.reduce((s,c)=>s+c[3],0);
+
+document.querySelectorAll('.now').forEach(e=>e.textContent='$'+CONFIG.price);
+document.querySelectorAll('.was').forEach(e=>e.textContent='$'+CONFIG.wasPrice);
+document.getElementById('topPrice').innerHTML='<s class="was">$'+CONFIG.wasPrice+'</s> $'+CONFIG.price;
+if(CONFIG.checkoutUrl){document.querySelectorAll('a.buy').forEach(a=>{a.href=CONFIG.checkoutUrl;a.target='_blank';a.rel='noopener'});}
+
+const sticky=document.getElementById('sticky'),hero=document.querySelector('.hero'),get=document.getElementById('get');
+let pastHero=false,atOffer=false;
+const upd=()=>{const s=pastHero&&!atOffer;sticky.classList.toggle('show',s);sticky.setAttribute('aria-hidden',!s);sticky.querySelector('a').tabIndex=s?0:-1;};
+if('IntersectionObserver' in window){
+  new IntersectionObserver(([e])=>{pastHero=!e.isIntersecting&&e.boundingClientRect.top<0;upd();}).observe(hero);
+  new IntersectionObserver(([e])=>{atOffer=e.isIntersecting;upd();},{threshold:.2}).observe(get);
+  const io=new IntersectionObserver(es=>es.forEach(e=>{if(e.isIntersecting){e.target.classList.remove('pending');io.unobserve(e.target);}}),{rootMargin:'0px 0px -8% 0px'});
+  document.querySelectorAll('.reveal').forEach(el=>{if(el.getBoundingClientRect().top>innerHeight){el.classList.add('pending');io.observe(el);}});
+}
+
+
+(function(){
+  var HOURS = 12, KEY = 'angelo_sale_until', el = document.getElementById('clock');
+  if(!el) return;
+  function fresh(){ var t = Date.now() + HOURS*3600*1000; try{localStorage.setItem(KEY,t)}catch(e){}; return t; }
+  function deadline(){
+    var t; try{ t = parseInt(localStorage.getItem(KEY),10) }catch(e){ t = NaN }
+    if(!t || isNaN(t) || t <= Date.now()) t = fresh();
+    return t;
+  }
+  var end = deadline();
+  function pad(n){ return (n<10?'0':'')+n }
+  function tick(){
+    var left = end - Date.now();
+    if(left <= 0){ end = fresh(); left = end - Date.now(); }   // loop
+    var s = Math.floor(left/1000);
+    el.textContent = pad(Math.floor(s/3600))+':'+pad(Math.floor(s%3600/60))+':'+pad(s%60);
+  }
+  tick(); setInterval(tick, 1000);
+})();
+</script>

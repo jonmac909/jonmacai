@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Long-Life Dog · A manual for every year of your dog's life</title>
+<meta name="description" content="An owner's manual for every year of your dog's life. 191 short chapters, a thirty-day settle-in plan and 12 printable cards, by Frank Bennett.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 64 64%27%3E%3Crect width=%2764%27 height=%2764%27 rx=%2712%27 fill=%27%231d2a1e%27/%3E%3Ctext x=%2732%27 y=%2744%27 font-family=%27Arial%27 font-weight=%27bold%27 font-size=%2734%27 fill=%27%23e9c877%27 text-anchor=%27middle%27%3EF%3C/text%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400&display=swap" rel="stylesheet">
+<style>
+  :root{--navy:#1d2a1e;--purple:#7a1f0e;--purple2:#8c3520;--black:#15110b;--ink:#15110b;--gray:#3d3426;--panel:#e9e0c2;--paper:#f2ebd4;--gold:#e9c877}
+  *{margin:0;padding:0;box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{font-family:'Poppins',system-ui,-apple-system,sans-serif;color:var(--ink);background:var(--paper);line-height:1.5}
+  a{color:inherit}
+  img{max-width:100%;display:block}
+  .wrap{max-width:1080px;margin:0 auto;padding:0 20px}
+  .center{text-align:center}
+  .btn{display:inline-block;background:var(--purple);color:#fff;font-weight:700;font-size:22px;text-transform:uppercase;padding:22px 56px;border-radius:8px;text-decoration:none;letter-spacing:.2px;transition:background .15s,transform .15s}
+  .btn:hover{background:var(--purple2);transform:translateY(-1px)}
+  @media(max-width:640px){.btn{font-size:17px;padding:18px 34px;width:100%;text-align:center}}
+
+  /* ---- top bar ---- */
+  .top{background:var(--black);padding:11px 0;text-align:center;position:sticky;top:0;z-index:50}
+  .top span{display:inline-flex;align-items:center;gap:7px;background:var(--paper);color:var(--ink);font-weight:700;font-size:11px;letter-spacing:.06em;text-transform:uppercase;padding:6px 14px;border-radius:3px}
+  .top i{width:8px;height:8px;border-radius:50%;background:var(--purple);display:inline-block;animation:blink 1.4s infinite}
+  .top .cd{margin-left:6px;padding-left:10px;border-left:1px solid #b9ad8b;color:var(--purple);font-variant-numeric:tabular-nums;letter-spacing:.04em}
+  @keyframes blink{50%{opacity:.25}}
+
+  /* ---- hero ---- */
+  .hero{background:var(--navy);color:#fff;text-align:center;padding:64px 0 0}
+  .hero h1{font-size:64px;line-height:1.05;font-weight:800;text-transform:uppercase;max-width:900px;margin:0 auto 26px}
+  .hero .sub{font-size:32px;font-weight:300;line-height:1.3;max-width:820px;margin:0 auto 28px;color:#d9d2b6}
+  @media(max-width:760px){.hero{padding-top:44px}.hero h1{font-size:36px}.hero .sub{font-size:20px}}
+  .vwrap{max-width:490px;margin:0 auto -140px;position:relative;z-index:2}
+  .video{position:relative;aspect-ratio:16/9;background:#000;overflow:hidden}
+  .video img{width:100%;height:100%;object-fit:cover;opacity:.75}
+  .video .play{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;cursor:pointer}
+  .video .play b{width:70px;height:70px;border-radius:50%;background:rgba(40,40,60,.75);border:2px solid rgba(255,255,255,.4);display:flex;align-items:center;justify-content:center}
+  .video .play b::after{content:'';border-left:22px solid #fff;border-top:13px solid transparent;border-bottom:13px solid transparent;margin-left:5px}
+  .video iframe,.video video{position:absolute;inset:0;width:100%;height:100%;border:0}
+  .herospace{height:170px;background:var(--paper)}
+  @media(max-width:640px){.vwrap{max-width:100%;padding:0 20px;margin-bottom:-95px}.herospace{height:120px}}
+
+  /* ---- lead ---- */
+  .lead{padding:30px 0 56px;text-align:center}
+  .lead p{font-size:22px;font-weight:400;max-width:680px;margin:0 auto 34px;line-height:1.45}
+  .lead p b{font-weight:700}
+  @media(max-width:640px){.lead p{font-size:18px}}
+
+  /* ---- textured panel ---- */
+  .panel{margin:0 auto;background:var(--panel);border-radius:32px;padding:44px 20px 40px;position:relative;overflow:hidden;max-width:1110px}
+  .panel::before{content:'';position:absolute;inset:0;opacity:.35;background-image:radial-gradient(#9a8c6a 0.6px,transparent 0.7px);background-size:5px 5px;pointer-events:none}
+  .panel>*{position:relative}
+  .panel h2{font-size:30px;font-weight:700;text-align:center;margin-bottom:26px}
+  .vreview{width:340px;aspect-ratio:9/16;margin:0 auto 26px;background:#222;position:relative;overflow:hidden}
+  .vreview img{width:100%;height:100%;object-fit:cover}
+  .vreview .play{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;cursor:pointer}
+  .vreview .play b{width:60px;height:60px;border-radius:50%;background:rgba(40,40,60,.7);border:2px solid rgba(255,255,255,.4);display:flex;align-items:center;justify-content:center}
+  .vreview .play b::after{content:'';border-left:18px solid #fff;border-top:11px solid transparent;border-bottom:11px solid transparent;margin-left:4px}
+  .vreview video,.vreview iframe{position:absolute;inset:0;width:100%;height:100%;border:0}
+  @media(max-width:640px){.vreview{width:min(300px,100%)}}
+
+  /* google-style review cards */
+  .greviews{position:relative;display:flex;justify-content:center;gap:16px;flex-wrap:wrap;align-items:flex-start;max-width:900px;margin:0 auto}
+  .grev{background:#faf6e8;border-radius:6px;box-shadow:0 8px 24px rgba(0,0,0,.14);padding:14px 16px;width:290px;font-size:11.5px;line-height:1.45;color:#222;text-align:left}
+  .grev .h{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+  .grev .av{width:30px;height:30px;border-radius:50%;object-fit:cover;background:#c33;color:#fff;font-weight:600;display:flex;align-items:center;justify-content:center;font-size:13px;flex:none}
+  .grev .nm{font-weight:600;font-size:12.5px}
+  .grev .meta{color:#666;font-size:10.5px}
+  .grev .st{color:#f5a623;font-size:11px;letter-spacing:1px;margin:2px 0 6px}
+  .grev .st small{color:#666;letter-spacing:0;margin-left:6px;font-family:inherit}
+  .grev .new{display:inline-block;border:1px solid #ccc;border-radius:3px;font-size:9px;padding:0 4px;margin-left:6px;color:#444}
+  .grev mark{background:#f3e08a;padding:0 1px}
+  .grev .ph{width:64px;height:64px;object-fit:cover;border-radius:3px;margin-top:8px}
+  .grev.r1{transform:rotate(-3deg)}.grev.r2{transform:rotate(2deg) translateY(10px)}.grev.r3{transform:rotate(4deg)}
+  .disc{max-width:520px;margin:30px auto 0;text-align:center;font-size:16px;line-height:1.35;color:#333;transform:rotate(-2deg);opacity:.85}
+  @media(max-width:640px){.grev{width:100%;transform:none!important}.disc{transform:none;font-size:13px}}
+
+
+  /* Five customer reviews together, in the Tyler card style. */
+  .customer-reviews{margin:0 auto 46px;max-width:1110px;padding:42px 28px 36px;background:var(--panel);border-radius:32px;position:relative}
+  .customer-reviews h2{font-size:30px;font-weight:700;text-align:center;margin:0 0 30px}
+  .customer-reviews .greviews{max-width:970px;display:flex;flex-wrap:wrap;justify-content:center;gap:22px 16px;align-items:stretch;margin:0 auto}
+  .customer-reviews .grev{flex:0 1 305px;width:305px;background:#faf6e8;border-radius:6px;box-shadow:0 8px 24px rgba(0,0,0,.14);padding:18px 19px;font-size:13px;line-height:1.48;color:#222;text-align:left}
+  .customer-reviews .grev:nth-child(3n+1){transform:rotate(-1.1deg)}
+  .customer-reviews .grev:nth-child(3n+2){transform:rotate(.8deg)}
+  .customer-reviews .grev:nth-child(3n){transform:rotate(1deg)}
+  .customer-reviews .grev .h{display:flex;align-items:center;gap:9px;margin-bottom:8px}
+  .customer-reviews .grev .av{width:38px;height:38px;border-radius:50%;object-fit:cover;background:#d4c8aa;flex:none}
+  .customer-reviews .grev .av.avatar-initial{display:flex;align-items:center;justify-content:center;background:#647c8a;color:#fff;font-size:18px;font-weight:600}
+  .customer-reviews .grev.r5 .av.avatar-initial{background:#91806a}
+  .customer-reviews .grev .nm{font-size:13.5px;font-weight:700}
+  .customer-reviews .grev .st{color:#f5a623;font-size:13px;letter-spacing:1px;margin:2px 0 8px}
+  .customer-reviews .grev .st small{color:#666;letter-spacing:0;margin-left:7px;font-size:11px;font-family:inherit}
+  .customer-reviews .grev p{margin:0}
+  @media(max-width:760px){.customer-reviews{margin:0 14px 40px;padding:34px 18px}.customer-reviews h2{font-size:25px}.customer-reviews .grev{flex-basis:100%;width:100%;transform:none!important}}
+
+  /* ---- torn banner ---- */
+  .torn{margin:40px auto;max-width:1110px;background:var(--black);color:#fff;text-align:center;padding:46px 20px;clip-path:polygon(0 8%,3% 2%,7% 9%,11% 3%,15% 8%,19% 1%,24% 7%,28% 3%,33% 9%,37% 2%,41% 8%,46% 3%,50% 9%,54% 2%,58% 7%,63% 3%,67% 9%,71% 2%,75% 8%,80% 3%,84% 9%,88% 2%,92% 8%,96% 3%,100% 8%,100% 92%,97% 98%,93% 91%,89% 97%,85% 92%,81% 99%,76% 93%,72% 97%,67% 91%,63% 98%,59% 92%,54% 97%,50% 91%,46% 98%,42% 93%,37% 97%,33% 91%,29% 98%,25% 92%,20% 97%,16% 91%,12% 98%,8% 92%,4% 97%,0 92%)}
+  .torn h2{font-size:38px;font-weight:700;line-height:1.15}
+  .torn h2 u{text-decoration:underline;text-underline-offset:6px;color:var(--gold)}
+  @media(max-width:640px){.torn h2{font-size:24px}}
+
+  /* ---- 3 columns ---- */
+  .cols{display:grid;grid-template-columns:repeat(3,1fr);gap:22px;margin:60px auto 40px;max-width:940px}
+  @media(max-width:760px){.cols{grid-template-columns:1fr;gap:40px}}
+  .col{text-align:center}
+  .col h3{font-size:18px;font-weight:700;margin-bottom:22px;min-height:54px;display:flex;align-items:flex-start;justify-content:center}
+  .col img{width:100%;aspect-ratio:3/2;object-fit:cover;border-radius:6px;margin-bottom:16px}
+  .col p{font-size:15px;line-height:1.45;color:#222}
+  .col p b{font-weight:700}
+
+  /* ---- scattered reviews 2 ---- */
+  .scatter{position:relative;max-width:900px;margin:60px auto 40px;display:grid;grid-template-columns:1fr 1fr;gap:20px;align-items:start}
+  .scatter .grev{width:auto;font-size:12.5px}
+  .scatter .grev.big{grid-column:2;transform:translateY(-30px)}
+  .scatter .grev.mid{grid-column:1/3;width:60%;margin:-20px auto 0}
+  .scatter .grev .ph{width:100px;height:100px}
+  @media(max-width:760px){.scatter{grid-template-columns:1fr}.scatter .grev.big{grid-column:1;transform:none}.scatter .grev.mid{grid-column:1;width:100%;margin:0}}
+
+  /* ---- order card ---- */
+  .order{max-width:520px;margin:50px auto 60px;background:#faf6e8;border:1px solid #cfc4a6;border-radius:8px;box-shadow:0 10px 30px rgba(0,0,0,.08);overflow:hidden}
+  .order .steps{display:flex;justify-content:center;gap:22px;font-size:12px;color:#888;padding:12px;border-bottom:1px solid #e3d9b8}
+  .order .steps i{display:inline-block;width:7px;height:7px;border-radius:50%;background:#ccc;margin-right:6px}
+  .order .steps .on{color:#222}.order .steps .on i{background:var(--purple)}
+  .order .body{padding:22px 22px 10px}
+  .order h3{font-size:17px;font-weight:600;margin-bottom:6px}
+  .order .s{font-size:13px;color:#555;margin-bottom:14px}
+  .order .row{display:flex;justify-content:space-between;font-size:14px;padding:8px 0;border-top:1px solid #e3d9b8}
+  .order .row.tot{font-weight:600;font-size:16px}
+  .order .row s{color:#999;margin-right:6px;font-weight:400}
+  .order .cta{padding:16px 22px 10px}
+  .order .cta .btn{width:100%;text-align:center;font-size:16px;padding:16px;text-transform:none;font-weight:500}
+  .order .fine{font-size:11px;color:#777;padding:0 22px 18px;text-align:center}
+
+  /* ---- FAQ ---- */
+  .faq{max-width:740px;margin:60px auto 30px}
+  .faq details{margin-bottom:32px}
+  .faq summary{list-style:none;cursor:pointer;background:var(--navy);color:#fff;font-weight:700;font-size:20px;text-align:center;padding:18px 44px;border-radius:6px;position:relative}
+  .faq summary::-webkit-details-marker{display:none}
+  .faq summary::after{content:'+';position:absolute;right:18px;top:50%;transform:translateY(-50%);font-size:22px;font-weight:400}
+  .faq details[open] summary::after{content:'×'}
+  .faq .a{padding:22px 12px 0;font-size:17px;line-height:1.35;color:var(--gray)}
+  .faq .a p{margin-bottom:16px}
+  .faq .a b{font-weight:700}
+  @media(max-width:640px){.faq summary{font-size:16px;padding:14px 40px}.faq .a{font-size:15px}}
+
+  .gline{display:flex;justify-content:center;align-items:center;gap:6px;margin-top:12px;font-size:13px;font-weight:600;color:#5a5240;letter-spacing:.01em}
+  .gline svg{color:var(--purple)}
+  /* ---- footer ---- */
+  footer{background:var(--navy);color:#e8e1c7;padding:36px 0 40px;margin-top:60px}
+  footer .logo{font-weight:800;font-size:18px;letter-spacing:.02em;text-transform:uppercase;margin-bottom:20px}
+  footer .links{text-align:center;font-size:14px;margin-bottom:22px}
+  footer .links a{margin:0 10px;text-decoration:none}
+  footer .disc{transform:none;opacity:1;color:#fff;font-size:11.5px;line-height:1.35;max-width:880px;margin:0 auto;text-align:center}
+  .hero h1{font-size:54px;max-width:960px;text-transform:none}
+  .hero h1 em{font-style:normal;color:var(--gold)}
+  .hero .sub{font-size:20px;font-weight:400;max-width:780px;line-height:1.5}
+  .hero .sub b{font-weight:700;color:#fff}
+  @media(max-width:760px){.hero h1{font-size:32px}.hero .sub{font-size:16px}}
+  .hero h1{font-size:54px;max-width:960px;text-transform:none}
+  .hero h1 em{font-style:normal;color:var(--gold)}
+  .hero .sub{font-size:20px;font-weight:400;max-width:780px;line-height:1.5}
+  .hero .sub b{font-weight:700;color:#fff}
+  @media(max-width:760px){.hero h1{font-size:32px}.hero .sub{font-size:16px}}
+
+  /* ---- no-VSL hero ---- */
+  .hero{padding-bottom:0}
+  .herogrid{display:grid;grid-template-columns:1.15fr .85fr;gap:40px;align-items:end;max-width:1040px;margin:0 auto;text-align:left}
+  .herogrid h1{margin:0 0 22px;text-align:left}
+  .herogrid .sub{margin:0 0 26px;text-align:left}
+  .heroimg{position:relative;align-self:end;width:100%}
+  .heroimg img,.heroimg .mono{width:100%;aspect-ratio:4/5;object-fit:cover;border-radius:18px 18px 0 0;display:block}
+  .heroimg img.book{aspect-ratio:auto;object-fit:contain;border-radius:4px;box-shadow:0 18px 40px rgba(0,0,0,.45);margin-bottom:40px;outline:1px solid rgba(233,200,119,.35)}
+  .heroimg .mono{background:linear-gradient(160deg,#2c3d2d,#15110b);display:flex;align-items:center;justify-content:center;font-size:120px;font-weight:800;color:var(--gold)}
+  .heroimg .tag{position:absolute;left:-18px;bottom:28px;background:var(--paper);color:var(--ink);border-radius:8px;padding:10px 14px;font-size:13px;line-height:1.3;box-shadow:0 8px 24px rgba(0,0,0,.25)}
+  .heroimg .tag b{display:block;font-size:15px}
+  .hero .btn{margin-bottom:12px}
+  .hero .gline{justify-content:flex-start;color:#d9d2b6}
+  .hero .gline svg{color:var(--gold)}
+  .herostats{display:flex;gap:26px;margin:22px 0 40px;flex-wrap:wrap}
+  .herostats div{font-size:13px;color:#cfc7a8;line-height:1.25}
+  .herostats b{display:block;font-size:24px;color:#fff;font-weight:800}
+  @media(max-width:860px){.herogrid{grid-template-columns:1fr;gap:10px;text-align:center}.herogrid h1,.herogrid .sub{text-align:center}.hero .gline{justify-content:center}.herostats{justify-content:center;margin-bottom:26px}.heroimg{max-width:340px;margin:0 auto;width:100%}.heroimg .tag{left:8px}}
+  .lead{padding-top:56px}
+
+  /* ---- story letter ---- */
+  .story{max-width:760px;margin:10px auto 60px;padding:0 20px}
+  .story .kick{font-size:13px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--purple);text-align:center;margin-bottom:10px}
+  .story h2{font-size:36px;line-height:1.15;font-weight:800;text-align:center;margin-bottom:28px}
+  .story p{font-size:18px;line-height:1.6;margin-bottom:18px;color:#2b241a}
+  .story p b{font-weight:700}
+  .story .pull{font-size:22px;font-weight:600;border-left:5px solid var(--purple);padding:4px 0 4px 18px;margin:26px 0;color:var(--ink)}
+  .story .sig{font-style:italic;font-size:20px;margin-top:24px}
+  @media(max-width:640px){.story h2{font-size:26px}.story p{font-size:16px}.story .pull{font-size:18px}}
+
+  /* ---- ledger cards (no-review variant) ---- */
+  .ledger{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;max-width:940px;margin:0 auto}
+  .lcard{background:#faf6e8;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.12);padding:20px 18px;text-align:left}
+  .lcard .n{font-size:30px;font-weight:800;color:var(--purple);line-height:1}
+  .lcard .k{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#6b604a;margin:6px 0 10px;font-weight:600}
+  .lcard p{font-size:14px;line-height:1.5;color:#2b241a}
+  @media(max-width:760px){.ledger{grid-template-columns:1fr}}
+
+  /* ---- math table ---- */
+  .math{max-width:940px;margin:70px auto 30px;padding:0 20px}
+  .math h2{font-size:36px;font-weight:800;text-align:center;line-height:1.15;margin-bottom:12px}
+  .math .intro{text-align:center;font-size:17px;max-width:680px;margin:0 auto 30px;color:var(--gray)}
+  .mgrid{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+  .mcol{background:#faf6e8;border:1px solid #cfc4a6;border-radius:10px;overflow:hidden;display:flex;flex-direction:column}
+  .mcol .mrow.tot{margin-top:auto}
+  .mcol h3{font-size:15px;text-transform:uppercase;letter-spacing:.06em;padding:14px 18px;color:#fff}
+  .mcol.old h3{background:var(--purple)}.mcol.new h3{background:var(--navy)}
+  .mrow{display:flex;justify-content:space-between;gap:10px;padding:11px 18px;border-top:1px solid #e3d9b8;font-size:15px}
+  .mrow span:last-child{font-weight:700;white-space:nowrap}
+  .mrow small{display:block;color:#2f7a3d;font-weight:600;font-size:12px}
+  .mrow.tot{font-size:18px;font-weight:800;background:#efe6c8}
+  .keep{margin:22px auto 0;background:var(--black);color:#fff;border-radius:12px;text-align:center;padding:26px 20px}
+  .keep .l{font-size:13px;letter-spacing:.12em;text-transform:uppercase;color:var(--gold);font-weight:700}
+  .keep .v{font-size:54px;font-weight:800;line-height:1.1;margin:6px 0}
+  .keep p{font-size:15px;color:#d9d2b6;max-width:620px;margin:0 auto}
+  .math .src{font-size:12px;color:#7a705a;text-align:center;margin-top:12px}
+  @media(max-width:760px){.mgrid{grid-template-columns:1fr}.math h2{font-size:26px}.keep .v{font-size:40px}}
+
+  /* ---- 6 cols + icon tiles ---- */
+  .cols.six{grid-template-columns:repeat(3,1fr);row-gap:44px}
+  @media(max-width:760px){.cols.six{grid-template-columns:1fr}}
+  .tile{width:100%;aspect-ratio:3/2;border-radius:6px;margin-bottom:16px;display:flex;align-items:center;justify-content:center;background:var(--navy);position:relative;overflow:hidden}
+  .tile::before{content:'';position:absolute;inset:0;opacity:.18;background-image:radial-gradient(#e9c877 0.8px,transparent 0.9px);background-size:7px 7px}
+  .tile svg{width:74px;height:74px;color:var(--gold);position:relative}
+  .tile .num{position:absolute;left:14px;top:10px;font-size:13px;font-weight:700;color:#d9d2b6;letter-spacing:.08em}
+
+  /* ---- breed section ---- */
+  .breed{max-width:980px;margin:70px auto 20px;padding:0 20px}
+  .breed h2{font-size:36px;font-weight:800;text-align:center;line-height:1.15;margin-bottom:12px}
+  .breed .intro{text-align:center;font-size:17px;max-width:700px;margin:0 auto 30px;color:var(--gray)}
+  .bgrid{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+  .bitem{background:var(--panel);border-radius:14px;padding:22px 22px 18px;position:relative;overflow:hidden}
+  .bitem::before{content:'';position:absolute;inset:0;opacity:.3;background-image:radial-gradient(#9a8c6a 0.6px,transparent 0.7px);background-size:5px 5px;pointer-events:none}
+  .bitem>*{position:relative}
+  .bitem h3{font-size:19px;font-weight:700;margin-bottom:8px}
+  .bitem p{font-size:15px;line-height:1.5;color:#2b241a}
+  .bitem .sv{display:inline-block;margin-top:10px;background:var(--navy);color:#fff;font-size:12px;font-weight:700;padding:4px 10px;border-radius:20px;letter-spacing:.03em}
+  @media(max-width:760px){.bgrid{grid-template-columns:1fr}.breed h2{font-size:26px}}
+
+  .storyimg{width:100%;border-radius:12px;margin:6px 0 26px;box-shadow:0 10px 30px rgba(0,0,0,.15)}
+  .breedimg{width:100%;max-height:440px;object-fit:cover;border-radius:14px;margin:0 0 22px}
+  .bookshow{display:grid;grid-template-columns:240px 1fr;gap:30px;align-items:center;max-width:820px;margin:60px auto 0;padding:0 20px}
+  .bookshow img{width:100%;box-shadow:0 18px 40px rgba(0,0,0,.35);border-radius:3px}
+  .bookshow h2{font-size:30px;font-weight:800;line-height:1.15;margin-bottom:10px}.bookshow p{font-size:16px;color:var(--gray);line-height:1.5}
+  .lastcall{max-width:940px;margin:40px auto 10px;padding:0 20px;display:grid;grid-template-columns:1.1fr .9fr;gap:30px;align-items:center}
+  .lastcall img{width:100%;border-radius:14px;box-shadow:0 10px 30px rgba(0,0,0,.15)}
+  .lastcall h2{font-size:30px;font-weight:800;line-height:1.15;margin-bottom:12px}.lastcall p{font-size:16px;color:var(--gray);margin-bottom:18px}
+  @media(max-width:760px){.bookshow,.lastcall{grid-template-columns:1fr;text-align:center}.bookshow img{max-width:240px;margin:0 auto}}
+  /* ---- guarantee ---- */
+  .guar{max-width:760px;margin:10px auto 20px;display:flex;gap:24px;align-items:center;background:#faf6e8;border:2px dashed #b9ad8b;border-radius:14px;padding:26px}
+  .guar .seal{flex:none;width:110px;height:110px;border-radius:50%;background:var(--purple);color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;font-weight:800;line-height:1.05;box-shadow:0 0 0 6px #faf6e8,0 0 0 8px var(--purple)}
+  .guar .seal b{font-size:38px}.guar .seal span{font-size:11px;letter-spacing:.08em;text-transform:uppercase}
+  .guar h3{font-size:22px;font-weight:800;margin-bottom:6px}
+  .guar p{font-size:15.5px;line-height:1.5;color:#2b241a}
+  @media(max-width:640px){.guar{flex-direction:column;text-align:center}}
+</style>
+</head>
+<body>
+<div class="top"><span><i></i>Instant PDF download · 30-day money-back guarantee</span></div>
+<section class="hero">
+<div class="wrap">
+<div class="herogrid">
+<div>
+<h1>Give Your Dog The Best Chance Of A <em>Long, Healthy Life</em> With <em>One Simple Weekly Check</em></h1>
+<p class="sub">Dogs hide pain, and they can't tell you when something is wrong. Learn the small signs to watch for. Settle a new dog in with a simple plan. Know when to call the vet. <b>191 short chapters</b> that answer one plain question each, for every year of your dog's life.</p>
+<a class='btn buy' href='/go/steve'>Get The Long-Life Dog <span class="bp">$34</span></a>
+<div class="gline"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l8 3v6c0 5-3.5 9-8 11-4.5-2-8-6-8-11V5z"/><path d="M9 12l2 2 4-4"/></svg>30-day money-back guarantee</div>
+<div style="height:34px"></div>
+</div>
+<div class="heroimg"><img class="" src="/clones/dog-assets/fd/author.jpg" alt="Frank Bennett · Frank Bennett Dogs" onerror="this.outerHTML='<div class=mono>F</div>'"><div class="tag"><b>Frank Bennett · Frank Bennett Dogs</b>Dog owner and host of @FrankBennettDogs</div></div>
+</div>
+</div>
+</section>
+<section class="lead" id="lead">
+<div class="wrap">
+<p>It's a 952-page manual with <b>191 short chapters in 19 parts</b>, plus 12 printable cards for the fridge. It follows your dog's whole life, from choosing a dog and the first thirty days to the senior years. Written in plain English, for people who love their dog and want to get it right.</p>
+<a class='btn buy' href='/go/steve'>Get The Long-Life Dog <span class="bp">$34</span></a>
+<div class="gline"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l8 3v6c0 5-3.5 9-8 11-4.5-2-8-6-8-11V5z"/><path d="M9 12l2 2 4-4"/></svg>30-day money-back guarantee</div>
+</div>
+</section>
+<section class="customer-reviews" id="reviews" aria-labelledby="reviews-heading"><h2 id="reviews-heading">Who this manual is for:</h2><div class="greviews">
+<article class="grev r1"><div class="h"><div class="av avatar-initial" aria-hidden="true">P</div><div class="nm">The new puppy owner</div></div><div class="st" aria-label="Chapter guide">The first thirty days</div><p>You have a new puppy and a hundred questions. House training, the crate, the first nights, the first vet visit. The Thirty-Day Settle-In Plan gives you three five-minute sessions a day, so you always know what to do next. No more guessing at two in the morning.</p></article>
+<article class="grev r2"><div class="h"><div class="av avatar-initial" aria-hidden="true">R</div><div class="nm">The rescue dog family</div></div><div class="st" aria-label="Chapter guide">A calm start</div><p>You are bringing home a dog with a past you don't know. The book shows you how to read body language, give your dog time to settle, and spot stress early, so the first weeks feel calm instead of chaotic. It's written for families who want to do right by a dog they just met.</p></article>
+<article class="grev r3"><div class="h"><div class="av avatar-initial" aria-hidden="true">W</div><div class="nm">The worried watcher</div></div><div class="st" aria-label="Chapter guide">Reading pain early</div><p>Your dog seems a little off, and you can't tell if it's nothing. A whole part of the book covers why dogs hide pain, a simple weekly nose-to-tail check, and whether to call the vet now, today or book a visit. It takes the panic out of the question "is this normal?"</p></article>
+<article class="grev r4"><div class="h"><div class="av avatar-initial" aria-hidden="true">E</div><div class="nm">The everyday trainer</div></div><div class="st" aria-label="Chapter guide">Kind, clear training</div><p>Sit, stay, recall and loose-lead walking, taught with rewards in short steps. Plus the fixes for barking, panic when you leave, and fear of fireworks, and when it's time to call a professional. Short sessions, kind methods, and steps you can follow even if you've never trained a dog before.</p></article>
+<article class="grev r5"><div class="h"><div class="av avatar-initial" aria-hidden="true">S</div><div class="nm">The senior dog owner</div></div><div class="st" aria-label="Chapter guide">The grey-muzzle years</div><p>Stiff joints, a new lump, a little confusion. The older-dog chapters help you keep weight and teeth in check, make your home easier, and judge quality of life with a good days and bad days diary. Written kindly, for the years when every day counts.</p></article>
+</div></section>
+<section class="story">
+<div class="kick">Read this first</div>
+<h2>Why is it so hard to know when your dog is not okay?</h2>
+<img class="storyimg" src="/clones/dog-assets/fd/sofa.jpg" alt="">
+<p>He's still eating. She's still wagging. Maybe he's a little slower on the stairs, or she's licking a paw more than usual. It never seems like much on its own.</p>
+<p>But dogs are very good at hiding pain. By the time it's obvious, <b>the problem has often been there for weeks</b>. That's the hard part of loving a dog who can't tell you what hurts.</p>
+<p class="pull">The problem isn't you. It's that nobody ever showed you what to look for.</p>
+<p>Most of it is simpler than you think. A few minutes each week running your hands over your dog, nose to tail. Knowing which signs mean call the vet now, which mean call today, and which mean book a visit. Feeding the right amount of the right food. Keeping up with the little things, like teeth, nails and ears.</p>
+<p>And something nice happens along the way. The same habits that help you catch trouble early also give you an easier dog. One that settles in, comes when called, and is calm when you leave. One you understand better, so you get more good years together.</p>
+<p><b>Less guessing. Less worry. A happier, healthier dog.</b> That's what this book is for.</p>
+<p class="sig"></p>
+</section>
+<div class="panel">
+<h2>Your first month, step by step:</h2>
+<div class="ledger">
+<div class="lcard"><div class="n">Week 1</div><div class="k">Settle in</div><p>The first days at home, the crate, the first nights and the first vet visit. Three <b>five-minute sessions a day</b> from the Thirty-Day Settle-In Plan.</p></div>
+<div class="lcard"><div class="n">Week 2</div><div class="k">Learn to read your dog</div><p>Body language, tail, ears and face, and the signs of stress. Start the <b>weekly nose-to-tail check</b> so you know what normal feels like.</p></div>
+<div class="lcard"><div class="n">Week 3 and 4</div><div class="k">Build the good habits</div><p>Kind, reward-based training for sit, stay, recall and walking on a loose lead. Plus the <b>fridge cards</b> for when to call the vet and which foods are toxic.</p></div>
+</div>
+<p class="disc">The book has a simple thirty-day plan that tells you exactly what to do each week.</p>
+</div>
+<section class="math" id="math">
+<h2>Here's the difference a plan makes.</h2>
+<p class="intro">First, how most owners cope: guessing, waiting and searching at midnight. Then, the same dog after the book. Same love. Just more confidence.</p>
+<div class="mgrid">
+<div class="mcol old"><h3>Without a plan</h3><div class="mrow"><span>A limp or a lump</span><span>Wait and see</span></div><div class="mrow"><span>Pain in a quiet dog</span><span>Missed</span></div><div class="mrow"><span>New puppy, first nights</span><span>Trial and error</span></div><div class="mrow"><span>Something eaten off the floor</span><span>Panic</span></div><div class="mrow"><span>Barking, pulling, panic alone</span><span>Frustration</span></div><div class="mrow"><span>The senior years</span><span>Unprepared</span></div><div class="mrow tot"><span>How it feels</span><span>Guessing</span></div></div>
+<div class="mcol new"><h3>With the book</h3><div class="mrow"><span>A limp or a lump<small>a clear call-the-vet guide</small></span><span>Know when</span></div><div class="mrow"><span>Pain in a quiet dog<small>the weekly nose-to-tail check</small></span><span>Caught early</span></div><div class="mrow"><span>New puppy, first nights<small>the Thirty-Day Settle-In Plan</small></span><span>Step by step</span></div><div class="mrow"><span>Something eaten off the floor<small>the toxic foods card on the fridge</small></span><span>Know what to do</span></div><div class="mrow"><span>Barking, pulling, panic alone<small>short, kind training steps</small></span><span>Calm, simple fixes</span></div><div class="mrow"><span>The senior years<small>joints, weight, quality of life</small></span><span>Prepared</span></div><div class="mrow tot"><span>How it feels</span><span>Confident</span></div></div>
+</div>
+<div class="keep"><div class="l">The difference, every day</div><div class="v">You know what to look for</div><p>No book can promise how long any dog will live. What it can do is help you notice sooner, ask your vet better questions, and give your dog the best chance.</p></div>
+<p class="src">General dog care only. This guide is not veterinary advice. If your dog is unwell, see your vet.</p>
+</section>
+<div class="torn"><h2>What you'll get in the <u>Manual</u>:</h2></div>
+<div class="wrap">
+<div class="cols six">
+<div class="col">
+<h3>#1: The First Thirty Days</h3>
+<img src="/clones/dog-assets/fd/train.jpg" alt="">
+<p>House training, the crate, the first nights and the first vet visit. The Thirty-Day Settle-In Plan gives you <b>three five-minute sessions a day, step by step.</b></p>
+</div>
+<div class="col">
+<h3>#2: Understanding Your Dog</h3>
+<img src="/clones/dog-assets/fd/kitchen.jpg" alt="">
+<p>What your dog sees, hears and smells, and how to read the tail, ears and face. <b>Learn to tell when your dog is happy, unsure or stressed.</b></p>
+</div>
+<div class="col">
+<h3>#3: Reading Pain Early</h3>
+<img src="/clones/dog-assets/fd/checks.jpg" alt="">
+<p>Why dogs hide pain, a simple weekly nose-to-tail check, and whether to call the vet now, today or book a visit. <b>The part of the book that helps you catch trouble early.</b></p>
+</div>
+<div class="col">
+<h3>#4: Emergencies and First Aid</h3>
+<img src="/clones/dog-assets/fd/ears.jpg" alt="">
+<p>The signs of bloat and heatstroke, what to do if your dog eats something poisonous, and what goes in a first-aid kit. <b>Know a go-now emergency when you see one.</b></p>
+</div>
+<div class="col">
+<h3>#5: Everyday Training</h3>
+<img src="/clones/dog-assets/fd/ramp.jpg" alt="">
+<p>Sit, stay, recall and loose-lead walking, plus barking and panic when you leave. <b>Kind, reward-based steps, and when to call a professional.</b></p>
+</div>
+<div class="col">
+<h3>#6: The Senior Years</h3>
+<img src="/clones/dog-assets/fd/ledger.jpg" alt="">
+<p>Weight, teeth, stiff joints and a good days and bad days diary. <b>Make your home easier for an older dog and judge quality of life with confidence.</b></p>
+</div>
+</div>
+<div class="center"><a class='btn buy' href='/go/steve'>Get The Long-Life Dog <span class="bp">$34</span></a><div class="gline"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l8 3v6c0 5-3.5 9-8 11-4.5-2-8-6-8-11V5z"/><path d="M9 12l2 2 4-4"/></svg>30-day money-back guarantee</div></div>
+<section class="breed">
+<h2>Written for every stage. Not just puppies.</h2>
+<p class="intro">Most dog books stop after the puppy months. Your dog will also have a teenage phase and a grey muzzle. Here's what this book helps with:</p>
+<img class="breedimg" src="/clones/dog-assets/fd/park.jpg" alt="">
+<div class="bgrid"><div class="bitem"><h3>Pain you can't see</h3><p>Why dogs hide pain, the small signs worth noticing, and a weekly nose-to-tail check that takes a few minutes. Plain guidance on when to call the vet now, today, or book a visit.</p><span class="sv">Spot trouble sooner</span></div><div class="bitem"><h3>The first days and weeks</h3><p>Choosing a dog, what a dog really costs, a plan for the first day, and the Thirty-Day Settle-In Plan. House training and the crate, made calm.</p><span class="sv">A calm start</span></div><div class="bitem"><h3>Food, exercise and grooming</h3><p>Reading a food label, how much to feed, foods that are toxic to dogs, how much exercise your dog needs, and brushing, nails, ears and teeth.</p><span class="sv">Everyday care, simplified</span></div><div class="bitem"><h3>The hard days</h3><p>Judging quality of life, talking to your vet about the end, helping children, and coping with your own grief. Written kindly, for when you need it most.</p><span class="sv">Support when it matters</span></div></div>
+</section>
+<div class="bookshow"><img src="/covers/steve.jpg" alt="The Long-Life Dog cover"><div><h2>The Long-Life Dog</h2><p><b>What you get for $34:</b><br>✓ The manual: 952 pages, 191 short chapters in 19 parts<br>✓ The Thirty-Day Settle-In Plan: what to do each day<br>✓ 12 printable cards: when to call the vet, toxic foods, heat and bloat signs, a lost dog plan and more<br>✓ The weekly nose-to-tail check, step by step<br><span style="font-size:15px;color:#6b604a">Instant download. Read it on your phone, tablet or computer, or print it out. Pay once, no subscription.</span></p></div></div>
+<div class="order" id="order">
+<div class="steps"><span class="on"><i></i>Get the Manual</span><span><i></i>Download &amp; read</span></div>
+<div class="body">
+<h3>The Long-Life Dog</h3>
+<div class="s">Pay once below. Your book is emailed to you straight after checkout.</div>
+<div class="row"><span>The manual, 952 pages, 191 chapters</span><span>Included</span></div><div class="row"><span>The Thirty-Day Settle-In Plan</span><span>Included</span></div><div class="row"><span>12 printable cards</span><span>Included</span></div><div class="row"><span>The weekly nose-to-tail check</span><span>Included</span></div><div class="row"><span>Instant download link by email</span><span>Included</span></div>
+<div class="row tot"><span>Today</span><span>$34</span></div>
+</div>
+<div class="cta"><a class='btn buy' href='/go/steve'>Continue · $34 &nbsp;›</a></div>
+<div class="fine">Instant PDF download · Pay once, no subscription · 30-day money-back guarantee · Secure checkout by Commas</div>
+</div>
+<div class="guar">
+<div class="seal"><b>30</b><span>day<br>guarantee</span></div>
+<div><h3>Try it for 30 days. If it's not worth it, it's free.</h3><p>Read the book. Try the first week of the plan. If it isn't for you, just reply to your delivery email within 30 days and we'll refund you in full. No forms, no hoops.</p></div>
+</div>
+<div class="lastcall"><div><h2>The choice is simple.</h2><p><b>Keep going as you are:</b> the same guessing, the same worry, the same late-night searching whenever your dog seems a little off.<br><br><b>Or spend $34 once:</b> follow the thirty-day plan, learn the small signs to watch for, and give your dog the best chance of a long, healthy life. If it isn't for you, you get your money back.</p><a class='btn buy' href='/go/steve'>Get The Long-Life Dog <span class="bp">$34</span></a><div class="gline"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l8 3v6c0 5-3.5 9-8 11-4.5-2-8-6-8-11V5z"/><path d="M9 12l2 2 4-4"/></svg>30-day money-back guarantee</div></div><img src="/clones/dog-assets/fd/lastcall.jpg" alt=""></div>
+<div class="faq">
+<details open><summary>What actually is the book?</summary><div class="a"><p>It's a <b>952-page manual</b> you download and read on your <b>phone, tablet or computer</b>, or print out. <b>Not a course, not a subscription.</b></p><p>It's written in <b>plain English for dog owners</b>. No fluff, no lectures. Just <b>what to watch for and what to do</b>.</p><p>It follows your dog's life in order: <b>191 short chapters in 19 parts</b>, from choosing a dog and the first thirty days to the senior years. Each chapter answers <b>one plain question</b>.</p></div></details>
+<details open><summary>What will I get out of it?</summary><div class="a"><p>A clearer idea of <b>what is normal and what is not</b>, so you can notice pain and illness sooner.</p><p>And a <b>calmer, better-behaved dog</b>: <b>settled in, house trained, comes when called, calm when you leave</b>.</p><p>The <b>Thirty-Day Settle-In Plan tells you exactly where to start</b>. Plus <b>12 printable cards</b> for the fridge.</p></div></details>
+<details open><summary>Is this right for me?</summary><div class="a"><p><b>Puppy or older dog: yes.</b> The book follows a dog's whole life, from the first thirty days through to the senior years.</p><p><b>Rescue dog: yes.</b> There is plenty on reading body language, stress and settling a new dog in.</p><p><b>A dog that seems unwell:</b> the book tells you plainly <b>when to call the vet now</b>, and when not to wait.</p><p><b>Not a fit</b> if you want a treatment guide. It does not replace your vet. It tells you what to watch for and what to ask, and never how to treat an illness at home.</p></div></details>
+<details open><summary>How much is it, and how do I get it?</summary><div class="a"><p><b>$34, once. No subscription.</b></p><p>Checkout takes <b>about a minute</b>. <b>A download link lands in your email</b>, so you can read it on your phone, tablet or computer, or print it. Payments run through Commas, a secure checkout, so <b>we never see your card details</b>.</p><p>If it's not for you, reply to your delivery email <b>within 30 days</b> and <b>the $34 comes back</b>. <b>No form, no hoops.</b></p></div></details>
+<details open><summary>Can I print the cards? Are the photos real?</summary><div class="a"><p>Yes, there are <b>12 printable cards and checklists</b>, and you may print them for your own use.</p><p>The photos in the book are <b>AI-generated illustrations</b>. The book says so on its copyright page.</p></div></details>
+</div>
+<div class="center" style="margin-bottom:20px"><a class='btn buy' href='/go/steve'>Get The Long-Life Dog <span class="bp">$34</span></a><div class="gline"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l8 3v6c0 5-3.5 9-8 11-4.5-2-8-6-8-11V5z"/><path d="M9 12l2 2 4-4"/></svg>30-day money-back guarantee</div></div>
+</div>
+<footer>
+<div class="wrap">
+<div class="logo center">The Long-Life Dog</div>
+<div class="links"><a href="/">Home Guide Press</a><a href='/terms'>Terms and Conditions</a><a href='/privacy'>Privacy</a><a href='/refunds'>Refunds</a><a href="mailto:partners@thejonmac.com">Contact</a></div>
+<p class="disc">The Long-Life Dog is written by Frank Bennett (Frank Bennett Dogs) and published by Home Guide Press. General dog care only. Nothing here is veterinary advice: always consult a veterinarian if your dog is unwell, injured, or before changing the diet of a dog with a medical condition. The content of this website and the Manual may not be copied or redistributed without written permission. Copyright © 2026 Home Guide Press. All Rights Reserved.</p>
+</div>
+</footer>
+</body>
+</html>
