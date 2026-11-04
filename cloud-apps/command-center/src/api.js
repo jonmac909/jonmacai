@@ -14,7 +14,7 @@ import { runMoneyMove } from './money.js';
 import { exchangeGoogleCode, googleAuthUrl, runLife } from './life.js';
 import { REVIEW_SOURCE, draftId, isIsolated, parseReview, plannerDestination, reviewMutate, upsertReview } from './review.js';
 import { botOf, handleV1, todayData } from './bots.js';
-import { freshen, youtubeCallback, youtubeConnect, youtubeStatus } from './youtube.js';
+import { freshen, youtubeAnalyticsCheck, youtubeCallback, youtubeConnect, youtubeStatus } from './youtube.js';
 import { channelData } from './channels.js';
 import { trackData } from './track.js';
 import { monthWindow } from './today.js';
@@ -258,6 +258,9 @@ export async function handleApi(request, env, ctx) {
   if (rest === '/youtube/status' && method === 'GET') {
     const ok = request.headers.get('Authorization') ? await botOf(request, env.DB) : await readSession(request, env);
     return ok ? youtubeStatus(env) : json({ error: 'Sign in' }, 401);
+  }
+  if (rest === '/youtube/analytics-check' && method === 'GET') {
+    return (await botOf(request, env.DB)) ? youtubeAnalyticsCheck(env, new URL(request.url).searchParams.get('channel')) : json({ error: 'Bot token only' }, 401);
   }
   // The deploy's version alone, so a page that doesn't refresh its data still notices a deploy (app.js).
   if (rest === '/build' && method === 'GET') {

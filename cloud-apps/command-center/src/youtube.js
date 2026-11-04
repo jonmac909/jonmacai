@@ -367,6 +367,32 @@ export async function syncReach(env, fetchFn = globalThis.fetch, nowMs = Date.no
 }
 
 // GET /youtube/status (Jon's session or a bot token): where each channel stands. No secrets.
+// Lucy's check of one channel's Analytics (2026-11-04): numbers only, never a token. Day by day since Oct 1, and the
+// aggregate for MINE and for the channel's own id, so a window or id problem shows apart from Analytics lag.
+export async function youtubeAnalyticsCheck(env, slug, fetchFn = globalThis.fetch, nowMs = Date.now()) {
+  if (!ready(env)) return json({ error: NOT_SET_UP }, 503);
+  const row = await env.DB.prepare('SELECT channel, channel_id, token FROM yt_api WHERE channel = ?').bind(slug || '').first();
+  if (!row?.token) return json({ error: 'Not connected' }, 404);
+  const token = await accessToken(env, fetchFn, row);
+  const metrics = 'views,averageViewDuration,subscribersGained,subscribersLost';
+  const q = async (p) => {
+    try {
+      const d = await getJson(fetchFn, `${ANALYTICS}?${new URLSearchParams({ endDate: pacific(nowMs).day, metrics, ...p })}`, token);
+      return d.rows || [];
+    } catch (err) {
+      return { error: err.message };
+    }
+  };
+  return json({
+    channel: slug, endDate: pacific(nowMs).day,
+    mineLifetime: await q({ ids: 'channel==MINE', startDate: '2005-01-01' }),
+    mineSinceOct1: await q({ ids: 'channel==MINE', startDate: '2026-10-01' }),
+    idSinceOct1: await q({ ids: `channel==${row.channel_id}`, startDate: '2026-10-01' }),
+    byDay: await q({ ids: 'channel==MINE', startDate: '2026-10-01', dimensions: 'day', sort: 'day' }),
+    byVideo: await q({ ids: 'channel==MINE', startDate: '2026-10-01', dimensions: 'video', sort: '-views', maxResults: '10' }),
+  });
+}
+
 export async function youtubeStatus(env) {
   let rows;
   try {
