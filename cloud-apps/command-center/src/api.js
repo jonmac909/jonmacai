@@ -13,7 +13,8 @@ import { boardStageFor, mapColumn } from './sponsors.js';
 import { runMoneyMove } from './money.js';
 import { exchangeGoogleCode, googleAuthUrl, runLife } from './life.js';
 import { REVIEW_SOURCE, draftId, isIsolated, parseReview, plannerDestination, reviewMutate, upsertReview } from './review.js';
-import { handleV1, todayData } from './bots.js';
+import { botOf, handleV1, todayData } from './bots.js';
+import { freshen, youtubeCallback, youtubeConnect, youtubeStatus } from './youtube.js';
 import { channelData } from './channels.js';
 import { trackData } from './track.js';
 import { monthWindow } from './today.js';
@@ -251,6 +252,13 @@ export async function handleApi(request, env, ctx) {
     const ok = await exchangeGoogleCode(env, url.origin, url.searchParams.get('code'), url.searchParams.get('state'));
     return Response.redirect(`${url.origin}/dashboard/#life${ok ? '' : '?cal=err'}`, 302);
   }
+  // Google's redirect back carries no session (the cookie is SameSite=Strict); the one-use state stands in (src/youtube.js).
+  if (rest === '/youtube/callback' && method === 'GET') return youtubeCallback(request, env);
+  // For Jon and for Lucy's checks with a bot token.
+  if (rest === '/youtube/status' && method === 'GET') {
+    const ok = request.headers.get('Authorization') ? await botOf(request, env.DB) : await readSession(request, env);
+    return ok ? youtubeStatus(env) : json({ error: 'Sign in' }, 401);
+  }
   // The deploy's version alone, so a page that doesn't refresh its data still notices a deploy (app.js).
   if (rest === '/build' && method === 'GET') {
     const denied = await needSession(request, env);
@@ -266,7 +274,11 @@ export async function handleApi(request, env, ctx) {
     if (base.pages.today || base.pages.projects || base.pages.todo) extra.today = await todayData(env.DB, now, monthWindow(now).key);
     if (base.pages.calendar || base.pages.content) extra.channels = await channelData(env.DB, now);
     // Only when Track is opened (?pages=track), never on the snapshot every page load and 60 s poll fetch.
-    if ((url.searchParams.get('pages') || '').split(',').some((p) => p.trim() === 'track')) extra.track = await trackData(env.DB, url.origin, now);
+    // Track syncs from the YouTube APIs first when its data is over 20 minutes old; the cron syncs hourly too (src/youtube.js).
+    if ((url.searchParams.get('pages') || '').split(',').some((p) => p.trim() === 'track')) {
+      await freshen(env, ctx, undefined, now);
+      extra.track = await trackData(env.DB, url.origin, now);
+    }
     const build = env.CF_VERSION_METADATA?.id ?? null; // this deploy; an open page reloads when it changes (app.js)
     return json({ ...mergeSnapshot(base, await listSnapshots(env.DB), now, await listDealStages(env.DB), extra), build });
   }
@@ -370,6 +382,7 @@ export async function handleApi(request, env, ctx) {
     if (!env.GOOGLE_CLIENT_ID || !env.SESSION_SECRET) return json({ error: 'Google Calendar is not connected yet' }, 501);
     return Response.redirect(await googleAuthUrl(env, url.origin), 302);
   }
+  if (rest === '/youtube/connect' && method === 'GET') return youtubeConnect(request, env);
 
   if (rest === '/actions' && method === 'POST') return postAction(request, env);
   const one = rest.match(/^\/actions\/([^/]+)$/);

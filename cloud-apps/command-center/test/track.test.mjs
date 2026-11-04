@@ -126,7 +126,7 @@ test('the page lists every channel with correct counts, one row per video, filte
   assert.doesNotMatch(all, /Not made yet|Added by hand|data-copy/, 'All lists channels, not videos');
   assert.deepEqual(allRow(all, 'aria-creates'), [labelOf('aria-creates'), 'Yes', '3', '1', '1'], 'on YouTube, scheduled, public; no Studio data is blank');
   assert.deepEqual(allRow(all, 'rosa-cooks'), [labelOf('rosa-cooks'), 'No', '0', '0', '0']);
-  assert.match(all, /from them\. (Studio data|No Studio data)/, 'a space before the Studio note');
+  assert.match(all, /from them\. (Views and subs updated|No YouTube data yet)/, 'a space before the data note');
   setSort('all:onAir');
   const live = track(page, {}, '').match(/<tr data-page="track\/[^"]+">.*?<\/tr>/gs).map((r) => /Yes/.test(r));
   assert.ok(live[0] && live.indexOf(false) > live.lastIndexOf(true), 'first click on Live puts Yes first');
@@ -839,7 +839,7 @@ test('a value Studio has not given is a blank cell, and the page says when data 
   const empty = await trackPage(db);
   assert.deepEqual([empty.videos[0].impressions, empty.videos[0].ctr, empty.videos[0].views], [null, null, null]);
   const none = track(empty, {}, '');
-  assert.match(none, /No Studio data yet/);
+  assert.match(none, /No YouTube data yet\./);
   assert.doesNotMatch(none, /not connected|–/);
 
   await postStats(env, [{ youtube_id: YT, views: 950 }]);
@@ -847,7 +847,7 @@ test('a value Studio has not given is a blank cell, and the page says when data 
   db.sqlite.prepare('UPDATE yt_stats SET updated_at = ?').run(stamped);
   const page = await trackPage(db);
   const html = track(page, {}, 'theo-creates');
-  assert.match(html, /Studio data last updated Today, 11:30 AM PT/);
+  assert.match(html, /Views and subs updated Today, 11:30 AM PT\./);
   assert.match(html, /<td class="tkcell">Today, 11:30 AM PT<\/td>/, 'and on the row');
   assert.equal(html.match(/Today, 11:30 AM PT/g).length, 2, 'the row with no data has none');
   assert.match(html, /<td class="num"><\/td>/);
@@ -858,7 +858,7 @@ test('the last updated time is the newest across the videos shown', () => {
   const channels = [{ slug: 'all', label: 'All', group: 'All', all: true }];
   const row = (title, updatedAt, updated) => ({ title, updatedAt, updated, channel: 'x', channelLabel: 'X', clicks: null, status: 'live', calendarStatus: 'published' });
   const html = track({ available: true, channels, videos: [row('A', '2026-10-01', 'Older'), row('B', '2026-10-02', 'Newest'), row('C', null, '')] }, {}, '');
-  assert.match(html, /last updated Newest/);
+  assert.match(html, /updated Newest\./);
 });
 
 test('the default snapshot and the poll never run the Track query; opening Track does', async () => {
