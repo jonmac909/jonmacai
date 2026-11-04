@@ -236,7 +236,7 @@ async function syncChannel(env, fetchFn, row, nowMs) {
   const statements = [];
   // Analytics can run days behind on a new channel (Giovanni, 2026-11-04: 1 view through Nov 2 there, 71 in Studio).
   // Until it reaches half the public count, Studio's own numbers win: views, AVD and subs the Studio reader
-  // (D:\AgentTeam	ools\studio_read.py) posted stay, and the public count only fills a video that has none.
+  // (D:\AgentTeam\tools\studio_read.py) posted stay, and the public count only fills a video that has none.
   const behind = (a, pub) => !a || (pub != null && Number.isFinite(Number(pub)) && a.views < Number(pub) / 2);
   // The channel's own public count is slow too (Giovanni: 0), so its public views are at least its videos' sum.
   const publicViews = Math.max(Number(ch.statistics?.viewCount) || 0, videos.reduce((t, v) => t + (Number(v.statistics?.viewCount) || 0), 0));
