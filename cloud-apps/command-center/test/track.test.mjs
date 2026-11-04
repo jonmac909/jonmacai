@@ -123,13 +123,32 @@ test('the page lists every channel with correct counts, one row per video, filte
 
   const all = track(page, {}, '');
   for (const c of YOUTUBE_CHANNELS) assert.ok(all.includes(`<tr data-page="track/${c.slug}">`), c.slug);
-  assert.match(all, /Posted to YouTube/);
-  assert.match(all, /<span[^>]*>Idea<\/span>/, 'a video not made yet shows its Calendar status');
-  assert.match(all, /data-copy="https:\/\/jonmac\.ai\/v\/[0-9a-f]{10}"/);
-  assert.match(all, /No landing page/);
+  assert.doesNotMatch(all, /Not made yet|Added by hand|data-copy/, 'All lists channels, not videos');
+  assert.deepEqual(allRow(all, 'aria-creates'), [labelOf('aria-creates'), 'Yes', '3', '1', '1'], 'on YouTube, scheduled, public; no Studio data is blank');
+  assert.deepEqual(allRow(all, 'rosa-cooks'), [labelOf('rosa-cooks'), 'No', '0', '0', '0']);
+  const aria = track(page, {}, 'aria-creates');
+  assert.match(aria, /Posted to YouTube/);
+  assert.match(aria, /<span[^>]*>Idea<\/span>/, 'a video not made yet shows its Calendar status');
+  assert.match(aria, /data-copy="https:\/\/jonmac\.ai\/v\/[0-9a-f]{10}"/);
   const one = track(page, {}, 'jon-mac');
   assert.match(one, /Added by hand/);
+  assert.match(one, /No landing page/);
   assert.doesNotMatch(one, /Finished/);
+});
+
+const labelOf = (slug) => YOUTUBE_CHANNELS.find((c) => c.slug === slug).label;
+const allRow = (html, slug) => html.match(new RegExp(`<tr data-page="track/${slug}">(.*?)</tr>`, 's'))[1].split(/<[^>]+>/).map((s) => s.trim()).filter(Boolean);
+
+test('All sums Studio impressions, views and net subscribers per channel', async () => {
+  const { db, env } = await setup();
+  await importCsv(env, 'theo-creates', [
+    { date: '2026-11-03', title: 'First', status: 'published', youtube_id: YT },
+    { date: '2026-11-04', title: 'Second', status: 'scheduled', youtube_id: 'lmnopqrstuv' },
+  ]);
+  assert.equal((await postStats(env, [{ youtube_id: YT, impressions: 1200, views: 30, subs: 3 }, { youtube_id: 'lmnopqrstuv', subs: -1 }])).status, 200);
+  assert.equal((await postStats(env, [{ youtube_id: YT, subs: 1.5 }])).status, 400);
+  const page = await trackPage(db);
+  assert.deepEqual(allRow(track(page, {}, ''), 'theo-creates'), [labelOf('theo-creates'), 'Yes', '2', '1', '1', '1,200', '30', '2']);
 });
 
 test('stage: a YouTube link only means posted on a finished video', () => {
@@ -315,13 +334,13 @@ test('the snapshot serves the Track page and says so when its tables are missing
 });
 
 test('columns sort both ways with blanks last', () => {
-  const channels = [{ slug: 'all', label: 'All', group: 'All', all: true }];
+  const channels = [{ slug: 'all', label: 'All', group: 'All', all: true }, { slug: 'x', label: 'X', group: 'X', counts: {} }];
   const videos = [['A', 5], ['B', null], ['C', 9]].map(([title, views]) => ({ title, views, channel: 'x', channelLabel: 'X', clicks: 0, status: 'live', calendarStatus: 'published' }));
-  const order = () => [...track({ available: true, channels, videos }, {}, '').matchAll(/<td>X<\/td><td>(\w)<\/td>/g)].map((m) => m[1]).join('');
+  const order = () => [...track({ available: true, channels, videos }, {}, 'x').matchAll(/<td>X<\/td><td>(\w)<\/td>/g)].map((m) => m[1]).join('');
   assert.equal(order(), 'ABC');
   setSort('videos:views');
   assert.equal(order(), 'CAB');
-  assert.match(track({ available: true, channels, videos }, {}, ''), /aria-sort="descending"/);
+  assert.match(track({ available: true, channels, videos }, {}, 'x'), /aria-sort="descending"/);
   setSort('videos:views');
   assert.equal(order(), 'ACB');
   setSort('videos:title');
