@@ -1,6 +1,8 @@
 """python -I bots/test_youtube_upload.py  (stdlib only; Google and the dashboard are faked)"""
 import json
 import os
+import shutil
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -16,6 +18,16 @@ TOKEN_URI = 'https://oauth2.example/token'
 SESSION = 'https://www.googleapis.com/upload/youtube/v3/videos?upload_id=s1'
 MINA = yu.CHANNELS['mina'][2]
 NOW = datetime(2026, 10, 30, 12, 0, tzinfo=timezone.utc)
+REAL_SCRUB = yu.SCRUB
+
+
+def fake_scrub(test, folder, code=0):
+    """Stand in for scrub.py --check: every file passes (code 0) or fails (code 1)."""
+    script = Path(folder) / ('scrub-%d.py' % code)
+    script.write_text('import sys\nprint("%s " + sys.argv[-1])\nsys.exit(%d)\n' % ('FAIL' if code else 'PASS', code))
+    p = mock.patch.object(yu, 'SCRUB', str(script))
+    p.start()
+    test.addCleanup(p.stop)
 
 
 class FakeGoogle:
@@ -91,6 +103,7 @@ class Base(unittest.TestCase):
         (self.dir / 'yt-mina.json').write_text(json.dumps({'channel': MINA, 'client_id': 'cid', 'refresh_token': 'rt'}))
         self.video = self.dir / 'mina-1.mp4'
         self.video.write_bytes(os.urandom(600 * 1024))  # 3 chunks of 256 KiB
+        fake_scrub(self, self.dir)
 
     def cli(self, google, *argv):
         with mock.patch.object(yu, 'http', google):
@@ -197,6 +210,31 @@ class Upload(Base):
         self.assertTrue(out['dry_run'])
         self.assertEqual(out['metadata']['status']['privacyStatus'], 'private')
         self.assertIn('audit', out['blocked'])
+
+    def test_a_file_that_fails_the_scrub_check_is_refused_even_in_a_dry_run(self):
+        fake_scrub(self, self.dir, code=1)
+
+        def no_network(*a, **k):
+            raise AssertionError('a raw render touched the network')
+        for extra in ([], ['--dry-run']):
+            with self.assertRaises(yu.Fail) as e:
+                self.up(no_network, *extra)
+            self.assertEqual(e.exception.code, 2)
+            self.assertIn('upload the .scrubbed.mp4', str(e.exception))
+
+    @unittest.skipUnless(Path(REAL_SCRUB).is_file() and shutil.which('ffmpeg'), 'needs scrub.py and ffmpeg')
+    def test_the_real_scrub_check_refuses_a_raw_render_and_passes_its_scrubbed_copy(self):
+        raw, hidden = self.dir / 'raw.mp4', getattr(subprocess, 'CREATE_NO_WINDOW', 0)
+        subprocess.run(['ffmpeg', '-v', 'error', '-f', 'lavfi', '-i', 'testsrc=size=320x240:rate=25', '-t', '1',
+                        '-pix_fmt', 'yuv420p', '-metadata', 'comment=Made with Remotion', str(raw)], check=True,
+                       creationflags=hidden)
+        with mock.patch.object(yu, 'SCRUB', REAL_SCRUB):
+            with self.assertRaises(yu.Fail) as e:
+                yu.scrubbed(raw)
+            self.assertIn('upload the .scrubbed.mp4', str(e.exception))
+            subprocess.run([sys.executable, '-I', REAL_SCRUB, str(raw)], check=True, capture_output=True,
+                           creationflags=hidden)
+            yu.scrubbed(self.dir / 'raw.scrubbed.mp4')  # no Fail
 
     def test_bad_metadata_is_refused_before_any_byte(self):
         with self.assertRaises(yu.Fail) as e:

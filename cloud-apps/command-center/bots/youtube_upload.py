@@ -5,7 +5,8 @@
   youtube_upload.py upload CHANNEL FILE --title T --synthetic yes|no [--description D | --description-file F]
         [--tags "a,b"] [--category 22] [--playlist PLAYLIST_ID] [--thumbnail IMG] [--test-clip] [--dry-run]
                                                    private upload; an interrupted one resumes when run again,
-                                                   and a finished one returns the same video (never a 2nd copy)
+                                                   and a finished one returns the same video (never a 2nd copy);
+                                                   FILE must pass scrub.py --check (upload the .scrubbed.mp4)
   youtube_upload.py schedule APPROVAL_ID [--dry-run]   publish at the time Jon approved (or now)
   youtube_upload.py delete CHANNEL VIDEO_ID        delete a test clip this tool uploaded (nothing else)
 
@@ -22,6 +23,7 @@ import hashlib
 import json
 import os
 import re
+import subprocess
 import sys
 import time
 import urllib.error
@@ -76,12 +78,26 @@ PLAYLIST_ID_RE = re.compile(r'[A-Za-z0-9_-]{10,64}')
 APPROVAL_ID_RE = re.compile(r'a_[0-9a-f]{6,40}')
 IMAGE_TYPES = {'.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png'}
 OCTET = {'Content-Type': 'application/octet-stream'}  # else urllib labels the bytes as a form
+SCRUB = r'D:\OpenMausBot\tools\scrub-meta\scrub.py'
 
 
 class Fail(Exception):
     def __init__(self, code, message):
         super().__init__(message)
         self.code = code
+
+
+def scrubbed(path):
+    """Only a file that passes scrub.py --check goes to any platform (Jon, 2026-11-04): never a raw render."""
+    try:
+        r = subprocess.run([sys.executable, '-I', SCRUB, '--check', str(path)], capture_output=True, text=True,
+                           encoding='utf-8', errors='replace', timeout=300,
+                           creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
+    except (OSError, subprocess.SubprocessError) as err:
+        raise Fail(2, 'the scrub check could not run (%s); upload the .scrubbed.mp4' % err)
+    if r.returncode != 0:
+        raise Fail(2, '%s fails the scrub check: upload the .scrubbed.mp4 (scrub.py makes it). %s'
+                   % (path, (r.stdout + r.stderr).strip()[-300:]))
 
 
 class NoRedirect(urllib.request.HTTPRedirectHandler):
@@ -473,6 +489,7 @@ def run(args):
             raise Fail(2, 'video ids are 11 characters')
         return delete(YouTube(args.channel), args.channel, args.video_id)
     path, meta, thumb = upload_meta(args)
+    scrubbed(path)
     allowed = AUDITED or args.test_clip
     if args.dry_run:
         return {'dry_run': True, 'channel': args.channel, 'file': str(path), 'bytes': path.stat().st_size,
