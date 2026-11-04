@@ -272,7 +272,7 @@ footer .wrap{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap}
   .dish{width:160px}
 }
 </style>
-<div class="topbar">Sale · <span class="pill" id="topPrice"><span class="now">$37.99</span></span> · ends in <b id="clock">--:--:--</b></div>
+<div class="topbar">Sale · <span class="pill" id="topPrice"><span class="now">$27</span></span> · ends in <b id="clock">--:--:--</b></div>
 <header class="hero">
 <div class="wrap hero-grid">
 <div class="book-stage reveal">
@@ -290,7 +290,7 @@ footer .wrap{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap}
 <h1>Your grandmother's cooking was never hard. <span class="accent">She just never wrote it down.</span></h1>
 <p class="lede">100 Italian-American recipes from thirty years at my mother's stove in Bensonhurst. Sunday gravy, cutlets, lasagna, Friday fish. Each one comes with <b>the one old trick that makes it work</b>, so it comes out right the first time.</p>
 <div class="cta-row">
-<a class="btn buy" href="https://homeguidepress.com/go/angelo">Get the book · <s class="was">$59</s> <span class="now">$37.99</span></a>
+<a class="btn buy" href="https://homeguidepress.com/go/angelo">Get the book · <span class="now">$27</span></a>
 <span class="cta-note">Instant PDF download · less than one tray from the pizzeria</span>
 </div>
 <div class="chips"><span>326 pages</span><span>A full-page photo of every dish</span><span>Free lifetime updates</span><span>30-day money-back guarantee</span></div>
@@ -382,7 +382,7 @@ footer .wrap{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap}
 <div class="chapters" id="chapters"></div>
 <div class="total">
 <div class="t1">Total value<s id="totalValue">$150</s></div>
-<div class="t2">You pay today<b><s class="was">$59</s> <span class="now">$37.99</span></b></div>
+<div class="t2">You pay today<b><span class="now">$27</span></b></div>
 <a class="btn btn-gold buy" href="https://homeguidepress.com/go/angelo">Get every recipe</a>
 </div>
 </div>
@@ -489,8 +489,8 @@ footer .wrap{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap}
 <div class="wrap">
 <div class="offer reveal">
 <div class="offer-r">
-<div class="wasline">Regular price <s class="was">$59</s></div>
-<div class="price"><span class="now">$37.99</span></div>
+
+<div class="price"><span class="now">$27</span></div>
 <div>less than one tray from the pizzeria</div>
 <a class="btn btn-gold buy" href="https://homeguidepress.com/go/angelo">Get the book now</a>
 <small style="opacity:.8">Instant download · lifetime updates</small>
@@ -539,7 +539,7 @@ footer .wrap{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap}
 <div class="wrap">
 <h2>Sunday dinner could be the one they <span class="accent">talk about.</span></h2>
 <p>My mother never wrote it down. I did. All you have to do is cook.</p>
-<a class="btn btn-gold buy" href="https://homeguidepress.com/go/angelo">Get the book · <s class="was">$59</s> <span class="now">$37.99</span></a>
+<a class="btn btn-gold buy" href="https://homeguidepress.com/go/angelo">Get the book · <span class="now">$27</span></a>
 <p class="cta-note">Instant download · lifetime access · 30-day money-back guarantee</p>
 </div>
 </section>
@@ -549,14 +549,13 @@ footer .wrap{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap}
 <div aria-hidden="true" class="sticky" id="sticky">
 <span class="mini"></span>
 <div><b>Finally Written Down</b><small>100 recipes · instant PDF</small></div>
-<a class="btn buy" href="https://homeguidepress.com/go/angelo" tabindex="-1">Get it · <s class="was">$59</s> <span class="now">$37.99</span></a>
+<a class="btn buy" href="https://homeguidepress.com/go/angelo" tabindex="-1">Get it · <span class="now">$27</span></a>
 </div>
 <script>
 
 const CONFIG = {
   checkoutUrl: "https://homeguidepress.com/go/angelo",          // checkout link
-  price: 37.99,
-  wasPrice: 59
+  price: 27
 };
 
 document.documentElement.classList.add('js');
@@ -571,8 +570,7 @@ document.getElementById('chapters').innerHTML=chapters.map(c=>`<div class="ch"><
 document.getElementById('totalValue').textContent='$'+chapters.reduce((s,c)=>s+c[3],0);
 
 document.querySelectorAll('.now').forEach(e=>e.textContent='$'+CONFIG.price);
-document.querySelectorAll('.was').forEach(e=>e.textContent='$'+CONFIG.wasPrice);
-document.getElementById('topPrice').innerHTML='<s class="was">$'+CONFIG.wasPrice+'</s> $'+CONFIG.price;
+document.getElementById('topPrice').textContent='$'+CONFIG.price;
 if(CONFIG.checkoutUrl){document.querySelectorAll('a.buy').forEach(a=>{a.href=CONFIG.checkoutUrl;a.target='_blank';a.rel='noopener'});}
 
 const sticky=document.getElementById('sticky'),hero=document.querySelector('.hero'),get=document.getElementById('get');
