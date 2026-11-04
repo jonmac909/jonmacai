@@ -53,7 +53,7 @@ export const hashOf = (token) => createHash('sha256').update(token, 'utf8').dige
 export function tokenSql(slug, hash, now) {
   return [
     `INSERT OR IGNORE INTO bot_tokens (token_hash, bot, created_at) VALUES ('${hash}', '${slug}', '${now}');`,
-    `UPDATE bot_tokens SET revoked_at = '${now}' WHERE bot = '${slug}' AND token_hash != '${hash}' AND revoked_at IS NULL;`,
+    `UPDATE bot_tokens SET revoked_at = '${now}' WHERE bot = '${slug}' AND token_hash <> '${hash}' AND revoked_at IS NULL;`,
   ];
 }
 
@@ -92,7 +92,7 @@ function main() {
     const r = spawnSync(cmd, { cwd: APP_DIR, shell: true, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
     if (r.status !== 0) {
       console.error((r.stdout || '').slice(-1500), (r.stderr || '').slice(-1500));
-      throw new Error(`wrangler d1 execute failed (${r.status})`);
+      throw new Error(`wrangler d1 execute failed (${r.status}) at ${sql.match(/bot = '([a-z0-9-]+)'/)[1]}; earlier bots are registered, re-running is safe`);
     }
   }
   console.log(`Registered ${bots.length} token hashes in ${database}; older hashes for these bots are revoked.`);
