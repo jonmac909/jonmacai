@@ -35,6 +35,8 @@ function th(table, key, label, num) {
 }
 
 const stat = (n, text) => (n != null ? text : ''); // blank when Studio has no value, never a guess
+// Average view duration, seconds as Studio shows it: 205 is 3:25.
+const mss = (s) => (s != null ? `${Math.floor(Math.round(s) / 60)}:${String(Math.round(s) % 60).padStart(2, '0')}` : '');
 
 function videoRow(v) {
   const [label, cls] = STAGE[v.status] || STATUS[v.calendarStatus] || [v.calendarStatus, ''];
@@ -45,6 +47,7 @@ function videoRow(v) {
   return `<tr><td>${esc(v.channelLabel)}</td><td>${esc(v.title)}</td><td>${pill(label, cls)}${youtubeFlag(v)}</td>
     <td class="num">${stat(v.impressions, Number(v.impressions).toLocaleString('en-US'))}</td>
     <td class="num">${stat(v.ctr, `${esc(v.ctr)}%`)}</td>
+    <td class="num">${mss(v.avd)}</td>
     <td class="num">${stat(v.views, Number(v.views).toLocaleString('en-US'))}</td>
     <td class="num">${stat(v.clicks, Number(v.clicks).toLocaleString('en-US'))}</td><td class="tkcell">${link}</td>
     <td class="tkcell">${esc(v.updated)}</td></tr>`;
@@ -59,23 +62,32 @@ function dataNote(videos, last) {
 }
 const num = (n) => (n != null ? Number(n).toLocaleString('en-US') : '');
 const total = (vs, key) => (vs.some((v) => v[key] != null) ? vs.reduce((a, v) => a + (v[key] ?? 0), 0) : null); // blank when Studio has none
+// CTR by impressions and AVD by views, the way Studio averages them.
+function weighted(vs, key, by) {
+  const has = vs.filter((v) => v[key] != null && v[by] > 0);
+  const n = has.reduce((a, v) => a + v[by], 0);
+  return n ? Math.round((10 * has.reduce((a, v) => a + v[key] * v[by], 0)) / n) / 10 : null;
+}
 
 // All (Jon, 2026-11-04): one row per channel. Videos is everything on YouTube, Scheduled not public yet, Posted public.
+// A connected channel's views, AVD and subs are its lifetime Studio numbers; impressions and CTR add up its calendar videos.
 function channelRow(c, videos) {
   const mine = videos.filter((v) => v.channel === c.slug);
   const on = mine.filter((v) => ['posted', 'scheduled', 'live'].includes(v.status));
   const live = on.filter((v) => v.status === 'live').length;
+  const t = c.totals || {};
   return { slug: c.slug, label: c.label, onAir: live ? 'Yes' : 'No', videos: on.length, scheduled: on.filter((v) => v.status === 'scheduled').length, posted: live,
-    impressions: total(mine, 'impressions'), views: total(mine, 'views'), subs: total(mine, 'subs') };
+    impressions: total(mine, 'impressions'), ctr: weighted(mine, 'ctr', 'impressions'), avd: t.avd ?? weighted(mine, 'avd', 'views'),
+    views: t.views ?? total(mine, 'views'), subs: t.subs ?? total(mine, 'subs') };
 }
 
+const ALL_COLS = [['impressions', 'Impressions', num], ['ctr', 'CTR', (n) => (n != null ? `${n}%` : '')], ['avd', 'AVD', mss], ['views', 'Views', num], ['subs', 'Subs', num]];
 function allTable(d, last) {
   const rows = sorted(d.channels.slice(1).map((c) => channelRow(c, d.videos)), sorts.all);
-  const cols = [['impressions', 'Impressions'], ['views', 'Views'], ['subs', 'Subs']];
   return `<div class="card pad">
-    <div class="cardhead"><h2>Channels</h2><span class="meta">Videos counts every calendar video on YouTube, private ones too. Totals add up those videos; Subs is net subscribers from them. ${dataNote(d.videos, last)}</span></div>
-    <div class="tblwrap"><table><thead><tr>${th('all', 'label', 'Channel')}${th('all', 'onAir', 'Live')}${th('all', 'videos', 'Videos', true)}${th('all', 'scheduled', 'Scheduled', true)}${th('all', 'posted', 'Posted', true)}${cols.map(([k, l]) => th('all', k, l, true)).join('')}</tr></thead>
-    <tbody>${rows.map((x) => `<tr data-page="track/${esc(x.slug)}"><td>${esc(x.label)}</td><td>${pill(x.onAir, x.onAir === 'Yes' ? 'ok' : '')}</td><td class="num">${x.videos}</td><td class="num">${x.scheduled}</td><td class="num">${x.posted}</td>${cols.map(([k]) => `<td class="num">${num(x[k])}</td>`).join('')}</tr>`).join('')}</tbody></table></div>
+    <div class="cardhead"><h2>Channels</h2><span class="meta">Videos counts every calendar video on YouTube, private ones too. Views, AVD and Subs are the channel's lifetime numbers, as in Studio; Impressions and CTR add up its calendar videos. ${dataNote(d.videos, last)}</span></div>
+    <div class="tblwrap"><table><thead><tr>${th('all', 'label', 'Channel')}${th('all', 'onAir', 'Live')}${th('all', 'videos', 'Videos', true)}${th('all', 'scheduled', 'Scheduled', true)}${th('all', 'posted', 'Posted', true)}${ALL_COLS.map(([k, l]) => th('all', k, l, true)).join('')}</tr></thead>
+    <tbody>${rows.map((x) => `<tr data-page="track/${esc(x.slug)}"><td>${esc(x.label)}</td><td>${pill(x.onAir, x.onAir === 'Yes' ? 'ok' : '')}</td><td class="num">${x.videos}</td><td class="num">${x.scheduled}</td><td class="num">${x.posted}</td>${ALL_COLS.map(([k, , f]) => `<td class="num">${f(x[k])}</td>`).join('')}</tr>`).join('')}</tbody></table></div>
   </div>`;
 }
 
@@ -92,7 +104,7 @@ export function track(d, _data, sub) {
   </div>
   <div class="card pad">
     <div class="cardhead"><h2>Videos</h2><span class="meta">${videos.length} on the calendar. ${dataNote(videos, last)}</span></div>
-    ${videos.length ? `<div class="tblwrap"><table class="tktable"><thead><tr>${th('videos', 'channelLabel', 'Channel')}${th('videos', 'title', 'Title')}${th('videos', 'status', 'Status')}${th('videos', 'impressions', 'Impressions', true)}${th('videos', 'ctr', 'CTR', true)}${th('videos', 'views', 'Views', true)}${th('videos', 'clicks', 'Clicks', true)}<th>Link</th>${th('videos', 'updatedAt', 'Updated')}</tr></thead>
+    ${videos.length ? `<div class="tblwrap"><table class="tktable"><thead><tr>${th('videos', 'channelLabel', 'Channel')}${th('videos', 'title', 'Title')}${th('videos', 'status', 'Status')}${th('videos', 'impressions', 'Impressions', true)}${th('videos', 'ctr', 'CTR', true)}${th('videos', 'avd', 'AVD', true)}${th('videos', 'views', 'Views', true)}${th('videos', 'clicks', 'Clicks', true)}<th>Link</th>${th('videos', 'updatedAt', 'Updated')}</tr></thead>
     <tbody>${sorted(videos, sorts.videos).map(videoRow).join('')}</tbody></table></div>` : '<p class="muted">No videos on the calendar yet.</p>'}
   </div>`;
   });

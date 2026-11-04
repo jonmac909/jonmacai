@@ -126,7 +126,7 @@ test('the page lists every channel with correct counts, one row per video, filte
   assert.doesNotMatch(all, /Not made yet|Added by hand|data-copy/, 'All lists channels, not videos');
   assert.deepEqual(allRow(all, 'aria-creates'), [labelOf('aria-creates'), 'Yes', '3', '1', '1'], 'on YouTube, scheduled, public; no Studio data is blank');
   assert.deepEqual(allRow(all, 'rosa-cooks'), [labelOf('rosa-cooks'), 'No', '0', '0', '0']);
-  assert.match(all, /from them\. (Views and subs updated|No YouTube data yet)/, 'a space before the data note');
+  assert.match(all, /calendar videos\. (Views and subs updated|No YouTube data yet)/, 'a space before the data note');
   setSort('all:onAir');
   const live = track(page, {}, '').match(/<tr data-page="track\/[^"]+">.*?<\/tr>/gs).map((r) => /Yes/.test(r));
   assert.ok(live[0] && live.indexOf(false) > live.lastIndexOf(true), 'first click on Live puts Yes first');
@@ -741,7 +741,7 @@ test('the Calendar and Track use Kelowna time for today, not Los Angeles', async
   assert.equal(row.dateLabel.split(',')[0], 'Today');
   db.sqlite.exec("UPDATE yt_stats SET updated_at = '2026-11-03T07:00:00.000Z'");
   const tracked = await trackData(db, 'https://jonmac.ai', late);
-  assert.equal(tracked.find((v) => v.title === 'Midnight').updated, 'Today, 12:00 AM PT');
+  assert.equal(tracked.videos.find((v) => v.title === 'Midnight').updated, 'Today, 12:00 AM PT');
 });
 
 test('the 60-day window starts on the Kelowna day', async () => {
@@ -826,7 +826,7 @@ test('Home Guide Press shows no links or clicks and is off the link list, with i
   assert.deepEqual([v.url, v.code, v.clicks, v.landing, v.views], [null, null, null, null, 7]);
   const html = track(page, {}, 'peter-collins');
   assert.doesNotMatch(html, /data-copy|\/v\/|No landing page/);
-  assert.equal(html.match(/<tr>[\s\S]*?<\/tr>/g).at(-1).match(/<td class="(?:num|tkcell)">\s*<\/td>/g).length, 4, 'blank: impressions, CTR, clicks, link');
+  assert.equal(html.match(/<tr>[\s\S]*?<\/tr>/g).at(-1).match(/<td class="(?:num|tkcell)">\s*<\/td>/g).length, 5, 'blank: impressions, CTR, AVD, clicks, link');
 
   const { links } = (await call(env, 'GET', '/v1/links', { bot: 'qc' })).body;
   assert.deepEqual(links.map((l) => l.title), ['Hooks']);

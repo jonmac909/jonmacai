@@ -1,6 +1,6 @@
 // Track from the YouTube APIs (Jon, 2026-11-04), replacing the Studio scraper (D:\AgentTeam\tools\studio_read.py).
 // Each channel is its own Google identity, so Jon connects each once with read-only consent. Then:
-// - views, status and subs come from the Data and Analytics APIs when Track is opened (at most every 20 minutes) and hourly from the cron;
+// - status comes from the Data API; views, AVD and subs from the Analytics API, like Studio (public view counts until it has them), when Track is opened (at most every 20 minutes) and hourly from the cron;
 // - impressions and CTR come from Reporting API reach reports in the 10-minute cron (at most every 6 hours a channel).
 // Both fill yt_stats, the rows the Track and Calendar pages already read.
 import { YOUTUBE_CHANNELS, pacific } from './channels.js';
@@ -196,7 +196,12 @@ export function statsOf(v, nowMs) {
   return out;
 }
 
-// One channel: ~3 Data API units (channels, one playlist page, one videos page) and one Analytics call.
+// One Analytics row (views, averageViewDuration, subscribersGained, subscribersLost) as yt_stats fields. AVD is seconds.
+export function studioOf([views, avd, gained, lost]) {
+  return { views: Number(views), avd: Number(views) > 0 ? Number(avd) : null, subs: Number(gained) - Number(lost) };
+}
+
+// One channel: ~3 Data API units (channels, one playlist page, one videos page) and two Analytics calls.
 async function syncChannel(env, fetchFn, row, nowMs) {
   const token = await accessToken(env, fetchFn, row);
   const ch = (await getJson(fetchFn, `${DATA}/channels?part=contentDetails,statistics&mine=true`, token)).items?.[0];
@@ -213,20 +218,24 @@ async function syncChannel(env, fetchFn, row, nowMs) {
   for (let i = 0; i < ids.length; i += 50) {
     videos.push(...((await getJson(fetchFn, `${DATA}/videos?part=status,statistics&maxResults=50&id=${ids.slice(i, i + 50).join(',')}`, token)).items || []));
   }
-  // Net subscribers per video, lifetime. Analytics lags a day or two. Its failure still saves views and status.
-  const subs = new Map();
+  // Studio's numbers (Jon, 2026-11-04): lifetime Analytics views, average view duration and net subscribers, per video
+  // and for the channel. Analytics lags a day or two: a video it doesn't list yet keeps its public view count, and a
+  // channel with no rows yet stores none, so Track falls back. Its failure still saves views and status.
+  const studio = new Map();
+  let channel = null;
   let problem = null;
   try {
-    const q = new URLSearchParams({ ids: 'channel==MINE', startDate: '2005-01-01', endDate: pacific(nowMs).day, metrics: 'subscribersGained,subscribersLost', dimensions: 'video', sort: '-subscribersGained', maxResults: '200' });
-    for (const [id, gained, lost] of (await getJson(fetchFn, `${ANALYTICS}?${q}`, token)).rows || []) subs.set(id, Number(gained) - Number(lost));
+    const base = { ids: 'channel==MINE', startDate: '2005-01-01', endDate: pacific(nowMs).day, metrics: 'views,averageViewDuration,subscribersGained,subscribersLost' };
+    for (const [id, ...m] of (await getJson(fetchFn, `${ANALYTICS}?${new URLSearchParams({ ...base, dimensions: 'video', sort: '-views', maxResults: '200' })}`, token)).rows || []) studio.set(id, studioOf(m));
+    const [all] = (await getJson(fetchFn, `${ANALYTICS}?${new URLSearchParams(base)}`, token)).rows || [];
+    channel = all ? studioOf(all) : { views: null, avd: null, subs: null };
   } catch (err) {
-    problem = `Subs not read: ${err.message}`;
+    problem = `Analytics not read: ${err.message}`;
   }
   const now = iso(nowMs);
   const statements = [];
   for (const v of videos) {
-    const s = statsOf(v, nowMs);
-    if (subs.has(v.id)) s.subs = subs.get(v.id);
+    const s = { ...statsOf(v, nowMs), ...studio.get(v.id) };
     const fields = Object.keys(s);
     if (!YOUTUBE_ID_RE.test(v.id || '') || !fields.length) continue;
     // A field YouTube didn't give keeps its value, like the old stats route.
@@ -236,6 +245,10 @@ async function syncChannel(env, fetchFn, row, nowMs) {
   const n = (x) => (x == null || !Number.isFinite(Number(x)) ? null : Number(x));
   statements.push(env.DB.prepare('UPDATE yt_api SET subscribers = ?, views = ?, videos = ?, synced_at = ?, sync_error = ? WHERE channel = ?')
     .bind(n(ch.statistics?.subscriberCount), n(ch.statistics?.viewCount), n(ch.statistics?.videoCount), now, problem, row.channel));
+  if (channel) {
+    statements.push(env.DB.prepare('UPDATE yt_api SET studio_views = ?, studio_subs = ?, studio_avd = ? WHERE channel = ?')
+      .bind(channel.views, channel.subs, channel.avd, row.channel));
+  }
   await env.DB.batch(statements);
 }
 
@@ -350,7 +363,7 @@ export async function syncReach(env, fetchFn = globalThis.fetch, nowMs = Date.no
 export async function youtubeStatus(env) {
   let rows;
   try {
-    rows = (await env.DB.prepare(`SELECT channel, channel_id, name, subscribers, views, videos, synced_at, sync_error,
+    rows = (await env.DB.prepare(`SELECT channel, channel_id, name, subscribers, views, videos, studio_views, studio_subs, studio_avd, synced_at, sync_error,
       reach_job, reach_as_of, reach_error FROM yt_api`).all()).results || [];
   } catch {
     return json({ error: 'Migration 0020 is not applied' }, 503);
@@ -364,6 +377,7 @@ export async function youtubeStatus(env) {
       return {
         channel: c.slug, label: c.label, connected: !!r, channelId: r?.channel_id || CHANNEL_IDS[c.slug] || null, name: r?.name || null,
         subscribers: r?.subscribers ?? null, views: r?.views ?? null, videos: r?.videos ?? null,
+        studio: { views: r?.studio_views ?? null, subs: r?.studio_subs ?? null, avdSeconds: r?.studio_avd ?? null }, // lifetime Analytics, as Studio shows
         lastSync: r?.synced_at || null, lastError: r?.sync_error || null,
         reachJob: !!r?.reach_job, reachAsOf: r?.reach_as_of || null, reachError: r?.reach_error || null,
         connect: `/dashboard/api/youtube/connect?channel=${c.slug}`,

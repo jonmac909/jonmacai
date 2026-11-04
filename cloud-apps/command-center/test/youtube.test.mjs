@@ -52,7 +52,7 @@ function google(over = {}) {
       { id: VID, status: { privacyStatus: 'public' }, statistics: { viewCount: '950' } },
       { id: SOON, status: { privacyStatus: 'private', publishAt: '2099-01-02T17:00:00Z' }, statistics: { viewCount: '0' } },
     ] }),
-    analytics: () => reply({ rows: [[VID, 9, 2]] }),
+    analytics: (_init, url) => reply({ rows: url.includes('dimensions=video') ? [[VID, '900', '205', '9', '2']] : [['1000', '200.4', '10', '2']] }),
     jobs: (init) => (init.method === 'POST' ? reply({ id: 'job1' }) : reply({ jobs: [] })),
     reports: () => reply({ reports: [
       { id: 'r2', createTime: '2026-11-04T10:00:00Z', downloadUrl: 'https://youtubereporting.googleapis.com/v1/media/r2' },
@@ -157,7 +157,7 @@ test('opening Track syncs views, status and subs once per 20 minutes, and status
   try {
     const snap = await (await call(env, '/snapshot?pages=track')).json();
     const v = snap.pages.track.videos.find((x) => x.title === 'Road test');
-    assert.deepEqual([v.views, v.subs, v.status], [950, 7, 'live']);
+    assert.deepEqual([v.views, v.subs, v.avd, v.status], [900, 7, 205, 'live'], 'Analytics views, not the public 950');
     const soon = await db.prepare('SELECT status, scheduled_at, scheduled_date FROM yt_stats WHERE youtube_id = ?').bind(SOON).first();
     assert.deepEqual({ ...soon }, { status: 'scheduled', scheduled_at: '2099-01-02T17:00:00.000Z', scheduled_date: '2099-01-02' });
     const dataCalls = g.calls.filter((c) => ['channel', 'playlist', 'videos'].includes(c.name)).length;
@@ -175,6 +175,7 @@ test('opening Track syncs views, status and subs once per 20 minutes, and status
   const peter = st.channels.find((c) => c.channel === 'peter-collins');
   assert.equal(st.channels.length, 23);
   assert.deepEqual([peter.connected, peter.subscribers, peter.lastError, peter.reachJob], [true, 120, null, true]);
+  assert.deepEqual(peter.studio, { views: 1000, subs: 8, avdSeconds: 200.4 });
   assert.ok(peter.lastSync);
   assert.equal(st.channels.find((c) => c.channel === 'eleanor-whitfield').connected, false);
   assert.doesNotMatch(JSON.stringify(st), /token|refresh/i);
@@ -247,7 +248,7 @@ test('the cron syncs views, status and subs hourly with nobody opening Track', a
   const g = google();
   const t = Date.parse('2026-11-04T14:00:00Z');
   await syncStats(env, g.fetchFn, t);
-  assert.equal((await db.prepare('SELECT views FROM yt_stats WHERE youtube_id = ?').bind(VID).first()).views, 950);
+  assert.equal((await db.prepare('SELECT views FROM yt_stats WHERE youtube_id = ?').bind(VID).first()).views, 900);
   const n = g.calls.length;
   await syncStats(env, g.fetchFn, t + 30 * 60 * 1000);
   assert.equal(g.calls.length, n, 'not again within the hour');
@@ -265,4 +266,29 @@ test('a failed connect shows Google\'s reason, never the token', async () => {
   const bad = await connect(env, google({ token: () => new Response(JSON.stringify({ error: 'redirect_uri_mismatch' }), { status: 400 }) }));
   assert.match(await bad.text(), /Google did not give lasting access \(400 redirect_uri_mismatch\)/);
   assert.equal(await db.prepare('SELECT COUNT(*) AS n FROM yt_api').first().then((x) => x.n), 0);
+});
+
+const allRow = (html, slug) => html.match(new RegExp(`<tr data-page="track/${slug}">(.*?)</tr>`, 's'))[1].split(/<[^>]+>/).map((s) => s.trim()).filter(Boolean);
+
+test('All shows Studio\'s lifetime views, AVD and subs, with impressions and CTR from the videos', async () => {
+  const { db, env } = await setup();
+  await connect(env, google());
+  await call(env, '/v1/calendar/peter-collins', { jon: false, bot: true, method: 'PUT', body: { videos: [{ date: '2026-11-01', title: 'Road test', status: 'published', youtube_id: VID }] } });
+  await syncReach(env, google().fetchFn, Date.parse('2026-11-04T20:00:00Z'));
+  await syncStats(env, google().fetchFn); // now, so opening Track doesn't sync again
+  const snap = await (await call(env, '/snapshot?pages=track')).json();
+  // Live, Videos, Scheduled, Posted, Impressions, CTR, AVD, Views, Subs
+  assert.deepEqual(allRow(track(snap.pages.track, {}, ''), 'peter-collins').slice(1), ['Yes', '1', '0', '1', '400', '2%', '3:20', '1,000', '8']);
+  assert.match(track(snap.pages.track, {}, 'peter-collins'), /<td class="num">3:25<\/td>/, 'the video\'s own AVD');
+});
+
+test('with no Analytics rows yet, views fall back to the public count and subs to the subscriber count, never blank', async () => {
+  const { db, env } = await setup();
+  await connect(env, google());
+  await call(env, '/v1/calendar/peter-collins', { jon: false, bot: true, method: 'PUT', body: { videos: [{ date: '2026-11-01', title: 'Road test', status: 'published', youtube_id: VID }] } });
+  await syncStats(env, google({ analytics: () => new Response(JSON.stringify({ rows: [] })) }).fetchFn);
+  const snap = await (await call(env, '/snapshot?pages=track')).json();
+  const row = allRow(track(snap.pages.track, {}, ''), 'peter-collins');
+  assert.deepEqual(row.slice(-2), ['950', '120']);
+  assert.equal((await db.prepare('SELECT sync_error FROM yt_api').first()).sync_error, null);
 });
