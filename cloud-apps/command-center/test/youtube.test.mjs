@@ -46,7 +46,7 @@ function google(over = {}) {
       return p.get('refresh_token') === REFRESH ? reply({ access_token: 'at2' }) : reply({ error: 'invalid_grant' }, 400);
     },
     me: () => reply({ items: [{ id: PETER, snippet: { title: 'Peter Collins' } }] }),
-    channel: () => reply({ items: [{ id: PETER, contentDetails: { relatedPlaylists: { uploads: 'UU1' } }, statistics: { subscriberCount: '120', viewCount: '5000', videoCount: '2' } }] }),
+    channel: () => reply({ items: [{ id: PETER, contentDetails: { relatedPlaylists: { uploads: 'UU1' } }, statistics: { subscriberCount: '120', viewCount: '1100', videoCount: '2' } }] }),
     playlist: () => reply({ items: [{ contentDetails: { videoId: VID } }, { contentDetails: { videoId: SOON } }] }),
     videos: () => reply({ items: [
       { id: VID, status: { privacyStatus: 'public' }, statistics: { viewCount: '950' } },
@@ -291,4 +291,15 @@ test('with no Analytics rows yet, views fall back to the public count and subs t
   const row = allRow(track(snap.pages.track, {}, ''), 'peter-collins');
   assert.deepEqual(row.slice(-2), ['950', '120']);
   assert.equal((await db.prepare('SELECT sync_error FROM yt_api').first()).sync_error, null);
+});
+
+test('Analytics far behind the public count (a new channel) keeps the public views and shows no AVD', async () => {
+  const { env } = await setup();
+  await connect(env, google());
+  await call(env, '/v1/calendar/peter-collins', { jon: false, bot: true, method: 'PUT', body: { videos: [{ date: '2026-11-01', title: 'Road test', status: 'published', youtube_id: VID }] } });
+  await syncStats(env, google({ analytics: (_i, url) => new Response(JSON.stringify({ rows: url.includes('dimensions=video') ? [[VID, '1', '55', '0', '0']] : [['1', '55', '0', '0']] })) }).fetchFn);
+  const snap = await (await call(env, '/snapshot?pages=track')).json();
+  const v = snap.pages.track.videos.find((x) => x.title === 'Road test');
+  assert.deepEqual([v.views, v.avd], [950, null]);
+  assert.deepEqual(allRow(track(snap.pages.track, {}, ''), 'peter-collins').slice(-2), ['950', '120']);
 });

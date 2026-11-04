@@ -220,7 +220,7 @@ async function syncChannel(env, fetchFn, row, nowMs) {
   }
   // Studio's numbers (Jon, 2026-11-04): lifetime Analytics views, average view duration and net subscribers, per video
   // and for the channel. Analytics lags a day or two: a video it doesn't list yet keeps its public view count, and a
-  // channel with no rows yet stores none, so Track falls back. Its failure still saves views and status.
+  // channel with no rows yet, or rows far behind, stores none, so Track falls back. Its failure still saves views and status.
   const studio = new Map();
   let channel = null;
   let problem = null;
@@ -234,8 +234,13 @@ async function syncChannel(env, fetchFn, row, nowMs) {
   }
   const now = iso(nowMs);
   const statements = [];
+  // Analytics runs 2-3 days behind on a new channel (Giovanni: 1 view there vs 82 public, 2026-11-04). Until its
+  // count reaches half the public one, keep the public views and show no AVD rather than a number that far behind.
+  const behind = (a, pub) => a && pub != null && Number.isFinite(Number(pub)) && a.views < Number(pub) / 2;
+  if (behind(channel, ch.statistics?.viewCount)) channel = { views: null, avd: null, subs: null };
   for (const v of videos) {
-    const s = { ...statsOf(v, nowMs), ...studio.get(v.id) };
+    const a = studio.get(v.id);
+    const s = { ...statsOf(v, nowMs), ...(behind(a, v.statistics?.viewCount) ? { avd: null } : a) };
     const fields = Object.keys(s);
     if (!YOUTUBE_ID_RE.test(v.id || '') || !fields.length) continue;
     // A field YouTube didn't give keeps its value, like the old stats route.
