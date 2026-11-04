@@ -4,7 +4,7 @@ import { shell, STATUS, youtubeFlag } from './channels.js';
 // Track (2026-11-02): one row per Calendar video. A video not made yet shows its Calendar status.
 const STAGE = { created: ['Created', 'blue'], posted: ['Posted to YouTube', 'violet'], scheduled: ['Scheduled', 'teal'], live: ['Live', 'ok'] };
 const RANK = Object.keys(STAGE);
-const TEXT = ['label', 'channelLabel', 'title', 'onAir'];
+const TEXT = ['label', 'channelLabel', 'title']; // onAir is not here, so its first click puts Yes first
 const COUNTS_NOTE = 'Created is everything at QC or later. Posted is everything on YouTube. Scheduled and live are as they stand now.';
 
 // Starts in the server's order: channels as on the Calendar, videos newest first. Kept across re-renders.
@@ -66,7 +66,7 @@ function allTable(d, last) {
   const rows = sorted(d.channels.slice(1).map((c) => channelRow(c, d.videos)), sorts.all);
   const cols = [['impressions', 'Impressions'], ['views', 'Views'], ['subs', 'Subs']];
   return `<div class="card pad">
-    <div class="cardhead"><h2>Channels</h2><span class="meta">Videos counts every calendar video on YouTube, private ones too. Totals add up those videos; Subs is net subscribers from them.${last ? `Studio data last updated ${esc(last.updated)}` : 'No Studio data yet'}</span></div>
+    <div class="cardhead"><h2>Channels</h2><span class="meta">Videos counts every calendar video on YouTube, private ones too. Totals add up those videos; Subs is net subscribers from them. ${last ? `Studio data last updated ${esc(last.updated)}` : 'No Studio data yet'}</span></div>
     <div class="tblwrap"><table><thead><tr>${th('all', 'label', 'Channel')}${th('all', 'onAir', 'Live')}${th('all', 'videos', 'Videos', true)}${th('all', 'scheduled', 'Scheduled', true)}${th('all', 'posted', 'Posted', true)}${cols.map(([k, l]) => th('all', k, l, true)).join('')}</tr></thead>
     <tbody>${rows.map((x) => `<tr data-page="track/${esc(x.slug)}"><td>${esc(x.label)}</td><td>${pill(x.onAir, x.onAir === 'Yes' ? 'ok' : '')}</td><td class="num">${x.videos}</td><td class="num">${x.scheduled}</td><td class="num">${x.posted}</td>${cols.map(([k]) => `<td class="num">${num(x[k])}</td>`).join('')}</tr>`).join('')}</tbody></table></div>
   </div>`;

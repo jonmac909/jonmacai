@@ -126,6 +126,11 @@ test('the page lists every channel with correct counts, one row per video, filte
   assert.doesNotMatch(all, /Not made yet|Added by hand|data-copy/, 'All lists channels, not videos');
   assert.deepEqual(allRow(all, 'aria-creates'), [labelOf('aria-creates'), 'Yes', '3', '1', '1'], 'on YouTube, scheduled, public; no Studio data is blank');
   assert.deepEqual(allRow(all, 'rosa-cooks'), [labelOf('rosa-cooks'), 'No', '0', '0', '0']);
+  assert.match(all, /from them\. (Studio data|No Studio data)/, 'a space before the Studio note');
+  setSort('all:onAir');
+  const live = track(page, {}, '').match(/<tr data-page="track\/[^"]+">.*?<\/tr>/gs).map((r) => /Yes/.test(r));
+  assert.ok(live[0] && live.indexOf(false) > live.lastIndexOf(true), 'first click on Live puts Yes first');
+  setSort('all:label');
   const aria = track(page, {}, 'aria-creates');
   assert.match(aria, /Posted to YouTube/);
   assert.match(aria, /<span[^>]*>Idea<\/span>/, 'a video not made yet shows its Calendar status');
