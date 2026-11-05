@@ -61,17 +61,44 @@ test('factory page: shell renders and tabs filter tiles by channel', () => {
   assert.match(render(null, null, 'peter-collins'), /data-sub="peter-collins"/);
 });
 
+// A fake page skeleton with just what factory.js touches. Rows are real nodes that can be moved, so a test can tell "kept" from "rebuilt".
+// tblwrap, table and tbody refuse innerHTML: the scroll box and the table must never be rewritten.
+function fakePage(sub = '') {
+  const sections = ['.fymsg', '.fystatus', '.fypanel', '.fytabsbox', '.fysumbox', '.fycols', '.fythead', '.fynotes'];
+  const nodes = {};
+  for (const s of sections) nodes[s] = { innerHTML: '' };
+  nodes['.fyview'] = { hidden: true };
+  const locked = (name) => ({ get innerHTML() { return ''; }, set innerHTML(_v) { throw new Error(`${name} must not be rewritten`); } });
+  nodes['.tblwrap'] = locked('.tblwrap');
+  nodes['.fytable'] = { ...locked('.fytable'), vars: {}, style: { setProperty(k, v) { nodes['.fytable'].vars[k] = v; } } };
+  const body = { ...locked('.fytbody'), children: [] };
+  const link = () => body.children.forEach((r, i) => { r.nextElementSibling = body.children[i + 1] || null; });
+  Object.defineProperty(body, 'firstElementChild', { get: () => body.children[0] || null });
+  body.insertBefore = (n, ref) => { const k = body.children.indexOf(n); if (k >= 0) body.children.splice(k, 1); const at = ref ? body.children.indexOf(ref) : -1; if (at < 0) body.children.push(n); else body.children.splice(at, 0, n); n.remove = () => { body.children.splice(body.children.indexOf(n), 1); link(); }; link(); };
+  nodes['.fytbody'] = body;
+  globalThis.document = {
+    hidden: false,
+    createElement: () => { const t = { content: {} }; Object.defineProperty(t, 'innerHTML', { set(h) { t.content.firstElementChild = { html: h, dataset: { id: /data-id="([^"]*)"/.exec(h)?.[1] } }; } }); return t; },
+  };
+  let alive = true;
+  const el = { dataset: { sub }, get isConnected() { return alive; }, querySelector: (s) => nodes[s] };
+  const html = () => [nodes['.fymsg'].innerHTML, nodes['.fypanel'].innerHTML, nodes['.fytabsbox'].innerHTML, nodes['.fysumbox'].innerHTML, nodes['.fythead'].innerHTML, ...body.children.map((r) => r.html), nodes['.fynotes'].innerHTML].join('');
+  return { el, nodes, html, rows: () => [...body.children], stop: () => { alive = false; } };
+}
+const flush = () => new Promise((r) => setImmediate(r));
+
 test('factory page: first load fetches even when the tab reports hidden', async () => {
-  const boxes = { '.fybody': { innerHTML: '' }, '.fystatus': { innerHTML: '' } };
-  let calls = 0; let alive = true;
-  const el = { dataset: {}, get isConnected() { return alive; }, querySelector: (s) => boxes[s] };
-  globalThis.document = { hidden: true };
-  globalThis.fetch = async () => { calls++; return { ok: true, json: async () => ({ ok: true, factory: SNAP, asOf: new Date().toISOString(), channels: [] }) }; };
-  mount(el);
-  await new Promise((r) => setTimeout(r, 50)); alive = false;
+  let calls = 0;
+  const pg = fakePage();
+  globalThis.fetch = async () => { calls++; return { ok: true, json: async () => ({ ok: true, factory: { ...SNAP, cols: ['Script'], tiles: [{ ...SNAP.tiles[0], cells: [{ s: 'done' }] }] }, asOf: new Date().toISOString(), channels: [] }) }; };
+  pg.el.querySelector('.fyview').hidden = true;
+  globalThis.document.hidden = true;
+  mount(pg.el);
+  await new Promise((r) => setTimeout(r, 50)); pg.stop();
   assert.equal(calls, 1);
-  assert.doesNotMatch(boxes['.fybody'].innerHTML, /Loading/);
-  assert.match(boxes['.fybody'].innerHTML, /Tesco Transport Shake-Up/);
+  assert.doesNotMatch(pg.html(), /Loading/);
+  assert.match(pg.html(), /Tesco Transport Shake-Up/);
+  assert.equal(pg.nodes['.fyview'].hidden, false);
 });
 
 const COLS = ['Script', 'Script QC', 'A-roll', 'Clips', 'Preflight', 'Edit', 'Video QC'];
@@ -86,16 +113,14 @@ const TABLE = {
 };
 const CHANNELS = [{ slug: 'peter-collins', label: 'Peter Collins', group: 'Home Guide Press' }, { slug: 'rosa-cooks', label: 'Rosa Cooks', group: 'Home Guide Press' }];
 
-async function board(sub = '', asOf = new Date().toISOString()) {
-  const boxes = { '.fybody': { innerHTML: '' }, '.fystatus': { innerHTML: '' } };
-  let alive = true;
-  const el = { dataset: { sub }, get isConnected() { return alive; }, querySelector: (s) => boxes[s] };
-  globalThis.document = { hidden: false };
+async function open(sub = '', asOf = new Date().toISOString()) {
+  const pg = fakePage(sub);
   globalThis.fetch = async () => ({ ok: true, json: async () => ({ ok: true, factory: TABLE, asOf, channels: CHANNELS }) });
-  mount(el);
-  await new Promise((r) => setTimeout(r, 50)); alive = false;
-  return boxes['.fybody'].innerHTML;
+  mount(pg.el);
+  await new Promise((r) => setTimeout(r, 50)); pg.stop();
+  return pg;
 }
+const board = async (sub, asOf) => (await open(sub, asOf)).html();
 
 test('factory table: one row per open video, oldest first, channel under the title, calendar tiles left out', async () => {
   const html = await board();
@@ -177,6 +202,26 @@ test('factory table: a host with no chip gets its own chip under Other, and the 
   } finally { TABLE.tiles = keep; }
 });
 
+test('factory table: a short host joins the one chip whose name starts with it; two fits or none stay under Other', async () => {
+  const keepT = TABLE.tiles; const keepC = CHANNELS.slice();
+  CHANNELS.push({ slug: 'nora-fairweather-cats', label: 'Nora Fairweather Cats', group: 'Home Guide Press' }, { slug: 'rosas-clean-home', label: "Rosa's Clean Home", group: 'Home Guide Press' });
+  const done = COLS.map(() => ({ s: 'done' }));
+  TABLE.tiles = [
+    { title: 'A - Nora Fairweather', channel: 'Nora Fairweather', owner: 'elle', waitMin: 1, cells: done },
+    { title: 'B - Nora Fairweather Cats', channel: 'Nora Fairweather Cats', owner: 'elle', waitMin: 1, cells: done },
+    { title: 'C - Rosa', channel: 'Rosa', owner: 'elle', waitMin: 1, cells: done }, // Rosa Cooks and Rosa's Clean Home both fit
+  ];
+  try {
+    const html = await board();
+    assert.match(html, /data-page="factory\/nora-fairweather-cats"[^>]*>Nora Fairweather Cats<span class="ccn">2<\/span>/);
+    assert.doesNotMatch(html, /data-page="factory\/norafairweather"/, 'no duplicate chip for the short name');
+    assert.match(html, /<b>Other<\/b>.*data-page="factory\/rosa"[^>]*>Rosa<span class="ccn">1<\/span>/);
+    assert.match(html, /All channels<span class="ccn">3<\/span>/);
+    const nora = await board('nora-fairweather-cats');
+    assert.match(nora, /A<\/b>/); assert.match(nora, /B<\/b>/); assert.doesNotMatch(nora, /C<\/b>/);
+  } finally { TABLE.tiles = keepT; CHANNELS.splice(0, CHANNELS.length, ...keepC); }
+});
+
 test('factory table: each column header shows its owner in brackets', async () => {
   const keep = TABLE.owners; TABLE.owners = ['Sydney', 'Nina', 'Scarlett', 'Elle, Scarlett', 'Elle, Scarlett', 'Olivia', 'Jessica'];
   try {
@@ -233,4 +278,68 @@ test('factory table: an Original link sits above the title, only for a real YouT
     assert.match(sum, /<b>1<\/b> Upload/);
     assert.match(sum, /<b>1<\/b> Review/);
   } finally { TABLE.tiles = keep; TABLE.cols = keepCols; }
+});
+
+test('factory panel: GPU1 and GPU2 lines with what runs and how many wait, the team working first then idle', async () => {
+  const keep = { gpus: TABLE.gpus, team: TABLE.team };
+  TABLE.gpus = { gpu1: { running: [{ type: 'Clips', what: 'peter-2', runningS: 600 }], waiting: 4 }, gpu2: { running: [{ type: 'Z-Image Turbo', what: 'rosa-house', runningS: 125 }], waiting: 12 } };
+  TABLE.team = [{ name: 'Elle', working: true, idleMin: 0, card: 'Rosa <b>' }, { name: 'Ana', working: false, idleMin: 75, card: '' }];
+  try {
+    const pg = await open();
+    const p = pg.nodes['.fypanel'].innerHTML;
+    assert.match(p, /<b>GPU1<\/b> Clips · peter-2 · 10m · 4 waiting/);
+    assert.match(p, /<b>GPU2<\/b> Z-Image Turbo · rosa-house · 2m · 12 waiting/);
+    assert.ok(p.indexOf('Elle') < p.indexOf('Ana'), 'the feed order (working first) is kept');
+    assert.match(p, /<p class="fyt on"><i class="fydot"><\/i><b>Elle<\/b><span>Working<\/span><em title="Rosa &lt;b&gt;">Rosa &lt;b&gt;<\/em>/);
+    assert.match(p, /<b>Ana<\/b><span>Idle 1h 15m<\/span>/);
+    TABLE.gpus = { gpu1: null, gpu2: { running: [], waiting: 0 } };
+    assert.match((await open()).nodes['.fypanel'].innerHTML, /<b>GPU1<\/b> <span class="muted">queue unreadable<\/span>.*<b>GPU2<\/b> <span class="muted">Idle<\/span> · 0 waiting/);
+    TABLE.gpus = undefined; TABLE.team = undefined;
+    assert.equal((await open()).nodes['.fypanel'].innerHTML, '', 'no data: no panel');
+    TABLE.gpu = { running: [{ model: 'LTX', who: 'old', runningS: 60 }], waiting: 1 };
+    const old = (await open()).nodes['.fypanel'].innerHTML;
+    assert.match(old, /<b>GPU1<\/b> LTX · old · 1m · 1 waiting/, 'an older snapshot still shows GPU1');
+    assert.doesNotMatch(old, /GPU2/);
+  } finally { Object.assign(TABLE, keep); delete TABLE.gpu; }
+});
+
+test('factory refresh: three polls keep unchanged rows, the table and the scroll box; only what changed is touched', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const keep = TABLE.tiles;
+  const done = COLS.map(() => ({ s: 'done' }));
+  const tile = (id, wait, extra = {}) => ({ id, title: `V${id} - Peter Collins`, channel: 'Peter Collins', owner: 'elle', waitMin: wait, cells: done, ...extra });
+  TABLE.tiles = [tile('a', 5), tile('b', 6), tile('c', 7)];
+  const pg = fakePage();
+  globalThis.fetch = async () => ({ ok: true, json: async () => ({ ok: true, factory: TABLE, asOf: new Date().toISOString(), channels: CHANNELS }) });
+  try {
+    mount(pg.el); await flush();
+    const [a, b, c] = pg.rows();
+    assert.equal(pg.rows().length, 3);
+    const poll = async () => { t.mock.timers.tick(15000); await flush(); await flush(); };
+
+    TABLE.tiles = [tile('a', 5), tile('b', 9), tile('c', 7)]; // poll 1: only B changes
+    await poll();
+    let now = pg.rows();
+    assert.equal(now[0], a); assert.equal(now[2], c); assert.notEqual(now[1], b);
+    assert.match(now[1].html, /9m/);
+
+    const b2 = now[1];
+    const writes = []; // a section whose html did not change is not written again
+    for (const k of ['.fypanel', '.fytabsbox', '.fysumbox', '.fythead', '.fycols', '.fynotes']) {
+      const n = pg.nodes[k]; let v = n.innerHTML;
+      Object.defineProperty(n, 'innerHTML', { get: () => v, set: (x) => { writes.push(k); v = x; } });
+    }
+    TABLE.tiles = [tile('a', 5), tile('b', 9), tile('c', 7)]; // poll 2: nothing changes
+    await poll();
+    assert.deepEqual(pg.rows(), [a, b2, c]);
+    assert.deepEqual(writes, []);
+
+    TABLE.tiles = [tile('c', 7), tile('a', 5), tile('d', 1)]; // poll 3: B is gone, C moves first, D is new
+    await poll();
+    now = pg.rows();
+    assert.equal(now.length, 3);
+    assert.equal(now[0], c); assert.equal(now[1], a);
+    assert.equal(now[2].dataset.id, 'd');
+    assert.equal(pg.nodes['.fytable'].vars['--fyn'], String(COLS.length));
+  } finally { TABLE.tiles = keep; pg.stop(); }
 });

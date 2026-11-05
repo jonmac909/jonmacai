@@ -9,7 +9,19 @@ const STALE_S = 120; // the script posts every 30 s; older than this and the boa
 let last = null; // { factory, asOf, channels }: tab clicks repaint from this before the next fetch
 
 const fold = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, '');
-const mine = (t, c) => !c || fold(t.channel) === fold(c.label) || fold(t.channel) === fold(c.slug);
+const words = (s) => String(s || '').toLowerCase().match(/[a-z0-9]+/g) || [];
+// A card names its host short ("Nora Fairweather"); the chip has the full name ("Nora Fairweather Cats"). The tile joins the chip with that exact
+// name, or the one chip whose name begins with the host's words. Two chips that fit (just "Rosa") join neither.
+function chipOf(host, known) {
+  const f = fold(host);
+  if (!f) return '';
+  const exact = known.find((c) => f === fold(c.label) || f === fold(c.slug));
+  if (exact) return exact.slug;
+  const w = words(host);
+  const part = known.filter((c) => { const cw = words(c.label); return w.every((x, i) => cw[i] === x); });
+  return part.length === 1 ? part[0].slug : f;
+}
+const mine = (t, c) => !c || t.chip === c.slug;
 const wait = (min) => (min == null ? '' : min >= 60 ? `${Math.floor(min / 60)}h ${min % 60}m` : `${min}m`);
 const hours = (min) => `${Math.floor((min || 0) / 60)}h`;
 
@@ -35,11 +47,11 @@ function cell(c) {
 }
 
 // live: the cell has a real signal from the last ~10 min (a GPU job, a render, a bot at work). Only that cell turns green, with a Live dot and what is running.
-function row(t, cols, liveOn) {
+function row(t, cols, liveOn, key) {
   const title = String(t.title ?? '');
   const name = t.channel && title.endsWith(` - ${t.channel}`) ? title.slice(0, -(t.channel.length + 3)) : title;
   const cs = Array.isArray(t.cells) ? t.cells : [];
-  return `<tr class="fyrow"><td>${ytLink(t.original, 'fyorig', 'Original')}<b>${esc(name)}</b><small>${esc(t.channel)}</small></td>${cols.map((_, i) => { const lv = liveOn && cs[i]?.live; return `<td class="fycell${lv ? ' fylv' : ''}">${cell(cs[i])}${ytLink(cs[i]?.link, 'fylk', 'YouTube')}${lv ? `<span class="fylt"><i class="fydot"></i>Live</span><small class="fylx">${esc(lv)}</small>` : ''}</td>`; }).join('')}<td class="fywait"><b>${esc(t.owner || '')}</b>${t.stuck ? pill(`Stuck ${hours(t.waitMin)}`, 'crit') : `<small>${esc(wait(t.waitMin))}</small>`}</td></tr>`;
+  return `<tr class="fyrow" data-id="${esc(key)}"><td>${ytLink(t.original, 'fyorig', 'Original')}<b>${esc(name)}</b><small>${esc(t.channel)}</small></td>${cols.map((_, i) => { const lv = liveOn && cs[i]?.live; return `<td class="fycell${lv ? ' fylv' : ''}">${cell(cs[i])}${ytLink(cs[i]?.link, 'fylk', 'YouTube')}${lv ? `<span class="fylt"><i class="fydot"></i>Live</span><small class="fylx">${esc(lv)}</small>` : ''}</td>`; }).join('')}<td class="fywait"><b>${esc(t.owner || '')}</b>${t.stuck ? pill(`Stuck ${hours(t.waitMin)}`, 'crit') : `<small>${esc(wait(t.waitMin))}</small>`}</td></tr>`;
 }
 
 function tabs(channels, tiles, on) {
@@ -59,41 +71,100 @@ function summary(rows, cols, liveOn) {
   return `<p class="fysum"><span class="fylc${liveN ? ' on' : ''}"><i class="fydot"></i><b>${liveN}</b> live now</span>${names.map((c, i) => `<span${n[i] ? '' : ' class="z"'}><b>${n[i]}</b> ${esc(c)}</span>`).join('')}${pill(`${stuck} stuck`, stuck ? 'crit' : 'ok')}</p>`;
 }
 
-function gpuLine(g) {
-  if (!g) return '';
-  const run = (g.running || []).map((r) => `${esc(r.who || '')} ${esc(r.model || '')} ${esc(r.note || '')} (${wait(Math.floor((r.runningS || 0) / 60)) || '0m'})`).join('; ');
-  return `<p class="fygpuline">${pill('GPU1', 'violet')} ${g.running?.length ? `Running: ${run}` : 'Idle'} · ${Number(g.waiting) || 0} waiting${g.owner ? ` · card held by ${esc(g.owner)}` : ''}</p>`;
+// Top panel (Jon, 2026-11-05): the GPUs (what runs now, how long, how many wait) and the team (working first, then idle).
+const gpuRow = (name, g) => {
+  if (g === undefined) return '';
+  if (!g) return `<p class="fygpuline"><b>${name}</b> <span class="muted">queue unreadable</span></p>`;
+  const run = (g.running || []).map((r) => `${esc(r.type || '')}${r.what ? ` · ${esc(r.what)}` : ''} · ${wait(Math.floor((r.runningS || 0) / 60)) || '0m'}`).join('; ');
+  return `<p class="fygpuline"><b>${name}</b> ${run || '<span class="muted">Idle</span>'} · ${Number(g.waiting) || 0} waiting</p>`;
+};
+function panel(f) {
+  let g1 = f.gpus ? f.gpus.gpu1 : undefined;
+  if (g1 === undefined && f.gpu) g1 = { running: (f.gpu.running || []).map((r) => ({ type: r.model, what: r.who, runningS: r.runningS })), waiting: f.gpu.waiting }; // an older snapshot has GPU1 only
+  const team = Array.isArray(f.team) ? f.team : [];
+  const gpus = gpuRow('GPU1', g1) + gpuRow('GPU2', f.gpus ? f.gpus.gpu2 : undefined);
+  const who = (m) => `<p class="fyt${m.working ? ' on' : ''}"><i class="fydot"></i><b>${esc(m.name)}</b><span>${m.working ? 'Working' : `Idle${m.idleMin == null ? '' : ` ${esc(wait(m.idleMin))}`}`}</span><em title="${esc(m.card || '')}">${esc(m.card || '')}</em></p>`;
+  return gpus || team.length ? `<div class="fypan">${gpus ? `<div class="fygpus">${gpus}</div>` : ''}${team.length ? `<div class="fyteam">${team.map(who).join('')}</div>` : ''}</div>` : '';
+}
+
+// Refresh without a jump (Jon, 2026-11-05): the page's skeleton is built once and a refresh only touches what changed. A section's HTML is written only
+// when it differs; table rows are matched by card id, so an unchanged row, the table and its scroll box are never rebuilt and the view stays where Jon put it.
+function put(node, html) {
+  if (node.__h === html) return;
+  node.__h = html;
+  const x = node.firstElementChild?.scrollLeft; // the phone's sideways channel row keeps its place
+  node.innerHTML = html;
+  if (x && node.firstElementChild) node.firstElementChild.scrollLeft = x;
+}
+
+function syncRows(body, rows) {
+  const have = new Map([...body.children].map((tr) => [tr.dataset.id, tr]));
+  const want = new Set(rows.map((r) => r.id));
+  have.forEach((tr, id) => { if (!want.has(id)) tr.remove(); });
+  let at = body.firstElementChild;
+  rows.forEach(({ id, html }) => {
+    const tr = have.get(id);
+    if (tr && tr.__h === html) {
+      if (tr === at) at = at.nextElementSibling; else body.insertBefore(tr, at);
+      return;
+    }
+    const t = document.createElement('template');
+    t.innerHTML = html;
+    const n = t.content.firstElementChild;
+    n.__h = html;
+    if (tr) { if (tr === at) at = tr.nextElementSibling; tr.remove(); }
+    body.insertBefore(n, at);
+  });
+}
+
+function msg(el, html) {
+  const m = el.querySelector('.fymsg');
+  put(m, html);
+  m.hidden = !html;
+  el.querySelector('.fyview').hidden = !!html;
 }
 
 function paint(el, sub) {
-  const box = el.querySelector('.fybody');
+  const q = (s) => el.querySelector(s);
   const f = last?.factory;
   const age = last?.asOf ? Math.max(0, Math.round((Date.now() - Date.parse(last.asOf)) / 1000)) : null;
   const status = age == null ? pill('Not publishing yet', 'crit') : age > STALE_S ? pill(`Stale: last update ${wait(Math.floor(age / 60)) || `${age}s`} ago`, 'crit') : pill(`Live · ${age}s ago`, 'ok');
-  el.querySelector('.fystatus').innerHTML = status;
-  if (!f) { box.innerHTML = '<div class="card pad"><p class="muted">The Factory board has no data yet. The publisher on GPU1 has not posted.</p></div>'; return; }
+  put(q('.fystatus'), status);
+  if (!f) { msg(el, '<div class="card pad"><p class="muted">The Factory board has no data yet. The publisher on GPU1 has not posted.</p></div>'); return; }
   const cols = Array.isArray(f.cols) ? f.cols : [];
-  if (!cols.length) { box.innerHTML = '<div class="card pad"><p class="muted">Waiting for the publisher to send the new table.</p></div>'; return; }
-  const open = (f.tiles || []).filter((t) => Array.isArray(t.cells)); // calendar-only tiles (already scheduled or live) have no cells
+  if (!cols.length) { msg(el, '<div class="card pad"><p class="muted">Waiting for the publisher to send the new table.</p></div>'); return; }
   const known = last.channels || [];
+  const open = (f.tiles || []).filter((t) => Array.isArray(t.cells)).map((t) => ({ ...t, chip: chipOf(t.channel, known) })); // calendar-only tiles (already scheduled or live) have no cells
   // hosts that match no channel chip get their own chip in "Other", so the tab counts add up to All channels
-  const extra = [...new Map(open.filter((t) => t.channel && !known.some((c) => mine(t, c))).map((t) => [fold(t.channel), t.channel])).values()]
-    .map((name) => ({ slug: fold(name), label: name, group: 'Other' }));
+  const extra = [...new Map(open.filter((t) => t.chip && !known.some((c) => c.slug === t.chip)).map((t) => [t.chip, t.channel])).entries()]
+    .map(([slug, name]) => ({ slug, label: name, group: 'Other' }));
   const channels = [...known, ...extra];
   const on = channels.find((c) => c.slug === sub) || null;
   const rows = open.filter((t) => mine(t, on));
   const liveOn = age != null && age <= STALE_S; // a stale snapshot shows nothing as live
   const owners = Array.isArray(f.owners) ? f.owners : [];
-  box.innerHTML = `${tabs(channels, open, on)}${summary(rows, cols, liveOn)}${gpuLine(f.gpu)}
-    <div class="tblwrap"><table class="fytable"><thead><tr><th>Video</th>${cols.map((c, i) => `<th class="fycell">${esc(c)}${owners[i] ? `<small class="fyown">(${esc(owners[i])})</small>` : ''}</th>`).join('')}<th>Waiting</th></tr></thead>
-    <tbody>${rows.map((t) => row(t, cols, liveOn)).join('') || `<tr><td colspan="${cols.length + 2}" class="muted">No open videos${on ? ' on this channel' : ''}.</td></tr>`}</tbody></table></div>
-    ${(f.notes || []).map((n) => `<p class="muted">${esc(n)}</p>`).join('')}`;
+  msg(el, '');
+  let pan = ''; try { pan = panel(f); } catch { /* a malformed team or gpus field hides the panel, never the table */ }
+  put(q('.fypanel'), pan);
+  put(q('.fytabsbox'), tabs(channels, open, on));
+  put(q('.fysumbox'), summary(rows, cols, liveOn));
+  q('.fytable').style.setProperty('--fyn', String(cols.length)); // fixed column widths: a cell changing never moves a column
+  put(q('.fycols'), `<col class="fyc1">${cols.map(() => '<col class="fycs">').join('')}<col class="fycw">`);
+  put(q('.fythead'), `<tr><th>Video</th>${cols.map((c, i) => `<th class="fycell">${esc(c)}${owners[i] ? `<small class="fyown">(${esc(owners[i])})</small>` : ''}</th>`).join('')}<th>Waiting</th></tr>`);
+  const seen = new Map(); // two cards with one id (or none) still get their own row
+  const list = rows.map((t) => { const id = String(t.id ?? ''); const n = seen.get(id) || 0; seen.set(id, n + 1); const key = n ? `${id}#${n}` : id; return { id: key, html: row(t, cols, liveOn, key) }; });
+  if (!list.length) list.push({ id: '_empty', html: `<tr class="fyrow" data-id="_empty"><td colspan="${cols.length + 2}" class="muted">No open videos${on ? ' on this channel' : ''}.</td></tr>` });
+  syncRows(q('.fytbody'), list);
+  put(q('.fynotes'), (f.notes || []).map((n) => `<p class="muted">${esc(n)}</p>`).join(''));
 }
 
 export function render(_d, _data, sub) {
   return `<div class="wrap" data-sub="${esc(sub || '')}">
   <div class="head"><div><h1>Factory</h1><p>Every open video, oldest first. Updates on its own.</p></div><div class="fystatus"></div></div>
-  <div class="fybody"><div class="card pad"><p class="muted">Loading…</p></div></div>
+  <div class="fybody"><div class="fymsg"><div class="card pad"><p class="muted">Loading…</p></div></div>
+  <div class="fyview" hidden><div class="fypanel"></div><div class="fytabsbox"></div><div class="fysumbox"></div>
+  <div class="tblwrap"><table class="fytable"><colgroup class="fycols"></colgroup><thead class="fythead"></thead><tbody class="fytbody"></tbody></table></div>
+  <div class="fynotes"></div></div></div>
 </div>`;
 }
 
@@ -109,7 +180,7 @@ export function mount(el) {
       const j = res?.ok ? await res.json().catch(() => null) : null;
       if (!el.isConnected) return;
       if (j?.ok) last = { factory: j.factory, asOf: j.asOf, channels: j.channels };
-      else if (!last) el.querySelector('.fybody').innerHTML = '<div class="card pad"><p class="muted">Could not load the Factory board. It tries again in 15 seconds.</p></div>';
+      else if (!last) msg(el, '<div class="card pad"><p class="muted">Could not load the Factory board. It tries again in 15 seconds.</p></div>');
       if (last) paint(el, sub);
     } catch (e) {
       console.error('factory board', e); // one odd snapshot must not freeze the refresh
