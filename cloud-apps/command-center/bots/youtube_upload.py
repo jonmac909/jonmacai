@@ -293,6 +293,8 @@ def send_file(yt, path, meta, rec, save):
 
 def playlist_for(yt, title):
     """The channel's playlist called this (any case), else a new private one. Returns its id."""
+    if not (title or '').strip():
+        raise Fail(2, 'no playlist given')
     want, token = title.strip().lower(), None
     while True:
         page = yt.call('GET', API + '/playlists', query=dict(part='snippet', mine='true', maxResults='50',
@@ -460,6 +462,8 @@ def upload_meta(args):
         raise Fail(2, 'title 1-100 characters, description up to 5000 bytes, tags up to 500 characters')
     if any(c in s for s in [args.title, desc] + tags for c in '<>'):
         raise Fail(2, 'YouTube refuses < and > in titles, descriptions and tags')
+    if not all(isinstance(v, (str, type(None))) for v in (args.playlist, getattr(args, 'playlist_title', None))):
+        raise Fail(2, 'the playlist and its title must be text')
     title_pl = (getattr(args, 'playlist_title', None) or '').strip()
     if bool(args.playlist) == bool(title_pl):
         raise Fail(2, 'every upload goes into a playlist: give --playlist PLxxxx (existing) or --playlist-title "Name" '

@@ -352,8 +352,11 @@ def connected(name):
 # ---- YouTube Shorts: the YouTube uploader does the upload ----
 
 def youtube(y, clip, rec, save):
-    rec['id'] = video = yt.upload(y, y.channel, clip['file'], clip['yt_meta'], playlist=clip['yt_playlist'],
-                                  playlist_title=clip['yt_playlist_title'])['video']  # a rerun returns the same video
+    out = yt.upload(y, y.channel, clip['file'], clip['yt_meta'], playlist=clip['yt_playlist'],
+                    playlist_title=clip['yt_playlist_title'])  # a rerun returns the same video
+    rec['id'] = video = out['video']
+    if any('playlist' in p for p in out['problems']):  # every YouTube upload is in a playlist; a rerun retries just that
+        raise Fail(1, 'the Short is up but not in its playlist (%s); run again to retry' % '; '.join(out['problems']))
     items = y.call('GET', yt.API + '/videos', query={'part': 'status', 'id': video}).get('items') or []
     privacy = items[0].get('status', {}).get('privacyStatus') if items else 'missing'
     if privacy != 'public':  # Google locks uploads through an unaudited API project private

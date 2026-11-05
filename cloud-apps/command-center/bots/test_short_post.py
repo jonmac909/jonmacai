@@ -441,6 +441,13 @@ class Post(Base):
         self.assertIn('kept the Short private', r['error'])
         self.assertNotIn('state', r)
 
+    def test_a_short_that_missed_its_playlist_is_not_reported_as_posted(self):
+        self.approval = self.make(platforms=['youtube_shorts'])
+        self.fake.fail['/playlistItems'] = (403, {}, b'{"error": {"message": "quota"}}')
+        r = sp.post('a_0123abcd')['clips'][0]['youtube_shorts']
+        self.assertIn('not in its playlist', r['error'])
+        self.assertNotIn('state', r)
+
     def test_a_platform_that_is_not_connected_fails_alone(self):
         (sp.DIR / 'tiktok.json').unlink()
         out = sp.post('a_0123abcd')
