@@ -222,6 +222,35 @@ test('reach reports become impressions and impression-weighted CTR, with their a
   assert.match(html, /<td class="num">2%<\/td>/);
 });
 
+test('a 429 on the second reach report keeps the first, ends the run, and both channels are due again in 15 minutes', async () => {
+  const { db, env } = await setup();
+  await connect(env, google());
+  await db.prepare("INSERT INTO yt_api (channel, channel_id, token, reach_job, connected_at) VALUES ('second-channel', 'UCsecond', 'never-opened', 'job2', 'x')").run();
+  const t = Date.parse('2026-11-04T20:00:00Z');
+  const limited = google({ media: (_init, url) => (url.endsWith('r1')
+    ? new Response(`date,channel_id,video_id,video_thumbnail_impressions,video_thumbnail_impressions_ctr\n20261101,${PETER},${VID},100,0.05\n`)
+    : new Response('slow down', { status: 429 })) });
+  await syncReach(env, limited.fetchFn, t);
+  assert.deepEqual((await db.prepare('SELECT youtube_id, day, impressions FROM yt_reach').all()).results.map((r) => ({ ...r })), [{ youtube_id: VID, day: '2026-11-01', impressions: 100 }], 'the first report is saved');
+  const rows = Object.fromEntries((await db.prepare('SELECT channel, reach_after, reach_error, reach_tried_at FROM yt_api').all()).results.map((r) => [r.channel, { ...r }]));
+  const retryAt = new Date(t - 6 * 3600 * 1000 + 15 * 60 * 1000).toISOString().replace('.000Z', 'Z');
+  assert.equal(rows['peter-collins'].reach_after, '2026-11-03T10:00:00Z', 'moves past the report that was read');
+  assert.equal(rows['peter-collins'].reach_error, 'Reach report download answered 429');
+  assert.equal(rows['peter-collins'].reach_tried_at.slice(0, 19), retryAt.slice(0, 19), 'due again in 15 minutes, not 6 hours');
+  assert.deepEqual([rows['second-channel'].reach_error, rows['second-channel'].reach_tried_at.slice(0, 19)], [null, retryAt.slice(0, 19)], 'skipped after the 429, due in 15 minutes');
+  assert.equal(limited.calls.filter((c) => c.name === 'reports').length, 1, 'the second channel was not called');
+
+  const n = limited.calls.length;
+  await syncReach(env, limited.fetchFn, t + 14 * 60 * 1000);
+  assert.equal(limited.calls.length, n, 'not before 15 minutes');
+  const ok = google({ reports: () => new Response(JSON.stringify({ reports: [{ id: 'r2', createTime: '2026-11-04T10:00:00Z', downloadUrl: 'https://youtubereporting.googleapis.com/v1/media/r2' }] })) });
+  await syncReach(env, ok.fetchFn, t + 16 * 60 * 1000);
+  assert.match(ok.calls.find((c) => c.name === 'reports').url, /createdAfter=2026-11-03T10%3A00%3A00Z/, 'asks only for the rest');
+  assert.deepEqual(ok.calls.filter((c) => c.name === 'media').map((c) => c.url.slice(-2)), ['r2']);
+  const peter = await db.prepare("SELECT reach_after, reach_error FROM yt_api WHERE channel = 'peter-collins'").first();
+  assert.deepEqual({ ...peter }, { reach_after: '2026-11-04T10:00:00Z', reach_error: null });
+});
+
 test('statsOf and parseReach read YouTube the way studio_read posted', () => {
   const now = Date.parse('2026-11-04T00:00:00Z');
   assert.deepEqual(statsOf({ status: { privacyStatus: 'unlisted' }, statistics: { viewCount: '3' } }, now), { status: 'unlisted', scheduled_at: null, scheduled_date: null, views: 3 });

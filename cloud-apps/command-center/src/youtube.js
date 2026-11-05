@@ -19,6 +19,7 @@ const SYNC_EVERY_MS = 15 * 1000;
 const MANUAL_SYNCS_PER_DAY = 100;
 const CRON_SYNC_EVERY_MS = 3600 * 1000;
 const REACH_EVERY_MS = 6 * 3600 * 1000;
+const REACH_RETRY_MS = 15 * 60 * 1000; // after a failed or skipped reach run, not another 6 hours
 const SYNC_WAIT_MS = 8000; // Track answers with what's stored after this; the sync finishes in the background
 const MAX_VIDEOS = 100; // newest uploads per channel: 2 playlist pages + 2 video pages at most
 const REPORTS_PER_RUN = 10; // the first run has ~30 days of backfill; the rest waits for the next cron
@@ -353,17 +354,25 @@ async function reachChannel(env, fetchFn, row, nowMs) {
   reports.sort((a, b) => Date.parse(a.createTime) - Date.parse(b.createTime));
   const batch = reports.slice(0, REPORTS_PER_RUN);
   const statements = [];
+  // A failed download (Google answered 429 for 10 of 14 channels on 2026-11-05) must not drop the reports already read:
+  // they are saved and reach_after moves past them; the error is raised after the save.
+  let done = 0;
+  let failed = null;
   for (const r of batch) {
     if (!String(r.downloadUrl).startsWith('https://youtubereporting.googleapis.com/')) throw new Error('Reach report download is not on youtubereporting.googleapis.com');
     const res = await fetchFn(r.downloadUrl, { headers: { authorization: `Bearer ${token}` } });
-    if (!res.ok) throw new Error(`Reach report download answered ${res.status}`);
+    if (!res.ok) {
+      failed = new Error(`Reach report download answered ${res.status}`);
+      break;
+    }
+    done++;
     for (const x of parseReach(await res.text())) {
       statements.push(env.DB.prepare(`INSERT INTO yt_reach (youtube_id, day, channel, impressions, ctr) VALUES (?, ?, ?, ?, ?)
         ON CONFLICT (youtube_id, day) DO UPDATE SET channel = excluded.channel, impressions = excluded.impressions, ctr = excluded.ctr`)
         .bind(x.youtube_id, x.day, row.channel, x.impressions, x.ctr));
     }
   }
-  if (batch.length) {
+  if (done) {
     // Totals over every stored day: impressions summed, CTR weighted by impressions. updated_at moves only on a new row:
     // it stays the views/subs sync time. Reports start ~30 days before the job, so an older video's sum can be under its
     // lifetime count from Studio; lifetime impressions never shrink, so a smaller sum keeps the Studio numbers.
@@ -376,19 +385,32 @@ async function reachChannel(env, fetchFn, row, nowMs) {
       .bind(row.channel, iso(nowMs)));
   }
   // More reports waiting: clear the lease so the next cron run carries on.
-  const more = reports.length > batch.length;
+  const more = reports.length > done;
   statements.push(env.DB.prepare(`UPDATE yt_api SET reach_job = ?, reach_after = ?, reach_error = NULL, reach_tried_at = ${more ? 'NULL' : 'reach_tried_at'},
     reach_as_of = (SELECT MAX(day) FROM yt_reach WHERE channel = ?3) WHERE channel = ?3`)
-    .bind(job, batch.at(-1)?.createTime || row.reach_after || null, row.channel));
+    .bind(job, batch[done - 1]?.createTime || row.reach_after || null, row.channel));
   await env.DB.batch(statements);
+  if (failed) throw failed;
 }
 
-// 10-minute cron: reach reports for channels not checked for 6 hours.
+// 10-minute cron: reach reports for channels not checked for 6 hours. One channel at a time: ten at once drew 429s from Google
+// (2026-11-05, 10 of 14 channels, each then waited 6 hours). A failed or skipped channel is due again in 15 minutes, and a 429
+// ends the run so the rest are not hit while Google is limiting us.
 export async function syncReach(env, fetchFn = globalThis.fetch, nowMs = Date.now()) {
   if (!ready(env)) return;
   const rows = await claim(env.DB, 'reach_tried_at', REACH_EVERY_MS, nowMs);
-  await Promise.allSettled(rows.map((row) => reachChannel(env, fetchFn, row, nowMs)
-    .catch((err) => env.DB.prepare('UPDATE yt_api SET reach_error = ? WHERE channel = ?').bind(err.message, row.channel).run())));
+  const retryAt = iso(nowMs - REACH_EVERY_MS + REACH_RETRY_MS);
+  let limited = false;
+  for (const row of rows) {
+    if (limited) {
+      await env.DB.prepare('UPDATE yt_api SET reach_tried_at = ? WHERE channel = ?').bind(retryAt, row.channel).run();
+      continue;
+    }
+    await reachChannel(env, fetchFn, row, nowMs).catch(async (err) => {
+      limited = /answered 429/.test(err.message);
+      await env.DB.prepare('UPDATE yt_api SET reach_error = ?, reach_tried_at = ? WHERE channel = ?').bind(err.message, retryAt, row.channel).run();
+    });
+  }
 }
 
 // Lucy's check of one channel's Analytics (2026-11-04): numbers only, never a token. Day by day since Oct 1, and the
