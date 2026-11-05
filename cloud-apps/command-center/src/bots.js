@@ -862,6 +862,8 @@ async function putFactory(db, who, body, now) {
   if (!FACTORY_WRITERS.includes(who.bot)) throw new Bad(403, `Only ${FACTORY_WRITERS.join(', ')} can post the factory`);
   if (!Array.isArray(body.columns) || body.columns.length > 20) throw new Bad(400, 'columns must be a list of at most 20');
   if (!Array.isArray(body.tiles) || body.tiles.length > 600) throw new Bad(400, 'tiles must be a list of at most 600');
+  if (!body.columns.every((c) => typeof c === 'string')) throw new Bad(400, 'columns must be names');
+  if (!body.tiles.every((t) => t && typeof t === 'object' && !Array.isArray(t))) throw new Bad(400, 'every tile must be an object');
   await db.prepare("INSERT OR REPLACE INTO snapshots (source, data, collected_at, received_at) VALUES ('factory', ?, ?, ?)")
     .bind(JSON.stringify(body), now, now).run();
   return json({ ok: true, asOf: now });

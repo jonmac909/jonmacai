@@ -28,7 +28,7 @@ export function unsentCritical(alerts, sent = {}) {
 
 export async function pushCriticalTelegram(env, snap, fetchFn = globalThis.fetch) {
   if (!env.TELEGRAM_BOT_TOKEN || !env.TELEGRAM_CHAT_ID || !env.DB) return;
-  const row = (await env.DB.prepare('SELECT source, data, collected_at, received_at FROM snapshots').all()).results?.find((r) => r.source === 'telegram_sent');
+  const row = (await env.DB.prepare("SELECT source, data, collected_at, received_at FROM snapshots WHERE source = 'telegram_sent'").all()).results?.find((r) => r.source === 'telegram_sent');
   let sent = {};
   try { sent = row ? JSON.parse(row.data).sent || {} : {}; } catch { sent = {}; }
   const next = unsentCritical(criticalAlerts(snap), sent);

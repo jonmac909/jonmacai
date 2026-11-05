@@ -14,8 +14,10 @@ const wait = (min) => (min == null ? '' : min >= 60 ? `${Math.floor(min / 60)}h 
 
 function tile(t) {
   const p = t.progress;
-  const pct = p && p.total ? Math.min(100, Math.round((p.done / p.total) * 100)) : null;
-  const bar = pct == null ? '' : `<div class="pgrow"><div class="lab"><span>${esc(p.label)}</span><span>${p.done} of ${p.total}</span></div><div class="pg${pct >= 100 ? ' ok' : ''}" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pct}"><i style="width:${pct}%"></i></div></div>`;
+  const total = Number(p?.total) || 0;
+  const done = Number(p?.done) || 0;
+  const pct = total ? Math.min(100, Math.round((done / total) * 100)) : null;
+  const bar = pct == null ? '' : `<div class="pgrow"><div class="lab"><span>${esc(p.label)}</span><span>${done} of ${total}</span></div><div class="pg${pct >= 100 ? ' ok' : ''}" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pct}"><i style="width:${pct}%"></i></div></div>`;
   const link = /^https?:\/\//i.test(t.link || '') ? `<a class="fyopen" href="${esc(t.link)}" target="_blank" rel="noopener">Open</a>` : '';
   return `<li class="fytile${t.stuck ? ' stuck' : ''}"><b class="fytitle">${esc(t.title)}</b>
     <span class="fymeta">${esc(t.channel)}${t.owner ? ` · ${esc(t.owner)}` : ''}${t.waitMin != null ? ` · ${esc(wait(t.waitMin))} here` : ''}${t.note ? ` · ${esc(t.note)}` : ''}</span>${bar}
@@ -32,7 +34,7 @@ function tabs(channels, tiles, on) {
 function gpuLine(g) {
   if (!g) return '';
   const run = (g.running || []).map((r) => `${esc(r.who || '')} ${esc(r.model || '')} ${esc(r.note || '')} (${wait(Math.floor((r.runningS || 0) / 60)) || '0m'})`).join('; ');
-  return `<p class="fygpuline">${pill('GPU1', 'violet')} ${g.running?.length ? `Running: ${run}` : 'Idle'} · ${g.waiting || 0} waiting${g.owner ? ` · card held by ${esc(g.owner)}` : ''}</p>`;
+  return `<p class="fygpuline">${pill('GPU1', 'violet')} ${g.running?.length ? `Running: ${run}` : 'Idle'} · ${Number(g.waiting) || 0} waiting${g.owner ? ` · card held by ${esc(g.owner)}` : ''}</p>`;
 }
 
 function paint(el, sub) {
@@ -65,13 +67,20 @@ export function mount(el) {
   const sub = el.dataset.sub || '';
   if (last) paint(el, sub);
   const load = async () => {
-    const res = await fetch(`${API}?v=${Date.now()}`).catch(() => null);
-    const j = res?.ok ? await res.json().catch(() => null) : null;
     if (!el.isConnected) return; // moved to another page: stop polling
-    if (j?.ok) last = { factory: j.factory, asOf: j.asOf, channels: j.channels };
-    else if (!last) el.querySelector('.fybody').innerHTML = '<div class="card pad"><p class="muted">Could not load the Factory board. It tries again in 15 seconds.</p></div>';
-    if (last) paint(el, sub);
-    setTimeout(load, POLL_MS);
+    try {
+      if (document.hidden) { if (last) paint(el, sub); return; } // hidden tab: no fetch, the stale pill still ages
+      const res = await fetch(`${API}?v=${Date.now()}`).catch(() => null);
+      const j = res?.ok ? await res.json().catch(() => null) : null;
+      if (!el.isConnected) return;
+      if (j?.ok) last = { factory: j.factory, asOf: j.asOf, channels: j.channels };
+      else if (!last) el.querySelector('.fybody').innerHTML = '<div class="card pad"><p class="muted">Could not load the Factory board. It tries again in 15 seconds.</p></div>';
+      if (last) paint(el, sub);
+    } catch (e) {
+      console.error('factory board', e); // one odd snapshot must not freeze the refresh
+    } finally {
+      if (el.isConnected) setTimeout(load, POLL_MS);
+    }
   };
   load();
 }

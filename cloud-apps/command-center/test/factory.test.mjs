@@ -35,6 +35,8 @@ test('factory: only writers post, one row is overwritten, Jon and bots read it',
   assert.equal((await call(env, 'PUT', '/v1/factory', { jon: true, body: SNAP })).status, 403, 'Jon reads, a script writes');
   assert.equal((await call(env, 'PUT', '/v1/factory', { bot: 'moneyclaw', body: { columns: 'x', tiles: [] } })).status, 400);
   assert.equal((await call(env, 'PUT', '/v1/factory', { bot: 'moneyclaw', body: { columns: [], tiles: Array(601).fill({}) } })).status, 400);
+  assert.equal((await call(env, 'PUT', '/v1/factory', { bot: 'moneyclaw', body: { columns: [], tiles: [null] } })).status, 400, 'a null tile would break the page');
+  assert.equal((await call(env, 'PUT', '/v1/factory', { bot: 'moneyclaw', body: { columns: [1], tiles: [] } })).status, 400);
   assert.equal((await call(env, 'PUT', '/v1/factory', { bot: 'moneyclaw', body: SNAP })).status, 200);
   assert.equal((await call(env, 'PUT', '/v1/factory', { bot: 'moneyclaw', body: { ...SNAP, tiles: [] } })).status, 200);
   const got = await call(env, 'GET', '/v1/factory', { jon: true });
