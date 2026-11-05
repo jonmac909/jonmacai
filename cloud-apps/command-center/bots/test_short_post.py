@@ -59,7 +59,7 @@ class FakeSocial:
             return ok({'items': [{'snippet': {'title': 'Jon Mac | AI UGC'}}]})
         if url.startswith(yu.API + '/videos') and method == 'GET':  # the read-back after the upload
             return ok({'items': [{'id': 'VIDEO000001', 'status': {'privacyStatus': self.yt_privacy}}]})
-        if url == TOKEN_URI or url.startswith(yu.UPLOAD):
+        if url == TOKEN_URI or url.startswith(yu.UPLOAD) or url.startswith(yu.API + '/playlist'):
             return self.google(method, url, data, headers)
         if url.startswith(sp.RUPLOAD):
             assert headers['Authorization'] == 'OAuth pt' and headers['offset'] == '0', headers
@@ -183,7 +183,7 @@ class Base(unittest.TestCase):
     def make(self, file=None, platforms=sp.PLATFORMS, **kw):
         file = file or self.clip
         a = {'id': 'a_0123abcd', 'action': 'post_clips', 'status': 'approved', 'requestedBy': 'short-form', 'payload': {
-            'platforms': list(platforms), 'youtube_channel': 'jonmacai',
+            'platforms': list(platforms), 'youtube_channel': 'jonmacai', 'youtube_playlist': 'PLabcdefghij',
             'clips': [{'file': str(file), 'sha256': sha_of(file), 'title': 'Real or AI? None of it is real',
                        'caption': 'None of it is real.', 'hashtags': '#aiugc #ai', 'synthetic': True}]}}
         a.update(kw)
@@ -217,8 +217,8 @@ class Post(Base):
             self.assertEqual(self.fake.got[url], self.clip.read_bytes())
         self.assertEqual(self.fake.google.got, self.clip.read_bytes())
         meta = self.fake.google.meta
-        self.assertEqual(meta['status'], {'privacyStatus': 'public', 'selfDeclaredMadeForKids': False,
-                                          'containsSyntheticMedia': True})
+        self.assertEqual(meta['status'], {'privacyStatus': 'public', 'selfDeclaredMadeForKids': False})  # AI use stays blank
+        self.assertEqual(self.fake.google.added, 'PLabcdefghij')
         self.assertEqual(meta['snippet']['title'], 'Real or AI? None of it is real')
         self.assertEqual(meta['snippet']['description'], TEXT + ' #Shorts')
         rec = self.record('instagram_reels', 'IG1')
@@ -439,6 +439,13 @@ class Post(Base):
         self.fake.yt_privacy = 'private'
         r = sp.post('a_0123abcd')['clips'][0]['youtube_shorts']
         self.assertIn('kept the Short private', r['error'])
+        self.assertNotIn('state', r)
+
+    def test_a_short_that_missed_its_playlist_is_not_reported_as_posted(self):
+        self.approval = self.make(platforms=['youtube_shorts'])
+        self.fake.fail['/playlistItems'] = (403, {}, b'{"error": {"message": "quota"}}')
+        r = sp.post('a_0123abcd')['clips'][0]['youtube_shorts']
+        self.assertIn('not in its playlist', r['error'])
         self.assertNotIn('state', r)
 
     def test_a_platform_that_is_not_connected_fails_alone(self):
