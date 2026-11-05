@@ -796,6 +796,8 @@ body:has(.cardmodal[open]){overflow:hidden} /* the page behind stays put */
 .fylt{display:block;margin-top:.25rem;font-size:.7rem;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--ok-ink)}
 .fylx{display:block;font-size:.74rem;color:var(--ok-ink);overflow-wrap:anywhere}
 .fyown{display:block;font-size:.7rem;font-weight:500;color:var(--muted)}
+.fyorig,.fylk{display:block;font-size:.72rem;font-weight:600;color:#2563c9}
+.fyorig{margin-bottom:.1rem}.fylk{margin-top:.2rem}
 .fylc{display:inline-flex;align-items:center;font-weight:600;color:var(--muted)} .fylc.on{color:var(--ok-ink)} .fylc:not(.on) .fydot{background:var(--idle-line);animation:none}
 @keyframes fypulse{0%,100%{opacity:1}50%{opacity:.35}}
 @media (prefers-reduced-motion:reduce){.fydot{animation:none}}

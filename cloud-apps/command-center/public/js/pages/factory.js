@@ -15,6 +15,10 @@ const hours = (min) => `${Math.floor((min || 0) / 60)}h`;
 
 const svg = (cls, label, d) => `<span class="${cls}" role="img" aria-label="${label}"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="${d}"/></svg></span>`;
 
+// only a YouTube watch or youtu.be link is ever rendered as a link (the feed is data, not markup)
+const YT = /^https:\/\/(?:www\.)?(?:youtube\.com\/watch\?v=|youtu\.be\/)[\w-]{11}$/;
+const ytLink = (url, cls, label) => (YT.test(url || '') ? `<a class="${cls}" href="${esc(url)}" target="_blank" rel="noopener noreferrer">${label}</a>` : '');
+
 // done: green check. run: blue bar with n/total (or an unmeasured bar). new: grey "Not started". fail: red X with the reason. else: grey circle.
 function cell(c) {
   if (c?.s === 'done') return svg('fyok', 'Done', 'M5 13l4 4L19 7');
@@ -22,7 +26,7 @@ function cell(c) {
   if (c?.s === 'run') {
     const total = Number(c.total) || 0;
     const done = Math.min(Number(c.done) || 0, total);
-    if (!total) return '<div class="fyrun"><div class="pg ind" role="progressbar" aria-label="In progress"><i></i></div><span>In progress</span></div>';
+    if (!total) return '<div class="fyrun"><div class="pg ind" role="progressbar" aria-label="In progress"><i></i></div><span>' + esc(c.note || 'In progress') + '</span></div>';
     const pct = Math.round((done / total) * 100);
     return `<div class="fyrun"><div class="pg" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pct}"><i style="width:${pct}%"></i></div><span>${done}/${total}</span></div>`;
   }
@@ -35,7 +39,7 @@ function row(t, cols, liveOn) {
   const title = String(t.title ?? '');
   const name = t.channel && title.endsWith(` - ${t.channel}`) ? title.slice(0, -(t.channel.length + 3)) : title;
   const cs = Array.isArray(t.cells) ? t.cells : [];
-  return `<tr class="fyrow"><td><b>${esc(name)}</b><small>${esc(t.channel)}</small></td>${cols.map((_, i) => { const lv = liveOn && cs[i]?.live; return `<td class="fycell${lv ? ' fylv' : ''}">${cell(cs[i])}${lv ? `<span class="fylt"><i class="fydot"></i>Live</span><small class="fylx">${esc(lv)}</small>` : ''}</td>`; }).join('')}<td class="fywait"><b>${esc(t.owner || '')}</b>${t.stuck ? pill(`Stuck ${hours(t.waitMin)}`, 'crit') : `<small>${esc(wait(t.waitMin))}</small>`}</td></tr>`;
+  return `<tr class="fyrow"><td>${ytLink(t.original, 'fyorig', 'Original')}<b>${esc(name)}</b><small>${esc(t.channel)}</small></td>${cols.map((_, i) => { const lv = liveOn && cs[i]?.live; return `<td class="fycell${lv ? ' fylv' : ''}">${cell(cs[i])}${ytLink(cs[i]?.link, 'fylk', 'YouTube')}${lv ? `<span class="fylt"><i class="fydot"></i>Live</span><small class="fylx">${esc(lv)}</small>` : ''}</td>`; }).join('')}<td class="fywait"><b>${esc(t.owner || '')}</b>${t.stuck ? pill(`Stuck ${hours(t.waitMin)}`, 'crit') : `<small>${esc(wait(t.waitMin))}</small>`}</td></tr>`;
 }
 
 function tabs(channels, tiles, on) {
