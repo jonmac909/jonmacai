@@ -124,8 +124,8 @@ test('the page lists every channel with correct counts, one row per video, filte
   const all = track(page, {}, '');
   for (const c of YOUTUBE_CHANNELS) assert.ok(all.includes(`<tr data-page="track/${c.slug}">`), c.slug);
   assert.doesNotMatch(all, /Not made yet|Added by hand|data-copy/, 'All lists channels, not videos');
-  assert.deepEqual(allRow(all, 'aria-creates'), [labelOf('aria-creates'), 'Yes', '3', '1', '1', '-'], 'on YouTube, scheduled, public; no Studio data is blank, AVD a dash');
-  assert.deepEqual(allRow(all, 'rosa-cooks'), [labelOf('rosa-cooks'), 'No', '0', '0', '0', '-']);
+  assert.deepEqual(allRow(all, 'aria-creates'), [labelOf('aria-creates'), 'Yes', '3', '1', '1', '-', '—', '—', '—', '—'], 'on YouTube, scheduled, public; no Studio data is blank, AVD a dash');
+  assert.deepEqual(allRow(all, 'rosa-cooks'), [labelOf('rosa-cooks'), 'No', '0', '0', '0', '-', '—', '—', '—', '—']);
   assert.match(all, /as in Studio. (Views and subs updated|No YouTube data yet)/, 'a space before the data note');
   setSort('all:onAir');
   const live = track(page, {}, '').match(/<tr data-page="track\/[^"]+">.*?<\/tr>/gs).map((r) => /Yes/.test(r));
@@ -153,7 +153,7 @@ test('All sums Studio impressions, views and net subscribers per channel', async
   assert.equal((await postStats(env, [{ youtube_id: YT, impressions: 1200, views: 30, subs: 3 }, { youtube_id: 'lmnopqrstuv', subs: -1 }])).status, 200);
   assert.equal((await postStats(env, [{ youtube_id: YT, subs: 1.5 }])).status, 400);
   const page = await trackPage(db);
-  assert.deepEqual(allRow(track(page, {}, ''), 'theo-creates'), [labelOf('theo-creates'), 'Yes', '2', '1', '1', '1,200', '-', '30', '2']);
+  assert.deepEqual(allRow(track(page, {}, ''), 'theo-creates'), [labelOf('theo-creates'), 'Yes', '2', '1', '1', '1,200', '-', '30', '2', '—', '—', '—', '—']);
 });
 
 test('stage: a YouTube link only means posted on a finished video', () => {
@@ -812,26 +812,22 @@ test('Complete Histories is left out of Track and YouTube data never touches its
   assert.deepEqual([row.date, row.timeLabel, row.status, row.differs], ['2026-11-03', '9:00 AM PT', 'scheduled', []]);
 });
 
-test('Home Guide Press shows no links or clicks and is off the link list, with its links still built', async () => {
+test('Home Guide Press has tracked links that count viewers; ?qc=1 checks and HEAD do not', async () => {
   const { db, env } = await setup();
   await importCsv(env, 'peter-collins', [{ date: '2026-11-03', title: 'Road test', status: 'scheduled', youtube_id: YT }]);
-  await importCsv(env, 'theo-creates', [{ date: '2026-11-03', title: 'Hooks', status: 'scheduled' }]);
   const { code } = await linkOf(db, 'Road test');
-  await visit(env, `/v/${code}`);
-  assert.equal((await linkOf(db, 'Road test')).clicks, 1, 'still counting behind the scenes');
+  const hop = await visit(env, `/v/${code}`);
+  assert.equal(hop.headers.get('Location'), 'https://homeguidepress.com/drivers-bundle?utm_source=youtube&utm_campaign=peter-collins&utm_content=' + code);
+  await visit(env, `/v/${code}?qc=1`);
+  await visit(env, `/v/${code}`, 'HEAD');
+  assert.equal((await linkOf(db, 'Road test')).clicks, 1, 'only the viewer counted');
 
-  await postStats(env, [{ youtube_id: YT, views: 7 }]);
   const page = await trackPage(db);
   const v = page.videos.find((x) => x.title === 'Road test');
-  assert.deepEqual([v.url, v.code, v.clicks, v.landing, v.views], [null, null, null, null, 7]);
-  const html = track(page, {}, 'peter-collins');
-  assert.doesNotMatch(html, /data-copy|\/v\/|No landing page/);
-  assert.equal(html.match(/<tr>[\s\S]*?<\/tr>/g).at(-1).match(/<td class="(?:num|tkcell)">\s*<\/td>/g).length, 4, 'blank: impressions, CTR, clicks, link');
-  assert.match(html, /<td class="num">-<\/td>/, 'AVD unavailable: a dash');
-
-  const { links } = (await call(env, 'GET', '/v1/links', { bot: 'qc' })).body;
-  assert.deepEqual(links.map((l) => l.title), ['Hooks']);
-  assert.equal((await call(env, 'GET', '/v1/links?channel=peter-collins', { bot: 'qc' })).body.links.length, 0);
+  assert.deepEqual([v.url, v.code, v.clicks, v.landing], [`https://jonmac.ai/v/${code}`, code, 1, 'https://homeguidepress.com/drivers-bundle']);
+  assert.match(track(page, {}, 'peter-collins'), /data-copy/);
+  const { links } = (await call(env, 'GET', '/v1/links?channel=peter-collins', { bot: 'qc' })).body;
+  assert.deepEqual(links.map((l) => l.url), [`https://jonmac.ai/v/${code}`]);
 });
 
 test('a value Studio has not given is a blank cell, and the page says when data last arrived', async () => {
@@ -883,4 +879,49 @@ test('the /v route is on the Worker, and no migration uses a compound SELECT D1 
   assert.match(readFileSync(new URL('wrangler.jsonc', root), 'utf8'), /"pattern":\s*"jonmac\.ai\/v\/\*",\s*"zone_name":\s*"jonmac\.ai"/);
   assert.doesNotMatch(readFileSync(new URL('migrations/0017_track_links.sql', root), 'utf8'), /UNION/);
   assert.match(readFileSync(new URL('public/css/components.css', root), 'utf8'), /^\.wrap \.wrap\{width:100%\}/m, 'a page fills #page, so a wide table scrolls inside its card');
+});
+
+test('All shows clicks, conversion, sales and revenue per book channel with a total, dashes elsewhere', async () => {
+  const { db, env } = await setup();
+  const hgp = sqliteD1();
+  hgp.sqlite.exec(readFileSync(new URL('../../homeguidepress/migrations/0001_init.sql', import.meta.url), 'utf8')); // clicks here are not the source of Clicks
+  await importCsv(env, 'peter-collins', [{ date: '2026-11-03', title: 'Road test', status: 'scheduled', youtube_id: YT }]);
+  await importCsv(env, 'dale-whitaker-pitbulls', [{ date: '2026-11-03', title: 'Pit', status: 'scheduled' }]);
+  const gary = (await linkOf(db, 'Road test')).code;
+  const dale = (await linkOf(db, 'Pit')).code;
+  for (const c of [gary, gary, gary, gary, dale, dale]) await visit(env, `/v/${c}`);
+  await visit(env, `/v/${gary}?qc=1`); // our own check
+  const order = (id, slug, cents, test = 0, revoked = null) => hgp.sqlite.prepare(
+    "INSERT INTO orders (transaction_id, slug, email, amount_cents, is_test, revoked_at, created_at) VALUES (?, ?, 'a@b.c', ?, ?, ?, 'x')").run(id, slug, cents, test, revoked);
+  order('t1', 'gary', 2700);
+  order('t2', 'gary', 2700);
+  order('t3', 'gary', 2700, 1); // sandbox order
+  order('t4', 'gary', 2700, 0, 'x'); // refunded
+  const out = { pages: { track: {} } };
+  buildTrackPage(out, await trackData(db, 'https://jonmac.ai', NOW, hgp));
+  const page = out.pages.track;
+  assert.deepEqual(page.channels.find((c) => c.slug === 'peter-collins').book, { clicks: 4, sales: 2, revenue: 54 });
+  assert.deepEqual(page.channels.find((c) => c.slug === 'dale-whitaker-pitbulls').book, { clicks: 2, sales: 0, revenue: 0 });
+  assert.equal(page.channels.find((c) => c.slug === 'jon-mac').book, null, 'no book, no numbers');
+  setSort('all:label');
+  const html = track(page, {}, '');
+  const cells = (slug) => allRow(html, slug).slice(-4);
+  assert.deepEqual(cells('peter-collins'), ['4', '50%', '2', '$54.00']);
+  assert.deepEqual(cells('dale-whitaker-pitbulls'), ['2', '0%', '0', '$0.00']);
+  assert.deepEqual(cells('jon-mac'), ['—', '—', '—', '—']);
+  assert.deepEqual(cells('rosa-cooks'), ['0', '—', '0', '$0.00'], 'a book nobody visited: conversion has nothing to divide');
+  const totalRow = html.match(/<tr class="tktotal">(.*?)<\/tr>/s)[1].split(/<[^>]+>/).map((s) => s.trim()).filter(Boolean);
+  assert.deepEqual([totalRow[0], ...totalRow.slice(-4)], ['Total', '6', '33.3%', '2', '$54.00']);
+  setSort('all:clicks');
+  const order1 = html.match(/<tr data-page="track\/[^"]+">/g);
+  assert.ok(order1.length > 0);
+  const byClicks = track(page, {}, '').match(/<tr data-page="track\/([^"]+)">/g).map((r) => r.match(/track\/([^"]+)/)[1]);
+  assert.equal(byClicks[0], 'peter-collins', 'first click on Clicks puts the most first');
+
+  const none = { pages: { track: {} } };
+  buildTrackPage(none, await trackData(db, 'https://jonmac.ai', NOW)); // no HGP_DB bound
+  setSort('all:label');
+  const bare = track(none.pages.track, {}, '');
+  assert.deepEqual(allRow(bare, 'peter-collins').slice(-4), ['—', '—', '—', '—'], 'unreadable sales show a dash, never a zero');
+  assert.deepEqual(bare.match(/<tr class="tktotal">(.*?)<\/tr>/s)[1].split(/<[^>]+>/).map((s) => s.trim()).filter(Boolean).slice(-4), ['—', '—', '—', '—']);
 });

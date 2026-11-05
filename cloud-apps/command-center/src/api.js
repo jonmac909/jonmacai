@@ -282,7 +282,7 @@ export async function handleApi(request, env, ctx) {
     // Track syncs from the YouTube APIs first on every open or refresh (15 s floor); the cron syncs hourly too (src/youtube.js).
     if ((url.searchParams.get('pages') || '').split(',').some((p) => p.trim() === 'track')) {
       await freshen(env, ctx, undefined, now);
-      extra.track = await trackData(env.DB, url.origin, now);
+      extra.track = await trackData(env.DB, url.origin, now, env.HGP_DB);
     }
     const build = env.CF_VERSION_METADATA?.id ?? null; // this deploy; an open page reloads when it changes (app.js)
     return json({ ...mergeSnapshot(base, await listSnapshots(env.DB), now, await listDealStages(env.DB), extra), build });

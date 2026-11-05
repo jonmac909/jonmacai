@@ -78,16 +78,27 @@ function channelRow(c, videos) {
   const t = c.totals || {};
   return { slug: c.slug, label: c.label, onAir: live ? 'Yes' : 'No', videos: on.length, scheduled: on.filter((v) => v.status === 'scheduled').length, posted: live,
     impressions: total(mine, 'impressions'), ctr: weighted(mine, 'ctr', 'impressions'), avd: t.avd ?? weighted(mine, 'avd', 'views'),
-    views: t.views == null && total(mine, 'views') == null ? null : Math.max(t.views ?? 0, total(mine, 'views') ?? 0), subs: t.subs ?? total(mine, 'subs'), error: t.error || '' };
+    views: t.views == null && total(mine, 'views') == null ? null : Math.max(t.views ?? 0, total(mine, 'views') ?? 0), subs: t.subs ?? total(mine, 'subs'), error: t.error || '',
+    // Book funnel (2026-11-05): only the Home Guide Press channels sell a book, so the rest have none (a dash).
+    clicks: c.book?.clicks ?? null, sales: c.book?.sales ?? null, revenue: c.book?.revenue ?? null, conv: conv(c.book?.sales, c.book?.clicks) };
 }
 
-const ALL_COLS = [['impressions', 'Impressions', num], ['ctr', 'CTR', (n) => (n != null ? `${n}%` : '')], ['avd', 'AVD', mss], ['views', 'Views', num], ['subs', 'Subs', num]];
+const conv = (sales, clicks) => (sales != null && clicks ? Math.round((1000 * sales) / clicks) / 10 : null); // a dash while nobody has clicked
+const dash = (f) => (n) => (n != null ? f(n) : '—');
+const usd = (n) => `$${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+const ALL_COLS = [['impressions', 'Impressions', num], ['ctr', 'CTR', (n) => (n != null ? `${n}%` : '')], ['avd', 'AVD', mss], ['views', 'Views', num], ['subs', 'Subs', num],
+  ['clicks', 'Clicks', dash(num)], ['conv', 'Conv %', dash((n) => `${n}%`)], ['sales', 'Sales', dash(num)], ['revenue', 'Revenue', dash(usd)]];
+const BOOK_NOTE = 'Clicks are viewers who used the channel\'s tracked YouTube link, our own checks left out. Sales and Revenue are paid Commas orders, refunds out. Conv % is sales over clicks. A dash means no book or no data.';
 function allTable(d, last) {
   const rows = sorted(d.channels.slice(1).map((c) => channelRow(c, d.videos)), sorts.all);
+  const sum = { impressions: total(rows, 'impressions'), views: total(rows, 'views'), subs: total(rows, 'subs'), clicks: total(rows, 'clicks'), sales: total(rows, 'sales'), revenue: total(rows, 'revenue') };
+  sum.conv = conv(sum.sales, sum.clicks);
+  const count = (key) => rows.reduce((a, x) => a + x[key], 0);
   return `<div class="card pad">
-    <div class="cardhead"><h2>Channels</h2><span class="meta">Videos counts every calendar video on YouTube, private ones too. All numbers are since launch, as in Studio. ${dataNote(d.videos, last)}</span></div>
+    <div class="cardhead"><h2>Channels</h2><span class="meta">Videos counts every calendar video on YouTube, private ones too. All numbers are since launch, as in Studio. ${dataNote(d.videos, last)} ${BOOK_NOTE}</span></div>
     <div class="tblwrap"><table><thead><tr>${th('all', 'label', 'Channel')}${th('all', 'onAir', 'Live')}${th('all', 'videos', 'Videos', true)}${th('all', 'scheduled', 'Scheduled', true)}${th('all', 'posted', 'Posted', true)}${ALL_COLS.map(([k, l]) => th('all', k, l, true)).join('')}</tr></thead>
-    <tbody>${rows.map((x) => `<tr data-page="track/${esc(x.slug)}"><td>${esc(x.label)}${x.error ? ` ${pill('YouTube API error', 'crit')}<small class="muted"> ${esc(x.error)}</small>` : ''}</td><td>${pill(x.onAir, x.onAir === 'Yes' ? 'ok' : '')}</td><td class="num">${x.videos}</td><td class="num">${x.scheduled}</td><td class="num">${x.posted}</td>${ALL_COLS.map(([k, , f]) => `<td class="num">${f(x[k])}</td>`).join('')}</tr>`).join('')}</tbody></table></div>
+    <tbody>${rows.map((x) => `<tr data-page="track/${esc(x.slug)}"><td>${esc(x.label)}${x.error ? ` ${pill('YouTube API error', 'crit')}<small class="muted"> ${esc(x.error)}</small>` : ''}</td><td>${pill(x.onAir, x.onAir === 'Yes' ? 'ok' : '')}</td><td class="num">${x.videos}</td><td class="num">${x.scheduled}</td><td class="num">${x.posted}</td>${ALL_COLS.map(([k, , f]) => `<td class="num">${f(x[k])}</td>`).join('')}</tr>`).join('')}</tbody>
+    <tfoot><tr class="tktotal"><td><b>Total</b></td><td></td><td class="num"><b>${count('videos')}</b></td><td class="num"><b>${count('scheduled')}</b></td><td class="num"><b>${count('posted')}</b></td>${ALL_COLS.map(([k, , f]) => `<td class="num"><b>${k in sum ? f(sum[k]) : ''}</b></td>`).join('')}</tr></tfoot></table></div>
   </div>`;
 }
 

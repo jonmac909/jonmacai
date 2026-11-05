@@ -3,8 +3,8 @@
 import { YOUTUBE_CHANNELS, pacific, stamp, withYoutube } from './channels.js';
 
 // The switch for tracked links: groups whose videos carry none in their descriptions yet. Their link and clicks
-// columns stay blank and the link list skips them; take a group out to switch it on. Everything else is built.
-const NO_LINKS_GROUPS = ['Home Guide Press'];
+// columns stay blank and the link list skips them; put a group in to switch it off. Home Guide Press is on (2026-11-05).
+const NO_LINKS_GROUPS = [];
 const LINKED = new Set(YOUTUBE_CHANNELS.filter((c) => !NO_LINKS_GROUPS.includes(c.group)).map((c) => c.slug));
 const ON_YOUTUBE = new Set(YOUTUBE_CHANNELS.map((c) => c.slug));
 
@@ -39,7 +39,8 @@ export async function trackRedirect(request, env, ctx) {
     console.error('trackRedirect', err);
     return plain(503);
   }
-  if (request.method === 'GET') {
+  // /v/<code>?qc=1 is our own check: it forwards but isn't a viewer's click.
+  if (request.method === 'GET' && !new URL(request.url).searchParams.has('qc')) {
     ctx.waitUntil(env.DB.prepare('UPDATE yt_links SET clicks = clicks + 1 WHERE code = ?').bind(code).run().catch((err) => console.error('track click', err)));
   }
   return new Response(null, { status: 302, headers: { Location: to.href, 'Cache-Control': 'no-store', 'X-Robots-Tag': 'noindex' } });
@@ -77,10 +78,36 @@ async function channelTotals(db) {
   return Object.fromEntries((results || []).map((r) => [r.channel, { views: larger(r.studio_views, r.views), avd: r.studio_avd, subs: r.studio_subs ?? r.subscribers, error: r.sync_error || null }]));
 }
 
-// Null when the tables can't be read (migration 0017 or 0021 not applied), so the page says so instead of failing.
-export async function trackData(db, origin, nowMs) {
+// The book page key each Home Guide Press channel sells (facts/channels.md). Other channels sell no book here.
+export const BOOKS = { 'peter-collins': 'gary', 'jack-mercer': 'prepared', 'rosa-cooks': 'rosa-cooks', 'rosas-clean-home': 'rosa-clean',
+  'rosas-house-hacks': 'rosa-hacks', 'giovanni-moretti': 'angelo', 'frank-bennett-dogs': 'steve', 'ruth-calder': 'ruth',
+  'dale-whitaker-pitbulls': 'dale', 'nora-fairweather-cats': 'nora', 'gail-merriman-golf': 'gail', 'naomi-takeda-japan': 'naomi',
+  'walter-brandt-dogs': 'walter', 'eleanor-whitfield': 'eleanor' };
+
+// Since launch, per channel: clicks are the channel's /v/ link clicks (YouTube viewers only, our ?qc=1 checks out), sales and
+// revenue are paid Commas orders from the homeguidepress D1 (HGP_DB, read only) with tests and refunds out. Null when that D1
+// isn't there or can't be read: Track then shows a dash, never a guess.
+async function bookStats(db, hgp) {
+  if (!hgp) return null;
   try {
-    return { videos: await trackVideos(db, origin, null, nowMs), totals: await channelTotals(db) };
+    const [views, orders] = await Promise.all([
+      db.prepare('SELECT channel, SUM(clicks) AS n FROM yt_links GROUP BY channel').all(),
+      hgp.prepare('SELECT slug, COUNT(*) AS n, COALESCE(SUM(amount_cents), 0) AS cents FROM orders WHERE is_test = 0 AND revoked_at IS NULL GROUP BY slug').all(),
+    ]);
+    const v = new Map((views.results || []).map((x) => [x.channel, x.n]));
+    const o = new Map((orders.results || []).map((x) => [x.slug, x]));
+    return Object.fromEntries(Object.entries(BOOKS).map(([channel, key]) => [channel,
+      { clicks: v.get(channel) ?? 0, sales: o.get(key)?.n ?? 0, revenue: (o.get(key)?.cents ?? 0) / 100 }]));
+  } catch (err) {
+    console.error('bookStats', err);
+    return null;
+  }
+}
+
+// Null when the tables can't be read (migration 0017 or 0021 not applied), so the page says so instead of failing.
+export async function trackData(db, origin, nowMs, hgp = null) {
+  try {
+    return { videos: await trackVideos(db, origin, null, nowMs), totals: await channelTotals(db), books: await bookStats(db, hgp) };
   } catch (err) {
     console.error('trackData', err);
     return null;
@@ -103,7 +130,7 @@ export function buildTrackPage(out, data) {
     available: !!data,
     channels: [{ slug: 'all', label: 'All channels', group: 'All', all: true, count: list.length }, ...YOUTUBE_CHANNELS.map((c) => {
       const mine = list.filter((v) => v.channel === c.slug);
-      return { ...c, count: mine.length, counts: countsOf(mine), totals: data?.totals?.[c.slug] || null };
+      return { ...c, count: mine.length, counts: countsOf(mine), totals: data?.totals?.[c.slug] || null, book: data?.books?.[c.slug] || null };
     })],
     videos: list.map((v) => ({ ...v, channelLabel: label.get(v.channel) })),
   };

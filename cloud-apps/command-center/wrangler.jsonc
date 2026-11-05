@@ -26,6 +26,12 @@
       "binding": "CLONE_DB",
       "database_name": "jonmacai-clone-upsells",
       "database_id": "cafcc654-94e7-498c-81cf-e197393c1176"
+    },
+    // Track: book-page visits and paid orders per channel (src/track.js). Read only.
+    {
+      "binding": "HGP_DB",
+      "database_name": "homeguidepress",
+      "database_id": "3d74fd02-98ef-45ff-b6ec-5a9848d8c9fb"
     }
   ],
   "r2_buckets": [
