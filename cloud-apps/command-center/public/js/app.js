@@ -34,6 +34,23 @@ let savedTheme = null; try { savedTheme = localStorage.getItem('cc-theme'); } ca
 if (savedTheme === 'light' || savedTheme === 'dark') setTheme(savedTheme); else syncTheme();
 if (mq && mq.addEventListener) mq.addEventListener('change', syncTheme);
 
+// Sidebar (Jon, 2026-11-05): the panel button in the brand row hides the nav, kept per browser. A desktop shrinks to an icon rail; a phone hides the nav strip and keeps the bar. index.html sets data-side before first paint.
+const sideBtn = document.getElementById('sideToggle');
+function syncSide() {
+  const closed = root.getAttribute('data-side') === 'closed';
+  const t = closed ? 'Show sidebar' : 'Hide sidebar';
+  sideBtn.setAttribute('aria-expanded', String(!closed));
+  sideBtn.setAttribute('aria-label', t);
+  sideBtn.title = t;
+}
+function toggleSide() {
+  const closed = root.getAttribute('data-side') !== 'closed';
+  if (closed) root.setAttribute('data-side', 'closed'); else root.removeAttribute('data-side');
+  try { localStorage.setItem('cc-side', closed ? '0' : '1'); } catch {}
+  syncSide();
+}
+syncSide();
+
 const toastEl = document.getElementById('toast');
 let toastTimer;
 export function say(m) {
@@ -102,8 +119,8 @@ function navHtml() {
     const items = g.items.map((it) => {
       const n = badges[it.id];
       const badge = n ? `<span class="n">${n}</span>` : '';
-      if (it.href) return `<a class="nav" href="${it.href}"><svg class="ic"><use href="#i-${it.icon}"/></svg>${it.label}</a>`;
-      return `<button class="nav" data-page="${it.id}"><svg class="ic"><use href="#i-${it.icon}"/></svg>${it.label}${badge}</button>`;
+      if (it.href) return `<a class="nav" href="${it.href}" title="${it.label}"><svg class="ic"><use href="#i-${it.icon}"/></svg><span class="nl">${it.label}</span></a>`;
+      return `<button class="nav" data-page="${it.id}" title="${it.label}"><svg class="ic"><use href="#i-${it.icon}"/></svg><span class="nl">${it.label}</span>${badge}</button>`;
     }).join('');
     return `<div class="navgrp"><h4>${g.title}</h4>${items}</div>`;
   }).join('');
@@ -286,6 +303,7 @@ document.addEventListener('click', (e) => {
     e.target.textContent = hid ? 'Hide' : 'Show';
     return;
   }
+  if (e.target.closest('#sideToggle')) { toggleSide(); return; }
   const th = e.target.closest('[data-theme-set]');
   if (th) { setTheme(th.dataset.themeSet); return; }
   const qopt = e.target.closest('[data-qopt]');
