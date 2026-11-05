@@ -896,8 +896,12 @@ async function putPeriods(db, who, body, now) {
   }
   if (body.report != null) {
     const r = body.report;
+    const okRow = (x) => x && typeof x.label === 'string' && Number.isFinite(x.planned) && Number.isFinite(x.done);
+    const okWeek = (w) => w && /^\d{4}-\d\d-\d\d$/.test(String(w.weekStart || '')) && Number.isFinite(Date.parse(w.weekStart)) && Array.isArray(w.rows) && w.rows.length <= 12 && w.rows.every(okRow);
+    const okCarry = (c) => c && typeof c.title === 'string' && Number.isFinite(c.slipped);
     if (typeof r !== 'object' || !Array.isArray(r.weeks) || r.weeks.length > 12 || !Array.isArray(r.carry) || r.carry.length > 200) throw new Bad(400, 'report needs weeks (at most 12) and carry (at most 200)');
-    if (!r.weeks.every((w) => /^\d{4}-\d\d-\d\d$/.test(String(w?.weekStart || '')) && Array.isArray(w.rows) && w.rows.length <= 12)) throw new Bad(400, 'each report week needs weekStart and at most 12 rows');
+    if (!r.weeks.every(okWeek)) throw new Bad(400, 'each report week needs weekStart and at most 12 rows with label, planned and done');
+    if (!r.carry.every(okCarry)) throw new Bad(400, 'each carried-over item needs a title and weeks slipped');
   }
   await db.prepare("INSERT OR REPLACE INTO snapshots (source, data, collected_at, received_at) VALUES ('periods', ?, ?, ?)")
     .bind(JSON.stringify(body), now, now).run();

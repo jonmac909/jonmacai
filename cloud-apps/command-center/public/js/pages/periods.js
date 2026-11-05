@@ -41,16 +41,17 @@ export function weekBlock(w) {
 export function carryCard(rep) {
   const list = Array.isArray(rep?.carry) ? rep.carry : [];
   const total = Number(rep?.carryTotal) || list.length;
-  const items = list.map((c) => `<div class="pdrow"><div class="pgrow"><div class="lab"><span>${esc(c.title)}</span>${pill(`${c.slipped} ${c.slipped === 1 ? 'week' : 'weeks'} slipped`, c.slipped >= 2 ? 'crit' : 'warn')}</div></div><p class="muted pdnote">${esc([c.label, c.stage, c.owner].filter(Boolean).join(' · '))}</p></div>`).join('');
+  const items = list.map((c) => `<div class="pdrow"><div class="pgrow"><div class="lab"><span>${esc(c.title)}</span>${pill(`${c.slipped} ${c.slipped === 1 ? 'week' : 'weeks'} slipped`, c.slipped >= 2 ? 'crit' : 'risk')}</div></div><p class="muted pdnote">${esc([c.label, c.stage, c.owner].filter(Boolean).join(' · '))}</p></div>`).join('');
   return `<div class="card pad"><div class="cardhead"><h2>Carried over into this week</h2><span class="meta">${total}${total > list.length ? `, showing ${list.length}` : ''}</span></div><div class="pdrows">${list.length ? items : '<p class="muted">Nothing carried over: every earlier week is done.</p>'}</div></div>`;
 }
 
 // The week-by-week blocks for Monthly. A missing or failed report says so instead of an empty page.
-export function reportBlocks(weekly) {
+export function reportBlocks(weekly, week) {
   const rep = weekly?.report;
   if (!rep || !Array.isArray(rep.weeks)) {
     return `<div class="card pad"><p class="muted">${weekly?.reportError ? 'The week-by-week report failed on GPU1. It tries again in a few minutes.' : 'The week-by-week report has not been posted yet.'}</p></div>`;
   }
+  if (week && weekly.weekStart !== week) return '<div class="card pad"><p class="muted">The report is from an earlier week. GPU1 has not posted a new one yet.</p></div>';
   return carryCard(rep) + rep.weeks.map(weekBlock).join('');
 }
 
@@ -102,8 +103,8 @@ function paintWeekly(el) {
   el.querySelector('.pdweek').textContent = weekText(last.week);
   el.querySelector('.pdgroups').innerHTML = w && !old ? (w.groups || []).map(group).join('')
     : '<div class="card pad"><p class="muted">No counts for this week yet. The script on GPU1 has not posted them.</p></div>';
-  el.querySelector('.pdcarry').innerHTML = w?.report ? carryCard(w.report) : '';
   el.querySelector('.pdhab').innerHTML = habits('week', last.weekHabits);
+  try { el.querySelector('.pdcarry').innerHTML = w && !old && w.report ? carryCard(w.report) : ''; } catch { el.querySelector('.pdcarry').innerHTML = ''; } // a bad report never hides the habits
 }
 
 export function weekly() {
@@ -146,8 +147,8 @@ export function mountMonthly(el, { say } = {}) {
   bindTicks(el, say);
   const paint = () => {
     if (saving(el)) return;
-    el.querySelector('.pdreport').innerHTML = reportBlocks(last?.weekly);
     el.querySelector('.pdhab').innerHTML = habits('month', last?.monthHabits);
+    try { el.querySelector('.pdreport').innerHTML = reportBlocks(last?.weekly, last?.week); } catch { el.querySelector('.pdreport').innerHTML = '<div class="card pad"><p class="muted">The weekly report could not be shown.</p></div>'; }
   };
   if (last) paint();
   fetchPeriods().then((ok) => {

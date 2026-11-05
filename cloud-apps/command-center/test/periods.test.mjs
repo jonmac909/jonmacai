@@ -171,7 +171,7 @@ test('carryCard shows weeks slipped, red from 2 weeks, escapes titles and says w
   assert.match(html, /3 weeks slipped/);
   assert.match(html, /1 week slipped/);
   assert.match(html, /pill crit">3 weeks slipped/);
-  assert.doesNotMatch(html, /pill crit">1 week/);
+  assert.match(html, /pill risk">1 week slipped/);
   assert.doesNotMatch(html, /<b>upload<\/b>/);
   assert.match(html, /5, showing 2/);
   assert.match(carryCard({ carry: [], carryTotal: 0 }), /Nothing carried over/);
@@ -180,7 +180,8 @@ test('carryCard shows weeks slipped, red from 2 weeks, escapes titles and says w
 test('reportBlocks says so when the report is missing or failed on GPU1', () => {
   assert.match(reportBlocks(null), /not been posted yet/);
   assert.match(reportBlocks({ reportError: 'boom' }), /failed on GPU1/);
-  const html = reportBlocks({ report: REPORT });
+  assert.match(reportBlocks({ weekStart: '2020-01-06', report: REPORT }, THIS_WEEK), /from an earlier week/);
+  const html = reportBlocks({ weekStart: THIS_WEEK, report: REPORT }, THIS_WEEK);
   assert.match(html, /Carried over into this week/);
   assert.equal((html.match(/class="cardhead"/g) || []).length, 3); // carry card + 2 weeks
 });
@@ -192,7 +193,9 @@ test('PUT /v1/periods keeps the report and GET returns it; a malformed report is
   const got = await call(env, 'GET', '/v1/periods', { jon: true });
   assert.equal(got.body.weekly.report.carry.length, 2);
   assert.equal(got.body.weekly.report.weeks[0].rows[0].label, 'Coding');
-  for (const bad of [{ weeks: 'x', carry: [] }, { weeks: [], carry: 'x' }, { weeks: [{ weekStart: 'monday', rows: [] }], carry: [] }, { weeks: [], carry: new Array(201).fill({}) }, 'text']) {
+  for (const bad of [{ weeks: 'x', carry: [] }, { weeks: [], carry: 'x' }, { weeks: [{ weekStart: 'monday', rows: [] }], carry: [] }, { weeks: [], carry: new Array(201).fill({}) }, 'text',
+    { weeks: [], carry: [null] }, { weeks: [], carry: [{ title: 'x' }] }, { weeks: [{ weekStart: THIS_WEEK, rows: [null] }], carry: [] },
+    { weeks: [{ weekStart: '9999-99-99', rows: [] }], carry: [] }]) {
     assert.equal((await call(env, 'PUT', '/v1/periods', { bot: 'moneyclaw', body: { ...base, report: bad } })).status, 400);
   }
   assert.equal((await call(env, 'PUT', '/v1/periods', { bot: 'moneyclaw', body: base })).status, 200); // no report is still fine
