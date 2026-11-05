@@ -852,6 +852,28 @@ async function getFeed(db, name) {
   return json({ ok: true, feed: row ? feedOut(row) : null });
 }
 
+// ---- Factory (Jon, 2026-11-05): the live production board. One row, overwritten by a plain script on GPU1
+// (tools/factory_publish.py: no bot, no model, no tokens); the page only fetches it. ----
+
+const FACTORY_WRITERS = ['moneyclaw', 'ana', 'developer'];
+
+async function putFactory(db, who, body, now) {
+  needBot(who);
+  if (!FACTORY_WRITERS.includes(who.bot)) throw new Bad(403, `Only ${FACTORY_WRITERS.join(', ')} can post the factory`);
+  if (!Array.isArray(body.columns) || body.columns.length > 20) throw new Bad(400, 'columns must be a list of at most 20');
+  if (!Array.isArray(body.tiles) || body.tiles.length > 600) throw new Bad(400, 'tiles must be a list of at most 600');
+  await db.prepare("INSERT OR REPLACE INTO snapshots (source, data, collected_at, received_at) VALUES ('factory', ?, ?, ?)")
+    .bind(JSON.stringify(body), now, now).run();
+  return json({ ok: true, asOf: now });
+}
+
+async function getFactory(db) {
+  const row = await db.prepare("SELECT data, collected_at FROM snapshots WHERE source = 'factory'").first();
+  let extra = [];
+  try { extra = (await db.prepare('SELECT slug, label, grp FROM yt_channels').all()).results || []; } catch { extra = []; }
+  return json({ ok: true, factory: row ? parseJson(row.data, null) : null, asOf: row ? row.collected_at : null, channels: allChannels(extra) });
+}
+
 // ---- daily checklists: the owning bot ticks an item for today (Vancouver) with a proof link ----
 
 const DAILY_TICKERS = {
@@ -1446,6 +1468,11 @@ async function route(request, db, who, rest, env, ctx) {
     }
     if (method === 'POST' && rawId === 'stats' && !verb) return postLinkStats(db, who, await readBody(request), now);
     if (method === 'PUT' && rawId && !verb) return setLinkLanding(db, who, rawId, await readBody(request));
+    throw new Bad(404, 'Not found');
+  }
+  if (kind === 'factory' && !rawId && !verb) {
+    if (method === 'GET') return getFactory(db);
+    if (method === 'PUT') return putFactory(db, who, await readBody(request), now);
     throw new Bad(404, 'Not found');
   }
   if (kind === 'calendar' && method === 'PUT' && rawId && !verb) return putCalendar(db, who, rawId, await readBody(request), now);

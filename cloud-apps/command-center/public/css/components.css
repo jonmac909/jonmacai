@@ -762,3 +762,18 @@ body:has(.cardmodal[open]){overflow:hidden} /* the page behind stays put */
 .tktable th,.tktable td{padding-inline:.6rem}
 .tklink{font-size:.8rem;margin-right:.5rem}
 .ccdiff{display:block;margin-top:.25rem;color:var(--muted);font-size:.8rem}
+
+/* Factory (2026-11-05): ten stage columns side by side, sideways scroll; a tile per video. */
+.fystatus{display:flex;align-items:center}
+.fygpuline{margin:.9rem 0 0;font-size:.88rem;color:var(--ink-2)}
+.fyboard{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(15rem,1fr);gap:.8rem;overflow-x:auto;padding:1rem 0 .6rem;align-items:start}
+.fycol{background:var(--soft);border-radius:.9rem;padding:.7rem;min-width:0}
+.fycol h3{margin:0 0 .6rem;font-size:.74rem;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);display:flex;justify-content:space-between;gap:.5rem}
+.fylist{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:.55rem}
+.fytile{background:var(--card-bg);border:1px solid var(--line);border-radius:.7rem;padding:.6rem .7rem;display:flex;flex-direction:column;gap:.35rem;font-size:.85rem}
+.fytile.stuck{border-color:var(--risk-line)}
+.fytitle{font-weight:600;overflow-wrap:anywhere}
+.fymeta{color:var(--muted);font-size:.78rem}
+.fygpu{font-size:.78rem;color:var(--ink-2);overflow-wrap:anywhere}
+.fyopen{font-size:.78rem}
+.fyempty{font-size:.82rem;padding:.2rem .1rem}

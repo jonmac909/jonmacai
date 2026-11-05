@@ -78,7 +78,8 @@ export async function upsertSnapshot(db, source, data, collectedAt, receivedAt) 
 }
 
 export async function listSnapshots(db) {
-  const { results } = await db.prepare('SELECT source, data, collected_at, received_at FROM snapshots').all();
+  // The factory row is big and has its own endpoint (GET /v1/factory): not part of every page load and 60 s poll.
+  const { results } = await db.prepare("SELECT source, data, collected_at, received_at FROM snapshots WHERE source != 'factory'").all();
   return results || [];
 }
 

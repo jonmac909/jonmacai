@@ -197,7 +197,7 @@ test('the nav holds exactly the kept pages, and those are the pages served', asy
   const cookie = `${COOKIE}=${await signSession(SECRET, Math.floor(Date.now() / 1000) + 3600)}`;
   const json = await (await handleApi(req('/dashboard/api/snapshot', { cookie }), env)).json();
   const ids = json.nav.groups.flatMap((g) => g.items.filter((i) => !i.href).map((i) => i.id)); // href items are links (Review)
-  assert.deepEqual(ids, ['today', 'todo', 'projects', 'feed', 'calendar', 'content', 'track', 'sponsors', 'viral', 'webinar', 'money', 'life', 'journal']);
+  assert.deepEqual(ids, ['today', 'todo', 'projects', 'feed', 'calendar', 'content', 'track', 'factory', 'sponsors', 'viral', 'webinar', 'money', 'life', 'journal']);
   assert.deepEqual(Object.keys(json.pages), ids);
 });
 

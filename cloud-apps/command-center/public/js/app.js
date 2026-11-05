@@ -5,6 +5,7 @@ import { render as feed, mount as mountFeed } from './pages/feed.js';
 import { render as journal, mount as mountJournal } from './pages/journal.js';
 import { calendar, content } from './pages/channels.js';
 import { track, setSort } from './pages/track.js';
+import { render as factory, mount as mountFactory } from './pages/factory.js';
 import { render as sponsors } from './pages/sponsors.js';
 import { render as viral } from './pages/viral.js';
 import { render as webinar } from './pages/webinar.js';
@@ -15,9 +16,9 @@ import { bindModals, openCard, openDraft, restoreAnswers, typedAnswers } from '.
 const PREFIX = '/dashboard';
 // Any other #page (old bookmarks to removed pages) falls back to Today. A page may have a
 // sub-path, like #projects/sponsors; the page itself decides what an unknown one shows.
-const pages = { today, todo, projects, feed, calendar, content, track, sponsors, viral, webinar, money, life, journal };
-// Feed and Journal fetch their own rows (from /v1) once rendered.
-const mounts = { feed: mountFeed, journal: mountJournal };
+const pages = { today, todo, projects, feed, calendar, content, track, factory, sponsors, viral, webinar, money, life, journal };
+// Feed, Factory and Journal fetch their own rows (from /v1) once rendered.
+const mounts = { feed: mountFeed, factory: mountFactory, journal: mountJournal };
 let data = null;
 
 const root = document.documentElement;

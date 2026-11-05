@@ -94,7 +94,7 @@ async function login(request, env) {
 // The dashboard's pages, in nav order. Today, Todo, Projects, Calendar, Content and Webinar have no fixture
 // numbers at all (the fixture's old "content" mockup is never served); Feed and Journal load their own rows
 // from /v1 (activity, journal).
-export const PAGES = ['today', 'todo', 'projects', 'feed', 'calendar', 'content', 'track', 'sponsors', 'viral', 'webinar', 'money', 'life', 'journal'];
+export const PAGES = ['today', 'todo', 'projects', 'feed', 'calendar', 'content', 'track', 'factory', 'sponsors', 'viral', 'webinar', 'money', 'life', 'journal'];
 const LIVE_ONLY = ['calendar', 'content', 'track'];
 
 function filterSnapshot(pages) {
@@ -126,7 +126,7 @@ export function liveNav(orig) {
         // Review is a link to the video review pages (src/videoreview.js), not a snapshot page.
         { id: 'review', label: 'Review', icon: 'film', href: '/dashboard/review' },
       ] },
-      { title: 'YouTube', items: [{ id: 'calendar', label: 'Calendar', icon: 'cal' }, { id: 'content', label: 'Content', icon: 'trend' }, { id: 'track', label: 'Track', icon: 'chart' }] },
+      { title: 'YouTube', items: [{ id: 'calendar', label: 'Calendar', icon: 'cal' }, { id: 'content', label: 'Content', icon: 'trend' }, { id: 'track', label: 'Track', icon: 'chart' }, { id: 'factory', label: 'Factory', icon: 'board' }] },
       { title: 'Business', items: [
         { id: 'sponsors', label: 'Sponsors', icon: 'mail' },
         { id: 'viral', label: 'Viral View', icon: 'chart' },
