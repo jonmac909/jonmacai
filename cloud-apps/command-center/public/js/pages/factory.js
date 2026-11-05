@@ -69,7 +69,7 @@ export function mount(el) {
   const load = async () => {
     if (!el.isConnected) return; // moved to another page: stop polling
     try {
-      if (document.hidden) { if (last) paint(el, sub); return; } // hidden tab: no fetch, the stale pill still ages
+      if (document.hidden && last) { paint(el, sub); return; } // hidden tab with data: no fetch, the stale pill still ages (first load always fetches)
       const res = await fetch(`${API}?v=${Date.now()}`).catch(() => null);
       const j = res?.ok ? await res.json().catch(() => null) : null;
       if (!el.isConnected) return;

@@ -60,3 +60,16 @@ test('factory: the 60 s snapshot poll never carries the factory row', async () =
 test('factory page: shell renders and tabs filter tiles by channel', () => {
   assert.match(render(null, null, 'peter-collins'), /data-sub="peter-collins"/);
 });
+
+test('factory page: first load fetches even when the tab reports hidden', async () => {
+  const boxes = { '.fybody': { innerHTML: '' }, '.fystatus': { innerHTML: '' } };
+  let calls = 0; let alive = true;
+  const el = { dataset: {}, get isConnected() { return alive; }, querySelector: (s) => boxes[s] };
+  globalThis.document = { hidden: true };
+  globalThis.fetch = async () => { calls++; return { ok: true, json: async () => ({ ok: true, factory: SNAP, asOf: new Date().toISOString(), channels: [] }) }; };
+  mount(el);
+  await new Promise((r) => setTimeout(r, 50)); alive = false;
+  assert.equal(calls, 1);
+  assert.doesNotMatch(boxes['.fybody'].innerHTML, /Loading/);
+  assert.match(boxes['.fybody'].innerHTML, /Tesco Transport Shake-Up/);
+});
