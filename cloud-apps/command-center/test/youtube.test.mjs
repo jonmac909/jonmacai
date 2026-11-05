@@ -357,7 +357,7 @@ test('a channel with no public views yet still shows its videos\' Studio views, 
 test('Track opens stop syncing after 100 a day, and the hourly cron still runs', async () => {
   const { env } = await setup();
   await connect(env, google());
-  const day = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Vancouver' }).format(new Date());
+  const day = new Date(Date.now() - 8 * 3600 * 1000).toISOString().slice(0, 10); // Google's quota day: UTC-8
   const g = google();
   const prev = globalThis.fetch;
   globalThis.fetch = g.fetchFn;

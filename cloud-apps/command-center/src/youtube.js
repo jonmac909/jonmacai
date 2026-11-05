@@ -13,7 +13,7 @@ const ANALYTICS = 'https://youtubeanalytics.googleapis.com/v2/reports';
 const REPORTING = 'https://youtubereporting.googleapis.com/v1';
 const REACH = 'channel_reach_basic_a1';
 // Quota: 10,000 Data API units a day for this project (Track only). A sync is 3 units a channel (5 at most), so 100
-// opens or refreshes a day plus the hourly cron stay under it for 23 channels. MANUAL_SYNCS_PER_DAY enforces that: past it
+// opens or refreshes a day plus the hourly cron stay under it for 23 channels with 50 videos or fewer. MANUAL_SYNCS_PER_DAY enforces that: past it
 // Track shows what's stored until the next Pacific day, so the cron (and Calendar) never run dry.
 const SYNC_EVERY_MS = 15 * 1000;
 const MANUAL_SYNCS_PER_DAY = 100;
@@ -274,16 +274,19 @@ async function claim(db, column, everyMs, nowMs) {
   return results || [];
 }
 
+// Google's quota day starts at midnight US Pacific. A fixed UTC-8 day flips at that moment in winter and an hour late in summer,
+// never early, so the count can't spill into the wrong quota day (America/Vancouver, used elsewhere, is an hour ahead in winter).
+const quotaDay = (nowMs) => iso(nowMs - 8 * 3600 * 1000).slice(0, 10);
 async function budgetLeft(db, nowMs) {
   try {
-    const r = await db.prepare('SELECT syncs FROM yt_sync_budget WHERE day = ?').bind(pacific(nowMs).day).first();
+    const r = await db.prepare('SELECT syncs FROM yt_sync_budget WHERE day = ?').bind(quotaDay(nowMs)).first();
     return (r?.syncs || 0) < MANUAL_SYNCS_PER_DAY;
   } catch (err) {
     return true; // migration 0023 not applied: no cap rather than no sync
   }
 }
 const spend = (db, nowMs) => db.prepare('INSERT INTO yt_sync_budget (day, syncs) VALUES (?1, 1) ON CONFLICT(day) DO UPDATE SET syncs = syncs + 1')
-  .bind(pacific(nowMs).day).run().catch(() => {});
+  .bind(quotaDay(nowMs)).run().catch(() => {});
 
 // Track opened or refreshed: sync channels not synced in the last 15 s, all at once (23 channels x ~6 calls is far under the paid
 // plan's 10,000 subrequests). Answers after SYNC_WAIT_MS at most; the rest finishes in the background.
