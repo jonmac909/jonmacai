@@ -30,6 +30,30 @@ export function group(g) {
   return `<div class="card pad"><div class="cardhead"><h2>${esc(g.title)}</h2></div><div class="pdrows">${rows.length ? rows.map(row).join('') : `<p class="muted">${esc(g.empty || 'Nothing to count yet.')}</p>`}</div></div>`;
 }
 
+// One week of the report: per project, cards planned that week and how many were done by that Sunday.
+export function weekBlock(w) {
+  const rows = Array.isArray(w.rows) ? w.rows : [];
+  const body = rows.length ? rows.map((r) => row({ label: r.label, target: r.planned, done: r.done })).join('') : '<p class="muted">Nothing was planned.</p>';
+  return `<div class="card pad"><div class="cardhead"><h2>${esc(weekText(w.weekStart))}${w.current ? ' (this week)' : ''}</h2><span class="meta">${Number(w.done) || 0} of ${Number(w.planned) || 0} done</span></div><div class="pdrows">${body}</div></div>`;
+}
+
+// What was planned in an earlier week and is still open, with how many weeks it has slipped (2 or more shows red).
+export function carryCard(rep) {
+  const list = Array.isArray(rep?.carry) ? rep.carry : [];
+  const total = Number(rep?.carryTotal) || list.length;
+  const items = list.map((c) => `<div class="pdrow"><div class="pgrow"><div class="lab"><span>${esc(c.title)}</span>${pill(`${c.slipped} ${c.slipped === 1 ? 'week' : 'weeks'} slipped`, c.slipped >= 2 ? 'crit' : 'warn')}</div></div><p class="muted pdnote">${esc([c.label, c.stage, c.owner].filter(Boolean).join(' · '))}</p></div>`).join('');
+  return `<div class="card pad"><div class="cardhead"><h2>Carried over into this week</h2><span class="meta">${total}${total > list.length ? `, showing ${list.length}` : ''}</span></div><div class="pdrows">${list.length ? items : '<p class="muted">Nothing carried over: every earlier week is done.</p>'}</div></div>`;
+}
+
+// The week-by-week blocks for Monthly. A missing or failed report says so instead of an empty page.
+export function reportBlocks(weekly) {
+  const rep = weekly?.report;
+  if (!rep || !Array.isArray(rep.weeks)) {
+    return `<div class="card pad"><p class="muted">${weekly?.reportError ? 'The week-by-week report failed on GPU1. It tries again in a few minutes.' : 'The week-by-week report has not been posted yet.'}</p></div>`;
+  }
+  return carryCard(rep) + rep.weeks.map(weekBlock).join('');
+}
+
 export function habits(scope, list) {
   return `<ul class="pdhabits">${(list || []).map((h) => `<li><label class="pdhabit"><input type="checkbox" data-hscope="${scope}" data-hkey="${esc(h.key)}"${h.done ? ' checked' : ''}><span>${esc(h.label)}</span></label></li>`).join('')}</ul>`;
 }
@@ -78,6 +102,7 @@ function paintWeekly(el) {
   el.querySelector('.pdweek').textContent = weekText(last.week);
   el.querySelector('.pdgroups').innerHTML = w && !old ? (w.groups || []).map(group).join('')
     : '<div class="card pad"><p class="muted">No counts for this week yet. The script on GPU1 has not posted them.</p></div>';
+  el.querySelector('.pdcarry').innerHTML = w?.report ? carryCard(w.report) : '';
   el.querySelector('.pdhab').innerHTML = habits('week', last.weekHabits);
 }
 
@@ -85,6 +110,7 @@ export function weekly() {
   return `<div class="wrap">
   <div class="head"><div><h1>Weekly</h1><p class="pdweek"></p></div><div class="fystatus"></div></div>
   <div class="pdgroups"><div class="card pad"><p class="muted">Loading…</p></div></div>
+  <div class="pdcarry"></div>
   <div class="card pad"><div class="cardhead"><h2>Your habits this week</h2><span class="meta">You tick these yourself</span></div><div class="pdhab"></div></div>
 </div>`;
 }
@@ -109,6 +135,8 @@ export function monthly(_d, data) {
   return `<div class="wrap">
   <div class="head"><div><h1>Monthly</h1><p>${esc(month)} · each goal against $10,000, with where it should be today</p></div></div>
   ${goals ? `<div class="goals four">${goals.map(goalCard).join('')}</div>` : '<div class="card pad"><p class="muted">The goal tiles have no data yet.</p></div>'}
+  <div class="head"><div><h2>Week by week</h2><p>Cards planned each week against what got done, and what carried over</p></div></div>
+  <div class="pdreport"><div class="card pad"><p class="muted">Loading…</p></div></div>
   <div class="card pad"><div class="cardhead"><h2>Your habits this month</h2><span class="meta">You tick these yourself</span></div><div class="pdhab"><p class="muted">Loading…</p></div></div>
 </div>`;
 }
@@ -116,11 +144,18 @@ export function monthly(_d, data) {
 export function mountMonthly(el, { say } = {}) {
   if (!el) return;
   bindTicks(el, say);
-  const paint = () => { if (!saving(el)) el.querySelector('.pdhab').innerHTML = habits('month', last?.monthHabits); };
+  const paint = () => {
+    if (saving(el)) return;
+    el.querySelector('.pdreport').innerHTML = reportBlocks(last?.weekly);
+    el.querySelector('.pdhab').innerHTML = habits('month', last?.monthHabits);
+  };
   if (last) paint();
   fetchPeriods().then((ok) => {
     if (!el.isConnected) return;
     if (ok) paint();
-    else if (!last) el.querySelector('.pdhab').innerHTML = '<p class="muted">Could not load your habits. Open the page again.</p>';
+    else if (!last) {
+      el.querySelector('.pdreport').innerHTML = '<div class="card pad"><p class="muted">Could not load the weekly report. Open the page again.</p></div>';
+      el.querySelector('.pdhab').innerHTML = '<p class="muted">Could not load your habits. Open the page again.</p>';
+    }
   });
 }
