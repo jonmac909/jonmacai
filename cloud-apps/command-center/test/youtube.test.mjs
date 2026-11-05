@@ -310,7 +310,7 @@ test('All shows Studio\'s lifetime views, AVD and subs, with impressions and CTR
   await syncStats(env, google().fetchFn); // now, so opening Track doesn't sync again
   const snap = await (await call(env, '/snapshot?pages=track')).json();
   // Live, Videos, Scheduled, Posted, Impressions, CTR, AVD, Views, Subs
-  assert.deepEqual(allRow(track(snap.pages.track, {}, ''), 'peter-collins').slice(1), ['Yes', '1', '0', '1', '400', '2%', '3:20', '1,100', '8']);
+  assert.deepEqual(allRow(track(snap.pages.track, {}, ''), 'peter-collins').slice(1), ['Yes', '1', '0', '1', '400', '2%', '3:20', '1,100', '8', '—', '—', '—', '—']);
   assert.match(track(snap.pages.track, {}, 'peter-collins'), /<td class="num">3:25<\/td>/, 'the video\'s own AVD');
 });
 
@@ -321,7 +321,7 @@ test('with no Analytics rows yet, views fall back to the public count and subs t
   await syncStats(env, google({ analytics: (_i, url) => new Response(JSON.stringify({ rows: url.includes('dimensions=video') ? [] : [['0', '0', '0', '0']] })) }).fetchFn);
   const snap = await (await call(env, '/snapshot?pages=track')).json();
   const row = allRow(track(snap.pages.track, {}, ''), 'peter-collins');
-  assert.deepEqual(row.slice(-2), ['1,100', '120']); // the channel's public count
+  assert.deepEqual(row.slice(-6, -4), ['1,100', '120']); // the channel's public count
   assert.equal((await db.prepare('SELECT sync_error FROM yt_api').first()).sync_error, null);
 });
 
@@ -340,7 +340,7 @@ test('Analytics far behind the public count (a new channel) keeps the public vie
   await syncStats(env, zero.fetchFn);
   const z = await env.DB.prepare('SELECT views, studio_views FROM yt_api').first();
   assert.deepEqual({ ...z }, { views: 950, studio_views: null });
-  assert.deepEqual(allRow(track(snap.pages.track, {}, ''), 'peter-collins').slice(-2), ['1,100', '120']);
+  assert.deepEqual(allRow(track(snap.pages.track, {}, ''), 'peter-collins').slice(-6, -4), ['1,100', '120']);
 });
 
 test('while Analytics lags, the Studio reader\'s views, AVD and subs stay (Giovanni: 71 views, 3:25)', async () => {
@@ -353,7 +353,7 @@ test('while Analytics lags, the Studio reader\'s views, AVD and subs stay (Giova
   const snap = await (await call(env, '/snapshot?pages=track')).json();
   const v = snap.pages.track.videos.find((x) => x.title === 'Road test');
   assert.deepEqual([v.views, v.avd, v.subs], [950, 205, 1], 'views: the larger of Studio 71 and public 950');
-  assert.deepEqual(allRow(track(snap.pages.track, {}, ''), 'peter-collins').slice(-3), ['3:25', '1,100', '120']);
+  assert.deepEqual(allRow(track(snap.pages.track, {}, ''), 'peter-collins').slice(-7, -4), ['3:25', '1,100', '120']);
 });
 
 test('a channel\'s Views are the larger of Analytics and public, and a failed sync shows on its row', async () => {
@@ -365,9 +365,9 @@ test('a channel\'s Views are the larger of Analytics and public, and a failed sy
   };
   const set = (studio, pub, err) => env.DB.prepare('UPDATE yt_api SET studio_views = ?, views = ?, sync_error = ?, sync_tried_at = ?').bind(studio, pub, err, new Date().toISOString()).run();
   await set(40, 89, null);
-  assert.equal(allRow(await views(), 'peter-collins').at(-1), '89', 'Analytics lagging at 40: public 89 wins (Giovanni, 2026-11-04)');
+  assert.equal(allRow(await views(), 'peter-collins').at(-5), '89', 'Analytics lagging at 40: public 89 wins (Giovanni, 2026-11-04)');
   await set(100, 89, null);
-  assert.equal(allRow(await views(), 'peter-collins').at(-1), '100', 'Analytics ahead: Analytics wins');
+  assert.equal(allRow(await views(), 'peter-collins').at(-5), '100', 'Analytics ahead: Analytics wins');
   assert.doesNotMatch(await views(), /YouTube API error/);
   await set(100, 89, 'quotaExceeded');
   assert.match(await views(), /YouTube API error[\s\S]*quotaExceeded/);
@@ -380,7 +380,7 @@ test('a channel with no public views yet still shows its videos\' Studio views, 
   await call(env, '/v1/links/stats', { jon: false, bot: true, method: 'POST', body: { stats: [{ youtube_id: VID, views: 71 }] } });
   await env.DB.prepare('UPDATE yt_api SET studio_views = NULL, views = 0, subscribers = 5, sync_tried_at = ?').bind(new Date().toISOString()).run();
   const snap = await (await call(env, '/snapshot?pages=track')).json();
-  assert.equal(allRow(track(snap.pages.track, {}, ''), 'peter-collins').at(-2), '71', 'Giovanni: public 0, Studio 71');
+  assert.equal(allRow(track(snap.pages.track, {}, ''), 'peter-collins').at(-6), '71', 'Giovanni: public 0, Studio 71');
 });
 
 test('Track opens stop syncing after 100 a day, and the hourly cron still runs', async () => {
