@@ -767,7 +767,7 @@ export const PRODUCTS = [
     headline: "A calmer home and calmer nights when you live alone.",
     lede: "Plain, low-cost steps that make your home a harder target: see it the way a stranger does, firm up the doors and windows, light the outside, handle the knock at the door and the phone call that feels wrong, and settle into a calm night routine.",
     price: 27,
-    format: "PDF guide, 82 pages, 12 chapters in 4 parts, with printable checklists and worksheets",
+    format: "PDF guide, 69 pages, 12 chapters in 4 parts, with printable checklists and worksheets",
     cover: { color: '#1f3a5f', accent: '#f4f1ea' },
     coverImage: '/covers/diane.jpg',
     promises: [
