@@ -277,7 +277,7 @@ export async function handleApi(request, env, ctx) {
     if (base.pages.today || base.pages.projects || base.pages.todo) extra.today = await todayData(env.DB, now, monthWindow(now).key);
     if (base.pages.calendar || base.pages.content) extra.channels = await channelData(env.DB, now);
     // Only when Track is opened (?pages=track), never on the snapshot every page load and 60 s poll fetch.
-    // Track syncs from the YouTube APIs first when its data is over 20 minutes old; the cron syncs hourly too (src/youtube.js).
+    // Track syncs from the YouTube APIs first on every open or refresh (15 s floor); the cron syncs hourly too (src/youtube.js).
     if ((url.searchParams.get('pages') || '').split(',').some((p) => p.trim() === 'track')) {
       await freshen(env, ctx, undefined, now);
       extra.track = await trackData(env.DB, url.origin, now);

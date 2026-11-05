@@ -71,8 +71,10 @@ export async function trackVideos(db, origin, channel = null, nowMs = Date.now()
 // Each connected channel's numbers since launch from Analytics (src/youtube.js), null while Analytics lags: Track then
 // adds up its calendar videos' Studio numbers. Subs fall back to the public subscriber count.
 async function channelTotals(db) {
-  const { results } = await db.prepare('SELECT channel, subscribers, views, studio_views, studio_subs, studio_avd FROM yt_api').all();
-  return Object.fromEntries((results || []).map((r) => [r.channel, { views: r.studio_views, avd: r.studio_avd, subs: r.studio_subs ?? r.subscribers }]));
+  const { results } = await db.prepare('SELECT channel, subscribers, views, studio_views, studio_subs, studio_avd, sync_error FROM yt_api').all();
+  // Views are the larger of Analytics and public (Jon, 2026-11-04), so a lagging Analytics never shows less than YouTube's public count.
+  const larger = (a, b) => (a == null && b == null ? null : Math.max(a ?? 0, b ?? 0));
+  return Object.fromEntries((results || []).map((r) => [r.channel, { views: larger(r.studio_views, r.views), avd: r.studio_avd, subs: r.studio_subs ?? r.subscribers, error: r.sync_error || null }]));
 }
 
 // Null when the tables can't be read (migration 0017 or 0021 not applied), so the page says so instead of failing.

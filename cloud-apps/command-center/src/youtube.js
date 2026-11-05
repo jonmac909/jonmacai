@@ -1,6 +1,6 @@
 // Track from the YouTube APIs (Jon, 2026-11-04), replacing the Studio scraper (D:\AgentTeam\tools\studio_read.py).
 // Each channel is its own Google identity, so Jon connects each once with read-only consent. Then:
-// - status comes from the Data API; views, AVD and subs from the Analytics API, like Studio (public view counts until it has them), when Track is opened (at most every 20 minutes) and hourly from the cron;
+// - status comes from the Data API; views, AVD and subs from the Analytics API, like Studio (public view counts until it has them), on every Track open or refresh (Jon, 2026-11-05; 15 s floor so a double-open doesn't sync twice) and hourly from the cron;
 // - impressions and CTR come from Reporting API reach reports in the 10-minute cron (at most every 6 hours a channel).
 // Both fill yt_stats, the rows the Track and Calendar pages already read.
 import { YOUTUBE_CHANNELS, pacific } from './channels.js';
@@ -12,9 +12,9 @@ const DATA = 'https://www.googleapis.com/youtube/v3';
 const ANALYTICS = 'https://youtubeanalytics.googleapis.com/v2/reports';
 const REPORTING = 'https://youtubereporting.googleapis.com/v1';
 const REACH = 'channel_reach_basic_a1';
-// Quota: 10,000 Data API units a day for this project (Track only). A sync is at most 5 units a channel, so even Track
-// open all day (72 syncs) plus the hourly cron stays under it for 23 channels.
-const SYNC_EVERY_MS = 20 * 60 * 1000;
+// Quota: 10,000 Data API units a day for this project (Track only). A sync is 3 units a channel (5 at most), so 100
+// refreshes a day plus the hourly cron stay under it for 23 channels. Past it, the rows say so (sync_error).
+const SYNC_EVERY_MS = 15 * 1000;
 const CRON_SYNC_EVERY_MS = 3600 * 1000;
 const REACH_EVERY_MS = 6 * 3600 * 1000;
 const SYNC_WAIT_MS = 8000; // Track answers with what's stored after this; the sync finishes in the background
@@ -272,7 +272,7 @@ async function claim(db, column, everyMs, nowMs) {
   return results || [];
 }
 
-// Track opened: sync channels not synced for 20 minutes, all at once (23 channels x ~6 calls is far under the paid
+// Track opened or refreshed: sync channels not synced in the last 15 s, all at once (23 channels x ~6 calls is far under the paid
 // plan's 10,000 subrequests). Answers after SYNC_WAIT_MS at most; the rest finishes in the background.
 // The cron passes no ctx and an hourly everyMs, so Track and Calendar stay fresh with nobody opening Track; it waits for the work.
 export async function freshen(env, ctx, fetchFn = globalThis.fetch, nowMs = Date.now(), everyMs = SYNC_EVERY_MS) {

@@ -147,7 +147,7 @@ test('the callback refuses the wrong channel and missing permissions', async () 
   assert.equal(await db.prepare('SELECT COUNT(*) AS n FROM yt_api').first().then((x) => x.n), 0);
 });
 
-test('opening Track syncs views, status and subs once per 20 minutes, and status shows it', async () => {
+test('opening or refreshing Track syncs views, status and subs, with a 15 s floor, and status shows it', async () => {
   const { db, env } = await setup();
   await connect(env, google());
   await call(env, '/v1/calendar/peter-collins', { jon: false, bot: true, method: 'PUT', body: { videos: [{ date: '2026-11-01', title: 'Road test', status: 'published', youtube_id: VID }] } });
@@ -164,9 +164,12 @@ test('opening Track syncs views, status and subs once per 20 minutes, and status
     assert.equal(dataCalls, 3, 'about 3 Data API units a channel');
     const before = g.calls.length;
     await call(env, '/snapshot?pages=track');
-    assert.equal(g.calls.length, before, 'no second sync within 20 minutes');
+    assert.equal(g.calls.length, before, 'a double-open within 15 s does not sync twice');
     await call(env, '/snapshot?pages=today');
     assert.equal(g.calls.length, before, 'other pages never sync');
+    await db.prepare("UPDATE yt_api SET sync_tried_at = ?").bind(new Date(Date.now() - 16000).toISOString()).run();
+    await call(env, '/snapshot?pages=track');
+    assert.ok(g.calls.length > before, 'a refresh after 15 s syncs again, not every 20 minutes');
   } finally {
     globalThis.fetch = prev;
   }
@@ -278,7 +281,7 @@ test('All shows Studio\'s lifetime views, AVD and subs, with impressions and CTR
   await syncStats(env, google().fetchFn); // now, so opening Track doesn't sync again
   const snap = await (await call(env, '/snapshot?pages=track')).json();
   // Live, Videos, Scheduled, Posted, Impressions, CTR, AVD, Views, Subs
-  assert.deepEqual(allRow(track(snap.pages.track, {}, ''), 'peter-collins').slice(1), ['Yes', '1', '0', '1', '400', '2%', '3:20', '1,000', '8']);
+  assert.deepEqual(allRow(track(snap.pages.track, {}, ''), 'peter-collins').slice(1), ['Yes', '1', '0', '1', '400', '2%', '3:20', '1,100', '8']);
   assert.match(track(snap.pages.track, {}, 'peter-collins'), /<td class="num">3:25<\/td>/, 'the video\'s own AVD');
 });
 
@@ -289,7 +292,7 @@ test('with no Analytics rows yet, views fall back to the public count and subs t
   await syncStats(env, google({ analytics: (_i, url) => new Response(JSON.stringify({ rows: url.includes('dimensions=video') ? [] : [['0', '0', '0', '0']] })) }).fetchFn);
   const snap = await (await call(env, '/snapshot?pages=track')).json();
   const row = allRow(track(snap.pages.track, {}, ''), 'peter-collins');
-  assert.deepEqual(row.slice(-2), ['950', '120']);
+  assert.deepEqual(row.slice(-2), ['1,100', '120']); // the channel's public count
   assert.equal((await db.prepare('SELECT sync_error FROM yt_api').first()).sync_error, null);
 });
 
@@ -308,7 +311,7 @@ test('Analytics far behind the public count (a new channel) keeps the public vie
   await syncStats(env, zero.fetchFn);
   const z = await env.DB.prepare('SELECT views, studio_views FROM yt_api').first();
   assert.deepEqual({ ...z }, { views: 950, studio_views: null });
-  assert.deepEqual(allRow(track(snap.pages.track, {}, ''), 'peter-collins').slice(-2), ['950', '120']);
+  assert.deepEqual(allRow(track(snap.pages.track, {}, ''), 'peter-collins').slice(-2), ['1,100', '120']);
 });
 
 test('while Analytics lags, the Studio reader\'s views, AVD and subs stay (Giovanni: 71 views, 3:25)', async () => {
@@ -321,5 +324,22 @@ test('while Analytics lags, the Studio reader\'s views, AVD and subs stay (Giova
   const snap = await (await call(env, '/snapshot?pages=track')).json();
   const v = snap.pages.track.videos.find((x) => x.title === 'Road test');
   assert.deepEqual([v.views, v.avd, v.subs], [950, 205, 1], 'views: the larger of Studio 71 and public 950');
-  assert.deepEqual(allRow(track(snap.pages.track, {}, ''), 'peter-collins').slice(-3), ['3:25', '950', '120']);
+  assert.deepEqual(allRow(track(snap.pages.track, {}, ''), 'peter-collins').slice(-3), ['3:25', '1,100', '120']);
+});
+
+test('a channel\'s Views are the larger of Analytics and public, and a failed sync shows on its row', async () => {
+  const { env } = await setup();
+  await connect(env, google());
+  const views = async () => {
+    const snap = await (await call(env, '/snapshot?pages=track')).json();
+    return track(snap.pages.track, {}, '');
+  };
+  const set = (studio, pub, err) => env.DB.prepare('UPDATE yt_api SET studio_views = ?, views = ?, sync_error = ?, sync_tried_at = ?').bind(studio, pub, err, new Date().toISOString()).run();
+  await set(40, 89, null);
+  assert.equal(allRow(await views(), 'peter-collins').at(-1), '89', 'Analytics lagging at 40: public 89 wins (Giovanni, 2026-11-04)');
+  await set(100, 89, null);
+  assert.equal(allRow(await views(), 'peter-collins').at(-1), '100', 'Analytics ahead: Analytics wins');
+  assert.doesNotMatch(await views(), /YouTube API error/);
+  await set(100, 89, 'quotaExceeded');
+  assert.match(await views(), /YouTube API error[\s\S]*quotaExceeded/);
 });

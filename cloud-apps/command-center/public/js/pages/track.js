@@ -78,7 +78,7 @@ function channelRow(c, videos) {
   const t = c.totals || {};
   return { slug: c.slug, label: c.label, onAir: live ? 'Yes' : 'No', videos: on.length, scheduled: on.filter((v) => v.status === 'scheduled').length, posted: live,
     impressions: total(mine, 'impressions'), ctr: weighted(mine, 'ctr', 'impressions'), avd: t.avd ?? weighted(mine, 'avd', 'views'),
-    views: t.views ?? total(mine, 'views'), subs: t.subs ?? total(mine, 'subs') };
+    views: t.views ?? total(mine, 'views'), subs: t.subs ?? total(mine, 'subs'), error: t.error || '' };
 }
 
 const ALL_COLS = [['impressions', 'Impressions', num], ['ctr', 'CTR', (n) => (n != null ? `${n}%` : '')], ['avd', 'AVD', mss], ['views', 'Views', num], ['subs', 'Subs', num]];
@@ -87,7 +87,7 @@ function allTable(d, last) {
   return `<div class="card pad">
     <div class="cardhead"><h2>Channels</h2><span class="meta">Videos counts every calendar video on YouTube, private ones too. All numbers are since launch, as in Studio. ${dataNote(d.videos, last)}</span></div>
     <div class="tblwrap"><table><thead><tr>${th('all', 'label', 'Channel')}${th('all', 'onAir', 'Live')}${th('all', 'videos', 'Videos', true)}${th('all', 'scheduled', 'Scheduled', true)}${th('all', 'posted', 'Posted', true)}${ALL_COLS.map(([k, l]) => th('all', k, l, true)).join('')}</tr></thead>
-    <tbody>${rows.map((x) => `<tr data-page="track/${esc(x.slug)}"><td>${esc(x.label)}</td><td>${pill(x.onAir, x.onAir === 'Yes' ? 'ok' : '')}</td><td class="num">${x.videos}</td><td class="num">${x.scheduled}</td><td class="num">${x.posted}</td>${ALL_COLS.map(([k, , f]) => `<td class="num">${f(x[k])}</td>`).join('')}</tr>`).join('')}</tbody></table></div>
+    <tbody>${rows.map((x) => `<tr data-page="track/${esc(x.slug)}"><td>${esc(x.label)}${x.error ? ` ${pill('YouTube API error', 'crit')}<small class="muted"> ${esc(x.error)}</small>` : ''}</td><td>${pill(x.onAir, x.onAir === 'Yes' ? 'ok' : '')}</td><td class="num">${x.videos}</td><td class="num">${x.scheduled}</td><td class="num">${x.posted}</td>${ALL_COLS.map(([k, , f]) => `<td class="num">${f(x[k])}</td>`).join('')}</tr>`).join('')}</tbody></table></div>
   </div>`;
 }
 
