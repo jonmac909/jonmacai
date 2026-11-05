@@ -4,7 +4,7 @@ import { handleApi } from '../src/api.js';
 import { sha256Hex } from '../src/bots.js';
 import { signSession, COOKIE } from '../src/auth.js';
 import { weekStart, monthKey } from '../src/periods.js';
-import { row, group, weekly, mountWeekly } from '../public/js/pages/periods.js';
+import { row, group, weekly, mountWeekly, mountMonthly, monthly, weekBlock, carryCard, reportBlocks } from '../public/js/pages/periods.js';
 import { sqliteD1 } from './sqlited1.mjs';
 
 const SECRET = 'test-session-secret-32-bytes-ok!';
@@ -97,7 +97,7 @@ test('weekly page: rows show target, done and due; an empty group says why', () 
 });
 
 function fakeEl() {
-  const boxes = { '.fystatus': { innerHTML: '' }, '.pdweek': { textContent: '' }, '.pdgroups': { innerHTML: '' }, '.pdhab': { innerHTML: '' } };
+  const boxes = { '.fystatus': { innerHTML: '' }, '.pdweek': { textContent: '' }, '.pdgroups': { innerHTML: '' }, '.pdcarry': { innerHTML: '' }, '.pdreport': { innerHTML: '' }, '.pdhab': { innerHTML: '' } };
   let alive = true; let onChange = null;
   return { boxes, stop: () => { alive = false; }, change: (e) => onChange(e), get isConnected() { return alive; }, addEventListener: (_t, fn) => { onChange = fn; }, querySelector: (s) => boxes[s] };
 }
@@ -142,4 +142,72 @@ test('weekly page: a tick posts at once; if the save fails the box goes back and
   assert.equal(box.checked, false, 'a failed save puts the box back');
   assert.equal(said.at(-1), 'Could not save that tick');
   el.stop();
+});
+
+// ---- Week-by-week report and carry-over (Monthly and Weekly) ----
+const REPORT = {
+  weeks: [
+    { weekStart: THIS_WEEK, weekEnd: THIS_WEEK, current: true, planned: 3, done: 1, rows: [{ project: 'coding', label: 'Coding', planned: 3, done: 1 }] },
+    { weekStart: '2026-10-26', weekEnd: '2026-11-01', current: false, planned: 0, done: 0, rows: [] },
+  ],
+  carry: [
+    { title: 'Fix <b>upload</b>', project: 'coding', label: 'Coding', owner: 'historient', stage: 'In production', slipped: 3 },
+    { title: 'Sponsor script', project: 'sponsors', label: 'Sponsors', owner: 'sponsors', stage: 'Not started', slipped: 1 },
+  ],
+  carryTotal: 5,
+};
+
+test('weekBlock shows planned vs done per project and says when nothing was planned', () => {
+  const html = weekBlock(REPORT.weeks[0]);
+  assert.match(html, /1 of 3 done/);
+  assert.match(html, /\(this week\)/);
+  assert.match(html, /Coding/);
+  assert.match(weekBlock(REPORT.weeks[1]), /Nothing was planned/);
+  assert.doesNotMatch(weekBlock(REPORT.weeks[1]), /this week/);
+});
+
+test('carryCard shows weeks slipped, red from 2 weeks, escapes titles and says when the list is cut', () => {
+  const html = carryCard(REPORT);
+  assert.match(html, /3 weeks slipped/);
+  assert.match(html, /1 week slipped/);
+  assert.match(html, /pill crit">3 weeks slipped/);
+  assert.doesNotMatch(html, /pill crit">1 week/);
+  assert.doesNotMatch(html, /<b>upload<\/b>/);
+  assert.match(html, /5, showing 2/);
+  assert.match(carryCard({ carry: [], carryTotal: 0 }), /Nothing carried over/);
+});
+
+test('reportBlocks says so when the report is missing or failed on GPU1', () => {
+  assert.match(reportBlocks(null), /not been posted yet/);
+  assert.match(reportBlocks({ reportError: 'boom' }), /failed on GPU1/);
+  const html = reportBlocks({ report: REPORT });
+  assert.match(html, /Carried over into this week/);
+  assert.equal((html.match(/class="cardhead"/g) || []).length, 3); // carry card + 2 weeks
+});
+
+test('PUT /v1/periods keeps the report and GET returns it; a malformed report is refused', async () => {
+  const { env } = await setup();
+  const base = { weekStart: THIS_WEEK, groups: [] };
+  assert.equal((await call(env, 'PUT', '/v1/periods', { bot: 'moneyclaw', body: { ...base, report: REPORT } })).status, 200);
+  const got = await call(env, 'GET', '/v1/periods', { jon: true });
+  assert.equal(got.body.weekly.report.carry.length, 2);
+  assert.equal(got.body.weekly.report.weeks[0].rows[0].label, 'Coding');
+  for (const bad of [{ weeks: 'x', carry: [] }, { weeks: [], carry: 'x' }, { weeks: [{ weekStart: 'monday', rows: [] }], carry: [] }, { weeks: [], carry: new Array(201).fill({}) }, 'text']) {
+    assert.equal((await call(env, 'PUT', '/v1/periods', { bot: 'moneyclaw', body: { ...base, report: bad } })).status, 400);
+  }
+  assert.equal((await call(env, 'PUT', '/v1/periods', { bot: 'moneyclaw', body: base })).status, 200); // no report is still fine
+});
+
+test('weekly page shows what carried over; monthly page paints the week-by-week report and habits', async () => {
+  globalThis.fetch = async () => ({ ok: true, json: async () => PERIODS({ weekly: { ...SNAP, report: REPORT }, monthHabits: [{ key: 'close', label: 'Month close', done: false }] }) });
+  const w = fakeEl();
+  mountWeekly(w); await new Promise((r) => setTimeout(r, 50));
+  assert.match(w.boxes['.pdcarry'].innerHTML, /3 weeks slipped/);
+  w.stop();
+  assert.match(monthly(null, null), /Week by week[\s\S]*pdreport[\s\S]*Your habits this month/);
+  const m = fakeEl();
+  mountMonthly(m); await new Promise((r) => setTimeout(r, 50));
+  assert.match(m.boxes['.pdreport'].innerHTML, /Carried over into this week[\s\S]*1 of 3 done/);
+  assert.match(m.boxes['.pdhab'].innerHTML, /Month close/);
+  m.stop();
 });

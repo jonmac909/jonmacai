@@ -894,6 +894,11 @@ async function putPeriods(db, who, body, now) {
       if (typeof r?.label !== 'string' || !Number.isFinite(r.target) || !Number.isFinite(r.done)) throw new Bad(400, 'each row needs label, target and done');
     }
   }
+  if (body.report != null) {
+    const r = body.report;
+    if (typeof r !== 'object' || !Array.isArray(r.weeks) || r.weeks.length > 12 || !Array.isArray(r.carry) || r.carry.length > 200) throw new Bad(400, 'report needs weeks (at most 12) and carry (at most 200)');
+    if (!r.weeks.every((w) => /^\d{4}-\d\d-\d\d$/.test(String(w?.weekStart || '')) && Array.isArray(w.rows) && w.rows.length <= 12)) throw new Bad(400, 'each report week needs weekStart and at most 12 rows');
+  }
   await db.prepare("INSERT OR REPLACE INTO snapshots (source, data, collected_at, received_at) VALUES ('periods', ?, ?, ?)")
     .bind(JSON.stringify(body), now, now).run();
   return json({ ok: true, asOf: now });
