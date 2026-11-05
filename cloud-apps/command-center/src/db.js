@@ -78,8 +78,8 @@ export async function upsertSnapshot(db, source, data, collectedAt, receivedAt) 
 }
 
 export async function listSnapshots(db) {
-  // The factory row is big and has its own endpoint (GET /v1/factory): not part of every page load and 60 s poll.
-  const { results } = await db.prepare("SELECT source, data, collected_at, received_at FROM snapshots WHERE source != 'factory'").all();
+  // The factory and periods rows have their own endpoints (GET /v1/factory, /v1/periods): not part of every page load and 60 s poll.
+  const { results } = await db.prepare("SELECT source, data, collected_at, received_at FROM snapshots WHERE source NOT IN ('factory', 'periods')").all();
   return results || [];
 }
 

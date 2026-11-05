@@ -777,3 +777,11 @@ body:has(.cardmodal[open]){overflow:hidden} /* the page behind stays put */
 .fygpu{font-size:.78rem;color:var(--ink-2);overflow-wrap:anywhere}
 .fyopen{font-size:.78rem}
 .fyempty{font-size:.82rem;padding:.2rem .1rem}
+
+/* Weekly and Monthly (2026-11-05): progress rows, and Jon's own habit checkboxes. */
+.pdrows{display:flex;flex-direction:column;gap:1.2rem}
+.pdnote{margin:.3rem 0 0;font-size:.82rem}
+.pdhabits{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:.5rem}
+.pdhabit{display:flex;align-items:center;gap:.7rem;min-height:2.4rem;cursor:pointer}
+.pdhabit input{width:1.3rem;height:1.3rem;flex:none}
+.pdhabit input:checked+span{color:var(--muted);text-decoration:line-through}

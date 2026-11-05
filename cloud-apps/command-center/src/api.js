@@ -94,7 +94,7 @@ async function login(request, env) {
 // The dashboard's pages, in nav order. Today, Todo, Projects, Calendar, Content and Webinar have no fixture
 // numbers at all (the fixture's old "content" mockup is never served); Feed and Journal load their own rows
 // from /v1 (activity, journal).
-export const PAGES = ['today', 'todo', 'projects', 'feed', 'calendar', 'content', 'track', 'factory', 'sponsors', 'viral', 'webinar', 'money', 'life', 'journal'];
+export const PAGES = ['today', 'weekly', 'monthly', 'todo', 'projects', 'feed', 'calendar', 'content', 'track', 'factory', 'sponsors', 'viral', 'webinar', 'money', 'life', 'journal'];
 const LIVE_ONLY = ['calendar', 'content', 'track'];
 
 function filterSnapshot(pages) {
@@ -120,6 +120,8 @@ export function liveNav(orig) {
     groups: [
       { title: 'Today', items: [
         { id: 'today', label: 'Today', icon: 'home' },
+        { id: 'weekly', label: 'Weekly', icon: 'cal' },
+        { id: 'monthly', label: 'Monthly', icon: 'chart' },
         { id: 'todo', label: 'Todo', icon: 'check' },
         { id: 'projects', label: 'Projects', icon: 'board' },
         { id: 'feed', label: 'Feed', icon: 'chat' },

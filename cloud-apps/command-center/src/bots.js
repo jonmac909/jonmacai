@@ -8,6 +8,8 @@ import { ymd } from './life.js';
 import { PROJECTS } from './projects.js';
 import { approvalItem, questionItem } from './today.js';
 import { trackVideos } from './track.js';
+import { MONTH_HABITS, WEEK_HABITS, monthKey, weekStart } from './periods.js';
+import { upsertHabit } from './db.js';
 
 // todo/doing → qc (proof) → review (QC passed it) → done (Jon approved it). Only Jon sets done.
 export const TASK_STATUSES = ['todo', 'doing', 'waiting_on_jon', 'qc', 'review', 'done', 'cancelled'];
@@ -876,6 +878,49 @@ async function getFactory(db) {
   return json({ ok: true, factory: row ? parseJson(row.data, null) : null, asOf: row ? row.collected_at : null, channels: allChannels(extra) });
 }
 
+// ---- Weekly and Monthly pages (Jon, 2026-11-05): one counts row posted by tools/factory_publish.py (a plain script,
+// no model, no bot wake), and Jon's own habit ticks for the current week and month. ----
+
+const PERIOD_WRITERS = ['moneyclaw', 'ana', 'developer'];
+
+async function putPeriods(db, who, body, now) {
+  needBot(who);
+  if (!PERIOD_WRITERS.includes(who.bot)) throw new Bad(403, `Only ${PERIOD_WRITERS.join(', ')} can post the weekly counts`);
+  if (!/^\d{4}-\d\d-\d\d$/.test(String(body.weekStart || ''))) throw new Bad(400, 'weekStart must be the Monday date, YYYY-MM-DD');
+  if (!Array.isArray(body.groups) || body.groups.length > 12) throw new Bad(400, 'groups must be a list of at most 12');
+  for (const g of body.groups) {
+    if (typeof g?.title !== 'string' || !Array.isArray(g.rows) || g.rows.length > 60) throw new Bad(400, 'each group needs a title and at most 60 rows');
+    for (const r of g.rows) {
+      if (typeof r?.label !== 'string' || !Number.isFinite(r.target) || !Number.isFinite(r.done)) throw new Bad(400, 'each row needs label, target and done');
+    }
+  }
+  await db.prepare("INSERT OR REPLACE INTO snapshots (source, data, collected_at, received_at) VALUES ('periods', ?, ?, ?)")
+    .bind(JSON.stringify(body), now, now).run();
+  return json({ ok: true, asOf: now });
+}
+
+async function getPeriods(db, now) {
+  const row = await db.prepare("SELECT data, collected_at FROM snapshots WHERE source = 'periods'").first();
+  const t = Date.parse(now);
+  const week = weekStart(t);
+  const month = monthKey(t);
+  const { results } = await db.prepare("SELECT kind, done FROM habits WHERE (day = ? AND kind LIKE 'wk:%') OR (day = ? AND kind LIKE 'mo:%')").bind(week, month).all();
+  const ticked = new Set((results || []).filter((h) => Number(h.done)).map((h) => h.kind));
+  const mark = (prefix, list) => list.map((h) => ({ ...h, done: ticked.has(`${prefix}:${h.key}`) }));
+  return json({ ok: true, week, month, weekly: row ? parseJson(row.data, null) : null, asOf: row ? row.collected_at : null,
+    weekHabits: mark('wk', WEEK_HABITS), monthHabits: mark('mo', MONTH_HABITS) });
+}
+
+async function tickPeriod(db, who, body, now) {
+  needJon(who);
+  const week = body.scope === 'week';
+  const list = week ? WEEK_HABITS : body.scope === 'month' ? MONTH_HABITS : null;
+  if (!list || !list.some((h) => h.key === body.key) || typeof body.done !== 'boolean') throw new Bad(400, 'scope (week or month), key and done are required');
+  const day = week ? weekStart(Date.parse(now)) : monthKey(Date.parse(now));
+  await upsertHabit(db, day, `${week ? 'wk' : 'mo'}:${body.key}`, body.done ? 1 : 0, '');
+  return json({ ok: true, day });
+}
+
 // ---- daily checklists: the owning bot ticks an item for today (Vancouver) with a proof link ----
 
 const DAILY_TICKERS = {
@@ -1470,6 +1515,12 @@ async function route(request, db, who, rest, env, ctx) {
     }
     if (method === 'POST' && rawId === 'stats' && !verb) return postLinkStats(db, who, await readBody(request), now);
     if (method === 'PUT' && rawId && !verb) return setLinkLanding(db, who, rawId, await readBody(request));
+    throw new Bad(404, 'Not found');
+  }
+  if (kind === 'periods' && !verb) {
+    if (method === 'GET' && !rawId) return getPeriods(db, now);
+    if (method === 'PUT' && !rawId) return putPeriods(db, who, await readBody(request), now);
+    if (method === 'POST' && rawId === 'tick') return tickPeriod(db, who, await readBody(request), now);
     throw new Bad(404, 'Not found');
   }
   if (kind === 'factory' && !rawId && !verb) {
