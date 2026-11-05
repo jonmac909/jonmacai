@@ -204,3 +204,33 @@ test('factory table: a live cell turns green with a Live dot and what is running
     assert.match(old, /<b>0<\/b> live now/);
   } finally { TABLE.tiles = keep; }
 });
+
+test('factory table: an Original link sits above the title, only for a real YouTube link; the Upload cell links the video and says what is missing', async () => {
+  const keep = TABLE.tiles; const keepCols = TABLE.cols;
+  const cols = [...COLS, 'Thumbnail', 'Upload'];
+  const ours = 'https://youtu.be/BBBBBBBBBBB';
+  TABLE.cols = cols;
+  TABLE.tiles = [
+    { title: 'A - Peter Collins', channel: 'Peter Collins', owner: 'Elle', waitMin: 5, original: 'https://www.youtube.com/watch?v=AAAAAAAAAAA',
+      cells: [...COLS.map(() => ({ s: 'done' })), { s: 'done' }, { s: 'run', note: 'Needs playlist + pinned comment <i>', link: ours }] },
+    { title: 'B - Rosa Cooks', channel: 'Rosa Cooks', owner: 'Elle', waitMin: 5, original: 'javascript:alert(1)',
+      cells: [...COLS.map(() => ({ s: 'done' })), { s: 'new' }, { s: 'idle' }] },
+    { title: 'C - Rosa Cooks', channel: 'Rosa Cooks', owner: 'Elle', waitMin: 5, original: 'https://evil.example/watch?v=AAAAAAAAAAA',
+      cells: [...COLS.map(() => ({ s: 'done' })), { s: 'done' }, { s: 'done', link: ours }] },
+  ];
+  try {
+    const html = await board();
+    const rows = html.split('<tr class="fyrow').slice(1);
+    assert.match(rows[0], /<td><a class="fyorig" href="https:\/\/www\.youtube\.com\/watch\?v=AAAAAAAAAAA" target="_blank" rel="noopener noreferrer">Original<\/a><b>A<\/b><small>Peter Collins<\/small><\/td>/);
+    assert.doesNotMatch(rows[1], /fyorig/, 'javascript: is never a link');
+    assert.doesNotMatch(rows[2], /fyorig/, 'only YouTube links');
+    assert.match(rows[0], /<span>Needs playlist \+ pinned comment &lt;i&gt;<\/span>/, 'the missing part is shown, escaped');
+    assert.equal((html.match(/class="fylk" href="https:\/\/youtu\.be\/BBBBBBBBBBB"/g) || []).length, 2, 'the video is linked from a running and a done Upload cell');
+    assert.match(html, /<th[^>]*>Thumbnail<\/th>/);
+    assert.match(html, /<th[^>]*>Upload<\/th>/);
+    const sum = html.match(/<p class="fysum">.*?<\/p>/)[0];
+    assert.match(sum, /<b>1<\/b> Thumbnail/);
+    assert.match(sum, /<b>1<\/b> Upload/);
+    assert.match(sum, /<b>1<\/b> Review/);
+  } finally { TABLE.tiles = keep; TABLE.cols = keepCols; }
+});
