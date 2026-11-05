@@ -122,6 +122,6 @@ export async function upsertIdea(db, row) {
 
 export async function listHabits(db) {
   if (!db) return [];
-  const { results } = await db.prepare('SELECT day, kind, done, note FROM habits').all();
+  const { results } = await db.prepare("SELECT day, kind, done, note FROM habits WHERE kind NOT LIKE 'wk:%' AND kind NOT LIKE 'mo:%'").all(); // wk:/mo: rows are Weekly/Monthly ticks, not Life habits
   return results || [];
 }

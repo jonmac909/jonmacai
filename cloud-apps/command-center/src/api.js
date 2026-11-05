@@ -298,6 +298,7 @@ export async function handleApi(request, env, ctx) {
     const collectedAt = String(body.collectedAt || '');
     if (!source || !Date.parse(collectedAt)) return json({ error: 'Bad ingest' }, 400);
     if (source === 'webinar_funnel' // written only by the Worker's own cron
+      || source === 'periods' // written only through PUT /v1/periods (writer check + validation)
       || (source.startsWith('machine_') && source !== `machine_${who}`)) {
       return json({ error: 'Unauthorized' }, 401);
     }

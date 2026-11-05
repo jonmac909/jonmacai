@@ -1,5 +1,5 @@
 // Weekly and Monthly pages (Jon, 2026-11-05). Week = Monday to Sunday, month = calendar month, both in
-// Vancouver time. The counts are one snapshot row ('periods') posted by tools/weekly_publish.py (a plain script,
+// Vancouver time. The counts are one snapshot row ('periods') posted by tools/factory_publish.py (a plain script,
 // no model, no bot wakes); Jon's habit ticks are rows in `habits` (day = week's Monday or YYYY-MM, kind = wk:/mo:).
 const TZ = 'America/Vancouver';
 

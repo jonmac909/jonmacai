@@ -1,8 +1,8 @@
 import { esc, pill } from '../ui.js';
 import { goalCard } from './today.js';
 
-// Weekly and Monthly (Jon, 2026-11-05). Weekly's rows are one snapshot that tools/weekly_publish.py posts every
-// 5 minutes (a plain script: no model, no bot); the page only fetches it. The habit checkboxes are Jon's own and
+// Weekly and Monthly (Jon, 2026-11-05). Weekly's rows are one snapshot that tools/factory_publish.py posts every
+// 3 minutes (a plain script: no model, no bot); the page only fetches it. The habit checkboxes are Jon's own and
 // save the moment he ticks them. Monthly reuses Today's four goal tiles.
 const API = '/dashboard/api/v1/periods';
 const POLL_MS = 15000;
@@ -96,9 +96,9 @@ export function mountWeekly(el, { say } = {}) {
   const load = async () => {
     const ok = await fetchPeriods();
     if (!el.isConnected) return; // moved to another page: stop polling
+    setTimeout(load, POLL_MS); // schedule first so a paint error never stops polling
     if (ok) paintWeekly(el);
     else if (!last) el.querySelector('.pdgroups').innerHTML = '<div class="card pad"><p class="muted">Could not load the weekly counts. It tries again in 15 seconds.</p></div>';
-    setTimeout(load, POLL_MS);
   };
   load();
 }
