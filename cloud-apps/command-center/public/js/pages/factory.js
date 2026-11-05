@@ -11,12 +11,14 @@ let last = null; // { factory, asOf, channels }: tab clicks repaint from this be
 const fold = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, '');
 const mine = (t, c) => !c || fold(t.channel) === fold(c.label) || fold(t.channel) === fold(c.slug);
 const wait = (min) => (min == null ? '' : min >= 60 ? `${Math.floor(min / 60)}h ${min % 60}m` : `${min}m`);
+const hours = (min) => `${Math.floor((min || 0) / 60)}h`;
 
 const svg = (cls, label, d) => `<span class="${cls}" role="img" aria-label="${label}"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="${d}"/></svg></span>`;
 
-// done: green check. run: blue bar with n/total (or an unmeasured bar). fail: red X with the reason. else: grey circle.
+// done: green check. run: blue bar with n/total (or an unmeasured bar). new: grey "Not started". fail: red X with the reason. else: grey circle.
 function cell(c) {
   if (c?.s === 'done') return svg('fyok', 'Done', 'M5 13l4 4L19 7');
+  if (c?.s === 'new') return '<span class="fynew">Not started</span>';
   if (c?.s === 'run') {
     const total = Number(c.total) || 0;
     const done = Math.min(Number(c.done) || 0, total);
@@ -25,14 +27,15 @@ function cell(c) {
     return `<div class="fyrun"><div class="pg" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pct}"><i style="width:${pct}%"></i></div><span>${done}/${total}</span></div>`;
   }
   if (c?.s === 'fail') return `<div class="fyfail" title="${esc(c.full || c.why || '')}">${svg('fybad', 'Failed', 'M6 18L18 6M6 6l12 12')}<small>${esc(c.why || 'Failed')}</small></div>`;
-  return '<span class="fyidle" role="img" aria-label="Not started"></span>';
+  return '<span class="fyidle" role="img" aria-label="Later step"></span>';
 }
 
-function row(t, cols) {
+// live: the cell has a real signal from the last ~10 min (a GPU job, a render, a bot at work). Only that cell turns green, with a Live dot and what is running.
+function row(t, cols, liveOn) {
   const title = String(t.title ?? '');
   const name = t.channel && title.endsWith(` - ${t.channel}`) ? title.slice(0, -(t.channel.length + 3)) : title;
   const cs = Array.isArray(t.cells) ? t.cells : [];
-  return `<tr class="fyrow${t.stuck ? ' stuck' : ''}"><td><b>${esc(name)}</b><small>${esc(t.channel)}</small></td>${cols.map((_, i) => `<td class="fycell">${cell(cs[i])}</td>`).join('')}<td class="fywait">${esc(t.owner || '')}<small>${esc(wait(t.waitMin))}${t.stuck ? ' · stuck' : ''}</small></td></tr>`;
+  return `<tr class="fyrow"><td><b>${esc(name)}</b><small>${esc(t.channel)}</small></td>${cols.map((_, i) => { const lv = liveOn && cs[i]?.live; return `<td class="fycell${lv ? ' fylv' : ''}">${cell(cs[i])}${lv ? `<span class="fylt"><i class="fydot"></i>Live</span><small class="fylx">${esc(lv)}</small>` : ''}</td>`; }).join('')}<td class="fywait"><b>${esc(t.owner || '')}</b>${t.stuck ? pill(`Stuck ${hours(t.waitMin)}`, 'crit') : `<small>${esc(wait(t.waitMin))}</small>`}</td></tr>`;
 }
 
 function tabs(channels, tiles, on) {
@@ -40,6 +43,16 @@ function tabs(channels, tiles, on) {
   const chip = (slug, label, count) => `<button type="button" class="chip${slug === (on?.slug || '') ? ' on' : ''}" data-page="factory${slug ? `/${esc(slug)}` : ''}"${slug === (on?.slug || '') ? ' aria-current="page"' : ''}>${esc(label)}<span class="ccn">${count}</span></button>`;
   const groups = [...new Set(channels.map((c) => c.group))];
   return `<nav class="cctabs" aria-label="Channels"><div class="ccgrp">${chip('', 'All channels', tiles.length)}</div>${groups.map((g) => `<div class="ccgrp"><b>${esc(g)}</b>${channels.filter((c) => c.group === g).map((c) => chip(c.slug, c.label, n(c))).join('')}</div>`).join('')}</nav>`;
+}
+
+// one line: videos per step (the first step that is not done), then how many are stuck
+function summary(rows, cols, liveOn) {
+  const names = [...cols, 'Review']; // all steps done = waiting on Jon
+  const n = names.map(() => 0);
+  rows.forEach((t) => { const i = t.cells.findIndex((c) => c?.s !== 'done'); n[i < 0 ? cols.length : i]++; });
+  const stuck = rows.filter((t) => t.stuck).length;
+  const liveN = liveOn ? rows.filter((t) => t.cells.some((c) => c?.live)).length : 0;
+  return `<p class="fysum"><span class="fylc${liveN ? ' on' : ''}"><i class="fydot"></i><b>${liveN}</b> live now</span>${names.map((c, i) => `<span${n[i] ? '' : ' class="z"'}><b>${n[i]}</b> ${esc(c)}</span>`).join('')}${pill(`${stuck} stuck`, stuck ? 'crit' : 'ok')}</p>`;
 }
 
 function gpuLine(g) {
@@ -65,9 +78,11 @@ function paint(el, sub) {
   const channels = [...known, ...extra];
   const on = channels.find((c) => c.slug === sub) || null;
   const rows = open.filter((t) => mine(t, on));
-  box.innerHTML = `${tabs(channels, open, on)}${gpuLine(f.gpu)}
-    <div class="tblwrap"><table class="fytable"><thead><tr><th>Video</th>${cols.map((c) => `<th class="fycell">${esc(c)}</th>`).join('')}<th>Waiting</th></tr></thead>
-    <tbody>${rows.map((t) => row(t, cols)).join('') || `<tr><td colspan="${cols.length + 2}" class="muted">No open videos${on ? ' on this channel' : ''}.</td></tr>`}</tbody></table></div>
+  const liveOn = age != null && age <= STALE_S; // a stale snapshot shows nothing as live
+  const owners = Array.isArray(f.owners) ? f.owners : [];
+  box.innerHTML = `${tabs(channels, open, on)}${summary(rows, cols, liveOn)}${gpuLine(f.gpu)}
+    <div class="tblwrap"><table class="fytable"><thead><tr><th>Video</th>${cols.map((c, i) => `<th class="fycell">${esc(c)}${owners[i] ? `<small class="fyown">(${esc(owners[i])})</small>` : ''}</th>`).join('')}<th>Waiting</th></tr></thead>
+    <tbody>${rows.map((t) => row(t, cols, liveOn)).join('') || `<tr><td colspan="${cols.length + 2}" class="muted">No open videos${on ? ' on this channel' : ''}.</td></tr>`}</tbody></table></div>
     ${(f.notes || []).map((n) => `<p class="muted">${esc(n)}</p>`).join('')}`;
 }
 
