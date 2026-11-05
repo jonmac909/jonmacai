@@ -86,12 +86,12 @@ const TABLE = {
 };
 const CHANNELS = [{ slug: 'peter-collins', label: 'Peter Collins', group: 'Home Guide Press' }, { slug: 'rosa-cooks', label: 'Rosa Cooks', group: 'Home Guide Press' }];
 
-async function board(sub = '') {
+async function board(sub = '', asOf = new Date().toISOString()) {
   const boxes = { '.fybody': { innerHTML: '' }, '.fystatus': { innerHTML: '' } };
   let alive = true;
   const el = { dataset: { sub }, get isConnected() { return alive; }, querySelector: (s) => boxes[s] };
   globalThis.document = { hidden: false };
-  globalThis.fetch = async () => ({ ok: true, json: async () => ({ ok: true, factory: TABLE, asOf: new Date().toISOString(), channels: CHANNELS }) });
+  globalThis.fetch = async () => ({ ok: true, json: async () => ({ ok: true, factory: TABLE, asOf, channels: CHANNELS }) });
   mount(el);
   await new Promise((r) => setTimeout(r, 50)); alive = false;
   return boxes['.fybody'].innerHTML;
@@ -114,16 +114,38 @@ test('factory table: cells show a check, a blue bar with n/total, a red X with t
   assert.match(html, /aria-label="Failed"/);
   assert.match(html, /Moving clips 12% &lt;b&gt;/, 'the reason is escaped');
   assert.doesNotMatch(html, /12% <b>/);
-  assert.equal((html.match(/aria-label="Not started"/g) || []).length, 2);
+  assert.equal((html.match(/aria-label="Later step"/g) || []).length, 2);
 });
 
-test('factory table: a row stuck 2 hours or more is red and says how long and who', async () => {
+test('factory table: stuck is a small red pill with the hours in Waiting, rows keep a white fill, owner is a name', async () => {
   const html = await board();
   const rows = html.split('<tr class="fyrow').slice(1);
-  assert.match(rows[0], /^ stuck"/);
-  assert.match(rows[0], /video editor<small>3h 10m · stuck<\/small>/);
-  assert.match(rows[1], /^"/);
-  assert.match(rows[1], /elle<small>5m<\/small>/);
+  assert.doesNotMatch(html, /fyrow stuck/);
+  assert.match(rows[0], /<b>video editor<\/b><span class="pill crit">Stuck 3h<\/span>/);
+  assert.match(rows[1], /<b>elle<\/b><small>5m<\/small>/);
+  assert.doesNotMatch(rows[1], /Stuck/);
+});
+
+test('factory table: a step nobody started says "Not started", and the top line counts videos per step and stuck ones', async () => {
+  const keep = TABLE.tiles;
+  const at = (i, s) => COLS.map((_, k) => ({ s: k < i ? 'done' : k === i ? s : 'idle' }));
+  TABLE.tiles = [
+    { title: 'A - Peter Collins', channel: 'Peter Collins', owner: 'Elle', waitMin: 1500, stuck: true, cells: at(2, 'new') },
+    { title: 'B - Peter Collins', channel: 'Peter Collins', owner: 'Elle', waitMin: 10, stuck: false, cells: at(2, 'run') },
+    { title: 'C - Rosa Cooks', channel: 'Rosa Cooks', owner: 'Jessica', waitMin: 10, stuck: false, cells: COLS.map(() => ({ s: 'done' })) },
+  ];
+  try {
+    const html = await board();
+    assert.match(html, /<span class="fynew">Not started<\/span>/);
+    assert.equal((html.match(/class="pg ind"/g) || []).length, 1, 'only the started step animates');
+    assert.match(html, /Stuck 25h/);
+    const sum = html.match(/<p class="fysum">.*?<\/p>/)[0];
+    assert.match(sum, /<b>2<\/b> A-roll/);
+    assert.match(sum, /<span class="z"><b>0<\/b> Script<\/span>/);
+    assert.match(sum, /<b>1<\/b> Review/);
+    assert.match(sum, /pill crit">1 stuck/);
+    assert.match(await board('rosa-cooks').then((h) => h.match(/<p class="fysum">.*?<\/p>/)[0]), /pill ok">0 stuck/, 'the line follows the channel filter');
+  } finally { TABLE.tiles = keep; }
 });
 
 test('factory table: the channel filter keeps only that channel', async () => {
@@ -152,5 +174,33 @@ test('factory table: a host with no chip gets its own chip under Other, and the 
     assert.match(html, /data-page="factory\/dianekowalski"[^>]*>Diane Kowalski<span class="ccn">1<\/span>/);
     assert.match(html, /All channels<span class="ccn">3<\/span>/);
     assert.match(await board('dianekowalski'), /Odd One/);
+  } finally { TABLE.tiles = keep; }
+});
+
+test('factory table: each column header shows its owner in brackets', async () => {
+  const keep = TABLE.owners; TABLE.owners = ['Sydney', 'Nina', 'Scarlett', 'Elle, Scarlett', 'Elle, Scarlett', 'Olivia', 'Jessica'];
+  try {
+    const html = await board();
+    assert.match(html, /<th class="fycell">Script<small class="fyown">\(Sydney\)<\/small><\/th>/);
+    assert.match(html, /<th class="fycell">Clips<small class="fyown">\(Elle, Scarlett\)<\/small><\/th>/);
+  } finally { TABLE.owners = keep; }
+});
+
+test('factory table: a live cell turns green with a Live dot and what is running, the count is on top, the rest stays white', async () => {
+  const keep = TABLE.tiles;
+  const cells = (live) => COLS.map((_, k) => (k === 3 ? { s: 'run', done: 14, total: 32, ...(live ? { live } : {}) } : { s: k < 3 ? 'done' : 'idle' }));
+  TABLE.tiles = [
+    { title: 'A - Peter Collins', channel: 'Peter Collins', owner: 'Elle', waitMin: 5, cells: cells('Clips 14/32 on GPU1') },
+    { title: 'B - Rosa Cooks', channel: 'Rosa Cooks', owner: 'Elle', waitMin: 5, cells: cells(null) },
+  ];
+  try {
+    const html = await board();
+    assert.equal((html.match(/class="fycell fylv"/g) || []).length, 1, 'only the live cell is green');
+    assert.match(html, /<td class="fycell fylv">.*?<span class="fylt"><i class="fydot"><\/i>Live<\/span><small class="fylx">Clips 14\/32 on GPU1<\/small><\/td>/);
+    assert.match(html, /<span class="fylc on"><i class="fydot"><\/i><b>1<\/b> live now<\/span>/);
+    assert.match(await board('rosa-cooks'), /<span class="fylc"><i class="fydot"><\/i><b>0<\/b> live now<\/span>/, 'the count follows the channel filter');
+    const old = await board('', new Date(Date.now() - 300000).toISOString());
+    assert.doesNotMatch(old, /fylv/, 'a stale snapshot shows nothing as live');
+    assert.match(old, /<b>0<\/b> live now/);
   } finally { TABLE.tiles = keep; }
 });

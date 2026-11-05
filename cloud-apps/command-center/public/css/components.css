@@ -763,13 +763,24 @@ body:has(.cardmodal[open]){overflow:hidden} /* the page behind stays put */
 .tklink{font-size:.8rem;margin-right:.5rem}
 .ccdiff{display:block;margin-top:.25rem;color:var(--muted);font-size:.8rem}
 
-/* Factory (2026-11-05): one table, a row per open video; cells are a green check, a blue bar, a red X or a grey circle. */
+/* Factory (2026-11-05): one table, a row per open video, white rows; cells are a green check, a blue bar, grey "Not started", a red X or a grey circle. Stuck is one small red pill in Waiting. */
 .fystatus{display:flex;align-items:center}
 .fygpuline{margin:.9rem 0 .6rem;font-size:.88rem;color:var(--ink-2)}
 .fytable td.fycell,.fytable th.fycell{text-align:center;min-width:5.4rem}
 .fytable td:first-child{min-width:15rem;max-width:26rem}
 .fytable td b{display:block;font-weight:600;overflow-wrap:anywhere}
-.fyrow.stuck td{background:var(--crit-bg)}
+.fytable td{background:var(--card)}
+.fywait .pill{margin-top:.2rem}
+.fynew{font-size:.78rem;color:var(--muted)}
+.fysum{display:flex;flex-wrap:wrap;align-items:center;gap:.3rem .9rem;margin:.9rem 0 .4rem;font-size:.88rem;color:var(--ink-2)}
+.fysum b{color:var(--ink);font-variant-numeric:tabular-nums}
+.fysum .z,.fysum .z b{color:var(--muted)}
+@media (max-width:640px){
+.fytable th:first-child,.fytable td:first-child{position:sticky;left:0;min-width:9rem;max-width:10rem;z-index:1}
+.fytable td:first-child{box-shadow:1px 0 0 var(--line)}
+.fytable td.fycell,.fytable th.fycell{min-width:4.4rem}
+.fytable td{padding:.6rem .5rem}
+}
 .fyok{color:var(--ok-fill)} .fybad{color:var(--crit-fill)}
 .fyidle{display:inline-block;width:.8rem;height:.8rem;border-radius:50%;border:2px solid var(--idle-line);box-sizing:border-box}
 .fyfail{display:flex;flex-direction:column;align-items:center;gap:.15rem}
@@ -779,6 +790,15 @@ body:has(.cardmodal[open]){overflow:hidden} /* the page behind stays put */
 .pg.ind i{width:40%;animation:fyslide 1.4s ease-in-out infinite alternate}
 @keyframes fyslide{from{margin-left:0}to{margin-left:60%}}
 @media (prefers-reduced-motion:reduce){.pg.ind i{animation:none;width:100%;opacity:.5}}
+/* Live (2026-11-05): only a cell with a real signal from the last ~10 min is green; everything else stays white. */
+.fytable td.fylv{background:var(--ok-bg);box-shadow:inset 0 0 0 1px var(--ok-line)}
+.fydot{display:inline-block;width:.5rem;height:.5rem;border-radius:50%;background:var(--ok-fill);margin-right:.3rem;animation:fypulse 1.6s ease-in-out infinite}
+.fylt{display:block;margin-top:.25rem;font-size:.7rem;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--ok-ink)}
+.fylx{display:block;font-size:.74rem;color:var(--ok-ink);overflow-wrap:anywhere}
+.fyown{display:block;font-size:.7rem;font-weight:500;color:var(--muted)}
+.fylc{display:inline-flex;align-items:center;font-weight:600;color:var(--muted)} .fylc.on{color:var(--ok-ink)} .fylc:not(.on) .fydot{background:var(--idle-line);animation:none}
+@keyframes fypulse{0%,100%{opacity:1}50%{opacity:.35}}
+@media (prefers-reduced-motion:reduce){.fydot{animation:none}}
 
 /* Weekly and Monthly (2026-11-05): progress rows, and Jon's own habit checkboxes. */
 .pdrows{display:flex;flex-direction:column;gap:1.2rem}
