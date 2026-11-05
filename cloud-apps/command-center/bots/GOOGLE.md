@@ -33,13 +33,14 @@ google_api.py events jon --date 2026-10-30        google_api.py events jon --cal
 `python -I D:\AgentTeam\tools\youtube_upload.py COMMAND ...` (stdlib only, prints JSON, same exit codes). Channel slugs: `youtube_upload.py channels`.
 
 ```
-youtube_upload.py upload mina D:\renders\mina-1.mp4 --title "..." --synthetic yes --description-file desc.txt
-                  [--tags "a,b"] [--category 28] [--playlist PLxxxx] [--thumbnail thumb.jpg] [--dry-run]
+youtube_upload.py upload mina D:\renders\mina-1.mp4 --title "..." --playlist-title "Mina Videos" --description-file desc.txt
+                  [--tags "a,b"] [--category 28] [--thumbnail thumb.jpg] [--dry-run]
+                  (--playlist PLxxxx or --playlist-title "Name" is required; swap it for the title above)
 youtube_upload.py schedule a_0123abcd            (after Jon approves; see below)
 youtube_upload.py delete mina VIDEO_ID           (test clips only)
 ```
 - Upload is always **private**. Run the same command again after a crash: it resumes, and a finished upload returns the same video, never a second copy. A refused thumbnail or playlist add shows in `problems`; rerunning retries only those.
-- `--synthetic yes` when realistic AI people, voices or scenes appear (HeyGen avatars, cloned voices). YouTube asks creators to say so.
+- Every upload goes into a playlist: `--playlist PLxxxx` (existing) or `--playlist-title "Name"` (found on the channel, created private if missing). The AI-use / altered-content option is never set; it stays blank for Jon (Jon, 2026-11-05).
 - Publishing needs Jon. Ask: `dash.py approval-request publish_video "<video title> - <channel name>" --project <project> --payload-file p.json` with `{"channel": "mina", "video": "VIDEO_ID", "publishAt": "2026-11-02T17:00:00Z"}` (`"now"` = public at once). When it's approved, `schedule a_…` claims it, sets the time Jon saw and marks it done. Anything else (pending, rejected, used, another action, a past time) is refused before YouTube is touched.
 - **Until Google audits the API project, real uploads are refused** (`AUDITED = False`): Google keeps every video uploaded through an unaudited project private for good. Use YouTube Studio until then; `--test-clip` allows a throwaway test. Flip `AUDITED` when the audit passes.
 - Quota (checked 2026-10-30): uploads have their own bucket of 100 a day per project. Everything else shares 10,000 units: a thumbnail, playlist add or schedule costs 50 each, so about 150 units a video. No increase needed.

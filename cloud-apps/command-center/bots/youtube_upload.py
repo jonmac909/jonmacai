@@ -2,9 +2,11 @@
 """youtube_upload.py - put finished renders on YouTube as PRIVATE videos; publish only with Jon's approval (stdlib only).
 
   youtube_upload.py channels                       every channel: slug, name, account, connected or not
-  youtube_upload.py upload CHANNEL FILE --title T --synthetic yes|no [--description D | --description-file F]
-        [--tags "a,b"] [--category 22] [--playlist PLAYLIST_ID] [--thumbnail IMG] [--test-clip] [--dry-run]
-                                                   private upload; an interrupted one resumes when run again,
+  youtube_upload.py upload CHANNEL FILE --title T (--playlist PLAYLIST_ID | --playlist-title NAME)
+        [--description D | --description-file F] [--tags "a,b"] [--category 22] [--thumbnail IMG] [--test-clip] [--dry-run]
+                                                   private upload into a playlist (NAME is found on the channel or
+                                                   created); the AI-use option is never set (Jon sets it later);
+                                                   an interrupted upload resumes when run again,
                                                    and a finished one returns the same video (never a 2nd copy);
                                                    FILE must pass scrub.py --check (upload the .scrubbed.mp4)
   youtube_upload.py schedule APPROVAL_ID [--dry-run]   publish at the time Jon approved (or now)
@@ -289,7 +291,23 @@ def send_file(yt, path, meta, rec, save):
             offset = None
 
 
-def upload(yt, channel, path, meta, thumbnail=None, playlist=None, test=False):
+def playlist_for(yt, title):
+    """The channel's playlist called this (any case), else a new private one. Returns its id."""
+    want, token = title.strip().lower(), None
+    while True:
+        page = yt.call('GET', API + '/playlists', query=dict(part='snippet', mine='true', maxResults='50',
+                                                              **({'pageToken': token} if token else {})))
+        for item in page.get('items') or []:
+            if item['snippet']['title'].strip().lower() == want:
+                return item['id']
+        token = page.get('nextPageToken')
+        if not token:
+            break
+    return yt.call('POST', API + '/playlists', {'snippet': {'title': title.strip()}, 'status': {'privacyStatus': 'private'}},
+                   {'part': 'snippet,status'})['id']
+
+
+def upload(yt, channel, path, meta, thumbnail=None, playlist=None, test=False, playlist_title=None):
     rp = record_path(channel, path)
     rec = read_record(rp) or {'channel': channel, 'file': str(path), 'size': path.stat().st_size, 'test': test}
     already = bool(rec.get('video'))
@@ -310,6 +328,11 @@ def upload(yt, channel, path, meta, thumbnail=None, playlist=None, test=False):
             hint = ' (the channel needs YouTube phone verification; Jon)' if status == 403 else ''
             problems.append('thumbnail not set: %s%s; run the same command again later'
                             % (google_error(status, body) if status else body.decode(), hint))
+    try:  # a name is looked up on the channel, and the playlist is created when it isn't there
+        playlist = playlist or rec.get('playlist') or playlist_for(yt, playlist_title)
+    except Fail as err:
+        playlist = None
+        problems.append('no playlist to add it to: %s' % err)
     if playlist and rec.get('playlist') != playlist:
         try:
             yt.call('POST', API + '/playlistItems', {'snippet': {
@@ -437,16 +460,22 @@ def upload_meta(args):
         raise Fail(2, 'title 1-100 characters, description up to 5000 bytes, tags up to 500 characters')
     if any(c in s for s in [args.title, desc] + tags for c in '<>'):
         raise Fail(2, 'YouTube refuses < and > in titles, descriptions and tags')
+    title_pl = (getattr(args, 'playlist_title', None) or '').strip()
+    if bool(args.playlist) == bool(title_pl):
+        raise Fail(2, 'every upload goes into a playlist: give --playlist PLxxxx (existing) or --playlist-title "Name" '
+                      '(found by that name on the channel, created if missing)')
     if args.playlist and not PLAYLIST_ID_RE.fullmatch(args.playlist):
         raise Fail(2, 'a playlist id looks like PLxxxxxxxx (from its YouTube link)')
+    if len(title_pl) > 150 or any(c in title_pl for c in '<>'):
+        raise Fail(2, 'a playlist title is up to 150 characters, without < or >')
     thumb = Path(args.thumbnail) if args.thumbnail else None
     if thumb and (not thumb.is_file() or thumb.suffix.lower() not in IMAGE_TYPES or thumb.stat().st_size > 2 * 1024 * 1024):
         raise Fail(2, 'the thumbnail must be a .jpg or .png file up to 2 MB')
     snippet = {'title': args.title.strip(), 'description': desc, 'categoryId': str(args.category)}
     if tags:
         snippet['tags'] = tags
-    return path, {'snippet': snippet, 'status': {'privacyStatus': 'private', 'selfDeclaredMadeForKids': False,
-                                                 'containsSyntheticMedia': args.synthetic == 'yes'}}, thumb
+    # No containsSyntheticMedia: the AI-use option stays blank for Jon to set later (Jon, 2026-11-05).
+    return path, {'snippet': snippet, 'status': {'privacyStatus': 'private', 'selfDeclaredMadeForKids': False}}, thumb
 
 
 def parser():
@@ -457,14 +486,13 @@ def parser():
     a.add_argument('channel', choices=sorted(CHANNELS))
     a.add_argument('file')
     a.add_argument('--title', required=True)
-    a.add_argument('--synthetic', required=True, choices=['yes', 'no'],
-                   help='yes when realistic AI people, voices or scenes appear (YouTube asks creators to say so)')
     d = a.add_mutually_exclusive_group()
     d.add_argument('--description')
     d.add_argument('--description-file')
     a.add_argument('--tags', help='comma-separated')
     a.add_argument('--category', type=int, default=22, help='22 People & Blogs, 26 Howto & Style, 28 Science & Tech')
-    a.add_argument('--playlist', help='playlist id to add the video to')
+    a.add_argument('--playlist', help='id of the channel playlist to add the video to')
+    a.add_argument('--playlist-title', help='or the playlist name: used if the channel has it, created (private) if not')
     a.add_argument('--thumbnail', help='.jpg or .png up to 2 MB')
     a.add_argument('--test-clip', action='store_true', help='a throwaway test video (allowed before the audit; deletable)')
     a.add_argument('--dry-run', action='store_true', help='check everything and print the plan; uploads nothing')
@@ -494,10 +522,11 @@ def run(args):
     if args.dry_run:
         return {'dry_run': True, 'channel': args.channel, 'file': str(path), 'bytes': path.stat().st_size,
                 'connected': connected(args.channel), 'metadata': meta, 'thumbnail': str(thumb) if thumb else None,
-                'playlist': args.playlist, 'blocked': None if allowed else AUDIT_MSG}
+                'playlist': args.playlist, 'playlist_title': args.playlist_title, 'blocked': None if allowed else AUDIT_MSG}
     if not allowed:
         raise Fail(2, AUDIT_MSG)
-    return upload(YouTube(args.channel), args.channel, path, meta, thumb, args.playlist, args.test_clip)
+    return upload(YouTube(args.channel), args.channel, path, meta, thumb, args.playlist, args.test_clip,
+                  args.playlist_title)
 
 
 def main(argv=None):
