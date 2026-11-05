@@ -1,8 +1,11 @@
+/* Hosted here so no outside request can hold the page up. Latin variable file, OFL: geist-LICENSE.txt. */
+@font-face { font-family: "Geist"; font-weight: 100 900; font-display: swap; src: url(geist.woff2) format("woff2"); }
 :root {
-  color-scheme: dark;
-  --bg: #0b0e13; --panel: #131821; --line: #273041; --text: #eceff3; --muted: #94a0b2;
-  --accent: #76d3ff; --amber: #ffcc66; --green: #6ee7a8; --red: #ff8a8a;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+  /* The dashboard's light theme, cloud-apps/command-center/public/css/tokens.css. --muted is its --ink-2: notes and transcripts are read here. */
+  color-scheme: light;
+  --bg: #f3f4f7; --panel: #ffffff; --line: #e5e7ec; --text: #0e1526; --muted: #4a5263;
+  --accent: #0a84ff; --on-accent: #ffffff; --amber: #8a5d00; --green: #17703a; --red: #b3261e;
+  font-family: "Geist", system-ui, -apple-system, "Segoe UI", sans-serif;
   background: var(--bg); color: var(--text);
   -webkit-text-size-adjust: 100%;
 }
@@ -18,7 +21,7 @@ a { color: var(--accent); }
 button, input, textarea { font: inherit; color: inherit; }
 button { cursor: pointer; border: 1px solid var(--line); background: var(--panel); border-radius: 8px; padding: 8px 12px; min-height: 40px; }
 button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-button.primary { background: var(--accent); color: #04121b; border-color: var(--accent); font-weight: 600; }
+button.primary { background: var(--accent); color: var(--on-accent); border-color: var(--accent); font-weight: 600; }
 button.link { border: 0; background: none; padding: 0; min-height: 0; color: var(--accent); text-decoration: underline; }
 button:disabled { opacity: 0.6; cursor: default; }
 input, textarea { width: 100%; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; font-size: 16px; }
@@ -42,7 +45,7 @@ input, textarea { width: 100%; background: var(--panel); border: 1px solid var(-
 .crumbs { margin: 0 0 8px; color: var(--muted); }
 .version-nav { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
 .version-nav a, .version-nav .current { border: 1px solid var(--line); border-radius: 6px; padding: 4px 10px; text-decoration: none; }
-.version-nav .current { background: var(--accent); color: #04121b; border-color: var(--accent); font-weight: 700; }
+.version-nav .current { background: var(--accent); color: var(--on-accent); border-color: var(--accent); font-weight: 700; }
 video { display: block; width: 100%; max-height: 70vh; background: #000; border-radius: 10px; border: 1px solid var(--line); }
 .duo { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .pane { margin: 0; min-width: 0; }
@@ -66,6 +69,18 @@ video { display: block; width: 100%; max-height: 70vh; background: #000; border-
 .extra summary { cursor: pointer; color: var(--muted); }
 .extra video { margin-top: 10px; }
 
+.stage { position: relative; }
+.ink { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; border-radius: 10px; }
+.ink.on { pointer-events: auto; touch-action: none; cursor: crosshair; outline: 2px solid var(--accent); outline-offset: -2px; }
+.tools, .ink-tools, .seg { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.tools button[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); }
+.swatch { width: 40px; padding: 0; background: var(--ink); border-color: var(--muted); }
+.tools .swatch[aria-pressed="true"] { border-color: var(--text); box-shadow: 0 0 0 2px var(--text); }
+#voice.rec { border-color: var(--red); color: var(--red); }
+.comment audio { display: block; width: 100%; max-width: 360px; height: 40px; margin: 4px 0; }
+.comment .transcript { margin: 4px 0; color: var(--muted); white-space: pre-wrap; overflow-wrap: anywhere; }
+.comment .drew { font-size: 13px; min-height: 32px; padding: 4px 10px; margin: 2px 0; }
+
 .composer { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px; margin-top: 16px; }
 .composer form { display: grid; gap: 10px; }
 .who { display: grid; gap: 6px; }
@@ -87,3 +102,15 @@ video { display: block; width: 100%; max-height: 70vh; background: #000; border-
   .comment .resolve { grid-column: 2; justify-self: start; }
   .when { margin-left: 0; }
 }
+
+.send { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px; margin-top: 12px; }
+.send-btns { display: grid; grid-template-columns: 2fr 1fr; gap: 10px; }
+button.big { min-height: 52px; font-size: 18px; font-weight: 700; }
+button.approve { border-color: var(--green); color: var(--green); }
+.send-hint { margin: 10px 0 0; }
+.submissions { list-style: none; margin: 8px 0 0; padding: 0; }
+.submissions li { padding: 8px 0; border-top: 1px solid var(--line); overflow-wrap: anywhere; }
+.submissions li:first-child { font-weight: 600; }
+.submissions .ready { color: var(--green); }
+.comment .sent { color: var(--amber); }
+@media (max-width: 520px) { .send-btns { grid-template-columns: 1fr; } }

@@ -28,13 +28,6 @@ export async function actionById(db, id) {
   return db.prepare('SELECT * FROM actions WHERE id = ?').bind(id).first();
 }
 
-export async function latestAction(db, kind) {
-  const { results } = await db.prepare(
-    'SELECT id, kind, status, result, created_at, finished_at FROM actions WHERE kind = ? ORDER BY created_at DESC LIMIT 1',
-  ).bind(kind).all();
-  return results?.[0] || null;
-}
-
 export async function claimQueued(db, machine, now) {
   const { results } = await db.prepare(
     `SELECT * FROM actions WHERE target = ? AND status = 'queued' ORDER BY created_at LIMIT 10`,
@@ -70,28 +63,6 @@ export async function completeAction(db, id, status, result, now) {
 export async function reportAction(db, id, status, result) {
   await db.prepare(`UPDATE actions SET status = ?, result = ?, finished_at = NULL WHERE id = ?`)
     .bind(status, result, id).run();
-}
-
-export async function requeueAction(db, id, payload, result) {
-  await db.prepare(`UPDATE actions SET status = 'queued', payload = ?, result = ?, finished_at = NULL WHERE id = ?`)
-    .bind(payload, result, id).run();
-}
-
-export async function listVideoJobs(db) {
-  const { results } = await db.prepare(
-    `SELECT id, payload, status, result FROM actions WHERE kind = ? AND target = ? ORDER BY created_at`,
-  ).bind('video.start_edit', 'gpu1').all();
-  return results || [];
-}
-
-export async function upsertChecklist(db, day, item, doneAt, how) {
-  await db.prepare(
-    'INSERT OR REPLACE INTO checklist (day, item, done_at, how) VALUES (?, ?, ?, ?)',
-  ).bind(day, item, doneAt, how).run();
-}
-
-export async function deleteChecklist(db, day, item) {
-  await db.prepare('DELETE FROM checklist WHERE day = ? AND item = ?').bind(day, item).run();
 }
 
 export async function upsertHabit(db, day, kind, done, note) {
@@ -146,45 +117,6 @@ export async function upsertIdea(db, row) {
     created,
     now,
   ).run();
-}
-
-export async function listVideoProjects(db) {
-  if (!db) return [];
-  try {
-    const { results } = await db.prepare('SELECT id, data, updated_at FROM video_projects').all();
-    return (results || []).map((r) => {
-      try { return JSON.parse(r.data); } catch { return null; }
-    }).filter(Boolean);
-  } catch {
-    return [];
-  }
-}
-
-export async function replaceVideoProjects(db, list, now) {
-  await db.prepare('DELETE FROM video_projects').run();
-  for (const p of list || []) {
-    if (!p || !p.id) continue;
-    await db.prepare('INSERT INTO video_projects (id, data, updated_at) VALUES (?, ?, ?)')
-      .bind(String(p.id), JSON.stringify(p), now).run();
-  }
-}
-
-export async function upsertPost(db, row) {
-  await db.prepare(
-    'INSERT OR REPLACE INTO posts (id, platform, posted_at, url, first_line, source) VALUES (?, ?, ?, ?, ?, ?)',
-  ).bind(row.id, row.platform, row.posted_at, row.url || '', row.first_line || '', row.source || 'agent').run();
-}
-
-export async function listPosts(db) {
-  if (!db) return [];
-  const { results } = await db.prepare('SELECT id, platform, posted_at, url, first_line, source FROM posts ORDER BY posted_at').all();
-  return results || [];
-}
-
-export async function listChecklist(db, day) {
-  if (!db) return [];
-  const { results } = await db.prepare('SELECT day, item, done_at, how FROM checklist WHERE day = ?').bind(day).all();
-  return results || [];
 }
 
 export async function listHabits(db) {

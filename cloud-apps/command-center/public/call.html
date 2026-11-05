@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#16a34a">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Call Ana">
+<link rel="manifest" href="call.webmanifest">
+<link rel="apple-touch-icon" href="call-icon.png">
+<link rel="icon" href="call-icon.png">
+<title>Call Ana</title>
+<style>
+  :root { color-scheme: light dark; --bg:#f3f4f6; --card:#fff; --ink:#111; --muted:#6b7280; --go:#16a34a; --bad:#d92d20; --jon:#e5f2ff; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#0b0b0c; --card:#1c1c1f; --ink:#f4f4f5; --muted:#a1a1aa; --jon:#1e3a5f; } }
+  * { box-sizing: border-box; }
+  body { margin: 0; min-height: 100dvh; display: flex; flex-direction: column; align-items: center; gap: 20px;
+         padding: max(24px, env(safe-area-inset-top)) 16px max(24px, env(safe-area-inset-bottom));
+         background: var(--bg); color: var(--ink); font: 17px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  h1 { margin: 8px 0 0; font-size: 28px; }
+  #state { margin: 0; color: var(--muted); text-align: center; min-height: 1.5em; }
+  .big { width: min(56vw, 200px); aspect-ratio: 1; border: 0; border-radius: 50%; color: #fff; font: 700 24px system-ui, sans-serif;
+         cursor: pointer; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+  #call { background: var(--go); }
+  #hang { background: var(--bad); }
+  #log { width: min(560px, 100%); flex: 1; overflow: auto; display: grid; align-content: start; gap: 8px; }
+  .line { padding: 8px 12px; border-radius: 12px; background: var(--card); }
+  .line b { display: block; font-size: 12px; color: var(--muted); }
+  .jon { background: var(--jon); }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<h1>Ana</h1>
+<p id="state">Tap Call and talk. Real tasks go to Ana.</p>
+<button id="call" class="big">Call</button>
+<button id="hang" class="big" hidden>Hang up</button>
+<div id="log" aria-live="polite"></div>
+<script>
+// Phone call to Ana through the dashboard's call relay (src/call.js) to Grok Voice on GPU1.
+// Mic and Grok audio are 16-bit mono PCM at 24 kHz over one WebSocket; captions come as JSON events.
+const RATE = 24000;
+const $ = (id) => document.getElementById(id);
+let ws, ctx, mic, wake, timer, note = '', talking = false, playAt = 0, playing = [], lines = {}, anaTurn = 0, lastType = '';
+
+function state(text) { $('state').textContent = text; }
+
+function say(who, text, key) {
+  if (!text) return;
+  let el = key && lines[key];
+  if (!el) {
+    el = document.createElement('div');
+    el.className = 'line' + (who === 'Jon' ? ' jon' : '');
+    el.innerHTML = '<b></b><span></span>';
+    el.querySelector('b').textContent = who;
+    $('log').appendChild(el);
+    if (key) lines[key] = el;
+  }
+  el.querySelector('span').textContent = (key ? el.querySelector('span').textContent : '') + text;
+  $('log').scrollTop = $('log').scrollHeight;
+}
+
+function play(data) {
+  const pcm = new Int16Array(data, 0, data.byteLength >> 1);
+  if (!ctx || !pcm.length) return;
+  const buf = ctx.createBuffer(1, pcm.length, RATE);
+  const out = buf.getChannelData(0);
+  for (let i = 0; i < pcm.length; i++) out[i] = pcm[i] / 32768;
+  const src = ctx.createBufferSource();
+  src.buffer = buf;
+  src.connect(ctx.destination);
+  playAt = Math.max(playAt, ctx.currentTime + 0.08);
+  src.start(playAt);
+  playAt += buf.duration;
+  playing.push(src);
+  src.onended = () => { playing = playing.filter((p) => p !== src); };
+}
+
+function silence() { // Jon talked over Ana: drop what is still queued
+  playing.forEach((p) => { try { p.stop(); } catch {} });
+  playing = [];
+  playAt = 0;
+}
+
+function onEvent(ev) {
+  if (ev.type === 'call.started') {
+    clearTimeout(timer);
+    state('Ana is picking up...');
+  } else if (ev.type === 'session.output_transcript.delta') {
+    if (!talking) { talking = true; state('Connected. Talk any time.'); }
+    if (lastType !== 'out') anaTurn++;
+    lastType = 'out';
+    say('Ana', ev.delta, 'ana' + anaTurn);
+  } else if (ev.type === 'session.input_transcript.delta') {
+    lastType = 'in';
+    say('Jon', ev.delta.trim());
+  } else if (ev.type === 'session.delegation.created') {
+    state('Sent to Ana. Her answer will be spoken when it is ready.');
+  } else if (ev.type === 'audio.clear') {
+    silence();
+  } else if (ev.type === 'session.closed') {
+    end(note || 'Call ended.');
+  } else if (ev.type === 'error') {
+    note = (ev.error && (ev.error.message || 'Grok Voice error: ' + ev.error.code)) || 'Something went wrong.';
+    state(note);
+  }
+}
+
+async function call() {
+  $('call').hidden = true;
+  $('hang').hidden = false;
+  note = '';
+  talking = false;
+  state('Connecting...');
+  try {
+    ctx = new (window.AudioContext || window.webkitAudioContext)(); // inside the tap, so phones allow sound
+    ctx.resume();
+    mic = await navigator.mediaDevices.getUserMedia({
+      audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 },
+    });
+    if (ctx.state !== 'running') await ctx.resume();
+    await ctx.audioWorklet.addModule('call-mic.js');
+    const node = new AudioWorkletNode(ctx, 'mic', { processorOptions: { rate: RATE } });
+    const mute = ctx.createGain();
+    mute.gain.value = 0;
+    ctx.createMediaStreamSource(mic).connect(node);
+    node.connect(mute);
+    mute.connect(ctx.destination);
+    ws = new WebSocket(`wss://${location.host}/dashboard/api/call/phone`);
+    ws.binaryType = 'arraybuffer';
+    node.port.onmessage = (e) => { if (ws && ws.readyState === 1) ws.send(e.data); };
+    ws.onmessage = (m) => {
+      if (typeof m.data !== 'string') return play(m.data);
+      try { onEvent(JSON.parse(m.data)); } catch {}
+    };
+    ws.onclose = (e) => end(e.reason || note || 'Could not connect. Reload the page (you may need to sign in again).');
+    timer = setTimeout(() => end('Ana did not pick up. Try again.'), 45000);
+    try { wake = await navigator.wakeLock.request('screen'); } catch {}
+  } catch (err) {
+    end(err && err.name === 'NotAllowedError' ? 'Allow the microphone to call Ana.' : String((err && err.message) || err));
+  }
+}
+
+function end(text) {
+  clearTimeout(timer);
+  if (ws) {
+    ws.onclose = null;
+    try { if (ws.readyState === 1) ws.send('{"type":"session.close"}'); ws.close(1000); } catch {}
+  }
+  try { mic && mic.getTracks().forEach((t) => t.stop()); } catch {}
+  if (ctx) ctx.close().catch(() => {});
+  if (wake) wake.release().catch(() => {});
+  ws = mic = ctx = wake = null;
+  playing = [];
+  playAt = 0;
+  $('hang').hidden = true;
+  $('call').hidden = false;
+  state(text);
+}
+
+$('call').onclick = call;
+$('hang').onclick = () => end('Call ended.');
+window.addEventListener('pagehide', () => ws && end(''));
+</script>
+</body>
+</html>

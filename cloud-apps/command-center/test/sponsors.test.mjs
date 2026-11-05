@@ -5,6 +5,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { handleApi } from '../src/api.js';
 import { mergeSnapshot } from '../src/snapshot.js';
+import { buildCash } from '../src/cash.js';
 import { signSession, COOKIE } from '../src/auth.js';
 import { memD1 } from './memd1.mjs';
 import {
@@ -51,10 +52,20 @@ test('board stages map onto the eight dashboard columns', () => {
   assert.equal(mapColumn('production'), 'With editor');
   assert.equal(mapColumn('video-approval'), 'Video approval');
   assert.equal(mapColumn('publishing'), 'Live · send invoice');
-  assert.equal(mapColumn('paid'), 'Paid in September');
-  assert.equal(mapColumn('done'), 'Paid in September');
+  assert.equal(mapColumn('paid'), 'Paid');
+  assert.equal(mapColumn('done'), 'Paid');
   assert.equal(boardStageFor('Waiting on deposit'), 'invoice-sent');
   assert.equal(boardStageFor('New inquiry'), 'new-lead');
+  assert.equal(boardStageFor('Paid in October'), 'paid');
+});
+
+test('paid column and month labels follow the current month', () => {
+  const page = buildSponsorsPage(live, NOW);
+  assert.equal(page.board.columns[7].stage, 'Paid in September');
+  assert.equal(page.board.columns[7].boardStage, 'paid');
+  const later = buildSponsorsPage(live, Date.parse('2026-10-22T06:00:00-07:00'));
+  assert.equal(later.board.columns[7].stage, 'Paid in October');
+  assert.equal(later.board.columns[7].boardStage, 'paid');
 });
 
 test('sponsors page money matches collections.viralview.io', () => {
@@ -106,18 +117,10 @@ test('deal board hides archived and old done, keeps money and drafts', () => {
   assert.equal(page.tiles[3].value, '1');
 });
 
-test('mergeSnapshot replaces the sponsors page and home sponsor numbers', () => {
+test('mergeSnapshot replaces the sponsors page', () => {
   const fixture = {
-    nav: { badges: { sponsors: 3 } },
-    goal: { label: '$10K SPONSOR GOAL', sub: '12 days left in September', pct: 50, see: 'See sponsors' },
     sources: { sponsors: { updatedAt: 'old' } },
-    pages: {
-      home: {
-        tiles: [{ value: '$5,000', sub: 'fixture' }, { value: '$0' }],
-        glance: { rows: [{ area: 'Sponsors', today: 'fixture', pct: 50, pill: '50%', page: 'sponsors' }] },
-      },
-      sponsors: { tiles: [{ value: '$5,000' }] },
-    },
+    pages: { sponsors: { tiles: [{ value: '$5,000' }] } },
   };
   const data = { ...live, collections: { ...live.collections, incomeTotals: { ...live.collections.incomeTotals, September: 1234 } } };
   data.collections.items = live.collections.items.map((x) => ({ ...x }));
@@ -128,10 +131,7 @@ test('mergeSnapshot replaces the sponsors page and home sponsor numbers', () => 
     received_at: '2026-09-18T17:05:00Z',
   }], NOW);
   assert.equal(out.pages.sponsors.tiles[0].value, '$1,234');
-  assert.equal(out.pages.home.tiles[0].value, '$1,234');
-  assert.match(out.pages.home.glance.rows[0].today, /\$1,234/);
-  assert.equal(out.goal.pct, 12);
-  assert.equal(out.nav.badges.sponsors, 1);
+  assert.equal(out.sources.sponsors.updatedAt, '2026-09-18T17:04:33.939Z');
 });
 
 test('sponsor actions queue for the Mac runner', async () => {
@@ -232,7 +232,7 @@ test('September collected is the recorded source total, not open-item paid', () 
 
 test('copy time is not the source edit time, and a missing edit time stays unknown', () => {
   const fixture = {
-    pages: { home: { chip: 'Mockup', tiles: [{}] }, sponsors: { tiles: [] } },
+    pages: { sponsors: { tiles: [] } },
     sources: {},
   };
   const board = '2026-09-22T05:13:49.589Z';
@@ -247,7 +247,6 @@ test('copy time is not the source edit time, and a missing edit time stays unkno
   assert.match(out.pages.sponsors.sub, /not reconciled cash/);
   assert.equal(out.pages.sponsors.sub.includes(board), false);
   assert.equal(out.pages.sponsors.sub.includes(copied), false);
-  assert.match(out.pages.home.chip, /sponsors source time unavailable/i);
   const edited = '2026-09-21T09:06:01.000Z';
   const stamped = mergeSnapshot(fixture, [{
     source: 'sponsors',
@@ -281,4 +280,62 @@ print("unchanged", p.read_text(encoding="utf-8") == "{}")
   assert.equal(lines[0], 'missing None');
   assert.equal(lines[1], 'match True');
   assert.equal(lines[2], 'unchanged True');
+});
+
+const ledgerCash = (rows, ledgerEditedAt, nowMs = NOW) => buildCash({ collected_at: new Date(nowMs).toISOString(), data: JSON.stringify({ rows, ledgerEditedAt }) }, null, nowMs);
+
+test('with deposit data the collected tile, bar and by-month row use the deposit total', () => {
+  const cash = ledgerCash([
+    { date: '2026-09-02', sponsor: 'Topview', usd: 1000 },
+    { date: '2026-09-16', sponsor: 'Poppy', usd: 2500.5 },
+  ], '2026-09-18T19:00:00-07:00');
+  const page = buildSponsorsPage(live, NOW, {}, cash);
+  assert.equal(page.basis, 'deposits');
+  assert.equal(page.tiles[0].label, 'Collected in September');
+  assert.equal(page.tiles[0].value, '$3,500.50');
+  assert.equal(page.tiles[0].pct, 35);
+  assert.equal(page.tiles[0].sub, 'All deposits · Deposit ledger edited Sep 18 · day 18 of 30 · pace $6,000');
+  assert.equal(page.byMonth.rows[4].label, 'September so far');
+  assert.equal(page.byMonth.rows[4].value, '$3,500.50');
+  assert.equal(page.septemberBar.parts[0].amount, '$3,500.50');
+  assert.equal(page.septemberBar.meta, '$10,200.50 if everything owed comes in');
+  assert.equal(page.tiles[1].value, '$6,700');
+});
+
+test('the deposit total follows the calendar month when collections.json has not rolled over', () => {
+  const later = Date.parse('2026-11-03T12:00:00-08:00');
+  const cash = ledgerCash([{ date: '2026-11-02', sponsor: 'Topview', usd: 1200 }], '2026-11-03T08:00:00-08:00', later);
+  const page = buildSponsorsPage(live, later, {}, cash);
+  assert.equal(page.tiles[0].label, 'Collected in November');
+  assert.equal(page.tiles[0].value, '$1,200');
+  const last = page.byMonth.rows.at(-1);
+  assert.equal(last.label, 'November so far');
+  assert.equal(last.value, '$1,200');
+  assert.equal(page.byMonth.rows.some((r) => r.label === 'September so far'), false);
+});
+
+test('a stale deposit ledger is named on the collected tile', () => {
+  const cash = ledgerCash([{ date: '2026-09-02', sponsor: 'Topview', usd: 1000 }], '2026-09-10T12:00:00-07:00');
+  const page = buildSponsorsPage(live, NOW, {}, cash);
+  assert.match(page.tiles[0].sub, /^All deposits · Deposit ledger edited Sep 10 \(stale\) · day 18 of 30/);
+});
+
+test('no deposit data keeps the recorded source total, with the unverified note', () => {
+  const page = buildSponsorsPage(live, NOW, {}, buildCash(null, null, NOW));
+  assert.equal(page.basis, 'source');
+  assert.equal(page.tiles[0].value, '$5,000');
+  assert.match(page.tiles[0].sub, /unverified against deposit ledger/);
+});
+
+test('a fully paid invoice is not late, whatever bucket the sheet files it under', () => {
+  const paid = { ...live, collections: { ...live.collections, items: live.collections.items.map((i) => (i.sponsor === 'TopView' ? { ...i, paid: 1500, owed: 0 } : { ...i })) } };
+  const page = buildSponsorsPage(paid, NOW);
+  const waiting = page.board.columns.find((c) => c.stage === 'Waiting on deposit');
+  const topview = waiting.cards.find((k) => k.name === 'Topview AI');
+  assert.equal(topview.pill, 'Paid');
+  assert.equal(topview.pillCls, 'ok');
+  assert.equal(waiting.cards.find((k) => k.name === 'Invideo').pill, 'Waiting on them');
+  assert.equal(page.collect.rows.some((r) => r.sponsor === 'TopView'), false);
+  const unpaid = buildSponsorsPage(live, NOW);
+  assert.equal(unpaid.board.columns.find((c) => c.stage === 'Waiting on deposit').cards.find((k) => k.name === 'Topview AI').pill, '7 days late');
 });

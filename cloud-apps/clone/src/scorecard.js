@@ -31,7 +31,8 @@ export async function recordVisit(env, id, at = Date.now()) {
 export async function recordScorecardPayment(payload, env, lead = {}) {
   if (!enabled(env)) return;
   const data = payload?.data;
-  const offer = data?.item?.id === 'nmGzE' ? 'seat' :
+  // 2J89z = the former free-trial product; its existing subscribers still renew.
+  const offer = data?.item?.id === 'nmGzE' ? 'seat' : data?.item?.id === '2J89z' ? 'trial' :
     Object.keys(OFFERS).find(name => OFFERS[name].service === data?.item?.id);
   const cents = Math.round(Number(data?.amount) * 100);
   const at = Date.parse(data?.created_at || payload?.created_at);

@@ -14,9 +14,9 @@ export function isIsolated(payload = {}) {
 }
 
 export function reviewMutate(kind) {
-  if (kind === 'sponsor.save_draft' || kind === 'support.save_draft') return 'save';
-  if (kind === 'sponsor.discard_draft' || kind === 'support.discard_draft') return 'drop';
-  if (kind === 'sponsor.send_draft' || kind === 'support.send' || kind === 'support.decide_refund' || kind === 'support.send_all_safe') return 'send';
+  if (kind === 'sponsor.save_draft') return 'save';
+  if (kind === 'sponsor.discard_draft') return 'drop';
+  if (kind === 'sponsor.send_draft') return 'send';
   return '';
 }
 
@@ -68,7 +68,7 @@ export function applyReviewDrafts(snap, rows = []) {
       row.body = hit.body ?? row.body;
     }
     for (const hit of live) {
-      if (!hit.isolated || String(hit.kind).startsWith('support.')) continue;
+      if (!hit.isolated) continue;
       if (emails.some((r) => r.id === hit.id)) continue;
       emails.push({
         id: hit.id,
@@ -92,15 +92,6 @@ export function applyReviewDrafts(snap, rows = []) {
       patchPayload(card.payload, hit);
       card.draft = true;
     }
-  }
-  for (const row of snap.pages.support?.drafts?.rows || []) {
-    const id = row.payload?.uid || row.id;
-    const hit = live.find((r) => r.id === id);
-    if (!hit) continue;
-    row.to = hit.recipient || row.to || '';
-    row.subject = hit.subject ?? row.subject;
-    row.body = hit.body ?? row.body;
-    patchPayload(row.payload, hit);
   }
   return snap;
 }

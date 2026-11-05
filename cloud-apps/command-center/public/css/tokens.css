@@ -1,17 +1,17 @@
 :root{
   --bg:#f3f4f7; --side:#f7f8fa; --card:#ffffff; --soft:#f5f6f8; --line:#e5e7ec; --hover:#eceef2;
   --ink:#0e1526; --ink-2:#4a5263; --muted:#7c8494;
-  --accent:#0a3fd6; --accent-soft:#e6ecfd; --on-accent:#ffffff;
+  --accent:#0a84ff; --accent-soft:#e5f2ff; --on-accent:#ffffff;
   --ok-bg:#e5f6ea; --ok-ink:#17703a; --ok-line:#b9e4c6; --ok-fill:#22a355;
   --risk-bg:#fdf3d9; --risk-ink:#8a5d00; --risk-line:#f2dc9d; --risk-fill:#e3a008;
   --crit-bg:#fde9e8; --crit-ink:#b3261e; --crit-line:#f5c4c1; --crit-fill:#d9433a;
   --idle-bg:#eff0f3; --idle-ink:#565e6e; --idle-line:#dcdfe5;
   --shadow:0 1px 2px rgba(14,21,38,.04);
-  --page-bg:#f3f4f7; --card-bg:#ffffff; --kcol-bg:#eceef2; --cell-hi:#0a3fd6;
-  --btn-bg:#0a3fd6; --btn-glow:none;
-  --bar:#0a3fd6; --bar-ok:#22a355; --bar-risk:#e3a008; --bar-crit:#d9433a; --bar-glow:none;
-  --col-bar:#0a3fd6; --col-glow:none;
-  --ico-bg:#e6ecfd; --ico-line:transparent; --ico-glow:0 0 0 transparent;
+  --page-bg:#f3f4f7; --card-bg:#ffffff; --kcol-bg:#eceef2; --cell-hi:#0a84ff;
+  --btn-bg:#0a84ff; --btn-glow:none;
+  --bar:#0a84ff; --bar-ok:#22a355; --bar-risk:#e3a008; --bar-crit:#d9433a; --bar-glow:none;
+  --col-bar:#0a84ff; --col-glow:none;
+  --ico-bg:#e5f2ff; --ico-line:transparent; --ico-glow:0 0 0 transparent;
   --nav-on-bg:#eceef2; --nav-on-line:transparent;
 }
 @media (prefers-color-scheme: dark){

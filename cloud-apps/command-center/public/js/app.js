@@ -1,20 +1,23 @@
-import { render as home } from './pages/home.js';
+import { render as today } from './pages/today.js';
+import { render as todo } from './pages/todo.js';
+import { render as projects } from './pages/projects.js';
+import { render as feed, mount as mountFeed } from './pages/feed.js';
+import { render as journal, mount as mountJournal } from './pages/journal.js';
+import { calendar, content } from './pages/channels.js';
+import { track, setSort } from './pages/track.js';
 import { render as sponsors } from './pages/sponsors.js';
 import { render as viral } from './pages/viral.js';
-import { render as youtube } from './pages/youtube.js';
-import { render as content } from './pages/content.js';
-import { render as outreach } from './pages/outreach.js';
-import { render as support } from './pages/support.js';
-import { render as video } from './pages/video.js';
+import { render as webinar } from './pages/webinar.js';
 import { render as money } from './pages/money.js';
-import { render as markets } from './pages/markets.js';
 import { render as life } from './pages/life.js';
-import { render as mastermind } from './pages/mastermind.js';
-import { render as agents } from './pages/agents.js';
-import { formatJobResult } from './ui.js';
-import { bindModals, openDraft } from './modals.js';
+import { formatJobResult, noLoneWords } from './ui.js';
+import { bindModals, openCard, openDraft, restoreAnswers, typedAnswers } from './modals.js';
 const PREFIX = '/dashboard';
-const pages = { home, sponsors, viral, youtube, content, outreach, support, video, money, markets, life, mastermind, agents };
+// Any other #page (old bookmarks to removed pages) falls back to Today. A page may have a
+// sub-path, like #projects/sponsors; the page itself decides what an unknown one shows.
+const pages = { today, todo, projects, feed, calendar, content, track, sponsors, viral, webinar, money, life, journal };
+// Feed and Journal fetch their own rows (from /v1) once rendered.
+const mounts = { feed: mountFeed, journal: mountJournal };
 let data = null;
 
 const root = document.documentElement;
@@ -40,17 +43,7 @@ export function say(m) {
 
 export async function act(kind, payload = {}) {
   const idemKey = crypto.randomUUID();
-  if (kind === 'video.resume') {
-    const res = await fetch(`${PREFIX}/api/actions/${payload.actionId}/resume`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-CC': '1' },
-      body: JSON.stringify({ keepers: payload.keepers || [], expectedLines: payload.expectedLines || [] }),
-    });
-    const row = await res.json().catch(() => ({}));
-    say(res.ok ? 'Keepers sent' : (row.error || 'Resume failed'));
-    return row;
-  }
-  const scan = kind === 'sponsor.scan_inbox' || kind === 'mastermind.scan';
+  const scan = kind === 'sponsor.scan_inbox';
   const polls = scan ? 300 : 75; // ponytail: 10 min matches collector refresh timeout
   const wait = scan ? 2000 : 400;
   const res = await fetch(`${PREFIX}/api/actions`, {
@@ -74,29 +67,32 @@ export async function act(kind, payload = {}) {
   return row;
 }
 
-async function uploadFile(file) {
-  say('Uploading…');
-  try {
-    const created = await fetch(`${PREFIX}/api/uploads`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-CC': '1' },
-      body: JSON.stringify({ filename: file.name, contentType: file.type || 'video/mp4', title: file.name.replace(/\.[^.]+$/, '') }),
-    });
-    const row = await created.json().catch(() => ({}));
-    if (!row.putUrl) { say(row.error || 'Upload failed'); return; }
-    const put = await fetch(row.putUrl, { method: 'PUT', body: file });
-    const done = await put.json().catch(() => ({}));
-    say(done.result || (put.ok ? 'Edit started' : 'Upload failed'));
-  } catch {
-    say('Upload failed');
-  }
-}
-
-
 function hashPage() {
-  const id = (location.hash || '#home').replace(/^#/, '') || 'home';
-  return pages[id] ? id : 'home';
+  const id = (location.hash || '#today').replace(/^#/, '') || 'today';
+  return Object.hasOwn(pages, id.split('/')[0]) ? id : 'today';
 }
+
+// Today's answer and approve buttons (and the Projects tick) send to the URL the server put on the button.
+function todayPost(url, body, okText, button, method = 'POST') {
+  const failed = () => { button.disabled = false; button.checked = false; };
+  if (!String(url).startsWith(`${PREFIX}/api/`)) { failed(); say('Could not send'); return; }
+  fetch(url, { method, headers: { 'Content-Type': 'application/json', 'X-CC': '1' }, body: JSON.stringify(body) })
+    .then(async (res) => {
+      const row = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        failed();
+        say(row.error || 'Could not send');
+        if (res.status === 409) go(hashPage(), { refetch: true });
+        return;
+      }
+      say(okText);
+      button.closest('dialog')?.close(); // answered from the card modal
+      go(hashPage(), { refetch: true });
+    })
+    .catch(() => { failed(); say('Could not send'); });
+}
+
+let shownPage = null;
 
 function navHtml() {
   const badges = data.nav.badges || {};
@@ -104,6 +100,7 @@ function navHtml() {
     const items = g.items.map((it) => {
       const n = badges[it.id];
       const badge = n ? `<span class="n">${n}</span>` : '';
+      if (it.href) return `<a class="nav" href="${it.href}"><svg class="ic"><use href="#i-${it.icon}"/></svg>${it.label}</a>`;
       return `<button class="nav" data-page="${it.id}"><svg class="ic"><use href="#i-${it.icon}"/></svg>${it.label}${badge}</button>`;
     }).join('');
     return `<div class="navgrp"><h4>${g.title}</h4>${items}</div>`;
@@ -161,38 +158,125 @@ function bindKanban() {
   ktotals();
 }
 
-function recount() {
-  const s = document.querySelectorAll('.steps .step');
-  if (!s.length) return;
-  let n = 0;
-  s.forEach((x) => { if (x.getAttribute('aria-pressed') === 'true') n++; });
-  const count = document.getElementById('runcount');
-  const bar = document.getElementById('runbar');
-  if (count) count.textContent = `${n} of ${s.length} done`;
-  if (bar) bar.style.width = `${Math.round(n / s.length * 100)}%`;
-}
+// The deploy this page's code came from (its first snapshot's). Jon's tab stays open for days, so a
+// newer deploy reloads it, unless a card is open or something is typed.
+let build;
+const stale = (d) => {
+  build ??= d?.build;
+  return !!d?.build && d.build !== build && !document.querySelector('dialog[open]')
+    && ![...document.querySelectorAll('#page textarea, #page input:not([type]), #page input[type=text]')].some((el) => el.value.trim());
+};
 
 export async function go(id, { refetch = false } = {}) {
-  if (!pages[id]) id = 'home';
+  if (!Object.hasOwn(pages, id.split('/')[0])) id = 'today';
+  const [name, sub] = id.split('/');
   if (location.hash !== `#${id}`) history.replaceState(null, '', `${PREFIX}/#${id}`);
-  if (refetch || id === 'agents') {
-    const snap = await fetch(`${PREFIX}/api/snapshot`);
+  if (refetch || name === 'today' || name === 'todo') {
+    const snap = await fetch(`${PREFIX}/api/snapshot?v=${Date.now()}`);
     if (snap.ok) data = await snap.json();
+    if (stale(data)) { location.reload(); return; }
     document.getElementById('navs').innerHTML = navHtml();
   }
+  if (name === 'track' && (shownPage?.split('/')[0] !== 'track' || !data.pages.track?.title)) { // loaded on opening; sorting and tabs reuse it
+    const r = await fetch(`${PREFIX}/api/snapshot?pages=track&v=${Date.now()}`);
+    if (r.ok) data.pages.track = (await r.json()).pages.track;
+    if (hashPage() !== id) return; // moved on while it loaded
+  }
   document.querySelectorAll('.nav').forEach((n) => {
-    if (n.dataset.page === id) n.setAttribute('aria-current', 'page');
+    if (n.dataset.page === name) n.setAttribute('aria-current', 'page');
     else n.removeAttribute('aria-current');
   });
-  const page = data.pages[id];
-  document.getElementById('page').innerHTML = pages[id](page, data);
-  window.scrollTo(0, 0);
+  const page = data.pages[name];
+  const same = shownPage === id;
+  const root = document.getElementById('page');
+  // Half-typed answers survive a re-render of the same page (refresh, or after another item is sent).
+  const typed = same ? typedAnswers(root) : {};
+  root.innerHTML = pages[name](page, data, sub);
+  mounts[name]?.(root.firstElementChild, { say });
+  shownPage = id;
+  restoreAnswers(root, typed);
+  if (!same) window.scrollTo(0, 0);
+  // The chosen channel tab in view on a phone's sideways row, without scrolling the window.
+  const tab = root.querySelector('.cctabs .on');
+  if (tab) { const row = tab.closest('.cctabs'); row.scrollLeft += tab.getBoundingClientRect().left - row.getBoundingClientRect().left - 16; }
   try { localStorage.setItem('cc-page', id); } catch {}
   bindKanban();
-  recount();
 }
 
+// A board, Todo or Feed card opens in the card modal, unless the click was on one of its own controls or links.
+const boardCard = (el) => el.closest?.('#page [data-open]');
+document.addEventListener('keydown', (e) => {
+  if ((e.key === 'Enter' || e.key === ' ') && boardCard(e.target) === e.target) {
+    e.preventDefault();
+    openCard(e.target.dataset.open, data.pages.projects);
+  }
+});
+
 document.addEventListener('click', (e) => {
+  const cardEl = boardCard(e.target);
+  if (cardEl && !e.target.closest('a, button, input, textarea, select, summary, label')) {
+    openCard(cardEl.dataset.open, data.pages.projects);
+    return;
+  }
+  const tsend = e.target.closest('[data-tsend]');
+  if (tsend) {
+    const answer = tsend.closest('.qcard').querySelector('.qtext').value.trim();
+    if (!answer) { say('Type an answer first'); return; }
+    if (tsend.disabled) return;
+    tsend.disabled = true;
+    todayPost(tsend.dataset.tsend, { answer }, 'Sent', tsend);
+    return;
+  }
+  const tick = e.target.closest('[data-ttick]'); // Done on Jon's own task, or Approve in review
+  if (tick) {
+    if (tick.disabled) return;
+    if (tick.dataset.confirm && !window.confirm(tick.dataset.confirm)) return;
+    tick.disabled = true;
+    todayPost(tick.dataset.ttick, { status: 'done' }, 'Done', tick, 'PATCH');
+    return;
+  }
+  // Send back: on the board it opens the card, whose own Send back sends the comment box with it.
+  const sendback = e.target.closest('[data-sendback]');
+  if (sendback) { openCard(sendback.dataset.sendback, data.pages.projects); return; }
+  const back = e.target.closest('[data-tback]');
+  if (back) {
+    const comment = back.closest('dialog')?.querySelector('.cmtext')?.value.trim();
+    if (!comment) { say('Type what to change first'); return; }
+    if (back.disabled) return;
+    back.disabled = true;
+    todayPost(back.dataset.tback, { status: 'doing', comment }, 'Sent back', back, 'PATCH');
+    return;
+  }
+  // Close card, on the board or in its modal: what's in the modal's comment box goes with it as the reason.
+  const close = e.target.closest('[data-tclose]');
+  if (close) {
+    if (close.disabled) return;
+    const comment = close.closest('dialog')?.querySelector('.cmtext')?.value.trim() || '';
+    if (!window.confirm(`Close "${close.dataset.title}"? It leaves the board${comment ? ' and your comment goes to its owner' : ''}.`)) return;
+    close.disabled = true;
+    todayPost(close.dataset.tclose, comment ? { status: 'cancelled', comment } : { status: 'cancelled' }, 'Closed', close, 'PATCH');
+    return;
+  }
+  const osel = e.target.closest('[data-osel]'); // Content: select an outlier for production, or unselect it
+  if (osel) {
+    if (osel.disabled) return;
+    osel.disabled = true;
+    const on = osel.dataset.on !== '1';
+    todayPost(osel.dataset.osel, { selected: on }, on ? 'Selected for production' : 'Unselected', osel);
+    return;
+  }
+  const sort = e.target.closest('[data-tsort]'); // Track: sort a table by this column
+  if (sort) { setSort(sort.dataset.tsort); go(hashPage()); return; }
+  const copy = e.target.closest('[data-copy]'); // Track: copy a video's link
+  if (copy) { navigator.clipboard.writeText(copy.dataset.copy).then(() => say('Link copied'), () => say('Could not copy')); return; }
+  const tdec = e.target.closest('[data-tdecide]');
+  if (tdec) {
+    if (tdec.disabled) return;
+    if (tdec.dataset.confirm && !window.confirm(tdec.dataset.confirm)) return;
+    tdec.disabled = true;
+    todayPost(tdec.dataset.tdecide, { decision: tdec.dataset.decision }, tdec.dataset.decision === 'reject' ? 'Rejected' : 'Approved', tdec);
+    return;
+  }
   if (e.target.id === 'nwbtn') {
     const el = document.getElementById('nw');
     const hid = el.textContent.indexOf('•') > -1;
@@ -202,63 +286,17 @@ document.addEventListener('click', (e) => {
   }
   const th = e.target.closest('[data-theme-set]');
   if (th) { setTheme(th.dataset.themeSet); return; }
-  const va = e.target.closest('[data-view-all]');
-  if (va) {
-    const ny = data.pages.home.needsYou;
-    if (ny.all) {
-      ny.jobs = ny.all;
-      ny.viewAll = 'Show top 3';
-      go('home');
-    }
+  const qopt = e.target.closest('[data-qopt]');
+  if (qopt) {
+    const card = qopt.closest('.qcard');
+    card.querySelectorAll('[data-qopt]').forEach((b) => b.classList.toggle('on', b === qopt));
+    const box = card.querySelector('.qtext');
+    box.value = qopt.dataset.qopt;
+    box.focus();
     return;
   }
-  const st = e.target.closest('.step');
-  if (st?.dataset.item) {
-    const done = st.getAttribute('aria-pressed') !== 'true';
-    const day = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Vancouver' });
-    st.setAttribute('aria-pressed', String(done));
-    recount();
-    fetch(`${PREFIX}/api/checklist`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-CC': '1' },
-      body: JSON.stringify({ day, item: st.dataset.item, done, how: 'manual' }),
-    }).then(() => go(hashPage(), { refetch: true })).catch(() => {});
-    return;
-  }
-  const up = e.target.closest('[data-upload]');
-  if (up && e.target.id !== 'cc-upload') {
-    document.getElementById('cc-upload')?.click();
-    return;
-  }
-
   const href = e.target.closest('[data-href]');
   if (href) { window.open(href.dataset.href, '_blank', 'noopener'); return; }
-  const logBtn = e.target.closest('[data-log-post]');
-  if (logBtn) {
-    const platform = prompt('Platform (X, Instagram, Facebook, LinkedIn)', 'X');
-    if (platform == null) return;
-    const first = prompt('First line of the post');
-    if (first == null || !String(first).trim()) return;
-    const url = prompt('Link (optional)', '') ?? '';
-    fetch(`${PREFIX}/api/posts`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-CC': '1' },
-      body: JSON.stringify({ platform, first_line: String(first).trim(), url }),
-    }).then(async (res) => {
-      const j = await res.json().catch(() => ({}));
-      say(res.ok ? 'Post logged' : (j.error || 'Could not log post'));
-      if (!res.ok) return;
-      const snap = await fetch(`${PREFIX}/api/snapshot`);
-      if (snap.ok) { data = await snap.json(); go(hashPage()); }
-    });
-    return;
-  }
-  const filt = e.target.closest('[data-draft-filter]');
-  if (filt && data?.pages?.content?.dailyDrafts) {
-    data.pages.content.dailyDrafts.filter = filt.dataset.draftFilter || 'all';
-    go('content');
-    return;
-  }
   const draftBtn = e.target.closest('[data-draft]');
   if (draftBtn) {
     let payload = {};
@@ -270,10 +308,6 @@ document.addEventListener('click', (e) => {
   if (actBtn) {
     let payload = {};
     try { payload = JSON.parse(actBtn.dataset.payload || '{}'); } catch { payload = {}; }
-    if (actBtn.dataset.readDraft) {
-      const box = actBtn.closest('.r')?.querySelector('[data-draft-body]');
-      if (box) payload = { ...payload, body: box.value };
-    }
     if (actBtn.dataset.edit) {
       const body = prompt('Edit draft', payload.body || '');
       if (body == null) return;
@@ -281,20 +315,13 @@ document.addEventListener('click', (e) => {
     }
     if (actBtn.dataset.confirm && !window.confirm(actBtn.dataset.confirm)) return;
     const kind = actBtn.dataset.kind;
-    if (kind === 'outreach.refresh') {
-      say('Checking Instantly…');
-      if (data?.pages?.outreach) {
-        data.pages.outreach.check = { status: 'pending', label: 'Checking Instantly…' };
-        go('outreach');
-      }
-    }
     act(kind, payload).then(async () => {
       if (actBtn.hasAttribute('data-done')) {
         const r = actBtn.closest('.r, .job');
         if (r) r.classList.add('done');
       }
-      if (kind.startsWith('mastermind.') || kind.startsWith('support.') || kind.startsWith('sponsor.') || kind.startsWith('video.') || kind.startsWith('content.') || kind.startsWith('money.') || kind.startsWith('outreach.') || kind.startsWith('life.') || kind === 'agent.restart' || kind === 'ping') {
-        const snap = await fetch(`${PREFIX}/api/snapshot`);
+      if (kind.startsWith('mastermind.') || kind.startsWith('sponsor.') || kind.startsWith('money.') || kind.startsWith('life.')) {
+        const snap = await fetch(`${PREFIX}/api/snapshot?v=${Date.now()}`);
         if (snap.ok) {
           data = await snap.json();
           go(hashPage());
@@ -315,33 +342,46 @@ document.addEventListener('click', (e) => {
   }
 });
 
-document.addEventListener('change', (e) => {
-  if (e.target.id === 'cc-upload' && e.target.files?.[0]) uploadFile(e.target.files[0]);
-});
-document.addEventListener('dragover', (e) => {
-  if (e.target.closest('[data-upload]')) e.preventDefault();
-});
-document.addEventListener('drop', (e) => {
-  const z = e.target.closest('[data-upload]');
-  if (!z) return;
-  e.preventDefault();
-  const file = e.dataTransfer.files?.[0];
-  if (file) uploadFile(file);
-});
-
-
-bindModals({ say, act, go, getData: () => data });
+bindModals({ say, act, go });
 
 window.addEventListener('hashchange', () => go(hashPage()));
 
-const snap = await fetch(`${PREFIX}/api/snapshot`);
+// Everything the app renders (pages, nav, modals, toasts) gets noLoneWords, in one pass per batch.
+new MutationObserver((ms) => noLoneWords(ms.flatMap((m) => [...m.addedNodes]))).observe(document.body, { childList: true, subtree: true });
+// Pairs were joined for the old width; after a rotation or resize, re-render so they fit again.
+let shownWidth = innerWidth, resizing;
+window.addEventListener('resize', () => {
+  clearTimeout(resizing);
+  resizing = setTimeout(() => { if (data && innerWidth !== shownWidth) { shownWidth = innerWidth; go(hashPage()); } }, 300);
+});
+
+const snap = await fetch(`${PREFIX}/api/snapshot?v=${Date.now()}`);
 if (snap.status === 401) { location.href = `${PREFIX}/`; throw new Error('auth'); }
 data = await snap.json();
+stale(data); // records this page's build
 document.getElementById('navs').innerHTML = navHtml();
-document.getElementById('donutpct').textContent = `${data.goal.pct}%`;
-document.getElementById('donut').style.background = `conic-gradient(var(--accent) 0 ${data.goal.pct}%,var(--line) ${data.goal.pct}% 100%)`;
-document.getElementById('goallabel').textContent = data.goal.label;
-document.getElementById('goalsub').textContent = data.goal.sub;
+// Today, Todo, Projects and Webinar refresh every 60 s while visible, keeping the sub-path (the chosen project).
+// Every other page (Calendar, Content, ...) asks only for the build, so an open tab still reloads to new code.
+async function checkBuild() {
+  const r = await fetch(`${PREFIX}/api/build`).catch(() => null);
+  const j = r?.ok ? await r.json().catch(() => null) : null;
+  if (j && stale(j)) location.reload();
+}
+document.addEventListener('visibilitychange', () => { if (!document.hidden) checkBuild(); }); // a phone tab coming back
+setInterval(() => {
+  const id = hashPage();
+  if (document.hidden) return;
+  if (!['today', 'todo', 'projects', 'webinar'].includes(id.split('/')[0])) { checkBuild(); return; }
+  const el = document.activeElement;
+  if (el && (/^(TEXTAREA|SELECT)$/.test(el.tagName) || (el.tagName === 'INPUT' && el.type !== 'checkbox'))) return;
+  const y = window.scrollY;
+  const x = document.querySelector('#page .pjkan')?.scrollLeft || 0;  // keep the board where Jon scrolled it
+  go(id, { refetch: true }).then(() => {
+    window.scrollTo(0, y);
+    const board = document.querySelector('#page .pjkan');
+    if (board) board.scrollLeft = x;
+  }).catch(() => {});
+}, 60000);
 let last = hashPage();
 try { if (!location.hash) last = localStorage.getItem('cc-page') || last; } catch {}
 go(last);

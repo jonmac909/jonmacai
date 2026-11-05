@@ -4,7 +4,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { createHmac } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import worker from '../src/index.js';
-import { buyerSession, checkoutContext, customerId, hash, OFFERS, sign, upsell } from '../src/upsells.js';
+import { buyerSession, checkoutContext, customerId, hash, nextChargeAt, OFFERS, retryDelay, sign, upsell } from '../src/upsells.js';
 
 const origin = 'https://jonmac.ai';
 const now = () => Math.floor(Date.now() / 1000);
@@ -12,20 +12,21 @@ const now = () => Math.floor(Date.now() / 1000);
 const BUYER = 'user_Mock12345';
 function database() {
   const sql = new DatabaseSync(':memory:');
-  sql.exec(readFileSync(new URL('../migrations/0001_upsells.sql', import.meta.url), 'utf8'));
+  for (const m of ['0001_upsells.sql', '0002_sandbox.sql', '0003_whop_events.sql', '0004_reminders.sql', '0005_launch_readiness.sql', '0006_sandbox_observability.sql', '0007_oneclick_sales.sql']) sql.exec(readFileSync(new URL('../migrations/' + m, import.meta.url), 'utf8'));
   return {
     prepare(query) {
       const stmt = sql.prepare(query);
       return { bind(...args) { return {
         async run() { return { meta: { changes: Number(stmt.run(...args).changes) } }; },
         async first() { return stmt.get(...args) || null; },
+        async all() { return { results: stmt.all(...args) }; },
       }; } };
     },
   };
 }
 function env() { return { CLONE_UPSELLS: database(), CLONE_TOKEN_SECRET: 'mock-only-signing-key',
   COMMAS_API_KEY: 'mock-only-api-key', COMMAS_WEBHOOK_SECRET: 'mock-only-webhook-key',
-  CLONE_REBILL_ENABLED: 'true', CLONE_SUBSCRIPTIONS_ENABLED: 'true',
+  CLONE_REBILL_ENABLED: 'true', CLONE_SUBSCRIPTIONS_ENABLED: 'true', CLONE_CHARGE_GAP_MS: '0',
   CLONE_REBILL_ENABLED_AT: new Date(Date.now() - 60000).toISOString(),
   CLONE_LEADS: { async get() { return null; } } }; }
 function request(path, body = {}, cookie = '', requestOrigin = origin) {
@@ -49,12 +50,13 @@ function mockCommas(overrides = {}) {
       const b = JSON.parse(init.body);
       return response({ status: 'succeeded', charge_id: 'mock-charge', amount: b.amount_cents / 100 });
     }
-    if (String(url).endsWith('/payment-methods')) return overrides.methods || response({ customer: { id: BUYER }, payment_methods: [{ id: 'mock-card', type: 'card', is_default: true }] });
+    if (String(url).endsWith('/payment-methods')) return overrides.methods || response({ customer: { id: BUYER, email: 'buyer@example.test', name: 'Mock Buyer' }, payment_methods: [{ id: 'mock-card', type: 'card', is_default: true }] });
     if (String(url).includes('/checkout-sessions/')) {
       const service = String(url).split('/').pop();
       const o = Object.values(OFFERS).find(o => o.service === service);
-      if (o) return overrides.product || response({ product: { id: { wg0E8: 1287855, XXYMA: 1382675, O9gZr: 1287825, jJYvv: 1287845 }[service] },
-        amount_cents: o.cents, type: o.recurring ? 'subscription' : 'onetime_reusable', subscription: { frequency_days: 30, free_trial_days: null, auto_expire_after_x_periods: service === 'jJYvv' ? 2 : null } });
+      if (o) return overrides.product || response({ product: { id: { wg0E8: 1287855, XXYMA: 1382675, O9gZr: 1287825, jJYvv: 1287845, gq2yZ: 2229088 }[service] },
+        amount_cents: o.productCents ?? o.cents, type: o.recurring || o.trial ? 'subscription' : 'onetime_reusable', subscription: { frequency_days: 30, free_trial_days: null, auto_expire_after_x_periods: service === 'jJYvv' ? 2 : null,
+          ...(o.trial ? { initial_fee: '1.00', initial_fee_days: 7 } : {}) } });
     }
     if (overrides.other) return overrides.other(url, init);
     throw new Error('Unexpected mocked request');
@@ -70,7 +72,8 @@ test('Clone one-click payments: verified identity, durable claims and safe fallb
     for (const name of ['software', 'audit', 'vault', 'vault_plan']) {
       const e = env(), cookie = await buyerCookie(e), calls = mockCommas();
       const r = await upsell(request('upsell', { offer: name, amount_cents: 1, customerId: 99999 }, cookie), e);
-      assert.deepEqual(await r.json(), { ok: true, next: OFFERS[name].next });
+      const body = await r.json(); assert.deepEqual({ ok: body.ok, next: body.next }, { ok: true, next: OFFERS[name].next });
+      assert.equal(body.purchaseEventId, 'clone_purchase_oneclick_mock-charge');
       const charge = calls.find(c => c.url.endsWith('/charge'));
       const b = JSON.parse(charge.body);
       assert.equal(b.amount_cents, OFFERS[name].cents);
@@ -112,7 +115,7 @@ test('Clone one-click payments: verified identity, durable claims and safe fallb
     assert.equal((await (await upsell(request('upsell', { offer: 'trial' }, await buyerCookie(e)), e)).json()).checkoutUrl, OFFERS.trial.hosted);
     assert.equal(calls.length, 0);
   });
-  await t.test('production activation charges only one-time offers after the confirmed purchase cutoff', async () => {
+  await t.test('production activation charges every offer only after the confirmed purchase cutoff', async () => {
     const config = readFileSync(new URL('../wrangler.jsonc', import.meta.url), 'utf8');
     const vars = JSON.parse(config.replace(/^\s*\/\/.*$/gm, '')).vars;
     const cutoff = Date.parse(vars.CLONE_REBILL_ENABLED_AT);
@@ -132,17 +135,86 @@ test('Clone one-click payments: verified identity, durable claims and safe fallb
         }
       }
     }
+    // Live config (approved Oct 15 2026): recurring offers and the $1 trial are one-click first payments.
+    assert.equal(vars.CLONE_SUBSCRIPTIONS_ENABLED, 'true'); assert.equal(vars.CLONE_TRIAL_ONECLICK, 'true');
     for (const offer of ['software', 'vault_plan', 'trial']) {
-      const e = { ...env(), ...vars }, calls = mockCommas();
+      const e = { ...env(), ...vars, CLONE_CHARGE_GAP_MS: '0' }, calls = mockCommas();
       const r = await (await upsell(request('upsell', { offer }, await buyerCookie(e, { purchased: cutoff + 1 })), e)).json();
-      assert.equal(r.fallback, true);
-      assert.equal(calls.length, 0);
+      assert.equal(r.ok, true, offer);
+      assert.equal(JSON.parse(calls.find(c => c.url.endsWith('/charge')).body).amount_cents, offer === 'trial' ? 100 : OFFERS[offer].cents);
     }
   });
-  await t.test('subscription one-click stays off in config: Commas charges cannot create subscriptions', () => {
-    const vars = JSON.parse(readFileSync(new URL('../wrangler.jsonc', import.meta.url), 'utf8').replace(/^\s*\/\/.*$/gm, '')).vars;
-    assert.equal(vars.CLONE_SUBSCRIPTIONS_ENABLED, 'false');
-    assert.equal(vars.CLONE_SANDBOX_SUBSCRIPTIONS_ENABLED, 'false');
+  const oops = () => new Response(JSON.stringify({ status: 'error', message: 'Oops! Something went wrong. Please try again.', request_id: 'Root=1-mock',
+    data: { result: { success: false, payment_intent_id: null, status: null, amount: null, message: null, error: 'Oops! Something went wrong. Please try again.' } } }), { status: 400 });
+  await t.test('recurring offers and the $1 trial charge the first payment once and are listed for manual setup', async () => {
+    for (const [name, plan, days] of [['software', 'VV Pro $97/mo (month 1 paid)', 30], ['vault_plan', 'Vault 3 x $99 (payment 1 of 3 paid)', 30], ['trial', 'VV Pro $1 trial -> $97/mo', 7]]) {
+      const e = { ...env(), CLONE_TRIAL_ONECLICK: 'true' }, cookie = await buyerCookie(e), calls = mockCommas();
+      const first = await (await upsell(request('upsell', { offer: name }, cookie), e)).json();
+      assert.deepEqual({ ok: first.ok, next: first.next }, { ok: true, next: OFFERS[name].next });
+      const charge = JSON.parse(calls.find(c => c.url.endsWith('/charge')).body);
+      assert.equal(charge.amount_cents, name === 'trial' ? 100 : OFFERS[name].cents);
+      const rows = await e.CLONE_UPSELLS.prepare('SELECT * FROM clone_manual_subscriptions').bind().all();
+      assert.equal(rows.results.length, 1); const row = rows.results[0];
+      assert.equal(row.plan, plan); assert.equal(row.email, 'buyer@example.test'); assert.equal(row.charge_ref, 'mock-charge');
+      const start = Date.parse(row.billing_starts_on + 'T12:00:00Z'), expect = Date.now() + days * 86400000;
+      assert.ok(Math.abs(start - expect) < 2 * 86400000, name + ' billing start');
+      assert.equal((await (await upsell(request('upsell', { offer: name }, cookie), e)).json()).ok, true);
+      assert.equal(calls.filter(c => c.url.endsWith('/charge')).length, 1);
+    }
+    const e = env(), calls = mockCommas();
+    assert.equal((await (await upsell(request('upsell', { offer: 'trial' }, await buyerCookie(e)), e)).json()).reason, 'trial_hosted');
+    assert.equal(calls.length, 0);
+  });
+  await t.test('a one-click sale records exactly one Whop purchase and one scorecard payment', async () => {
+    const e = { ...env(), WHOP_API_KEY: 'mock-whop', CLONE_SCORECARD_ENABLED: 'true' }, cookie = await buyerCookie(e);
+    const saved = globalThis.fetch; mockCommas(); const commasFetch = globalThis.fetch;
+    globalThis.fetch = (url, init) => String(url).includes('fanbasis.com') ? commasFetch(url, init) : Promise.resolve(new Response('{}', { status: 503 }));
+    try {
+      assert.equal((await (await upsell(request('upsell', { offer: 'audit' }, cookie), e)).json()).ok, true);
+      assert.equal((await (await upsell(request('upsell', { offer: 'audit' }, cookie), e)).json()).ok, true);
+      const { recordOneClickSale } = await import('../src/upsells.js');
+      await recordOneClickSale(e, { name: 'audit', offer: OFFERS.audit, buyerId: BUYER, customer: { email: 'buyer@example.test' }, chargeId: 'mock-charge' });
+    } finally { globalThis.fetch = saved; }
+    const whop = (await e.CLONE_UPSELLS.prepare('SELECT event_id FROM clone_whop_events').bind().all()).results;
+    assert.deepEqual(whop.map(r => r.event_id), ['purchase_mock-charge']);
+    const score = (await e.CLONE_UPSELLS.prepare("SELECT event_id, offer, amount_cents FROM clone_session_events WHERE kind = 'payment'").bind().all()).results;
+    assert.deepEqual(score.map(r => ({ ...r })), [{ event_id: 'payment:mock-charge', offer: 'audit', amount_cents: 49700 }]);
+  });
+  await t.test('a Commas Oops refusal (no payment started) is retried exactly once with a new key', async () => {
+    for (const [replies, ok] of [[[oops(), null], true], [[oops(), oops()], false]]) {
+      const e = { ...env(), CLONE_CHARGE_RETRY_MS: '0' }, cookie = await buyerCookie(e); let n = 0;
+      const calls = mockCommas({ charge: (url, init) => replies[n++] || response({ status: 'succeeded', charge_id: 'mock-retry', amount: JSON.parse(init.body).amount_cents / 100 }) });
+      const r = await (await upsell(request('upsell', { offer: 'audit' }, cookie), e)).json();
+      assert.equal(r.ok === true, ok);
+      if (!ok) {
+        assert.equal(r.reason, 'payment_rejected');
+        // After the second refusal the buyer is told plainly nothing was charged.
+        assert.match(r.message, /after retrying, and your card was not charged/);
+      }
+      const charges = calls.filter(c => c.url.endsWith('/charge'));
+      assert.equal(charges.length, 2);
+      assert.notEqual(charges[0].headers['Idempotency-Key'], charges[1].headers['Idempotency-Key']);
+      await upsell(request('upsell', { offer: 'audit' }, cookie), e);
+      assert.equal(calls.filter(c => c.url.endsWith('/charge')).length, 2);
+    }
+    for (const charge of [() => response([], 409, 'error'), () => response([], 500, 'error'), () => { throw new Error('timeout'); }]) {
+      const e = { ...env(), CLONE_CHARGE_RETRY_MS: '0' }, calls = mockCommas({ charge });
+      await upsell(request('upsell', { offer: 'audit' }, await buyerCookie(e)), e);
+      assert.equal(calls.filter(c => c.url.endsWith('/charge')).length, 1, 'unknown outcomes never retry');
+    }
+    const e = { ...env(), CLONE_CHARGE_RETRY: 'false' }, calls = mockCommas({ charge: oops });
+    assert.equal((await (await upsell(request('upsell', { offer: 'audit' }, await buyerCookie(e)), e)).json()).reason, 'payment_rejected');
+    assert.equal(calls.filter(c => c.url.endsWith('/charge')).length, 1);
+  });
+  await t.test('charges are paced past the Commas same-customer window after the last charge', async () => {
+    const e = { ...env(), CLONE_CHARGE_GAP_MS: '400' }, cookie = await buyerCookie(e, { purchased: Date.now() });
+    const stamps = [];
+    mockCommas({ charge: (url, init) => { stamps.push(Date.now()); return response({ status: 'succeeded', charge_id: 'mock-' + stamps.length, amount: JSON.parse(init.body).amount_cents / 100 }); } });
+    const t0 = Date.now();
+    assert.equal((await (await upsell(request('upsell', { offer: 'audit' }, cookie), e)).json()).ok, true);
+    assert.equal((await (await upsell(request('upsell', { offer: 'vault' }, cookie), e)).json()).ok, true);
+    assert.ok(stamps[0] - t0 >= 350, 'first upsell waits after the $47 purchase');
+    assert.ok(stamps[1] - stamps[0] >= 350, 'second upsell waits after the first charge');
   });
   await t.test('no saved card and changed product terms cannot charge', async () => {
     for (const overrides of [{ methods: response({ customer: { id: BUYER }, payment_methods: [] }) }, { product: response({ product: { id: 1382675 }, amount_cents: 99900, type: 'onetime_reusable' }) }, { product: response({ product: { id: 1382675 }, amount_cents: 49700, type: 'subscription' }) }, { methods: response({ customer: { id: 'user_Other99999' }, payment_methods: [{ id: 'other-card', type: 'card' }] }) }]) {
@@ -295,5 +367,67 @@ test('Clone one-click payments: verified identity, durable claims and safe fallb
       const cookie = await proof(e, change);
       assert.equal((await buyerSession(request('buyer-session', {}, cookie), e)).status, 202);
     }
+  });
+});
+
+test('after sales close an unverified visitor gets no checkout, a verified buyer still finishes the funnel', async t => {
+  const originalNow = Date.now, close = Date.parse('2026-11-13T01:30:00Z');
+  t.after(() => { Date.now = originalNow; globalThis.fetch = fetchBefore; });
+  const fetchBefore = globalThis.fetch;
+  await t.test('unverified visitors: 410 sales_closed, no hosted checkout URL, no Commas call', async () => {
+    for (const offerName of Object.keys(OFFERS)) {
+      for (const at of [close, close + 3600000]) {
+        const e = env(), calls = mockCommas();
+        Date.now = () => at;
+        for (const cookie of ['', await buyerCookie(e, { buyer: 'cus_123' })]) {
+          const r = await upsell(request('upsell', { offer: offerName }, cookie), e), body = await r.json();
+          assert.equal(r.status, 410, offerName); assert.equal(body.error, 'sales_closed'); assert.equal(body.closed, true);
+          assert.equal(body.checkoutUrl, undefined, 'No hosted checkout after close'); assert.equal(body.fallback, undefined);
+        }
+        assert.equal(calls.length, 0);
+      }
+    }
+    const e = { ...env(), CLONE_TOKEN_SECRET: undefined }; mockCommas(); Date.now = () => close;
+    assert.equal((await upsell(request('upsell', { offer: 'audit' }), e)).status, 410, 'Unconfigured identity also closes');
+  });
+  await t.test('one minute before close an unverified visitor still gets the hosted fallback', async () => {
+    const e = env(); mockCommas(); Date.now = () => close - 60000;
+    const body = await (await upsell(request('upsell', { offer: 'audit' }), e)).json();
+    assert.equal(body.reason, 'buyer_unverified'); assert.equal(body.fallback, true); assert.ok(body.checkoutUrl);
+  });
+  await t.test('a buyer verified before the cutoff still gets the one-click upsell after it', async () => {
+    Date.now = () => close - 5 * 60000;
+    const e = env(), cookie = await buyerCookie(e, { purchased: Date.now() }), calls = mockCommas();
+    Date.now = () => close + 10 * 60000;
+    const r = await upsell(request('upsell', { offer: 'audit' }, cookie), e), body = await r.json();
+    assert.equal(r.status, 200); assert.equal(body.ok, true);
+    assert.equal(calls.filter(c => c.url.endsWith('/charge')).length, 1);
+  });
+});
+
+test('Commas duplicate-charge timing: 60 s retry and next-minute pacing', async t => {
+  await t.test('the retry waits 60 s by default and never more', () => {
+    assert.equal(retryDelay({}), 60000, 'default equals Phil Shaw recommendation');
+    assert.equal(retryDelay({ CLONE_CHARGE_RETRY_MS: '0' }), 0);
+    assert.equal(retryDelay({ CLONE_CHARGE_RETRY_MS: '60000' }), 60000);
+    assert.equal(retryDelay({ CLONE_CHARGE_RETRY_MS: '120000' }), 60000, 'above the cap falls back to 60 s');
+    assert.equal(retryDelay({ CLONE_CHARGE_RETRY_MS: '-1' }), 60000);
+    assert.equal(retryDelay({ CLONE_CHARGE_RETRY_MS: 'soon' }), 60000);
+  });
+  await t.test('pacing targets the first full minute after the last charge, plus 3 s', () => {
+    const last = 1700000000000; // 20 s past a minute boundary
+    const at = nextChargeAt(last, {});
+    assert.equal(at, Math.floor(last / 60000) * 60000 + 63000);
+    assert.equal(at % 60000, 3000, 'lands 3 s after the boundary');
+    assert.ok(at - last > 0 && at - last <= 63000, 'never waits more than 63 s');
+    // Already on the boundary still means the next minute, not this one.
+    assert.equal(nextChargeAt(1700000040000, {}), 1700000040000 + 63000);
+  });
+  await t.test('gap overrides stay test-only and cap at one minute', () => {
+    const last = 1700000000000;
+    assert.equal(nextChargeAt(last, { CLONE_CHARGE_GAP_MS: '0' }), last);
+    assert.equal(nextChargeAt(last, { CLONE_CHARGE_GAP_MS: '400' }), last + 400);
+    assert.equal(nextChargeAt(last, { CLONE_CHARGE_GAP_MS: '90000' }), last + 60000);
+    assert.equal(nextChargeAt(last, { CLONE_SANDBOX_CHARGE_GAP_MS: '5', CLONE_PAYMENT_MODE: 'sandbox' }), last + 5);
   });
 });

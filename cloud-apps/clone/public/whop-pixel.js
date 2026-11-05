@@ -69,11 +69,14 @@
   }
   function lead(email) {
     var id = 'clone_lead_' + crypto.randomUUID();
-    track('lead', { event_id: id, email: email });
-    track('complete_registration', { event_id: id + '_registration', email: email });
     return { eventId: id, registrationEventId: id + '_registration', anonymousId: anonymousId(), pageUrl: pageUrl() };
   }
-  window.CloneWhop = { metadata: metadata, decorate: decorate, lead: lead };
+  // Called only after the server accepted the lead, with the IDs it was sent.
+  function leadSent(email, ids) {
+    track('lead', { event_id: ids.eventId, email: email });
+    track('complete_registration', { event_id: ids.registrationEventId, email: email });
+  }
+  window.CloneWhop = { metadata: metadata, decorate: decorate, lead: lead, leadSent: leadSent };
   function decorateLinks() {
     document.querySelectorAll('a[href*="/checkout/"]').forEach(function (a) { a.href = decorate(a.href); });
   }

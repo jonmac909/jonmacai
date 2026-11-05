@@ -12,7 +12,7 @@ import { mockProduct, sandboxIds, sandboxSettings, sandboxUrls } from './sandbox
 const origin = 'https://jonmac.ai';
 function env() {
   const db = new DatabaseSync(':memory:');
-  for (const migration of ['0001_upsells.sql', '0002_sandbox.sql', '0006_sandbox_observability.sql']) db.exec(readFileSync(new URL('../migrations/' + migration, import.meta.url), 'utf8'));
+  for (const migration of ['0001_upsells.sql', '0002_sandbox.sql', '0006_sandbox_observability.sql', '0007_oneclick_sales.sql']) db.exec(readFileSync(new URL('../migrations/' + migration, import.meta.url), 'utf8'));
   const leads = new Map();
   return { ...sandboxSettings(), CLONE_UPSELLS: { prepare(query) {
     const stmt = db.prepare(query); return { bind(...args) { return {

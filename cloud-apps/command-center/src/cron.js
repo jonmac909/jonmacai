@@ -1,19 +1,16 @@
 import snapshot from '../fixtures/snapshot.json' with { type: 'json' };
 import { listSnapshots, upsertSnapshot } from './db.js';
-import { pullInstantly } from './outreach.js';
 import { pullCalendar } from './life.js';
 import { mergeSnapshot } from './snapshot.js';
-import { pushCriticalTelegram } from './home.js';
-import { fillFromEnv } from './daily-drafts.js';
-import { syncGroup } from './mastermind-scan.js';
+import { pushCriticalTelegram } from './alerts.js';
+import { funnelMonth } from './webinar.js';
+import { monthWindow } from './today.js';
+import { settleApproved } from './videoreview.js';
+import { syncReach, syncStats } from './youtube.js';
 
 const VIRAL_URL = 'https://app.viralview.io/api/internal/dashboard-summary';
 const MONEY_URL = 'https://moneyclaw.jonmac.ai/api/internal/dashboard-summary';
-const YT_URL = 'https://jonmac.ai/yt2/api/outliers';
 export function sourceCollectedAt(source, data, fetchedAt) {
-  if (source === 'youtube' && data?.generatedAt && Number.isFinite(Date.parse(data.generatedAt))) {
-    return new Date(Date.parse(data.generatedAt)).toISOString();
-  }
   if (source !== 'viralview') return fetchedAt;
   const raw = data?.lastSyncAt;
   const ms = typeof raw === 'number' && Number.isFinite(raw) ? raw : Date.parse(raw);
@@ -30,6 +27,15 @@ async function pull(env, source, url, headers) {
   await upsertSnapshot(env.DB, source, JSON.stringify(data), sourceCollectedAt(source, data, fetchedAt), fetchedAt);
 }
 
+// Webinar funnel money this month for the Today page, read every 10 minutes instead of per page load.
+export async function pullWebinarMonth(env, nowMs = Date.now()) {
+  const win = monthWindow(nowMs);
+  const f = await funnelMonth(env.CLONE_DB, win.start, win.end);
+  if (!f) return;
+  const at = new Date(nowMs).toISOString();
+  await upsertSnapshot(env.DB, 'webinar_funnel', JSON.stringify({ ...f, month: win.key }), at, at);
+}
+
 export async function handleCron(env) {
   if (!env?.DB) return;
   const jobs = [];
@@ -44,15 +50,12 @@ export async function handleCron(env) {
       authorization: `Bearer ${env.MONEYCLAW_DASHBOARD_TOKEN}`,
     }));
   }
-  jobs.push(pull(env, 'youtube', YT_URL, {}));
-  if (env.INSTANTLY_API_KEY) jobs.push(pullInstantly(env));
+  jobs.push(pullWebinarMonth(env));
   jobs.push(pullCalendar(env));
-  if (env.TELEGRAM_GROUP_BOT_TOKEN && env.TELEGRAM_GROUP_CHAT_ID && env.TELEGRAM_GROUP_BOT_TOKEN !== env.TELEGRAM_BOT_TOKEN) {
-    jobs.push(syncGroup(env));
-  }
+  jobs.push(settleApproved(env).catch((err) => console.error('settle approved', err)));
+  jobs.push(syncReach(env).catch((err) => console.error('youtube reach', err.message))); // impressions and CTR, 6-hourly a channel
+  jobs.push(syncStats(env).catch((err) => console.error('youtube stats', err.message))); // views, status, subs, hourly a channel
   await Promise.allSettled(jobs);
-  const nowMs = Date.now();
-  try { await fillFromEnv(env, nowMs); } catch { /* page shows the ensure error */ }
-  const snap = mergeSnapshot(snapshot, await listSnapshots(env.DB), nowMs);
+  const snap = mergeSnapshot(snapshot, await listSnapshots(env.DB), Date.now());
   await pushCriticalTelegram(env, snap);
 }

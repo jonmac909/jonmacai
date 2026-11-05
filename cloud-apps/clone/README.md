@@ -78,6 +78,56 @@ unchanged by JON-15. CI additionally runs `npm run test:readiness:browser`, usin
 the actual Worker/KV/D1 with mocked external resources and no message/payment
 submission. Mobile screenshots are saved in the OS temp directory.
 
+## Sales close (Thu Nov 12, 5:30 PM PT / 8:30 PM ET)
+
+The one live session moved from Oct 29 to Thursday, November 12, 2026, 4 PM PT / 7 PM ET
+(`SESSION` 2026-11-13T00:00:00Z, after daylight saving ends; Jon, Oct 30). Buyers already booked keep
+their stored session; only new purchases get Nov 12.
+`SALES_CLOSE` is 2026-11-13T01:30:00Z, 90 minutes into the 7 PM ET session, after the pitch. Buyers who
+pay while the session is live get the join link at once (reminder E6). After `SALES_CLOSE` the Worker returns 410 `sales_closed` from `/api/lead`, `/api/checkout-session`
+and `/api/upsell` for any visitor without a verified purchase (no hosted checkout URL either).
+A buyer verified before the cutoff can still finish the funnel. `public/closed-gate.js` shows
+"Registration Closed" on welcome, survey, software, audit and vault to browsers with no verified
+purchase. Tests: `npm test` shifts `Date` to Nov 11 once the real clock passes the cutoff
+(`test/clock-setup.mjs`); browser scripts fix the page clock (`test/clock.mjs`); the live sandbox
+runner switches to closed-state checks after the cutoff.
+
+## Email seat link, offer price and the nurture emails (Oct 30)
+
+**Seat link.** Every seat button in an email points at `https://jonmac.ai/clone/seat`. Before
+`SALES_CLOSE` it redirects (302, no-store) to `CHECKOUT_URL`, the live $47 Commas checkout, keeping
+only `utm_*` tags plus `lp=clone`. After the close it goes to `/clone/`, which shows "Registration
+Closed". The Worker's own "seat isn't saved" lead email uses it. Never link emails straight at Commas:
+the hosted checkout ignores the close.
+
+**Offer price.** `src/offer.js` `OFFER_PRICE_USD` is the one place the webinar offer's price lives
+($997 or $1,997, open with Jon); `OFFER_PLAN` under it is the 3-payment plan. Pages write
+`{{OFFER_PRICE}}` / `{{OFFER_PLAN}}` (the refund policy does); the Worker fills them into every HTML
+response, with no ETag/Last-Modified and no 304 from the asset store, so a swap shows at once.
+Emails get `event.offer_price` and `event.offer_plan` on the `clone.lead` event (with `seat_url`
+and `session_label`); those are fixed when the lead signs up, so leads already in the 7-day
+nurture keep the old price after a swap. The $47 seat price is separate: it is the Commas product `nmGzE` and
+the purchase webhook's $47 check.
+
+**Nurture emails.** Resend automation "Clone Nurture 7-Day" (`01a05004-f61e-7068-a9cd-5f9a4106461f`)
+starts on `clone.lead`. Before each email it waits for `clone.purchase` (1 hour, then 1 day each);
+a purchase ends the run. The copy lives only in these Resend templates:
+
+| # | When | Subject | Live template | Draft copy (not live) |
+| --- | --- | --- | --- | --- |
+| 1 | +1 hour | no rush | `bafd27ab-c231-4a82-a4ee-3cd15501a620` | `42fb6cc6-82d3-4b18-9fcf-6ee95d4b9d3a` |
+| 2 | +1 day | starts tonight | `920a6a18-6dde-43d6-a472-695a1d3a1803` | `63906059-0dbd-4feb-b82b-6954ae3828b2` |
+| 3 | +2 days | no followers | `3965f1b9-6524-4d97-b8b9-6d0cff96c78f` | `89285b99-a843-41f2-a759-0ea3a9f39107` |
+| 4 | +3 days | the window | `246fa17b-b63e-4c49-85ab-5a569fffa9e6` | `319dec54-39b9-430c-a0f6-a1668420083f` |
+| 5 | +4 days | what's included | `03572195-02d1-47a7-ad5d-275ab2e04dc1` | `f8535e2f-3f8d-472e-acd7-a09042cca2d7` |
+| 6 | +5 days | quick answers | `0f37a66e-744c-44f7-af9e-efe541210e5d` | `cec334f2-5b07-436b-a9a3-994c6ed3c987` |
+| 7 | +6 days | last one | `506eb78a-f341-4702-b8ca-12fce452febe` | `d9ae532a-a100-40db-9d5c-65e6260f2d9c` |
+
+New version: write the copy into the drafts (button `https://jonmac.ai/clone/seat`, price
+`{{{OFFER_PRICE}}}`), test-send only to a team address, and get Jon's approval on the Review card.
+Then publish the 7 drafts and change only the automation's 7 `send_email` steps to the draft IDs with
+`variables: { OFFER_PRICE: { var: "event.offer_price" } }`. Rollback: put the old IDs back.
+
 ## Daily schedule and Whop measurement (JON-16)
 
 The training runs daily at 7 PM America/New_York. Lander, welcome, survey,
@@ -185,10 +235,25 @@ to Commas, whose own duplicate protection lasts only ten minutes. An explicit
 rejection permits hosted checkout; timeout, HTTP 409/5xx, malformed success or
 failure to persist the successful charge stays locked. The page offers **Check
 Payment Status**, never another checkout for an uncertain payment. Such claims
-need manual reconciliation with Commas; no automatic charge retry exists. A
-browser pending marker survives refreshes and prevents an expired session from
-offering another checkout. An authentic expired buyer token can inspect an
-existing claim, but cannot authorize a new charge.
+need manual reconciliation with Commas. A browser pending marker survives
+refreshes and prevents an expired session from offering another checkout. An
+authentic expired buyer token can inspect an existing claim, but cannot
+authorize a new charge.
+
+Commas also blocks a second saved-card charge on the same card until the next
+full minute starts, so the wait is 0 to 60 s, not a fixed timer (Phil Shaw,
+Commas, Oct 22 2026; production and sandbox behave the same). Two things handle
+that block. Before the first attempt the Worker waits until the next wall-clock
+minute after the buyer's last charge, including the $47 seat purchase, plus a
+3 s buffer, so the first attempt normally succeeds. If Commas still refuses
+with "Oops! Something went wrong" and no payment intent, the Worker waits 60 s
+(`CLONE_CHARGE_RETRY_MS`, default and maximum 60000) and retries once with a new
+`-retry` Idempotency-Key. A second refusal returns `payment_rejected` with the
+message "your card was not charged" plus the hosted checkout, and the locked
+claim still prevents any further charge. Unknown outcomes never retry. The
+buyer sees "Processing your order, about a minute" from the first click, and the
+page waits up to 180 s for the response. `CLONE_CHARGE_GAP_MS` and
+`CLONE_SANDBOX_CHARGE_GAP_MS` override the minute-boundary pacing for tests only.
 
 The installed D1 database is `jonmacai-clone-upsells`. The production Worker
 and webhook remain in place; sandbox needs its own webhook subscription. Existing secrets remain on `jonmac-agency`; the release
@@ -220,8 +285,10 @@ needed. Keep the conservative cutoff unless Commas supplies a precise timestamp
 with timezone. Enable `CLONE_SUBSCRIPTIONS_ENABLED`
 only after confirming service-ID behavior in the sandbox end-to-end run. Jon
 has selected sandbox validation; do not prepare or run a live-card test.
-The free seven-day trial always uses its own hosted service `2J89z`: the charge
-API requires at least one cent and documents no free-trial enrollment mechanism.
+The trial is "$1 for 7 days, then $97/month": one click charges $1 and logs the
+sale for Jon to start the $97/month subscription on day 8. Its hosted fallback is
+`gq2yZ` ($97 every 30 days, $1 initial fee, 7 days before billing). The former
+free-trial product `2J89z` is no longer sold; its renewals still count.
 The $99 vault option uses `jJYvv`, three monthly payments, not an unlimited plan.
 
 [Commas API reference](https://commasdocs.com/#charge-customer) documents saved
@@ -265,7 +332,7 @@ Provision only inside the separate account at https://sandbox.commas.net:
 | --- | --- | --- |
 | `seat` | $47, one-time | `nmGzE` |
 | `software` | $97 every 30 days, no trial | `wg0E8` |
-| `trial` | $97 every 30 days, free seven-day trial | `2J89z` |
+| `trial` | $97 every 30 days, $1 initial fee, 7 days before billing | `gq2yZ` |
 | `audit` | $497, one-time | `XXYMA` |
 | `vault` | $297, one-time lifetime access | `O9gZr` |
 | `vault_plan` | $99 every 30 days, initial payment + two renewals | `jJYvv` |
@@ -325,7 +392,6 @@ Returning to a URL without `sandbox=1` selects the normal production funnel.
 
 ```powershell
 npm ci --prefix cloud-apps/clone
-node cloud-apps/clone/node_modules/playwright/cli.js install chromium
 npm run test:sandbox --prefix cloud-apps/clone
 ```
 
@@ -455,14 +521,14 @@ Automations and ensure none duplicates this sequence.
 
 | Step | Delivery | Subject |
 | --- | --- | --- |
-| E1 | Immediately | You're in |
-| E2 | 24 hours before, only when the session is more than 24 hours away | Why followers don't matter |
-| E3 | Session day, 9 AM ET | What we'll build tonight |
-| E4 | One hour before | Your link for tonight |
-| E5 | Ten minutes before | Starting in 10 |
-| E6 | Session start | We're live |
-| E7 | Fifteen minutes after | Trouble joining? |
-| E8 | Following calendar day, 9 AM ET | Your Clone Method replay |
+| E1 | Immediately | you're in |
+| E2 | 24 hours before, only when the session is more than 24 hours away | followers |
+| E3 | Session day, 9 AM ET | here's what we're building tonight |
+| E4 | One hour before | your link for tonight |
+| E5 | Ten minutes before | we start in 10 minutes |
+| E6 | Session start | we're live |
+| E7 | Fifteen minutes after | if the link won't open |
+| E8 | Following calendar day, 9 AM ET | your replay is here |
 
 Each message has plain text, simple HTML, reply-to `jon@thejonmac.com`, an
 unsubscribe footer, and one-click `List-Unsubscribe` headers. E1 includes a
@@ -473,7 +539,7 @@ unsubscribe buyers. One-click POST records a durable preference and cancels
 scheduled reminders for every session belonging to that email. Existing Resend
 contact opt-outs also suppress the sequence. A later opt-in does not reset them.
 
-Set `CLONE_ZOOM_JOIN_URL` to the HTTPS Zoom Webinar join URL in Worker vars;
+Set `CLONE_ZOOM_JOIN_URL` to the HTTPS Zoom meeting join URL in Worker vars;
 set optional `CLONE_REPLAY_URL` to an HTTPS replay URL. Both are blank in the
 checked-in config. Missing/invalid Zoom URL skips E4-E7; missing/invalid replay
 URL skips E8. Already-past steps are skipped rather than sent immediately.

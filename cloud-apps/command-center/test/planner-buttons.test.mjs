@@ -7,7 +7,6 @@ import { handleApi } from '../src/api.js';
 import { signSession, COOKIE } from '../src/auth.js';
 import { mergeSnapshot } from '../src/snapshot.js';
 import { plannerDestination } from '../src/review.js';
-import { render as renderSupport } from '../public/js/pages/support.js';
 import { render as renderViral } from '../public/js/pages/viral.js';
 import { memD1 } from './memd1.mjs';
 
@@ -30,19 +29,16 @@ async function cookie() {
   return `${COOKIE}=${await signSession(SECRET, exp)}`;
 }
 
-test('Support and Viral Planner buttons create owned tasks instead of a toast', () => {
-  const support = renderSupport(fixture.pages.support);
+test('Viral Planner buttons create owned tasks instead of a toast', () => {
   const viralPage = mergeSnapshot(fixture, [{
     source: 'viralview',
     data: JSON.stringify({ subscriptions: { current: { mrrCents: 100 } }, traffic: [{ clicks: 10, carts: 4, sales: 1, revenueCents: 100 }] }),
     collected_at: new Date(NOW).toISOString(),
   }], NOW).pages.viral;
   const viral = renderViral(viralPage);
-  const rows = [...plannerPayloads(support), ...plannerPayloads(viral)];
+  const rows = plannerPayloads(viral);
   const byId = Object.fromEntries(rows.map((p) => [p.id, p]));
-  assert.deepEqual(Object.keys(byId).sort(), ['support-topics', 'viral-check', 'viral-dropoff']);
-  assert.equal(byId['support-topics'].area, 'Support');
-  assert.equal(byId['support-topics'].source, 'support-topics');
+  assert.deepEqual(Object.keys(byId).sort(), ['viral-check', 'viral-dropoff']);
   assert.equal(byId['viral-check'].area, 'Viral View');
   assert.equal(byId['viral-check'].source, 'viral-check');
   assert.equal(byId['viral-dropoff'].area, 'Viral View');
@@ -51,11 +47,10 @@ test('Support and Viral Planner buttons create owned tasks instead of a toast', 
     assert.equal(row.msg, plannerDestination(row.title));
     assert.match(row.body, new RegExp(`Owner: ${row.area}`));
   }
-  assert.doesNotMatch(support, /data-kind="support\.send"/);
-  assert.doesNotMatch(support + viral, /Sent to Planner as a task/);
+  assert.doesNotMatch(viral, /Sent to Planner as a task/);
 });
 
-test('Support and Viral Planner clicks are idempotent and do not send mail', async () => {
+test('Viral Planner clicks are idempotent', async () => {
   const env = { DB: memD1(), SESSION_SECRET: SECRET };
   env._ck = await cookie();
   async function post(idemKey, payload) {
@@ -67,20 +62,15 @@ test('Support and Viral Planner clicks are idempotent and do not send mail', asy
     return res.json();
   }
   const payload = {
-    id: 'support-topics',
-    title: 'Support topics',
-    body: 'Owner: Support\nSource: support-topics',
-    area: 'Support',
-    source: 'support-topics',
+    id: 'viral-check',
+    title: 'Viral View worth checking',
+    body: 'Owner: Viral View\nSource: viral-check',
+    area: 'Viral View',
+    source: 'viral-check',
   };
   await post('s1', payload);
   const again = await post('s2', payload);
   assert.match(again.result, /under Planner in Orca/);
   assert.equal(env.DB.actions.filter((a) => a.kind === 'mastermind.send_to_planner').length, 1);
-  assert.equal(env.DB.actions.filter((a) => a.kind === 'support.send' || a.kind === 'support.decide_refund').length, 0);
-  const snap = mergeSnapshot(structuredClone(fixture), [
-    { source: 'mastermind', data: JSON.stringify({ picks: [], scanned: 1 }), collected_at: new Date(NOW).toISOString() },
-  ], NOW, {}, [...env.DB.ideas.values()]);
-  const built = snap.pages.mastermind.building.rows.find((r) => r.title === 'Support topics');
-  assert.equal(built.sub, 'Support · Orca worktree under Planner');
+  assert.equal([...env.DB.ideas.values()].find((i) => i.id === 'viral-check').status, 'sent');
 });

@@ -44,7 +44,7 @@ document.getElementById('f').addEventListener('submit',async e=>{
   const err=document.getElementById('err'); err.textContent='';
   const res=await fetch('/dashboard/api/login',{method:'POST',headers:{'Content-Type':'application/json','X-CC':'1'},body:JSON.stringify({password:document.getElementById('pw').value})});
   const body=await res.json().catch(()=>({}));
-  if(res.ok){location.href='/dashboard/';return}
+  if(res.ok){location.href=location.pathname.endsWith('/login.html')?'/dashboard/':location.pathname;return}
   err.textContent=body.error||'Wrong password. Try again.';
 });
 </script>

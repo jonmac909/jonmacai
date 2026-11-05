@@ -1,31 +1,19 @@
-// One daily 19:00 America/New_York session, independent of the viewer's zone.
+// One live session only: Thu Nov 12 2026, 4 PM PT / 7 PM ET, 2 hours (Jon, Oct 30).
+// Sales close at 5:30 PM PT / 8:30 PM ET, 90 minutes into the session, after the pitch (Jon, Oct 21).
+// src/reminder-plan.js uses the same times.
 (function (root) {
   'use strict';
-  function sevenET(y, m, d) {
-    var t = Date.UTC(y, m, d, 23);
-    for (var i = 0; i < 3; i++) {
-      var h = Number(new Intl.DateTimeFormat('en-US', {
-        timeZone: 'America/New_York', hour: 'numeric', hourCycle: 'h23'
-      }).format(new Date(t)));
-      if (h === 19) break;
-      t += (19 - h) * 3600000;
-    }
-    return new Date(t);
-  }
-  function nextSession(now) {
-    now = now || new Date();
-    var parts = new Intl.DateTimeFormat('en-US', {
-      timeZone: 'America/New_York', year: 'numeric', month: 'numeric', day: 'numeric'
-    }).formatToParts(now);
-    function part(name) { return Number(parts.find(function (p) { return p.type === name; }).value); }
-    for (var i = 0; i < 2; i++) {
-      var day = new Date(Date.UTC(part('year'), part('month') - 1, part('day') + i));
-      var target = sevenET(day.getUTCFullYear(), day.getUTCMonth(), day.getUTCDate());
-      if (target > now) return target;
-    }
+  var SESSION = Date.UTC(2026, 10, 13, 0, 0, 0);    // Thu Nov 12 2026, 4 PM PST / 7 PM EST
+  var SALES_CLOSE = Date.UTC(2026, 10, 13, 1, 30, 0); // Thu Nov 12 5:30 PM PST / 8:30 PM EST
+  var SESSION_END = SESSION + 2 * 3600000;          // 9 PM EST
+  function nextSession() { return new Date(SESSION); }
+  function isClosed(now) { return (now || new Date()).getTime() >= SALES_CLOSE; }
+  function phase(now) {
+    var t = (now || new Date()).getTime();
+    return t < SESSION ? 'before' : t < SESSION_END ? 'live' : 'ended';
   }
   function calendarDates(target) {
-    // Local dates plus ctz keep a DAILY recurrence at 7 PM across DST changes.
+    // Local Eastern dates plus ctz=America/New_York: a single 7-9 PM event.
     var parts = new Intl.DateTimeFormat('en-US', {
       timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit'
     }).formatToParts(target);
@@ -33,5 +21,6 @@
     var day = part('year') + part('month') + part('day');
     return day + 'T190000/' + day + 'T210000';
   }
-  root.CloneSchedule = { sevenET: sevenET, nextSession: nextSession, calendarDates: calendarDates };
+  root.CloneSchedule = { nextSession: nextSession, isClosed: isClosed, phase: phase, calendarDates: calendarDates,
+    session: new Date(SESSION), salesClose: new Date(SALES_CLOSE), sessionEnd: new Date(SESSION_END) };
 })(globalThis);

@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { Miniflare, Response as MFResponse } from 'miniflare';
 import { chromium } from 'playwright';
 import { sandboxSettings } from './sandbox-fixture.mjs';
+import { preCloseClock } from './clock.mjs';
 
 const live = process.argv.includes('--live-video');
 const proofFile = process.env.JON6_PURCHASE_PROOF;
@@ -22,13 +23,14 @@ const mf = new Miniflare({ modules: true, scriptPath: fileURLToPath(new URL('../
       headers: { 'content-type': path.endsWith('.html') ? 'text/html' : path.endsWith('.js') ? 'text/javascript' : 'text/css' } }); }
     catch { return new MFResponse('missing', { status: 404 }); }
   } } });
-const browser = await chromium.launch({ headless: true });
+const browser = await chromium.launch({ headless: true, channel: 'chrome', chromiumSandbox: process.env.CHROME_NO_SANDBOX !== '1' });
 try {
   await mf.ready; const db = await mf.getD1Database('CLONE_UPSELLS');
   for (const name of readdirSync(new URL('../migrations/', import.meta.url)).sort()) {
     for (const sql of readFileSync(new URL('../migrations/' + name, import.meta.url), 'utf8').split(';').filter(s => s.trim())) await db.prepare(sql).run();
   }
-  const context = await browser.newContext({ ignoreHTTPSErrors: true }), pixelRequests = [], errors = [], logs = [];
+  const context = await browser.newContext({ ignoreHTTPSErrors: true }); await preCloseClock(context);
+  const pixelRequests = [], errors = [], logs = [];
   await context.route('**/*', async route => {
     const request = route.request(), url = new URL(request.url());
     if (/whop\.(?:tw|com)$/.test(url.hostname)) { pixelRequests.push(url.origin); return route.abort(); }
@@ -57,7 +59,9 @@ try {
       const response = await page.goto('https://jonmac.ai' + path + '?sandbox=1&utm_source=JON6-sandbox', { waitUntil: 'domcontentloaded' });
       assert.equal(response.status(), 200); assert.equal(await page.evaluate(() => CloneMode.environment), 'sandbox');
       assert.equal(await page.evaluate(() => !!window.whop), false);
-      assert.match(await page.locator('body').innerText(), /daily at 7:(?:00) PM (?:ET|Eastern)/i);
+      const copy = await page.locator('body').innerText();
+      assert.match(copy, /Thursday, November 12(?: @|,| at) 7:00 PM (?:ET|Eastern)/i);
+      assert.doesNotMatch(copy, /daily at 7|runs daily|any session/i);
       const frames = page.locator('iframe[src*="youtube-nocookie.com/embed/"]');
       const videos = [];
       for (let i = 0; i < await frames.count(); i++) {
@@ -94,7 +98,7 @@ try {
       const record = await page.evaluate(key => JSON.parse(sessionStorage.getItem('clone_sandbox_whop_event:' + key)), dedup);
       assert.equal(record.payload.event_name, 'page'); assert.ok(!record.payload.url.includes('sandbox='));
       await page.screenshot({ path: '.wrangler/proof/pages/' + transaction + '-' + name + '.png' });
-      purchase.pages.push({ page: name, status: response.status(), daily_7pm_et: true, videos, whop: record, reload_deduplicated: true });
+      purchase.pages.push({ page: name, status: response.status(), single_session_nov12_7pm_et: true, videos, whop: record, reload_deduplicated: true });
       console.log('PASS page/copy/log-dedup: ' + transaction + '/' + name + (name === 'survey' ? ' (known missing video)' : ''));
     }
     report.purchases.push(purchase);

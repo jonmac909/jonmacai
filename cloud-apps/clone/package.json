@@ -5,7 +5,7 @@
   "scripts": {
     "scorecard": "node scripts/scorecard.mjs",
     "test:readiness:browser": "node test/readiness-browser.mjs",
-    "test": "node --test test/*.test.mjs",
+    "test": "node --import ./test/clock-setup.mjs --test test/*.test.mjs",
     "test:whop:browser": "node test/whop-browser.mjs",
     "test:sandbox": "node test/sandbox-e2e.mjs",
     "test:sandbox:mock": "node test/sandbox-mock.mjs",
@@ -14,7 +14,7 @@
   },
   "devDependencies": {
     "miniflare": "4.20260730.0",
-    "playwright": "1.63.0"
+    "playwright": "1.64.1"
   },
   "overrides": {
     "sharp": "0.35.4",

@@ -1,0 +1,4 @@
+#!/usr/bin/env python3
+# Docker gate only: an Orca CLI with no worktrees and no terminals.
+import json
+print(json.dumps({'result': {'worktrees': [], 'terminals': [], 'hostScope': {}}}))

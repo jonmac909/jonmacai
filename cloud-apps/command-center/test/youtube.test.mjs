@@ -1,636 +1,325 @@
+// Track from the YouTube APIs (2026-11-04): connect, sync, reach reports and status, with Google faked.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { mkdtempSync, writeFileSync, readFileSync, mkdirSync } from 'node:fs';
-import { tmpdir } from 'node:os';
 import { handleApi } from '../src/api.js';
+import { sha256Hex } from '../src/bots.js';
+import { parseReach, statsOf, syncReach, syncStats } from '../src/youtube.js';
+import { track } from '../public/js/pages/track.js';
 import { signSession, COOKIE } from '../src/auth.js';
-import { mergeSnapshot } from '../src/snapshot.js';
-import { isAiUgc, topOutliers, overlayYoutube } from '../src/youtube.js';
-import { overlayVideo } from '../src/video.js';
-import snapshot from '../fixtures/snapshot.json' with { type: 'json' };
+import { sqliteD1 } from './sqlited1.mjs';
 
-import { memD1 } from './memd1.mjs';
-
-const root = join(dirname(fileURLToPath(import.meta.url)), '..');
-const py = process.platform === 'win32' ? 'python' : 'python3';
 const SECRET = 'test-session-secret-32-bytes-ok!';
-const GPU = 'gpu-token-bbbbbbbbbbbbbbbbbbbbbbbbbbbb';
-const now = Date.parse('2026-09-18T18:00:00Z');
+const BOT = `ccb_${'developer'.padEnd(43, 'x')}`;
+const KEY = Buffer.alloc(32, 7).toString('base64');
+const PETER = 'UC4ElbvMXjotuSot1rMhRx5A';
+const REFRESH = 'refresh-token-never-stored-plain';
+const SCOPE = 'https://www.googleapis.com/auth/youtube.readonly https://www.googleapis.com/auth/yt-analytics.readonly';
+const VID = 'abcdefghijk';
+const SOON = 'abcdefghijl';
 
-function envWith(db, extra = {}) {
-  return {
-    SESSION_SECRET: SECRET,
-    DASHBOARD_PASSWORD: '909090',
-    MACHINE_TOKEN_MAC: 'mac-token-aaaaaaaaaaaaaaaaaaaaaaaaaaaa',
-    MACHINE_TOKEN_GPU2: GPU,
-    MACHINE_TOKEN_GPU1: 'gpu1-token-cccccccccccccccccccccccccccc',
-    DB: db,
-    ...extra,
+async function setup(secrets = true) {
+  const db = sqliteD1();
+  await db.prepare('INSERT INTO bot_tokens (token_hash, bot, created_at) VALUES (?, ?, ?)').bind(await sha256Hex(BOT), 'developer', 'x').run();
+  const env = { DB: db, SESSION_SECRET: SECRET, ...(secrets ? { YT_CLIENT_ID: 'cid', YT_CLIENT_SECRET: 'csecret', YT_TOKEN_KEY: KEY } : {}) };
+  return { db, env };
+}
+
+async function call(env, path, { jon = true, bot = false, method = 'GET', body } = {}) {
+  const h = new Headers();
+  if (jon) h.set('Cookie', `${COOKIE}=${await signSession(SECRET, Math.floor(Date.now() / 1000) + 3600)}`);
+  if (bot) h.set('Authorization', `Bearer ${BOT}`);
+  if (body !== undefined) { h.set('Content-Type', 'application/json'); h.set('X-CC', '1'); }
+  const waits = [];
+  const r = await handleApi(new Request(`https://jonmac.ai/dashboard/api${path}`, { method, headers: h, body: body === undefined ? undefined : JSON.stringify(body) }), env, { waitUntil: (p) => waits.push(p) });
+  await Promise.all(waits);
+  return r;
+}
+
+// A fake Google: answers by URL and counts every call. `over` replaces one route's answer.
+function google(over = {}) {
+  const calls = [];
+  const reply = (data, status = 200) => new Response(typeof data === 'string' ? data : JSON.stringify(data), { status });
+  const routes = {
+    token: (init) => {
+      const p = new URLSearchParams(init.body);
+      if (p.get('grant_type') === 'authorization_code') return reply({ access_token: 'at', refresh_token: REFRESH, scope: SCOPE });
+      return p.get('refresh_token') === REFRESH ? reply({ access_token: 'at2' }) : reply({ error: 'invalid_grant' }, 400);
+    },
+    me: () => reply({ items: [{ id: PETER, snippet: { title: 'Peter Collins' } }] }),
+    channel: () => reply({ items: [{ id: PETER, contentDetails: { relatedPlaylists: { uploads: 'UU1' } }, statistics: { subscriberCount: '120', viewCount: '1100', videoCount: '2' } }] }),
+    playlist: () => reply({ items: [{ contentDetails: { videoId: VID } }, { contentDetails: { videoId: SOON } }] }),
+    videos: () => reply({ items: [
+      { id: VID, status: { privacyStatus: 'public' }, statistics: { viewCount: '950' } },
+      { id: SOON, status: { privacyStatus: 'private', publishAt: '2099-01-02T17:00:00Z' }, statistics: { viewCount: '0' } },
+    ] }),
+    analytics: (_init, url) => reply({ rows: url.includes('dimensions=video') ? [[VID, '900', '205', '9', '2']] : [['1000', '200.4', '10', '2']] }),
+    jobs: (init) => (init.method === 'POST' ? reply({ id: 'job1' }) : reply({ jobs: [] })),
+    reports: () => reply({ reports: [
+      { id: 'r2', createTime: '2026-11-04T10:00:00Z', downloadUrl: 'https://youtubereporting.googleapis.com/v1/media/r2' },
+      { id: 'r1', createTime: '2026-11-03T10:00:00Z', downloadUrl: 'https://youtubereporting.googleapis.com/v1/media/r1' },
+    ] }),
+    media: (_init, url) => reply(url.endsWith('r1')
+      ? `date,channel_id,video_id,video_thumbnail_impressions,video_thumbnail_impressions_ctr\n20261101,${PETER},${VID},100,0.05\n`
+      : `date,channel_id,video_id,video_thumbnail_impressions,video_thumbnail_impressions_ctr\n20261102,${PETER},${VID},300,0.01\n`),
+    ...over,
   };
+  const fetchFn = async (input, init = {}) => {
+    const url = String(input);
+    const name = url.startsWith('https://oauth2.googleapis.com/token') ? 'token'
+      : url.includes('/channels?part=id%2Csnippet') || url.includes('/channels?part=id,snippet') ? 'me'
+        : url.includes('/channels?') ? 'channel' : url.includes('/playlistItems?') ? 'playlist' : url.includes('/videos?') ? 'videos'
+          : url.includes('youtubeanalytics') ? 'analytics' : url.includes('/reports') ? 'reports' : url.includes('/media/') ? 'media' : url.endsWith('/jobs') ? 'jobs' : null;
+    if (!name) throw new Error(`unexpected fetch ${url}`);
+    calls.push({ name, url, init });
+    return routes[name](init, url);
+  };
+  return { fetchFn, calls };
 }
 
-function req(path, { method = 'GET', cookie, headers = {}, body } = {}) {
-  const h = new Headers(headers);
-  if (cookie) h.set('Cookie', cookie);
-  return new Request(`https://jonmac.ai${path}`, { method, headers: h, body });
+async function connect(env, g) {
+  const r = await call(env, '/youtube/connect?channel=peter-collins');
+  const state = new URL(r.headers.get('Location')).searchParams.get('state');
+  const prev = globalThis.fetch;
+  globalThis.fetch = g.fetchFn;
+  try {
+    return await call(env, `/youtube/callback?state=${state}&code=c1`, { jon: false });
+  } finally {
+    globalThis.fetch = prev;
+  }
 }
 
-async function cookie() {
-  const exp = Math.floor(Date.now() / 1000) + 3600;
-  return `${COOKIE}=${await signSession(SECRET, exp)}`;
-}
+test('connect needs Jon, says plainly when not set up, and sends him to read-only consent', async () => {
+  const bare = await setup(false);
+  assert.equal((await call(bare.env, '/youtube/connect?channel=peter-collins', { jon: false })).status, 401);
+  const off = await call(bare.env, '/youtube/connect?channel=peter-collins');
+  assert.equal(off.status, 501);
+  assert.match(await off.text(), /not set up yet/);
 
-function runPy(code, env = {}) {
-  return spawnSync(py, ['-c', code], {
-    encoding: 'utf8',
-    cwd: join(root, 'collectors/lib'),
-    env: { ...process.env, ...env },
-  });
-}
-
-const fixture = {
-  nav: { brand: 'Jon Mac', badges: { video: 1 } },
-  goal: { pct: 50 },
-  sources: { youtube: { updatedAt: 'old' }, video: { updatedAt: 'old' } },
-  pages: {
-    youtube: {
-      title: 'YouTube',
-      sub: 'example',
-      actions: [{ label: 'Open YouTube Gen', msg: 'Opens jonmac.ai/yt2', primary: true }],
-      tiles: [
-        { icon: 'film', label: 'Videos live this week', value: '1', goal: '/ 3', pct: 33, sub: 'Goal is 2–3 a week' },
-        { icon: 'pen', label: 'In production', value: '2', sub: 'example' },
-        { icon: 'fire', label: 'Best idea right now', value: '133×', sub: 'Views against that channel\'s normal' },
-        { icon: 'dollar', label: 'Sponsor videos due', value: '3', sub: 'example' },
-      ],
-      pipeline: {
-        title: 'Production pipeline',
-        meta: 'Steps: idea · script · record · edit · your review · live',
-        rows: [{ video: 'example', type: 'Your channel', pct: 100, pill: 'Live' }],
-      },
-      remake: {
-        title: 'Best videos to remake',
-        seeAll: 'See all 516',
-        seeAllMsg: 'Opens jonmac.ai/yt2 Discover',
-        jobs: [{ area: 'example', pill: '1× their normal', title: 'example', lines: ['x'] }],
-        btn: 'Remake with a template',
-        msg: 'Opens this video in YouTube Gen with a template',
-      },
-    },
-    video: {
-      title: 'Video editor',
-      sub: 'example',
-      editing: { title: 'In the editor', meta: 'Steps: upload · rough cut · graphics · sound · export', rows: [{ title: 'example' }] },
-      ready: { title: 'Ready for you to watch', rows: [{ title: 'example' }] },
-      finished: { title: 'Finished this week', rows: [{ video: 'example' }] },
-      upload: { title: 'Upload a recording', drop: 'Drop a video here', sub: 'The auto editor starts right away', btn: 'Choose file', msg: 'File picker opened' },
-      target: { title: "This week's target", rows: [{ label: 'YouTube videos', value: '1 of 3', pct: 33 }] },
-    },
-  },
-};
-
-const rows = [
-  { id: 'a', channel: 'Joshua Mayo', title: '4 Side Hustles That No One Is Talking About For 2026', views: 5_000_000, views_per_day: 4562, outlier_score: 133.2 },
-  { id: 'b', channel: 'Quiet Channel', title: 'Ignore me', views: 10, views_per_day: 1, outlier_score: 1.1 },
-  { id: 'c', channel: 'Mr. Paid Social', title: 'How To Make Facebook Ads 100% Using AI In 2026', views: 233_000, views_per_day: 638, outlier_score: 50.6 },
-  { id: 'd', channel: 'Karolis', title: 'Claude Skills That Changed Content Creation Forever', views: 16_000, views_per_day: 3200, outlier_score: 46.2 },
-  { id: 'ugc', channel: 'Karolis', title: 'Claude + Seedance 2.0 Has Changed AI UGC Forever', views: 25_000, views_per_day: 962, outlier_score: 14 },
-];
-
-test('topOutliers keeps AI UGC and drops higher-scoring side hustles', () => {
-  const top = topOutliers(rows);
-  assert.deepEqual(top.map((r) => r.id), ['ugc']);
-  assert.equal(isAiUgc('Best AI video generation workflow'), true);
-  assert.equal(isAiUgc(rows[0].title), false);
-  assert.equal(isAiUgc('How I got 1000 VIRAL UGC videos (NOT using AI)'), false);
+  const { db, env } = await setup();
+  assert.equal((await call(env, '/youtube/connect?channel=nope')).status, 400);
+  assert.equal((await call(env, '/youtube/connect?channel=complete-histories')).status, 400, 'Spotify only');
+  const r = await call(env, '/youtube/connect?channel=peter-collins');
+  assert.equal(r.status, 302);
+  const to = new URL(r.headers.get('Location'));
+  const q = to.searchParams;
+  assert.equal(to.origin + to.pathname, 'https://accounts.google.com/o/oauth2/v2/auth');
+  assert.equal(q.get('redirect_uri'), 'https://jonmac.ai/dashboard/api/youtube/callback');
+  assert.equal(q.get('scope'), SCOPE);
+  assert.deepEqual([q.get('access_type'), q.get('include_granted_scopes'), q.get('client_id')], ['offline', 'false', 'cid']);
+  assert.match(q.get('prompt'), /consent/);
+  assert.match(q.get('prompt'), /select_account/);
+  assert.equal(q.get('login_hint'), 'partners@thejonmac.com');
+  const hint = async (slug) => new URL((await call(env, `/youtube/connect?channel=${slug}`)).headers.get('Location')).searchParams.get('login_hint');
+  assert.deepEqual([await hint('jon-mac'), await hint('jonmacai')], ['jon@jonmac.co', 'jon@thejonmac.com'], 'each channel hints its owner account');
+  const row = await db.prepare('SELECT channel, expires_at FROM yt_oauth_states WHERE state = ?').bind(q.get('state')).first();
+  assert.equal(row.channel, 'peter-collins');
 });
 
-test('merge overlays yt2 projects onto the YouTube pipeline', () => {
-  const projects = [
-    {
-      id: 'v2_live', createdAt: '2026-09-16T12:00:00Z', stage: 'publish',
-      titleOptions: ['Video 1 of the week'], selectedTitleIndex: 0,
-      source: { title: 'src' },
-      edit: { status: 'approved', progress: 100 },
-      publish: { status: 'published', publishedAt: '2026-09-16T18:00:00Z' },
-    },
-    {
-      id: 'v2_edit', createdAt: '2026-09-18T12:00:00Z', stage: 'edit',
-      titleOptions: ['Video 2 of the week'], selectedTitleIndex: 0,
-      source: { title: 'src2' },
-      edit: { status: 'rendering', progress: 67, currentJob: 'Building captions' },
-      publish: { status: 'idle' },
-    },
-  ];
-  const page = structuredClone(fixture.pages.youtube);
-  overlayYoutube(page, { projects, nowMs: now });
-  assert.equal(page.pipeline.rows[0].video, 'Video 1 of the week');
-  assert.equal(page.pipeline.rows[0].pill, 'Live');
-  assert.equal(page.pipeline.rows[1].video, 'Video 2 of the week');
-  assert.match(page.pipeline.rows[1].pill, /edit/i);
-  assert.equal(page.tiles[0].value, '1');
-  assert.equal(page.tiles[1].value, '1');
+test('the callback stores the channel with its token sealed, makes the reach job, and its state works once', async () => {
+  const { db, env } = await setup();
+  const g = google();
+  const r = await connect(env, g);
+  assert.equal(r.status, 200);
+  const html = await r.text();
+  assert.match(html, /Connected Peter Collins\./);
+  assert.doesNotMatch(html, /refresh-token|"at"/);
+  const row = await db.prepare('SELECT * FROM yt_api').first();
+  assert.deepEqual([row.channel, row.channel_id, row.reach_job], ['peter-collins', PETER, 'job1']);
+  assert.doesNotMatch(row.token, /refresh-token/, 'never plain');
+  assert.equal(g.calls.filter((c) => c.name === 'jobs').map((c) => c.init.method || 'GET').join(), 'GET,POST');
+  const create = JSON.parse(g.calls.find((c) => c.init.method === 'POST' && c.name === 'jobs').init.body);
+  assert.equal(create.reportTypeId, 'channel_reach_basic_a1');
+
+  const used = new URL(g.calls[0].url); // token exchange went to Google, not the state
+  assert.equal(used.hostname, 'oauth2.googleapis.com');
+  const again = await call(env, '/youtube/callback?state=whatever&code=c1', { jon: false });
+  assert.equal(again.status, 400);
 });
 
-test('merge overlays AI UGC remake jobs with a persistent template link', () => {
-  const page = structuredClone(fixture.pages.youtube);
-  overlayYoutube(page, { outliers: rows, channels: 22, ranked: 516, nowMs: now });
-  assert.equal(page.remake.jobs.length, 1);
-  assert.equal(page.remake.jobs[0].area, 'Karolis');
-  assert.equal(page.remake.jobs[0].title, 'Claude + Seedance 2.0 Has Changed AI UGC Forever');
-  assert.equal(page.remake.jobs[0].href, 'https://jonmac.ai/yt2/?remake=ugc&template=brand_build');
-  assert.equal(page.remake.jobs.some((j) => /Side Hustles/.test(j.title)), false);
-  assert.equal(page.tiles[2].value, '14×');
-  assert.match(page.sub, /22 channels/);
-  assert.match(page.sub, /516 videos/);
-  assert.equal(page.remake.seeAll, 'See all 516');
-  assert.equal(page.remake.seeAllHref, 'https://jonmac.ai/yt2/');
+test('the callback refuses the wrong channel and missing permissions', async () => {
+  const { db, env } = await setup();
+  const wrong = await connect(env, google({ me: () => new Response(JSON.stringify({ items: [{ id: 'UC21BTzNwbWbQF4d22iq950w', snippet: { title: 'Jon Mac' } }] })) }));
+  assert.equal(wrong.status, 400);
+  assert.match(await wrong.text(), /That is Jon Mac, not Peter Collins/);
+  const narrow = await connect(env, google({ token: () => new Response(JSON.stringify({ access_token: 'at', refresh_token: REFRESH, scope: SCOPE.split(' ')[0] })) }));
+  assert.equal(narrow.status, 400);
+  assert.match(await narrow.text(), /Both read-only permissions/);
+  assert.equal(await db.prepare('SELECT COUNT(*) AS n FROM yt_api').first().then((x) => x.n), 0);
 });
 
-test('sync timestamp is shown with the ranked count', () => {
-  const page = structuredClone(fixture.pages.youtube);
-  overlayYoutube(page, {
-    outliers: rows,
-    channels: 22,
-    ranked: 527,
-    syncedAt: '2026-09-22T23:27:51.354Z',
-    nowMs: now,
-  });
-  assert.match(page.sub, /527 videos/);
-  assert.match(page.sub, /synced 2026-09-22T23:27:51.354Z/);
+test('opening Track syncs views, status and subs once per 20 minutes, and status shows it', async () => {
+  const { db, env } = await setup();
+  await connect(env, google());
+  await call(env, '/v1/calendar/peter-collins', { jon: false, bot: true, method: 'PUT', body: { videos: [{ date: '2026-11-01', title: 'Road test', status: 'published', youtube_id: VID }] } });
+  const g = google();
+  const prev = globalThis.fetch;
+  globalThis.fetch = g.fetchFn;
+  try {
+    const snap = await (await call(env, '/snapshot?pages=track')).json();
+    const v = snap.pages.track.videos.find((x) => x.title === 'Road test');
+    assert.deepEqual([v.views, v.subs, v.avd, v.status], [950, 7, 205, 'live'], 'the larger of Analytics 900 and public 950 (Jon, 2026-11-04)');
+    const soon = await db.prepare('SELECT status, scheduled_at, scheduled_date FROM yt_stats WHERE youtube_id = ?').bind(SOON).first();
+    assert.deepEqual({ ...soon }, { status: 'scheduled', scheduled_at: '2099-01-02T17:00:00.000Z', scheduled_date: '2099-01-02' });
+    const dataCalls = g.calls.filter((c) => ['channel', 'playlist', 'videos'].includes(c.name)).length;
+    assert.equal(dataCalls, 3, 'about 3 Data API units a channel');
+    const before = g.calls.length;
+    await call(env, '/snapshot?pages=track');
+    assert.equal(g.calls.length, before, 'no second sync within 20 minutes');
+    await call(env, '/snapshot?pages=today');
+    assert.equal(g.calls.length, before, 'other pages never sync');
+  } finally {
+    globalThis.fetch = prev;
+  }
+  assert.equal((await call(env, '/youtube/status', { jon: false })).status, 401);
+  const st = await (await call(env, '/youtube/status', { jon: false, bot: true })).json();
+  const peter = st.channels.find((c) => c.channel === 'peter-collins');
+  assert.equal(st.channels.length, 23);
+  assert.deepEqual([peter.connected, peter.subscribers, peter.lastError, peter.reachJob], [true, 120, null, true]);
+  assert.deepEqual(peter.studio, { views: 1000, subs: 8, avdSeconds: 200.4 });
+  assert.ok(peter.lastSync);
+  assert.equal(st.channels.find((c) => c.channel === 'eleanor-whitfield').connected, false);
+  assert.doesNotMatch(JSON.stringify(st), /token|refresh/i);
 });
 
-test('sponsor cards join the YouTube pipeline', () => {
-  const page = structuredClone(fixture.pages.youtube);
-  overlayYoutube(page, {
-    projects: [],
-    sponsors: {
-      cards: [
-        { id: 'inv1', sponsor: 'InVideo', stage: 'invoice-sent', latestDate: '2026-09-24', amount: 2100, subject: 'video 1' },
-        { id: 'vik', sponsor: 'Viktor', stage: 'script-approval', latestDate: '2026-09-30', amount: 1500, subject: '90-second ad' },
-      ],
-    },
-    nowMs: now,
-  });
-  const names = page.pipeline.rows.map((r) => r.video);
-  assert.ok(names.some((n) => /InVideo/i.test(n)));
-  assert.ok(names.some((n) => /Viktor/i.test(n)));
-  assert.equal(page.tiles[3].value, '2');
+test('a removed Google access is recorded and the stored numbers stay', async () => {
+  const { db, env } = await setup();
+  await connect(env, google());
+  await db.prepare("INSERT INTO yt_stats (youtube_id, views, updated_at) VALUES (?, 5, 'x')").bind(VID).run();
+  const prev = globalThis.fetch;
+  globalThis.fetch = google({ token: () => new Response(JSON.stringify({ error: 'invalid_grant' }), { status: 400 }) }).fetchFn;
+  try {
+    assert.equal((await call(env, '/snapshot?pages=track')).status, 200);
+  } finally {
+    globalThis.fetch = prev;
+  }
+  assert.match((await db.prepare('SELECT sync_error FROM yt_api').first()).sync_error, /connect this channel again/);
+  assert.equal((await db.prepare('SELECT views FROM yt_stats').first()).views, 5);
 });
 
-test('merge overlays the GPU2 editor queue onto Video', () => {
-  const page = structuredClone(fixture.pages.video);
-  overlayVideo(page, {
-    queue: [
-      { id: 'e1', title: 'Video 2 of the week', step: 3, steps: 5, progress: 55, etaMinutes: 25, status: 'editing', readyPath: '' },
-      { id: 'e2', title: 'Sponsor D · dedicated video', step: 1, steps: 5, progress: 12, etaMinutes: 40, status: 'queued', readyPath: '' },
-      { id: 'e3', title: 'Sponsor C · 90-second cut', step: 5, steps: 5, progress: 100, etaMinutes: 0, status: 'ready', readyPath: 'out/sponsor-c.mp4' },
-      { id: 'e4', title: 'Video 1 of the week', step: 5, steps: 5, progress: 100, etaMinutes: 0, status: 'done', readyPath: 'out/video-1.mp4', finishedAt: '2026-09-16', editMinutes: 52, where: 'Live on YouTube' },
-    ],
-  });
-  assert.equal(page.editing.rows[0].title, 'Video 2 of the week');
-  assert.match(page.editing.rows[0].sub, /25 minutes/);
-  assert.equal(page.editing.rows[1].pill, 'Queued');
-  assert.equal(page.ready.rows[0].title, 'Sponsor C · 90-second cut');
-  assert.equal(page.finished.rows[0].video, 'Video 1 of the week');
-  assert.match(page.sub, /1 editing now/);
+test('reach reports become impressions and impression-weighted CTR, with their as-of date on the page', async () => {
+  const { db, env } = await setup();
+  await connect(env, google());
+  await call(env, '/v1/calendar/peter-collins', { jon: false, bot: true, method: 'PUT', body: { videos: [{ date: '2026-11-01', title: 'Road test', status: 'published', youtube_id: VID }] } });
+  const g = google();
+  await syncReach(env, g.fetchFn, Date.parse('2026-11-04T20:00:00Z'));
+  const s = await db.prepare('SELECT impressions, ctr, reach_as_of FROM yt_stats WHERE youtube_id = ?').bind(VID).first();
+  assert.deepEqual({ ...s }, { impressions: 400, ctr: 2, reach_as_of: '2026-11-02' }, '(100 x 5% + 300 x 1%) / 400 = 2%');
+  const row = await db.prepare('SELECT reach_after, reach_as_of, reach_error FROM yt_api').first();
+  assert.deepEqual({ ...row }, { reach_after: '2026-11-04T10:00:00Z', reach_as_of: '2026-11-02', reach_error: null });
+
+  const n = g.calls.length;
+  await syncReach(env, g.fetchFn, Date.parse('2026-11-04T21:00:00Z'));
+  assert.equal(g.calls.length, n, 'at most every 6 hours a channel');
+  await syncReach(env, g.fetchFn, Date.parse('2026-11-05T03:00:00Z'));
+  assert.match(g.calls.findLast((c) => c.name === 'reports').url, /createdAfter=2026-11-04T10%3A00%3A00Z/, 'only reports not stored yet');
+
+  const snap = await (await call(env, '/snapshot?pages=track')).json();
+  const html = track(snap.pages.track, {}, 'peter-collins');
+  assert.match(html, /Impressions and CTR as of Nov 2\./);
+  assert.match(html, /<td class="num">2%<\/td>/);
 });
 
-test('youtube production tile is live zeros without projects', () => {
-  const page = structuredClone(fixture.pages.youtube);
-  overlayYoutube(page, { projects: [], nowMs: now });
-  assert.equal(page.tiles[0].value, '0');
-  assert.equal(page.tiles[1].value, '0');
-  assert.equal(page.tiles[1].sub, 'None in production');
-
+test('statsOf and parseReach read YouTube the way studio_read posted', () => {
+  const now = Date.parse('2026-11-04T00:00:00Z');
+  assert.deepEqual(statsOf({ status: { privacyStatus: 'unlisted' }, statistics: { viewCount: '3' } }, now), { status: 'unlisted', scheduled_at: null, scheduled_date: null, views: 3 });
+  assert.deepEqual(statsOf({ status: { privacyStatus: 'private', publishAt: '2026-11-01T00:00:00Z' } }, now), { status: 'private', scheduled_at: null, scheduled_date: null }, 'a past publishAt is just private');
+  // 2026-11-05T05:00Z is Nov 4 in Kelowna
+  assert.equal(statsOf({ status: { privacyStatus: 'private', publishAt: '2026-11-05T05:00:00Z' } }, now).scheduled_date, '2026-11-04');
+  const head = 'date,channel_id,video_id,video_thumbnail_impressions,video_thumbnail_impressions_ctr';
+  assert.deepEqual(parseReach(`${head}\n20261101,UCx,${VID},200,0.045\n`), [{ youtube_id: VID, day: '2026-11-01', impressions: 200, ctr: 4.5 }], 'fraction to percent');
+  assert.deepEqual(parseReach(`${head}\n20261101,UCx,${VID},200,0.8\n`)[0].ctr, 80, 'one report under 1 is never guessed as percent');
+  assert.throws(() => parseReach(`${head}\n20261101,UCx,${VID},200,4.5\n`), /not a fraction/);
+  assert.deepEqual(parseReach(`${head}\n20261101,UCx,${VID},0,0\n`), [{ youtube_id: VID, day: '2026-11-01', impressions: 0, ctr: null }]);
+  assert.throws(() => parseReach('a,b\n1,2'), /unexpected columns/);
 });
 
-test('video target follows the live editor queue not fixture 1 of 3', () => {
-  const page = structuredClone(fixture.pages.video);
-  overlayVideo(page, { queue: [] });
-  assert.equal(page.target.rows[0].value, '0 of 3');
-  assert.equal(page.target.rows[1].value, '0 of 3');
-  assert.equal(page.editing.rows.length, 0);
+test('a lifetime count from Studio larger than the reports sum stays', async () => {
+  const { db, env } = await setup();
+  await connect(env, google());
+  await db.prepare("INSERT INTO yt_stats (youtube_id, impressions, ctr, updated_at) VALUES (?, 5000, 3.1, 'x')").bind(VID).run();
+  await syncReach(env, google().fetchFn, Date.parse('2026-11-04T20:00:00Z'));
+  const s = await db.prepare('SELECT impressions, ctr, reach_as_of FROM yt_stats WHERE youtube_id = ?').bind(VID).first();
+  assert.deepEqual({ ...s }, { impressions: 5000, ctr: 3.1, reach_as_of: '2026-11-02' });
 });
 
-test('home YouTube tile and video target drop fixture examples', () => {
-  const out = mergeSnapshot(snapshot, [
-    { source: 'youtube', collected_at: '2026-09-18T17:50:00Z', data: JSON.stringify({ outliers: [], channels: 22, ranked: 516 }) },
-    { source: 'video', collected_at: '2026-09-18T17:55:00Z', data: JSON.stringify({ queue: [] }) },
-  ], now);
-  assert.equal(out.pages.home.tiles[3].sub, 'None in production');
-  assert.equal(out.pages.youtube.tiles[1].sub, 'None in production');
-  assert.equal(out.pages.video.target.rows[0].value, '0 of 3');
-  assert.equal(out.pages.video.target.rows[1].value, '0 of 3');
+test('the cron syncs views, status and subs hourly with nobody opening Track', async () => {
+  const { db, env } = await setup();
+  await connect(env, google());
+  const g = google();
+  const t = Date.parse('2026-11-04T14:00:00Z');
+  await syncStats(env, g.fetchFn, t);
+  assert.equal((await db.prepare('SELECT views FROM yt_stats WHERE youtube_id = ?').bind(VID).first()).views, 950, 'the larger of Analytics 900 and public 950');
+  const n = g.calls.length;
+  await syncStats(env, g.fetchFn, t + 30 * 60 * 1000);
+  assert.equal(g.calls.length, n, 'not again within the hour');
+  await syncStats(env, g.fetchFn, t + 61 * 60 * 1000);
+  assert.ok(g.calls.length > n);
 });
 
-
-
-
-test('sponsor pipeline skips unmatched invoice-sent cards and keeps channel rows', () => {
-  const page = structuredClone(fixture.pages.youtube);
-  overlayYoutube(page, {
-    projects: [],
-    sponsors: {
-      collections: { items: [] },
-      cards: [
-        { id: 'spam', sponsor: 'Random Lead', stage: 'invoice-sent', latestDate: '2026-10-06' },
-        { id: 'vik', sponsor: 'Viktor', stage: 'script-approval', latestDate: '2026-09-30', subject: '90-second ad' },
-      ],
-    },
-    nowMs: now,
-  });
-  const names = page.pipeline.rows.map((r) => r.video);
-  assert.equal(names.some((n) => /Random Lead/.test(n)), false);
-  assert.equal(names.some((n) => /Viktor/.test(n)), true);
-  assert.equal(page.pipeline.rows.some((r) => r.type === 'Your channel'), true);
+test('a failed connect shows Google\'s reason, never the token', async () => {
+  const { db, env } = await setup();
+  const off = await connect(env, google({ me: () => new Response(JSON.stringify({ error: { message: 'YouTube Data API v3 has not been used in project 1 before or it is disabled.' } }), { status: 403 }) }));
+  assert.equal(off.status, 502);
+  const html = await off.text();
+  assert.match(html, /YouTube did not answer \(www channels answered 403: YouTube Data API v3 has not been used/);
+  assert.doesNotMatch(html, /refresh-token|"at"/);
+  const bad = await connect(env, google({ token: () => new Response(JSON.stringify({ error: 'redirect_uri_mismatch' }), { status: 400 }) }));
+  assert.match(await bad.text(), /Google did not give lasting access \(400 redirect_uri_mismatch\)/);
+  assert.equal(await db.prepare('SELECT COUNT(*) AS n FROM yt_api').first().then((x) => x.n), 0);
 });
 
-test('sponsor due tile only counts collection deals when items exist', () => {
-  const page = structuredClone(fixture.pages.youtube);
-  overlayYoutube(page, {
-    projects: [],
-    sponsors: {
-      collections: { items: [{ sponsor: 'Viktor', owed: 1000 }] },
-      cards: [
-        { id: 'vik', sponsor: 'Viktor', stage: 'script-approval', latestDate: '2026-09-30', subject: '90-second ad' },
-        { id: 'noise', sponsor: 'Random Lead', stage: 'production', latestDate: '2026-09-20', subject: 'dedicated' },
-      ],
-    },
-    nowMs: now,
-  });
-  const names = page.pipeline.rows.map((r) => r.video);
-  assert.equal(names.some((n) => /Viktor/.test(n)), true);
-  assert.equal(names.some((n) => /Random Lead/.test(n)), false);
-  assert.equal(page.tiles[3].value, '1');
+const allRow = (html, slug) => html.match(new RegExp(`<tr data-page="track/${slug}">(.*?)</tr>`, 's'))[1].split(/<[^>]+>/).map((s) => s.trim()).filter(Boolean);
+
+test('All shows Studio\'s lifetime views, AVD and subs, with impressions and CTR from the videos', async () => {
+  const { db, env } = await setup();
+  await connect(env, google());
+  await call(env, '/v1/calendar/peter-collins', { jon: false, bot: true, method: 'PUT', body: { videos: [{ date: '2026-11-01', title: 'Road test', status: 'published', youtube_id: VID }] } });
+  await syncReach(env, google().fetchFn, Date.parse('2026-11-04T20:00:00Z'));
+  await syncStats(env, google().fetchFn); // now, so opening Track doesn't sync again
+  const snap = await (await call(env, '/snapshot?pages=track')).json();
+  // Live, Videos, Scheduled, Posted, Impressions, CTR, AVD, Views, Subs
+  assert.deepEqual(allRow(track(snap.pages.track, {}, ''), 'peter-collins').slice(1), ['Yes', '1', '0', '1', '400', '2%', '3:20', '1,000', '8']);
+  assert.match(track(snap.pages.track, {}, 'peter-collins'), /<td class="num">3:25<\/td>/, 'the video\'s own AVD');
 });
 
-test('mergeSnapshot wires youtube projects, outliers and the video queue', () => {
-  const projects = [{
-    id: 'p1', createdAt: '2026-09-18T10:00:00Z', stage: 'script',
-    titleOptions: ['Video 3 of the week'], selectedTitleIndex: 0,
-    source: { title: 'src' },
-    edit: { status: 'idle', progress: 0 },
-    publish: { status: 'idle' },
-  }];
-  const out = mergeSnapshot(fixture, [
-    {
-      source: 'youtube',
-      collected_at: '2026-09-18T17:50:00Z',
-      data: JSON.stringify({ outliers: topOutliers(rows), channels: 22, ranked: 516 }),
-    },
-    {
-      source: 'video',
-      collected_at: '2026-09-18T17:55:00Z',
-      data: JSON.stringify({
-        queue: [{ id: 'e1', title: 'Video 2 of the week', step: 3, steps: 5, progress: 55, etaMinutes: 25, status: 'editing' }],
-      }),
-    },
-    {
-      source: 'sponsors',
-      collected_at: '2026-09-18T17:40:00Z',
-      data: JSON.stringify({ cards: [{ id: 'inv1', sponsor: 'InVideo', stage: 'production', latestDate: '2026-09-24' }] }),
-    },
-  ], now, {}, [], [], projects);
-  assert.equal(out.pages.youtube.pipeline.rows.some((r) => r.video === 'Video 3 of the week'), true);
-  assert.equal(out.pages.youtube.remake.jobs[0].area, 'Karolis');
-  assert.match(out.pages.youtube.remake.jobs[0].href, /template=brand_build/);
-  assert.equal(out.pages.video.editing.rows[0].title, 'Video 2 of the week');
+test('with no Analytics rows yet, views fall back to the public count and subs to the subscriber count, never blank', async () => {
+  const { db, env } = await setup();
+  await connect(env, google());
+  await call(env, '/v1/calendar/peter-collins', { jon: false, bot: true, method: 'PUT', body: { videos: [{ date: '2026-11-01', title: 'Road test', status: 'published', youtube_id: VID }] } });
+  await syncStats(env, google({ analytics: (_i, url) => new Response(JSON.stringify({ rows: url.includes('dimensions=video') ? [] : [['0', '0', '0', '0']] })) }).fetchFn);
+  const snap = await (await call(env, '/snapshot?pages=track')).json();
+  const row = allRow(track(snap.pages.track, {}, ''), 'peter-collins');
+  assert.deepEqual(row.slice(-2), ['950', '120']);
+  assert.equal((await db.prepare('SELECT sync_error FROM yt_api').first()).sync_error, null);
 });
 
-
-test('yt2 project PUT persists in D1 and snapshot shows it', async () => {
-  const db = memD1();
-  const env = envWith(db);
-  const ck = await cookie();
-  const body = JSON.stringify([{
-    id: 'v2_1', createdAt: '2026-09-18T12:00:00Z', stage: 'record',
-    titleOptions: ['Persisted project'], selectedTitleIndex: 0,
-    source: { title: 'src' },
-    edit: { status: 'idle', progress: 0 },
-    publish: { status: 'idle' },
-  }]);
-  const put = await handleApi(req('/dashboard/api/video-projects', {
-    method: 'PUT', cookie: ck, headers: { 'Content-Type': 'application/json', 'X-CC': '1' }, body,
-  }), env);
-  assert.equal(put.status, 200, await put.text());
-  const snap = await handleApi(req('/dashboard/api/snapshot?pages=youtube', { cookie: ck }), env);
-  const json = await snap.json();
-  assert.equal(json.pages.youtube.pipeline.rows.some((r) => r.video === 'Persisted project'), true);
+test('Analytics far behind the public count (a new channel) keeps the public views and shows no AVD', async () => {
+  const { env } = await setup();
+  await connect(env, google());
+  await call(env, '/v1/calendar/peter-collins', { jon: false, bot: true, method: 'PUT', body: { videos: [{ date: '2026-11-01', title: 'Road test', status: 'published', youtube_id: VID }] } });
+  await syncStats(env, google({ analytics: (_i, url) => new Response(JSON.stringify({ rows: url.includes('dimensions=video') ? [[VID, '1', '55', '0', '0']] : [['1', '55', '0', '0']] })) }).fetchFn);
+  const snap = await (await call(env, '/snapshot?pages=track')).json();
+  const v = snap.pages.track.videos.find((x) => x.title === 'Road test');
+  assert.deepEqual([v.views, v.avd], [950, null]);
+  await env.DB.prepare('UPDATE yt_api SET sync_tried_at = NULL, synced_at = NULL').run();
+  // YouTube's channel count still at 0 (Giovanni, 2026-11-04): the videos' 950 public views count instead
+  const zero = google({ channel: () => new Response(JSON.stringify({ items: [{ id: PETER, contentDetails: { relatedPlaylists: { uploads: 'UU1' } }, statistics: { subscriberCount: '120', viewCount: '0', videoCount: '2' } }] })),
+    analytics: (_i, url) => new Response(JSON.stringify({ rows: url.includes('dimensions=video') ? [[VID, '1', '55', '0', '0']] : [['1', '55', '0', '0']] })) });
+  await syncStats(env, zero.fetchFn);
+  const z = await env.DB.prepare('SELECT views, studio_views FROM yt_api').first();
+  assert.deepEqual({ ...z }, { views: 950, studio_views: null });
+  assert.deepEqual(allRow(track(snap.pages.track, {}, ''), 'peter-collins').slice(-2), ['950', '120']);
 });
 
-test('upload PUT queues one GPU1 job and a repeat does not overwrite it', async () => {
-  const db = memD1();
-  const store = new Map();
-  const env = envWith(db, {
-    UPLOADS: {
-      async put(key, value) { store.set(key, value); },
-      async get(key) {
-        if (!store.has(key)) return null;
-        const value = store.get(key);
-        return { body: value, arrayBuffer: async () => value };
-      },
-    },
-  });
-  const ck = await cookie();
-  const created = await handleApi(req('/dashboard/api/uploads', {
-    method: 'POST', cookie: ck,
-    headers: { 'Content-Type': 'application/json', 'X-CC': '1' },
-    body: JSON.stringify({ filename: 'take.mp4', contentType: 'video/mp4', title: 'New recording' }),
-  }), env);
-  assert.equal(created.status, 200, await created.clone().text());
-  const { id, putUrl } = await created.json();
-  const putPath = new URL(putUrl).pathname + new URL(putUrl).search;
-  const put = await handleApi(req(putPath, { method: 'PUT', body: 'fake-bytes' }), env);
-  assert.equal(put.status, 200, await put.clone().text());
-  const done = await put.json();
-  assert.equal(done.ok, true);
-  assert.equal(done.host, 'gpu1');
-  const action = db.actions.find((a) => a.kind === 'video.start_edit');
-  assert.equal(action.target, 'gpu1');
-  assert.equal(action.status, 'queued');
-  assert.equal(action.idem_key, `upload-${id}`);
-  assert.equal(db.actions.filter((a) => a.kind === 'video.start_edit').length, 1);
-  const again = await handleApi(req(putPath, { method: 'PUT', body: 'other-bytes' }), env);
-  assert.equal(again.status, 200);
-  assert.equal((await again.json()).id, action.id);
-  assert.equal(db.actions.filter((a) => a.kind === 'video.start_edit').length, 1);
-  const stored = store.get([...store.keys()][0]);
-  const text = typeof stored === 'string' ? stored : new TextDecoder().decode(stored);
-  assert.equal(text, 'fake-bytes');
-  const gpu2 = await handleApi(req('/dashboard/api/actions/claim', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${GPU}` },
-    body: JSON.stringify({ machine: 'gpu2' }),
-  }), env);
-  assert.equal((await gpu2.json()).actions.length, 0);
-  const gpu1 = await handleApi(req('/dashboard/api/actions/claim', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: 'Bearer gpu1-token-cccccccccccccccccccccccccccc' },
-    body: JSON.stringify({ machine: 'gpu1' }),
-  }), env);
-  const claimed = await gpu1.json();
-  assert.equal(claimed.actions.length, 1);
-  assert.equal(claimed.actions[0].id, action.id);
-});
-
-test('video.start_edit from the dashboard button targets GPU1', async () => {
-  const db = memD1();
-  const env = envWith(db);
-  const ck = await cookie();
-  const res = await handleApi(req('/dashboard/api/actions', {
-    method: 'POST', cookie: ck,
-    headers: { 'Content-Type': 'application/json', 'X-CC': '1' },
-    body: JSON.stringify({ kind: 'video.start_edit', payload: { title: 'Clip' }, idemKey: 'v1' }),
-  }), env);
-  assert.equal(res.status, 200);
-  assert.equal((await res.json()).status, 'queued');
-  assert.equal(db.actions.at(-1).target, 'gpu1');
-});
-
-test('GPU1 reports waiting-for-review on the same job and resume does not duplicate it', async () => {
-  const db = memD1();
-  const env = envWith(db);
-  const ck = await cookie();
-  db.actions.push({
-    id: 'job1', kind: 'video.start_edit', target: 'gpu1', status: 'claimed',
-    payload: JSON.stringify({ id: 'up1', title: 'QA', filename: 'qa.mp4', key: 'uploads/up1/qa.mp4' }),
-    result: null, idem_key: 'upload-up1', created_at: '2026-09-22T00:00:00Z', finished_at: null,
-  });
-  const progress = await handleApi(req('/dashboard/api/actions/job1/progress', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: 'Bearer gpu1-token-cccccccccccccccccccccccccccc' },
-    body: JSON.stringify({
-      host: 'gpu1', stage: 'waiting-for-review', device: 'cpu', encoder: 'libx264',
-      failure: null, retry: 0, validated: false,
-    }),
-  }), env);
-  assert.equal(progress.status, 200, await progress.clone().text());
-  assert.equal(db.actions[0].status, 'waiting');
-  assert.equal(db.actions[0].finished_at, null);
-  const reported = JSON.parse(db.actions[0].result);
-  assert.equal(reported.host, 'gpu1');
-  assert.equal(reported.stage, 'waiting-for-review');
-  assert.equal(reported.device, 'cpu');
-  const empty = await handleApi(req('/dashboard/api/actions/job1/resume', {
-    method: 'POST', cookie: ck,
-    headers: { 'Content-Type': 'application/json', 'X-CC': '1' },
-    body: JSON.stringify({ keepers: [] }),
-  }), env);
-  assert.equal(empty.status, 400);
-  const before = await handleApi(req('/dashboard/api/snapshot?pages=video', { cookie: ck }), env);
-  const review = (await before.json()).pages.video.editing.rows[0];
-  assert.equal(review.kind, 'video.resume');
-  assert.equal(review.payload.actionId, 'job1');
-  const resume = await handleApi(req('/dashboard/api/actions/job1/resume', {
-    method: 'POST', cookie: ck,
-    headers: { 'Content-Type': 'application/json', 'X-CC': '1' },
-    body: JSON.stringify({ keepers: [{ cs: 1.2, ce: 3.4, label: 'line' }] }),
-  }), env);
-  assert.equal(resume.status, 200, await resume.clone().text());
-  assert.equal(db.actions.length, 1);
-  assert.equal(db.actions[0].id, 'job1');
-  assert.equal(JSON.parse(db.actions[0].payload).keepers.length, 1);
-  const snap = await handleApi(req('/dashboard/api/snapshot?pages=video', { cookie: ck }), env);
-  const page = (await snap.json()).pages.video;
-  assert.match(page.editing.rows[0].sub, /gpu1/);
-  assert.match(page.editing.rows[0].sub, /waiting-for-review|resume/);
-});
-
-test('GPU2 cannot claim, report, or take a GPU1 result', async () => {
-  const db = memD1();
-  const store = new Map();
-  const env = envWith(db, {
-    UPLOADS: { async put(key, value) { store.set(key, value); }, async get(key) { return store.has(key) ? { body: store.get(key) } : null; } },
-  });
-  db.actions.push({
-    id: 'job1', kind: 'video.start_edit', target: 'gpu1', status: 'claimed',
-    payload: JSON.stringify({ id: 'up1', title: 'QA', filename: 'qa.mp4', key: 'uploads/up1/qa.mp4' }),
-    result: null, idem_key: 'upload-up1', created_at: '2026-09-22T00:00:00Z', finished_at: null,
-  });
-  const wrongMachine = await handleApi(req('/dashboard/api/actions/claim', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: 'Bearer gpu1-token-cccccccccccccccccccccccccccc' },
-    body: JSON.stringify({ machine: 'gpu2' }),
-  }), env);
-  assert.equal(wrongMachine.status, 401);
-  const gpu2Progress = await handleApi(req('/dashboard/api/actions/job1/progress', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${GPU}` },
-    body: JSON.stringify({ stage: 'done', validated: true, outputKey: 'uploads/other/out.mp4' }),
-  }), env);
-  assert.equal(gpu2Progress.status, 401);
-  const stolen = await handleApi(req('/dashboard/api/actions/job1/progress', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: 'Bearer gpu1-token-cccccccccccccccccccccccccccc' },
-    body: JSON.stringify({ stage: 'done', validated: true, outputKey: 'uploads/other/out.mp4' }),
-  }), env);
-  assert.equal(stolen.status, 200);
-  assert.equal(JSON.parse(db.actions[0].result).outputKey, 'uploads/up1/out.mp4');
-  const gpu2Put = await handleApi(req('/dashboard/api/uploads/up1/output', {
-    method: 'PUT',
-    headers: { Authorization: `Bearer ${GPU}` },
-    body: 'nope',
-  }), env);
-  assert.equal(gpu2Put.status, 401);
-  const foreign = await handleApi(req('/dashboard/api/uploads/up1?key=uploads/other/secret.mp4', {
-    headers: { Authorization: 'Bearer gpu1-token-cccccccccccccccccccccccccccc' },
-  }), env);
-  assert.equal(foreign.status, 400);
-});
-
-test('duplicate resume stays one job and bad keepers are rejected', async () => {
-  const db = memD1();
-  const env = envWith(db);
-  const ck = await cookie();
-  db.actions.push({
-    id: 'job1', kind: 'video.start_edit', target: 'gpu1', status: 'waiting',
-    payload: JSON.stringify({ id: 'up1', title: 'QA' }),
-    result: JSON.stringify({ host: 'gpu1', stage: 'waiting-for-review' }),
-    idem_key: 'upload-up1', created_at: '2026-09-22T00:00:00Z', finished_at: null,
-  });
-  const bad = await handleApi(req('/dashboard/api/actions/job1/resume', {
-    method: 'POST', cookie: ck,
-    headers: { 'Content-Type': 'application/json', 'X-CC': '1' },
-    body: JSON.stringify({ keepers: [{ label: 'no times' }] }),
-  }), env);
-  assert.equal(bad.status, 400);
-  const body = JSON.stringify({ keepers: [{ cs: 1, ce: 2, label: 'line' }], expectedLines: ['The red box sits on the table.', 'We leave it there today.'] });
-  const first = await handleApi(req('/dashboard/api/actions/job1/resume', {
-    method: 'POST', cookie: ck, headers: { 'Content-Type': 'application/json', 'X-CC': '1' }, body,
-  }), env);
-  const second = await handleApi(req('/dashboard/api/actions/job1/resume', {
-    method: 'POST', cookie: ck, headers: { 'Content-Type': 'application/json', 'X-CC': '1' }, body,
-  }), env);
-  assert.equal(first.status, 200);
-  assert.equal(second.status, 200);
-  assert.equal(db.actions.length, 1);
-  assert.equal(db.actions[0].id, 'job1');
-  assert.deepEqual(JSON.parse(db.actions[0].payload).expectedLines, ['The red box sits on the table.', 'We leave it there today.']);
-});
-
-test('video page says GPU1 disconnected until a fresh claimer heartbeat', async () => {
-  const db = memD1();
-  const env = envWith(db);
-  const ck = await cookie();
-  db.actions.push({
-    id: 'job1', kind: 'video.start_edit', target: 'gpu1', status: 'queued',
-    payload: JSON.stringify({ id: 'up1', title: 'QA' }),
-    result: JSON.stringify({ host: 'gpu1', stage: 'queued' }),
-    idem_key: 'upload-up1', created_at: '2026-09-22T00:00:00Z', finished_at: null,
-  });
-  const quiet = await handleApi(req('/dashboard/api/snapshot?pages=video', { cookie: ck }), env);
-  assert.match((await quiet.json()).pages.video.editing.meta, /GPU1 disconnected/);
-  db.snapshots.set('video_gpu1', {
-    source: 'video_gpu1', data: '{"ok":true,"device":"cpu"}',
-    collected_at: new Date().toISOString(), received_at: new Date().toISOString(),
-  });
-  const live = await handleApi(req('/dashboard/api/snapshot?pages=video', { cookie: ck }), env);
-  assert.doesNotMatch((await live.json()).pages.video.editing.meta || '', /disconnected/);
-});
-
-test('a saved cut stays ready when GPU1 is disconnected, and a failed job does not', async () => {
-  const db = memD1();
-  const env = envWith(db);
-  const ck = await cookie();
-  db.actions.push({
-    id: 'saved', kind: 'video.start_edit', target: 'gpu1', status: 'done',
-    payload: JSON.stringify({ id: 'up-saved', title: 'Saved cut' }),
-    result: JSON.stringify({ host: 'gpu1', stage: 'done', validated: true, outputKey: 'uploads/up-saved/out.mp4' }),
-    idem_key: 'upload-up-saved', created_at: '2026-09-22T00:00:00Z', finished_at: '2026-09-22T00:10:00Z',
-  }, {
-    id: 'bad', kind: 'video.start_edit', target: 'gpu1', status: 'done',
-    payload: JSON.stringify({ id: 'up-bad', title: 'Bad cut' }),
-    result: JSON.stringify({ host: 'gpu1', stage: 'quality-failure', validated: false, failure: 'missing unique lines' }),
-    idem_key: 'upload-up-bad', created_at: '2026-09-22T00:00:00Z', finished_at: '2026-09-22T00:10:00Z',
-  });
-  const res = await handleApi(req('/dashboard/api/snapshot?pages=video', { cookie: ck }), env);
-  const page = (await res.json()).pages.video;
-  assert.match(page.editing.meta, /GPU1 disconnected/);
-  assert.equal(page.ready.rows.length, 1);
-  assert.equal(page.ready.rows[0].title, 'Saved cut');
-  assert.equal(page.editing.rows.some((row) => row.title === 'Bad cut' && row.pill === 'Failed'), true);
-});
-
-test('GPU1 claim returns its own stuck job and GPU2 does not', async () => {
-  const db = memD1();
-  const env = envWith(db);
-  db.actions.push({
-    id: 'stuck', kind: 'video.start_edit', target: 'gpu1', status: 'claimed',
-    payload: JSON.stringify({ id: 'up1' }), result: null, idem_key: 'upload-up1',
-    created_at: '2026-09-22T00:00:00Z', finished_at: null,
-  });
-  const gpu1 = await handleApi(req('/dashboard/api/actions/claim', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: 'Bearer gpu1-token-cccccccccccccccccccccccccccc' },
-    body: JSON.stringify({ machine: 'gpu1' }),
-  }), env);
-  assert.equal((await gpu1.json()).actions[0].id, 'stuck');
-  const gpu2 = await handleApi(req('/dashboard/api/actions/claim', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${GPU}` },
-    body: JSON.stringify({ machine: 'gpu2' }),
-  }), env);
-  assert.equal((await gpu2.json()).actions.length, 0);
-});
-
-
-
-
-test('python collector reads queue-status.json', () => {
-  const dir = mkdtempSync(join(tmpdir(), 'cc-video-'));
-  mkdirSync(join(dir, 'out'), { recursive: true });
-  writeFileSync(join(dir, 'out', 'queue-status.json'), JSON.stringify([
-    { id: 'e1', title: 'Video 2 of the week', step: 3, steps: 5, progress: 55, etaMinutes: 25, status: 'editing', readyPath: '' },
-  ]));
-  const r = runPy(
-    'from video_edit import collect_queue\n'
-    + 'import json\n'
-    + 'print(json.dumps(collect_queue()))\n',
-    { CC_VIDEO_ROOT: dir },
-  );
-  assert.equal(r.status, 0, r.stderr);
-  const data = JSON.parse(r.stdout);
-  assert.equal(data.queue[0].title, 'Video 2 of the week');
-  assert.equal(data.queue[0].status, 'editing');
-});
-
-test('GPU1 cutter job records real stages and does not write a fake queue file', () => {
-  const dir = mkdtempSync(join(tmpdir(), 'cc-loop-'));
-  const cut = join(dir, 'cut.py');
-  writeFileSync(cut, [
-    'import sys, pathlib',
-    'cmd, work = sys.argv[1], sys.argv[3]',
-    'out = sys.argv[4] if len(sys.argv) > 4 else ""',
-    'root = pathlib.Path(work)',
-    'root.mkdir(parents=True, exist_ok=True)',
-    'if cmd == "prep":',
-    '    (root / "words.json").write_text("[]", encoding="utf-8")',
-    'elif cmd == "finish":',
-    '    pathlib.Path(out).write_bytes(b"mp4")',
-    'elif cmd == "verify":',
-    '    print("verify-ok")',
-    'else:',
-    '    raise SystemExit(2)',
-  ].join('\n'));
-  const root = dir.replace(/\\/g, '/');
-  const r = runPy(
-    'from loop_studio import open_job, advance\n'
-    + 'import json, os\n'
-    + `job = open_job(r'''${root}''', "up1", "QA clip")\n`
-    + 'print(json.dumps(advance(job)))\n'
-    + 'print("queue", os.path.exists(os.path.join(job, "queue-status.json")))\n',
-    { LS_CUTTER: cut, LS_DEVICE: 'cpu', LS_ENCODER: 'libx264' },
-  );
-  assert.equal(r.status, 0, r.stderr);
-  const lines = r.stdout.trim().split(/\r?\n/);
-  const state = JSON.parse(lines[0]);
-  assert.equal(state.host, 'gpu1');
-  assert.equal(state.stage, 'waiting-for-review');
-  assert.equal(state.device, 'cpu');
-  assert.equal(state.encoder, 'libx264');
-  assert.equal(lines[1], 'queue False');
+test('while Analytics lags, the Studio reader\'s views, AVD and subs stay (Giovanni: 71 views, 3:25)', async () => {
+  const { env } = await setup();
+  await connect(env, google());
+  await call(env, '/v1/calendar/peter-collins', { jon: false, bot: true, method: 'PUT', body: { videos: [{ date: '2026-11-01', title: 'Road test', status: 'published', youtube_id: VID }] } });
+  const posted = await call(env, '/v1/links/stats', { jon: false, bot: true, method: 'POST', body: { stats: [{ youtube_id: VID, views: 71, avd: 205, subs: 1 }] } });
+  assert.equal(posted.status, 200);
+  await syncStats(env, google({ analytics: (_i, url) => new Response(JSON.stringify({ rows: url.includes('dimensions=video') ? [[VID, '1', '55', '0', '0']] : [['1', '55', '0', '0']] })) }).fetchFn);
+  const snap = await (await call(env, '/snapshot?pages=track')).json();
+  const v = snap.pages.track.videos.find((x) => x.title === 'Road test');
+  assert.deepEqual([v.views, v.avd, v.subs], [950, 205, 1], 'views: the larger of Studio 71 and public 950');
+  assert.deepEqual(allRow(track(snap.pages.track, {}, ''), 'peter-collins').slice(-3), ['3:25', '950', '120']);
 });

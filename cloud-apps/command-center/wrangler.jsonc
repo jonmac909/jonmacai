@@ -4,6 +4,7 @@
   "main": "src/worker.js",
   "compatibility_date": "2026-08-31",
   "workers_dev": false,
+  "observability": { "enabled": true, "logs": { "invocation_logs": false } }, // console.error only: request URLs carry OAuth codes
   "assets": {
     "directory": "./public",
     "binding": "ASSETS",
@@ -15,6 +16,16 @@
       "binding": "DB",
       "database_name": "command_center",
       "database_id": "615b0a5a-10b5-42d8-b127-9f4af3198104"
+    },
+    {
+      "binding": "REVIEW_DB",
+      "database_name": "jonmac-review",
+      "database_id": "aaf91d9f-48f9-458a-aa6d-24354266a39b"
+    },
+    {
+      "binding": "CLONE_DB",
+      "database_name": "jonmacai-clone-upsells",
+      "database_id": "cafcc654-94e7-498c-81cf-e197393c1176"
     }
   ],
   "r2_buckets": [
@@ -23,11 +34,48 @@
       "bucket_name": "command-center-uploads"
     }
   ],
+  // /dashboard/review: Jon's requests go to the review Worker with the REVIEW_API_TOKEN secret (src/videoreview.js).
+  "services": [
+    { "binding": "REVIEW", "service": "jonmac-review" }
+  ],
   "triggers": {
     "crons": ["*/10 * * * *"]
   },
+  "version_metadata": { "binding": "CF_VERSION_METADATA" },
+  // Phone calls to Ana (src/call.js): GPU1 and Jon's phone meet in one Durable Object.
+  // Secret CALL_RELAY_SECRET = D:\AgentTeam\secrets\call-relay.secret on GPU1.
+  "durable_objects": {
+    "bindings": [{ "name": "CALL_RELAY", "class_name": "CallRelay" }]
+  },
+  "migrations": [{ "tag": "call-relay-v1", "new_sqlite_classes": ["CallRelay"] }],
   "routes": [
     { "pattern": "jonmac.ai/dashboard", "zone_name": "jonmac.ai" },
-    { "pattern": "jonmac.ai/dashboard/*", "zone_name": "jonmac.ai" }
-  ]
+    { "pattern": "jonmac.ai/dashboard/*", "zone_name": "jonmac.ai" },
+    // Tracked video links (src/track.js).
+    { "pattern": "jonmac.ai/v/*", "zone_name": "jonmac.ai" }
+  ],
+  // Preview: `wrangler deploy --env preview`. Separate Worker on workers.dev with its own D1,
+  // no routes, no cron, no review/funnel D1s, no R2 and no production secrets (only a
+  // preview-only SESSION_SECRET for the smoke test). Live data is never touched.
+  "env": {
+    "preview": {
+      "name": "jonmac-command-center-preview",
+      "workers_dev": true,
+      "preview_urls": false,
+      "routes": [],
+      "triggers": { "crons": [] },
+      "vars": { "PREVIEW": "1" },
+      "version_metadata": { "binding": "CF_VERSION_METADATA" },
+      "durable_objects": {
+        "bindings": [{ "name": "CALL_RELAY", "class_name": "CallRelay" }]
+      },
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "command_center_preview",
+          "database_id": "cf929245-7de2-4fc6-85bf-e3f02c187e6a"
+        }
+      ]
+    }
+  }
 }
