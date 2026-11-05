@@ -13,8 +13,10 @@ const ANALYTICS = 'https://youtubeanalytics.googleapis.com/v2/reports';
 const REPORTING = 'https://youtubereporting.googleapis.com/v1';
 const REACH = 'channel_reach_basic_a1';
 // Quota: 10,000 Data API units a day for this project (Track only). A sync is 3 units a channel (5 at most), so 100
-// refreshes a day plus the hourly cron stay under it for 23 channels. Past it, the rows say so (sync_error).
+// opens or refreshes a day plus the hourly cron stay under it for 23 channels. MANUAL_SYNCS_PER_DAY enforces that: past it
+// Track shows what's stored until the next Pacific day, so the cron (and Calendar) never run dry.
 const SYNC_EVERY_MS = 15 * 1000;
+const MANUAL_SYNCS_PER_DAY = 100;
 const CRON_SYNC_EVERY_MS = 3600 * 1000;
 const REACH_EVERY_MS = 6 * 3600 * 1000;
 const SYNC_WAIT_MS = 8000; // Track answers with what's stored after this; the sync finishes in the background
@@ -272,11 +274,24 @@ async function claim(db, column, everyMs, nowMs) {
   return results || [];
 }
 
+async function budgetLeft(db, nowMs) {
+  try {
+    const r = await db.prepare('SELECT syncs FROM yt_sync_budget WHERE day = ?').bind(pacific(nowMs).day).first();
+    return (r?.syncs || 0) < MANUAL_SYNCS_PER_DAY;
+  } catch (err) {
+    return true; // migration 0023 not applied: no cap rather than no sync
+  }
+}
+const spend = (db, nowMs) => db.prepare('INSERT INTO yt_sync_budget (day, syncs) VALUES (?1, 1) ON CONFLICT(day) DO UPDATE SET syncs = syncs + 1')
+  .bind(pacific(nowMs).day).run().catch(() => {});
+
 // Track opened or refreshed: sync channels not synced in the last 15 s, all at once (23 channels x ~6 calls is far under the paid
 // plan's 10,000 subrequests). Answers after SYNC_WAIT_MS at most; the rest finishes in the background.
 // The cron passes no ctx and an hourly everyMs, so Track and Calendar stay fresh with nobody opening Track; it waits for the work.
 export async function freshen(env, ctx, fetchFn = globalThis.fetch, nowMs = Date.now(), everyMs = SYNC_EVERY_MS) {
   if (!ready(env)) return;
+  const manual = everyMs === SYNC_EVERY_MS; // the cron's hourly sync is not capped
+  if (manual && !(await budgetLeft(env.DB, nowMs))) return;
   let rows;
   try {
     rows = await claim(env.DB, 'sync_tried_at', everyMs, nowMs);
@@ -285,6 +300,7 @@ export async function freshen(env, ctx, fetchFn = globalThis.fetch, nowMs = Date
     return;
   }
   if (!rows.length) return;
+  if (manual) await spend(env.DB, nowMs);
   const work = Promise.allSettled(rows.map((row) => syncChannel(env, fetchFn, row, nowMs).catch((err) => env.DB.prepare('UPDATE yt_api SET sync_error = ? WHERE channel = ?').bind(err.message, row.channel).run())));
   if (!ctx?.waitUntil) {
     await work;

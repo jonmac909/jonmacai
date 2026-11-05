@@ -343,3 +343,37 @@ test('a channel\'s Views are the larger of Analytics and public, and a failed sy
   await set(100, 89, 'quotaExceeded');
   assert.match(await views(), /YouTube API error[\s\S]*quotaExceeded/);
 });
+
+test('a channel with no public views yet still shows its videos\' Studio views, not 0', async () => {
+  const { env } = await setup();
+  await connect(env, google());
+  await call(env, '/v1/calendar/peter-collins', { jon: false, bot: true, method: 'PUT', body: { videos: [{ date: '2026-11-01', title: 'Road test', status: 'published', youtube_id: VID }] } });
+  await call(env, '/v1/links/stats', { jon: false, bot: true, method: 'POST', body: { stats: [{ youtube_id: VID, views: 71 }] } });
+  await env.DB.prepare('UPDATE yt_api SET studio_views = NULL, views = 0, subscribers = 5, sync_tried_at = ?').bind(new Date().toISOString()).run();
+  const snap = await (await call(env, '/snapshot?pages=track')).json();
+  assert.equal(allRow(track(snap.pages.track, {}, ''), 'peter-collins').at(-2), '71', 'Giovanni: public 0, Studio 71');
+});
+
+test('Track opens stop syncing after 100 a day, and the hourly cron still runs', async () => {
+  const { env } = await setup();
+  await connect(env, google());
+  const day = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Vancouver' }).format(new Date());
+  const g = google();
+  const prev = globalThis.fetch;
+  globalThis.fetch = g.fetchFn;
+  try {
+    await env.DB.prepare('INSERT INTO yt_sync_budget (day, syncs) VALUES (?, 100)').bind(day).run();
+    await call(env, '/snapshot?pages=track');
+    assert.equal(g.calls.length, 0, 'over the daily budget: Track shows what is stored');
+    await syncStats(env, g.fetchFn);
+    assert.ok(g.calls.length > 0, 'the cron is not capped');
+    await env.DB.prepare('UPDATE yt_sync_budget SET syncs = 99').run();
+    await env.DB.prepare('UPDATE yt_api SET sync_tried_at = NULL').run();
+    const before = g.calls.length;
+    await call(env, '/snapshot?pages=track');
+    assert.ok(g.calls.length > before, 'under the budget it syncs');
+    assert.equal((await env.DB.prepare('SELECT syncs FROM yt_sync_budget').first()).syncs, 100);
+  } finally {
+    globalThis.fetch = prev;
+  }
+});

@@ -78,7 +78,7 @@ function channelRow(c, videos) {
   const t = c.totals || {};
   return { slug: c.slug, label: c.label, onAir: live ? 'Yes' : 'No', videos: on.length, scheduled: on.filter((v) => v.status === 'scheduled').length, posted: live,
     impressions: total(mine, 'impressions'), ctr: weighted(mine, 'ctr', 'impressions'), avd: t.avd ?? weighted(mine, 'avd', 'views'),
-    views: t.views ?? total(mine, 'views'), subs: t.subs ?? total(mine, 'subs'), error: t.error || '' };
+    views: t.views == null && total(mine, 'views') == null ? null : Math.max(t.views ?? 0, total(mine, 'views') ?? 0), subs: t.subs ?? total(mine, 'subs'), error: t.error || '' };
 }
 
 const ALL_COLS = [['impressions', 'Impressions', num], ['ctr', 'CTR', (n) => (n != null ? `${n}%` : '')], ['avd', 'AVD', mss], ['views', 'Views', num], ['subs', 'Subs', num]];
