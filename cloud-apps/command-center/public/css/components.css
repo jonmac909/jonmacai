@@ -763,20 +763,22 @@ body:has(.cardmodal[open]){overflow:hidden} /* the page behind stays put */
 .tklink{font-size:.8rem;margin-right:.5rem}
 .ccdiff{display:block;margin-top:.25rem;color:var(--muted);font-size:.8rem}
 
-/* Factory (2026-11-05): ten stage columns side by side, sideways scroll; a tile per video. */
+/* Factory (2026-11-05): one table, a row per open video; cells are a green check, a blue bar, a red X or a grey circle. */
 .fystatus{display:flex;align-items:center}
-.fygpuline{margin:.9rem 0 0;font-size:.88rem;color:var(--ink-2)}
-.fyboard{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(15rem,1fr);gap:.8rem;overflow-x:auto;padding:1rem 0 .6rem;align-items:start}
-.fycol{background:var(--soft);border-radius:.9rem;padding:.7rem;min-width:0}
-.fycol h3{margin:0 0 .6rem;font-size:.74rem;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);display:flex;justify-content:space-between;gap:.5rem}
-.fylist{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:.55rem}
-.fytile{background:var(--card-bg);border:1px solid var(--line);border-radius:.7rem;padding:.6rem .7rem;display:flex;flex-direction:column;gap:.35rem;font-size:.85rem}
-.fytile.stuck{border-color:var(--risk-line)}
-.fytitle{font-weight:600;overflow-wrap:anywhere}
-.fymeta{color:var(--muted);font-size:.78rem}
-.fygpu{font-size:.78rem;color:var(--ink-2);overflow-wrap:anywhere}
-.fyopen{font-size:.78rem}
-.fyempty{font-size:.82rem;padding:.2rem .1rem}
+.fygpuline{margin:.9rem 0 .6rem;font-size:.88rem;color:var(--ink-2)}
+.fytable td.fycell,.fytable th.fycell{text-align:center;min-width:5.4rem}
+.fytable td:first-child{min-width:15rem;max-width:26rem}
+.fytable td b{display:block;font-weight:600;overflow-wrap:anywhere}
+.fyrow.stuck td{background:var(--crit-bg)}
+.fyok{color:var(--ok-fill)} .fybad{color:var(--crit-fill)}
+.fyidle{display:inline-block;width:.8rem;height:.8rem;border-radius:50%;border:2px solid var(--idle-line);box-sizing:border-box}
+.fyfail{display:flex;flex-direction:column;align-items:center;gap:.15rem}
+.fyfail small{font-size:.74rem;color:var(--crit-ink);overflow-wrap:anywhere}
+.fyrun{display:flex;flex-direction:column;gap:.2rem;font-size:.76rem;color:var(--ink-2)}
+.fyrun .pg i{background:#2f7bf5;box-shadow:none}
+.pg.ind i{width:40%;animation:fyslide 1.4s ease-in-out infinite alternate}
+@keyframes fyslide{from{margin-left:0}to{margin-left:60%}}
+@media (prefers-reduced-motion:reduce){.pg.ind i{animation:none;width:100%;opacity:.5}}
 
 /* Weekly and Monthly (2026-11-05): progress rows, and Jon's own habit checkboxes. */
 .pdrows{display:flex;flex-direction:column;gap:1.2rem}

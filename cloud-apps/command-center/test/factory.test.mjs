@@ -26,7 +26,7 @@ async function call(env, method, path, { bot, body, jon } = {}) {
   return { status: r.status, body: await r.json() };
 }
 
-const SNAP = { columns: ['Script', 'Pack'], tiles: [{ title: 'Tesco Transport Shake-Up - Peter Collins', channel: 'Peter Collins', column: 1, progress: { label: 'Stills and clips', done: 40, total: 100 } }] };
+const SNAP = { columns: ['Script', 'Pack'], cols: ['Script'], tiles: [{ title: 'Tesco Transport Shake-Up - Peter Collins', channel: 'Peter Collins', column: 1, cells: [{ s: 'done' }] }] };
 
 test('factory: only writers post, one row is overwritten, Jon and bots read it', async () => {
   const { db, env } = await setup();
@@ -72,4 +72,85 @@ test('factory page: first load fetches even when the tab reports hidden', async 
   assert.equal(calls, 1);
   assert.doesNotMatch(boxes['.fybody'].innerHTML, /Loading/);
   assert.match(boxes['.fybody'].innerHTML, /Tesco Transport Shake-Up/);
+});
+
+const COLS = ['Script', 'Script QC', 'A-roll', 'Clips', 'Preflight', 'Edit', 'Video QC'];
+const MIXED = [{ s: 'done' }, { s: 'done' }, { s: 'done' }, { s: 'run', done: 40, total: 100 }, { s: 'fail', why: 'Moving clips 12% <b>', full: 'long reason' }, { s: 'idle' }, { s: 'idle' }];
+const TABLE = {
+  columns: [], cols: COLS,
+  tiles: [
+    { title: 'Old Video - Peter Collins', channel: 'Peter Collins', owner: 'video editor', waitMin: 190, stuck: true, cells: MIXED },
+    { title: 'New Video - Rosa Cooks', channel: 'Rosa Cooks', owner: 'elle', waitMin: 5, stuck: false, cells: COLS.map(() => ({ s: 'done' })) },
+    { title: 'On the calendar - Peter Collins', channel: 'Peter Collins', column: 9 }, // already scheduled: not an open video
+  ],
+};
+const CHANNELS = [{ slug: 'peter-collins', label: 'Peter Collins', group: 'Home Guide Press' }, { slug: 'rosa-cooks', label: 'Rosa Cooks', group: 'Home Guide Press' }];
+
+async function board(sub = '') {
+  const boxes = { '.fybody': { innerHTML: '' }, '.fystatus': { innerHTML: '' } };
+  let alive = true;
+  const el = { dataset: { sub }, get isConnected() { return alive; }, querySelector: (s) => boxes[s] };
+  globalThis.document = { hidden: false };
+  globalThis.fetch = async () => ({ ok: true, json: async () => ({ ok: true, factory: TABLE, asOf: new Date().toISOString(), channels: CHANNELS }) });
+  mount(el);
+  await new Promise((r) => setTimeout(r, 50)); alive = false;
+  return boxes['.fybody'].innerHTML;
+}
+
+test('factory table: one row per open video, oldest first, channel under the title, calendar tiles left out', async () => {
+  const html = await board();
+  for (const c of [...COLS, 'Video', 'Waiting']) assert.match(html, new RegExp(`<th[^>]*>${c}</th>`));
+  assert.equal((html.match(/<tr class="fyrow/g) || []).length, 2);
+  assert.ok(html.indexOf('Old Video') < html.indexOf('New Video'), 'feed order is kept');
+  assert.match(html, /<b>Old Video<\/b><small>Peter Collins<\/small>/);
+  assert.doesNotMatch(html, /On the calendar/);
+  assert.match(html, /All channels<span class="ccn">2<\/span>/);
+});
+
+test('factory table: cells show a check, a blue bar with n/total, a red X with the reason, a grey circle', async () => {
+  const html = await board();
+  assert.equal((html.match(/aria-label="Done"/g) || []).length, 3 + 7);
+  assert.match(html, /aria-valuenow="40"[^>]*><i style="width:40%"><\/i><\/div><span>40\/100<\/span>/);
+  assert.match(html, /aria-label="Failed"/);
+  assert.match(html, /Moving clips 12% &lt;b&gt;/, 'the reason is escaped');
+  assert.doesNotMatch(html, /12% <b>/);
+  assert.equal((html.match(/aria-label="Not started"/g) || []).length, 2);
+});
+
+test('factory table: a row stuck 2 hours or more is red and says how long and who', async () => {
+  const html = await board();
+  const rows = html.split('<tr class="fyrow').slice(1);
+  assert.match(rows[0], /^ stuck"/);
+  assert.match(rows[0], /video editor<small>3h 10m · stuck<\/small>/);
+  assert.match(rows[1], /^"/);
+  assert.match(rows[1], /elle<small>5m<\/small>/);
+});
+
+test('factory table: the channel filter keeps only that channel', async () => {
+  const html = await board('rosa-cooks');
+  assert.match(html, /New Video/);
+  assert.doesNotMatch(html, /Old Video/);
+  assert.match(html, /aria-current="page"[^>]*>Rosa Cooks/);
+});
+
+test('factory table: a tile with no title does not break the board', async () => {
+  const keep = TABLE.tiles; TABLE.tiles = [{ channel: 'Rosa Cooks', owner: 'elle', cells: COLS.map(() => ({ s: 'done' })) }];
+  try { const html = await board(); assert.match(html, /<tr class="fyrow/); } finally { TABLE.tiles = keep; }
+});
+
+test('factory table: an old snapshot without cols says the new table is on its way', async () => {
+  const keep = TABLE.cols; TABLE.cols = undefined;
+  try { assert.match(await board(), /Waiting for the publisher to send the new table\./); } finally { TABLE.cols = keep; }
+});
+
+test('factory table: a host with no chip gets its own chip under Other, and the counts add up', async () => {
+  const keep = TABLE.tiles;
+  TABLE.tiles = [...keep.slice(0, 2), { title: 'Odd One - Diane Kowalski', channel: 'Diane Kowalski', owner: 'elle', waitMin: 1, cells: COLS.map(() => ({ s: 'done' })) }];
+  try {
+    const html = await board();
+    assert.match(html, /<b>Other<\/b>/);
+    assert.match(html, /data-page="factory\/dianekowalski"[^>]*>Diane Kowalski<span class="ccn">1<\/span>/);
+    assert.match(html, /All channels<span class="ccn">3<\/span>/);
+    assert.match(await board('dianekowalski'), /Odd One/);
+  } finally { TABLE.tiles = keep; }
 });

@@ -1,7 +1,7 @@
 import { esc, pill } from '../ui.js';
 
-// Factory (Jon, 2026-11-05): the live production board. A plain script on GPU1 (tools/factory_publish.py) posts one
-// snapshot every 30 s; this page only fetches it every 15 s. No bot reads it and no model is involved.
+// Factory (Jon, 2026-11-05): one table, a row per open video, oldest first. A plain script on GPU1 (tools/factory_publish.py)
+// posts the rows every 30 s; this page only fetches them every 15 s. No bot reads it and no model is involved.
 const API = '/dashboard/api/v1/factory';
 const POLL_MS = 15000;
 const STALE_S = 120; // the script posts every 30 s; older than this and the board says it is stale
@@ -12,16 +12,27 @@ const fold = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, '');
 const mine = (t, c) => !c || fold(t.channel) === fold(c.label) || fold(t.channel) === fold(c.slug);
 const wait = (min) => (min == null ? '' : min >= 60 ? `${Math.floor(min / 60)}h ${min % 60}m` : `${min}m`);
 
-function tile(t) {
-  const p = t.progress;
-  const total = Number(p?.total) || 0;
-  const done = Number(p?.done) || 0;
-  const pct = total ? Math.min(100, Math.round((done / total) * 100)) : null;
-  const bar = pct == null ? '' : `<div class="pgrow"><div class="lab"><span>${esc(p.label)}</span><span>${done} of ${total}</span></div><div class="pg${pct >= 100 ? ' ok' : ''}" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pct}"><i style="width:${pct}%"></i></div></div>`;
-  const link = /^https?:\/\//i.test(t.link || '') ? `<a class="fyopen" href="${esc(t.link)}" target="_blank" rel="noopener">Open</a>` : '';
-  return `<li class="fytile${t.stuck ? ' stuck' : ''}"><b class="fytitle">${esc(t.title)}</b>
-    <span class="fymeta">${esc(t.channel)}${t.owner ? ` · ${esc(t.owner)}` : ''}${t.waitMin != null ? ` · ${esc(wait(t.waitMin))} here` : ''}${t.note ? ` · ${esc(t.note)}` : ''}</span>${bar}
-    ${t.gpu ? `<span class="fygpu">${pill('GPU', 'violet')} ${esc(t.gpu)}</span>` : ''}${link}</li>`;
+const svg = (cls, label, d) => `<span class="${cls}" role="img" aria-label="${label}"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="${d}"/></svg></span>`;
+
+// done: green check. run: blue bar with n/total (or an unmeasured bar). fail: red X with the reason. else: grey circle.
+function cell(c) {
+  if (c?.s === 'done') return svg('fyok', 'Done', 'M5 13l4 4L19 7');
+  if (c?.s === 'run') {
+    const total = Number(c.total) || 0;
+    const done = Math.min(Number(c.done) || 0, total);
+    if (!total) return '<div class="fyrun"><div class="pg ind" role="progressbar" aria-label="In progress"><i></i></div><span>In progress</span></div>';
+    const pct = Math.round((done / total) * 100);
+    return `<div class="fyrun"><div class="pg" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pct}"><i style="width:${pct}%"></i></div><span>${done}/${total}</span></div>`;
+  }
+  if (c?.s === 'fail') return `<div class="fyfail" title="${esc(c.full || c.why || '')}">${svg('fybad', 'Failed', 'M6 18L18 6M6 6l12 12')}<small>${esc(c.why || 'Failed')}</small></div>`;
+  return '<span class="fyidle" role="img" aria-label="Not started"></span>';
+}
+
+function row(t, cols) {
+  const title = String(t.title ?? '');
+  const name = t.channel && title.endsWith(` - ${t.channel}`) ? title.slice(0, -(t.channel.length + 3)) : title;
+  const cs = Array.isArray(t.cells) ? t.cells : [];
+  return `<tr class="fyrow${t.stuck ? ' stuck' : ''}"><td><b>${esc(name)}</b><small>${esc(t.channel)}</small></td>${cols.map((_, i) => `<td class="fycell">${cell(cs[i])}</td>`).join('')}<td class="fywait">${esc(t.owner || '')}<small>${esc(wait(t.waitMin))}${t.stuck ? ' · stuck' : ''}</small></td></tr>`;
 }
 
 function tabs(channels, tiles, on) {
@@ -44,20 +55,25 @@ function paint(el, sub) {
   const status = age == null ? pill('Not publishing yet', 'crit') : age > STALE_S ? pill(`Stale: last update ${wait(Math.floor(age / 60)) || `${age}s`} ago`, 'crit') : pill(`Live · ${age}s ago`, 'ok');
   el.querySelector('.fystatus').innerHTML = status;
   if (!f) { box.innerHTML = '<div class="card pad"><p class="muted">The Factory board has no data yet. The publisher on GPU1 has not posted.</p></div>'; return; }
-  const channels = last.channels || [];
+  const cols = Array.isArray(f.cols) ? f.cols : [];
+  if (!cols.length) { box.innerHTML = '<div class="card pad"><p class="muted">Waiting for the publisher to send the new table.</p></div>'; return; }
+  const open = (f.tiles || []).filter((t) => Array.isArray(t.cells)); // calendar-only tiles (already scheduled or live) have no cells
+  const known = last.channels || [];
+  // hosts that match no channel chip get their own chip in "Other", so the tab counts add up to All channels
+  const extra = [...new Map(open.filter((t) => t.channel && !known.some((c) => mine(t, c))).map((t) => [fold(t.channel), t.channel])).values()]
+    .map((name) => ({ slug: fold(name), label: name, group: 'Other' }));
+  const channels = [...known, ...extra];
   const on = channels.find((c) => c.slug === sub) || null;
-  const tiles = (f.tiles || []).filter((t) => mine(t, on));
-  const cols = (f.columns || []).map((name, i) => {
-    const here = tiles.filter((t) => t.column === i);
-    return `<section class="fycol"><h3>${esc(name)} <span class="ccn">${here.length}</span></h3><ul class="fylist">${here.map(tile).join('') || '<li class="muted fyempty">Nothing here</li>'}</ul></section>`;
-  }).join('');
-  box.innerHTML = `${tabs(channels, f.tiles || [], on)}${gpuLine(f.gpu)}<div class="fyboard">${cols}</div>
+  const rows = open.filter((t) => mine(t, on));
+  box.innerHTML = `${tabs(channels, open, on)}${gpuLine(f.gpu)}
+    <div class="tblwrap"><table class="fytable"><thead><tr><th>Video</th>${cols.map((c) => `<th class="fycell">${esc(c)}</th>`).join('')}<th>Waiting</th></tr></thead>
+    <tbody>${rows.map((t) => row(t, cols)).join('') || `<tr><td colspan="${cols.length + 2}" class="muted">No open videos${on ? ' on this channel' : ''}.</td></tr>`}</tbody></table></div>
     ${(f.notes || []).map((n) => `<p class="muted">${esc(n)}</p>`).join('')}`;
 }
 
 export function render(_d, _data, sub) {
   return `<div class="wrap" data-sub="${esc(sub || '')}">
-  <div class="head"><div><h1>Factory</h1><p>Every video from source breakdown to live. Updates on its own.</p></div><div class="fystatus"></div></div>
+  <div class="head"><div><h1>Factory</h1><p>Every open video, oldest first. Updates on its own.</p></div><div class="fystatus"></div></div>
   <div class="fybody"><div class="card pad"><p class="muted">Loading…</p></div></div>
 </div>`;
 }
