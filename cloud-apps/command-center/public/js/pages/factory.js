@@ -83,7 +83,7 @@ function panel(f) {
   if (g1 === undefined && f.gpu) g1 = { running: (f.gpu.running || []).map((r) => ({ type: r.model, what: r.who, runningS: r.runningS })), waiting: f.gpu.waiting }; // an older snapshot has GPU1 only
   const team = Array.isArray(f.team) ? f.team : [];
   const gpus = gpuRow('GPU1', g1) + gpuRow('GPU2', f.gpus ? f.gpus.gpu2 : undefined);
-  const who = (m) => `<p class="fyt${m.working ? ' on' : ''}"><i class="fydot"></i><b>${esc(m.name)}</b><span>${m.working ? 'Working' : `Idle${m.idleMin == null ? '' : ` ${wait(m.idleMin)}`}`}</span><em title="${esc(m.card || '')}">${esc(m.card || '')}</em></p>`;
+  const who = (m) => `<p class="fyt${m.working ? ' on' : ''}"><i class="fydot"></i><b>${esc(m.name)}</b><span>${m.working ? 'Working' : `Idle${m.idleMin == null ? '' : ` ${esc(wait(m.idleMin))}`}`}</span><em title="${esc(m.card || '')}">${esc(m.card || '')}</em></p>`;
   return gpus || team.length ? `<div class="fypan">${gpus ? `<div class="fygpus">${gpus}</div>` : ''}${team.length ? `<div class="fyteam">${team.map(who).join('')}</div>` : ''}</div>` : '';
 }
 
@@ -144,7 +144,8 @@ function paint(el, sub) {
   const liveOn = age != null && age <= STALE_S; // a stale snapshot shows nothing as live
   const owners = Array.isArray(f.owners) ? f.owners : [];
   msg(el, '');
-  put(q('.fypanel'), panel(f));
+  let pan = ''; try { pan = panel(f); } catch { /* a malformed team or gpus field hides the panel, never the table */ }
+  put(q('.fypanel'), pan);
   put(q('.fytabsbox'), tabs(channels, open, on));
   put(q('.fysumbox'), summary(rows, cols, liveOn));
   q('.fytable').style.setProperty('--fyn', String(cols.length)); // fixed column widths: a cell changing never moves a column
