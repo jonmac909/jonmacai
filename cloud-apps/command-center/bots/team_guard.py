@@ -11,6 +11,9 @@ Runs hidden every 10 minutes (see HOOKS.md). Reads OpenBot's database and transc
 - A bot with a Doing card, no open turn, nothing queued, not capped, and no turn for 10 minutes: wakes it with
   "continue <its newest Doing card>". Once per bot and card per 30 minutes. A slug two bots share (QC)
   wakes one, and none while either is working.
+- A card whose note has a line "Waiting external" (optionally "until 2026-11-12") is waiting on a third party: the
+  idle nudge skips it, and the load balancer must too. A bot with no Doing card but a Todo card is told to
+  "start <its oldest Todo card>".
 - Fewer than 3 a-rolls rendered (pipeline.py's buffer) with passed scripts waiting: wakes the owner (Elle or
   Scarlett) of the oldest passed script. A bot is woken at most once per 30 minutes, whichever check wakes it.
 - GPU2's heartbeat logged low UDP or TCP ports in the last 30 minutes: bot_stuck to Ana, naming who holds them.
@@ -39,7 +42,7 @@ import subprocess
 import sys
 import time
 import traceback
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 TOOLS = Path(__file__).resolve().parent
@@ -49,6 +52,8 @@ IDLE_MIN, QUEUE_MIN, QC_MIN, ANA_MIN, BLOCKED_MIN, MIN_PACKS = 30, 120, 30, 45, 
 READY_MIN, NUDGE_EVERY_S = 10, 1800  # Jon, 2026-11-05: the team works 24/7; no wake storms
 AROLL_MIN = 3  # pipeline.py's a-roll buffer target
 AROLL_STAGES = (3, 4, 5)  # a-roll rendered, clips building, preflight passed: not yet with the editor
+BC = timezone(timedelta(hours=-7))  # Kelowna, permanent UTC-7 since Nov 2026 (no tzdata on this Python)
+WAITING = re.compile(r'(?im)^\W*waiting[ _]external\b(?:[^\n]*?\buntil\s+(\d{4}-\d{2}-\d{2}))?')
 SCRIPT_PASSED = 2
 AROLL_OWNERS = ('home-guide-press', 'viral-view')  # dashboard slugs of Elle and Scarlett
 WAKES = ('idle', 'aroll')  # check names whose keys read 'name:agent:card'
@@ -396,14 +401,28 @@ def bots():
     return out
 
 
+def waiting_external(card, now):
+    """The note says the card waits on a third party: no nudge, no reassigning. A date ends it at the end of that day in Kelowna."""
+    m = WAITING.search(card.get('note') or '')
+    if not m:
+        return False
+    try:
+        return not m.group(1) or now < (datetime.strptime(m.group(1), '%Y-%m-%d') + timedelta(days=1)).replace(tzinfo=BC).timestamp()
+    except (ValueError, OverflowError):  # a date like 2026-13-45 or 9999-12-31 is a typo: treat the card as waiting rather than nudge a sponsor thread
+        return True
+
+
 def check_idle(now, state):
     seen = state['seen']
     found = {k: None for k, t in seen.items() if k.startswith('idle:') and now - ts(t) < NUDGE_EVERY_S - 60}  # the send lands after `now`
-    newest = {}
+    newest, oldest_todo = {}, {}
     for c in dash('tasks', '--status', 'doing', '--limit', '500')['tasks']:
-        if c.get('owner') and c['updatedAt'] > newest.get(c['owner'], {}).get('updatedAt', ''):
+        if c.get('owner') and not waiting_external(c, now) and c['updatedAt'] > newest.get(c['owner'], {}).get('updatedAt', ''):
             newest[c['owner']] = c
-    if not newest:
+    for c in dash('tasks', '--status', 'todo', '--limit', '500')['tasks']:  # a bot with no Doing card starts its oldest Todo
+        if c.get('owner') and not waiting_external(c, now) and c.get('createdAt', '') < oldest_todo.get(c['owner'], {}).get('createdAt', '~'):
+            oldest_todo[c['owner']] = c
+    if not newest and not oldest_todo:
         return found
     with contextlib.closing(db()) as con:
         busy = {r[1] for r in open_turns(con, iso(now))}
@@ -413,7 +432,8 @@ def check_idle(now, state):
         team = agents(con)
     holds = state.get('holds', {})
     for slug, ids in bots().items():
-        card = newest.get(slug)
+        card = newest.get(slug) or oldest_todo.get(slug)
+        verb = 'continue ' if slug in newest else 'start '
         if (not card or busy.intersection(ids)  # a slug's bots share the card: any one working, or nudged lately, covers it
                 or any('idle:%s:%s' % (a, card['id']) in found or woke_lately(seen, a, now, ('aroll',)) for a in ids)
                 or any(last.get(a) and now - ts(last[a]) < READY_MIN * 60 for a in ids)):
@@ -424,7 +444,7 @@ def check_idle(now, state):
                 continue
             key = 'idle:%s:%s' % (agent, card['id'])
             seen.pop(key, None)  # its last nudge is over 30 minutes old
-            found[key] = (agent, 'continue ' + card['title'])
+            found[key] = (agent, verb + card['title'])
             break
     return found
 
@@ -565,8 +585,9 @@ def check_disk(now, state):
     return {'disk:d': (URGENT, 'GPU1 D: has %.1f GB free. The team writes about 15 GB a day and saves fail at zero.' % free)}
 
 
+# aroll runs before idle: idle skips a bot that aroll just woke, and a "start <Todo>" nudge must not block the a-roll wake
 CHECKS = [('disk', check_disk), ('turns', check_turns), ('qc', check_qc), ('limits', check_limits),
-          ('idle', check_idle), ('aroll', check_aroll), ('ports', check_ports), ('packs', check_packs)]  # slowest last
+          ('aroll', check_aroll), ('idle', check_idle), ('ports', check_ports), ('packs', check_packs)]  # slowest last
 try:  # Emma's stall checks (heartbeats, disk_early, money, sites, tokens) live in the tools folder, not this repo
     import stall_gates
     CHECKS += stall_gates.CHECKS
