@@ -43,6 +43,7 @@ REAL_DISK_FREE, REAL_STATE, REAL_LOG = tg.disk_free_gb, tg.STATE, tg.LOG
 
 _REAL_PACK_ORDER, _REAL_PACK_NAME, _REAL_TOPIC_CARDS, _ALL_CHECKS = tg.pack_order, tg.pack_name, tg.topic_cards, list(tg.CHECKS)
 _REAL_GPU1_IDLE_MIN = tg.gpu1_idle_min
+_REAL_GPU_QUEUE = tg.gpu_queue
 
 
 class Base(unittest.TestCase):
@@ -59,6 +60,7 @@ class Base(unittest.TestCase):
         self.disk_free = 500
         self.pipe, self.topics, self.order = [], [], []
         self.gpu_idle = None  # minutes GPU1's queue has been empty; None is busy
+        self.gpu_queues = {'GPU1': (9, True, None), 'GPU2': (9, True, None)}  # name -> (runnable jobs, running, seconds since the last job ended)
         (self.root / 'edits').mkdir()
         (self.root / 'accounts').mkdir()
         self.db = sqlite3.connect(self.root / 'o.db', isolation_level=None)
@@ -74,10 +76,10 @@ class Base(unittest.TestCase):
                 (tg, 'LOG', self.root / 'guard.log'), (tg, 'ACCOUNTS', self.root / 'accounts'),
                 (tg, 'DEFAULT_PROJECTS', self.root / 'default'), (tg, 'EDITS', self.root / 'edits'),
                 (tg, 'bots', lambda: self.slugs), (tg, 'pipeline_cards', lambda now: self.pipe), (tg, 'topic_cards', lambda now: self.topics),
-                (tg, 'CHECKS', [c for c in _ALL_CHECKS if c[0] not in ('buffer', 'gpu')]),  # only the Buffers and GpuGap tests run these
+                (tg, 'CHECKS', [c for c in _ALL_CHECKS if c[0] not in ('buffer', 'gpu', 'gpuq')]),  # only the Buffers, GpuGap and GpuQueues tests run these
                 (tg, 'pack_order', lambda: self.order), (tg, 'pack_name', lambda card: card.get('pack') or ''), (tg, 'dash', self.fake_dash), (tg, 'preflight', lambda d: self.pass_codes.get(d.name, 0)),
                 (tg, 'render_running', lambda: self.render), (tg, 'restart_openbot', self.fake_restart),
-                (tg, 'gpu2_ports_line', lambda: self.ports_line), (tg, 'gpu1_idle_min', lambda now: self.gpu_idle), (tg, 'disk_free_gb', lambda: self.disk_free),
+                (tg, 'gpu2_ports_line', lambda: self.ports_line), (tg, 'gpu1_idle_min', lambda now: self.gpu_idle), (tg, 'gpu_queue', lambda name: self.gpu_queues[name]), (tg, 'disk_free_gb', lambda: self.disk_free),
                 (hook, 'fire', self.fake_fire), (tg.time, 'time', lambda: self.t)]:
             patcher = mock.patch.object(target, name, value)
             patcher.start()
@@ -1912,6 +1914,153 @@ class GpuGap(Base):
     drop = Buffers.drop
 
 
+class GpuQueues(Base):
+    """Each GPU queue (gpu_queue faked) should hold 3 runnable jobs. Buffers are full and no pack waits, so only this check can wake."""
+    card, wakes = Buffers.card, Buffers.wakes
+
+    def setUp(self):
+        super().setUp()
+        self.agent(tg.ELLE, 'Elle')
+        self.agent(tg.SCARLETT, 'Scarlett')
+        self.slugs.update({'home-guide-press': [tg.ELLE], 'viral-view': [tg.SCARLETT]})
+        patcher = mock.patch.object(tg, 'CHECKS', [c for c in _ALL_CHECKS if c[0] == 'gpuq'])
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def alerts(self):
+        return [a for s in self.run_guard() if s[0] == 'fire' for a in s[2]['alerts']]
+
+    def test_a_queue_under_three_runnable_jobs_wakes_elle(self):
+        self.gpu_queues['GPU2'] = (2, True, None)
+        [(agent, text)] = self.wakes()
+        self.assertEqual(tg.ELLE, agent)
+        self.assertIn('GPU2 has 2 runnable jobs', text)
+        self.assertIn('Qwen still', text)
+
+    def test_three_jobs_is_enough(self):
+        self.gpu_queues['GPU1'] = (3, True, None)
+        self.assertEqual([], self.run_guard())
+
+    def test_gpu1_names_omni_clips(self):
+        self.gpu_queues['GPU1'] = (0, False, None)
+        [(_, text)] = self.wakes()
+        self.assertIn('GPU1 has 0 runnable jobs', text)
+        self.assertIn('Omni clip', text)
+
+    def test_both_queues_low_wake_both_bots_once_each(self):
+        self.gpu_queues.update({'GPU1': (1, True, None), 'GPU2': (1, True, None)})
+        self.assertEqual([tg.ELLE, tg.SCARLETT], sorted([a for a, _ in self.wakes()], key=[tg.ELLE, tg.SCARLETT].index))
+
+    def test_scarlett_is_woken_when_elle_is_busy(self):
+        self.gpu_queues['GPU1'] = (1, True, None)
+        self.turn(tg.ELLE, 'u1', 5, last=1)
+        [(agent, _)] = self.wakes()
+        self.assertEqual(tg.SCARLETT, agent)
+
+    def test_one_wake_per_queue_not_every_tick(self):
+        self.gpu_queues['GPU2'] = (0, False, None)
+        self.assertEqual(1, len(self.wakes()))
+        self.assertEqual([], self.wakes())
+
+    def test_a_queue_still_low_half_an_hour_later_wakes_again(self):
+        self.gpu_queues['GPU2'] = (0, False, None)
+        self.assertEqual(1, len(self.wakes()))
+        self.t += tg.NUDGE_EVERY_S
+        self.assertEqual(1, len(self.wakes()))
+        self.t += tg.NUDGE_EVERY_S
+        self.assertEqual(1, len(self.wakes()))  # and again: the old key must not hold the queue forever
+
+    def test_a_bot_already_woken_by_another_check_is_skipped(self):
+        self.gpu_queues['GPU1'] = (1, True, None)
+        tg.save({'seen': {'buffer:%s:x' % tg.ELLE: tg.iso(self.t - 60), 'buffer:%s:y' % tg.SCARLETT: tg.iso(self.t - 60)}, 'timeouts': {}})
+        self.assertEqual([], self.wakes())
+
+    def test_an_unreadable_queue_is_left_alone(self):
+        self.gpu_queues.update({'GPU1': None, 'GPU2': None})
+        self.assertEqual([], self.run_guard())
+
+    def test_gpu2_idle_ten_minutes_goes_to_ana(self):
+        self.gpu_queues['GPU2'] = (5, False, 600)
+        self.assertEqual(['GPU2 has had no job running for 10 minutes.'], self.alerts())
+
+    def test_gpu2_idle_under_ten_minutes_or_running_is_quiet(self):
+        self.gpu_queues['GPU2'] = (5, False, 599)
+        self.assertEqual([], self.run_guard())
+        self.gpu_queues['GPU2'] = (5, True, 9999)
+        self.assertEqual([], self.run_guard())
+
+    def test_gpu2_idle_alerts_once_until_it_runs_again(self):
+        self.gpu_queues['GPU2'] = (5, False, 600)
+        self.assertEqual(1, len(self.alerts()))
+        self.assertEqual([], self.alerts())  # still idle: no repeat
+        self.gpu_queues['GPU2'] = (5, True, 10)
+        self.assertEqual([], self.alerts())
+        self.gpu_queues['GPU2'] = (5, False, 600)
+        self.assertEqual(1, len(self.alerts()))  # idle again: a new alert
+
+    def test_gpu2_with_no_history_to_read_still_alerts_once(self):
+        self.gpu_queues['GPU2'] = (5, False, None)  # nothing has ever run, so no 'last job ended' line
+        self.assertEqual(['GPU2 has had no job running for over 10 minutes.'], self.alerts())
+        self.assertEqual([], self.alerts())
+
+    def test_an_unreadable_tick_between_idle_ticks_does_not_alert_twice(self):
+        self.gpu_queues['GPU2'] = (5, False, 600)
+        self.assertEqual(1, len(self.alerts()))
+        self.gpu_queues['GPU2'] = None  # ssh down: not 'running again'
+        self.assertEqual([], self.alerts())
+        self.gpu_queues['GPU2'] = (5, False, 900)
+        self.assertEqual([], self.alerts())
+
+    def test_gpu1_idle_is_the_queue_watchdogs_not_this_checks(self):
+        self.gpu_queues['GPU1'] = (5, False, 9999)
+        self.assertEqual([], self.run_guard())
+
+
+class RealGpuQueue(Base):
+    """gpu_queue reads the queue CLIs' real status output (subprocess faked)."""
+    GPU1 = json.dumps({'owner': 'h3', 'order': ['1. h3 clipmaker [pack a: 100 clips left] (running, 335s)', '2. h3 clipmaker [pack b: 9 clips left] (next, 12s)',
+                                                '3. h3 clipmaker [pack c: 5 clips left] [held: 4th pack] (next, 9s)']})
+    GPU2 = ('** WARNING: connection is not using a post-quantum key exchange algorithm.\n1. qwen elle-x [122 stills left] (running, 89s)\n'
+            '2. qwen elle-y [138 stills left] (next, 256s)\nowner qwen for 265s, switching None, VRAM 21914 MB\n100 %, 21914 MiB\nlast job ended 90s ago\n')
+
+    def read(self, name, stdout, code=0):
+        with mock.patch.object(tg.subprocess, 'run', return_value=types.SimpleNamespace(stdout=stdout, returncode=code)) as run:
+            return _REAL_GPU_QUEUE(name), run
+
+    def test_gpu1_json_counts_runnable_jobs_and_sees_the_running_one(self):
+        self.assertEqual((2, True, None), self.read('GPU1', self.GPU1)[0])  # the held 4th pack does not count
+
+    def test_gpu2_text_counts_jobs_and_reads_when_the_last_one_ended(self):
+        self.assertEqual((2, True, 90), self.read('GPU2', self.GPU2)[0])
+
+    def test_nothing_running(self):
+        self.assertEqual((1, False, 700), self.read('GPU2', 'owner qwen for 5s\n1. qwen elle-y [138 stills left] (next, 256s)\nlast job ended 700s ago\n')[0])
+
+    def test_a_failed_or_unparseable_status_is_unreadable(self):
+        self.assertIsNone(self.read('GPU2', self.GPU2, code=1)[0])
+        self.assertIsNone(self.read('GPU1', 'not json')[0])
+        self.assertIsNone(self.read('GPU1', '{}')[0])
+
+    def test_a_timeout_or_missing_cli_is_unreadable(self):
+        for err in (tg.subprocess.TimeoutExpired('x', 1), FileNotFoundError()):
+            with mock.patch.object(tg.subprocess, 'run', side_effect=err):
+                self.assertIsNone(_REAL_GPU_QUEUE('GPU2'))
+
+    def test_each_gpu_runs_its_own_cli(self):
+        self.assertIn(r'D:\gpu-queue\gpu2.py', self.read('GPU2', self.GPU2)[1].call_args[0][0])
+        self.assertIn(r'D:\gpu-queue\gpuq.py', self.read('GPU1', self.GPU1)[1].call_args[0][0])
+
+    def test_a_gpuq_wake_counts_as_a_recent_wake_for_the_other_checks(self):
+        self.assertTrue(tg.woke_lately({'gpuq:%s:gpu1' % tg.ELLE: tg.iso(self.t - 60)}, tg.ELLE, self.t))
+    def test_gpu2_error_text_is_not_an_empty_queue(self):
+        self.assertIsNone(self.read('GPU2', 'Traceback (most recent call last):\n  File "gpuq.py", line 1\nConnectionRefusedError')[0])  # the ssh exit was 0
+        self.assertIsNone(self.read('GPU2', 'GPU2 unreachable (ssh exit 255)', code=2)[0])
+        self.assertEqual((0, False, 30), self.read('GPU2', 'owner none for 0s, switching None, VRAM 100 MB\nqueue empty\nlast job ended 30s ago\n')[0])
+
+    def test_json_that_is_not_an_object_is_unreadable(self):
+        self.assertIsNone(self.read('GPU1', '[1, 2]')[0])
+
+
 class RealGpu1IdleMin(Base):
     """The queue log is read for real from a temp file. T0 is 05:00 Kelowna time on 11-01."""
 
@@ -2032,7 +2181,7 @@ class StallGatesHookIn(unittest.TestCase):
         with mock.patch.dict(sys.modules, {'stall_gates': None}):  # None makes the import raise ImportError
             importlib.reload(tg)
         names = [n for n, _ in tg.CHECKS]
-        self.assertEqual(names, ['disk', 'turns', 'qc', 'limits', 'aroll', 'buffer', 'gpu', 'next', 'balance', 'idle', 'ports', 'packs'])
+        self.assertEqual(names, ['disk', 'turns', 'qc', 'limits', 'aroll', 'buffer', 'gpu', 'next', 'balance', 'idle', 'gpuq', 'ports', 'packs'])
 
     def test_installed_stall_gates_checks_are_added_with_unique_names(self):
         fake = types.ModuleType('stall_gates')
