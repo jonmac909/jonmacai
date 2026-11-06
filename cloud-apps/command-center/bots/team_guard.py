@@ -16,6 +16,9 @@ Runs hidden every 10 minutes (see HOOKS.md). Reads OpenBot's database and transc
   "start <its oldest Todo card>".
 - Fewer than 3 a-rolls rendered (pipeline.py's buffer) with passed scripts waiting: wakes the owner (Elle or
   Scarlett) of the oldest passed script. A bot is woken at most once per 30 minutes, whichever check wakes it.
+- Next-step wakes: an affiliate card that sat 30 minutes at a hand-off wakes the free bot that takes it next: a failed or
+  unsent script to its owner, a script with a pending proof to a QC bot, an a-roll with no clips to its owner, a
+  preflight-passed pack to Olivia (unless she has an edit in hand). Doing cards are the idle nudge's, video QC is the QC check's.
 - Load balancer: a bot is overloaded with more than 3 non-waiting Doing cards, 3 or more queued messages, or a Todo
   card untouched for 2 hours. Its oldest card moves to the first backup that is not overloaded and stays lighter than it
   (Lucy to Mila to Emma, Elle and Scarlett swap, Sydney to Scarlett), with a card comment and a wake. Each bot gives up at
@@ -60,7 +63,11 @@ BC = timezone(timedelta(hours=-7))  # Kelowna, permanent UTC-7 since Nov 2026 (n
 WAITING = re.compile(r'(?im)^\W*waiting[ _]external\b(?:[^\n]*?\buntil\s+(\d{4}-\d{2}-\d{2}))?')
 SCRIPT_PASSED = 2
 AROLL_OWNERS = ('home-guide-press', 'viral-view')  # dashboard slugs of Elle and Scarlett
-WAKES = ('idle', 'aroll', 'balance')  # check names whose keys read 'name:agent:card'
+SCRIPT_OWNERS = AROLL_OWNERS + ('jon-mac-youtube',)  # Sydney writes the scripts, Elle and Scarlett fix the ones on their packs
+WAKES = ('idle', 'aroll', 'balance', 'next')  # check names whose keys read 'name:agent:card'
+NEXT_MIN = 30  # a card waits this long at a hand-off before the bot that takes it next is woken
+HELD = ('qc', 'review', 'waiting_on_jon')  # statuses of a card someone else is checking: nothing to do for its owner
+SCRIPT_WRITTEN, SCRIPT_QC, AROLL_DONE, PREFLIGHT_PASSED, EDITING = 0, 1, 3, 5, 6  # pipeline.py's stage numbers
 MAX_DOING, MAX_QUEUED, WAIT_S = 3, 3, 7200  # overloaded: more Doing cards, as many queued messages, a Todo this old
 BACKUPS = {'developer': ('moneyclaw', 'historient'), 'moneyclaw': ('historient',),  # dashboard slugs, best backup first
            'home-guide-press': ('viral-view',), 'viral-view': ('home-guide-press',), 'jon-mac-youtube': ('viral-view',)}
@@ -85,6 +92,7 @@ JESSICA = 'agent-9d685941-71c8-424e-8ae5-d85e06521a3d'
 NINA = 'agent-2661cbff-8f2f-4c2a-a493-4d0cb59a201f'
 ELLE = 'agent-4b804e4d-e84f-4a71-9571-82a52563f984'
 SCARLETT = 'agent-4b98853d-53f7-4521-8e94-9221b3c2c342'
+QC_BOTS = (NINA, JESSICA)  # best first: Nina takes scripts, Jessica long-form videos (qc.md); the dashboard shows both as 'qc'
 
 APPDATA = Path(os.environ.get('APPDATA', ''))
 DB = APPDATA / 'OpenBot' / 'openbot.db'
@@ -307,12 +315,15 @@ def check_turns(now, state):
     return found
 
 
+def video_proof(p):
+    return p.get('kind') == 'render' or (p.get('kind') == 'url' and bool(VIDEO_LINK.search(p.get('link') or '')))
+
+
 def check_qc(now, state):
     found = {}
     for p in dash('proofs', '--status', 'pending', '--limit', '200')['proofs']:
         age = (now - ts(p['createdAt'])) / 60
-        video = p['kind'] == 'render' or (p['kind'] == 'url' and VIDEO_LINK.search(p['link'] or ''))
-        if video and age >= QC_MIN:
+        if video_proof(p) and age >= QC_MIN:
             key = 'qc:' + p['id']
             if key in state['seen']:
                 found[key] = None
@@ -444,7 +455,7 @@ def check_idle(now, state):
         card = newest.get(slug) or oldest_todo.get(slug)
         verb = 'continue ' if slug in newest else 'start '
         if (not card or busy.intersection(ids)  # a slug's bots share the card: any one working, or nudged lately, covers it
-                or any('idle:%s:%s' % (a, card['id']) in found or woke_lately(seen, a, now, ('aroll', 'balance')) for a in ids)
+                or any('idle:%s:%s' % (a, card['id']) in found or woke_lately(seen, a, now, ('aroll', 'balance', 'next')) for a in ids)
                 or any(last.get(a) and now - ts(last[a]) < READY_MIN * 60 for a in ids)):
             continue
         for agent in ids:
@@ -576,6 +587,47 @@ def check_aroll(now, state):
     return found
 
 
+HANDOFF = {  # stage -> what the bot that takes the card next is told
+    SCRIPT_WRITTEN: 'The script for "%s" (card %s) failed QC or was never sent to it. Fix it and send it to QC.',
+    SCRIPT_QC: 'The script for "%s" (card %s) has waited for QC over %d minutes. Check its pending proof now.',
+    AROLL_DONE: 'The a-roll for "%s" (card %s) is done and waits for clips. Build them and run preflight.',
+    PREFLIGHT_PASSED: 'The pack for "%s" (card %s) passed preflight and has no editor. Take its card and start the edit.'}
+
+
+def check_next(now, state):
+    """A card that sat 30 minutes at a hand-off wakes the bot that takes it next, if free: a failed or unsent script to its
+    owner, a script waiting in QC to a QC bot, an a-roll with no clips to its owner, a preflight-passed pack to Olivia.
+    One wake per card per 30 minutes, whichever bot of a slug took it. A Doing card is the idle nudge's, a video proof
+    waiting in QC is check_qc's, and a card QC or Jon holds is nobody's to nudge."""
+    seen = state['seen']
+    found = {k: None for k, t in seen.items() if k.startswith('next:') and now - ts(t) < NUDGE_EVERY_S - 60}
+    woken = {k.split(':', 2)[2] for k in found}  # card ids
+    cards = pipeline_cards(now)
+    ids, free, used = bots(), free_bots(now, state), set()
+    editing = any(stage == EDITING for stage, _, _ in cards)  # Olivia has an edit in hand: the idle nudge covers her
+    for stage, entered, card in sorted(cards, key=lambda c: c[1]):
+        if (stage not in HANDOFF or now - entered < NEXT_MIN * 60 or card['id'] in woken or waiting_external(card, now)
+                or (stage != SCRIPT_QC and card.get('status') in HELD)):
+            continue
+        owner = card.get('owner')
+        if stage == SCRIPT_QC:  # a pending proof that is not a video one: check_qc wakes for those
+            who = QC_BOTS if any(p.get('status') == 'pending' and not video_proof(p) for p in card.get('proofs') or []) else ()
+        elif stage == PREFLIGHT_PASSED:
+            who = () if editing else ids.get('video-editor') or ()
+        elif card.get('status') == 'doing' or owner not in (AROLL_OWNERS if stage == AROLL_DONE else SCRIPT_OWNERS):
+            who = ()
+        else:
+            who = ids.get(owner) or ()
+        agent = next((a for a in who if a in free and a not in used and not woke_lately(seen, a, now)), None)
+        if agent:
+            key = 'next:%s:%s' % (agent, card['id'])
+            seen.pop(key, None)  # its last wake is over 30 minutes old
+            used.add(agent)
+            text = HANDOFF[stage] % ((card['title'], card['id'], (now - entered) // 60) if stage == SCRIPT_QC else (card['title'], card['id']))
+            found[key] = (agent, text)
+    return found
+
+
 def waiting_packs():
     """Edit folders Olivia has not started: no finished video and no card of hers. Other cards just share the author's name."""
     titles = [t['title'] for t in dash('tasks', '--owner', 'video-editor', '--limit', '500')['tasks']
@@ -657,9 +709,9 @@ def check_disk(now, state):
     return {'disk:d': (URGENT, 'GPU1 D: has %.1f GB free. The team writes about 15 GB a day and saves fail at zero.' % free)}
 
 
-# aroll runs before idle: idle skips a bot that aroll just woke, and a "start <Todo>" nudge must not block the a-roll wake
+# aroll and next run before idle: idle skips a bot they just woke, and a "start <Todo>" nudge must not block the a-roll wake
 CHECKS = [('disk', check_disk), ('turns', check_turns), ('qc', check_qc), ('limits', check_limits),
-          ('aroll', check_aroll), ('balance', check_balance), ('idle', check_idle), ('ports', check_ports), ('packs', check_packs)]  # slowest last
+          ('aroll', check_aroll), ('next', check_next), ('balance', check_balance), ('idle', check_idle), ('ports', check_ports), ('packs', check_packs)]  # slowest last
 try:  # Emma's stall checks (heartbeats, disk_early, money, sites, tokens) live in the tools folder, not this repo
     import stall_gates
     CHECKS += stall_gates.CHECKS

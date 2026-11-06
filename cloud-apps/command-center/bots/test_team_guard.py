@@ -1256,7 +1256,7 @@ class ARoll(Base):
 
     def test_buffer_counts_a_rolls_clips_and_preflight_passed(self):
         for stage in (3, 4, 5):
-            self.script('Rendered %d - Rosa' % stage, 50, stage=stage)
+            self.script('Rendered %d - Rosa' % stage, 10, stage=stage)  # under 30 minutes: not yet a next-step wake
         self.assertEqual([], self.wakes())
 
     def test_two_a_rolls_still_wake(self):
@@ -1499,6 +1499,167 @@ class Balance(Base):
         self.assertEqual([], self.wakes('overloaded'))
 
 
+class Next(Base):
+    """pipeline_cards is faked as [(stage, entry time, card)]: 0 script written, 1 script QC, 3 a-roll, 5 preflight passed."""
+    OLIVIA, SYDNEY = 'agent-olivia', 'agent-sydney'
+    SCRIPT = {'status': 'pending', 'kind': 'url', 'link': 'https://x/pack/script.md'}
+    VIDEO = {'status': 'pending', 'kind': 'render', 'link': 'https://jonmac.ai/review/x'}
+
+    def setUp(self):
+        super().setUp()
+        for agent, name in [(tg.ELLE, 'Elle'), (self.OLIVIA, 'Olivia'), (self.SYDNEY, 'Sydney'), (tg.JESSICA, 'Jessica'),
+                            (tg.NINA, 'Nina')]:
+            self.agent(agent, name)
+        self.slugs.update({'home-guide-press': [tg.ELLE], 'video-editor': [self.OLIVIA], 'jon-mac-youtube': [self.SYDNEY],
+                           'qc': [tg.JESSICA, tg.NINA]})
+
+    def hand(self, stage, minutes, title='Rosa vac', owner='home-guide-press', status='todo', proof=None):
+        card = {'id': 't-' + title[:4] + str(len(self.pipe)), 'owner': owner, 'title': title, 'status': status,
+                'proofs': [proof or {'status': 'passed', 'kind': 'url', 'link': 'https://x/ok'}]}
+        self.pipe.append((stage, self.t - minutes * 60, card))
+        return card
+
+    def wakes(self):
+        return [s[1:] for s in self.run_guard() if s[0] == 'wake']
+
+    def test_script_waiting_in_qc_with_a_pending_proof_wakes_nina(self):
+        self.hand(1, 40, 'Rosa script', owner='jon-mac-youtube', status='qc', proof=self.SCRIPT)
+        [(agent, text)] = self.wakes()
+        self.assertEqual(tg.NINA, agent)  # Nina takes scripts, Jessica long-form videos
+        self.assertIn('Rosa script', text)
+        self.assertIn('waited for QC over 40 minutes', text)
+
+    def test_the_other_qc_bot_is_woken_when_nina_is_busy(self):
+        self.turn(tg.NINA, 'u1', 5, last=1)
+        self.hand(1, 40, status='qc', proof=self.SCRIPT)
+        self.assertEqual(tg.JESSICA, self.wakes()[0][0])
+
+    def test_the_second_qc_bot_is_not_woken_for_a_card_the_first_was_woken_for(self):
+        self.hand(1, 40, status='qc', proof=self.SCRIPT)
+        self.assertEqual(tg.NINA, self.wakes()[0][0])
+        self.turn(tg.NINA, 'u1', 5, last=1)  # she took it, so she is no longer free
+        self.assertEqual([], self.wakes())
+
+    def test_a_script_in_qc_with_nothing_pending_is_not_woken_for(self):
+        self.hand(1, 40, status='qc')
+        self.assertEqual([], self.wakes())
+
+    def test_a_pending_video_proof_is_check_qcs_not_ours(self):
+        self.hand(1, 40, status='qc', proof=self.VIDEO)
+        self.assertEqual([], self.wakes())
+
+    def test_a_hand_off_under_30_minutes_old_waits(self):
+        self.hand(1, 29, status='qc', proof=self.SCRIPT)
+        self.hand(3, 29)
+        self.hand(5, 29)
+        self.assertEqual([], self.wakes())
+
+    def test_a_failed_script_wakes_its_owner(self):
+        self.hand(0, 60, 'Rosa script')
+        [(agent, text)] = self.wakes()
+        self.assertEqual(tg.ELLE, agent)
+        self.assertIn('failed QC or was never sent', text)
+
+    def test_sydney_gets_her_failed_script_back(self):
+        self.hand(0, 60, owner='jon-mac-youtube')
+        self.assertEqual(self.SYDNEY, self.wakes()[0][0])
+
+    def test_a_script_being_written_in_a_doing_card_is_left_to_the_idle_nudge(self):
+        self.hand(0, 60, status='doing')
+        self.assertEqual([], self.wakes())
+
+    def test_an_a_roll_with_no_clips_wakes_its_owner(self):
+        self.hand(3, 45, 'Rosa a-roll')
+        [(agent, text)] = self.wakes()
+        self.assertEqual(tg.ELLE, agent)
+        self.assertIn('Build them and run preflight', text)
+
+    def test_only_elle_and_scarlett_build_clips_and_only_script_writers_fix_scripts(self):
+        self.hand(3, 45, owner='qc')
+        self.hand(3, 45, owner='jon-mac-youtube')
+        self.hand(0, 45, owner='video-editor')
+        self.hand(0, 45, owner='qc')
+        self.assertEqual([], self.wakes())
+
+    def test_a_card_qc_or_jon_holds_is_not_nudged(self):
+        for stage in (0, 3, 5):
+            for status in ('qc', 'review', 'waiting_on_jon'):
+                self.hand(stage, 45, status=status)
+        self.assertEqual([], self.wakes())
+
+    def test_a_preflight_passed_pack_wakes_olivia(self):
+        self.hand(5, 45, 'Rosa pack', status='doing')  # Elle's own card stays hers until Olivia takes it
+        [(agent, text)] = self.wakes()
+        self.assertEqual(self.OLIVIA, agent)
+        self.assertIn('Rosa pack', text)
+        self.assertIn('start the edit', text)
+
+    def test_olivia_with_an_edit_in_hand_is_not_woken_for_another_pack(self):
+        self.hand(5, 45, 'Rosa pack')
+        self.hand(6, 45, 'Her edit', owner='video-editor', status='doing')
+        self.assertEqual([], self.wakes())
+
+    def test_stages_that_are_not_hand_offs_get_no_wake(self):
+        for stage in (4, 6, 7, 8):  # clips building, editing, video QC (check_qc's), passed; stage 2 is check_aroll's
+            self.pipe[:] = []
+            self.hand(stage, 600, owner='video-editor' if stage == 6 else 'home-guide-press',
+                      status='doing' if stage in (4, 6) else 'qc', proof=self.SCRIPT)
+            self.assertEqual([], self.wakes(), stage)
+
+    def test_a_card_waiting_on_a_third_party_is_skipped(self):
+        card = self.hand(3, 45)
+        card['note'] = 'Waiting external until 2099-01-01'
+        self.assertEqual([], self.wakes())
+
+    def test_a_busy_bot_is_not_woken(self):
+        self.hand(3, 45)
+        self.turn(tg.ELLE, 'u1', 5, last=1)
+        self.assertEqual([], self.wakes())
+
+    def test_a_bot_with_a_message_queued_is_not_woken(self):
+        self.hand(3, 45)
+        self.queue(tg.ELLE)
+        self.assertEqual([], self.wakes())
+
+    def test_a_bot_held_by_a_usage_limit_is_not_woken(self):
+        self.hand(3, 45)
+        self.transcript('team', tg.ELLE, self.refused())
+        self.assertEqual([], self.wakes())
+
+    def test_one_wake_per_card_per_30_minutes_then_again(self):
+        self.hand(5, 45)
+        self.assertEqual([1, 0, 0, 1], [len(self.wakes()) for _ in range(4)])
+
+    def test_one_bot_gets_one_wake_per_run(self):
+        self.hand(5, 90, 'Older pack')
+        self.hand(5, 60, 'Newer pack')
+        [(agent, text)] = self.wakes()
+        self.assertIn('Older pack', text)
+        self.assertNotIn('Newer pack', text)  # one task per wake
+        self.pipe.pop(0)  # Olivia took it
+        self.assertEqual([0, 0], [len(self.wakes()) for _ in range(2)])
+        [(agent, text)] = self.wakes()
+        self.assertIn('Newer pack', text)
+
+    def test_the_oldest_waiting_card_goes_first(self):
+        self.hand(3, 50, 'Younger a-roll')
+        self.hand(3, 99, 'Older a-roll')
+        self.assertIn('Older a-roll', self.wakes()[0][1])
+
+    def test_idle_nudge_skips_a_bot_the_next_check_woke(self):
+        self.hand(5, 45, 'Rosa pack')
+        self.cards.append({'id': 't-doing', 'owner': 'video-editor', 'title': 'Other card', 'status': 'doing', 'updatedAt': ago(1)})
+        [(agent, text)] = self.wakes()
+        self.assertIn('Rosa pack', text)
+
+    def test_a_bot_another_check_woke_lately_waits(self):
+        self.hand(5, 45)
+        state = tg.load()
+        state['seen']['aroll:%s:t-x' % self.OLIVIA] = tg.iso(self.t - 5 * 60)
+        tg.save(state)
+        self.assertEqual([], self.wakes())
+
+
 class PipelineCards(unittest.TestCase):
     def test_cards_already_on_youtube_are_not_in_the_buffer(self):
         import re
@@ -1520,7 +1681,7 @@ class StallGatesHookIn(unittest.TestCase):
         with mock.patch.dict(sys.modules, {'stall_gates': None}):  # None makes the import raise ImportError
             importlib.reload(tg)
         names = [n for n, _ in tg.CHECKS]
-        self.assertEqual(names, ['disk', 'turns', 'qc', 'limits', 'aroll', 'balance', 'idle', 'ports', 'packs'])
+        self.assertEqual(names, ['disk', 'turns', 'qc', 'limits', 'aroll', 'next', 'balance', 'idle', 'ports', 'packs'])
 
     def test_installed_stall_gates_checks_are_added_with_unique_names(self):
         fake = types.ModuleType('stall_gates')
