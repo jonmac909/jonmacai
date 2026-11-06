@@ -44,7 +44,7 @@ async function setup() {
     for (const [name, value] of Object.entries(secrets)) assert.ok(value, `${name} missing`);
     return { base: arg("--base", "https://jonmac.ai"), slug: arg("--slug", "mina-1-v9"), secrets, done: async () => {} };
   }
-  const { SECRETS, startRuntime } = await import("./harness.mjs");
+  const { SECRETS, qcCheck, startRuntime } = await import("./harness.mjs");
   const runtime = await startRuntime({ listen: true, https: false });
   const fixture = (name) => fileURLToPath(new URL(`./fixtures/${name}`, import.meta.url));
   const result = spawnSync(process.execPath, [fileURLToPath(new URL("../scripts/review_publish.mjs", import.meta.url)),
@@ -53,6 +53,7 @@ async function setup() {
     "--chapters", fixture("versions.json")],
   { encoding: "utf8", env: { ...process.env, REVIEW_API_TOKEN: SECRETS.REVIEW_API_TOKEN } });
   assert.equal(result.status, 0, result.stderr);
+  await qcCheck(runtime.cc, "proof-v1"); // QC passed the published file, so Approve is open
   return { base: runtime.url, slug: "proof-v1", secrets: SECRETS, done: () => runtime.mf.dispose() };
 }
 
@@ -229,12 +230,15 @@ async function main() {
         await page.waitForFunction(() => /^Sent to /.test(document.querySelector("#submissions li")?.textContent || ""), null, { timeout: 180000, polling: 1000 });
         report.submit.delivered = { line: await page.textContent("#submissions li"), secondsOnPage: Math.round((Date.now() - started) / 1000) };
       }
-      page.once("dialog", (dialog) => dialog.accept());
-      await page.click("#approve");
-      await page.waitForFunction(() => document.querySelector('#status button[data-status="approved"]').getAttribute("aria-pressed") === "true");
-      const approvals = (await api("/submissions")).submissions.filter((s) => s.kind === "approve");
-      assert.equal(approvals.length, 1);
-      report.approve = { status: "approved", submission: approvals[0].id };
+      // Live test slugs only have Coding-card proofs, which never open Approve (QC gate), so Approve runs locally only.
+      if (!live) {
+        page.once("dialog", (dialog) => dialog.accept());
+        await page.click("#approve");
+        await page.waitForFunction(() => document.querySelector('#status button[data-status="approved"]').getAttribute("aria-pressed") === "true");
+        const approvals = (await api("/submissions")).submissions.filter((s) => s.kind === "approve");
+        assert.equal(approvals.length, 1);
+        report.approve = { status: "approved", submission: approvals[0].id };
+      }
     }
 
     mkdirSync(outDir, { recursive: true });

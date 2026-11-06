@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { SECRETS, startRuntime } from "./harness.mjs";
+import { SECRETS, qcCheck, startRuntime } from "./harness.mjs";
 
 const clipPath = fileURLToPath(new URL("./fixtures/clip.mp4", import.meta.url));
 const clip = readFileSync(clipPath);
@@ -344,7 +344,9 @@ test("video page: source left and ours right with transport controls, muted coll
   assert.equal(compare.status, 206);
   assert.equal(compare.headers.get("content-type"), "video/mp4");
   await compare.arrayBuffer();
-  assert.match(body, /href="\/review\/mina-1-v9">v9</);
+  assert.doesNotMatch(body, /href="\/review\/mina-1-v9">v9</, "the version nav hides a version QC hasn't passed");
+  await qcCheck(runtime.cc, "https://jonmac.ai/review/media/mina-1-v9/video.mp4?v=video-abc123"); // a media-URL proof
+  assert.match(await (await fetchApp("/review/mina-1-v8", { headers: { Cookie: cookie } })).text(), /href="\/review\/mina-1-v9">v9</);
 
   const missing = await fetchApp("/review/nope", { headers: { Cookie: cookie } });
   assert.equal(missing.status, 404);
@@ -467,6 +469,97 @@ test("router API: token only, undelivered list with comment text, delivered, nex
   const page = await (await fetchApp("/review/mina-1-v9", { headers: { Cookie: cookie } })).text();
   const data = JSON.parse(/<script type="application\/json" id="review-data">([^<]+)<\/script>/.exec(page)[1]);
   assert.equal(data.submissions.find((s) => s.id === first.id).result_slug, "mina-1-v8");
+});
+
+test("QC gate: a version is listed and approvable only once QC passed its proof; direct links still open", async () => {
+  const reviewer = { Cookie: cookie, Origin: runtime.url };
+  const listed = async () => [...(await (await fetchApp("/review", { headers: { Cookie: cookie } })).text()).matchAll(/href="\/review\/([a-z0-9-]+)"/g)].map((m) => m[1]);
+  const page = async (slug) => (await fetchApp(`/review/${slug}`, { headers: { Cookie: cookie } })).text();
+  const approve = async (slug, headers = reviewer) => {
+    const response = await fetchApp(`/api/review/${slug}/submit`, jsonInit("POST", { kind: "approve" }, headers));
+    return [response.status, (await response.json()).error];
+  };
+  const NOT_PASSED = "QC has not passed this version yet, so it can't be approved.";
+
+  // mina-1-v8 is mina-1's newest version, published with no QC pass yet.
+  assert.ok(!(await listed()).includes("mina-1-v8"), "unpassed newest version is off the list");
+  const direct = await fetchApp("/review/mina-1-v8", { headers: { Cookie: cookie } });
+  assert.equal(direct.status, 200, "direct link still loads for QC");
+  const body = await direct.text();
+  assert.match(body, /id="qc-wait"/);
+  assert.match(body, /<video id="player"/);
+  assert.deepEqual(await approve("mina-1-v8"), [409, NOT_PASSED]);
+  assert.deepEqual(await approve("mina-1-v8", { ...agent, "X-Review-Via": "dashboard" }), [409, NOT_PASSED], "the dashboard's Approve too");
+  const status = await fetchApp("/api/review/mina-1-v8/status", jsonInit("POST", { status: "approved" }, reviewer));
+  assert.deepEqual([status.status, (await status.json()).error], [409, NOT_PASSED], "the status button can't approve either");
+  const media = await fetchApp("/review/media/mina-1-v8/video.mp4", { headers: { Cookie: cookie, Range: "bytes=0-1" } });
+  assert.equal(media.status, 206, "its video still streams");
+  await media.arrayBuffer();
+
+  await qcCheck(runtime.cc, "mina-1-v8", "passed", "coding");
+  assert.ok(!(await listed()).includes("mina-1-v8"), "a Coding card's pass tests the tool, not the video");
+  await qcCheck(runtime.cc, "mina-1-v8"); // review page URL
+  assert.ok((await listed()).includes("mina-1-v8"), "passed version is listed");
+  assert.doesNotMatch(await page("mina-1-v8"), /id="qc-wait"/);
+  await qcCheck(runtime.cc, "https://jonmac.ai/review/mina-1-v8", "failed");
+  assert.ok(!(await listed()).includes("mina-1-v8"), "the newest QC check decides");
+  assert.deepEqual(await approve("mina-1-v8"), [409, NOT_PASSED], "a failed version can't be approved");
+  await qcCheck(runtime.cc, "https://jonmac.ai/dashboard/review/mina-1-v8/");
+  assert.ok((await listed()).includes("mina-1-v8"));
+  // mina-1-v9 passed by its media URL (video page test): Approve opens.
+  assert.doesNotMatch(await page("mina-1-v9"), /id="qc-wait"/);
+});
+
+test("QC gate: a re-upload needs a new pass, a re-check counts at its new time, cancelled cards and bots never approve", async () => {
+  const listed = async () => [...(await (await fetchApp("/review", { headers: { Cookie: cookie } })).text()).matchAll(/href="\/review\/([a-z0-9-]+)"/g)].map((m) => m[1]);
+  const reviewer = { Cookie: cookie, Origin: runtime.url };
+  assert.ok((await listed()).includes("mina-1-v8"), "passed in the test above");
+
+  publish(["--slug", "mina-1-v8", "--channel", "mina", "--video", "mina-1", "--version", "v8", "--title", "Mina tutorial", "--file", clipPath,
+    "--source", clipPath, "--compare", clipPath, "--chapters", fileURLToPath(new URL("./fixtures/versions.json", import.meta.url))]);
+  assert.ok(!(await listed()).includes("mina-1-v8"), "a new file on a passed slug waits for a new pass");
+  const status = await fetchApp("/api/review/mina-1-v8/status", jsonInit("POST", { status: "approved" }, reviewer));
+  assert.equal(status.status, 409, "and can't be approved");
+  await status.arrayBuffer();
+
+  await qcCheck(runtime.cc, "mina-1-v8", "passed", "youtube", "cancelled");
+  assert.ok(!(await listed()).includes("mina-1-v8"), "a pass on a cancelled card doesn't count");
+  const pass = await qcCheck(runtime.cc, "mina-1-v8");
+  assert.ok((await listed()).includes("mina-1-v8"));
+  await qcCheck(runtime.cc, "mina-1-v8", "failed");
+  assert.ok(!(await listed()).includes("mina-1-v8"));
+  // QC re-checks the earlier proof: its row stays first, its new checked_at makes it the newest check.
+  await runtime.cc.prepare("UPDATE bot_proofs SET checked_at = ? WHERE id = ?").bind(new Date(Date.now() + 60000).toISOString(), pass).run();
+  assert.ok((await listed()).includes("mina-1-v8"), "the newest check by time decides, not by row");
+
+  const byBot = await fetchApp("/api/review/mina-1-v8/status", jsonInit("POST", { status: "approved" }));
+  assert.deepEqual([byBot.status, (await byBot.json()).error], [403, "only_a_reviewer_can_approve"], "a bot can't approve by status");
+  const published = await fetchApp("/api/review/mina-1-v8/publish",
+    jsonInit("POST", { channel: "mina", video: "mina-1", version: "v8", title: "Mina tutorial", status: "approved" }));
+  assert.deepEqual([published.status, (await published.json()).error], [403, "only_a_reviewer_can_approve"], "nor by publishing");
+});
+
+test("QC gate fails closed: with the dashboard's proofs unreadable nothing is listed and Approve is off", async () => {
+  const down = await startRuntime({ listen: true });
+  try {
+    await down.db.prepare("INSERT INTO videos (slug, channel, video, version, title, video_key, created_at, updated_at) VALUES ('mina-9-v1', 'mina', 'mina-9', 'v1', 'Down', 'review/mina-9-v1/video-x.mp4', '2026-11-05', '2026-11-05')").run();
+    await qcCheck(down.cc, "mina-9-v1");
+    await down.cc.prepare("DROP TABLE bot_proofs").run();
+    const dash = { ...agent, "X-Review-Via": "dashboard" };
+    const index = await down.mf.dispatchFetch(`${down.url}/review`, { headers: dash });
+    assert.equal(index.status, 200);
+    const list = await index.text();
+    assert.match(list, /Could not read QC results/);
+    assert.doesNotMatch(list, /mina-9-v1/);
+    for (const [path, body] of [["submit", { kind: "approve" }], ["status", { status: "approved" }]]) {
+      const refused = await down.mf.dispatchFetch(`${down.url}/api/review/mina-9-v1/${path}`, jsonInit("POST", body, dash));
+      assert.equal(refused.status, 409, path);
+      assert.match((await refused.json()).error, /Could not read QC results/);
+    }
+    assert.equal((await down.mf.dispatchFetch(`${down.url}/review/mina-9-v1`, { headers: dash })).status, 200, "the page still opens");
+  } finally {
+    await down.mf.dispose();
+  }
 });
 
 test("Approve: works with no open comments, sets approved, a second tap is the same submission", async () => {

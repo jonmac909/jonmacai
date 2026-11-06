@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { fileURLToPath } from "node:url";
-import { byteRange, makeSession, mediaTag, parseDrawing, safeEqual, validSlug, verifySession } from "../worker.js";
+import { byteRange, makeSession, mediaTag, parseDrawing, proofSlug, safeEqual, validSlug, verifySession } from "../worker.js";
 import { escapeHtml, formatTime, openVideos, renderIndex } from "../pages.js";
 import { topLevelBoxes } from "../scripts/review_publish.mjs";
 import { SECRETS } from "./harness.mjs";
@@ -67,6 +67,17 @@ test("publish script reads MP4 box order for the fast-start check", () => {
   assert.ok(boxes.indexOf("moov") < boxes.indexOf("mdat"), boxes.join(","));
 });
 
+test("a QC proof names its version by the review page or the media URL", () => {
+  for (const link of ["https://jonmac.ai/review/rosa-house-3-v3", "https://jonmac.ai/review/rosa-house-3-v3/", "https://jonmac.ai/dashboard/review/rosa-house-3-v3",
+    "https://jonmac.ai/review/rosa-house-3-v3?k=x", "https://jonmac.ai/review/media/rosa-house-3-v3/video.mp4?v=video-mw475t0u42cb7d", "HTTPS://JONMAC.AI/review/Rosa-House-3-V3"]) {
+    assert.equal(proofSlug(link), "rosa-house-3-v3", link);
+  }
+  for (const link of ["https://jonmac.ai/review/media/rosa-house-3-v3/source.mp4", "https://evil.example/review/rosa-house-3-v3",
+    "https://jonmac.ai/reviewer/x", "D:\\renders\\review\\x.mp4", "", null]) {
+    assert.equal(proofSlug(link), null, String(link));
+  }
+});
+
 test("the review list shows each video's newest version, until it is approved", () => {
   const v = (slug, video, status, created_at, channel = "mina") => ({ slug, video, status, created_at, channel, title: slug, version: slug.split("-").pop() });
   const videos = [
@@ -80,8 +91,15 @@ test("the review list shows each video's newest version, until it is approved", 
     v("d-1-v1", "d-1", "changes_requested", "2026-10-16T23:00:00Z"), // the Oct 14 to 16 batch Jon cleared
     v("e-1-v1", "e-1", "needs_review", "2026-10-17T00:00:00Z"),
   ];
-  assert.deepEqual(openVideos(videos).map((x) => x.slug), ["b-1-v2", "c-1-v2", "e-1-v1"]);
-  const page = renderIndex({ channels: [{ slug: "mina", name: "Mina" }, { slug: "empty", name: "Empty" }], videos });
+  const passed = new Map(videos.map((x) => [x.slug, "2026-11-02T00:00:00Z"])); // slug -> time of its passing QC check
+  assert.deepEqual(openVideos(videos, passed).map((x) => x.slug), ["b-1-v2", "c-1-v2", "e-1-v1"]);
+  // QC hasn't passed b-1-v2: b-1 is off the list (its older passed version doesn't stand in for it).
+  assert.deepEqual(openVideos(videos, new Map([...passed].filter(([s]) => s !== "b-1-v2"))).map((x) => x.slug), ["c-1-v2", "e-1-v1"]);
+  // e-1-v1 got a new file after its pass: off until QC passes again.
+  const reuploaded = videos.map((x) => (x.slug === "e-1-v1" ? { ...x, published_at: "2026-11-03T00:00:00Z" } : x));
+  assert.deepEqual(openVideos(reuploaded, passed).map((x) => x.slug), ["b-1-v2", "c-1-v2"]);
+  assert.deepEqual(openVideos(videos, null), [], "QC results unreadable: nothing listed");
+  const page = renderIndex({ channels: [{ slug: "mina", name: "Mina" }, { slug: "empty", name: "Empty" }], videos, passed });
   assert.deepEqual([...page.matchAll(/href="\/review\/([a-z0-9-]+)"/g)].map((m) => m[1]), ["b-1-v2", "e-1-v1", "c-1-v2"]);
   assert.match(page, /2 needs review · 1 changes requested</);
   assert.doesNotMatch(page, /approved</i);
