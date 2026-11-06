@@ -72,10 +72,12 @@ WRITER = 'jon-mac-youtube'  # dashboard slug of Sydney, who writes the scripts
 PACK_ORDER = Path(r'D:\AgentTeam\pack-order.txt')  # Jon's queue order, one pack folder per line, top first
 GPU_LOG, GPU_LOG_TAIL, GPU_IDLE_MIN = Path(r'D:\gpu-queue\gpuq.log'), 400_000, 10  # GPU1's queue log; empty this many minutes is a gap
 GPU_EVENT = re.compile(r'^(\d\d)-(\d\d) (\d\d):(\d\d):(\d\d) (?:job ([0-9a-f]{12}) (?:(waiting|running|rejoined|done):|\(.*\) stopped checking in)|queue start:)')
+GPU_JOBS_MIN = 3  # Ana, 2026-11-05: each GPU queue holds this many runnable jobs so the card never sits idle
+GPU_QUEUES = {'GPU1': (r'D:\gpu-queue\gpuq.py', 'Omni clip'), 'GPU2': (r'D:\gpu-queue\gpu2.py', 'Qwen still')}  # name -> status CLI, job kind
 GPU_WAIT_MIN = 25  # a 'waiting' line this old with no 'running' after it is a client that gave up (a turn is 20 minutes)
 AROLL_OWNERS = ('home-guide-press', 'viral-view')  # dashboard slugs of Elle and Scarlett
 SCRIPT_OWNERS = AROLL_OWNERS + ('jon-mac-youtube',)  # Sydney writes the scripts, Elle and Scarlett fix the ones on their packs
-WAKES = ('idle', 'aroll', 'buffer', 'gpu', 'balance', 'next')  # check names whose keys read 'name:agent:card'
+WAKES = ('idle', 'aroll', 'buffer', 'gpu', 'gpuq', 'balance', 'next')  # check names whose keys read 'name:agent:card'
 NEXT_MIN = 30  # a card waits this long at a hand-off before the bot that takes it next is woken
 HELD = ('qc', 'review', 'waiting_on_jon')  # statuses of a card someone else is checking: nothing to do for its owner
 SCRIPT_WRITTEN, SCRIPT_QC, AROLL_DONE, PREFLIGHT_PASSED, EDITING = 0, 1, 3, 5, 6  # pipeline.py's stage numbers
@@ -734,6 +736,51 @@ def check_gpu(now, state):
     return found
 
 
+def gpu_queue(name):
+    """(runnable jobs, whether one is running, seconds since the last job ended or None) from the queue CLI's status, or None
+    if it can't be read. A held job (a 4th pack) can't run, so it is not counted."""
+    try:
+        r = subprocess.run([sys.executable, GPU_QUEUES[name][0], 'status'], capture_output=True, encoding='utf-8', errors='replace',
+                           creationflags=NO_WINDOW, timeout=90)  # gpu2.py's own ssh gives up at 60
+        lines = json.loads(r.stdout)['order'] if name == 'GPU1' else r.stdout.splitlines()  # GPU1 prints JSON, GPU2 text
+    except (subprocess.TimeoutExpired, OSError, ValueError, KeyError, TypeError):
+        return None
+    if r.returncode or (name == 'GPU2' and not any(x.startswith('owner ') for x in lines)):  # a traceback is not an empty queue
+        return None
+    jobs = [x for x in lines if re.match(r'\d+\. ', x)]
+    ended = re.search(r'last job ended (\d+)s ago', r.stdout)
+    return len([x for x in jobs if '[held' not in x]), any('(running' in x for x in jobs), int(ended.group(1)) if ended else None
+
+
+def check_gpuq(now, state):
+    """A GPU queue under GPU_JOBS_MIN runnable jobs wakes Elle or Scarlett (a free one, once per 30 minutes) to queue the next
+    pack's jobs, or library-seed jobs if nothing is due. GPU2 with no job running for 10 minutes also goes to Ana: GPU1's
+    own idle alert is the queue's watchdog in gpuq.py. A queue that can't be read is left alone."""
+    seen = state['seen']
+    found = {k: None for k, t in seen.items() if k.startswith('gpuq:') and not k.endswith(':idle') and now - ts(t) < NUDGE_EVERY_S - 60}  # :idle is Ana's alert
+    free = free_bots(now, state)
+    for name, (_, kind) in GPU_QUEUES.items():
+        q = gpu_queue(name)
+        if not q:
+            if name == 'GPU2' and 'gpuq:gpu2:idle' in seen:
+                found['gpuq:gpu2:idle'] = None  # unreadable is not 'running again': keep the alert from repeating
+            continue
+        jobs, running, ended = q
+        if name == 'GPU2' and not running and (ended is None or ended >= GPU_IDLE_MIN * 60):  # no history to read: nothing has run
+            since = 'over %d' % GPU_IDLE_MIN if ended is None else '%d' % (ended // 60)
+            found['gpuq:gpu2:idle'] = (URGENT, 'GPU2 has had no job running for %s minutes.' % since)
+        if jobs >= GPU_JOBS_MIN or any(k.endswith(':' + name.lower()) for k in found if k.startswith('gpuq:')):  # one wake per queue per 30 minutes
+            continue
+        agent = next((a for a in (ELLE, SCARLETT) if a in free and not woke_lately(seen, a, now)), None)
+        if agent:
+            key = 'gpuq:%s:%s' % (agent, name.lower())
+            seen.pop(key, None)  # its last wake is over 30 minutes old
+            found[key] = (agent, '%s has %d runnable jobs queued, and %d keep the card busy. Queue the next pack\'s %s jobs, or seed the channel '
+                          'B-roll libraries if nothing is due.' % (name, jobs, GPU_JOBS_MIN, kind))
+            free.discard(agent)
+    return found
+
+
 HANDOFF = {  # stage -> what the bot that takes the card next is told
     SCRIPT_WRITTEN: 'The script for "%s" (card %s) failed QC or was never sent to it. Fix it and send it to QC.',
     SCRIPT_QC: 'The script for "%s" (card %s) has waited for QC over %d minutes. Check its pending proof now.',
@@ -858,7 +905,7 @@ def check_disk(now, state):
 
 # aroll and next run before idle: idle skips a bot they just woke, and a "start <Todo>" nudge must not block the a-roll wake
 CHECKS = [('disk', check_disk), ('turns', check_turns), ('qc', check_qc), ('limits', check_limits),
-          ('aroll', check_aroll), ('buffer', check_buffers), ('gpu', check_gpu), ('next', check_next), ('balance', check_balance), ('idle', check_idle), ('ports', check_ports), ('packs', check_packs)]  # slowest last
+          ('aroll', check_aroll), ('buffer', check_buffers), ('gpu', check_gpu), ('next', check_next), ('balance', check_balance), ('idle', check_idle), ('gpuq', check_gpuq), ('ports', check_ports), ('packs', check_packs)]  # slowest last
 try:  # Emma's stall checks (heartbeats, disk_early, money, sites, tokens) live in the tools folder, not this repo
     import stall_gates
     CHECKS += stall_gates.CHECKS
