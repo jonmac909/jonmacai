@@ -20,19 +20,22 @@ export function answerKind(text) {
   return 'other';
 }
 
-// The key uses the charge's own currency amount: the CAD figure moves with the exchange rate and would re-ask.
+// One question per merchant and kind at a time. The date (the newest charge) makes a later repeat of the
+// same problem, such as a second charge after Cancel, a new question once the earlier one is closed.
+const DAY = /^\d{4}-\d{2}-\d{2}$/;
+const keyStart = (flag) => `${PREFIX}${flag.key}:${flag.kind}:`;
 export function questionKey(flag) {
-  return `${PREFIX}${flag.key}:${flag.kind}:${flag.amountNativeMinor}`;
+  return `${keyStart(flag)}${flag.lastSeen}`;
 }
 
 function parseKey(idem) {
   const [, rest] = String(idem).split(PREFIX);
   const parts = String(rest || '').split(':');
-  if (parts.length !== 3 || !/^\d+$/.test(parts[2])) return null;
-  return { key: parts[0], kind: parts[1], amountNativeMinor: parts[2] };
+  if (parts.length !== 3 || !DAY.test(parts[2])) return null;
+  return { key: parts[0], kind: parts[1], version: parts[2] };
 }
 
-const LEADS = { price_rise: 'Price went up', one_off: 'Big one-off charge', after_cancel: 'Charged after you cancelled' };
+const LEADS = { price_rise: 'Price went up', one_off: 'Big one-off charge', after_cancel: 'Charged again after your answer' };
 
 export function questionFor(flag) {
   const oneOff = flag.kind === 'one_off';
@@ -47,8 +50,22 @@ export function questionFor(flag) {
 async function openQuestions(db, flags, now) {
   let added = 0;
   for (const flag of flags.slice(0, MAX_FLAGS)) {
-    if (!flag?.key || !flag.kind || !/^\d+$/.test(String(flag.amountNativeMinor))) continue;
+    if (!flag?.key || !flag.kind || !DAY.test(String(flag.lastSeen)) || !/^\d+$/.test(String(flag.amountNativeMinor))) continue;
     const q = questionFor(flag);
+    // Already asked and not finished (open, or answered but not yet saved): keep its text current, never ask twice.
+    const start = keyStart(flag);
+    const { results: active = [] } = await db.prepare(
+      "SELECT id, question, status FROM bot_questions WHERE asked_by = ? AND status IN ('open', 'answered') AND substr(idem_key, 1, ?) = ?",
+    ).bind(BOT, start.length, start).all();
+    if (active.length) {
+      for (const row of active) {
+        if (row.status === 'open' && row.question !== q.question) {
+          await db.prepare("UPDATE bot_questions SET question = ?, context = ?, updated_at = ? WHERE id = ? AND status = 'open'")
+            .bind(q.question, q.context, now, row.id).run();
+        }
+      }
+      continue;
+    }
     const r = await db.prepare(
       `INSERT INTO bot_questions (id, asked_by, question, context, options, project, status, idem_key, created_at, updated_at)
        VALUES (?, ?, ?, ?, ?, 'accounting', 'open', ?, ?, ?) ON CONFLICT DO NOTHING`,
@@ -69,12 +86,12 @@ async function openCard(db, row, flag, parsed, now) {
   await db.prepare(
     `INSERT INTO bot_tasks (id, title, owner, status, note, project, created_by, updated_by, idem_key, created_at, updated_at)
      VALUES (?, ?, ?, 'todo', ?, 'accounting', ?, ?, ?, ?, ?) ON CONFLICT DO NOTHING`,
-  ).bind(newId('t'), title.slice(0, 300), BOT, note, BOT, BOT, `cw-card:${parsed.key}:${parsed.kind}`, now, now).run();
+  ).bind(newId('t'), title.slice(0, 300), BOT, note, BOT, BOT, `cw-card:${parsed.key}:${parsed.kind}:${parsed.version}`, now, now).run();
 }
 
 async function sendAnswers(db, token, flags, fetchFn, now) {
   const { results = [] } = await db.prepare(
-    "SELECT id, idem_key, answer FROM bot_questions WHERE asked_by = ? AND idem_key LIKE 'cw:%' AND status = 'answered' LIMIT 50",
+    "SELECT id, idem_key, answer FROM bot_questions WHERE asked_by = ? AND idem_key LIKE 'cw:%' AND status = 'answered' ORDER BY updated_at LIMIT 50",
   ).bind(BOT).all();
   let sent = 0;
   for (const row of results) {
@@ -87,15 +104,16 @@ async function sendAnswers(db, token, flags, fetchFn, now) {
       headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
       body: JSON.stringify({
         action: 'charge_watch_answer', key: parsed.key, answer,
-        amountCadMinor: flag ? String(flag.amountCadMinor) : '', amountNativeMinor: parsed.amountNativeMinor, currency: flag?.currency || '',
+        amountCadMinor: flag ? String(flag.amountCadMinor) : '', amountNativeMinor: flag ? String(flag.amountNativeMinor) : '', currency: flag?.currency || '',
         frequency: flag?.frequency || '', merchant: flag?.merchant || '', kind: parsed.kind,
       }),
     });
-    if (!res.ok) continue; // stays answered; the next run tries again
-    if (answer === 'cancel') await openCard(db, row, flag, parsed, now);
+    // A server error stays answered and is retried. A 400 can never succeed, so it must not block the others.
+    if (!res.ok && res.status !== 400) continue;
+    if (res.ok && answer === 'cancel') await openCard(db, row, flag, parsed, now);
     await db.prepare("UPDATE bot_questions SET status = 'closed', closed_by = ?, closed_at = ?, updated_at = ? WHERE id = ? AND status = 'answered'")
       .bind(BOT, now, now, row.id).run();
-    sent += 1;
+    if (res.ok) sent += 1;
   }
   return sent;
 }
