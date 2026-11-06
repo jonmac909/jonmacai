@@ -8,6 +8,9 @@ Runs hidden every 10 minutes (see HOOKS.md). Reads OpenBot's database and transc
 - Fewer than 2 packs ready for Olivia: wakes Elle and Scarlett. Preflight runs at most hourly.
 - A bot whose current or main account is capped by a usage limit: bot_stuck to Ana. If it's Ana's own
   current account she can't read that, so it also goes on Jon's Questions page.
+- A bot with a Doing card, no open turn, nothing queued, not capped, and no turn for 10 minutes: wakes it with
+  "continue <its newest Doing card>". Once per bot and card per 30 minutes. A slug two bots share (QC)
+  wakes one, and none while either is working.
 - GPU2's heartbeat logged low UDP or TCP ports in the last 30 minutes: bot_stuck to Ana, naming who holds them.
 - GPU1's D: under 30 GB free: bot_stuck to Ana.
 - Ana's open turn quiet 45 minutes, or a message queued 45 minutes with no open turn: restarts OpenBot,
@@ -41,6 +44,7 @@ TOOLS = Path(__file__).resolve().parent
 sys.path[:0] = [str(TOOLS), r'D:\AgentTeam\grok-voice']  # -I leaves the script's own folder off sys.path
 
 IDLE_MIN, QUEUE_MIN, QC_MIN, ANA_MIN, BLOCKED_MIN, MIN_PACKS = 30, 120, 30, 45, 90, 2
+READY_MIN, NUDGE_EVERY_S = 10, 1800  # Jon, 2026-11-05: the team works 24/7; no wake storms
 PREFLIGHT_S = 280
 PACKS_RECHECK_S = 3600
 PACKS_BUDGET_S = 600  # preflight time per run; packs past it count as unchecked
@@ -88,6 +92,10 @@ select t.turn_id, h.agent_id, t.started_at,
       and a.activity_type not in ('conversation.mailbox-reconciled', 'thread.memory-reviewed')), t.started_at)
 from projection_turns t join projection_threads h on h.thread_id = t.thread_id
 where t.started_at <= :now and (t.completed_at is null or t.completed_at > :now)"""
+
+LAST_TURNS = """
+select h.agent_id, max(coalesce(t.completed_at, t.started_at))
+from projection_turns t join projection_threads h on h.thread_id = t.thread_id group by 1"""
 
 OPEN_PROMPTS = """
 select turn_id from projection_thread_activities where activity_type like 'prompt.%' group by 1
@@ -372,6 +380,48 @@ def pack_started(folder, titles):
     return False
 
 
+def bots():
+    """{dashboard owner slug: [agent ids]} from BOTS.md, the table dash.py reads."""
+    import dash as dash_py
+    out = {}
+    for slug, workspace in dash_py.bots_table():
+        out.setdefault(slug, []).append(Path(workspace).name)
+    return out
+
+
+def check_idle(now, state):
+    seen = state['seen']
+    found = {k: None for k, t in seen.items() if k.startswith('idle:') and now - ts(t) < NUDGE_EVERY_S}
+    newest = {}
+    for c in dash('tasks', '--status', 'doing', '--limit', '500')['tasks']:
+        if c.get('owner') and c['updatedAt'] > newest.get(c['owner'], {}).get('updatedAt', ''):
+            newest[c['owner']] = c
+    if not newest:
+        return found
+    with contextlib.closing(db()) as con:
+        busy = {r[1] for r in open_turns(con, iso(now))}
+        busy |= {a for a, in con.execute("select distinct recipient_agent_id from projection_deliveries "
+                                         "where status = 'queued'")}
+        last = dict(con.execute(LAST_TURNS))
+        team = agents(con)
+    holds = state.get('holds', {})
+    for slug, ids in bots().items():
+        card = newest.get(slug)
+        if not card or busy.intersection(ids):
+            continue
+        for agent in ids:
+            j = team.get(agent)
+            if (j is None or holds.get(j.get('providerAccountId') or DEFAULT_ACCOUNT, 0) > now
+                    or (last.get(agent) and now - ts(last[agent]) < READY_MIN * 60)):
+                continue
+            key = 'idle:%s:%s' % (agent, card['id'])
+            if key not in found:
+                seen.pop(key, None)  # its last nudge is over 30 minutes old
+                found[key] = (agent, 'continue ' + card['title'])
+            break
+    return found
+
+
 def waiting_packs():
     """Edit folders Olivia has not started: no finished video and no card of hers. Other cards just share the author's name."""
     titles = [t['title'] for t in dash('tasks', '--owner', 'video-editor', '--limit', '500')['tasks']
@@ -393,6 +443,7 @@ def check_packs(now, state):
         return pack_alerts(state) if state.get('packs_short') else None
     folders = waiting_packs()  # first: a timeout here must leave the last result and retry next run
     state['packs_at'], state['packs_short'] = now, None
+    seen = set(state.pop('packs_unchecked', None) or [])  # last check's unchecked packs; a passing check clears them
     ready, unknown = 0, []
     for folder in folders:
         code = preflight(folder) if time.time() < now + PACKS_BUDGET_S else None
@@ -401,7 +452,9 @@ def check_packs(now, state):
             return {}
         if code not in (0, 1):
             unknown.append(folder.name)
-    state['packs_unknown'] = unknown  # an unchecked pack hasn't passed
+    # an unchecked pack hasn't passed, but one slow preflight on a busy machine isn't a failure: report two in a row
+    state['packs_unchecked'] = unknown
+    state['packs_unknown'] = [n for n in unknown if n in seen]
     state['packs_short'] = ('Only %d pack(s) pass preflight and wait for Olivia. The team keeps at least %d, '
                             'so build the next one.' % (ready, MIN_PACKS))
     if unknown:
@@ -451,7 +504,7 @@ def check_disk(now, state):
 
 
 CHECKS = [('disk', check_disk), ('turns', check_turns), ('qc', check_qc), ('limits', check_limits),
-          ('ports', check_ports), ('packs', check_packs)]  # slowest last
+          ('idle', check_idle), ('ports', check_ports), ('packs', check_packs)]  # slowest last
 
 
 def send_urgent(texts, tag):

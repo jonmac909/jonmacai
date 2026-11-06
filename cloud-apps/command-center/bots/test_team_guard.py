@@ -49,6 +49,7 @@ class Base(unittest.TestCase):
         self.status, self.render, self.restart_error, self.ask_error = 202, False, None, None
         self.owners, self.answers, self.route_status = {}, {}, {}
         self.ports_line = ''
+        self.slugs = {'developer': [LUCY], 'ana': [tg.ANA]}
         self.disk_free = 500
         (self.root / 'edits').mkdir()
         (self.root / 'accounts').mkdir()
@@ -64,7 +65,7 @@ class Base(unittest.TestCase):
                 (tg, 'DB', self.root / 'o.db'), (tg, 'STATE', self.root / 'state.json'),
                 (tg, 'LOG', self.root / 'guard.log'), (tg, 'ACCOUNTS', self.root / 'accounts'),
                 (tg, 'DEFAULT_PROJECTS', self.root / 'default'), (tg, 'EDITS', self.root / 'edits'),
-                (tg, 'dash', self.fake_dash), (tg, 'preflight', lambda d: self.pass_codes.get(d.name, 0)),
+                (tg, 'bots', lambda: self.slugs), (tg, 'dash', self.fake_dash), (tg, 'preflight', lambda d: self.pass_codes.get(d.name, 0)),
                 (tg, 'render_running', lambda: self.render), (tg, 'restart_openbot', self.fake_restart),
                 (tg, 'gpu2_ports_line', lambda: self.ports_line), (tg, 'disk_free_gb', lambda: self.disk_free),
                 (hook, 'fire', self.fake_fire), (tg.time, 'time', lambda: self.t)]:
@@ -119,6 +120,8 @@ class Base(unittest.TestCase):
             return {'proofs': self.proofs}
         if args[0] == 'tasks':  # 100 is the Worker's default limit
             limit = int(args[args.index('--limit') + 1]) if '--limit' in args else 100
+            if args[1] == '--status':
+                return {'tasks': [c for c in self.cards if c.get('status') == args[2]][:limit]}
             return {'tasks': [c for c in self.cards if c['owner'] == args[2]][:limit]}
         if args[0] == 'task':
             return {'task': {'owner': self.owners[args[1]]}}
@@ -575,7 +578,7 @@ class Qc(Base):
 
 class Packs(Base):
     def card(self, title, status='doing', owner='video-editor'):
-        self.cards.append({'title': title, 'status': status, 'owner': owner})
+        self.cards.append({'id': 't-pk', 'title': title, 'status': status, 'owner': owner, 'updatedAt': ago(5)})
 
     def test_low_wakes_elle_and_scarlett_once(self):
         self.pass_codes['hgp-two'] = 1
@@ -634,7 +637,9 @@ class Packs(Base):
         self.pass_codes.update({'hgp-one': 2, 'hgp-two': None})
         out = self.run_guard()
         self.assertEqual({tg.ELLE, tg.SCARLETT}, {s[1] for s in out if s[0] == 'wake'})
-        self.assertEqual(['script_failure'], [s[1] for s in out if s[0] == 'fire'])
+        self.assertEqual([], [s[1] for s in out if s[0] == 'fire'])  # one slow preflight isn't a failure
+        self.t += tg.PACKS_RECHECK_S
+        self.assertEqual(['script_failure'], [s[1] for s in self.run_guard() if s[0] == 'fire'])  # two in a row is
         self.assertEqual([], self.run_guard())
 
     def test_an_unchecked_pack_does_not_hide_a_shortage(self):
@@ -668,6 +673,9 @@ class Packs(Base):
         with mock.patch.object(tg, 'preflight') as preflight:
             self.assertEqual([], self.run_guard())
             preflight.assert_not_called()
+        self.assertNotIn('packs:unchecked', tg.load()['seen'])
+        self.t += tg.PACKS_RECHECK_S
+        self.run_guard()
         self.assertIn('packs:unchecked', tg.load()['seen'])
 
     def test_a_partial_wake_retries_next_run_without_preflight(self):
@@ -1066,6 +1074,77 @@ class Failures(Base):
         with mock.patch.object(tg, 'run', side_effect=ValueError('boom')):
             self.assertEqual(1, tg.main([]))
         self.assertEqual('script_failure', self.sent[0][1])
+
+
+class Idle(Base):
+    def setUp(self):
+        super().setUp()
+        self.card('Fix the thing', 5)
+        self.done(LUCY, 11)
+
+    def card(self, title, minutes, owner='developer'):
+        self.cards.append({'id': 't-' + title[:3], 'owner': owner, 'title': title, 'status': 'doing',
+                           'updatedAt': ago(minutes)})
+
+    def done(self, agent, minutes):
+        n = self.db.execute('select count(*) from projection_turns').fetchone()[0]
+        self.db.execute('insert into projection_threads values (?, ?)', ('th-d%d' % n, agent))
+        self.db.execute("insert into projection_turns values (?, ?, 'completed', ?, ?)",
+                        ('d%d' % n, 'th-d%d' % n, ago(minutes + 5), ago(minutes)))
+
+    def wakes(self):
+        return [s[1:] for s in self.run_guard() if s[0] == 'wake']
+
+    def test_idle_bot_is_told_to_continue_its_card(self):
+        self.assertEqual([(LUCY, 'continue Fix the thing')], self.wakes())
+
+    def test_newest_doing_card_wins(self):
+        self.card('Newer job', 1)
+        self.assertEqual([(LUCY, 'continue Newer job')], self.wakes())
+
+    def test_no_doing_card_no_nudge(self):
+        self.cards.clear()
+        self.assertEqual([], self.wakes())
+
+    def test_bot_with_an_open_turn_is_left_alone(self):
+        self.turn(LUCY, 'u1', 5, last=1)
+        self.assertEqual([], self.wakes())
+
+    def test_bot_with_a_queued_message_is_left_alone(self):
+        self.queue(LUCY)
+        self.assertEqual([], self.wakes())
+
+    def test_9_minutes_idle_is_fine(self):
+        self.db.execute('delete from projection_turns')
+        self.done(LUCY, 9)
+        self.assertEqual([], self.wakes())
+
+    def test_a_capped_bot_is_not_nudged(self):
+        self.transcript('team', LUCY, self.refused())
+        self.assertEqual([], self.wakes())
+
+    def test_one_nudge_per_30_minutes_then_again(self):
+        self.assertEqual(1, len(self.wakes()))
+        self.assertEqual([], self.wakes())  # +10 min
+        self.assertEqual([], self.wakes())  # +20 min
+        self.assertEqual(1, len(self.wakes()))  # +30 min, card still in Doing
+
+    def test_a_new_card_is_nudged_at_once(self):
+        self.assertEqual(1, len(self.wakes()))
+        self.card('Second job', 0)
+        self.assertEqual([(LUCY, 'continue Second job')], self.wakes())
+
+    def test_shared_slug_wakes_one_bot(self):
+        self.agent('agent-jess', 'Jessica')
+        self.slugs['developer'] = [LUCY, 'agent-jess']
+        self.done('agent-jess', 20)
+        self.assertEqual([(LUCY, 'continue Fix the thing')], self.wakes())
+
+    def test_shared_slug_waits_while_either_is_working(self):
+        self.agent('agent-jess', 'Jessica')
+        self.slugs['developer'] = [LUCY, 'agent-jess']
+        self.turn('agent-jess', 'u1', 5, last=1)
+        self.assertEqual([], self.wakes())
 
 
 class RealPortsLine(unittest.TestCase):
