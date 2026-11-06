@@ -527,7 +527,7 @@ def check_balance(now, state):
             moves[slug] = {'at': now, 'key': key, 'to': usable(to), 'text': text}
             seen.pop(key, None)
         cards[slug].remove(card)
-        cards.setdefault(to, []).append(card)
+        cards.setdefault(to, []).append(dict(card, updatedAt=iso(now)))  # the move resets its age: it must not cascade on
         found[key] = (usable(to), text)
     return found
 

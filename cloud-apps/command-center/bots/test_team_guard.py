@@ -1339,15 +1339,15 @@ class Balance(Base):
 
     def setUp(self):
         super().setUp()
-        self.agent(self.MILA, 'Mila')
+        self.agent(self.MILA, 'Mila', providerAccountId='mila')  # its own account, so a cap on it holds only Mila
         self.agent(self.EMMA, 'Emma')
         self.slugs.update({'moneyclaw': [self.MILA], 'historient': [self.EMMA], 'qc': ['agent-q']})
         self.n = 0
 
-    def card(self, owner='developer', status='doing', age=100, note=None):
+    def card(self, owner='developer', status='doing', age=100, note=None, touched=1):
         self.n += 1
         c = {'id': 't%d' % self.n, 'owner': owner, 'title': 'Card %d' % self.n, 'status': status,
-             'createdAt': ago(age), 'updatedAt': ago(1)}
+             'createdAt': ago(age), 'updatedAt': ago(touched)}
         if note:
             c['note'] = note
         self.cards.append(c)
@@ -1383,17 +1383,17 @@ class Balance(Base):
         self.assertEqual([(first['id'], 'moneyclaw')], self.moved())
 
     def test_a_todo_waiting_over_2_hours_overloads_a_bot(self):
-        self.card('developer', 'todo', age=121)
+        self.card('developer', 'todo', age=121, touched=121)
         self.assertEqual(1, len(self.wakes('overloaded')))
 
     def test_a_todo_under_2_hours_does_not(self):
-        self.card('developer', 'todo', age=119)
+        self.card('developer', 'todo', age=119, touched=119)
         self.assertEqual([], self.wakes('overloaded'))
 
     def test_waiting_external_cards_neither_count_nor_move(self):
         self.cards_for('developer', 3)
         self.card('developer', 'doing', age=900, note='Waiting external until 2099-01-01')
-        self.card('developer', 'todo', age=900, note='Waiting external')
+        self.card('developer', 'todo', age=900, note='Waiting external', touched=900)
         self.assertEqual([], self.wakes('overloaded'))
         self.assertEqual([], self.moved())
 
@@ -1405,7 +1405,7 @@ class Balance(Base):
 
     def test_a_capped_backup_is_skipped(self):
         self.cards_for('developer', 4)
-        self.transcript('team', self.MILA, self.refused())
+        self.transcript('mila', self.MILA, self.refused())
         self.wakes()
         self.assertEqual('historient', self.moved()[0][1])
 
@@ -1480,7 +1480,7 @@ class StallGatesHookIn(unittest.TestCase):
         with mock.patch.dict(sys.modules, {'stall_gates': None}):  # None makes the import raise ImportError
             importlib.reload(tg)
         names = [n for n, _ in tg.CHECKS]
-        self.assertEqual(names, ['disk', 'turns', 'qc', 'limits', 'aroll', 'idle', 'ports', 'packs'])
+        self.assertEqual(names, ['disk', 'turns', 'qc', 'limits', 'aroll', 'balance', 'idle', 'ports', 'packs'])
 
     def test_installed_stall_gates_checks_are_added_with_unique_names(self):
         fake = types.ModuleType('stall_gates')
