@@ -7,6 +7,7 @@ import { funnelMonth } from './webinar.js';
 import { monthWindow } from './today.js';
 import { settleApproved } from './videoreview.js';
 import { syncReach, syncStats } from './youtube.js';
+import { syncChargeWatch } from './chargewatch.js';
 
 const VIRAL_URL = 'https://app.viralview.io/api/internal/dashboard-summary';
 const MONEY_URL = 'https://moneyclaw.jonmac.ai/api/internal/dashboard-summary';
@@ -50,6 +51,7 @@ export async function handleCron(env) {
       authorization: `Bearer ${env.MONEYCLAW_DASHBOARD_TOKEN}`,
     }));
   }
+  jobs.push(syncChargeWatch(env).catch((err) => console.error('charge watch', err.message))); // new subscriptions and odd charges become Questions
   jobs.push(pullWebinarMonth(env));
   jobs.push(pullCalendar(env));
   jobs.push(settleApproved(env).catch((err) => console.error('settle approved', err)));
