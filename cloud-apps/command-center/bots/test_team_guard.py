@@ -1161,6 +1161,26 @@ class Idle(Base):
         self.assertEqual([], self.wakes())
 
 
+class StallGatesHookIn(unittest.TestCase):
+    def setUp(self):
+        self.addCleanup(importlib.reload, tg)  # leave the module as the other tests expect
+
+    def test_missing_stall_gates_leaves_the_guard_working(self):
+        with mock.patch.dict(sys.modules, {'stall_gates': None}):  # None makes the import raise ImportError
+            importlib.reload(tg)
+        names = [n for n, _ in tg.CHECKS]
+        self.assertEqual(names, ['disk', 'turns', 'qc', 'limits', 'idle', 'ports', 'packs'])
+
+    def test_installed_stall_gates_checks_are_added_with_unique_names(self):
+        fake = types.ModuleType('stall_gates')
+        fake.CHECKS = [('heartbeats', lambda now, state: {}), ('sites', lambda now, state: {})]
+        with mock.patch.dict(sys.modules, {'stall_gates': fake}):
+            importlib.reload(tg)
+        names = [n for n, _ in tg.CHECKS]
+        self.assertEqual(names[-2:], ['heartbeats', 'sites'])
+        self.assertEqual(len(names), len(set(names)))
+
+
 class RealPortsLine(unittest.TestCase):
     def line(self, rc, out):
         done = types.SimpleNamespace(returncode=rc, stdout=out)

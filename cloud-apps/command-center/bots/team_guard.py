@@ -505,6 +505,11 @@ def check_disk(now, state):
 
 CHECKS = [('disk', check_disk), ('turns', check_turns), ('qc', check_qc), ('limits', check_limits),
           ('idle', check_idle), ('ports', check_ports), ('packs', check_packs)]  # slowest last
+try:  # Emma's stall checks (heartbeats, disk_early, money, sites, tokens) live in the tools folder, not this repo
+    import stall_gates
+    CHECKS += stall_gates.CHECKS
+except ImportError as err:  # a missing or broken stall_gates must not stop the other checks
+    log('stall_gates not loaded: %r' % err)
 
 
 def send_urgent(texts, tag):
