@@ -11,6 +11,8 @@ Runs hidden every 10 minutes (see HOOKS.md). Reads OpenBot's database and transc
 - A bot with a Doing card, no open turn, nothing queued, not capped, and no turn for 10 minutes: wakes it with
   "continue <its newest Doing card>". Once per bot and card per 30 minutes. A slug two bots share (QC)
   wakes one, and none while either is working.
+- Fewer than 3 a-rolls rendered (pipeline.py's buffer) with passed scripts waiting: wakes the owner (Elle or
+  Scarlett) of the oldest passed script. A bot is woken at most once per 30 minutes, whichever check wakes it.
 - GPU2's heartbeat logged low UDP or TCP ports in the last 30 minutes: bot_stuck to Ana, naming who holds them.
 - GPU1's D: under 30 GB free: bot_stuck to Ana.
 - Ana's open turn quiet 45 minutes, or a message queued 45 minutes with no open turn: restarts OpenBot,
@@ -45,6 +47,11 @@ sys.path[:0] = [str(TOOLS), r'D:\AgentTeam\grok-voice']  # -I leaves the script'
 
 IDLE_MIN, QUEUE_MIN, QC_MIN, ANA_MIN, BLOCKED_MIN, MIN_PACKS = 30, 120, 30, 45, 90, 2
 READY_MIN, NUDGE_EVERY_S = 10, 1800  # Jon, 2026-11-05: the team works 24/7; no wake storms
+AROLL_MIN = 3  # pipeline.py's a-roll buffer target
+AROLL_STAGES = (3, 4, 5)  # a-roll rendered, clips building, preflight passed: not yet with the editor
+SCRIPT_PASSED = 2
+AROLL_OWNERS = ('home-guide-press', 'viral-view')  # dashboard slugs of Elle and Scarlett
+WAKES = ('idle', 'aroll')  # check names whose keys read 'name:agent:card'
 PREFLIGHT_S = 280
 PACKS_RECHECK_S = 3600
 PACKS_BUDGET_S = 600  # preflight time per run; packs past it count as unchecked
@@ -408,7 +415,7 @@ def check_idle(now, state):
     for slug, ids in bots().items():
         card = newest.get(slug)
         if (not card or busy.intersection(ids)  # a slug's bots share the card: any one working, or nudged lately, covers it
-                or any('idle:%s:%s' % (a, card['id']) in found for a in ids)
+                or any('idle:%s:%s' % (a, card['id']) in found or woke_lately(seen, a, now, ('aroll',)) for a in ids)
                 or any(last.get(a) and now - ts(last[a]) < READY_MIN * 60 for a in ids)):
             continue
         for agent in ids:
@@ -418,6 +425,61 @@ def check_idle(now, state):
             key = 'idle:%s:%s' % (agent, card['id'])
             seen.pop(key, None)  # its last nudge is over 30 minutes old
             found[key] = (agent, 'continue ' + card['title'])
+            break
+    return found
+
+
+def free_bots(now, state):
+    """Agent ids with no open turn, nothing queued, no turn in the last 10 minutes and no usage limit."""
+    with contextlib.closing(db()) as con:
+        busy = {r[1] for r in open_turns(con, iso(now))}
+        busy |= {a for a, in con.execute("select distinct recipient_agent_id from projection_deliveries "
+                                         "where status = 'queued'")}
+        busy |= {a for a, t in con.execute(LAST_TURNS) if t and now - ts(t) < READY_MIN * 60}
+        team = agents(con)
+    holds = state.get('holds', {})
+    return {a for a, j in team.items() if a not in busy and holds.get(j.get('providerAccountId') or DEFAULT_ACCOUNT, 0) <= now}
+
+
+def woke_lately(seen, agent, now, names=WAKES):
+    """One of these checks sent this bot something in the last 30 minutes (keys read 'name:agent:card')."""
+    return any(k.split(':')[0] in names and k.split(':')[1:2] == [agent] and now - ts(t) < NUDGE_EVERY_S - 60
+               for k, t in seen.items())
+
+
+_pipe = {}
+
+
+def pipeline_cards(now):
+    """[(stage index, entry time, card)] for open affiliate video cards, read once per run by pipeline.py's own code."""
+    if _pipe.get('at') != now:
+        import pipeline  # D:\AgentTeam	ools, the code Ana's hourly report runs
+        out = []
+        for card in pipeline.load(pipeline.live_titles()):
+            with contextlib.suppress(Exception):  # one odd card must not stop the check
+                r = None if any(pipeline.LIVE.search(link) for link in pipeline.links(card)) else pipeline.classify(card)
+                if r:  # a card already on YouTube is no a-roll waiting for the editor
+                    out.append((r[0], r[1], card))
+        _pipe.update(at=now, cards=out)
+    return _pipe['cards']
+
+
+def check_aroll(now, state):
+    """Fewer than 3 a-rolls in the pipeline: wake the owner of the oldest passed script. Bots with a wake in the last 30 minutes wait."""
+    seen = state['seen']
+    found = {k: None for k, t in seen.items() if k.startswith('aroll:') and now - ts(t) < NUDGE_EVERY_S - 60}
+    cards = pipeline_cards(now)
+    have = sum(stage in AROLL_STAGES for stage, _, _ in cards)
+    if have >= AROLL_MIN:
+        return found
+    ids, free = bots(), free_bots(now, state)
+    for _, _, card in sorted((c for c in cards if c[0] == SCRIPT_PASSED), key=lambda c: c[1]):
+        agent = next(iter(ids.get(card.get('owner')) or []), None)
+        key = 'aroll:%s:%s' % (agent, card['id'])
+        if card.get('owner') in AROLL_OWNERS and agent in free and key not in found and not woke_lately(seen, agent, now):
+            seen.pop(key, None)  # its last wake is over 30 minutes old
+            found[key] = (agent, 'A-roll buffer is %d of %d. Start the HeyGen a-roll for %s, your longest-waiting passed '
+                          'script. If its render is already submitted, do not submit it again.' % (have, AROLL_MIN, card['title']))
             break
     return found
 
@@ -504,7 +566,7 @@ def check_disk(now, state):
 
 
 CHECKS = [('disk', check_disk), ('turns', check_turns), ('qc', check_qc), ('limits', check_limits),
-          ('idle', check_idle), ('ports', check_ports), ('packs', check_packs)]  # slowest last
+          ('idle', check_idle), ('aroll', check_aroll), ('ports', check_ports), ('packs', check_packs)]  # slowest last
 try:  # Emma's stall checks (heartbeats, disk_early, money, sites, tokens) live in the tools folder, not this repo
     import stall_gates
     CHECKS += stall_gates.CHECKS
