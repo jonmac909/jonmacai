@@ -20,20 +20,23 @@ export function answerKind(text) {
   return 'other';
 }
 
+// The key uses the charge's own currency amount: the CAD figure moves with the exchange rate and would re-ask.
 export function questionKey(flag) {
-  return `${PREFIX}${flag.key}:${flag.kind}:${flag.amountCadMinor}`;
+  return `${PREFIX}${flag.key}:${flag.kind}:${flag.amountNativeMinor}`;
 }
 
 function parseKey(idem) {
   const [, rest] = String(idem).split(PREFIX);
   const parts = String(rest || '').split(':');
   if (parts.length !== 3 || !/^\d+$/.test(parts[2])) return null;
-  return { key: parts[0], kind: parts[1], amountCadMinor: parts[2] };
+  return { key: parts[0], kind: parts[1], amountNativeMinor: parts[2] };
 }
+
+const LEADS = { price_rise: 'Price went up', one_off: 'Big one-off charge', after_cancel: 'Charged after you cancelled' };
 
 export function questionFor(flag) {
   const oneOff = flag.kind === 'one_off';
-  const lead = flag.kind === 'price_rise' ? 'Price went up' : oneOff ? 'Big one-off charge' : 'New charge';
+  const lead = LEADS[flag.kind] || 'New charge';
   return {
     question: `${lead}: ${flag.summary}. ${oneOff ? 'Was this expected?' : 'Keep it?'}`,
     options: oneOff ? ['Expected', 'Not expected'] : ['Keep', 'Cancel'],
@@ -44,7 +47,7 @@ export function questionFor(flag) {
 async function openQuestions(db, flags, now) {
   let added = 0;
   for (const flag of flags.slice(0, MAX_FLAGS)) {
-    if (!flag?.key || !flag.kind || !/^\d+$/.test(String(flag.amountCadMinor))) continue;
+    if (!flag?.key || !flag.kind || !/^\d+$/.test(String(flag.amountNativeMinor))) continue;
     const q = questionFor(flag);
     const r = await db.prepare(
       `INSERT INTO bot_questions (id, asked_by, question, context, options, project, status, idem_key, created_at, updated_at)
@@ -57,13 +60,12 @@ async function openQuestions(db, flags, now) {
 
 async function openCard(db, row, flag, parsed, now) {
   const merchant = flag?.merchant || parsed.key;
-  const title = parsed.kind === 'one_off' ? `Check ${merchant} charge` : `Cancel ${merchant}`;
-  const note = [
-    'What happened',
-    `- You answered "${row.answer}" on ${merchant} (${cad(parsed.amountCadMinor)}).`,
-    'Next',
-    parsed.kind === 'one_off' ? '- Find out why it was charged and dispute it if it is wrong.' : '- Cancel it with the company, then mark this done.',
-  ].join('\n');
+  const title = { one_off: `Check ${merchant} charge`, after_cancel: `${merchant} charged after cancel` }[parsed.kind] || `Cancel ${merchant}`;
+  const next = {
+    one_off: '- Find out why it was charged and dispute it if it is wrong.',
+    after_cancel: '- Make sure the cancel went through, stop the billing and ask for a refund.',
+  }[parsed.kind] || '- Cancel it with the company, then mark this done.';
+  const note = ['What happened', `- You answered "${row.answer}" on ${merchant}${flag ? ` (${cad(flag.amountCadMinor)})` : ''}.`, 'Next', next].join('\n');
   await db.prepare(
     `INSERT INTO bot_tasks (id, title, owner, status, note, project, created_by, updated_by, idem_key, created_at, updated_at)
      VALUES (?, ?, ?, 'todo', ?, 'accounting', ?, ?, ?, ?, ?) ON CONFLICT DO NOTHING`,
@@ -84,7 +86,8 @@ async function sendAnswers(db, token, flags, fetchFn, now) {
       method: 'POST',
       headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
       body: JSON.stringify({
-        action: 'charge_watch_answer', key: parsed.key, answer, amountCadMinor: parsed.amountCadMinor,
+        action: 'charge_watch_answer', key: parsed.key, answer,
+        amountCadMinor: flag ? String(flag.amountCadMinor) : '', amountNativeMinor: parsed.amountNativeMinor, currency: flag?.currency || '',
         frequency: flag?.frequency || '', merchant: flag?.merchant || '', kind: parsed.kind,
       }),
     });
