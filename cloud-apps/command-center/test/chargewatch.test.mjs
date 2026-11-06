@@ -167,3 +167,15 @@ test('an answer MoneyClaw rejects with 400 is closed so it cannot block the othe
   assert.deepEqual(await syncChargeWatch(e, f, '2026-11-05T10:10:00Z'), { asked: 0, answered: 1 });
   assert.equal((await e.DB.prepare("SELECT COUNT(*) AS n FROM bot_questions WHERE status = 'closed'").first()).n, 2);
 });
+
+test('a Cancel that MoneyClaw rejects with 400 still opens its card', async () => {
+  const e = env();
+  await syncChargeWatch(e, fakeFetch([FLAG]), '2026-11-05T10:00:00Z');
+  await e.DB.prepare("UPDATE bot_questions SET status = 'answered', answer = 'Cancel'").run();
+  const f = async (url) => (String(url).endsWith('/charge-watch')
+    ? { ok: true, status: 200, json: async () => ({ flags: [FLAG] }) }
+    : { ok: false, status: 400 });
+  assert.deepEqual(await syncChargeWatch(e, f, '2026-11-05T10:10:00Z'), { asked: 0, answered: 0 });
+  assert.equal((await e.DB.prepare("SELECT COUNT(*) AS n FROM bot_tasks").first()).n, 1);
+  assert.equal((await e.DB.prepare("SELECT COUNT(*) AS n FROM bot_questions WHERE status = 'closed'").first()).n, 1);
+});

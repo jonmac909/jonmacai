@@ -110,7 +110,8 @@ async function sendAnswers(db, token, flags, fetchFn, now) {
     });
     // A server error stays answered and is retried. A 400 can never succeed, so it must not block the others.
     if (!res.ok && res.status !== 400) continue;
-    if (res.ok && answer === 'cancel') await openCard(db, row, flag, parsed, now);
+    // Even when MoneyClaw rejects the answer, a Cancel is still Jon's decision, so its card opens.
+    if (answer === 'cancel') await openCard(db, row, flag, parsed, now);
     await db.prepare("UPDATE bot_questions SET status = 'closed', closed_by = ?, closed_at = ?, updated_at = ? WHERE id = ? AND status = 'answered'")
       .bind(BOT, now, now, row.id).run();
     if (res.ok) sent += 1;
