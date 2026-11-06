@@ -1501,41 +1501,55 @@ class Balance(Base):
 
 class Next(Base):
     """pipeline_cards is faked as [(stage, entry time, card)]: 0 script written, 1 script QC, 3 a-roll, 5 preflight passed."""
-    OLIVIA = 'agent-olivia'
+    OLIVIA, SYDNEY = 'agent-olivia', 'agent-sydney'
+    SCRIPT = {'status': 'pending', 'kind': 'url', 'link': 'https://x/pack/script.md'}
+    VIDEO = {'status': 'pending', 'kind': 'render', 'link': 'https://jonmac.ai/review/x'}
 
     def setUp(self):
         super().setUp()
-        for agent, name in [(tg.ELLE, 'Elle'), (self.OLIVIA, 'Olivia'), (tg.JESSICA, 'Jessica'), (tg.NINA, 'Nina')]:
+        for agent, name in [(tg.ELLE, 'Elle'), (self.OLIVIA, 'Olivia'), (self.SYDNEY, 'Sydney'), (tg.JESSICA, 'Jessica'),
+                            (tg.NINA, 'Nina')]:
             self.agent(agent, name)
-        self.slugs.update({'home-guide-press': [tg.ELLE], 'video-editor': [self.OLIVIA], 'qc': [tg.JESSICA, tg.NINA]})
+        self.slugs.update({'home-guide-press': [tg.ELLE], 'video-editor': [self.OLIVIA], 'jon-mac-youtube': [self.SYDNEY],
+                           'qc': [tg.JESSICA, tg.NINA]})
 
-    def hand(self, stage, minutes, title='Rosa vac', owner='home-guide-press', status='todo', pending=False):
+    def hand(self, stage, minutes, title='Rosa vac', owner='home-guide-press', status='todo', proof=None):
         card = {'id': 't-' + title[:4] + str(len(self.pipe)), 'owner': owner, 'title': title, 'status': status,
-                'proofs': [{'status': 'pending' if pending else 'passed'}]}
+                'proofs': [proof or {'status': 'passed', 'kind': 'url', 'link': 'https://x/ok'}]}
         self.pipe.append((stage, self.t - minutes * 60, card))
         return card
 
     def wakes(self):
         return [s[1:] for s in self.run_guard() if s[0] == 'wake']
 
-    def test_script_waiting_in_qc_with_a_pending_proof_wakes_jessica(self):
-        self.hand(1, 40, 'Rosa script', owner='jon-mac-youtube', status='qc', pending=True)
+    def test_script_waiting_in_qc_with_a_pending_proof_wakes_nina(self):
+        self.hand(1, 40, 'Rosa script', owner='jon-mac-youtube', status='qc', proof=self.SCRIPT)
         [(agent, text)] = self.wakes()
-        self.assertEqual(tg.JESSICA, agent)
+        self.assertEqual(tg.NINA, agent)  # Nina takes scripts, Jessica long-form videos
         self.assertIn('Rosa script', text)
         self.assertIn('waited for QC over 40 minutes', text)
 
-    def test_the_other_qc_bot_is_woken_when_jessica_is_busy(self):
-        self.turn(tg.JESSICA, 'u1', 5, last=1)
-        self.hand(1, 40, status='qc', pending=True)
+    def test_the_other_qc_bot_is_woken_when_nina_is_busy(self):
+        self.turn(tg.NINA, 'u1', 5, last=1)
+        self.hand(1, 40, status='qc', proof=self.SCRIPT)
+        self.assertEqual(tg.JESSICA, self.wakes()[0][0])
+
+    def test_the_second_qc_bot_is_not_woken_for_a_card_the_first_was_woken_for(self):
+        self.hand(1, 40, status='qc', proof=self.SCRIPT)
         self.assertEqual(tg.NINA, self.wakes()[0][0])
+        self.turn(tg.NINA, 'u1', 5, last=1)  # she took it, so she is no longer free
+        self.assertEqual([], self.wakes())
 
     def test_a_script_in_qc_with_nothing_pending_is_not_woken_for(self):
         self.hand(1, 40, status='qc')
         self.assertEqual([], self.wakes())
 
+    def test_a_pending_video_proof_is_check_qcs_not_ours(self):
+        self.hand(1, 40, status='qc', proof=self.VIDEO)
+        self.assertEqual([], self.wakes())
+
     def test_a_hand_off_under_30_minutes_old_waits(self):
-        self.hand(1, 29, status='qc', pending=True)
+        self.hand(1, 29, status='qc', proof=self.SCRIPT)
         self.hand(3, 29)
         self.hand(5, 29)
         self.assertEqual([], self.wakes())
@@ -1545,6 +1559,10 @@ class Next(Base):
         [(agent, text)] = self.wakes()
         self.assertEqual(tg.ELLE, agent)
         self.assertIn('failed QC or was never sent', text)
+
+    def test_sydney_gets_her_failed_script_back(self):
+        self.hand(0, 60, owner='jon-mac-youtube')
+        self.assertEqual(self.SYDNEY, self.wakes()[0][0])
 
     def test_a_script_being_written_in_a_doing_card_is_left_to_the_idle_nudge(self):
         self.hand(0, 60, status='doing')
@@ -1556,8 +1574,21 @@ class Next(Base):
         self.assertEqual(tg.ELLE, agent)
         self.assertIn('Build them and run preflight', text)
 
+    def test_only_elle_and_scarlett_build_clips_and_only_script_writers_fix_scripts(self):
+        self.hand(3, 45, owner='qc')
+        self.hand(3, 45, owner='jon-mac-youtube')
+        self.hand(0, 45, owner='video-editor')
+        self.hand(0, 45, owner='qc')
+        self.assertEqual([], self.wakes())
+
+    def test_a_card_qc_or_jon_holds_is_not_nudged(self):
+        for stage in (0, 3, 5):
+            for status in ('qc', 'review', 'waiting_on_jon'):
+                self.hand(stage, 45, status=status)
+        self.assertEqual([], self.wakes())
+
     def test_a_preflight_passed_pack_wakes_olivia(self):
-        self.hand(5, 45, 'Rosa pack')
+        self.hand(5, 45, 'Rosa pack', status='doing')  # Elle's own card stays hers until Olivia takes it
         [(agent, text)] = self.wakes()
         self.assertEqual(self.OLIVIA, agent)
         self.assertIn('Rosa pack', text)
@@ -1569,19 +1600,30 @@ class Next(Base):
         self.assertEqual([], self.wakes())
 
     def test_stages_that_are_not_hand_offs_get_no_wake(self):
-        for stage in (2, 4, 6, 7, 8):  # script passed (aroll's), clips building, editing, video QC (check_qc's), passed
-            self.hand(stage, 600, owner='home-guide-press', status='doing' if stage == 6 else 'qc', pending=True)
-        self.assertEqual([], [w for w in self.wakes() if 'qc' in w[1]])  # no 'next' text for any of them
-        self.assertEqual([], self.wakes())
+        for stage in (4, 6, 7, 8):  # clips building, editing, video QC (check_qc's), passed; stage 2 is check_aroll's
+            self.pipe[:] = []
+            self.hand(stage, 600, owner='video-editor' if stage == 6 else 'home-guide-press',
+                      status='doing' if stage in (4, 6) else 'qc', proof=self.SCRIPT)
+            self.assertEqual([], self.wakes(), stage)
 
     def test_a_card_waiting_on_a_third_party_is_skipped(self):
         card = self.hand(3, 45)
         card['note'] = 'Waiting external until 2099-01-01'
         self.assertEqual([], self.wakes())
 
-    def test_busy_queued_or_capped_bots_are_not_woken(self):
+    def test_a_busy_bot_is_not_woken(self):
         self.hand(3, 45)
         self.turn(tg.ELLE, 'u1', 5, last=1)
+        self.assertEqual([], self.wakes())
+
+    def test_a_bot_with_a_message_queued_is_not_woken(self):
+        self.hand(3, 45)
+        self.queue(tg.ELLE)
+        self.assertEqual([], self.wakes())
+
+    def test_a_bot_held_by_a_usage_limit_is_not_woken(self):
+        self.hand(3, 45)
+        self.transcript('team', tg.ELLE, self.refused())
         self.assertEqual([], self.wakes())
 
     def test_one_wake_per_card_per_30_minutes_then_again(self):

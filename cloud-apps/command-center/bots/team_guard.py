@@ -63,8 +63,10 @@ BC = timezone(timedelta(hours=-7))  # Kelowna, permanent UTC-7 since Nov 2026 (n
 WAITING = re.compile(r'(?im)^\W*waiting[ _]external\b(?:[^\n]*?\buntil\s+(\d{4}-\d{2}-\d{2}))?')
 SCRIPT_PASSED = 2
 AROLL_OWNERS = ('home-guide-press', 'viral-view')  # dashboard slugs of Elle and Scarlett
+SCRIPT_OWNERS = AROLL_OWNERS + ('jon-mac-youtube',)  # Sydney writes the scripts, Elle and Scarlett fix the ones on their packs
 WAKES = ('idle', 'aroll', 'balance', 'next')  # check names whose keys read 'name:agent:card'
 NEXT_MIN = 30  # a card waits this long at a hand-off before the bot that takes it next is woken
+HELD = ('qc', 'review', 'waiting_on_jon')  # statuses of a card someone else is checking: nothing to do for its owner
 SCRIPT_WRITTEN, SCRIPT_QC, AROLL_DONE, PREFLIGHT_PASSED, EDITING = 0, 1, 3, 5, 6  # pipeline.py's stage numbers
 MAX_DOING, MAX_QUEUED, WAIT_S = 3, 3, 7200  # overloaded: more Doing cards, as many queued messages, a Todo this old
 BACKUPS = {'developer': ('moneyclaw', 'historient'), 'moneyclaw': ('historient',),  # dashboard slugs, best backup first
@@ -90,7 +92,7 @@ JESSICA = 'agent-9d685941-71c8-424e-8ae5-d85e06521a3d'
 NINA = 'agent-2661cbff-8f2f-4c2a-a493-4d0cb59a201f'
 ELLE = 'agent-4b804e4d-e84f-4a71-9571-82a52563f984'
 SCARLETT = 'agent-4b98853d-53f7-4521-8e94-9221b3c2c342'
-QC_BOTS = (JESSICA, NINA)  # best first; the dashboard shows both as 'qc'
+QC_BOTS = (NINA, JESSICA)  # best first: Nina takes scripts, Jessica long-form videos (qc.md); the dashboard shows both as 'qc'
 
 APPDATA = Path(os.environ.get('APPDATA', ''))
 DB = APPDATA / 'OpenBot' / 'openbot.db'
@@ -313,12 +315,15 @@ def check_turns(now, state):
     return found
 
 
+def video_proof(p):
+    return p.get('kind') == 'render' or (p.get('kind') == 'url' and bool(VIDEO_LINK.search(p.get('link') or '')))
+
+
 def check_qc(now, state):
     found = {}
     for p in dash('proofs', '--status', 'pending', '--limit', '200')['proofs']:
         age = (now - ts(p['createdAt'])) / 60
-        video = p['kind'] == 'render' or (p['kind'] == 'url' and VIDEO_LINK.search(p['link'] or ''))
-        if video and age >= QC_MIN:
+        if video_proof(p) and age >= QC_MIN:
             key = 'qc:' + p['id']
             if key in state['seen']:
                 found[key] = None
@@ -592,24 +597,30 @@ HANDOFF = {  # stage -> what the bot that takes the card next is told
 def check_next(now, state):
     """A card that sat 30 minutes at a hand-off wakes the bot that takes it next, if free: a failed or unsent script to its
     owner, a script waiting in QC to a QC bot, an a-roll with no clips to its owner, a preflight-passed pack to Olivia.
-    A Doing card is the idle nudge's, a video waiting in QC is check_qc's."""
+    One wake per card per 30 minutes, whichever bot of a slug took it. A Doing card is the idle nudge's, a video proof
+    waiting in QC is check_qc's, and a card QC or Jon holds is nobody's to nudge."""
     seen = state['seen']
     found = {k: None for k, t in seen.items() if k.startswith('next:') and now - ts(t) < NUDGE_EVERY_S - 60}
+    woken = {k.split(':', 2)[2] for k in found}  # card ids
     cards = pipeline_cards(now)
     ids, free, used = bots(), free_bots(now, state), set()
     editing = any(stage == EDITING for stage, _, _ in cards)  # Olivia has an edit in hand: the idle nudge covers her
     for stage, entered, card in sorted(cards, key=lambda c: c[1]):
-        if stage not in HANDOFF or now - entered < NEXT_MIN * 60 or waiting_external(card, now):
+        if (stage not in HANDOFF or now - entered < NEXT_MIN * 60 or card['id'] in woken or waiting_external(card, now)
+                or (stage != SCRIPT_QC and card.get('status') in HELD)):
             continue
-        if stage == SCRIPT_QC:
-            who = QC_BOTS if any(p.get('status') == 'pending' for p in card.get('proofs') or []) else ()
+        owner = card.get('owner')
+        if stage == SCRIPT_QC:  # a pending proof that is not a video one: check_qc wakes for those
+            who = QC_BOTS if any(p.get('status') == 'pending' and not video_proof(p) for p in card.get('proofs') or []) else ()
         elif stage == PREFLIGHT_PASSED:
             who = () if editing else ids.get('video-editor') or ()
+        elif card.get('status') == 'doing' or owner not in (AROLL_OWNERS if stage == AROLL_DONE else SCRIPT_OWNERS):
+            who = ()
         else:
-            who = () if card.get('status') == 'doing' else ids.get(card.get('owner')) or ()
+            who = ids.get(owner) or ()
         agent = next((a for a in who if a in free and a not in used and not woke_lately(seen, a, now)), None)
-        key = 'next:%s:%s' % (agent, card['id'])
-        if agent and key not in found:
+        if agent:
+            key = 'next:%s:%s' % (agent, card['id'])
             seen.pop(key, None)  # its last wake is over 30 minutes old
             used.add(agent)
             text = HANDOFF[stage] % ((card['title'], card['id'], (now - entered) // 60) if stage == SCRIPT_QC else (card['title'], card['id']))
