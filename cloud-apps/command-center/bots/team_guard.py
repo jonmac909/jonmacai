@@ -22,6 +22,8 @@ Runs hidden every 10 minutes (see HOOKS.md). Reads OpenBot's database and transc
 - Next-step wakes: an affiliate card that sat 30 minutes at a hand-off wakes the free bot that takes it next: a failed or
   unsent script to its owner, a script with a pending proof to a QC bot, an a-roll with no clips to its owner, a
   preflight-passed pack to Olivia (unless she has an edit in hand). Doing cards are the idle nudge's, video QC is the QC check's.
+- GPU gap: GPU1's queue (D:\gpu-queue\gpuq.log) with no job running or waiting for 10 minutes, while a pack has its a-roll and
+  no clips yet: wakes the owner (Elle or Scarlett) of the first such pack in Jon's order to queue the clips. Same rules as Buffers.
 - Load balancer: a bot is overloaded with more than 3 non-waiting Doing cards, 3 or more queued messages, or a Todo
   card untouched for 2 hours. Its oldest card moves to the first backup that is not overloaded and stays lighter than it
   (Lucy to Mila to Emma, Elle and Scarlett swap, Sydney to Scarlett), with a card comment and a wake. Each bot gives up at
@@ -68,9 +70,12 @@ SCRIPT_PASSED = 2
 SCRIPTS_MIN, PACKS_MIN = 6, 3  # pipeline.py's targets for passed scripts and preflight-passed packs
 WRITER = 'jon-mac-youtube'  # dashboard slug of Sydney, who writes the scripts
 PACK_ORDER = Path(r'D:\AgentTeam\pack-order.txt')  # Jon's queue order, one pack folder per line, top first
+GPU_LOG, GPU_LOG_TAIL, GPU_IDLE_MIN = Path(r'D:\gpu-queue\gpuq.log'), 400_000, 10  # GPU1's queue log; empty this many minutes is a gap
+GPU_EVENT = re.compile(r'^(\d\d)-(\d\d) (\d\d):(\d\d):(\d\d) (?:job ([0-9a-f]{12}) (?:(waiting|running|rejoined|done):|\(.*\) stopped checking in)|queue start:)')
+GPU_WAIT_MIN = 25  # a 'waiting' line this old with no 'running' after it is a client that gave up (a turn is 20 minutes)
 AROLL_OWNERS = ('home-guide-press', 'viral-view')  # dashboard slugs of Elle and Scarlett
 SCRIPT_OWNERS = AROLL_OWNERS + ('jon-mac-youtube',)  # Sydney writes the scripts, Elle and Scarlett fix the ones on their packs
-WAKES = ('idle', 'aroll', 'buffer', 'balance', 'next')  # check names whose keys read 'name:agent:card'
+WAKES = ('idle', 'aroll', 'buffer', 'gpu', 'balance', 'next')  # check names whose keys read 'name:agent:card'
 NEXT_MIN = 30  # a card waits this long at a hand-off before the bot that takes it next is woken
 HELD = ('qc', 'review', 'waiting_on_jon')  # statuses of a card someone else is checking: nothing to do for its owner
 SCRIPT_WRITTEN, SCRIPT_QC, AROLL_DONE, PREFLIGHT_PASSED, EDITING = 0, 1, 3, 5, 6  # pipeline.py's stage numbers
@@ -620,6 +625,18 @@ def pack_order():
     return [n for n in (line.split('#')[0].strip().lower() for line in lines) if n]
 
 
+def packs_needing_clips(cards, now):
+    """Cards of Elle and Scarlett whose a-roll is in and clips are not done, first pack in Jon's order first. Not a card that is
+    Doing, held, or waiting on a third party."""
+    order = pack_order()
+
+    def rank(item):
+        name = pack_name(item[2]).lower()
+        return (order.index(name) if name in order else len(order), item[1])
+    return [c for _, _, c in sorted(((s, t, c) for s, t, c in cards if s in (AROLL_DONE, CLIPS_BUILDING) and c.get('owner') in AROLL_OWNERS
+                                     and c.get('status') not in HELD + ('doing',) and not waiting_external(c, now)), key=rank)]
+
+
 def check_buffers(now, state):
     """Fewer than 6 passed scripts: wake Sydney to write the script of her oldest Todo topic. Fewer than 3 preflight-passed
     packs: wake the owner (Elle or Scarlett) of the first pack in Jon's order whose a-roll is in and clips are not done.
@@ -649,18 +666,71 @@ def check_buffers(now, state):
              "in Jon's queue order, and send it to QC." % (passed, SCRIPTS_MIN, card['title'], card['id']))
     ready = sum(stage == PREFLIGHT_PASSED for stage, _, _ in cards)
     if ready < PACKS_MIN:
-        order = pack_order()
-
-        def rank(item):
-            name = pack_name(item[2]).lower()
-            return (order.index(name) if name in order else len(order), item[1])
-        todo = sorted((c for c in cards if c[0] in (AROLL_DONE, CLIPS_BUILDING) and c[2].get('owner') in AROLL_OWNERS
-                       and c[2].get('status') not in HELD + ('doing',) and not waiting_external(c[2], now)), key=rank)
         left = PACKS_MIN - ready
-        for _, _, card in todo:
+        for card in packs_needing_clips(cards, now):
             if left and wake(ids.get(card['owner']) or (), card, 'Pack buffer is %d of %d. Build the clips for "%s" (card %s), '
                              "the next pack in Jon's order, and run preflight." % (ready, PACKS_MIN, card['title'], card['id'])):
                 left -= 1
+    return found
+
+
+def gpu1_idle_min(now):
+    """Minutes since GPU1's queue last had a job running or waiting. None while it has one, or if the log can't be read. The log
+    never ends many jobs (a restart forgets them, a client gives up), so only 'running' holds the card, 'queue start' ends
+    them all, and a 'waiting' line counts for GPU_WAIT_MIN minutes."""
+    try:
+        with open(GPU_LOG, 'rb') as f:
+            f.seek(max(0, f.seek(0, 2) - GPU_LOG_TAIL))
+            lines = f.read().decode('utf-8', 'replace').splitlines()  # a cut first line does not match GPU_EVENT
+    except OSError:
+        return None
+    year = datetime.fromtimestamp(now, BC).year
+
+    def when(m):  # the log has no year: an entry from the future is from last December
+        t = [int(g) for g in m.groups()[:5]]
+        at = datetime(year, *t, tzinfo=BC).timestamp()
+        return at if at <= now + 86400 else datetime(year - 1, *t, tzinfo=BC).timestamp()
+
+    running, waiting, last = set(), {}, None
+    for line in lines:
+        m = GPU_EVENT.match(line)
+        if not m:
+            continue
+        job, kind = m.group(6), m.group(7)
+        if kind == 'waiting':
+            waiting[job] = when(m)
+        elif kind in ('running', 'rejoined'):
+            running.add(job)
+        else:  # done, dropped after it stopped checking in, or the queue restarted
+            if job is None:
+                running.clear()
+                waiting.clear()
+            else:
+                running.discard(job)
+                waiting.pop(job, None)
+            last = when(m)
+    if running or any(now - at < GPU_WAIT_MIN * 60 for at in waiting.values()) or last is None:
+        return None
+    return max(0, now - last) // 60
+
+
+def check_gpu(now, state):
+    """GPU1's queue empty for 10 minutes while a pack has its a-roll and no clips: wake the owner of the first such pack in
+    Jon's order (a free bot, one wake per bot per 30 minutes), to queue the clips. A busy queue or no pack waiting: nothing."""
+    seen = state['seen']
+    found = {k: None for k, t in seen.items() if k.startswith('gpu:') and now - ts(t) < NUDGE_EVERY_S - 60}
+    idle = gpu1_idle_min(now)
+    if idle is None or idle < GPU_IDLE_MIN:
+        return found
+    ids, free = bots(), free_bots(now, state)
+    for card in packs_needing_clips(pipeline_cards(now), now):
+        agent = next((a for a in ids.get(card['owner']) or () if a in free and not woke_lately(seen, a, now)), None)
+        if agent:
+            key = 'gpu:%s:%s' % (agent, card['id'])
+            seen.pop(key, None)  # its last wake is over 30 minutes old
+            found[key] = (agent, 'GPU1 has had nothing queued for %d minutes. Queue the clips for "%s" (card %s), the next pack in '
+                          "Jon's order with an a-roll and no clips, then run preflight." % (idle, card['title'], card['id']))
+            break
     return found
 
 
@@ -788,7 +858,7 @@ def check_disk(now, state):
 
 # aroll and next run before idle: idle skips a bot they just woke, and a "start <Todo>" nudge must not block the a-roll wake
 CHECKS = [('disk', check_disk), ('turns', check_turns), ('qc', check_qc), ('limits', check_limits),
-          ('aroll', check_aroll), ('buffer', check_buffers), ('next', check_next), ('balance', check_balance), ('idle', check_idle), ('ports', check_ports), ('packs', check_packs)]  # slowest last
+          ('aroll', check_aroll), ('buffer', check_buffers), ('gpu', check_gpu), ('next', check_next), ('balance', check_balance), ('idle', check_idle), ('ports', check_ports), ('packs', check_packs)]  # slowest last
 try:  # Emma's stall checks (heartbeats, disk_early, money, sites, tokens) live in the tools folder, not this repo
     import stall_gates
     CHECKS += stall_gates.CHECKS
