@@ -1,5 +1,7 @@
 """python -I bots/test_team_guard.py  (a temp SQLite with OpenBot's real columns; nothing is sent or restarted)"""
+import contextlib
 import importlib.util
+import io
 import json
 import msvcrt
 import os
@@ -126,6 +128,14 @@ class Base(unittest.TestCase):
             return {'tasks': [c for c in self.cards if c['owner'] == args[2]][:limit]}
         if args[0] == 'task':
             return {'task': {'owner': self.owners[args[1]]}}
+        if args[0] == 'task-update':
+            card = next(c for c in self.cards if c['id'] == args[1])
+            card['owner'] = args[args.index('--owner') + 1]
+            self.sent.append(('move', args[1], card['owner']))
+            return {'ok': True}
+        if args[0] == 'comment':
+            self.sent.append(('comment', args[1], args[2]))
+            return {'ok': True}
         if args[0] == 'question':
             answer = self.answers.get(args[1], {'status': 'open', 'answer': None})
             if isinstance(answer, Exception):
@@ -1321,6 +1331,132 @@ class ARoll(Base):
         self.wakes(), self.wakes()  # +10, +20
         [(agent, text)] = self.wakes()  # +30
         self.assertIn('New script - Rosa', text)
+
+
+class Balance(Base):
+    """Slugs: developer (Lucy) backs up to moneyclaw (Mila), then historient (Emma). Cards need createdAt."""
+    MILA, EMMA = 'agent-mila', 'agent-emma'
+
+    def setUp(self):
+        super().setUp()
+        self.agent(self.MILA, 'Mila')
+        self.agent(self.EMMA, 'Emma')
+        self.slugs.update({'moneyclaw': [self.MILA], 'historient': [self.EMMA], 'qc': ['agent-q']})
+        self.n = 0
+
+    def card(self, owner='developer', status='doing', age=100, note=None):
+        self.n += 1
+        c = {'id': 't%d' % self.n, 'owner': owner, 'title': 'Card %d' % self.n, 'status': status,
+             'createdAt': ago(age), 'updatedAt': ago(1)}
+        if note:
+            c['note'] = note
+        self.cards.append(c)
+        return c
+
+    def cards_for(self, owner, n, status='doing'):
+        return [self.card(owner, status, age=500 - 10 * i) for i in range(n)]  # the first is the oldest
+
+    def moved(self):
+        return [s[1:] for s in self.sent if s[0] == 'move']
+
+    def wakes(self, text=''):
+        return [s[1:] for s in self.run_guard() if s[0] == 'wake' and text in s[2]]
+
+    def test_four_doing_cards_move_the_oldest_to_the_backup(self):
+        first = self.cards_for('developer', 4)[0]
+        self.assertEqual([(self.MILA, 'Card moved to you from Lucy, who is overloaded (4 Doing, 0 queued). '
+                           'continue ' + first['title'])], self.wakes('overloaded'))
+        self.assertEqual([(first['id'], 'moneyclaw')], self.moved())
+        [comment] = [s for s in self.sent if s[0] == 'comment']
+        self.assertIn('Moved from Lucy to Mila: overloaded', comment[2])
+
+    def test_three_doing_cards_are_fine(self):
+        self.cards_for('developer', 3)
+        self.assertEqual([], self.wakes('overloaded'))
+        self.assertEqual([], self.moved())
+
+    def test_three_queued_messages_overload_a_bot(self):
+        first = self.cards_for('developer', 2)[0]
+        for _ in range(3):
+            self.queue(LUCY)
+        self.assertEqual(1, len(self.wakes('overloaded')))
+        self.assertEqual([(first['id'], 'moneyclaw')], self.moved())
+
+    def test_a_todo_waiting_over_2_hours_overloads_a_bot(self):
+        self.card('developer', 'todo', age=121)
+        self.assertEqual(1, len(self.wakes('overloaded')))
+
+    def test_a_todo_under_2_hours_does_not(self):
+        self.card('developer', 'todo', age=119)
+        self.assertEqual([], self.wakes('overloaded'))
+
+    def test_waiting_external_cards_neither_count_nor_move(self):
+        self.cards_for('developer', 3)
+        self.card('developer', 'doing', age=900, note='Waiting external until 2099-01-01')
+        self.card('developer', 'todo', age=900, note='Waiting external')
+        self.assertEqual([], self.wakes('overloaded'))
+        self.assertEqual([], self.moved())
+
+    def test_the_backup_must_be_lighter_else_the_next_one(self):
+        self.cards_for('developer', 4)
+        self.cards_for('moneyclaw', 4)
+        self.wakes()
+        self.assertEqual('historient', self.moved()[0][1])
+
+    def test_a_capped_backup_is_skipped(self):
+        self.cards_for('developer', 4)
+        self.transcript('team', self.MILA, self.refused())
+        self.wakes()
+        self.assertEqual('historient', self.moved()[0][1])
+
+    def test_no_backup_alerts_ana_once(self):
+        self.cards_for('developer', 4)
+        self.cards_for('moneyclaw', 4)
+        self.cards_for('historient', 4)
+        self.run_guard()
+        [alert] = [s for s in self.sent if s[0] == 'fire' and 'overloaded' in str(s[2])]
+        self.assertIn('Lucy', alert[2]['alerts'][0])
+        self.assertIn('no backup', alert[2]['alerts'][0])
+        self.assertEqual([], [s for s in self.run_guard() if s[0] == 'fire' and 'overloaded' in str(s[2])])
+        self.assertEqual([], self.moved())
+
+    def test_one_move_per_bot_per_30_minutes(self):
+        self.cards_for('developer', 6)
+        self.wakes(), self.wakes(), self.wakes()  # now, +10, +20
+        self.assertEqual(1, len(self.moved()))
+        self.wakes()  # +30
+        self.assertEqual(2, len(self.moved()))
+
+    def test_a_failed_wake_retries_without_a_second_move(self):
+        self.cards_for('developer', 5)
+        broken = types.SimpleNamespace(send=mock.Mock(side_effect=RuntimeError('down')))
+        with mock.patch.dict(sys.modules, {'openbot_api': broken}):
+            tg.run()
+        self.t += 600
+        self.assertEqual(1, len(self.moved()))
+        self.assertEqual(1, len(self.wakes('overloaded')))
+        self.assertEqual(1, len(self.moved()))
+
+    def test_the_new_owner_gets_one_wake_not_two(self):
+        self.cards_for('developer', 4)
+        self.assertEqual(1, len([w for w in self.wakes() if w[0] == self.MILA]))
+
+    def test_dry_run_moves_nothing(self):
+        self.cards_for('developer', 4)
+        with contextlib.redirect_stdout(io.StringIO()) as out:
+            tg.run(dry=True)
+        self.assertEqual([], self.moved())
+        self.assertIn('WOULD balance -> ' + self.MILA, out.getvalue())
+
+    def test_qc_has_one_slug_so_it_is_never_moved(self):
+        self.cards_for('qc', 6)
+        self.assertEqual([], self.wakes('overloaded'))
+        self.assertEqual([], self.moved())
+
+    def test_a_bot_with_no_cards_is_not_moved_for_its_queue(self):
+        for _ in range(3):
+            self.queue(LUCY)
+        self.assertEqual([], self.wakes('overloaded'))
 
 
 class PipelineCards(unittest.TestCase):

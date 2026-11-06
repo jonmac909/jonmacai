@@ -16,6 +16,10 @@ Runs hidden every 10 minutes (see HOOKS.md). Reads OpenBot's database and transc
   "start <its oldest Todo card>".
 - Fewer than 3 a-rolls rendered (pipeline.py's buffer) with passed scripts waiting: wakes the owner (Elle or
   Scarlett) of the oldest passed script. A bot is woken at most once per 30 minutes, whichever check wakes it.
+- Load balancer: a bot is overloaded with more than 3 non-waiting Doing cards, 3 or more queued messages, or a Todo
+  card untouched for 2 hours. Its oldest card moves to the first backup that is not overloaded and stays lighter than it
+  (Lucy to Mila to Emma, Elle and Scarlett swap, Sydney to Scarlett), with a card comment and a wake. Each bot gives up at
+  most one card per 30 minutes. No backup: bot_stuck to Ana. QC has one dashboard slug for Jessica and Nina, so no move.
 - GPU2's heartbeat logged low UDP or TCP ports in the last 30 minutes: bot_stuck to Ana, naming who holds them.
 - GPU1's D: under 30 GB free: bot_stuck to Ana.
 - Ana's open turn quiet 45 minutes, or a message queued 45 minutes with no open turn: restarts OpenBot,
@@ -56,7 +60,12 @@ BC = timezone(timedelta(hours=-7))  # Kelowna, permanent UTC-7 since Nov 2026 (n
 WAITING = re.compile(r'(?im)^\W*waiting[ _]external\b(?:[^\n]*?\buntil\s+(\d{4}-\d{2}-\d{2}))?')
 SCRIPT_PASSED = 2
 AROLL_OWNERS = ('home-guide-press', 'viral-view')  # dashboard slugs of Elle and Scarlett
-WAKES = ('idle', 'aroll')  # check names whose keys read 'name:agent:card'
+WAKES = ('idle', 'aroll', 'balance')  # check names whose keys read 'name:agent:card'
+MAX_DOING, MAX_QUEUED, WAIT_S = 3, 3, 7200  # overloaded: more Doing cards, as many queued messages, a Todo this old
+BACKUPS = {'developer': ('moneyclaw', 'historient'), 'moneyclaw': ('historient',),  # dashboard slugs, best backup first
+           'home-guide-press': ('viral-view',), 'viral-view': ('home-guide-press',), 'jon-mac-youtube': ('viral-view',)}
+NAMES = {'developer': 'Lucy', 'moneyclaw': 'Mila', 'historient': 'Emma', 'home-guide-press': 'Elle',
+         'viral-view': 'Scarlett', 'jon-mac-youtube': 'Sydney'}
 PREFLIGHT_S = 280
 PACKS_RECHECK_S = 3600
 PACKS_BUDGET_S = 600  # preflight time per run; packs past it count as unchecked
@@ -435,7 +444,7 @@ def check_idle(now, state):
         card = newest.get(slug) or oldest_todo.get(slug)
         verb = 'continue ' if slug in newest else 'start '
         if (not card or busy.intersection(ids)  # a slug's bots share the card: any one working, or nudged lately, covers it
-                or any('idle:%s:%s' % (a, card['id']) in found or woke_lately(seen, a, now, ('aroll',)) for a in ids)
+                or any('idle:%s:%s' % (a, card['id']) in found or woke_lately(seen, a, now, ('aroll', 'balance')) for a in ids)
                 or any(last.get(a) and now - ts(last[a]) < READY_MIN * 60 for a in ids)):
             continue
         for agent in ids:
@@ -465,6 +474,62 @@ def woke_lately(seen, agent, now, names=WAKES):
     """One of these checks sent this bot something in the last 30 minutes (keys read 'name:agent:card')."""
     return any(k.split(':')[0] in names and k.split(':')[1:2] == [agent] and now - ts(t) < NUDGE_EVERY_S - 60
                for k, t in seen.items())
+
+
+def check_balance(now, state):
+    """Move an overloaded bot's oldest card to a backup that is lighter. One move per bot per 30 minutes; --dry-run moves nothing."""
+    seen, moves, found = state['seen'], state.setdefault('moves', {}), {}
+    for slug, m in list(moves.items()):
+        if now - m['at'] < NUDGE_EVERY_S:
+            found[m['key']] = (m['to'], m['text'])  # the card already moved: a failed wake retries, a sent one stays marked
+        else:
+            del moves[slug]
+    cards, ours = {}, set(BACKUPS).union(*BACKUPS.values())
+    for status in ('doing', 'todo'):
+        for c in dash('tasks', '--status', status, '--limit', '500')['tasks']:
+            if c.get('owner') in ours and not waiting_external(c, now):
+                cards.setdefault(c['owner'], []).append(c)
+    ids = bots()
+    with contextlib.closing(db()) as con:
+        queued = dict(con.execute("select recipient_agent_id, count(*) from projection_deliveries "
+                                  "where status = 'queued' group by 1"))
+        team = agents(con)
+    holds = state.get('holds', {})
+
+    def load(slug):
+        mine = cards.get(slug, [])
+        doing = sum(c['status'] == 'doing' for c in mine)
+        waiting = sum(queued.get(a, 0) for a in ids.get(slug, []))
+        old = any(c['status'] == 'todo' and now - ts(c['updatedAt']) > WAIT_S for c in mine)  # a move resets it: no ping-pong
+        return doing, waiting, old, doing > MAX_DOING or waiting >= MAX_QUEUED or old
+
+    def usable(slug):  # an agent that exists and whose account is not capped
+        return next((a for a in ids.get(slug, []) if a in team and holds.get(
+            team[a].get('providerAccountId') or DEFAULT_ACCOUNT, 0) <= now), None)
+
+    for slug, backups in BACKUPS.items():
+        doing, waiting, old, over = load(slug)
+        if not over or slug in moves or not cards.get(slug):
+            continue
+        reason = '%d Doing, %d queued%s' % (doing, waiting, ', a Todo untouched for 2 hours' if old else '')
+        to = next((b for b in backups  # still lighter than the source after it takes the card, so nothing cascades
+                   if usable(b) and not load(b)[3] and (not load(b)[0] or load(b)[0] + 1 < doing)), None)
+        if to is None:
+            found['balance:%s:none' % slug] = (URGENT, 'Load balancer: %s is overloaded (%s) and no backup is free.'
+                                               % (NAMES[slug], reason))
+            continue
+        card = min(cards[slug], key=lambda c: c.get('createdAt', ''))
+        key = 'balance:%s:%s' % (usable(to), card['id'])
+        text = 'Card moved to you from %s, who is overloaded (%s). continue %s' % (NAMES[slug], reason, card['title'])
+        if not state.get('dry'):
+            dash('task-update', card['id'], '--owner', to)
+            dash('comment', card['id'], 'Moved from %s to %s: overloaded (%s).' % (NAMES[slug], NAMES[to], reason))
+            moves[slug] = {'at': now, 'key': key, 'to': usable(to), 'text': text}
+            seen.pop(key, None)
+        cards[slug].remove(card)
+        cards.setdefault(to, []).append(card)
+        found[key] = (usable(to), text)
+    return found
 
 
 _pipe = {}
@@ -587,7 +652,7 @@ def check_disk(now, state):
 
 # aroll runs before idle: idle skips a bot that aroll just woke, and a "start <Todo>" nudge must not block the a-roll wake
 CHECKS = [('disk', check_disk), ('turns', check_turns), ('qc', check_qc), ('limits', check_limits),
-          ('aroll', check_aroll), ('idle', check_idle), ('ports', check_ports), ('packs', check_packs)]  # slowest last
+          ('aroll', check_aroll), ('balance', check_balance), ('idle', check_idle), ('ports', check_ports), ('packs', check_packs)]  # slowest last
 try:  # Emma's stall checks (heartbeats, disk_early, money, sites, tokens) live in the tools folder, not this repo
     import stall_gates
     CHECKS += stall_gates.CHECKS
@@ -696,6 +761,7 @@ def load():
 def run(dry=False):
     now = time.time()
     state = load()
+    state['dry'] = dry  # checks that change the dashboard read it
     failed, live = 0, set()
     for name, check in CHECKS:
         try:
