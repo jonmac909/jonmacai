@@ -1135,6 +1135,65 @@ class Idle(Base):
         self.card('Second job', 0)
         self.assertEqual([(LUCY, 'continue Second job')], self.wakes())
 
+    def test_waiting_external_card_is_not_nudged(self):
+        self.cards[0]['note'] = 'What happened\n- Sent Nov 4.\nWaiting external\nNext\n- Watch partners@'
+        self.assertEqual([], self.wakes())
+
+    def test_waiting_external_until_a_date_is_nudged_after_it(self):
+        self.cards[0]['note'] = 'Waiting external until 2026-11-01'  # T0 is Nov 1 12:00 UTC: still waiting
+        self.assertEqual([], self.wakes())
+        self.cards[0]['note'] = 'waiting_external until 2026-10-31'
+        self.assertEqual(1, len(self.wakes()))
+
+    def test_other_doing_card_is_nudged_when_the_newest_waits(self):
+        self.card('Real work', 60)
+        self.cards[0]['note'] = 'Waiting external'
+        self.assertEqual([(LUCY, 'continue Real work')], self.wakes())
+
+    def test_bad_date_counts_as_waiting(self):
+        self.cards[0]['note'] = 'Waiting external until 2026-13-45'
+        self.assertEqual([], self.wakes())
+
+    def test_year_9999_date_counts_as_waiting_and_does_not_crash(self):
+        self.cards[0]['note'] = 'Waiting external until 9999-12-31'
+        self.assertEqual([], self.run_guard())
+
+    def test_until_date_ends_at_the_end_of_that_day_in_kelowna(self):
+        self.cards[0]['note'] = 'Waiting external until 2026-11-01'  # Kelowna is UTC-7: the day ends Nov 2 07:00 UTC
+        self.t = tg.ts('2026-11-02T06:30:00.000Z')
+        self.assertEqual([], self.wakes())
+        self.t = tg.ts('2026-11-02T07:30:00.000Z')
+        self.assertEqual(1, len(self.wakes()))
+
+    def test_waiting_doing_card_with_a_todo_starts_the_todo(self):
+        self.cards[0]['note'] = 'Waiting external'
+        self.cards.append({'id': 't-todo', 'owner': 'developer', 'title': 'Todo job', 'status': 'todo',
+                           'updatedAt': ago(1), 'createdAt': ago(500)})
+        self.assertEqual([(LUCY, 'start Todo job')], self.wakes())
+
+    def test_a_start_nudge_waits_30_minutes_then_repeats(self):
+        self.cards[:] = [{'id': 't-todo', 'owner': 'developer', 'title': 'Todo job', 'status': 'todo',
+                          'updatedAt': ago(1), 'createdAt': ago(500)}]
+        counts = [len(self.wakes()) for _ in range(4)]
+        self.assertEqual([1, 0, 0, 1], counts)
+
+    def test_bot_with_only_todo_cards_starts_its_oldest(self):
+        self.cards.clear()
+        for title, created in (('Newer todo', 5), ('Oldest todo', 90), ('Middle todo', 30)):
+            self.cards.append({'id': 't-' + title[:3], 'owner': 'developer', 'title': title, 'status': 'todo',
+                               'updatedAt': ago(1), 'createdAt': ago(created)})
+        self.assertEqual([(LUCY, 'start Oldest todo')], self.wakes())
+
+    def test_doing_card_beats_todo(self):
+        self.cards.append({'id': 't-todo', 'owner': 'developer', 'title': 'Todo job', 'status': 'todo',
+                           'updatedAt': ago(1), 'createdAt': ago(500)})
+        self.assertEqual([(LUCY, 'continue Fix the thing')], self.wakes())
+
+    def test_waiting_external_todo_is_not_started(self):
+        self.cards[:] = [{'id': 't-w', 'owner': 'developer', 'title': 'Sponsor wait', 'status': 'todo', 'updatedAt': ago(1),
+                          'createdAt': ago(9), 'note': 'Waiting external until 2026-12-01'}]
+        self.assertEqual([], self.wakes())
+
     def test_shared_slug_wakes_one_bot(self):
         self.agent('agent-jess', 'Jessica')
         self.slugs['developer'] = [LUCY, 'agent-jess']
@@ -1225,6 +1284,13 @@ class ARoll(Base):
         counts = [len(self.wakes()) for _ in range(4)]
         self.assertEqual([1, 0, 0, 1], counts)
 
+    def test_a_todo_card_does_not_block_the_aroll_wake(self):
+        self.cards.append({'id': 't-todo', 'owner': 'home-guide-press', 'title': 'Thumbnail for X', 'status': 'todo',
+                           'updatedAt': ago(1), 'createdAt': ago(500)})
+        [(agent, text)] = self.wakes()
+        self.assertEqual(tg.ELLE, agent)
+        self.assertIn('Old script - Rosa', text)
+
     def test_a_bot_woken_by_another_check_waits_30_minutes(self):
         self.state_seen('idle:%s:t-x' % tg.ELLE, 5)
         self.assertEqual([], self.wakes())
@@ -1278,7 +1344,7 @@ class StallGatesHookIn(unittest.TestCase):
         with mock.patch.dict(sys.modules, {'stall_gates': None}):  # None makes the import raise ImportError
             importlib.reload(tg)
         names = [n for n, _ in tg.CHECKS]
-        self.assertEqual(names, ['disk', 'turns', 'qc', 'limits', 'idle', 'aroll', 'ports', 'packs'])
+        self.assertEqual(names, ['disk', 'turns', 'qc', 'limits', 'aroll', 'idle', 'ports', 'packs'])
 
     def test_installed_stall_gates_checks_are_added_with_unique_names(self):
         fake = types.ModuleType('stall_gates')
