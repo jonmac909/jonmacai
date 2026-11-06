@@ -836,3 +836,12 @@ body:has(.cardmodal[open]){overflow:hidden} /* the page behind stays put */
 .pdhabit{display:flex;align-items:center;gap:.7rem;min-height:2.4rem;cursor:pointer}
 .pdhabit input{width:1.3rem;height:1.3rem;flex:none}
 .pdhabit input:checked+span{color:var(--muted);text-decoration:line-through}
+.sbsrow{margin-bottom:.9rem}
+.sbspair{display:grid;grid-template-columns:1fr;gap:.9rem}
+@media (min-width:900px){.sbspair{grid-template-columns:1fr 1fr}}
+.sbscol{min-width:0}
+.sbscol h3{margin:0 0 .2rem;font-size:.95rem}
+.sbslink{margin:0 0 .15rem;overflow-wrap:anywhere}
+.sbsshot{display:block;margin-top:.5rem;max-height:34rem;overflow-y:auto;border:1px solid var(--line,#8884);border-radius:.5rem}
+.sbsshot img{display:block;width:100%;height:auto}
+.sbsnone{padding:1rem;color:var(--muted)}
