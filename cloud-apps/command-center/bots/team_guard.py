@@ -479,6 +479,9 @@ def woke_lately(seen, agent, now, names=WAKES):
 def check_balance(now, state):
     """Move an overloaded bot's oldest card to a backup that is lighter. One move per bot per 30 minutes; --dry-run moves nothing."""
     seen, moves, found = state['seen'], state.setdefault('moves', {}), {}
+    moved = state.setdefault('moved', {})  # card id -> when this check moved it: its age restarts, so it can't bounce back
+    for card_id in [i for i, at in moved.items() if now - at > 2 * WAIT_S]:
+        del moved[card_id]
     for slug, m in list(moves.items()):
         if now - m['at'] < NUDGE_EVERY_S:
             found[m['key']] = (m['to'], m['text'])  # the card already moved: a failed wake retries, a sent one stays marked
@@ -500,20 +503,23 @@ def check_balance(now, state):
         mine = cards.get(slug, [])
         doing = sum(c['status'] == 'doing' for c in mine)
         waiting = sum(queued.get(a, 0) for a in ids.get(slug, []))
-        old = any(c['status'] == 'todo' and now - ts(c['updatedAt']) > WAIT_S for c in mine)  # a move resets it: no ping-pong
+        old = any(c['status'] == 'todo' and c['id'] not in moved and now - ts(c['updatedAt']) > WAIT_S for c in mine)
         return doing, waiting, old, doing > MAX_DOING or waiting >= MAX_QUEUED or old
 
-    def usable(slug):  # an agent that exists and whose account is not capped
-        return next((a for a in ids.get(slug, []) if a in team and holds.get(
+    def usable(slug):  # an agent that exists, is not capped and was not woken by any guard check in the last 30 minutes
+        return next((a for a in ids.get(slug, []) if a in team and not woke_lately(seen, a, now) and holds.get(
             team[a].get('providerAccountId') or DEFAULT_ACCOUNT, 0) <= now), None)
+
+    def room(slug, doing):  # takes one more card and one more message, is still not overloaded, and stays lighter than the source
+        d, w, _, over = load(slug)
+        return usable(slug) and not over and (not d or (d + 1 <= MAX_DOING and d + 2 < doing)) and w + 1 < MAX_QUEUED
 
     for slug, backups in BACKUPS.items():
         doing, waiting, old, over = load(slug)
         if not over or slug in moves or not cards.get(slug):
             continue
         reason = '%d Doing, %d queued%s' % (doing, waiting, ', a Todo untouched for 2 hours' if old else '')
-        to = next((b for b in backups  # still lighter than the source after it takes the card, so nothing cascades
-                   if usable(b) and not load(b)[3] and (not load(b)[0] or load(b)[0] + 1 < doing)), None)
+        to = next((b for b in backups if room(b, doing)), None)
         if to is None:
             found['balance:%s:none' % slug] = (URGENT, 'Load balancer: %s is overloaded (%s) and no backup is free.'
                                                % (NAMES[slug], reason))
@@ -523,9 +529,10 @@ def check_balance(now, state):
         text = 'Card moved to you from %s, who is overloaded (%s). continue %s' % (NAMES[slug], reason, card['title'])
         if not state.get('dry'):
             dash('task-update', card['id'], '--owner', to)
-            dash('comment', card['id'], 'Moved from %s to %s: overloaded (%s).' % (NAMES[slug], NAMES[to], reason))
-            moves[slug] = {'at': now, 'key': key, 'to': usable(to), 'text': text}
+            moves[slug], moved[card['id']] = {'at': now, 'key': key, 'to': usable(to), 'text': text}, now  # before anything can fail
             seen.pop(key, None)
+            with contextlib.suppress(Exception):  # the comment is a courtesy: the card has moved and the wake must go out
+                dash('comment', card['id'], 'Moved from %s to %s: overloaded (%s).' % (NAMES[slug], NAMES[to], reason))
         cards[slug].remove(card)
         cards.setdefault(to, []).append(dict(card, updatedAt=iso(now)))  # the move resets its age: it must not cascade on
         found[key] = (usable(to), text)

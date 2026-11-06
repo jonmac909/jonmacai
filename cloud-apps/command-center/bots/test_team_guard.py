@@ -1359,6 +1359,11 @@ class Balance(Base):
     def moved(self):
         return [s[1:] for s in self.sent if s[0] == 'move']
 
+    def state_seen(self, key, minutes):
+        state = tg.load()
+        state['seen'][key] = tg.iso(self.t - minutes * 60)
+        tg.save(state)
+
     def wakes(self, text=''):
         return [s[1:] for s in self.run_guard() if s[0] == 'wake' and text in s[2]]
 
@@ -1436,6 +1441,41 @@ class Balance(Base):
         self.assertEqual(1, len(self.moved()))
         self.assertEqual(1, len(self.wakes('overloaded')))
         self.assertEqual(1, len(self.moved()))
+
+    def test_a_backup_that_would_become_overloaded_is_skipped(self):
+        first = self.cards_for('developer', 5)[0]
+        self.cards_for('moneyclaw', 3)
+        self.assertEqual(1, len(self.wakes('overloaded')))
+        self.assertEqual([(first['id'], 'historient')], self.moved())  # Mila would have 4 and pass it on
+
+    def test_a_backup_with_queued_messages_is_skipped(self):
+        self.cards_for('developer', 4)
+        self.queue(self.MILA), self.queue(self.MILA)  # one more wake makes 3
+        self.wakes()
+        self.assertEqual('historient', self.moved()[0][1])
+
+    def test_a_backup_woken_by_another_check_lately_is_skipped(self):
+        self.cards_for('developer', 4)
+        self.state_seen('aroll:%s:t-x' % self.MILA, 5)
+        self.assertEqual([self.EMMA], [w[0] for w in self.wakes('overloaded')])
+
+    def test_a_failed_comment_still_locks_the_move_and_wakes(self):
+        self.cards_for('developer', 6)
+
+        def flaky(*args):
+            if args[0] == 'comment':
+                raise RuntimeError('down')
+            return self.fake_dash(*args)
+        with mock.patch.object(tg, 'dash', flaky):
+            self.assertEqual(1, len(self.wakes('overloaded')))
+            self.wakes(), self.wakes()  # +10, +20
+        self.assertEqual(1, len(self.moved()))
+
+    def test_a_moved_todo_does_not_bounce_on(self):
+        self.card('developer', 'todo', age=300, touched=300)
+        for _ in range(8):  # the fake dashboard never refreshes updatedAt, the real one does
+            self.wakes()
+        self.assertEqual([('t1', 'moneyclaw')], self.moved())
 
     def test_the_new_owner_gets_one_wake_not_two(self):
         self.cards_for('developer', 4)
