@@ -42,6 +42,7 @@ REAL_DISK_FREE, REAL_STATE, REAL_LOG = tg.disk_free_gb, tg.STATE, tg.LOG
 
 
 _REAL_PACK_ORDER, _REAL_PACK_NAME, _REAL_TOPIC_CARDS, _ALL_CHECKS = tg.pack_order, tg.pack_name, tg.topic_cards, list(tg.CHECKS)
+_REAL_GPU1_IDLE_MIN = tg.gpu1_idle_min
 
 
 class Base(unittest.TestCase):
@@ -57,6 +58,7 @@ class Base(unittest.TestCase):
         self.slugs = {'developer': [LUCY], 'ana': [tg.ANA]}
         self.disk_free = 500
         self.pipe, self.topics, self.order = [], [], []
+        self.gpu_idle = None  # minutes GPU1's queue has been empty; None is busy
         (self.root / 'edits').mkdir()
         (self.root / 'accounts').mkdir()
         self.db = sqlite3.connect(self.root / 'o.db', isolation_level=None)
@@ -72,10 +74,10 @@ class Base(unittest.TestCase):
                 (tg, 'LOG', self.root / 'guard.log'), (tg, 'ACCOUNTS', self.root / 'accounts'),
                 (tg, 'DEFAULT_PROJECTS', self.root / 'default'), (tg, 'EDITS', self.root / 'edits'),
                 (tg, 'bots', lambda: self.slugs), (tg, 'pipeline_cards', lambda now: self.pipe), (tg, 'topic_cards', lambda now: self.topics),
-                (tg, 'CHECKS', [c for c in _ALL_CHECKS if c[0] != 'buffer']),  # only the Buffers tests run this check
+                (tg, 'CHECKS', [c for c in _ALL_CHECKS if c[0] not in ('buffer', 'gpu')]),  # only the Buffers and GpuGap tests run these
                 (tg, 'pack_order', lambda: self.order), (tg, 'pack_name', lambda card: card.get('pack') or ''), (tg, 'dash', self.fake_dash), (tg, 'preflight', lambda d: self.pass_codes.get(d.name, 0)),
                 (tg, 'render_running', lambda: self.render), (tg, 'restart_openbot', self.fake_restart),
-                (tg, 'gpu2_ports_line', lambda: self.ports_line), (tg, 'disk_free_gb', lambda: self.disk_free),
+                (tg, 'gpu2_ports_line', lambda: self.ports_line), (tg, 'gpu1_idle_min', lambda now: self.gpu_idle), (tg, 'disk_free_gb', lambda: self.disk_free),
                 (hook, 'fire', self.fake_fire), (tg.time, 'time', lambda: self.t)]:
             patcher = mock.patch.object(target, name, value)
             patcher.start()
@@ -1827,6 +1829,175 @@ class Buffers(Base):
                 self.assertEqual([], tg.pack_order())
 
 
+class GpuGap(Base):
+    """GPU1 idle (gpu1_idle_min faked) while a pack has its a-roll and no clips. Buffers are full so only this check can wake."""
+    card, wakes = Buffers.card, Buffers.wakes
+
+    def setUp(self):
+        super().setUp()
+        self.agent(tg.ELLE, 'Elle')
+        self.agent(tg.SCARLETT, 'Scarlett')
+        self.slugs.update({'home-guide-press': [tg.ELLE], 'viral-view': [tg.SCARLETT]})
+        patcher = mock.patch.object(tg, 'CHECKS', _ALL_CHECKS)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        for i in range(tg.SCRIPTS_MIN):
+            self.card(2, 600, 'Passed %d - Rosa' % i, 'jon-mac-youtube')
+        for i in range(tg.PACKS_MIN):
+            self.card(5, 600, 'Ready %d - Rosa' % i)
+        self.gpu_idle = 25
+
+    def test_idle_gpu_wakes_the_owner_of_a_pack_with_no_clips(self):
+        self.card(3, 5, 'Waiting clips - Rosa')
+        [(agent, text)] = self.wakes()
+        self.assertEqual(tg.ELLE, agent)
+        self.assertIn('25 minutes', text)
+        self.assertIn('Waiting clips - Rosa', text)
+
+    def test_a_pack_with_clips_building_counts_too(self):
+        self.card(4, 5, 'Stuck clips - Rosa')
+        self.assertEqual(tg.ELLE, self.wakes()[0][0])
+
+    def test_busy_gpu_wakes_nobody(self):
+        self.card(3, 5, 'Waiting clips - Rosa')
+        self.gpu_idle = None
+        self.assertEqual([], self.run_guard())  # nothing at all: a crash would be reported too
+
+    def test_idle_under_ten_minutes_wakes_nobody(self):
+        self.card(3, 5, 'Waiting clips - Rosa')
+        self.gpu_idle = 9
+        self.assertEqual([], self.wakes())
+        self.gpu_idle = 10
+        self.assertEqual(1, len(self.wakes()))
+
+    def test_no_pack_waiting_for_clips_wakes_nobody(self):
+        self.card(6, 5, 'In the edit - Rosa')
+        self.assertEqual([], self.wakes())
+
+    def test_first_pack_in_jons_order_goes_first_across_owners(self):
+        self.order = ['peter-3']
+        self.card(3, 5, 'Older pack - Rosa', pack='rosa-house')
+        self.card(3, 5, 'First in order - Viral', 'viral-view', pack='Peter-3')
+        [(agent, _)] = self.wakes()  # one pack for the one empty GPU
+        self.assertEqual(tg.SCARLETT, agent)
+
+    def test_a_busy_owner_is_skipped_for_the_next_pack(self):
+        self.order = ['peter-3', 'rosa-house']
+        self.card(3, 5, 'First in order - Viral', 'viral-view', pack='Peter-3')
+        self.card(3, 5, 'Second - Rosa', pack='rosa-house')
+        self.turn(tg.SCARLETT, 'u1', 5, last=1)
+        [(agent, text)] = self.wakes()
+        self.assertEqual(tg.ELLE, agent)
+        self.assertIn('Second - Rosa', text)
+
+    def test_doing_held_and_waiting_external_cards_are_skipped(self):
+        self.card(3, 5, 'Doing - Rosa', status='doing')
+        self.card(3, 5, 'In QC - Rosa', status='qc')
+        self.card(3, 5, 'Sponsor wait - Rosa', note='Waiting external until 2026-12-31')
+        self.card(3, 5, 'Not hers - Sydney', 'jon-mac-youtube')
+        self.assertEqual([], self.wakes())
+
+    def test_one_wake_per_card_not_every_tick(self):
+        self.card(3, 5, 'Waiting clips - Rosa')
+        self.assertEqual(1, len(self.wakes()))
+        self.assertEqual([], self.wakes())
+
+    def test_a_bot_already_woken_by_another_check_is_not_woken_again(self):
+        self.drop(5, 1)  # the pack buffer is low: the Buffers check wakes Elle first
+        self.card(3, 5, 'Waiting clips - Rosa')
+        [(agent, text)] = self.wakes()
+        self.assertEqual(tg.ELLE, agent)
+        self.assertIn('Pack buffer is', text)
+
+    drop = Buffers.drop
+
+
+class RealGpu1IdleMin(Base):
+    """The queue log is read for real from a temp file. T0 is 05:00 Kelowna time on 11-01."""
+
+    def log(self, *lines, cut=''):
+        path = self.root / 'gpuq.log'
+        path.write_text(cut + '\n'.join(lines) + '\n', encoding='utf-8')
+        patcher = mock.patch.object(tg, 'GPU_LOG', path)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def idle(self):
+        return _REAL_GPU1_IDLE_MIN(self.t)
+
+    def test_empty_queue_counts_minutes_since_the_last_job_ended(self):
+        self.log('11-01 04:00:00 job aaaaaaaaaaaa waiting: h3 (clipmaker) x', '11-01 04:00:05 job aaaaaaaaaaaa running: h3 (clipmaker); card 0 MB',
+                 '11-01 04:30:00 job aaaaaaaaaaaa done: h3 (clipmaker) after 1800s')
+        self.assertEqual(30, self.idle())
+
+    def test_a_running_or_waiting_job_means_busy(self):
+        self.log('11-01 04:30:00 job aaaaaaaaaaaa done: h3 (clipmaker) after 1s', '11-01 04:40:00 job bbbbbbbbbbbb waiting: h3 (clipmaker) x')
+        self.assertIsNone(self.idle())
+        self.log('11-01 04:31:00 job bbbbbbbbbbbb running: h3 (clipmaker); card 0 MB')
+        self.assertIsNone(self.idle())
+        self.log('11-01 04:30:00 job aaaaaaaaaaaa done: h3 (clipmaker) after 1s', '11-01 04:32:00 job cccccccccccc rejoined: qwen (elle)')
+        self.assertIsNone(self.idle())
+
+    def test_a_waiting_job_that_never_ran_stops_counting_after_25_minutes(self):
+        self.log('11-01 04:30:00 job aaaaaaaaaaaa done: h3 (clipmaker) after 1s', '11-01 04:36:00 job bbbbbbbbbbbb waiting: h3 (clipmaker) x')
+        self.assertIsNone(self.idle())  # 24 minutes old: still counts
+        self.t += 60
+        self.assertEqual(31, self.idle())  # 25 minutes old: abandoned; idle since the last job ended
+
+    def test_a_waiting_job_dropped_before_it_ran_is_over(self):
+        self.log('11-01 04:50:00 job aaaaaaaaaaaa waiting: h3 (clipmaker) x', '11-01 04:52:00 job aaaaaaaaaaaa (h3, clipmaker) stopped checking in; dropped')
+        self.assertEqual(8, self.idle())
+
+    def test_a_job_that_ran_after_waiting_is_not_still_waiting(self):
+        self.log('11-01 04:00:00 job aaaaaaaaaaaa waiting: h3 (clipmaker) x', '11-01 04:01:00 job aaaaaaaaaaaa running: h3 (clipmaker); card 0 MB',
+                 '11-01 04:50:00 job aaaaaaaaaaaa done: h3 (clipmaker) after 540s')
+        self.assertEqual(10, self.idle())
+
+    def test_jobs_with_no_end_line_do_not_hold_the_queue_busy(self):
+        # as in the real log: jobs lost to a restart or abandoned by their client are never ended
+        self.log('11-01 03:00:00 job aaaaaaaaaaaa running: h3 (clipmaker); card 0 MB', '11-01 03:10:00 job bbbbbbbbbbbb waiting: h3 (clipmaker) x',
+                 '11-01 03:20:00 queue start: card with nobody; autoaigen first=True; turn 20 min', '11-01 04:00:00 job cccccccccccc waiting: h3 (clipmaker) x',
+                 '11-01 04:01:00 job cccccccccccc running: h3 (clipmaker); card 0 MB', '11-01 04:20:00 job cccccccccccc done: h3 (clipmaker) after 1140s')
+        self.assertEqual(40, self.idle())
+
+    def test_a_restart_ends_every_job_and_counts_as_the_last_activity(self):
+        self.log('11-01 03:00:00 job aaaaaaaaaaaa running: h3 (clipmaker); card 0 MB', '11-01 04:20:00 queue start: card with nobody')
+        self.assertEqual(40, self.idle())
+
+    def test_only_the_end_of_the_log_is_read(self):
+        old = '11-01 01:00:00 job aaaaaaaaaaaa running: h3 (clipmaker); card 0 MB\n'  # a running job from before the window
+        self.log('11-01 04:30:00 job bbbbbbbbbbbb done: h3 (clipmaker) after 1s', cut=old + 'x' * 100 + '\n')
+        with mock.patch.object(tg, 'GPU_LOG_TAIL', 80):
+            self.assertEqual(30, self.idle())
+        self.assertIsNone(self.idle())  # the whole log: the old job is still running
+
+    def test_a_job_dropped_after_it_stopped_checking_in_is_over(self):
+        self.log('11-01 03:00:00 job aaaaaaaaaaaa running: qwen (short-form); card 0 MB',
+                 '11-01 03:50:00 job aaaaaaaaaaaa (qwen, short-form) stopped checking in; dropped')
+        self.assertEqual(70, self.idle())
+
+    def test_done_of_one_job_does_not_end_another(self):
+        self.log('11-01 04:00:00 job aaaaaaaaaaaa running: h3 (clipmaker); card 0 MB', '11-01 04:10:00 job bbbbbbbbbbbb running: qwen (elle); card 0 MB',
+                 '11-01 04:20:00 job bbbbbbbbbbbb done: qwen (elle) after 600s')
+        self.assertIsNone(self.idle())
+
+    def test_other_lines_and_a_cut_first_line_are_ignored(self):
+        self.log('11-01 04:20:00 teamcheck: job bbbbbbbbbbbb done: x', '11-01 04:40:00 job aaaaaaaaaaaa done: h3 (clipmaker) after 1s',
+                 cut='11-01 03:00:00 job zzzzzzzzzzzz run\n')
+        self.assertEqual(20, self.idle())
+
+    def test_no_events_or_no_log_is_unknown(self):
+        self.log('11-01 04:10:00 watchdog: GPU1 fine')
+        self.assertIsNone(self.idle())
+        with mock.patch.object(tg, 'GPU_LOG', self.root / 'missing.log'):
+            self.assertIsNone(self.idle())
+
+    def test_a_december_entry_read_in_january_is_last_year(self):
+        self.t = tg.ts('2027-01-01T09:00:00.000Z')  # 02:00 Kelowna time
+        self.log('12-31 23:00:00 job aaaaaaaaaaaa done: h3 (clipmaker) after 1s')
+        self.assertEqual(180, self.idle())
+
+
 class PipelineCards(unittest.TestCase):
     def test_cards_already_on_youtube_are_not_in_the_buffer(self):
         import re
@@ -1861,7 +2032,7 @@ class StallGatesHookIn(unittest.TestCase):
         with mock.patch.dict(sys.modules, {'stall_gates': None}):  # None makes the import raise ImportError
             importlib.reload(tg)
         names = [n for n, _ in tg.CHECKS]
-        self.assertEqual(names, ['disk', 'turns', 'qc', 'limits', 'aroll', 'buffer', 'next', 'balance', 'idle', 'ports', 'packs'])
+        self.assertEqual(names, ['disk', 'turns', 'qc', 'limits', 'aroll', 'buffer', 'gpu', 'next', 'balance', 'idle', 'ports', 'packs'])
 
     def test_installed_stall_gates_checks_are_added_with_unique_names(self):
         fake = types.ModuleType('stall_gates')
