@@ -51,6 +51,7 @@ class Base(unittest.TestCase):
         self.ports_line = ''
         self.slugs = {'developer': [LUCY], 'ana': [tg.ANA]}
         self.disk_free = 500
+        self.pipe = []
         (self.root / 'edits').mkdir()
         (self.root / 'accounts').mkdir()
         self.db = sqlite3.connect(self.root / 'o.db', isolation_level=None)
@@ -65,7 +66,7 @@ class Base(unittest.TestCase):
                 (tg, 'DB', self.root / 'o.db'), (tg, 'STATE', self.root / 'state.json'),
                 (tg, 'LOG', self.root / 'guard.log'), (tg, 'ACCOUNTS', self.root / 'accounts'),
                 (tg, 'DEFAULT_PROJECTS', self.root / 'default'), (tg, 'EDITS', self.root / 'edits'),
-                (tg, 'bots', lambda: self.slugs), (tg, 'dash', self.fake_dash), (tg, 'preflight', lambda d: self.pass_codes.get(d.name, 0)),
+                (tg, 'bots', lambda: self.slugs), (tg, 'pipeline_cards', lambda now: self.pipe), (tg, 'dash', self.fake_dash), (tg, 'preflight', lambda d: self.pass_codes.get(d.name, 0)),
                 (tg, 'render_running', lambda: self.render), (tg, 'restart_openbot', self.fake_restart),
                 (tg, 'gpu2_ports_line', lambda: self.ports_line), (tg, 'disk_free_gb', lambda: self.disk_free),
                 (hook, 'fire', self.fake_fire), (tg.time, 'time', lambda: self.t)]:
@@ -1161,6 +1162,114 @@ class Idle(Base):
         self.assertEqual([], self.wakes())
 
 
+class ARoll(Base):
+    """pipeline_cards is faked as [(stage, entry time, card)]: 2 script passed, 3-5 a-roll made and not yet with the editor."""
+    def setUp(self):
+        super().setUp()
+        self.agent(tg.ELLE, 'Elle')
+        self.agent(tg.SCARLETT, 'Scarlett')
+        self.slugs.update({'home-guide-press': [tg.ELLE], 'viral-view': [tg.SCARLETT], 'qc': ['agent-q']})
+        self.script('Old script - Rosa', 600)
+        self.script('New script - Rosa', 100)
+
+    def script(self, title, minutes, owner='home-guide-press', stage=2):
+        self.pipe.append((stage, self.t - minutes * 60, {'id': 't-' + title[:3], 'owner': owner, 'title': title}))
+
+    def wakes(self):
+        return [s[1:] for s in self.run_guard() if s[0] == 'wake']
+
+    def test_low_buffer_wakes_the_owner_of_the_oldest_passed_script(self):
+        [(agent, text)] = self.wakes()
+        self.assertEqual(tg.ELLE, agent)
+        self.assertIn('Old script - Rosa', text)
+        self.assertIn('0 of 3', text)
+        self.assertIn('do not submit it again', text)
+
+    def test_buffer_counts_a_rolls_clips_and_preflight_passed(self):
+        for stage in (3, 4, 5):
+            self.script('Rendered %d - Rosa' % stage, 50, stage=stage)
+        self.assertEqual([], self.wakes())
+
+    def test_two_a_rolls_still_wake(self):
+        self.script('A - Rosa', 50, stage=3)
+        self.script('B - Rosa', 50, stage=5)
+        self.assertIn('2 of 3', self.wakes()[0][1])
+
+    def test_no_passed_script_nothing_to_wake_for(self):
+        self.pipe.clear()
+        self.assertEqual([], self.wakes())
+
+    def test_scarlett_owns_her_scripts(self):
+        self.pipe.clear()
+        self.script('Her script - Viral', 90, owner='viral-view')
+        self.assertEqual(tg.SCARLETT, self.wakes()[0][0])
+
+    def test_other_owners_are_skipped_for_the_next_oldest(self):
+        self.pipe.insert(0, (2, self.t - 9000 * 60, {'id': 't-qc', 'owner': 'qc', 'title': 'QC card - Rosa'}))
+        [(agent, text)] = self.wakes()
+        self.assertIn('Old script - Rosa', text)
+
+    def test_busy_owner_is_not_woken_for_a_card_of_her_own(self):
+        self.turn(tg.ELLE, 'u1', 5, last=1)
+        self.assertEqual([], self.wakes())
+
+    def test_queued_owner_is_not_woken(self):
+        self.queue(tg.ELLE)
+        self.assertEqual([], self.wakes())
+
+    def test_capped_owner_is_not_woken(self):
+        self.transcript('team', tg.ELLE, self.refused())
+        self.assertEqual([], self.wakes())
+
+    def test_one_wake_per_card_per_30_minutes_then_again(self):
+        counts = [len(self.wakes()) for _ in range(4)]
+        self.assertEqual([1, 0, 0, 1], counts)
+
+    def test_a_bot_woken_by_another_check_waits_30_minutes(self):
+        self.state_seen('idle:%s:t-x' % tg.ELLE, 5)
+        self.assertEqual([], self.wakes())
+
+    def state_seen(self, key, minutes):
+        state = tg.load()
+        state['seen'][key] = tg.iso(self.t - minutes * 60)
+        tg.save(state)
+
+    def test_a_bot_whose_turn_ended_5_minutes_ago_waits(self):
+        self.db.execute('insert into projection_threads values (?, ?)', ('th-d', tg.ELLE))
+        self.db.execute("insert into projection_turns values ('d', 'th-d', 'completed', ?, ?)", (ago(9), ago(5)))
+        self.assertEqual([], self.wakes())
+
+    def test_idle_nudge_skips_a_bot_the_aroll_check_woke_lately(self):
+        self.pipe.clear()
+        self.cards.append({'id': 't-doing', 'owner': 'home-guide-press', 'title': 'Her doing card', 'status': 'doing',
+                           'updatedAt': ago(1)})
+        self.assertEqual(1, len(self.wakes()))  # no aroll wake yet: idle nudges her
+        self.state_seen('aroll:%s:t-old' % tg.ELLE, 5)
+        self.state_seen('idle:%s:t-doing' % tg.ELLE, 99)  # long expired
+        self.assertEqual([], self.wakes())
+
+    def test_next_run_after_30_minutes_wakes_the_next_card(self):
+        self.assertEqual(1, len(self.wakes()))
+        self.pipe[:] = [c for c in self.pipe if c[2]['title'] != 'Old script - Rosa']  # her a-roll was started
+        self.pipe.append((4, self.t, {'id': 't-old', 'owner': 'home-guide-press', 'title': 'Old script - Rosa'}))
+        self.wakes(), self.wakes()  # +10, +20
+        [(agent, text)] = self.wakes()  # +30
+        self.assertIn('New script - Rosa', text)
+
+
+class PipelineCards(unittest.TestCase):
+    def test_cards_already_on_youtube_are_not_in_the_buffer(self):
+        import re
+        live, plain = {'id': 'a', 'proofs': [{'link': 'https://youtu.be/x'}]}, {'id': 'b', 'proofs': []}
+        fake = types.SimpleNamespace(
+            load=lambda titles: [live, plain], live_titles=lambda: set(), LIVE=re.compile('youtu'),
+            links=lambda c: [p['link'] for p in c['proofs']], classify=lambda c: (4, 1.0))
+        tg._pipe.clear()
+        with mock.patch.dict(sys.modules, {'pipeline': fake}):
+            self.assertEqual([(4, 1.0, plain)], tg.pipeline_cards(5.0))
+        tg._pipe.clear()
+
+
 class StallGatesHookIn(unittest.TestCase):
     def setUp(self):
         self.addCleanup(importlib.reload, tg)  # leave the module as the other tests expect
@@ -1169,7 +1278,7 @@ class StallGatesHookIn(unittest.TestCase):
         with mock.patch.dict(sys.modules, {'stall_gates': None}):  # None makes the import raise ImportError
             importlib.reload(tg)
         names = [n for n, _ in tg.CHECKS]
-        self.assertEqual(names, ['disk', 'turns', 'qc', 'limits', 'idle', 'ports', 'packs'])
+        self.assertEqual(names, ['disk', 'turns', 'qc', 'limits', 'idle', 'aroll', 'ports', 'packs'])
 
     def test_installed_stall_gates_checks_are_added_with_unique_names(self):
         fake = types.ModuleType('stall_gates')
