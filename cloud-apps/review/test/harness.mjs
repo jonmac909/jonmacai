@@ -29,7 +29,7 @@ export async function startRuntime({ listen = false, https = true, bindings = SE
     compatibilityDate: "2026-08-01",
     ...(listen ? { host: "127.0.0.1", port: 0, https } : {}),
     bindings,
-    d1Databases: ["DB"],
+    d1Databases: ["DB", "CC_DB"],
     r2Buckets: ["MEDIA"],
     serviceBindings: {
       ASSETS: async (request) => {
@@ -42,5 +42,21 @@ export async function startRuntime({ listen = false, https = true, bindings = SE
   const url = await mf.ready;
   const db = await mf.getD1Database("DB");
   await db.batch(migrationStatements().map((statement) => db.prepare(statement)));
-  return { mf, url: url.origin, db, bucket: await mf.getR2Bucket("MEDIA") };
+  // The dashboard's proof tables, as much of them as the QC gate reads (command-center migrations).
+  const cc = await mf.getD1Database("CC_DB");
+  await cc.batch(["CREATE TABLE bot_tasks (id TEXT PRIMARY KEY, project TEXT)",
+    "CREATE TABLE bot_proofs (id TEXT PRIMARY KEY, task_id TEXT, link TEXT, status TEXT, checked_at TEXT)"].map((s) => cc.prepare(s)));
+  return { mf, url: url.origin, db, cc, bucket: await mf.getR2Bucket("MEDIA") };
+}
+
+// QC checks a proof on a dashboard card: `link` is the review page or media URL, or a bare slug for the page.
+let checks = 0;
+export async function qcCheck(cc, link, status = "passed", project = "youtube") {
+  const n = ++checks;
+  const url = link.startsWith("https://") ? link : `https://jonmac.ai/review/${link}`;
+  await cc.batch([
+    cc.prepare("INSERT INTO bot_tasks (id, project) VALUES (?, ?)").bind(`t_${n}`, project),
+    cc.prepare("INSERT INTO bot_proofs (id, task_id, link, status, checked_at) VALUES (?, ?, ?, ?, ?)")
+      .bind(`p_${n}`, `t_${n}`, url, status, new Date(Date.UTC(2026, 10, 5) + n * 1000).toISOString()),
+  ]);
 }

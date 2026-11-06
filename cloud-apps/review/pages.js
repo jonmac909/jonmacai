@@ -48,18 +48,19 @@ export function renderGate({ next, k, error = "" }) {
 }
 
 // The review list is a to-do list (Jon, 2026-11-01): one row per video, its newest version, gone once approved. The slug
-// stem groups versions: the video key and the channel can differ between them. This only hides rows: direct links, the
-// version nav and /api/review/videos keep every version.
+// stem groups versions: the video key and the channel can differ between them. A newest version QC hasn't passed
+// (`passed`, a Set of slugs) stays off until it does (Jon, 2026-11-05). This only hides rows: direct links and
+// /api/review/videos keep every version.
 const CLEARED_BEFORE = "2026-10-17"; // Jon cleared the Oct 14 to 16 batch off the list
 const stem = (slug) => slug.replace(/-v\d+$/, "");
-export function openVideos(videos) {
+export function openVideos(videos, passed) {
   const newest = new Map();
   for (const v of videos) if (!(newest.get(stem(v.slug))?.created_at >= v.created_at)) newest.set(stem(v.slug), v);
-  return [...newest.values()].filter((v) => v.status !== "approved" && v.created_at >= CLEARED_BEFORE);
+  return [...newest.values()].filter((v) => v.status !== "approved" && v.created_at >= CLEARED_BEFORE && passed?.has(v.slug));
 }
 
-export function renderIndex({ channels, videos }, message = "", prefix = "") {
-  const open = openVideos(videos);
+export function renderIndex({ channels, videos, passed }, message = "", prefix = "") {
+  const open = openVideos(videos, passed);
   const byChannel = new Map(channels.map((c) => [c.slug, { ...c, videos: [] }]));
   for (const v of open) {
     if (!byChannel.has(v.channel)) byChannel.set(v.channel, { slug: v.channel, name: v.channel, videos: [] });
@@ -111,6 +112,7 @@ export function renderVideo(video, versions, channelName, submissions = [], pref
     <h1>${escapeHtml(video.title)} <span class="muted">${escapeHtml(video.version)}</span></h1>
     ${versionLinks}
   </header>
+  ${video.qc_passed === false ? '<p class="error" id="qc-wait">QC has not passed this version yet. It is not on the review list and can\'t be approved.</p>' : ""}
   ${video.source_url ? `<div class="duo" id="duo">
     <figure class="pane"><figcaption>Source <span class="muted" id="source-audio">muted</span></figcaption>
       <video id="source-player" controls playsinline webkit-playsinline muted preload="metadata"

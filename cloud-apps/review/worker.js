@@ -240,6 +240,32 @@ async function listVideos(env) {
 }
 const getVideo = (env, slug) => env.DB.prepare(`${VIDEO_LIST} WHERE v.slug = ?`).bind(slug).first();
 
+// Jon sees a version on his list, and can approve it, only once QC passed a dashboard proof linking to it (Jon, 2026-11-05).
+// CC_DB is the dashboard's D1, read only. A proof holds the review page or the video's media URL; the newest QC check
+// of a version decides. A Coding card citing a page tests the tool, not the video (as linkedTask in videoreview.js).
+// Direct links still open, so QC can check a version first. null means the dashboard could not be read.
+const PROOF = /^https:\/\/jonmac\.ai\/(?:dashboard\/)?review\/(?:media\/([a-z0-9-]+)\/video\.mp4|([a-z0-9-]+))\/?(?:[?#].*)?$/i;
+export const proofSlug = (link) => {
+  const m = PROOF.exec(String(link || ""));
+  return m ? (m[1] || m[2]).toLowerCase() : null;
+};
+async function qcPassed(env) {
+  try {
+    const { results } = await env.CC_DB.prepare(`SELECT p.link, p.status FROM bot_proofs p JOIN bot_tasks t ON t.id = p.task_id
+      WHERE p.status IN ('passed', 'failed') AND p.link LIKE '%/review/%' AND t.project IS NOT 'coding' ORDER BY p.checked_at`).all();
+    const last = new Map(results.map((r) => [proofSlug(r.link), r.status]));
+    return new Set([...last].filter(([slug, status]) => slug && status === "passed").map(([slug]) => slug));
+  } catch (error) {
+    console.error("qc status", error?.message || error);
+    return null;
+  }
+}
+const QC_DOWN = "Could not read QC results from the dashboard, so nothing is listed and Approve is off. Try again in a minute.";
+async function notPassed(env, slug) {
+  const passed = await qcPassed(env);
+  return passed?.has(slug) ? null : fail(409, passed ? "QC has not passed this version yet, so it can't be approved." : QC_DOWN);
+}
+
 async function streamMedia(request, env, key, type) {
   if (!key) return notFound();
   const info = await env.MEDIA.head(key);
@@ -328,15 +354,18 @@ async function pages(request, env, url) {
   // Signed in: drop the share key from the address bar.
   if (url.searchParams.has("k")) return redirect(who.prefix + path);
 
-  if (slug === null) return html(renderIndex(await listVideos(env), "", who.prefix));
+  const passed = await qcPassed(env);
+  const index = async (message) => renderIndex({ ...(await listVideos(env)), passed }, passed ? message : QC_DOWN, who.prefix);
+  if (slug === null) return html(await index(""));
   const row = await getVideo(env, slug);
-  if (!row) return html(renderIndex(await listVideos(env), `No video called “${slug}”.`, who.prefix), 404);
+  if (!row) return html(await index(`No video called “${slug}”.`), 404);
   const versions = await env.DB.prepare(
     "SELECT slug, version, status, created_at FROM videos WHERE channel = ? AND video = ? ORDER BY created_at DESC",
   ).bind(row.channel, row.video).all();
   const channel = await env.DB.prepare("SELECT name FROM channels WHERE slug = ?").bind(row.channel).first();
   const submissions = (await slugSubmissions(env, slug, 10)).results.map((s) => publicSubmission(s, who.prefix));
-  return html(renderVideo(publicVideo(row, who.prefix), versions.results, channel?.name || row.channel, submissions, who.prefix));
+  return html(renderVideo({ ...publicVideo(row, who.prefix), qc_passed: Boolean(passed?.has(slug)) },
+    versions.results.filter((v) => v.slug === slug || passed?.has(v.slug)), channel?.name || row.channel, submissions, who.prefix));
 }
 
 async function api(request, env, url) {
@@ -389,6 +418,8 @@ async function api(request, env, url) {
   if (resource === "status" && id === undefined && method === "POST") {
     const body = await readJson(request);
     if (!body || !STATUSES.includes(body.status)) return fail(400, `status must be one of ${STATUSES.join(", ")}`);
+    const refused = body.status === "approved" && await notPassed(env, slug);
+    if (refused) return refused;
     await env.DB.prepare("UPDATE videos SET status = ?, updated_at = ? WHERE slug = ?").bind(body.status, now(), slug).run();
     return json({ slug, status: body.status });
   }
@@ -492,6 +523,8 @@ async function submit(request, env, base, row, who = {}) {
   const kind = body.kind === undefined ? "changes" : body.kind;
   if (!Object.hasOwn(KINDS, kind)) return fail(400, "kind must be changes or approve");
   if (kind === "approve" && who.agent) return fail(403, "only_a_reviewer_can_approve"); // Approve finishes the card; only Jon does that
+  const refused = kind === "approve" && await notPassed(env, row.slug);
+  if (refused) return refused;
   const open = await env.DB.prepare(
     "SELECT id FROM comments WHERE slug = ? AND resolved = 0 AND submission_id IS NULL ORDER BY t, created_at",
   ).bind(row.slug).all();

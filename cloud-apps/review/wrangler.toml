@@ -30,6 +30,12 @@ database_name = "jonmac-review"
 database_id = "aaf91d9f-48f9-458a-aa6d-24354266a39b"
 migrations_dir = "migrations"
 
+# The dashboard's D1, read only: a version shows on the list and can be approved once QC passed its proof (worker.js qcPassed).
+[[d1_databases]]
+binding = "CC_DB"
+database_name = "command_center"
+database_id = "615b0a5a-10b5-42d8-b127-9f4af3198104"
+
 [[r2_buckets]]
 binding = "MEDIA"
 bucket_name = "jonmac-review-media"

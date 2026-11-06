@@ -44,8 +44,9 @@ async function setup() {
     for (const [name, value] of Object.entries(secrets)) assert.ok(value, `${name} missing`);
     return { base: arg("--base", "https://jonmac.ai"), slug: arg("--slug", "mina-1-v9"), secrets, done: async () => {} };
   }
-  const { SECRETS, startRuntime } = await import("./harness.mjs");
+  const { SECRETS, qcCheck, startRuntime } = await import("./harness.mjs");
   const runtime = await startRuntime({ listen: true, https: false });
+  await qcCheck(runtime.cc, "proof-v1"); // QC passed it, so Approve is open
   const fixture = (name) => fileURLToPath(new URL(`./fixtures/${name}`, import.meta.url));
   const result = spawnSync(process.execPath, [fileURLToPath(new URL("../scripts/review_publish.mjs", import.meta.url)),
     "--base", runtime.url, "--slug", "proof-v1", "--channel", "mina", "--video", "proof", "--version", "v1",
