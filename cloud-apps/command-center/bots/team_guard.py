@@ -391,7 +391,7 @@ def bots():
 
 def check_idle(now, state):
     seen = state['seen']
-    found = {k: None for k, t in seen.items() if k.startswith('idle:') and now - ts(t) < NUDGE_EVERY_S}
+    found = {k: None for k, t in seen.items() if k.startswith('idle:') and now - ts(t) < NUDGE_EVERY_S - 60}  # the send lands after `now`
     newest = {}
     for c in dash('tasks', '--status', 'doing', '--limit', '500')['tasks']:
         if c.get('owner') and c['updatedAt'] > newest.get(c['owner'], {}).get('updatedAt', ''):
@@ -407,17 +407,17 @@ def check_idle(now, state):
     holds = state.get('holds', {})
     for slug, ids in bots().items():
         card = newest.get(slug)
-        if not card or busy.intersection(ids):
+        if (not card or busy.intersection(ids)  # a slug's bots share the card: any one working, or nudged lately, covers it
+                or any('idle:%s:%s' % (a, card['id']) in found for a in ids)
+                or any(last.get(a) and now - ts(last[a]) < READY_MIN * 60 for a in ids)):
             continue
         for agent in ids:
             j = team.get(agent)
-            if (j is None or holds.get(j.get('providerAccountId') or DEFAULT_ACCOUNT, 0) > now
-                    or (last.get(agent) and now - ts(last[agent]) < READY_MIN * 60)):
+            if j is None or holds.get(j.get('providerAccountId') or DEFAULT_ACCOUNT, 0) > now:
                 continue
             key = 'idle:%s:%s' % (agent, card['id'])
-            if key not in found:
-                seen.pop(key, None)  # its last nudge is over 30 minutes old
-                found[key] = (agent, 'continue ' + card['title'])
+            seen.pop(key, None)  # its last nudge is over 30 minutes old
+            found[key] = (agent, 'continue ' + card['title'])
             break
     return found
 

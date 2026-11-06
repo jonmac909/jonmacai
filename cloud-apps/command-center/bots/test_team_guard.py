@@ -1140,6 +1140,20 @@ class Idle(Base):
         self.done('agent-jess', 20)
         self.assertEqual([(LUCY, 'continue Fix the thing')], self.wakes())
 
+    def test_shared_slug_does_not_wake_the_second_bot_after_the_first(self):
+        self.agent('agent-jess', 'Jessica')
+        self.slugs['developer'] = [LUCY, 'agent-jess']
+        self.done('agent-jess', 20)
+        self.assertEqual(1, len(self.wakes()))
+        self.done(LUCY, 2)  # her wake turn just finished
+        self.assertEqual([], self.wakes())
+
+    def test_nudge_repeats_on_the_4th_run_even_when_the_send_lands_late(self):
+        real = tg.iso
+        with mock.patch.object(tg, 'iso', lambda t: real(t + 20)):  # act() stamps the send 20 s after the run began
+            counts = [len(self.wakes()) for _ in range(5)]
+        self.assertEqual([1, 0, 0, 1, 0], counts)
+
     def test_shared_slug_waits_while_either_is_working(self):
         self.agent('agent-jess', 'Jessica')
         self.slugs['developer'] = [LUCY, 'agent-jess']
