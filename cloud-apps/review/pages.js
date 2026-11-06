@@ -49,14 +49,16 @@ export function renderGate({ next, k, error = "" }) {
 
 // The review list is a to-do list (Jon, 2026-11-01): one row per video, its newest version, gone once approved. The slug
 // stem groups versions: the video key and the channel can differ between them. A newest version QC hasn't passed
-// (`passed`, a Set of slugs) stays off until it does (Jon, 2026-11-05). This only hides rows: direct links and
-// /api/review/videos keep every version.
+// stays off until it does (Jon, 2026-11-05). This only hides rows: direct links and /api/review/videos keep every version.
 const CLEARED_BEFORE = "2026-10-17"; // Jon cleared the Oct 14 to 16 batch off the list
 const stem = (slug) => slug.replace(/-v\d+$/, "");
+// `passed` maps a slug to the time of its newest QC check, when that check passed. A pass from before the current file
+// was published (a re-upload onto the same slug) doesn't count.
+export const qcCleared = (passed, v) => Boolean(passed?.has(v.slug) && passed.get(v.slug) >= (v.published_at || ""));
 export function openVideos(videos, passed) {
   const newest = new Map();
   for (const v of videos) if (!(newest.get(stem(v.slug))?.created_at >= v.created_at)) newest.set(stem(v.slug), v);
-  return [...newest.values()].filter((v) => v.status !== "approved" && v.created_at >= CLEARED_BEFORE && passed?.has(v.slug));
+  return [...newest.values()].filter((v) => v.status !== "approved" && v.created_at >= CLEARED_BEFORE && qcCleared(passed, v));
 }
 
 export function renderIndex({ channels, videos, passed }, message = "", prefix = "") {

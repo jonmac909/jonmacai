@@ -44,19 +44,21 @@ export async function startRuntime({ listen = false, https = true, bindings = SE
   await db.batch(migrationStatements().map((statement) => db.prepare(statement)));
   // The dashboard's proof tables, as much of them as the QC gate reads (command-center migrations).
   const cc = await mf.getD1Database("CC_DB");
-  await cc.batch(["CREATE TABLE bot_tasks (id TEXT PRIMARY KEY, project TEXT)",
+  await cc.batch(["CREATE TABLE bot_tasks (id TEXT PRIMARY KEY, project TEXT, status TEXT NOT NULL DEFAULT 'doing')",
     "CREATE TABLE bot_proofs (id TEXT PRIMARY KEY, task_id TEXT, link TEXT, status TEXT, checked_at TEXT)"].map((s) => cc.prepare(s)));
   return { mf, url: url.origin, db, cc, bucket: await mf.getR2Bucket("MEDIA") };
 }
 
-// QC checks a proof on a dashboard card: `link` is the review page or media URL, or a bare slug for the page.
+// QC checks a proof on a dashboard card, now: `link` is the review page or media URL, or a bare slug for the page.
+// Returns the proof id, so a test can re-check it later.
 let checks = 0;
-export async function qcCheck(cc, link, status = "passed", project = "youtube") {
+export async function qcCheck(cc, link, status = "passed", project = "youtube", taskStatus = "doing") {
   const n = ++checks;
   const url = link.startsWith("https://") ? link : `https://jonmac.ai/review/${link}`;
   await cc.batch([
-    cc.prepare("INSERT INTO bot_tasks (id, project) VALUES (?, ?)").bind(`t_${n}`, project),
+    cc.prepare("INSERT INTO bot_tasks (id, project, status) VALUES (?, ?, ?)").bind(`t_${n}`, project, taskStatus),
     cc.prepare("INSERT INTO bot_proofs (id, task_id, link, status, checked_at) VALUES (?, ?, ?, ?, ?)")
-      .bind(`p_${n}`, `t_${n}`, url, status, new Date(Date.UTC(2026, 10, 5) + n * 1000).toISOString()),
+      .bind(`p_${n}`, `t_${n}`, url, status, new Date(Date.now() + n).toISOString()),
   ]);
+  return `p_${n}`;
 }

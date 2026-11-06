@@ -510,6 +510,35 @@ test("QC gate: a version is listed and approvable only once QC passed its proof;
   assert.doesNotMatch(await page("mina-1-v9"), /id="qc-wait"/);
 });
 
+test("QC gate: a re-upload needs a new pass, a re-check counts at its new time, cancelled cards and bots never approve", async () => {
+  const listed = async () => [...(await (await fetchApp("/review", { headers: { Cookie: cookie } })).text()).matchAll(/href="\/review\/([a-z0-9-]+)"/g)].map((m) => m[1]);
+  const reviewer = { Cookie: cookie, Origin: runtime.url };
+  assert.ok((await listed()).includes("mina-1-v8"), "passed in the test above");
+
+  publish(["--slug", "mina-1-v8", "--channel", "mina", "--video", "mina-1", "--version", "v8", "--title", "Mina tutorial", "--file", clipPath,
+    "--source", clipPath, "--compare", clipPath, "--chapters", fileURLToPath(new URL("./fixtures/versions.json", import.meta.url))]);
+  assert.ok(!(await listed()).includes("mina-1-v8"), "a new file on a passed slug waits for a new pass");
+  const status = await fetchApp("/api/review/mina-1-v8/status", jsonInit("POST", { status: "approved" }, reviewer));
+  assert.equal(status.status, 409, "and can't be approved");
+  await status.arrayBuffer();
+
+  await qcCheck(runtime.cc, "mina-1-v8", "passed", "youtube", "cancelled");
+  assert.ok(!(await listed()).includes("mina-1-v8"), "a pass on a cancelled card doesn't count");
+  const pass = await qcCheck(runtime.cc, "mina-1-v8");
+  assert.ok((await listed()).includes("mina-1-v8"));
+  await qcCheck(runtime.cc, "mina-1-v8", "failed");
+  assert.ok(!(await listed()).includes("mina-1-v8"));
+  // QC re-checks the earlier proof: its row stays first, its new checked_at makes it the newest check.
+  await runtime.cc.prepare("UPDATE bot_proofs SET checked_at = ? WHERE id = ?").bind(new Date(Date.now() + 60000).toISOString(), pass).run();
+  assert.ok((await listed()).includes("mina-1-v8"), "the newest check by time decides, not by row");
+
+  const byBot = await fetchApp("/api/review/mina-1-v8/status", jsonInit("POST", { status: "approved" }));
+  assert.deepEqual([byBot.status, (await byBot.json()).error], [403, "only_a_reviewer_can_approve"], "a bot can't approve by status");
+  const published = await fetchApp("/api/review/mina-1-v8/publish",
+    jsonInit("POST", { channel: "mina", video: "mina-1", version: "v8", title: "Mina tutorial", status: "approved" }));
+  assert.deepEqual([published.status, (await published.json()).error], [403, "only_a_reviewer_can_approve"], "nor by publishing");
+});
+
 test("QC gate fails closed: with the dashboard's proofs unreadable nothing is listed and Approve is off", async () => {
   const down = await startRuntime({ listen: true });
   try {

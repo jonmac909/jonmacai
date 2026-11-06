@@ -2,7 +2,7 @@
 // Secrets (wrangler secret put, never committed): REVIEW_SHARE_KEY, REVIEW_PASSCODE,
 // REVIEW_SESSION_SECRET, REVIEW_API_TOKEN. Missing secrets fail closed with 503.
 // jonmac.ai/dashboard/review serves these same pages under the dashboard sign-in (see caller()).
-import { INK, renderGate, renderIndex, renderVideo } from "./pages.js";
+import { INK, qcCleared, renderGate, renderIndex, renderVideo } from "./pages.js";
 
 export const STATUSES = ["needs_review", "changes_requested", "approved"];
 const SECRETS = ["REVIEW_SHARE_KEY", "REVIEW_PASSCODE", "REVIEW_SESSION_SECRET", "REVIEW_API_TOKEN"];
@@ -242,8 +242,9 @@ const getVideo = (env, slug) => env.DB.prepare(`${VIDEO_LIST} WHERE v.slug = ?`)
 
 // Jon sees a version on his list, and can approve it, only once QC passed a dashboard proof linking to it (Jon, 2026-11-05).
 // CC_DB is the dashboard's D1, read only. A proof holds the review page or the video's media URL; the newest QC check
-// of a version decides. A Coding card citing a page tests the tool, not the video (as linkedTask in videoreview.js).
-// Direct links still open, so QC can check a version first. null means the dashboard could not be read.
+// of a version decides. A Coding card citing a page tests the tool, not the video, and cancelled cards don't count (as
+// linkedTask in videoreview.js). Direct links still open, so QC can check a version first. Returns slug -> checked_at
+// of a passing newest check (qcCleared in pages.js); null means the dashboard could not be read.
 const PROOF = /^https:\/\/jonmac\.ai\/(?:dashboard\/)?review\/(?:media\/([a-z0-9-]+)\/video\.mp4|([a-z0-9-]+))\/?(?:[?#].*)?$/i;
 export const proofSlug = (link) => {
   const m = PROOF.exec(String(link || ""));
@@ -251,19 +252,20 @@ export const proofSlug = (link) => {
 };
 async function qcPassed(env) {
   try {
-    const { results } = await env.CC_DB.prepare(`SELECT p.link, p.status FROM bot_proofs p JOIN bot_tasks t ON t.id = p.task_id
-      WHERE p.status IN ('passed', 'failed') AND p.link LIKE '%/review/%' AND t.project IS NOT 'coding' ORDER BY p.checked_at`).all();
-    const last = new Map(results.map((r) => [proofSlug(r.link), r.status]));
-    return new Set([...last].filter(([slug, status]) => slug && status === "passed").map(([slug]) => slug));
+    const { results } = await env.CC_DB.prepare(`SELECT p.link, p.status, p.checked_at FROM bot_proofs p JOIN bot_tasks t ON t.id = p.task_id
+      WHERE p.status IN ('passed', 'failed') AND p.link LIKE '%/review/%' AND t.status != 'cancelled' AND t.project IS NOT 'coding'
+      ORDER BY p.checked_at`).all();
+    const last = new Map(results.map((r) => [proofSlug(r.link), r]));
+    return new Map([...last].filter(([slug, r]) => slug && r.status === "passed").map(([slug, r]) => [slug, r.checked_at || ""]));
   } catch (error) {
     console.error("qc status", error?.message || error);
     return null;
   }
 }
 const QC_DOWN = "Could not read QC results from the dashboard, so nothing is listed and Approve is off. Try again in a minute.";
-async function notPassed(env, slug) {
+async function notPassed(env, row) {
   const passed = await qcPassed(env);
-  return passed?.has(slug) ? null : fail(409, passed ? "QC has not passed this version yet, so it can't be approved." : QC_DOWN);
+  return qcCleared(passed, row) ? null : fail(409, passed ? "QC has not passed this version yet, so it can't be approved." : QC_DOWN);
 }
 
 async function streamMedia(request, env, key, type) {
@@ -360,12 +362,12 @@ async function pages(request, env, url) {
   const row = await getVideo(env, slug);
   if (!row) return html(await index(`No video called “${slug}”.`), 404);
   const versions = await env.DB.prepare(
-    "SELECT slug, version, status, created_at FROM videos WHERE channel = ? AND video = ? ORDER BY created_at DESC",
+    "SELECT slug, version, status, created_at, published_at FROM videos WHERE channel = ? AND video = ? ORDER BY created_at DESC",
   ).bind(row.channel, row.video).all();
   const channel = await env.DB.prepare("SELECT name FROM channels WHERE slug = ?").bind(row.channel).first();
   const submissions = (await slugSubmissions(env, slug, 10)).results.map((s) => publicSubmission(s, who.prefix));
-  return html(renderVideo({ ...publicVideo(row, who.prefix), qc_passed: Boolean(passed?.has(slug)) },
-    versions.results.filter((v) => v.slug === slug || passed?.has(v.slug)), channel?.name || row.channel, submissions, who.prefix));
+  return html(renderVideo({ ...publicVideo(row, who.prefix), qc_passed: qcCleared(passed, row) },
+    versions.results.filter((v) => v.slug === slug || qcCleared(passed, v)), channel?.name || row.channel, submissions, who.prefix));
 }
 
 async function api(request, env, url) {
@@ -418,7 +420,8 @@ async function api(request, env, url) {
   if (resource === "status" && id === undefined && method === "POST") {
     const body = await readJson(request);
     if (!body || !STATUSES.includes(body.status)) return fail(400, `status must be one of ${STATUSES.join(", ")}`);
-    const refused = body.status === "approved" && await notPassed(env, slug);
+    if (body.status === "approved" && agent) return fail(403, "only_a_reviewer_can_approve"); // as submit: only Jon approves
+    const refused = body.status === "approved" && await notPassed(env, row);
     if (refused) return refused;
     await env.DB.prepare("UPDATE videos SET status = ?, updated_at = ? WHERE slug = ?").bind(body.status, now(), slug).run();
     return json({ slug, status: body.status });
@@ -523,7 +526,7 @@ async function submit(request, env, base, row, who = {}) {
   const kind = body.kind === undefined ? "changes" : body.kind;
   if (!Object.hasOwn(KINDS, kind)) return fail(400, "kind must be changes or approve");
   if (kind === "approve" && who.agent) return fail(403, "only_a_reviewer_can_approve"); // Approve finishes the card; only Jon does that
-  const refused = kind === "approve" && await notPassed(env, row.slug);
+  const refused = kind === "approve" && await notPassed(env, row);
   if (refused) return refused;
   const open = await env.DB.prepare(
     "SELECT id FROM comments WHERE slug = ? AND resolved = 0 AND submission_id IS NULL ORDER BY t, created_at",
@@ -704,6 +707,7 @@ async function publishApi(request, env, url, slug, resource, uploadId, action) {
     const status = body.status === undefined ? "needs_review" : body.status;
     if (!validSlug(channel) || !validSlug(video) || !version || !title) return fail(400, "channel, video, version and title are required (lowercase slugs)");
     if (!STATUSES.includes(status)) return fail(400, "bad status");
+    if (status === "approved") return fail(403, "only_a_reviewer_can_approve"); // publish is the agent token; only Jon approves
     const extras = ["source_key", "compare_key"];
     if (!ownKey(body.video_key) || extras.some((k) => body[k] != null && !ownKey(body[k]))) return fail(400, "keys must come from this slug's uploads");
     const videoInfo = await env.MEDIA.head(body.video_key);
@@ -723,16 +727,17 @@ async function publishApi(request, env, url, slug, resource, uploadId, action) {
       env.DB.prepare("INSERT OR IGNORE INTO channels (slug, name, sort) VALUES (?, ?, 100)")
         .bind(channel, text(body.channel_name, 60) || channel.charAt(0).toUpperCase() + channel.slice(1)),
       env.DB.prepare(`INSERT INTO videos (slug, channel, video, version, title, status, video_key, video_size, video_sha256,
-          source_key, compare_key, duration, chapters, sync_map, notes, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          source_key, compare_key, duration, chapters, sync_map, notes, created_at, updated_at, published_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(slug) DO UPDATE SET channel = excluded.channel, video = excluded.video, version = excluded.version,
           title = excluded.title, status = excluded.status, video_key = excluded.video_key, video_size = excluded.video_size,
           video_sha256 = excluded.video_sha256, source_key = excluded.source_key, compare_key = excluded.compare_key, duration = excluded.duration,
-          chapters = excluded.chapters, sync_map = excluded.sync_map, notes = excluded.notes, updated_at = excluded.updated_at`)
+          chapters = excluded.chapters, sync_map = excluded.sync_map, notes = excluded.notes, updated_at = excluded.updated_at,
+          published_at = excluded.published_at`)
         .bind(slug, channel, video, version, title, status, body.video_key, videoInfo.size,
           /^[a-f0-9]{64}$/.test(body.video_sha256 || "") ? body.video_sha256 : null,
           sourceKey, body.compare_key || null, Number.isFinite(duration) && duration > 0 ? duration : null,
-          chapters, syncMap, text(body.notes, 2000) || null, stamp, stamp),
+          chapters, syncMap, text(body.notes, 2000) || null, stamp, stamp, stamp),
     ]);
     const kept = new Set([body.video_key, sourceKey, body.compare_key]);
     const stale = [previous?.video_key, previous?.source_key, previous?.compare_key].filter((k) => k && !kept.has(k));

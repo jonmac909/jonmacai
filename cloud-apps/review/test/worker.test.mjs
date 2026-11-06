@@ -91,10 +91,13 @@ test("the review list shows each video's newest version, until it is approved", 
     v("d-1-v1", "d-1", "changes_requested", "2026-10-16T23:00:00Z"), // the Oct 14 to 16 batch Jon cleared
     v("e-1-v1", "e-1", "needs_review", "2026-10-17T00:00:00Z"),
   ];
-  const passed = new Set(videos.map((x) => x.slug));
+  const passed = new Map(videos.map((x) => [x.slug, "2026-11-02T00:00:00Z"])); // slug -> time of its passing QC check
   assert.deepEqual(openVideos(videos, passed).map((x) => x.slug), ["b-1-v2", "c-1-v2", "e-1-v1"]);
   // QC hasn't passed b-1-v2: b-1 is off the list (its older passed version doesn't stand in for it).
-  assert.deepEqual(openVideos(videos, new Set([...passed].filter((s) => s !== "b-1-v2"))).map((x) => x.slug), ["c-1-v2", "e-1-v1"]);
+  assert.deepEqual(openVideos(videos, new Map([...passed].filter(([s]) => s !== "b-1-v2"))).map((x) => x.slug), ["c-1-v2", "e-1-v1"]);
+  // e-1-v1 got a new file after its pass: off until QC passes again.
+  const reuploaded = videos.map((x) => (x.slug === "e-1-v1" ? { ...x, published_at: "2026-11-03T00:00:00Z" } : x));
+  assert.deepEqual(openVideos(reuploaded, passed).map((x) => x.slug), ["b-1-v2", "c-1-v2"]);
   assert.deepEqual(openVideos(videos, null), [], "QC results unreadable: nothing listed");
   const page = renderIndex({ channels: [{ slug: "mina", name: "Mina" }, { slug: "empty", name: "Empty" }], videos, passed });
   assert.deepEqual([...page.matchAll(/href="\/review\/([a-z0-9-]+)"/g)].map((m) => m[1]), ["b-1-v2", "e-1-v1", "c-1-v2"]);
