@@ -41,6 +41,9 @@ def ago(minutes):
 REAL_DISK_FREE, REAL_STATE, REAL_LOG = tg.disk_free_gb, tg.STATE, tg.LOG
 
 
+_REAL_PACK_ORDER, _REAL_PACK_NAME, _REAL_TOPIC_CARDS, _ALL_CHECKS = tg.pack_order, tg.pack_name, tg.topic_cards, list(tg.CHECKS)
+
+
 class Base(unittest.TestCase):
     def setUp(self):
         tmp = tempfile.TemporaryDirectory(ignore_cleanup_errors=True)
@@ -53,7 +56,7 @@ class Base(unittest.TestCase):
         self.ports_line = ''
         self.slugs = {'developer': [LUCY], 'ana': [tg.ANA]}
         self.disk_free = 500
-        self.pipe = []
+        self.pipe, self.topics, self.order = [], [], []
         (self.root / 'edits').mkdir()
         (self.root / 'accounts').mkdir()
         self.db = sqlite3.connect(self.root / 'o.db', isolation_level=None)
@@ -68,7 +71,9 @@ class Base(unittest.TestCase):
                 (tg, 'DB', self.root / 'o.db'), (tg, 'STATE', self.root / 'state.json'),
                 (tg, 'LOG', self.root / 'guard.log'), (tg, 'ACCOUNTS', self.root / 'accounts'),
                 (tg, 'DEFAULT_PROJECTS', self.root / 'default'), (tg, 'EDITS', self.root / 'edits'),
-                (tg, 'bots', lambda: self.slugs), (tg, 'pipeline_cards', lambda now: self.pipe), (tg, 'dash', self.fake_dash), (tg, 'preflight', lambda d: self.pass_codes.get(d.name, 0)),
+                (tg, 'bots', lambda: self.slugs), (tg, 'pipeline_cards', lambda now: self.pipe), (tg, 'topic_cards', lambda now: self.topics),
+                (tg, 'CHECKS', [c for c in _ALL_CHECKS if c[0] != 'buffer']),  # only the Buffers tests run this check
+                (tg, 'pack_order', lambda: self.order), (tg, 'pack_name', lambda card: card.get('pack') or ''), (tg, 'dash', self.fake_dash), (tg, 'preflight', lambda d: self.pass_codes.get(d.name, 0)),
                 (tg, 'render_running', lambda: self.render), (tg, 'restart_openbot', self.fake_restart),
                 (tg, 'gpu2_ports_line', lambda: self.ports_line), (tg, 'disk_free_gb', lambda: self.disk_free),
                 (hook, 'fire', self.fake_fire), (tg.time, 'time', lambda: self.t)]:
@@ -1660,6 +1665,168 @@ class Next(Base):
         self.assertEqual([], self.wakes())
 
 
+class Buffers(Base):
+    """pipeline_cards is faked as [(stage, entry time, card)] and topic_cards as Sydney's Todo cards with no script."""
+    SYDNEY = 'agent-sydney'
+
+    def setUp(self):
+        super().setUp()
+        self.agent(tg.ELLE, 'Elle')
+        self.agent(tg.SCARLETT, 'Scarlett')
+        self.agent(self.SYDNEY, 'Sydney')
+        self.slugs.update({'home-guide-press': [tg.ELLE], 'viral-view': [tg.SCARLETT], 'jon-mac-youtube': [self.SYDNEY]})
+        patcher = mock.patch.object(tg, 'CHECKS', _ALL_CHECKS)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        for i in range(tg.SCRIPTS_MIN):
+            self.card(2, 600, 'Passed %d - Rosa' % i, 'jon-mac-youtube')
+        for i in range(tg.PACKS_MIN):
+            self.card(5, 600, 'Ready %d - Rosa' % i)
+
+    def card(self, stage, minutes, title, owner='home-guide-press', status='todo', pack=None, note=''):
+        card = {'id': 't-' + title.replace(' ', ''), 'owner': owner, 'title': title, 'status': status, 'pack': pack, 'note': note}
+        self.pipe.append((stage, self.t - minutes * 60, card))
+        return card
+
+    def topic(self, title, created='2026-11-01T00:00:00Z', note=''):
+        card = {'id': 't-' + title.replace(' ', ''), 'owner': 'jon-mac-youtube', 'title': title, 'status': 'todo',
+                'createdAt': created, 'note': note}
+        self.topics.append(card)
+        return card
+
+    def drop(self, stage, count):
+        for entry in [e for e in self.pipe if e[0] == stage][:count]:
+            self.pipe.remove(entry)
+
+    def wakes(self):
+        return [s[1:] for s in self.run_guard() if s[0] == 'wake']
+
+    def test_full_buffers_wake_nobody(self):
+        self.topic('Next topic - Rosa')
+        self.card(3, 20, 'Waiting a-roll - Rosa')
+        self.assertEqual([], self.wakes())
+
+    def test_five_passed_scripts_wake_sydney_with_her_oldest_topic(self):
+        self.drop(2, 1)
+        self.topic('Newer topic - Rosa', '2026-11-03T00:00:00Z')
+        self.topic('Older topic - Rosa', '2026-11-01T00:00:00Z')
+        [(agent, text)] = self.wakes()
+        self.assertEqual(self.SYDNEY, agent)
+        self.assertIn('5 of 6', text)
+        self.assertIn('Older topic - Rosa', text)
+
+    def test_no_topic_card_no_script_wake(self):
+        self.drop(2, 1)
+        self.assertEqual([], self.wakes())
+
+    def test_waiting_external_topic_is_skipped(self):
+        self.drop(2, 1)
+        self.topic('Held topic - Rosa', note='Waiting external until 2026-12-31')
+        self.assertEqual([], self.wakes())
+
+    def test_sydney_with_a_script_in_hand_is_left_to_the_idle_nudge(self):
+        self.drop(2, 1)
+        self.topic('Next topic - Rosa')
+        self.card(0, 20, 'Writing - Rosa', 'jon-mac-youtube', status='doing')
+        self.assertEqual([], self.wakes())
+
+    def test_a_failed_script_of_hers_comes_before_a_new_topic(self):
+        self.drop(2, 1)
+        self.topic('Next topic - Rosa')
+        self.card(0, 20, 'Failed QC - Rosa', 'jon-mac-youtube')
+        self.assertEqual([], self.wakes())
+
+    def test_a_script_in_qc_or_waiting_externally_does_not_hold_back_a_new_topic(self):
+        self.drop(2, 1)
+        self.topic('Next topic - Rosa')
+        self.card(0, 20, 'In QC - Rosa', 'jon-mac-youtube', status='qc')
+        self.card(0, 20, 'Sponsor wait - Rosa', 'jon-mac-youtube', note='Waiting external')
+        self.assertEqual(self.SYDNEY, self.wakes()[0][0])
+
+    def test_a_card_pack_name_cannot_read_does_not_stop_the_check(self):
+        fake = types.SimpleNamespace(pack_of=lambda card: 1 / 0)
+        with mock.patch.dict(sys.modules, {'pipeline': fake}):
+            self.assertEqual('', _REAL_PACK_NAME({'id': 'x'}))
+
+    def test_busy_sydney_is_not_woken(self):
+        self.drop(2, 1)
+        self.topic('Next topic - Rosa')
+        self.turn(self.SYDNEY, 'u1', 5, last=1)
+        self.assertEqual([], self.wakes())
+
+    def test_low_packs_wake_the_owner_of_the_first_pack_in_jons_order(self):
+        self.drop(5, 1)
+        self.card(3, 25, 'Oldest pack - Rosa', pack='rosa-house')
+        self.card(3, 5, 'First in order - Viral', 'viral-view', pack='Peter-3')
+        self.order[:] = ['peter-3', 'rosa-house']
+        [(agent, text)] = self.wakes()
+        self.assertEqual(tg.SCARLETT, agent)
+        self.assertIn('First in order - Viral', text)
+        self.assertIn('2 of 3', text)
+
+    def test_unlisted_packs_follow_oldest_first(self):
+        self.drop(5, 1)
+        self.card(3, 5, 'Newer - Rosa')
+        self.card(4, 25, 'Older - Rosa', pack='x')
+        self.assertIn('Older - Rosa', self.wakes()[0][1])
+
+    def test_the_other_owner_gets_the_next_pack_when_the_first_is_busy(self):
+        self.drop(5, 2)
+        self.card(3, 25, 'Elle pack - Rosa')
+        self.card(3, 20, 'Her pack - Viral', 'viral-view')
+        self.turn(tg.ELLE, 'u1', 5, last=1)
+        [(agent, text)] = self.wakes()
+        self.assertEqual(tg.SCARLETT, agent)
+        self.assertIn('Her pack - Viral', text)
+
+    def test_never_more_wakes_than_packs_missing(self):
+        self.drop(5, 1)
+        self.card(3, 25, 'Elle pack - Rosa')
+        self.card(3, 20, 'Her pack - Viral', 'viral-view')
+        self.assertEqual(1, len(self.wakes()))
+
+    def test_doing_held_and_waiting_cards_are_not_woken_for(self):
+        self.drop(5, 1)
+        self.agent(tg.NINA, 'Nina')
+        self.slugs['qc'] = [tg.NINA]
+        self.card(3, 25, 'Doing - Rosa', status='doing')
+        self.card(3, 25, 'Held - Rosa', status='qc')
+        self.card(4, 25, 'Waiting - Rosa', note='Waiting external')
+        self.card(3, 25, 'Other owner - Rosa', 'qc')
+        self.assertEqual([], self.wakes())
+
+    def test_a_wake_is_sent_once_then_not_for_half_an_hour(self):
+        self.drop(5, 1)
+        self.card(3, 25, 'Elle pack - Rosa')
+        self.assertEqual(1, len(self.wakes()))
+        self.assertEqual([], self.wakes())
+        self.t += tg.NUDGE_EVERY_S
+        self.assertEqual(1, len(self.wakes()))
+
+    def test_a_bot_another_check_woke_lately_waits(self):
+        self.drop(5, 1)
+        self.card(3, 25, 'Elle pack - Rosa')
+        state = tg.load()
+        state['seen']['idle:%s:t-x' % tg.ELLE] = tg.iso(self.t - 5 * 60)
+        tg.save(state)
+        self.assertEqual([], self.wakes())
+
+    def test_scripts_and_packs_can_both_wake_different_bots(self):
+        self.drop(2, 1)
+        self.drop(5, 1)
+        self.topic('Next topic - Rosa')
+        self.card(3, 25, 'Elle pack - Rosa')
+        self.assertEqual({self.SYDNEY, tg.ELLE}, {a for a, _ in self.wakes()})
+
+    def test_pack_order_file_skips_comments_and_blank_lines(self):
+        path = self.root / 'order.txt'
+        path.write_bytes(b'\xef\xbb\xbf# header\nPeter-3\n\nrosa-house-3  # why\n')  # PowerShell and Notepad write a BOM
+        with mock.patch.object(tg, 'PACK_ORDER', path), mock.patch.object(tg, 'pack_order', _REAL_PACK_ORDER):
+            self.assertEqual(['peter-3', 'rosa-house-3'], tg.pack_order())
+            with mock.patch.object(tg, 'PACK_ORDER', self.root / 'missing.txt'):
+                self.assertEqual([], tg.pack_order())
+
+
 class PipelineCards(unittest.TestCase):
     def test_cards_already_on_youtube_are_not_in_the_buffer(self):
         import re
@@ -1672,6 +1839,19 @@ class PipelineCards(unittest.TestCase):
             self.assertEqual([(4, 1.0, plain)], tg.pipeline_cards(5.0))
         tg._pipe.clear()
 
+    def test_topics_are_todo_cards_of_the_writer_with_no_script_and_not_live(self):
+        import re
+        card = lambda i, **kw: dict({'id': i, 'owner': 'jon-mac-youtube', 'status': 'todo', 'proofs': []}, **kw)
+        cards = [card('topic'), card('doing', status='doing'), card('other', owner='qc'),
+                 card('live', proofs=[{'link': 'https://youtu.be/x'}])]
+        fake = types.SimpleNamespace(
+            load=lambda titles: cards, live_titles=lambda: set(), LIVE=re.compile('youtu'),
+            links=lambda c: [p['link'] for p in c['proofs']], classify=lambda c: None)
+        tg._pipe.clear()
+        with mock.patch.dict(sys.modules, {'pipeline': fake}):
+            self.assertEqual(['topic'], [c['id'] for c in _REAL_TOPIC_CARDS(5.0)])
+        tg._pipe.clear()
+
 
 class StallGatesHookIn(unittest.TestCase):
     def setUp(self):
@@ -1681,7 +1861,7 @@ class StallGatesHookIn(unittest.TestCase):
         with mock.patch.dict(sys.modules, {'stall_gates': None}):  # None makes the import raise ImportError
             importlib.reload(tg)
         names = [n for n, _ in tg.CHECKS]
-        self.assertEqual(names, ['disk', 'turns', 'qc', 'limits', 'aroll', 'next', 'balance', 'idle', 'ports', 'packs'])
+        self.assertEqual(names, ['disk', 'turns', 'qc', 'limits', 'aroll', 'buffer', 'next', 'balance', 'idle', 'ports', 'packs'])
 
     def test_installed_stall_gates_checks_are_added_with_unique_names(self):
         fake = types.ModuleType('stall_gates')

@@ -16,6 +16,9 @@ Runs hidden every 10 minutes (see HOOKS.md). Reads OpenBot's database and transc
   "start <its oldest Todo card>".
 - Fewer than 3 a-rolls rendered (pipeline.py's buffer) with passed scripts waiting: wakes the owner (Elle or
   Scarlett) of the oldest passed script. A bot is woken at most once per 30 minutes, whichever check wakes it.
+- Buffers: fewer than 6 passed scripts wakes Sydney with her oldest Todo topic card; fewer than 3 preflight-passed packs
+  wakes the owner (Elle or Scarlett) of the first pack in D:\AgentTeam\pack-order.txt whose a-roll is in and clips are not
+  done. At once, no 30-minute wait; none for a card that is Doing, held, or says Waiting external.
 - Next-step wakes: an affiliate card that sat 30 minutes at a hand-off wakes the free bot that takes it next: a failed or
   unsent script to its owner, a script with a pending proof to a QC bot, an a-roll with no clips to its owner, a
   preflight-passed pack to Olivia (unless she has an edit in hand). Doing cards are the idle nudge's, video QC is the QC check's.
@@ -62,12 +65,16 @@ AROLL_STAGES = (3, 4, 5)  # a-roll rendered, clips building, preflight passed: n
 BC = timezone(timedelta(hours=-7))  # Kelowna, permanent UTC-7 since Nov 2026 (no tzdata on this Python)
 WAITING = re.compile(r'(?im)^\W*waiting[ _]external\b(?:[^\n]*?\buntil\s+(\d{4}-\d{2}-\d{2}))?')
 SCRIPT_PASSED = 2
+SCRIPTS_MIN, PACKS_MIN = 6, 3  # pipeline.py's targets for passed scripts and preflight-passed packs
+WRITER = 'jon-mac-youtube'  # dashboard slug of Sydney, who writes the scripts
+PACK_ORDER = Path(r'D:\AgentTeam\pack-order.txt')  # Jon's queue order, one pack folder per line, top first
 AROLL_OWNERS = ('home-guide-press', 'viral-view')  # dashboard slugs of Elle and Scarlett
 SCRIPT_OWNERS = AROLL_OWNERS + ('jon-mac-youtube',)  # Sydney writes the scripts, Elle and Scarlett fix the ones on their packs
-WAKES = ('idle', 'aroll', 'balance', 'next')  # check names whose keys read 'name:agent:card'
+WAKES = ('idle', 'aroll', 'buffer', 'balance', 'next')  # check names whose keys read 'name:agent:card'
 NEXT_MIN = 30  # a card waits this long at a hand-off before the bot that takes it next is woken
 HELD = ('qc', 'review', 'waiting_on_jon')  # statuses of a card someone else is checking: nothing to do for its owner
 SCRIPT_WRITTEN, SCRIPT_QC, AROLL_DONE, PREFLIGHT_PASSED, EDITING = 0, 1, 3, 5, 6  # pipeline.py's stage numbers
+CLIPS_BUILDING = 4
 MAX_DOING, MAX_QUEUED, WAIT_S = 3, 3, 7200  # overloaded: more Doing cards, as many queued messages, a Todo this old
 BACKUPS = {'developer': ('moneyclaw', 'historient'), 'moneyclaw': ('historient',),  # dashboard slugs, best backup first
            'home-guide-press': ('viral-view',), 'viral-view': ('home-guide-press',), 'jon-mac-youtube': ('viral-view',)}
@@ -557,14 +564,23 @@ def pipeline_cards(now):
     """[(stage index, entry time, card)] for open affiliate video cards, read once per run by pipeline.py's own code."""
     if _pipe.get('at') != now:
         import pipeline  # D:\AgentTeam	ools, the code Ana's hourly report runs
-        out = []
+        out, topics = [], []
         for card in pipeline.load(pipeline.live_titles()):
             with contextlib.suppress(Exception):  # one odd card must not stop the check
-                r = None if any(pipeline.LIVE.search(link) for link in pipeline.links(card)) else pipeline.classify(card)
-                if r:  # a card already on YouTube is no a-roll waiting for the editor
+                live = any(pipeline.LIVE.search(link) for link in pipeline.links(card))  # already on YouTube: no a-roll waits for the editor
+                r = None if live else pipeline.classify(card)
+                if r:
                     out.append((r[0], r[1], card))
-        _pipe.update(at=now, cards=out)
+                elif not live and card.get('owner') == WRITER and card.get('status') == 'todo':  # a topic with no script yet
+                    topics.append(card)
+        _pipe.update(at=now, cards=out, topics=topics)
     return _pipe['cards']
+
+
+def topic_cards(now):
+    """Sydney's Todo cards with no script yet, from the same read as pipeline_cards."""
+    pipeline_cards(now)
+    return _pipe['topics']
 
 
 def check_aroll(now, state):
@@ -584,6 +600,67 @@ def check_aroll(now, state):
             found[key] = (agent, 'A-roll buffer is %d of %d. Start the HeyGen a-roll for %s, your longest-waiting passed '
                           'script. If its render is already submitted, do not submit it again.' % (have, AROLL_MIN, card['title']))
             break
+    return found
+
+
+def pack_name(card):
+    try:
+        import pipeline
+        return pipeline.pack_of(card) or ''
+    except Exception:  # one odd card must not stop the check
+        return ''
+
+
+def pack_order():
+    """Pack folders in Jon's queue order, top first (lowercase); comments and blank lines skipped."""
+    try:
+        lines = PACK_ORDER.read_text(encoding='utf-8-sig', errors='replace').splitlines()
+    except OSError:
+        return []
+    return [n for n in (line.split('#')[0].strip().lower() for line in lines) if n]
+
+
+def check_buffers(now, state):
+    """Fewer than 6 passed scripts: wake Sydney to write the script of her oldest Todo topic. Fewer than 3 preflight-passed
+    packs: wake the owner (Elle or Scarlett) of the first pack in Jon's order whose a-roll is in and clips are not done.
+    No 30-minute wait at the hand-off. A free bot only, one wake per bot per 30 minutes, none for a card that waits on a
+    third party, and none while Sydney has a script to finish or fix (the idle and next-step checks')."""
+    seen = state['seen']
+    found = {k: None for k, t in seen.items() if k.startswith('buffer:') and now - ts(t) < NUDGE_EVERY_S - 60}
+    cards = pipeline_cards(now)
+    ids, free, used = bots(), free_bots(now, state), set()
+
+    def wake(who, card, text):
+        agent = next((a for a in who if a in free and a not in used and not woke_lately(seen, a, now)), None)
+        key = 'buffer:%s:%s' % (agent, card['id'])
+        if agent:
+            seen.pop(key, None)  # its last wake is over 30 minutes old
+            used.add(agent)
+            found[key] = (agent, text)
+            return True
+
+    passed = sum(stage == SCRIPT_PASSED for stage, _, _ in cards)
+    writing = any(stage == SCRIPT_WRITTEN and c.get('owner') == WRITER and c.get('status') not in HELD and not waiting_external(c, now)
+                  for stage, _, c in cards)  # a script in hand, or one to fix after a QC fail, comes before a new topic
+    topics = [c for c in topic_cards(now) if not waiting_external(c, now)]
+    if passed < SCRIPTS_MIN and topics and not writing:
+        card = min(topics, key=lambda c: str(c.get('createdAt') or ''))  # oldest first: the card list has no other order
+        wake(ids.get(WRITER) or (), card, 'Script buffer is %d of %d. Write the script for "%s" (card %s), the next topic '
+             "in Jon's queue order, and send it to QC." % (passed, SCRIPTS_MIN, card['title'], card['id']))
+    ready = sum(stage == PREFLIGHT_PASSED for stage, _, _ in cards)
+    if ready < PACKS_MIN:
+        order = pack_order()
+
+        def rank(item):
+            name = pack_name(item[2]).lower()
+            return (order.index(name) if name in order else len(order), item[1])
+        todo = sorted((c for c in cards if c[0] in (AROLL_DONE, CLIPS_BUILDING) and c[2].get('owner') in AROLL_OWNERS
+                       and c[2].get('status') not in HELD + ('doing',) and not waiting_external(c[2], now)), key=rank)
+        left = PACKS_MIN - ready
+        for _, _, card in todo:
+            if left and wake(ids.get(card['owner']) or (), card, 'Pack buffer is %d of %d. Build the clips for "%s" (card %s), '
+                             "the next pack in Jon's order, and run preflight." % (ready, PACKS_MIN, card['title'], card['id'])):
+                left -= 1
     return found
 
 
@@ -711,7 +788,7 @@ def check_disk(now, state):
 
 # aroll and next run before idle: idle skips a bot they just woke, and a "start <Todo>" nudge must not block the a-roll wake
 CHECKS = [('disk', check_disk), ('turns', check_turns), ('qc', check_qc), ('limits', check_limits),
-          ('aroll', check_aroll), ('next', check_next), ('balance', check_balance), ('idle', check_idle), ('ports', check_ports), ('packs', check_packs)]  # slowest last
+          ('aroll', check_aroll), ('buffer', check_buffers), ('next', check_next), ('balance', check_balance), ('idle', check_idle), ('ports', check_ports), ('packs', check_packs)]  # slowest last
 try:  # Emma's stall checks (heartbeats, disk_early, money, sites, tokens) live in the tools folder, not this repo
     import stall_gates
     CHECKS += stall_gates.CHECKS
