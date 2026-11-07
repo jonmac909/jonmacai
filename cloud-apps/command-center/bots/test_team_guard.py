@@ -53,6 +53,7 @@ class Base(unittest.TestCase):
         self.root = Path(tmp.name)
         self.t = T0
         self.sent, self.proofs, self.cards, self.pass_codes, self.keys = [], [], [], {}, set()
+        self.task_status = {}
         self.status, self.render, self.restart_error, self.ask_error = 202, False, None, None
         self.owners, self.answers, self.route_status = {}, {}, {}
         self.ports_line = ''
@@ -136,7 +137,7 @@ class Base(unittest.TestCase):
                 return {'tasks': [c for c in self.cards if c.get('status') == args[2]][:limit]}
             return {'tasks': [c for c in self.cards if c['owner'] == args[2]][:limit]}
         if args[0] == 'task':
-            return {'task': {'owner': self.owners[args[1]]}}
+            return {'task': {'owner': self.owners[args[1]], 'status': self.task_status.get(args[1], 'doing')}}
         if args[0] == 'task-update':
             card = next(c for c in self.cards if c['id'] == args[1])
             card['owner'] = args[args.index('--owner') + 1]
@@ -183,6 +184,83 @@ class Base(unittest.TestCase):
         self.owners['t-' + pid] = owner
         self.proofs.append({'id': pid, 'kind': kind, 'link': link, 'createdBy': by or owner, 'taskId': 't-' + pid,
                             'createdAt': tg.iso(self.t - minutes * 60)})
+
+
+class FailedProofs(Base):
+    """A proof QC just failed puts the card back in doing: its owner is woken at once with the note, once per proof."""
+
+    def setUp(self):
+        super().setUp()
+        patcher = mock.patch.object(tg, 'CHECKS', [c for c in _ALL_CHECKS if c[0] == 'failed'])
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def failed(self, pid='p1', minutes=10, owner='developer', note='Dead air from 1.5 s to 2.7 s.'):
+        self.owners['t-' + pid] = owner
+        self.proofs.append({'id': pid, 'kind': 'url', 'link': 'https://jonmac.ai/review/x', 'taskId': 't-' + pid,
+                            'createdBy': owner, 'status': 'failed', 'checkNote': note,
+                            'createdAt': tg.iso(self.t - 3600), 'checkedAt': tg.iso(self.t - minutes * 60)})
+
+    def test_a_fresh_failure_wakes_the_cards_owner_with_the_note(self):
+        self.agent(LUCY, 'Lucy')
+        self.slugs['developer'] = [LUCY]
+        self.failed()
+        out = self.run_guard()
+        self.assertEqual([('wake', LUCY)], [s[:2] for s in out])
+        self.assertIn('Dead air from 1.5 s to 2.7 s.', out[0][2])
+
+    def test_it_wakes_once_per_proof(self):
+        self.agent(LUCY, 'Lucy')
+        self.slugs['developer'] = [LUCY]
+        self.failed()
+        self.assertEqual(1, len(self.run_guard()))
+        self.assertEqual([], self.run_guard())
+
+    def test_a_failure_from_a_working_day_is_left_to_the_idle_nudge(self):
+        self.agent(LUCY, 'Lucy')
+        self.slugs['developer'] = [LUCY]
+        self.failed(minutes=tg.FAILED_PROOF_MIN + 1)
+        self.assertEqual([], self.run_guard())
+
+    def test_a_proof_qc_has_not_checked_is_not_a_failure(self):
+        self.agent(LUCY, 'Lucy')
+        self.slugs['developer'] = [LUCY]
+        self.failed()
+        del self.proofs[0]['checkedAt']
+        self.assertEqual([], self.run_guard())
+
+    def test_a_pending_proof_is_ignored(self):
+        self.agent(LUCY, 'Lucy')
+        self.slugs['developer'] = [LUCY]
+        self.proof(owner='developer')
+        self.assertEqual([], self.run_guard())
+
+    def test_a_busy_owner_is_left_alone(self):
+        self.agent(LUCY, 'Lucy')
+        self.slugs['developer'] = [LUCY]
+        self.turn(LUCY, 'u1', 5)
+        self.failed()
+        self.assertEqual([], self.run_guard())
+
+    def test_a_dashboard_that_does_not_answer_does_not_stop_the_guard(self):
+        self.agent(LUCY, 'Lucy')
+        self.slugs['developer'] = [LUCY]
+        self.failed()
+        self.assertEqual(1, len(self.run_guard()))
+        with mock.patch.object(tg, 'dash', side_effect=RuntimeError('dash proofs exit 1')):
+            self.assertEqual([], self.run_guard())
+        self.assertEqual([], self.run_guard())  # it did not forget the wake it already sent
+
+    def test_a_finished_card_is_left_alone(self):
+        self.agent(LUCY, 'Lucy')
+        self.slugs['developer'] = [LUCY]
+        self.failed()
+        self.task_status['t-p1'] = 'done'
+        self.assertEqual([], self.run_guard())
+
+    def test_an_unknown_owner_is_skipped(self):
+        self.failed(owner='nobody')
+        self.assertEqual([], self.run_guard())
 
 
 class Turns(Base):
@@ -2181,7 +2259,7 @@ class StallGatesHookIn(unittest.TestCase):
         with mock.patch.dict(sys.modules, {'stall_gates': None}):  # None makes the import raise ImportError
             importlib.reload(tg)
         names = [n for n, _ in tg.CHECKS]
-        self.assertEqual(names, ['disk', 'turns', 'qc', 'limits', 'aroll', 'buffer', 'gpu', 'next', 'balance', 'idle', 'gpuq', 'ports', 'packs'])
+        self.assertEqual(names, ['disk', 'turns', 'qc', 'failed', 'limits', 'aroll', 'buffer', 'gpu', 'next', 'balance', 'idle', 'gpuq', 'ports', 'packs'])
 
     def test_installed_stall_gates_checks_are_added_with_unique_names(self):
         fake = types.ModuleType('stall_gates')
