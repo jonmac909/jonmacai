@@ -75,9 +75,10 @@ GPU_EVENT = re.compile(r'^(\d\d)-(\d\d) (\d\d):(\d\d):(\d\d) (?:job ([0-9a-f]{12
 GPU_JOBS_MIN = 3  # Ana, 2026-11-05: each GPU queue holds this many runnable jobs so the card never sits idle
 GPU_QUEUES = {'GPU1': (r'D:\gpu-queue\gpuq.py', 'Omni clip'), 'GPU2': (r'D:\gpu-queue\gpu2.py', 'Qwen still')}  # name -> status CLI, job kind
 GPU_WAIT_MIN = 25  # a 'waiting' line this old with no 'running' after it is a client that gave up (a turn is 20 minutes)
+FAILED_PROOF_MIN = 180  # a QC failure this recent wakes the card's owner at once; older ones wait for the idle nudge
 AROLL_OWNERS = ('home-guide-press', 'viral-view')  # dashboard slugs of Elle and Scarlett
 SCRIPT_OWNERS = AROLL_OWNERS + ('jon-mac-youtube',)  # Sydney writes the scripts, Elle and Scarlett fix the ones on their packs
-WAKES = ('idle', 'aroll', 'buffer', 'gpu', 'gpuq', 'balance', 'next')  # check names whose keys read 'name:agent:card'
+WAKES = ('idle', 'aroll', 'buffer', 'gpu', 'gpuq', 'balance', 'failed', 'next')  # check names whose keys read 'name:agent:card'
 NEXT_MIN = 30  # a card waits this long at a hand-off before the bot that takes it next is woken
 HELD = ('qc', 'review', 'waiting_on_jon')  # statuses of a card someone else is checking: nothing to do for its owner
 SCRIPT_WRITTEN, SCRIPT_QC, AROLL_DONE, PREFLIGHT_PASSED, EDITING = 0, 1, 3, 5, 6  # pipeline.py's stage numbers
@@ -346,6 +347,40 @@ def check_qc(now, state):
             found[key] = (NINA if owner == 'video-editor' else JESSICA,
                           'Video proof %s on card %s has waited %d minutes for QC. '
                           'Its usual QC bot has not taken it, so please check it now.' % (p['id'], p['taskId'], age))
+    return found
+
+
+def check_failed(now, state):
+    """A card whose proof QC just failed has gone back to doing: wake its owner with the note at once, once per proof, so
+    the fix starts now instead of at the next idle nudge. A failure older than FAILED_PROOF_MIN is left to that nudge."""
+    found = {}
+    try:
+        proofs = dash('proofs', '--status', 'failed', '--limit', '200')['proofs']
+    except (RuntimeError, ValueError, OSError, KeyError):
+        return None  # the dashboard not answering must not stop the other checks, nor forget who was already woken
+    free = free_bots(now, state)
+    ids = bots()
+    for p in proofs:
+        checked = p.get('checkedAt')
+        if p.get('status') != 'failed' or not checked or now - ts(checked) > FAILED_PROOF_MIN * 60:
+            continue
+        try:
+            task = dash('task', p['taskId'])['task']
+        except (RuntimeError, ValueError, OSError, KeyError):
+            continue
+        if task.get('status') not in ('doing', 'todo'):  # QC's late failure on a done or cancelled card wakes no one
+            continue
+        agent = next((a for a in ids.get(task.get('owner')) or () if a in free
+                      and not woke_lately(state['seen'], a, now)), None)
+        if not agent:
+            continue
+        key = 'failed:%s:%s' % (agent, p['id'])
+        if key in state['seen']:
+            found[key] = None
+            continue
+        note = ' '.join((p.get('checkNote') or p.get('note') or '').split()) or 'no note'
+        found[key] = (agent, 'QC failed the proof on card %s: %s Fix it and send it back to QC.' % (p['taskId'], note[:300]))
+        free.discard(agent)
     return found
 
 
@@ -904,7 +939,7 @@ def check_disk(now, state):
 
 
 # aroll and next run before idle: idle skips a bot they just woke, and a "start <Todo>" nudge must not block the a-roll wake
-CHECKS = [('disk', check_disk), ('turns', check_turns), ('qc', check_qc), ('limits', check_limits),
+CHECKS = [('disk', check_disk), ('turns', check_turns), ('qc', check_qc), ('failed', check_failed), ('limits', check_limits),
           ('aroll', check_aroll), ('buffer', check_buffers), ('gpu', check_gpu), ('next', check_next), ('balance', check_balance), ('idle', check_idle), ('gpuq', check_gpuq), ('ports', check_ports), ('packs', check_packs)]  # slowest last
 try:  # Emma's stall checks (heartbeats, disk_early, money, sites, tokens) live in the tools folder, not this repo
     import stall_gates
