@@ -99,3 +99,106 @@ section { padding: 28px 0; border-top: 1px solid var(--line); }
   .shelf { grid-template-columns: repeat(4, 1fr); }
   .again { max-width: 560px; }
 }
+
+/* Playbook landing (copies the source channel's own sales page look). */
+.pb-page { background: #fbf7f0; color: #16201c; }
+.pb-page .top { background: #fff; border-bottom: 1px solid #ece6da; }
+.pb-page .brand { color: #16201c; }
+.pb-page main { max-width: none; padding: 0; }
+.pb-page .foot { background: #f1ece2; }
+.playbook { font-family: var(--sans); font-size: 18px; line-height: 1.65; color: #33403a; }
+.playbook h1, .playbook h2 { font-family: var(--serif); color: #12211b; letter-spacing: -.01em; }
+.playbook h1 { font-size: 38px; line-height: 1.08; margin: 6px 0 18px; }
+.playbook h2 { font-size: 32px; line-height: 1.15; margin: 4px 0 18px; }
+.playbook section { border-top: 0; padding: 56px max(20px, calc(50vw - 540px)); }
+.pb-eyebrow { font: 700 13px/1.4 var(--sans); letter-spacing: .16em; text-transform: uppercase; color: #6c8b7b; margin: 0 0 10px; }
+
+.pb-hero { display: grid; gap: 28px; padding-block: 32px 40px; background: linear-gradient(104deg, #fdf5ee 0%, #f8e9e4 34%, #e2e9ef 66%, #d2e2e9 100%); }
+.pb-who { display: flex; align-items: center; gap: 8px; font: 700 14px/1 var(--sans); color: #16201c; margin: 0 0 18px; }
+.pb-mark { display: inline-grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; background: #1c6b4d; color: #fff; font: 700 11px/1 var(--sans); }
+.pb-lede { font-size: 19px; color: #46544d; max-width: 520px; }
+.pb-card { background: #fff; border-radius: 14px; padding: 20px; margin: 22px 0 0; max-width: 430px; box-shadow: 0 8px 26px rgba(22, 32, 28, .1); }
+.pb-price { font: 700 40px/1 var(--sans); color: #12211b; margin: 0 0 6px; }
+.pb-price span { display: inline; font: 400 15px/1.4 var(--sans); color: #6b7a73; margin-left: 4px; }
+.pb-note { font-size: 15px; color: #6b7a73; margin: 0 0 14px; }
+.pb-buy { display: block; text-align: center; background: #1c6b4d; color: #fff; text-decoration: none; font: 700 17px/1.2 var(--sans); padding: 16px; border-radius: 7px; min-height: 52px; }
+.pb-buy:hover, .pb-buy:focus { background: #145139; }
+.pb-buy.off { background: #8d8478; }
+.pb-under { font-size: 14px; color: #7a877f; margin: 12px 0 0; }
+.pb-card .guarantee { font-size: 14px; margin: 8px 0 0; }
+.pb-art { order: -1; }
+.pb-art .cover { max-width: 240px; transform: rotate(-2deg); box-shadow: 0 24px 48px rgba(22, 32, 28, .28); }
+
+.pb-chips { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; padding-block: 30px; background: #fff; }
+.pb-chip { border: 1px solid #e8e2d6; border-radius: 10px; padding: 14px 16px; }
+.pb-chip strong { display: block; font: 700 16px/1.3 var(--sans); color: #16201c; }
+.pb-chip span { font-size: 14px; color: #6b7a73; }
+.pb-band { background: #eef1ec; padding-block: 18px; text-align: center; }
+.pb-band p { margin: 0; font: 700 13px/1.4 var(--sans); letter-spacing: .12em; text-transform: uppercase; color: #3f5549; }
+
+.pb-problem { background: #0f1b16; color: #d9d6cd; padding-block: 56px 60px; }
+.pb-problem .pb-eyebrow { color: #7ea08e; }
+.pb-problem h2 { color: #f3efe4; }
+.pb-problem hr { border: 0; border-top: 1px solid #33453c; margin: 26px 0; }
+.pb-problem ul { list-style: none; padding: 0; margin: 0 0 26px; }
+.pb-problem li { position: relative; padding-left: 22px; margin-bottom: 14px; color: #c9c6bc; }
+.pb-problem li::before { content: '\2014'; position: absolute; left: 0; color: #7ea08e; }
+.pb-close { color: #f3efe4; font-weight: 700; margin: 0; }
+
+.pb-myths { padding: 56px 16px; }
+.pb-grid { display: grid; gap: 22px; }
+.pb-myth strong { display: block; font: 700 17px/1.4 var(--sans); color: #16201c; margin-bottom: 4px; }
+.pb-myth strong span { color: #b4462f; }
+.pb-myth p { margin: 0; font-size: 16px; color: #5c6a63; }
+
+.pb-shift { background: #f6f1e7; text-align: center; }
+.pb-line { font: 400 26px/1.35 var(--serif); color: #12211b; max-width: 620px; margin: 0 auto 14px; }
+.pb-small { font-size: 16px; color: #5c6a63; max-width: 620px; margin: 0 auto; }
+
+.pb-away { padding: 56px 16px; }
+.pb-away ul { list-style: none; padding: 0; margin: 0; }
+.pb-away li { display: flex; gap: 14px; align-items: flex-start; padding: 16px 0; border-top: 1px solid #e8e2d6; }
+.pb-dot { flex: none; display: inline-grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; background: #e7efe9; color: #1c6b4d; font: 700 13px/1 var(--sans); }
+
+.pb-who-box { background: #f7f3ea; }
+.pb-pair { display: grid; gap: 16px; }
+.pb-for, .pb-not { border-radius: 12px; padding: 20px; border: 1px solid #d9e3d7; background: #eef3ec; }
+.pb-not { border-color: #eddcd6; background: #f8ece8; }
+.pb-for strong, .pb-not strong { display: block; font: 700 15px/1.4 var(--sans); margin-bottom: 8px; color: #16201c; }
+.pb-for ul, .pb-not ul { margin: 0; padding-left: 18px; }
+.pb-for li, .pb-not li { font-size: 16px; color: #4c5a53; margin-bottom: 6px; }
+
+.pb-inside { padding: 56px 16px; }
+.pb-parts { list-style: none; padding: 0; margin: 22px 0 0; }
+.pb-parts li { display: grid; grid-template-columns: 40px 1fr; gap: 4px 14px; align-items: start; padding: 16px 0; border-top: 1px solid #e8e2d6; }
+.pb-num { display: inline-grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; border: 1px solid #cfd8cf; font: 700 12px/1 var(--sans); color: #3f5549; }
+.pb-part strong { display: block; font: 700 16px/1.4 var(--sans); color: #16201c; }
+.pb-part span { font-size: 16px; color: #5c6a63; }
+.pb-side { grid-column: 2; font: 700 12px/1.4 var(--sans); letter-spacing: .12em; text-transform: uppercase; color: #8a958e; }
+
+.pb-promises { padding-bottom: 40px; }
+.pb-promises ul { list-style: none; padding: 0; margin: 0; }
+.pb-promises li { padding: 16px 0; border-top: 1px solid #e8e2d6; }
+.pb-promises strong { display: block; font: 700 16px/1.4 var(--sans); color: #16201c; }
+.pb-promises span { font-size: 16px; color: #5c6a63; }
+
+.pb-faq { padding-bottom: 48px; }
+.pb-faq dt { font-family: var(--serif); font-size: 20px; }
+.pb-again { padding-bottom: 56px; }
+.pb-again .pb-buy { max-width: 420px; }
+.pb-again .guarantee { font-size: 15px; }
+
+@media (min-width: 860px) {
+  .playbook h1 { font-size: 56px; }
+  .playbook h2 { font-size: 40px; }
+  .pb-hero { grid-template-columns: 1.05fr .95fr; align-items: center; gap: 40px; padding-block: 48px 56px; }
+  .pb-art { order: 0; justify-self: end; }
+  .pb-art .cover { max-width: 330px; }
+  .pb-chips { grid-template-columns: repeat(4, 1fr); }
+  .pb-grid { grid-template-columns: 1fr 1fr; gap: 28px 48px; }
+  .pb-pair { grid-template-columns: 1fr 1fr; }
+  .pb-parts li { grid-template-columns: 48px 1fr 110px; align-items: center; }
+  .pb-side { grid-column: 3; text-align: right; }
+  .pb-line { font-size: 32px; }
+  .pb-lede { font-size: 19px; }
+}
