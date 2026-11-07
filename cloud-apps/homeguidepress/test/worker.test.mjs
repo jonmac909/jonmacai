@@ -81,6 +81,17 @@ test('landing page: noindex, chapters, buy link keeps src and utm', async () => 
   assert.equal(f.sql.prepare("SELECT COUNT(*) n FROM clicks WHERE kind='view' AND slug='angelo' AND src='aff-angelo-1'").get().n, 1);
 });
 
+test('playbook landing (Eleanor) keeps the price, buy link and honest copy', async () => {
+  const f = fixture();
+  const body = await (await get(f, '/the-christmas-home-plan?src=aff-eleanor-1')).text();
+  assert.match(body, /class="product playbook"/);       // copies the source channel's own sales page look
+  assert.match(body, /<p class="pb-price">\$27/);
+  assert.match(body, /class="pb-buy/);
+  assert.match(body, /18 chapters/);
+  assert.match(body, /Who this is for/);
+  assert.doesNotMatch(body, /readers have|readers picked|copies bought|testimonial|countdown|bestsell/i);  // no invented proof numbers
+});
+
 test('missing checkout link shows a placeholder, never a buy link', async () => {
   const f = fixture();
   const body = await (await get(f, '/the-long-life-dog')).text();
