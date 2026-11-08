@@ -4,7 +4,8 @@ import { DatabaseSync } from 'node:sqlite';
 import { createHmac } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import worker from '../src/index.js';
-import { keyForProduct, makeToken, retryUnsent } from '../src/delivery.js';
+import { keyForProduct, makeToken, retryUnsent, filesFor } from '../src/delivery.js';
+import { BY_KEY } from '../src/products.js';
 
 const SECRET = 'mock-only-webhook-key';
 const TEST_SECRET = 'mock-only-test-webhook-key';
@@ -275,5 +276,31 @@ test('focus channel pages (Takeshi, Kenzo, Edna, Jiyoung, Peggy): served as clon
     await f.settle();
     assert.equal(f.sql.prepare("SELECT COUNT(*) n FROM clicks WHERE kind='view' AND slug=?").get(key).n, 1, path);
     assert.equal((await get(f, '/go/' + key)).headers.get('location'), 'https://homeguidepress.com' + path, path);  // no checkout yet
+  }
+});
+
+test('every product with a live checkout link has a file to deliver', () => {
+  const w = JSON.parse(readFileSync(new URL('../wrangler.jsonc', import.meta.url), 'utf8').replace(/^\s*\/\/.*$/gm, ''));
+  const keys = Object.keys(JSON.parse(w.vars.CHECKOUT_URLS));
+  assert.ok(keys.length > 0);
+  for (const key of keys) {
+    assert.ok(BY_KEY[key], key);
+    assert.ok(filesFor(w.vars, BY_KEY[key]).length > 0, key);  // files in products.js or vars.FILES
+  }
+});
+
+test('homepage shelf leaves out the 5 books that are not for sale yet', async () => {
+  const body = await (await get(fixture(), '/')).text();
+  assert.match(body, /href="\/finally-written-down"/);
+  for (const path of ['/the-japanese-way-to-a-lighter-home', '/calm-and-ready', '/three-ingredients-and-a-pan', '/fresher-after-60-the-korean-way', '/the-fixed-income-pantry'])
+    assert.doesNotMatch(body, new RegExp('href="' + path + '"'), path);
+});
+
+test('books with no chapter list yet still render from the template when no clone is served', async () => {
+  const f = fixture();
+  for (const path of ['/the-japanese-way-to-a-lighter-home', '/calm-and-ready', '/three-ingredients-and-a-pan']) {
+    const r = await get(f, path);
+    assert.equal(r.status, 200, path);
+    assert.match(await r.text(), /The full chapter list goes here once the book is finished/, path);
   }
 });
