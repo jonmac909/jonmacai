@@ -30,7 +30,7 @@ Runs hidden every 10 minutes (see HOOKS.md). Reads OpenBot's database and transc
   no clips yet: wakes Scarlett about the first such pack in Jon's order to queue the clips. Same rules as Buffers.
 - Load balancer: a bot is overloaded with more than 3 non-waiting Doing cards, 3 or more queued messages, or a Todo
   card untouched for 2 hours. Its oldest card moves to the first backup that is not overloaded and stays lighter than it
-  (Lucy to Mila to Emma, Elle to Scarlett; Scarlett and Sydney have none: an overloaded Scarlett or Sydney pages Ana), with a card comment and a wake. Each bot gives up at
+  (Lucy to Mila, Elle to Scarlett; Scarlett and Sydney have none: an overloaded Scarlett or Sydney pages Ana), with a card comment and a wake. Each bot gives up at
   most one card per 30 minutes. No backup: bot_stuck to Ana. QC has one dashboard slug for Jessica and Nina, so no move.
 - GPU2's heartbeat logged low UDP or TCP ports in the last 30 minutes: bot_stuck to Ana, naming who holds them.
 - GPU1's D: under 30 GB free: bot_stuck to Ana.
@@ -872,7 +872,7 @@ def check_gpuq(now, state):
     own idle alert is the queue's watchdog in gpuq.py. A queue that can't be read is left alone."""
     seen = state['seen']
     found = {k: None for k, t in seen.items() if k.startswith('gpuq:') and not k.endswith(':idle') and now - ts(t) < NUDGE_EVERY_S - 60}  # :idle is Ana's alert
-    free = free_bots(now, state)
+    free, ids = free_bots(now, state), bots()
     for name, (_, kind) in GPU_QUEUES.items():
         q = gpu_queue(name)
         if not q:
@@ -885,7 +885,7 @@ def check_gpuq(now, state):
             found['gpuq:gpu2:idle'] = (URGENT, 'GPU2 has had no job running for %s minutes.' % since)
         if jobs >= GPU_JOBS_MIN or any(k.endswith(':' + name.lower()) for k in found if k.startswith('gpuq:')):  # one wake per queue per 30 minutes
             continue
-        agent = next((a for a in (SCARLETT,) if a in free and not woke_lately(seen, a, now)), None)  # packs and clip jobs are hers alone
+        agent = next((a for a in (ids.get(PACKER) or (SCARLETT,)) if a in free and not woke_lately(seen, a, now)), None)  # packs and clip jobs are hers alone (and her copies')
         if agent:
             key = 'gpuq:%s:%s' % (agent, name.lower())
             seen.pop(key, None)  # its last wake is over 30 minutes old

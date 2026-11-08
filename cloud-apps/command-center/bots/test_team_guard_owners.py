@@ -10,8 +10,8 @@ from unittest import mock
 # the repo's team_guard.py comes first; pipeline.py lives only in the tools folder, so that goes last
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 sys.path.append(r'D:\AgentTeam\tools')
+import team_guard as g  # noqa: E402  (first: pipeline.py puts the tools folder ahead on sys.path, which would load the live copy)
 import pipeline  # noqa: E402
-import team_guard as g  # noqa: E402
 
 NOW = time.time()
 S, V, E, O = 'agent-sydney', g.SCARLETT, g.ELLE, 'agent-olivia'  # Sydney, Scarlett, Elle, Olivia
