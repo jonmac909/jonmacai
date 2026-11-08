@@ -57,6 +57,9 @@
   "routes": [
     { "pattern": "jonmac.ai/dashboard", "zone_name": "jonmac.ai" },
     { "pattern": "jonmac.ai/dashboard/*", "zone_name": "jonmac.ai" },
+    // Dashboard 2 (docs/dashboard-2.md).
+    { "pattern": "jonmac.ai/dashboard-2", "zone_name": "jonmac.ai" },
+    { "pattern": "jonmac.ai/dashboard-2/*", "zone_name": "jonmac.ai" },
     // Tracked video links (src/track.js).
     { "pattern": "jonmac.ai/v/*", "zone_name": "jonmac.ai" }
   ],

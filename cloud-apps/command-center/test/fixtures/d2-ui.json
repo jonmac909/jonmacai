@@ -1,0 +1,5643 @@
+{
+ "ok": true,
+ "build": "fixture-build-1",
+ "asOf": "2026-11-05T22:05:00.000Z",
+ "pages": {
+  "today": {
+   "title": "Today",
+   "date": "Thursday, November 5",
+   "clock": "3:05 PM",
+   "total": {
+    "value": "$0",
+    "goal": "$40,000",
+    "pct": 0,
+    "reporting": "0 of 4 goals reporting"
+   },
+   "goals": [
+    {
+     "key": "sponsors",
+     "label": "Sponsors · November",
+     "value": "no data",
+     "goal": "/ $10,000",
+     "usd": null,
+     "pct": 0,
+     "pacePct": null,
+     "status": {
+      "text": "No data",
+      "cls": "idle"
+     },
+     "why": "The sponsor cash ledger has not reported.",
+     "drivers": [],
+     "source": {
+      "label": "Sponsor cash ledger",
+      "at": null,
+      "ageLabel": "never reported",
+      "stale": true
+     }
+    },
+    {
+     "key": "viral",
+     "label": "Viral View recurring revenue",
+     "value": "no data",
+     "goal": "/ $10,000",
+     "usd": null,
+     "pct": 0,
+     "pacePct": null,
+     "status": {
+      "text": "No data",
+      "cls": "idle"
+     },
+     "why": "The Viral View subscription feed has not reported MRR.",
+     "drivers": [],
+     "source": {
+      "label": "Viral View subscriptions feed",
+      "at": null,
+      "ageLabel": "never reported",
+      "stale": true
+     }
+    },
+    {
+     "key": "webinar",
+     "label": "Webinar funnel · November",
+     "value": "no data",
+     "goal": "/ $10,000",
+     "usd": null,
+     "pct": 0,
+     "pacePct": null,
+     "status": {
+      "text": "No data",
+      "cls": "idle"
+     },
+     "why": "The funnel figure for November has not been read yet.",
+     "drivers": [],
+     "source": {
+      "label": "Clone funnel database (verified payments minus refunds, every 10 min)",
+      "at": null,
+      "ageLabel": "never reported",
+      "stale": true
+     }
+    },
+    {
+     "key": "ebooks",
+     "label": "Home Guide Press ebooks · November",
+     "value": "no data",
+     "goal": "/ $10,000",
+     "usd": null,
+     "pct": 0,
+     "pacePct": null,
+     "status": {
+      "text": "No data",
+      "cls": "idle"
+     },
+     "why": "No ebook sales posted for November yet. Home Guide Press posts them with dash.py feed-put ebook_sales.",
+     "drivers": [],
+     "source": {
+      "label": "Home Guide Press · ebook_sales feed",
+      "at": null,
+      "ageLabel": "never reported",
+      "stale": true
+     }
+    }
+   ],
+   "needs": {
+    "count": 5,
+    "items": [
+     {
+      "id": "a_77d1f9",
+      "kind": "approval",
+      "rank": 1,
+      "cls": "risk",
+      "title": "Make 3 Shorts public on YouTube",
+      "from": "short-form",
+      "at": "2026-11-05T13:05:00.000Z",
+      "detail": "Posts to YouTube.",
+      "notes": [
+       "All three passed QC this morning."
+      ],
+      "links": [],
+      "decideUrl": "/dashboard/api/v1/approvals/a_77d1f9/decide",
+      "ageLabel": "9 hr ago"
+     },
+     {
+      "id": "a_51c0e2",
+      "kind": "approval",
+      "rank": 1,
+      "cls": "risk",
+      "title": "Send the Creatify invoice ($1,500)",
+      "from": "sponsors",
+      "at": "2026-11-05T18:05:00.000Z",
+      "detail": "Runs send invoice.",
+      "notes": [
+       "The video went live Nov 4.",
+       "The invoice is drafted in partners@."
+      ],
+      "links": [
+       {
+        "label": "Draft",
+        "href": "https://mail.google.com/mail/u/0/#drafts/ab12"
+       }
+      ],
+      "decideUrl": "/dashboard/api/v1/approvals/a_51c0e2/decide",
+      "ageLabel": "4 hr ago"
+     },
+     {
+      "id": "q_c4410d",
+      "kind": "question",
+      "rank": 2,
+      "cls": "risk",
+      "title": "Webinar date: Thursday Nov 19 or Tuesday Nov 24, 6 PM?",
+      "context": "",
+      "options": [
+       "Thu Nov 19, 6 PM",
+       "Tue Nov 24, 6 PM",
+       "Other (type your own)"
+      ],
+      "from": "viral-view",
+      "at": "2026-11-04T18:05:00.000Z",
+      "answerUrl": "/dashboard/api/v1/questions/q_c4410d/answer",
+      "ageLabel": "28 hr ago"
+     },
+     {
+      "id": "q_8e2a41",
+      "kind": "question",
+      "rank": 2,
+      "cls": "risk",
+      "title": "Notion AI offers $4,000 for 2 videos. Accept?",
+      "context": "Rate card says $2,500 a video. They want both live in November.",
+      "options": [
+       "Counter at $5,000 (rate card)",
+       "Accept $4,000",
+       "Other (type your own)"
+      ],
+      "from": "sponsors",
+      "at": "2026-11-05T16:05:00.000Z",
+      "answerUrl": "/dashboard/api/v1/questions/q_8e2a41/answer",
+      "ageLabel": "6 hr ago"
+     },
+     {
+      "id": "q_3b9c07",
+      "kind": "question",
+      "rank": 2,
+      "cls": "risk",
+      "title": "Ruth Calder book page: cream cover or blue cover?",
+      "context": "Her channel uses cream and dark green.",
+      "options": [
+       "Cream (matches her channel)",
+       "Blue",
+       "Other (type your own)"
+      ],
+      "from": "home-guide-press",
+      "at": "2026-11-05T19:05:00.000Z",
+      "answerUrl": "/dashboard/api/v1/questions/q_3b9c07/answer",
+      "ageLabel": "3 hr ago"
+     }
+    ],
+    "sources": [
+     {
+      "label": "Bot questions and approvals",
+      "at": null,
+      "ageLabel": "live",
+      "stale": false
+     }
+    ],
+    "available": true
+   },
+   "summary": {
+    "source": {
+     "label": "Ana's morning summary",
+     "at": "2026-11-05T15:05:00.000Z",
+     "ageLabel": "updated 7 hr ago",
+     "stale": false
+    },
+    "text": "**What happened**\n- Creatify video went live; invoice waiting on your click.\n- 2 Home Guide Press videos passed QC.\n\n**Next**\n- Notion AI price answer unblocks the contract.",
+    "date": "2026-11-05",
+    "by": "ana"
+   },
+   "usage": {
+    "source": {
+     "label": "Ana's Claude usage check",
+     "at": "2026-11-05T20:05:00.000Z",
+     "ageLabel": "updated 2 hr ago",
+     "stale": false
+    },
+    "bots": {
+     "tokens": 3400000,
+     "runs": 210
+    },
+    "pct": 58,
+    "level": {
+     "min": 0,
+     "cls": "ok",
+     "short": "Normal",
+     "text": "All bots can work."
+    },
+    "resets": "",
+    "note": ""
+   }
+  },
+  "projects": {
+   "title": "Projects",
+   "available": true,
+   "projects": [
+    {
+     "slug": "sponsors",
+     "label": "Sponsors",
+     "checklist": {
+      "items": [
+       {
+        "text": "Sort partners@",
+        "done": false
+       },
+       {
+        "text": "Chase payments",
+        "done": false
+       }
+      ],
+      "done": 0,
+      "total": 2
+     },
+     "waiting": 3,
+     "goals": [
+      {
+       "key": "sponsors",
+       "label": "Sponsors · November",
+       "value": "no data",
+       "goal": "/ $10,000",
+       "usd": null,
+       "pct": 0,
+       "pacePct": null,
+       "status": {
+        "text": "No data",
+        "cls": "idle"
+       },
+       "why": "The sponsor cash ledger has not reported.",
+       "drivers": [],
+       "source": {
+        "label": "Sponsor cash ledger",
+        "at": null,
+        "ageLabel": "never reported",
+        "stale": true
+       }
+      }
+     ],
+     "columns": [
+      {
+       "key": "todo",
+       "label": "To do",
+       "items": [
+        {
+         "kind": "task",
+         "id": "t_00009f3a00003dde",
+         "title": "Chase Topview deposit ($750)",
+         "from": "sponsors",
+         "ageLabel": "2 days ago",
+         "proof": "",
+         "deliverable": null
+        }
+       ]
+      },
+      {
+       "key": "doing",
+       "label": "Doing",
+       "items": [
+        {
+         "kind": "task",
+         "id": "t_00009f3a00001eef",
+         "title": "Notion AI deal - contract back from sponsor",
+         "from": "sponsors",
+         "ageLabel": "30 hr ago",
+         "proof": "",
+         "deliverable": null
+        }
+       ]
+      },
+      {
+       "key": "waiting_on_jon",
+       "label": "Waiting on Jon",
+       "items": [
+        {
+         "id": "a_51c0e2",
+         "kind": "approval",
+         "rank": 1,
+         "cls": "risk",
+         "title": "Send the Creatify invoice ($1,500)",
+         "from": "sponsors",
+         "at": "2026-11-05T18:05:00.000Z",
+         "detail": "Runs send invoice.",
+         "notes": [
+          "The video went live Nov 4.",
+          "The invoice is drafted in partners@."
+         ],
+         "links": [
+          {
+           "label": "Draft",
+           "href": "https://mail.google.com/mail/u/0/#drafts/ab12"
+          }
+         ],
+         "decideUrl": "/dashboard/api/v1/approvals/a_51c0e2/decide",
+         "ageLabel": "4 hr ago"
+        },
+        {
+         "id": "q_8e2a41",
+         "kind": "question",
+         "rank": 2,
+         "cls": "risk",
+         "title": "Notion AI offers $4,000 for 2 videos. Accept?",
+         "context": "Rate card says $2,500 a video. They want both live in November.",
+         "options": [
+          "Counter at $5,000 (rate card)",
+          "Accept $4,000",
+          "Other (type your own)"
+         ],
+         "from": "sponsors",
+         "at": "2026-11-05T16:05:00.000Z",
+         "answerUrl": "/dashboard/api/v1/questions/q_8e2a41/answer",
+         "ageLabel": "6 hr ago"
+        }
+       ]
+      },
+      {
+       "key": "qc",
+       "label": "QC",
+       "items": [
+        {
+         "kind": "task",
+         "id": "t_00009f3a00005ccd",
+         "title": "Creatify integration - Jon Mac",
+         "from": "video-editor",
+         "ageLabel": "26 hr ago",
+         "proof": "https://jonmac.ai/review/creatify-jm",
+         "deliverable": null
+        }
+       ]
+      },
+      {
+       "key": "review",
+       "label": "Review",
+       "items": [
+        {
+         "kind": "task",
+         "id": "t_00009f3a00007bbc",
+         "title": "Invideo sponsor read - Jon Mac",
+         "from": "sponsors",
+         "ageLabel": "8 hr ago",
+         "proof": "https://jonmac.ai/review/invideo-read",
+         "deliverable": null,
+         "reviewUrl": "/dashboard/api/v1/tasks/t_00009f3a00007bbc"
+        }
+       ]
+      },
+      {
+       "key": "done",
+       "label": "Done",
+       "items": [
+        {
+         "kind": "task",
+         "id": "t_00009f3a00009aab",
+         "title": "Poppy invoice sent",
+         "from": "sponsors",
+         "ageLabel": "2 days ago",
+         "proof": "",
+         "deliverable": null
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "slug": "jon-mac",
+     "label": "YT-JM",
+     "checklist": {
+      "missing": "Ana syncs the daily checklist with dash.py daily-sync"
+     },
+     "waiting": 0,
+     "goals": [],
+     "columns": [
+      {
+       "key": "todo",
+       "label": "To do",
+       "items": [
+        {
+         "kind": "task",
+         "id": "t_00009f3a00017334",
+         "title": "The $10K Sponsor Playbook - Jon Mac",
+         "from": "video-editor",
+         "ageLabel": "10 hr ago",
+         "proof": "",
+         "deliverable": null
+        }
+       ]
+      },
+      {
+       "key": "doing",
+       "label": "Doing",
+       "items": [
+        {
+         "kind": "task",
+         "id": "t_00009f3a00015445",
+         "title": "I Let AI Run My Business for 30 Days - Jon Mac",
+         "from": "jon-mac-youtube",
+         "ageLabel": "18 hr ago",
+         "proof": "",
+         "deliverable": null
+        }
+       ]
+      },
+      {
+       "key": "waiting_on_jon",
+       "label": "Waiting on Jon",
+       "items": []
+      },
+      {
+       "key": "qc",
+       "label": "QC",
+       "items": []
+      },
+      {
+       "key": "review",
+       "label": "Review",
+       "items": []
+      },
+      {
+       "key": "done",
+       "label": "Done",
+       "items": []
+      }
+     ]
+    },
+    {
+     "slug": "jonmacai",
+     "label": "YT-AI UGC",
+     "checklist": {
+      "missing": "Ana syncs the daily checklist with dash.py daily-sync"
+     },
+     "waiting": 0,
+     "goals": [],
+     "columns": [
+      {
+       "key": "todo",
+       "label": "To do",
+       "items": [
+        {
+         "kind": "task",
+         "id": "t_00009f3a00019223",
+         "title": "UGC Ads With No Actors - @JonMacAI",
+         "from": "jon-mac-youtube",
+         "ageLabel": "28 hr ago",
+         "proof": "",
+         "deliverable": null
+        }
+       ]
+      },
+      {
+       "key": "doing",
+       "label": "Doing",
+       "items": []
+      },
+      {
+       "key": "waiting_on_jon",
+       "label": "Waiting on Jon",
+       "items": []
+      },
+      {
+       "key": "qc",
+       "label": "QC",
+       "items": []
+      },
+      {
+       "key": "review",
+       "label": "Review",
+       "items": []
+      },
+      {
+       "key": "done",
+       "label": "Done",
+       "items": []
+      }
+     ]
+    },
+    {
+     "slug": "viral-view",
+     "label": "Viral View",
+     "checklist": {
+      "missing": "Ana syncs the daily checklist with dash.py daily-sync"
+     },
+     "waiting": 1,
+     "goals": [
+      {
+       "key": "viral",
+       "label": "Viral View recurring revenue",
+       "value": "no data",
+       "goal": "/ $10,000",
+       "usd": null,
+       "pct": 0,
+       "pacePct": null,
+       "status": {
+        "text": "No data",
+        "cls": "idle"
+       },
+       "why": "The Viral View subscription feed has not reported MRR.",
+       "drivers": [],
+       "source": {
+        "label": "Viral View subscriptions feed",
+        "at": null,
+        "ageLabel": "never reported",
+        "stale": true
+       }
+      },
+      {
+       "key": "webinar",
+       "label": "Webinar funnel · November",
+       "value": "no data",
+       "goal": "/ $10,000",
+       "usd": null,
+       "pct": 0,
+       "pacePct": null,
+       "status": {
+        "text": "No data",
+        "cls": "idle"
+       },
+       "why": "The funnel figure for November has not been read yet.",
+       "drivers": [],
+       "source": {
+        "label": "Clone funnel database (verified payments minus refunds, every 10 min)",
+        "at": null,
+        "ageLabel": "never reported",
+        "stale": true
+       }
+      }
+     ],
+     "columns": [
+      {
+       "key": "todo",
+       "label": "To do",
+       "items": []
+      },
+      {
+       "key": "doing",
+       "label": "Doing",
+       "items": [
+        {
+         "kind": "task",
+         "id": "t_00009f3a0001b112",
+         "title": "Webinar landing page - pick a date",
+         "from": "viral-view",
+         "ageLabel": "44 hr ago",
+         "proof": "",
+         "deliverable": null
+        }
+       ]
+      },
+      {
+       "key": "waiting_on_jon",
+       "label": "Waiting on Jon",
+       "items": [
+        {
+         "id": "q_c4410d",
+         "kind": "question",
+         "rank": 2,
+         "cls": "risk",
+         "title": "Webinar date: Thursday Nov 19 or Tuesday Nov 24, 6 PM?",
+         "context": "",
+         "options": [
+          "Thu Nov 19, 6 PM",
+          "Tue Nov 24, 6 PM",
+          "Other (type your own)"
+         ],
+         "from": "viral-view",
+         "at": "2026-11-04T18:05:00.000Z",
+         "answerUrl": "/dashboard/api/v1/questions/q_c4410d/answer",
+         "ageLabel": "28 hr ago"
+        }
+       ]
+      },
+      {
+       "key": "qc",
+       "label": "QC",
+       "items": []
+      },
+      {
+       "key": "review",
+       "label": "Review",
+       "items": []
+      },
+      {
+       "key": "done",
+       "label": "Done",
+       "items": []
+      }
+     ]
+    },
+    {
+     "slug": "home-guide-press",
+     "label": "Home Guide Press",
+     "checklist": {
+      "items": [
+       {
+        "text": "One video edited every 3 hours",
+        "done": false
+       }
+      ],
+      "done": 0,
+      "total": 1
+     },
+     "waiting": 2,
+     "goals": [
+      {
+       "key": "ebooks",
+       "label": "Home Guide Press ebooks · November",
+       "value": "no data",
+       "goal": "/ $10,000",
+       "usd": null,
+       "pct": 0,
+       "pacePct": null,
+       "status": {
+        "text": "No data",
+        "cls": "idle"
+       },
+       "why": "No ebook sales posted for November yet. Home Guide Press posts them with dash.py feed-put ebook_sales.",
+       "drivers": [],
+       "source": {
+        "label": "Home Guide Press · ebook_sales feed",
+        "at": null,
+        "ageLabel": "never reported",
+        "stale": true
+       }
+      }
+     ],
+     "columns": [
+      {
+       "key": "todo",
+       "label": "To do",
+       "items": [
+        {
+         "kind": "task",
+         "id": "t_00009f3a0000d889",
+         "title": "Ruth Calder - script from the book PDF",
+         "from": "home-guide-press",
+         "ageLabel": "22 hr ago",
+         "proof": "",
+         "deliverable": null
+        }
+       ]
+      },
+      {
+       "key": "doing",
+       "label": "Doing",
+       "items": [
+        {
+         "kind": "task",
+         "id": "t_00009f3a0000b99a",
+         "title": "How to Train a Pitbull Puppy - Dale Whitaker Pitbulls",
+         "from": "video-editor",
+         "ageLabel": "40 hr ago",
+         "proof": "",
+         "deliverable": null
+        },
+        {
+         "kind": "task",
+         "id": "t_00009f3a00011667",
+         "title": "Rosa's House Hacks book page - checkout fix",
+         "from": "developer",
+         "ageLabel": "12 hr ago",
+         "proof": "",
+         "deliverable": null
+        }
+       ]
+      },
+      {
+       "key": "waiting_on_jon",
+       "label": "Waiting on Jon",
+       "items": [
+        {
+         "id": "q_3b9c07",
+         "kind": "question",
+         "rank": 2,
+         "cls": "risk",
+         "title": "Ruth Calder book page: cream cover or blue cover?",
+         "context": "Her channel uses cream and dark green.",
+         "options": [
+          "Cream (matches her channel)",
+          "Blue",
+          "Other (type your own)"
+         ],
+         "from": "home-guide-press",
+         "at": "2026-11-05T19:05:00.000Z",
+         "answerUrl": "/dashboard/api/v1/questions/q_3b9c07/answer",
+         "ageLabel": "3 hr ago"
+        }
+       ]
+      },
+      {
+       "key": "qc",
+       "label": "QC",
+       "items": [
+        {
+         "kind": "task",
+         "id": "t_00009f3a0000f778",
+         "title": "10 Pasta Mistakes Italians Never Make - Giovanni Moretti",
+         "from": "qc",
+         "ageLabel": "6 hr ago",
+         "proof": "https://jonmac.ai/review/pasta-mistakes",
+         "deliverable": null
+        }
+       ]
+      },
+      {
+       "key": "review",
+       "label": "Review",
+       "items": [
+        {
+         "kind": "task",
+         "id": "t_00009f3a00013556",
+         "title": "Tokyo on $50 a Day - Naomi Takeda Japan",
+         "from": "home-guide-press",
+         "ageLabel": "5 hr ago",
+         "proof": "https://jonmac.ai/review/tokyo-50",
+         "deliverable": null,
+         "reviewUrl": "/dashboard/api/v1/tasks/t_00009f3a00013556"
+        }
+       ]
+      },
+      {
+       "key": "done",
+       "label": "Done",
+       "items": []
+      }
+     ]
+    },
+    {
+     "slug": "short-form",
+     "label": "Short-form",
+     "checklist": {
+      "missing": "Ana syncs the daily checklist with dash.py daily-sync"
+     },
+     "waiting": 1,
+     "goals": [],
+     "columns": [
+      {
+       "key": "todo",
+       "label": "To do",
+       "items": []
+      },
+      {
+       "key": "doing",
+       "label": "Doing",
+       "items": [
+        {
+         "kind": "task",
+         "id": "t_00009f3a0001d001",
+         "title": "TikTok upload login",
+         "from": "short-form",
+         "ageLabel": "5 hr ago",
+         "proof": "",
+         "deliverable": null
+        }
+       ]
+      },
+      {
+       "key": "waiting_on_jon",
+       "label": "Waiting on Jon",
+       "items": [
+        {
+         "id": "a_77d1f9",
+         "kind": "approval",
+         "rank": 1,
+         "cls": "risk",
+         "title": "Make 3 Shorts public on YouTube",
+         "from": "short-form",
+         "at": "2026-11-05T13:05:00.000Z",
+         "detail": "Posts to YouTube.",
+         "notes": [
+          "All three passed QC this morning."
+         ],
+         "links": [],
+         "decideUrl": "/dashboard/api/v1/approvals/a_77d1f9/decide",
+         "ageLabel": "9 hr ago"
+        }
+       ]
+      },
+      {
+       "key": "qc",
+       "label": "QC",
+       "items": []
+      },
+      {
+       "key": "review",
+       "label": "Review",
+       "items": []
+      },
+      {
+       "key": "done",
+       "label": "Done",
+       "items": [
+        {
+         "kind": "task",
+         "id": "t_00009f3a0001eef0",
+         "title": "3 clips posted Wednesday",
+         "from": "short-form",
+         "ageLabel": "30 hr ago",
+         "proof": "",
+         "deliverable": null
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "slug": "accounting",
+     "label": "Accounting",
+     "checklist": {
+      "missing": "Ana syncs the daily checklist with dash.py daily-sync"
+     },
+     "waiting": 0,
+     "goals": [],
+     "columns": [
+      {
+       "key": "todo",
+       "label": "To do",
+       "items": []
+      },
+      {
+       "key": "doing",
+       "label": "Doing",
+       "items": []
+      },
+      {
+       "key": "waiting_on_jon",
+       "label": "Waiting on Jon",
+       "items": []
+      },
+      {
+       "key": "qc",
+       "label": "QC",
+       "items": []
+      },
+      {
+       "key": "review",
+       "label": "Review",
+       "items": []
+      },
+      {
+       "key": "done",
+       "label": "Done",
+       "items": []
+      }
+     ]
+    },
+    {
+     "slug": "coding",
+     "label": "Coding",
+     "checklist": {
+      "missing": "Ana syncs the daily checklist with dash.py daily-sync"
+     },
+     "waiting": 0,
+     "goals": [],
+     "columns": [
+      {
+       "key": "todo",
+       "label": "To do",
+       "items": []
+      },
+      {
+       "key": "doing",
+       "label": "Doing",
+       "items": []
+      },
+      {
+       "key": "waiting_on_jon",
+       "label": "Waiting on Jon",
+       "items": []
+      },
+      {
+       "key": "qc",
+       "label": "QC",
+       "items": []
+      },
+      {
+       "key": "review",
+       "label": "Review",
+       "items": []
+      },
+      {
+       "key": "done",
+       "label": "Done",
+       "items": []
+      }
+     ]
+    }
+   ],
+   "summary": {
+    "source": {
+     "label": "Ana's morning summary",
+     "at": "2026-11-05T15:05:00.000Z",
+     "ageLabel": "updated 7 hr ago",
+     "stale": false
+    },
+    "text": "**What happened**\n- Creatify video went live; invoice waiting on your click.\n- 2 Home Guide Press videos passed QC.\n\n**Next**\n- Notion AI price answer unblocks the contract.",
+    "date": "2026-11-05",
+    "by": "ana"
+   },
+   "calendar": {
+    "events": [
+     {
+      "time": "10:00-10:30",
+      "title": "Sponsor call: Notion AI"
+     }
+    ]
+   }
+  },
+  "todo": {
+   "title": "Todo",
+   "available": true,
+   "items": [
+    {
+     "id": "a_77d1f9",
+     "kind": "approval",
+     "rank": 1,
+     "cls": "risk",
+     "title": "Make 3 Shorts public on YouTube",
+     "from": "short-form",
+     "at": "2026-11-05T13:05:00.000Z",
+     "detail": "Posts to YouTube.",
+     "notes": [
+      "All three passed QC this morning."
+     ],
+     "links": [],
+     "decideUrl": "/dashboard/api/v1/approvals/a_77d1f9/decide",
+     "project": "Short-form",
+     "minutes": 2,
+     "overdue": false
+    },
+    {
+     "id": "a_51c0e2",
+     "kind": "approval",
+     "rank": 1,
+     "cls": "risk",
+     "title": "Send the Creatify invoice ($1,500)",
+     "from": "sponsors",
+     "at": "2026-11-05T18:05:00.000Z",
+     "detail": "Runs send invoice.",
+     "notes": [
+      "The video went live Nov 4.",
+      "The invoice is drafted in partners@."
+     ],
+     "links": [
+      {
+       "label": "Draft",
+       "href": "https://mail.google.com/mail/u/0/#drafts/ab12"
+      }
+     ],
+     "decideUrl": "/dashboard/api/v1/approvals/a_51c0e2/decide",
+     "project": "Sponsors",
+     "minutes": 2,
+     "overdue": false
+    },
+    {
+     "id": "q_3b9c07",
+     "kind": "question",
+     "rank": 2,
+     "cls": "risk",
+     "title": "Ruth Calder book page: cream cover or blue cover?",
+     "context": "Her channel uses cream and dark green.",
+     "options": [
+      "Cream (matches her channel)",
+      "Blue",
+      "Other (type your own)"
+     ],
+     "from": "home-guide-press",
+     "at": "2026-11-05T19:05:00.000Z",
+     "answerUrl": "/dashboard/api/v1/questions/q_3b9c07/answer",
+     "project": "Home Guide Press",
+     "minutes": 2,
+     "overdue": false
+    },
+    {
+     "id": "q_c4410d",
+     "kind": "question",
+     "rank": 2,
+     "cls": "risk",
+     "title": "Webinar date: Thursday Nov 19 or Tuesday Nov 24, 6 PM?",
+     "context": "",
+     "options": [
+      "Thu Nov 19, 6 PM",
+      "Tue Nov 24, 6 PM",
+      "Other (type your own)"
+     ],
+     "from": "viral-view",
+     "at": "2026-11-04T18:05:00.000Z",
+     "answerUrl": "/dashboard/api/v1/questions/q_c4410d/answer",
+     "project": "Viral View",
+     "minutes": 5,
+     "overdue": false
+    },
+    {
+     "id": "q_8e2a41",
+     "kind": "question",
+     "rank": 2,
+     "cls": "risk",
+     "title": "Notion AI offers $4,000 for 2 videos. Accept?",
+     "context": "Rate card says $2,500 a video. They want both live in November.",
+     "options": [
+      "Counter at $5,000 (rate card)",
+      "Accept $4,000",
+      "Other (type your own)"
+     ],
+     "from": "sponsors",
+     "at": "2026-11-05T16:05:00.000Z",
+     "answerUrl": "/dashboard/api/v1/questions/q_8e2a41/answer",
+     "project": "Sponsors",
+     "minutes": 5,
+     "overdue": false
+    },
+    {
+     "kind": "task",
+     "id": "t_00009f3a00007bbc",
+     "title": "Invideo sponsor read - Jon Mac",
+     "from": "sponsors",
+     "project": "Sponsors",
+     "minutes": null,
+     "due": null,
+     "at": "2026-11-05T14:05:00.000Z",
+     "overdue": false,
+     "reviewUrl": "/dashboard/api/v1/tasks/t_00009f3a00007bbc",
+     "deliverable": null
+    },
+    {
+     "kind": "task",
+     "id": "t_00009f3a00013556",
+     "title": "Tokyo on $50 a Day - Naomi Takeda Japan",
+     "from": "home-guide-press",
+     "project": "Home Guide Press",
+     "minutes": null,
+     "due": null,
+     "at": "2026-11-05T17:05:00.000Z",
+     "overdue": false,
+     "reviewUrl": "/dashboard/api/v1/tasks/t_00009f3a00013556",
+     "deliverable": null
+    }
+   ],
+   "minutes": 16
+  },
+  "sponsors": {
+   "title": "Sponsors",
+   "month": "November",
+   "basis": "deposits",
+   "basisLabel": "All deposits · cash_ledger.csv (stale)",
+   "sub": "Source edited unknown · money from deposits",
+   "actions": [
+    {
+     "label": "Open collections page",
+     "href": "https://collections.viralview.io/collections.html"
+    },
+    {
+     "label": "Scan inbox now",
+     "kind": "sponsor.scan_inbox",
+     "payload": {
+      "msg": "Scanning sponsor inbox now"
+     }
+    }
+   ],
+   "tiles": [
+    {
+     "icon": "check",
+     "label": "Collected in November",
+     "value": "$4,250",
+     "goal": "/ $10K",
+     "pct": 43,
+     "sub": "All deposits · cash_ledger.csv (stale) · day 5 of 30 · pace $1,667"
+    },
+    {
+     "icon": "dollar",
+     "label": "Owed to you",
+     "value": "$6,700",
+     "sub": "3 sponsors"
+    },
+    {
+     "icon": "chart",
+     "label": "Average June-August",
+     "value": "$8,802.33",
+     "goal": "/ $10K",
+     "pct": 88,
+     "pg": "risk",
+     "sub": "$1,197.67 a month short of goal"
+    },
+    {
+     "icon": "mail",
+     "label": "Sponsor emails waiting",
+     "value": "1",
+     "sub": "1 reply drafted"
+    }
+   ],
+   "septemberBar": {
+    "title": "November toward $10,000",
+    "meta": "$10,950 if everything owed comes in",
+    "aria": "Collected $4,250, Collect now $1,500, Owed after posting $1,000, Lock deal $4,200",
+    "goalAt": 91.3,
+    "parts": [
+     {
+      "pct": 38.8,
+      "fill": "var(--ok-fill)",
+      "tip": "Collected $4,250",
+      "legend": "Collected",
+      "amount": "$4,250"
+     },
+     {
+      "pct": 13.7,
+      "fill": "var(--crit-fill)",
+      "tip": "Collect now $1,500",
+      "legend": "Collect now",
+      "amount": "$1,500"
+     },
+     {
+      "pct": 9.1,
+      "fill": "var(--accent)",
+      "tip": "Owed after posting $1,000",
+      "legend": "Owed after posting",
+      "amount": "$1,000"
+     },
+     {
+      "pct": 38.4,
+      "fill": "var(--risk-fill)",
+      "tip": "Lock deal $4,200",
+      "legend": "Lock deal",
+      "amount": "$4,200"
+     }
+    ],
+    "line": "Line marks the $10K goal"
+   },
+   "board": {
+    "title": "Deal board",
+    "meta": "Drag a card to move it",
+    "columns": [
+     {
+      "stage": "New inquiry",
+      "boardStage": "new-lead",
+      "empty": "",
+      "cards": []
+     },
+     {
+      "stage": "Negotiating",
+      "boardStage": "negotiating",
+      "empty": "",
+      "cards": [
+       {
+        "id": "gmail-thread-flova",
+        "name": "Flova AI",
+        "boardStage": "negotiating",
+        "pill": "Your move",
+        "pillCls": "blue",
+        "amt": 0,
+        "amtLabel": "Not priced",
+        "detail": "Paid Collaboration Opportunity with Flova AI",
+        "pct": 25,
+        "pg": "",
+        "btn": "Review",
+        "draft": true,
+        "payload": {
+         "id": "gmail-thread-flova",
+         "to": "maria.tang@offer.tec-do.com",
+         "subject": "Re: Paid Collaboration Opportunity with Flova AI",
+         "body": "Hi Maria,\n\nRates below.\n\nBest,\nJon Mac",
+         "saveKind": "sponsor.save_draft",
+         "sendKind": "sponsor.send_draft",
+         "discardKind": "sponsor.discard_draft"
+        }
+       }
+      ]
+     },
+     {
+      "stage": "Waiting on deposit",
+      "boardStage": "invoice-sent",
+      "empty": "",
+      "cards": [
+       {
+        "id": "gmail-thread-topview",
+        "name": "Topview AI",
+        "boardStage": "invoice-sent",
+        "pill": "55 days late",
+        "pillCls": "crit",
+        "amt": 1500,
+        "amtLabel": "$1,500",
+        "detail": "Potential Collaboration with Topview AI",
+        "pct": 37,
+        "pg": "crit",
+        "btn": "Nudge",
+        "kind": "sponsor.nudge",
+        "payload": {
+         "id": "gmail-thread-topview"
+        },
+        "btnCls": "line"
+       },
+       {
+        "id": "gmail-thread-invideo",
+        "name": "Invideo",
+        "boardStage": "invoice-sent",
+        "pill": "50 days quiet",
+        "pillCls": "risk",
+        "amt": 4200,
+        "amtLabel": "$4,200",
+        "detail": "Paid Collaboration with invideo AI",
+        "pct": 37,
+        "pg": "",
+        "btn": "Nudge",
+        "kind": "sponsor.nudge",
+        "payload": {
+         "id": "gmail-thread-invideo"
+        },
+        "btnCls": "line"
+       }
+      ]
+     },
+     {
+      "stage": "Script approval",
+      "boardStage": "script-approval",
+      "empty": "",
+      "cards": [
+       {
+        "id": "gmail-thread-viktor",
+        "name": "Norton Neo",
+        "boardStage": "script-approval",
+        "pill": "56 days quiet",
+        "pillCls": "risk",
+        "amt": 2000,
+        "amtLabel": "$2,000",
+        "detail": "Josef Schalumov sent you Norton Neo",
+        "pct": 50,
+        "pg": "",
+        "btn": "Nudge",
+        "kind": "sponsor.nudge",
+        "payload": {
+         "id": "gmail-thread-viktor"
+        },
+        "btnCls": "line"
+       }
+      ]
+     },
+     {
+      "stage": "With editor",
+      "boardStage": "production",
+      "empty": "",
+      "cards": []
+     },
+     {
+      "stage": "Video approval",
+      "boardStage": "video-approval",
+      "empty": "",
+      "cards": []
+     },
+     {
+      "stage": "Live · send invoice",
+      "boardStage": "publishing",
+      "empty": "Nothing here. Cards land here the moment a sponsor video goes live.",
+      "cards": [
+       {
+        "id": "gmail-thread-live",
+        "name": "LiveCo",
+        "boardStage": "publishing",
+        "pill": "49 days quiet",
+        "pillCls": "risk",
+        "amt": 0,
+        "amtLabel": "Not priced",
+        "detail": "It's up",
+        "pct": 87,
+        "pg": "",
+        "btn": "Send invoice",
+        "kind": "sponsor.send_invoice",
+        "payload": {
+         "id": "gmail-thread-live",
+         "sponsor": "LiveCo"
+        },
+        "btnCls": "line"
+       }
+      ]
+     },
+     {
+      "stage": "Paid in November",
+      "boardStage": "paid",
+      "empty": "",
+      "cards": [
+       {
+        "id": "gmail-thread-poppy",
+        "name": "Poppy",
+        "boardStage": "paid",
+        "pill": "Paid",
+        "pillCls": "ok",
+        "amt": 2500,
+        "amtLabel": "$2,500",
+        "detail": "Deposit",
+        "pct": 100,
+        "pg": "ok"
+       }
+      ]
+     }
+    ]
+   },
+   "collect": {
+    "title": "Money to collect",
+    "meta": "3 open items · $6,700",
+    "rows": [
+     {
+      "sponsor": "TopView",
+      "pill": "Collect now",
+      "pillCls": "crit",
+      "total": "$1,500",
+      "owed": "$1,500",
+      "paidPct": 0,
+      "paid": "$0",
+      "pg": "crit",
+      "block": "Dorothy said the $750 deposit was processed on September 11, but it is not in the bank. September deposits are Creatify $750, Soro/DIGIMERI $750, Viktor/Schalumov $1,000, and Poppy $2,500. No TopView wire.",
+      "next": "Email Dorothy for the wire receipt and SWIFT trace. Do not start production until the $750 deposit lands. Collect the final $750 after posting.",
+      "btn": "Nudge",
+      "btnCls": "line",
+      "kind": "sponsor.nudge",
+      "payload": {
+       "id": "gmail-thread-topview",
+       "sponsor": "TopView"
+      },
+      "paidKind": "sponsor.mark_paid",
+      "paidPayload": {
+       "sponsor": "TopView"
+      }
+     },
+     {
+      "sponsor": "InVideo",
+      "pill": "Lock deal",
+      "pillCls": "risk",
+      "total": "$4,200",
+      "owed": "$4,200",
+      "paidPct": 0,
+      "paid": "$0",
+      "pg": "risk",
+      "block": "Jon accepted $4,200 for two dedicated videos with a 50% deposit, go-live dates September 24 and 29. Waiting on company name and address to invoice. $200 of the total is the on-time September bonus.",
+      "next": "Wait for Nehal's billing details, then invoice the $2,100 deposit. Do not start until the deposit lands.",
+      "btn": "Nudge",
+      "btnCls": "line",
+      "kind": "sponsor.nudge",
+      "payload": {
+       "id": "gmail-thread-invideo",
+       "sponsor": "InVideo"
+      },
+      "paidKind": "sponsor.mark_paid",
+      "paidPayload": {
+       "sponsor": "InVideo"
+      }
+     },
+     {
+      "sponsor": "Viktor",
+      "pill": "Owed after posting",
+      "pillCls": "blue",
+      "total": "$2,000",
+      "owed": "$1,000",
+      "paidPct": 50,
+      "paid": "$1,000",
+      "pg": "risk",
+      "block": "The $1,000 Schalumov deposit landed September 8. Script was sent September 10. Josef has not replied with approval. Remaining $1,000 is due after posting.",
+      "next": "Nudge Josef for script approval, lock the September publish date, then invoice the final $1,000 when the video is live.",
+      "btn": "Nudge",
+      "btnCls": "line",
+      "kind": "sponsor.nudge",
+      "payload": {
+       "id": "gmail-thread-viktor",
+       "sponsor": "Viktor"
+      },
+      "paidKind": "sponsor.mark_paid",
+      "paidPayload": {
+       "sponsor": "Viktor"
+      }
+     }
+    ]
+   },
+   "emails": {
+    "title": "Sponsor emails",
+    "meta": "From the inbox scan · nothing sends without you",
+    "rows": [
+     {
+      "id": "gmail-thread-flova",
+      "title": "Flova AI",
+      "sub": "Paid Collaboration Opportunity with Flova AI",
+      "to": "maria.tang@offer.tec-do.com",
+      "subject": "Re: Paid Collaboration Opportunity with Flova AI",
+      "body": "Hi Maria,\n\nRates below.\n\nBest,\nJon Mac",
+      "send": "Reply sent to Flova AI",
+      "saveKind": "sponsor.save_draft",
+      "sendKind": "sponsor.send_draft",
+      "discardKind": "sponsor.discard_draft"
+     }
+    ]
+   },
+   "byMonth": {
+    "title": "Collected by month",
+    "meta": "Against $10K",
+    "rows": [
+     {
+      "label": "May",
+      "value": "$5,600",
+      "pct": 56,
+      "pg": "risk"
+     },
+     {
+      "label": "June",
+      "value": "$10,400 · goal hit",
+      "pct": 100,
+      "pg": "ok"
+     },
+     {
+      "label": "July",
+      "value": "$8,606",
+      "pct": 86,
+      "pg": "risk"
+     },
+     {
+      "label": "August",
+      "value": "$7,401",
+      "pct": 74,
+      "pg": "risk"
+     },
+     {
+      "label": "September",
+      "value": "$5,000",
+      "pct": 50,
+      "pg": "risk"
+     },
+     {
+      "label": "November so far",
+      "value": "$4,250",
+      "pct": 43,
+      "pg": "risk"
+     }
+    ]
+   },
+   "cash": {
+    "available": true,
+    "month": {
+     "key": "2026-11",
+     "label": "November",
+     "usd": 4250,
+     "payments": 2,
+     "unknown": 0
+    },
+    "trailing": {
+     "avg": 6083,
+     "total": 18250,
+     "since": "Aug 7",
+     "unknown": 0
+    },
+    "pct": 61,
+    "owed": 6750,
+    "unpaidAvailable": true,
+    "unpaidEditedAt": "Nov 3",
+    "unpaid": [
+     {
+      "sponsor": "Topview AI",
+      "owed": 750,
+      "due": "Nov 10",
+      "status": "Deposit late",
+      "lastEmail": "Nov 2"
+     },
+     {
+      "sponsor": "Invideo",
+      "owed": 3000,
+      "due": "",
+      "status": "After posting"
+     },
+     {
+      "sponsor": "Creatify",
+      "owed": 1500,
+      "due": "Nov 19",
+      "status": "Invoice drafted"
+     },
+     {
+      "sponsor": "Soro",
+      "owed": 1500,
+      "due": "Nov 30",
+      "status": "Lock deal"
+     }
+    ],
+    "recent": [
+     {
+      "date": "2026-11-02",
+      "sponsor": "Poppy",
+      "usd": 2500
+     },
+     {
+      "date": "2026-11-04",
+      "sponsor": "Viktor",
+      "usd": 1750
+     }
+    ],
+    "source": {
+     "kind": "ledger",
+     "label": "cash_ledger.csv",
+     "stale": true,
+     "note": "The ledger is 3 days old."
+    }
+   }
+  },
+  "viral": {
+   "title": "Viral View",
+   "sub": "Subscriptions from your revenue page, synced Sep 18 · traffic is example numbers until the tracker is connected",
+   "actions": [
+    {
+     "label": "Open revenue page",
+     "msg": "Opens app.viralview.io/admin/mrr"
+    },
+    {
+     "label": "Open tracker",
+     "msg": "Opens the tracker"
+    }
+   ],
+   "tiles": [
+    {
+     "icon": "dollar",
+     "label": "Sales this week",
+     "value": "$0",
+     "goal": "/ $1K",
+     "pct": 0,
+     "pg": "crit",
+     "sub": "No payment recorded since Sep 9"
+    },
+    {
+     "icon": "trend",
+     "label": "Subscription revenue a month",
+     "value": "$993",
+     "subHtml": "<span class=\"up\">▲ $748</span> on August's $245"
+    },
+    {
+     "icon": "heart",
+     "label": "Paying customers",
+     "value": "5",
+     "sub": "None cancelled this month"
+    },
+    {
+     "icon": "wallet",
+     "label": "Revenue per customer",
+     "value": "$198.60",
+     "sub": "Was $49 in August"
+    }
+   ],
+   "pieces": {
+    "title": "September's $993, piece by piece",
+    "meta": "Yearly run rate $11,916",
+    "parts": [
+     {
+      "amount": "$993",
+      "label": "This month",
+      "total": true
+     },
+     {
+      "amount": "$245",
+      "label": "Kept from August"
+     },
+     {
+      "amount": "$748",
+      "label": "Upgrades"
+     },
+     {
+      "amount": "$0",
+      "label": "New customers",
+      "zero": true
+     },
+     {
+      "amount": "$0",
+      "label": "Came back",
+      "zero": true
+     },
+     {
+      "amount": "$0",
+      "label": "Downgrades",
+      "zero": true
+     },
+     {
+      "amount": "$0",
+      "label": "Cancelled",
+      "zero": true
+     }
+    ],
+    "ops": [
+     "=",
+     "+",
+     "+",
+     "+",
+     "−",
+     "−"
+    ],
+    "barAria": "245 kept from August, 748 from upgrades",
+    "bar": [
+     {
+      "pct": 24.7,
+      "fill": "var(--accent)",
+      "tip": "Kept from August $245",
+      "legend": "Kept from August",
+      "amount": "$245"
+     },
+     {
+      "pct": 75.3,
+      "fill": "var(--ok-fill)",
+      "tip": "Upgrades $748",
+      "legend": "Upgrades",
+      "amount": "$748"
+     }
+    ]
+   },
+   "byMonthChart": {
+    "title": "Subscription revenue by month",
+    "meta": "Nothing before May",
+    "cols": [
+     {
+      "tip": "April · $0",
+      "label": "$0",
+      "height": "2px",
+      "x": "Apr"
+     },
+     {
+      "tip": "May · $39 · 1 customer",
+      "label": "$39",
+      "height": "3.9%",
+      "x": "May"
+     },
+     {
+      "tip": "June · $117 · 3 customers",
+      "label": "$117",
+      "height": "11.8%",
+      "x": "Jun"
+     },
+     {
+      "tip": "July · $117 · 3 customers",
+      "label": "$117",
+      "height": "11.8%",
+      "x": "Jul"
+     },
+     {
+      "tip": "August · $245 · 5 customers",
+      "label": "$245",
+      "height": "24.7%",
+      "x": "Aug"
+     },
+     {
+      "tip": "September · $993 · 5 customers",
+      "label": "$993",
+      "height": "94%",
+      "x": "Sep"
+     }
+    ]
+   },
+   "check": {
+    "pill": "Money in doesn't match",
+    "heading": "$993 a month on paper, $39 collected in September",
+    "body": "No payment has been recorded since Sep 9, even though the subscription sync ran today.",
+    "cash": [
+     {
+      "label": "Monthly plans",
+      "amount": "$39"
+     },
+     {
+      "label": "Yearly plans",
+      "amount": "$0"
+     },
+     {
+      "label": "One-time",
+      "amount": "$0"
+     },
+     {
+      "label": "Refunds",
+      "amount": "$0"
+     }
+    ],
+    "note": "Either the upgraded plans bill later in the month, or payments have stopped reaching the revenue page."
+   },
+   "plans": {
+    "title": "Plans",
+    "meta": "Share of $993",
+    "note": "Plan names as they appear in Commas.",
+    "rows": [
+     {
+      "plan": "Commas y2Zqw",
+      "customers": 1,
+      "month": "$588",
+      "pct": 59.2,
+      "share": "59%"
+     },
+     {
+      "plan": "Commas xLYpn",
+      "customers": 1,
+      "month": "$228",
+      "pct": 23,
+      "share": "23%"
+     },
+     {
+      "plan": "Commas VJ9pB",
+      "customers": 1,
+      "month": "$99",
+      "pct": 10,
+      "share": "10%"
+     },
+     {
+      "plan": "Viral View Founders",
+      "customers": 2,
+      "month": "$78",
+      "pct": 7.9,
+      "share": "8%"
+     }
+    ]
+   },
+   "keeping": {
+    "title": "Keeping customers",
+    "meta": "September",
+    "bars": [
+     {
+      "label": "August's revenue still paying",
+      "value": "100%",
+      "pct": 100,
+      "pg": "ok"
+     },
+     {
+      "label": "Counting upgrades",
+      "value": "405% · grew 4×",
+      "pct": 100
+     }
+    ],
+    "rows": [
+     {
+      "title": "Cancelled this month",
+      "pill": "None",
+      "pillCls": "ok"
+     },
+     {
+      "title": "Cancelled in August",
+      "sub": "1 customer",
+      "amount": "−$39",
+      "down": true
+     },
+     {
+      "title": "Cancelled in July",
+      "sub": "1 customer",
+      "amount": "−$39",
+      "down": true
+     }
+    ]
+   },
+   "customersByMonth": {
+    "title": "Customers by month",
+    "rows": [
+     {
+      "label": "May",
+      "value": "1",
+      "pct": 20
+     },
+     {
+      "label": "June",
+      "value": "3",
+      "pct": 60
+     },
+     {
+      "label": "July",
+      "value": "3",
+      "pct": 60
+     },
+     {
+      "label": "August",
+      "value": "5",
+      "pct": 100
+     },
+     {
+      "label": "September",
+      "value": "5",
+      "pct": 100
+     }
+    ],
+    "empty": "No free trials running.",
+    "emptyRest": "When you start them, this card also shows how many turn into paying customers."
+   },
+   "cohort": {
+    "title": "Do customers keep paying?",
+    "note": "Each row is the customers who joined that month. Boxes show how much of their first month's revenue is still coming in.",
+    "headers": [
+     "Joined",
+     "First month",
+     "Month 1",
+     "Month 2",
+     "Month 3",
+     "Month 4",
+     "Month 5"
+    ],
+    "rows": [
+     {
+      "joined": "May",
+      "first": "$39",
+      "cells": [
+       [
+        "ok",
+        "100%"
+       ],
+       [
+        "ok",
+        "100%"
+       ],
+       [
+        "crit",
+        "0%"
+       ],
+       [
+        "crit",
+        "0%"
+       ],
+       [
+        "crit",
+        "0%"
+       ]
+      ]
+     },
+     {
+      "joined": "June",
+      "first": "$78",
+      "cells": [
+       [
+        "ok",
+        "100%"
+       ],
+       [
+        "ok",
+        "100%"
+       ],
+       [
+        "risk",
+        "50%"
+       ],
+       [
+        "risk",
+        "50%"
+       ],
+       [
+        "none",
+        "–"
+       ]
+      ]
+     },
+     {
+      "joined": "July",
+      "first": "$39",
+      "cells": [
+       [
+        "ok",
+        "100%"
+       ],
+       [
+        "ok",
+        "100%"
+       ],
+       [
+        "ok",
+        "100%"
+       ],
+       [
+        "none",
+        "–"
+       ],
+       [
+        "none",
+        "–"
+       ]
+      ]
+     },
+     {
+      "joined": "August",
+      "first": "$167",
+      "cells": [
+       [
+        "ok",
+        "100%"
+       ],
+       [
+        "up",
+        "541%"
+       ],
+       [
+        "none",
+        "–"
+       ],
+       [
+        "none",
+        "–"
+       ],
+       [
+        "none",
+        "–"
+       ]
+      ]
+     }
+    ],
+    "foot": [
+     [
+      "ok",
+      "100%"
+     ],
+     [
+      "up",
+      "531%"
+     ],
+     [
+      "risk",
+      "50%"
+     ],
+     [
+      "crit",
+      "33%"
+     ],
+     [
+      "crit",
+      "0%"
+     ]
+    ]
+   },
+   "monthTable": {
+    "title": "Month by month",
+    "meta": "No subscriptions before May",
+    "rows": [
+     {
+      "month": "September",
+      "rev": "$993",
+      "change": "+$748",
+      "changeCls": "up",
+      "neu": "$0",
+      "upg": "+$748",
+      "upgCls": "up",
+      "can": "$0",
+      "cust": 5
+     },
+     {
+      "month": "August",
+      "rev": "$245",
+      "change": "+$128",
+      "changeCls": "up",
+      "neu": "+$167",
+      "neuCls": "up",
+      "upg": "$0",
+      "can": "−$39",
+      "canCls": "down",
+      "cust": 5
+     },
+     {
+      "month": "July",
+      "rev": "$117",
+      "change": "$0",
+      "neu": "+$39",
+      "neuCls": "up",
+      "upg": "$0",
+      "can": "−$39",
+      "canCls": "down",
+      "cust": 3
+     },
+     {
+      "month": "June",
+      "rev": "$117",
+      "change": "+$78",
+      "changeCls": "up",
+      "neu": "+$78",
+      "neuCls": "up",
+      "upg": "$0",
+      "can": "$0",
+      "cust": 3
+     },
+     {
+      "month": "May",
+      "rev": "$39",
+      "change": "+$39",
+      "changeCls": "up",
+      "neu": "+$39",
+      "neuCls": "up",
+      "upg": "$0",
+      "can": "$0",
+      "cust": 1
+     }
+    ]
+   },
+   "traffic": {
+    "title": "Traffic",
+    "meta": "Last 30 days · example numbers until the tracker is connected",
+    "tableTitle": "By traffic source",
+    "tableMeta": "Bar shows each source's share of revenue",
+    "rows": [
+     {
+      "source": "YouTube",
+      "clicks": "830",
+      "carts": "16",
+      "sales": "1",
+      "rev": "$89",
+      "pct": 53,
+      "share": "53%"
+     },
+     {
+      "source": "X",
+      "clicks": "1,240",
+      "carts": "14",
+      "sales": "1",
+      "rev": "$39",
+      "pct": 23,
+      "share": "23%"
+     },
+     {
+      "source": "Meta Ads",
+      "clicks": "610",
+      "carts": "8",
+      "sales": "1",
+      "rev": "$39",
+      "pct": 23,
+      "share": "23%"
+     },
+     {
+      "source": "Instagram",
+      "clicks": "420",
+      "carts": "3",
+      "sales": "0",
+      "rev": "$0",
+      "pct": 0,
+      "share": "0%"
+     },
+     {
+      "source": "Facebook",
+      "clicks": "190",
+      "carts": "1",
+      "sales": "0",
+      "rev": "$0",
+      "pct": 0,
+      "share": "0%"
+     },
+     {
+      "source": "LinkedIn",
+      "clicks": "85",
+      "carts": "0",
+      "sales": "0",
+      "rev": "$0",
+      "pct": 0,
+      "share": "0%"
+     },
+     {
+      "source": "Cold email",
+      "clicks": "0",
+      "carts": "0",
+      "sales": "0",
+      "rev": "$0",
+      "pill": "Not started"
+     }
+    ],
+    "foot": {
+     "clicks": "3,375",
+     "carts": "42",
+     "sales": "3",
+     "rev": "$167"
+    }
+   },
+   "dropoff": {
+    "title": "Where people drop off",
+    "meta": "Example",
+    "bars": [
+     {
+      "label": "Clicked a link",
+      "value": "3,375",
+      "pct": 100
+     },
+     {
+      "label": "Added to cart",
+      "value": "42 · 1.2% of clicks",
+      "pct": 1.2,
+      "min": "6px"
+     },
+     {
+      "label": "Bought",
+      "value": "3 · 7% of carts",
+      "pct": 0.1,
+      "min": "4px"
+     }
+    ],
+    "leakTitle": "Biggest leak",
+    "leak": "39 people added to cart and left. A cart reminder email is the cheapest fix."
+   },
+   "ads": {
+    "title": "Meta Ads",
+    "meta": "Example · $210 spent · $39 back",
+    "note": "Bars run from $0 to $2 back per $1 spent. Halfway is break even.",
+    "rows": [
+     {
+      "ad": "Ad 1 · polished cut",
+      "pill": "Losing",
+      "spent": "$80",
+      "back": "$39",
+      "pct": 24.5,
+      "per": "$0.49",
+      "msg": "Ad 1 paused"
+     },
+     {
+      "ad": "Ad 2 · raw phone clip",
+      "pill": "No sales",
+      "spent": "$70",
+      "back": "$0",
+      "pct": 0,
+      "per": "$0.00",
+      "msg": "Ad 2 paused"
+     },
+     {
+      "ad": "Ad 3 · testimonial",
+      "pill": "No sales",
+      "spent": "$60",
+      "back": "$0",
+      "pct": 0,
+      "per": "$0.00",
+      "msg": "Ad 3 paused"
+     }
+    ]
+   }
+  },
+  "webinar": {
+   "title": "Webinar",
+   "sub": "Date not set · jonmac.ai/clone",
+   "webinarAt": null,
+   "countdown": "Date not set",
+   "sales": {
+    "available": false,
+    "live": false,
+    "buyers": null,
+    "rows": [],
+    "sessions": []
+   },
+   "tiles": [
+    {
+     "icon": "clock",
+     "label": "Webinar date",
+     "value": "Date not set",
+     "sub": "The countdown starts when Jon picks a date"
+    },
+    {
+     "icon": "wallet",
+     "label": "Live buyers ($47)",
+     "value": "no data",
+     "sub": "Funnel database unavailable"
+    }
+   ]
+  },
+  "money": {
+   "title": "Finances",
+   "sub": "From MoneyClaw Expenses · bank scan ran at 8:12",
+   "actions": [
+    {
+     "label": "Open MoneyClaw",
+     "msg": "Opens moneyclaw.jonmac.ai"
+    },
+    {
+     "label": "Scan banks now",
+     "msg": "Bank scan started"
+    }
+   ],
+   "personal": {
+    "title": "Personal",
+    "meta": "3 accounts",
+    "stages": [
+     {
+      "label": "Yesterday",
+      "value": "$0"
+     },
+     {
+      "label": "This week",
+      "value": "$751"
+     },
+     {
+      "label": "This month",
+      "value": "$7,850"
+     },
+     {
+      "label": "Last month",
+      "value": "$9,126"
+     }
+    ],
+    "barLabel": "September against all of August",
+    "barValue": "86% · day 18 of 30",
+    "pct": 86,
+    "pg": "risk",
+    "note": "$300 of this month is still pending."
+   },
+   "business": {
+    "title": "Business",
+    "meta": "4 accounts",
+    "stages": [
+     {
+      "label": "Yesterday",
+      "value": "$0"
+     },
+     {
+      "label": "This week",
+      "value": "$2,235"
+     },
+     {
+      "label": "This month",
+      "value": "$8,227"
+     },
+     {
+      "label": "Last month",
+      "value": "$6,502"
+     }
+    ],
+    "barLabel": "September against all of August",
+    "barValue": "127% · already over",
+    "pct": 100,
+    "pg": "crit",
+    "note": "$1,304 of this month is still pending."
+   },
+   "categories": {
+    "title": "Business · this month by category",
+    "meta": "$8,227.48 total",
+    "note": "Bars are sized against the biggest category. Click a category to see its charges, the same as in MoneyClaw.",
+    "rows": [
+     {
+      "label": "Misc · 26 charges",
+      "value": "$4,263.36 · 52%",
+      "pct": 100,
+      "pg": "crit",
+      "tall": true
+     },
+     {
+      "label": "Software · 28 charges",
+      "value": "$1,693.85 · 21%",
+      "pct": 39.7,
+      "tall": true
+     },
+     {
+      "label": "Amazon · 11 charges",
+      "value": "$1,381.16 · 17%",
+      "pct": 32.4,
+      "tall": true
+     },
+     {
+      "label": "Business advertising",
+      "value": "$284.69",
+      "pct": 6.7,
+      "tall": true
+     },
+     {
+      "label": "Business staff",
+      "value": "$250.91",
+      "pct": 5.9,
+      "tall": true
+     },
+     {
+      "label": "Fuel",
+      "value": "$182.97",
+      "pct": 4.3,
+      "tall": true
+     },
+     {
+      "label": "Bank fees",
+      "value": "$164.29",
+      "pct": 3.9,
+      "tall": true
+     },
+     {
+      "label": "Parking",
+      "value": "$6.25",
+      "pct": 0.2,
+      "min": "3px",
+      "tall": true
+     }
+    ]
+   },
+   "fix": {
+    "pill": "Over half is \"Misc\"",
+    "heading": "Your X ad charges are filed as Misc",
+    "body": "At least 9 X Corp Advertising charges this month sit under Misc, so your ad spend looks far smaller than it is.",
+    "box": "Move them to Business advertising and file future ones there automatically.",
+    "btn": "Move all 9 and remember",
+    "msg": "9 charges moved to Business advertising · rule saved"
+   },
+   "bankScan": {
+    "title": "Bank scan",
+    "meta": "No scan yet",
+    "pct": 0,
+    "pg": "",
+    "rows": []
+   },
+   "netWorth": {
+    "title": "Net worth",
+    "meta": "90 days",
+    "hidden": "$ • • • • • •",
+    "shown": "$ from MoneyClaw",
+    "spark": "M0,46 L25,44 50,45 75,40 100,41 125,36 150,37 175,30 200,32 225,24 250,22 275,17 300,14"
+   },
+   "charges": {
+    "title": "Latest business charges",
+    "rows": [
+     {
+      "date": "Sep 16",
+      "charge": "Payment fee",
+      "card": "Current account",
+      "filed": "Misc",
+      "amount": "$23.29"
+     },
+     {
+      "date": "Sep 13",
+      "charge": "PayPal · WeLaunch",
+      "card": "RBC US Dollar Visa Gold",
+      "filed": "Misc",
+      "amount": "$152.30"
+     },
+     {
+      "date": "Sep 13",
+      "charge": "The Daily Virals",
+      "card": "RBC US Dollar Visa Gold",
+      "filed": "Misc",
+      "amount": "$80.62"
+     },
+     {
+      "date": "Sep 13",
+      "charge": "Yuzu Bowl and Bistro, Kelowna",
+      "card": "RBC Avion Visa Business",
+      "filed": "Misc",
+      "amount": "$73.81"
+     },
+     {
+      "date": "Sep 12",
+      "charge": "X Corp Advertising",
+      "card": "RBC US Dollar Visa Gold",
+      "filed": "Misc · should be ads",
+      "filedCls": "crit",
+      "amount": "$31.41"
+     },
+     {
+      "date": "Sep 12",
+      "charge": "X Corp Advertising",
+      "card": "RBC US Dollar Visa Gold",
+      "filed": "Misc · should be ads",
+      "filedCls": "crit",
+      "amount": "$37.78"
+     }
+    ]
+   }
+  },
+  "calendar": {
+   "title": "Calendar",
+   "available": true,
+   "channels": [
+    {
+     "slug": "all",
+     "label": "All channels",
+     "group": "All",
+     "count": 5,
+     "upcoming": [
+      {
+       "id": "giovanni-moretti-2026-11-05",
+       "title": "10 Pasta Mistakes Italians Never Make",
+       "status": "qc",
+       "date": "2026-11-05",
+       "dateLabel": "Today",
+       "timeLabel": "7:00 AM PT",
+       "link": null,
+       "channel": "Giovanni Moretti",
+       "differs": [],
+       "planned": null
+      },
+      {
+       "id": "jon-mac-2026-11-06",
+       "title": "I Let AI Run My Business for 30 Days",
+       "status": "editing",
+       "date": "2026-11-06",
+       "dateLabel": "Tomorrow",
+       "timeLabel": "7:00 AM PT",
+       "link": null,
+       "channel": "Jon Mac",
+       "differs": [],
+       "planned": null
+      },
+      {
+       "id": "naomi-takeda-japan-2026-11-06",
+       "title": "Tokyo on $50 a Day",
+       "status": "review",
+       "date": "2026-11-06",
+       "dateLabel": "Tomorrow",
+       "timeLabel": "7:00 AM PT",
+       "link": null,
+       "channel": "Naomi Takeda Japan",
+       "differs": [],
+       "planned": null
+      },
+      {
+       "id": "jonmacai-2026-11-07",
+       "title": "UGC Ads With No Actors",
+       "status": "planned",
+       "date": "2026-11-07",
+       "dateLabel": "Sat, Nov 7",
+       "timeLabel": "7:00 AM PT",
+       "link": null,
+       "channel": "@JonMacAI",
+       "differs": [],
+       "planned": null
+      },
+      {
+       "id": "jon-mac-2026-11-09",
+       "title": "The $10K Sponsor Playbook",
+       "status": "scripted",
+       "date": "2026-11-09",
+       "dateLabel": "Mon, Nov 9",
+       "timeLabel": "7:00 AM PT",
+       "link": null,
+       "channel": "Jon Mac",
+       "differs": [],
+       "planned": null
+      }
+     ],
+     "earlier": [
+      {
+       "id": "dale-whitaker-pitbulls-2026-11-04",
+       "title": "How to Train a Pitbull Puppy",
+       "status": "editing",
+       "date": "2026-11-04",
+       "dateLabel": "Yesterday",
+       "timeLabel": "7:00 AM PT",
+       "link": null,
+       "channel": "Dale Whitaker Pitbulls",
+       "differs": [],
+       "planned": null
+      },
+      {
+       "id": "giovanni-moretti-2026-11-03",
+       "title": "Real Carbonara in 15 Minutes",
+       "status": "published",
+       "date": "2026-11-03",
+       "dateLabel": "Tue, Nov 3",
+       "timeLabel": "7:00 AM PT",
+       "link": "https://youtu.be/def456",
+       "channel": "Giovanni Moretti",
+       "differs": [],
+       "planned": null
+      },
+      {
+       "id": "jon-mac-2026-11-02",
+       "title": "How I Price Sponsor Videos",
+       "status": "published",
+       "date": "2026-11-02",
+       "dateLabel": "Mon, Nov 2",
+       "timeLabel": "7:00 AM PT",
+       "link": "https://youtu.be/abc123",
+       "channel": "Jon Mac",
+       "differs": [],
+       "planned": null
+      }
+     ],
+     "all": true
+    },
+    {
+     "slug": "jon-mac",
+     "label": "Jon Mac",
+     "group": "Jon's own",
+     "count": 2,
+     "upcoming": [
+      {
+       "id": "jon-mac-2026-11-06",
+       "title": "I Let AI Run My Business for 30 Days",
+       "status": "editing",
+       "date": "2026-11-06",
+       "dateLabel": "Tomorrow",
+       "timeLabel": "7:00 AM PT",
+       "link": null,
+       "channel": "Jon Mac",
+       "differs": [],
+       "planned": null
+      },
+      {
+       "id": "jon-mac-2026-11-09",
+       "title": "The $10K Sponsor Playbook",
+       "status": "scripted",
+       "date": "2026-11-09",
+       "dateLabel": "Mon, Nov 9",
+       "timeLabel": "7:00 AM PT",
+       "link": null,
+       "channel": "Jon Mac",
+       "differs": [],
+       "planned": null
+      }
+     ],
+     "earlier": [
+      {
+       "id": "jon-mac-2026-11-02",
+       "title": "How I Price Sponsor Videos",
+       "status": "published",
+       "date": "2026-11-02",
+       "dateLabel": "Mon, Nov 2",
+       "timeLabel": "7:00 AM PT",
+       "link": "https://youtu.be/abc123",
+       "channel": "Jon Mac",
+       "differs": [],
+       "planned": null
+      }
+     ],
+     "schedule": "Mon, Wed and Fri 7 am PT"
+    },
+    {
+     "slug": "jonmacai",
+     "label": "@JonMacAI",
+     "group": "Jon's own",
+     "count": 1,
+     "upcoming": [
+      {
+       "id": "jonmacai-2026-11-07",
+       "title": "UGC Ads With No Actors",
+       "status": "planned",
+       "date": "2026-11-07",
+       "dateLabel": "Sat, Nov 7",
+       "timeLabel": "7:00 AM PT",
+       "link": null,
+       "channel": "@JonMacAI",
+       "differs": [],
+       "planned": null
+      }
+     ],
+     "earlier": [],
+     "schedule": "Sat"
+    },
+    {
+     "slug": "complete-histories",
+     "label": "Complete Histories",
+     "group": "Jon's own",
+     "count": 0,
+     "upcoming": [],
+     "earlier": [],
+     "schedule": null
+    },
+    {
+     "slug": "theo-creates",
+     "label": "Theo Creates",
+     "group": "Viral View",
+     "count": 0,
+     "upcoming": [],
+     "earlier": [],
+     "schedule": null
+    },
+    {
+     "slug": "sienna-creates",
+     "label": "Sienna Creates",
+     "group": "Viral View",
+     "count": 0,
+     "upcoming": [],
+     "earlier": [],
+     "schedule": null
+    },
+    {
+     "slug": "zane-creates",
+     "label": "Zane Creates",
+     "group": "Viral View",
+     "count": 0,
+     "upcoming": [],
+     "earlier": [],
+     "schedule": null
+    },
+    {
+     "slug": "aria-creates",
+     "label": "Aria Creates",
+     "group": "Viral View",
+     "count": 0,
+     "upcoming": [],
+     "earlier": [],
+     "schedule": null
+    },
+    {
+     "slug": "ash-creates",
+     "label": "Ash Creates",
+     "group": "Viral View",
+     "count": 0,
+     "upcoming": [],
+     "earlier": [],
+     "schedule": null
+    },
+    {
+     "slug": "mina-creates",
+     "label": "Mina Creates",
+     "group": "Viral View",
+     "count": 0,
+     "upcoming": [],
+     "earlier": [],
+     "schedule": null
+    },
+    {
+     "slug": "max-creates",
+     "label": "Max Creates",
+     "group": "Viral View",
+     "count": 0,
+     "upcoming": [],
+     "earlier": [],
+     "schedule": null
+    },
+    {
+     "slug": "peter-collins",
+     "label": "Peter Collins",
+     "group": "Home Guide Press",
+     "count": 0,
+     "upcoming": [],
+     "earlier": [],
+     "schedule": null
+    },
+    {
+     "slug": "jack-mercer",
+     "label": "Jack Mercer",
+     "group": "Home Guide Press",
+     "count": 0,
+     "upcoming": [],
+     "earlier": [],
+     "schedule": null
+    },
+    {
+     "slug": "rosa-cooks",
+     "label": "Rosa Cooks",
+     "group": "Home Guide Press",
+     "count": 0,
+     "upcoming": [],
+     "earlier": [],
+     "schedule": null
+    },
+    {
+     "slug": "rosas-clean-home",
+     "label": "Rosa's Clean Home",
+     "group": "Home Guide Press",
+     "count": 0,
+     "upcoming": [],
+     "earlier": [],
+     "schedule": null
+    },
+    {
+     "slug": "rosas-house-hacks",
+     "label": "Rosa's House Hacks",
+     "group": "Home Guide Press",
+     "count": 0,
+     "upcoming": [],
+     "earlier": [],
+     "schedule": null
+    },
+    {
+     "slug": "giovanni-moretti",
+     "label": "Giovanni Moretti",
+     "group": "Home Guide Press",
+     "count": 1,
+     "upcoming": [
+      {
+       "id": "giovanni-moretti-2026-11-05",
+       "title": "10 Pasta Mistakes Italians Never Make",
+       "status": "qc",
+       "date": "2026-11-05",
+       "dateLabel": "Today",
+       "timeLabel": "7:00 AM PT",
+       "link": null,
+       "channel": "Giovanni Moretti",
+       "differs": [],
+       "planned": null
+      }
+     ],
+     "earlier": [
+      {
+       "id": "giovanni-moretti-2026-11-03",
+       "title": "Real Carbonara in 15 Minutes",
+       "status": "published",
+       "date": "2026-11-03",
+       "dateLabel": "Tue, Nov 3",
+       "timeLabel": "7:00 AM PT",
+       "link": "https://youtu.be/def456",
+       "channel": "Giovanni Moretti",
+       "differs": [],
+       "planned": null
+      }
+     ],
+     "schedule": "Tue and Thu 7 am PT"
+    },
+    {
+     "slug": "frank-bennett-dogs",
+     "label": "Frank Bennett Dogs",
+     "group": "Home Guide Press",
+     "count": 0,
+     "upcoming": [],
+     "earlier": [],
+     "schedule": null
+    },
+    {
+     "slug": "ruth-calder",
+     "label": "Ruth Calder",
+     "group": "Home Guide Press",
+     "count": 0,
+     "upcoming": [],
+     "earlier": [],
+     "schedule": null
+    },
+    {
+     "slug": "dale-whitaker-pitbulls",
+     "label": "Dale Whitaker Pitbulls",
+     "group": "Home Guide Press",
+     "count": 0,
+     "upcoming": [],
+     "earlier": [
+      {
+       "id": "dale-whitaker-pitbulls-2026-11-04",
+       "title": "How to Train a Pitbull Puppy",
+       "status": "editing",
+       "date": "2026-11-04",
+       "dateLabel": "Yesterday",
+       "timeLabel": "7:00 AM PT",
+       "link": null,
+       "channel": "Dale Whitaker Pitbulls",
+       "differs": [],
+       "planned": null
+      }
+     ],
+     "schedule": null
+    },
+    {
+     "slug": "nora-fairweather-cats",
+     "label": "Nora Fairweather Cats",
+     "group": "Home Guide Press",
+     "count": 0,
+     "upcoming": [],
+     "earlier": [],
+     "schedule": null
+    },
+    {
+     "slug": "gail-merriman-golf",
+     "label": "Gail Merriman Golf",
+     "group": "Home Guide Press",
+     "count": 0,
+     "upcoming": [],
+     "earlier": [],
+     "schedule": null
+    },
+    {
+     "slug": "naomi-takeda-japan",
+     "label": "Naomi Takeda Japan",
+     "group": "Home Guide Press",
+     "count": 1,
+     "upcoming": [
+      {
+       "id": "naomi-takeda-japan-2026-11-06",
+       "title": "Tokyo on $50 a Day",
+       "status": "review",
+       "date": "2026-11-06",
+       "dateLabel": "Tomorrow",
+       "timeLabel": "7:00 AM PT",
+       "link": null,
+       "channel": "Naomi Takeda Japan",
+       "differs": [],
+       "planned": null
+      }
+     ],
+     "earlier": [],
+     "schedule": "Fri"
+    },
+    {
+     "slug": "walter-brandt-dogs",
+     "label": "Walter Brandt Dogs",
+     "group": "Home Guide Press",
+     "count": 0,
+     "upcoming": [],
+     "earlier": [],
+     "schedule": null
+    },
+    {
+     "slug": "eleanor-whitfield",
+     "label": "Eleanor Whitfield",
+     "group": "Home Guide Press",
+     "count": 0,
+     "upcoming": [],
+     "earlier": [],
+     "schedule": null
+    }
+   ]
+  },
+  "content": {
+   "title": "Content",
+   "available": true,
+   "channels": [
+    {
+     "slug": "jon-mac",
+     "label": "Jon Mac",
+     "group": "Jon's own",
+     "count": 2,
+     "outliers": [
+      {
+       "id": "o_1",
+       "title": "I Tried 50 AI Tools So You Don't Have To",
+       "source": "Matt Wolfe",
+       "link": "https://youtube.com/watch?v=x1",
+       "thumb": null,
+       "views": 1200000,
+       "avg": 90000,
+       "multipleLabel": "13× avg",
+       "viewsLabel": "1.2M views vs 90K avg",
+       "ageLabel": "2 weeks ago",
+       "selected": true,
+       "selectUrl": "/dashboard/api/v1/outliers/o_1/select"
+      },
+      {
+       "id": "o_2",
+       "title": "How I Make $40K a Month With Sponsors",
+       "source": "Ali Abdaal",
+       "link": "https://youtube.com/watch?v=x2",
+       "thumb": null,
+       "views": 640000,
+       "avg": 210000,
+       "multipleLabel": "3.0× avg",
+       "viewsLabel": "640K views vs 210K avg",
+       "ageLabel": "4 weeks ago",
+       "selected": false,
+       "selectUrl": "/dashboard/api/v1/outliers/o_2/select"
+      }
+     ]
+    },
+    {
+     "slug": "jonmacai",
+     "label": "@JonMacAI",
+     "group": "Jon's own",
+     "count": 0,
+     "outliers": []
+    },
+    {
+     "slug": "complete-histories",
+     "label": "Complete Histories",
+     "group": "Jon's own",
+     "count": 0,
+     "outliers": []
+    },
+    {
+     "slug": "theo-creates",
+     "label": "Theo Creates",
+     "group": "Viral View",
+     "count": 0,
+     "outliers": []
+    },
+    {
+     "slug": "sienna-creates",
+     "label": "Sienna Creates",
+     "group": "Viral View",
+     "count": 0,
+     "outliers": []
+    },
+    {
+     "slug": "zane-creates",
+     "label": "Zane Creates",
+     "group": "Viral View",
+     "count": 0,
+     "outliers": []
+    },
+    {
+     "slug": "aria-creates",
+     "label": "Aria Creates",
+     "group": "Viral View",
+     "count": 0,
+     "outliers": []
+    },
+    {
+     "slug": "ash-creates",
+     "label": "Ash Creates",
+     "group": "Viral View",
+     "count": 0,
+     "outliers": []
+    },
+    {
+     "slug": "mina-creates",
+     "label": "Mina Creates",
+     "group": "Viral View",
+     "count": 0,
+     "outliers": []
+    },
+    {
+     "slug": "max-creates",
+     "label": "Max Creates",
+     "group": "Viral View",
+     "count": 0,
+     "outliers": []
+    },
+    {
+     "slug": "peter-collins",
+     "label": "Peter Collins",
+     "group": "Home Guide Press",
+     "count": 0,
+     "outliers": []
+    },
+    {
+     "slug": "jack-mercer",
+     "label": "Jack Mercer",
+     "group": "Home Guide Press",
+     "count": 0,
+     "outliers": []
+    },
+    {
+     "slug": "rosa-cooks",
+     "label": "Rosa Cooks",
+     "group": "Home Guide Press",
+     "count": 0,
+     "outliers": []
+    },
+    {
+     "slug": "rosas-clean-home",
+     "label": "Rosa's Clean Home",
+     "group": "Home Guide Press",
+     "count": 0,
+     "outliers": []
+    },
+    {
+     "slug": "rosas-house-hacks",
+     "label": "Rosa's House Hacks",
+     "group": "Home Guide Press",
+     "count": 0,
+     "outliers": []
+    },
+    {
+     "slug": "giovanni-moretti",
+     "label": "Giovanni Moretti",
+     "group": "Home Guide Press",
+     "count": 1,
+     "outliers": [
+      {
+       "id": "o_3",
+       "title": "Nonna Reacts to American Pasta",
+       "source": "Vincenzo's Plate",
+       "link": "https://youtube.com/watch?v=x3",
+       "thumb": null,
+       "views": 2100000,
+       "avg": 300000,
+       "multipleLabel": "7.0× avg",
+       "viewsLabel": "2.1M views vs 300K avg",
+       "ageLabel": "7 weeks ago",
+       "selected": false,
+       "selectUrl": "/dashboard/api/v1/outliers/o_3/select"
+      }
+     ]
+    },
+    {
+     "slug": "frank-bennett-dogs",
+     "label": "Frank Bennett Dogs",
+     "group": "Home Guide Press",
+     "count": 0,
+     "outliers": []
+    },
+    {
+     "slug": "ruth-calder",
+     "label": "Ruth Calder",
+     "group": "Home Guide Press",
+     "count": 0,
+     "outliers": []
+    },
+    {
+     "slug": "dale-whitaker-pitbulls",
+     "label": "Dale Whitaker Pitbulls",
+     "group": "Home Guide Press",
+     "count": 0,
+     "outliers": []
+    },
+    {
+     "slug": "nora-fairweather-cats",
+     "label": "Nora Fairweather Cats",
+     "group": "Home Guide Press",
+     "count": 0,
+     "outliers": []
+    },
+    {
+     "slug": "gail-merriman-golf",
+     "label": "Gail Merriman Golf",
+     "group": "Home Guide Press",
+     "count": 0,
+     "outliers": []
+    },
+    {
+     "slug": "naomi-takeda-japan",
+     "label": "Naomi Takeda Japan",
+     "group": "Home Guide Press",
+     "count": 0,
+     "outliers": []
+    },
+    {
+     "slug": "walter-brandt-dogs",
+     "label": "Walter Brandt Dogs",
+     "group": "Home Guide Press",
+     "count": 0,
+     "outliers": []
+    },
+    {
+     "slug": "eleanor-whitfield",
+     "label": "Eleanor Whitfield",
+     "group": "Home Guide Press",
+     "count": 0,
+     "outliers": []
+    }
+   ]
+  }
+ },
+ "d2": {
+  "period": {
+   "tz": "America/Vancouver",
+   "today": {
+    "ymd": "2026-11-05",
+    "label": "Thursday, November 5",
+    "clock": "2:05 PM",
+    "weekday": 3
+   },
+   "week": {
+    "start": "2026-11-02",
+    "end": "2026-11-08",
+    "label": "Nov 2 to 8",
+    "days": [
+     {
+      "ymd": "2026-11-02",
+      "label": "Mon 2",
+      "isToday": false,
+      "isPast": true
+     },
+     {
+      "ymd": "2026-11-03",
+      "label": "Tue 3",
+      "isToday": false,
+      "isPast": true
+     },
+     {
+      "ymd": "2026-11-04",
+      "label": "Wed 4",
+      "isToday": false,
+      "isPast": true
+     },
+     {
+      "ymd": "2026-11-05",
+      "label": "Thu 5",
+      "isToday": true,
+      "isPast": false
+     },
+     {
+      "ymd": "2026-11-06",
+      "label": "Fri 6",
+      "isToday": false,
+      "isPast": false
+     },
+     {
+      "ymd": "2026-11-07",
+      "label": "Sat 7",
+      "isToday": false,
+      "isPast": false
+     },
+     {
+      "ymd": "2026-11-08",
+      "label": "Sun 8",
+      "isToday": false,
+      "isPast": false
+     }
+    ]
+   },
+   "month": {
+    "key": "2026-11",
+    "label": "November 2026",
+    "daysInMonth": 30,
+    "elapsed": 0.153,
+    "daysLeft": 26,
+    "weeksInMonth": 4.285714285714286,
+    "weeks": [
+     {
+      "start": "2026-10-26",
+      "end": "2026-11-01",
+      "label": "Oct 26 to Nov 1",
+      "current": false
+     },
+     {
+      "start": "2026-11-02",
+      "end": "2026-11-08",
+      "label": "Nov 2 to 8",
+      "current": true
+     },
+     {
+      "start": "2026-11-09",
+      "end": "2026-11-15",
+      "label": "Nov 9 to 15",
+      "current": false
+     },
+     {
+      "start": "2026-11-16",
+      "end": "2026-11-22",
+      "label": "Nov 16 to 22",
+      "current": false
+     },
+     {
+      "start": "2026-11-23",
+      "end": "2026-11-29",
+      "label": "Nov 23 to 29",
+      "current": false
+     },
+     {
+      "start": "2026-11-30",
+      "end": "2026-12-06",
+      "label": "Nov 30 to Dec 6",
+      "current": false
+     }
+    ]
+   }
+  },
+  "goals": [
+   {
+    "key": "sponsors",
+    "title": "Sponsors",
+    "owner": "Florence",
+    "team": [
+     "Florence"
+    ],
+    "project": "sponsors",
+    "channels": [],
+    "parked": [],
+    "month": {
+     "note": "",
+     "behind": [],
+     "rows": [],
+     "key": "collected",
+     "label": "$10K collected",
+     "unit": "usd",
+     "target": 10000,
+     "actual": 4250,
+     "display": "$4,250",
+     "pace": 1533,
+     "status": {
+      "text": "On pace",
+      "cls": "ok"
+     },
+     "owner": "Florence",
+     "source": {
+      "label": "Deposit ledger",
+      "at": "2026-11-02T22:05:00.000Z",
+      "ageLabel": "updated 3 days ago",
+      "stale": true
+     }
+    },
+    "week": [
+     {
+      "note": "",
+      "behind": [],
+      "rows": [],
+      "key": "signed",
+      "label": "Deals signed",
+      "unit": "count",
+      "target": 2,
+      "actual": 1,
+      "display": "1 of 2",
+      "pace": 1.1,
+      "status": {
+       "text": "On pace",
+       "cls": "ok"
+      },
+      "owner": "Florence",
+      "source": {
+       "label": "Bot tasks",
+       "at": "2026-11-05T21:47:00.000Z",
+       "ageLabel": "updated 20 min ago",
+       "stale": false
+      }
+     },
+     {
+      "note": "",
+      "behind": [
+       {
+        "title": "Creatify integration - Jon Mac",
+        "owner": "Olivia",
+        "why": "In QC since Wednesday",
+        "open": "t_00009f3a00005ccd"
+       },
+       {
+        "title": "Invideo sponsor read - Jon Mac",
+        "owner": "Florence",
+        "why": "Waiting for your review",
+        "open": "t_00009f3a00007bbc"
+       }
+      ],
+      "rows": [],
+      "key": "delivered",
+      "label": "Sponsor videos delivered",
+      "unit": "count",
+      "target": 2,
+      "actual": 0,
+      "display": "0 of 2",
+      "pace": 1.1,
+      "status": {
+       "text": "Behind",
+       "cls": "risk"
+      },
+      "owner": "Olivia",
+      "source": {
+       "label": "Bot tasks",
+       "at": "2026-11-05T21:47:00.000Z",
+       "ageLabel": "updated 20 min ago",
+       "stale": false
+      }
+     },
+     {
+      "note": "",
+      "behind": [
+       {
+        "title": "Creatify invoice ($1,500)",
+        "owner": "Florence",
+        "why": "Video went live Nov 4; the invoice waits on your click"
+       }
+      ],
+      "rows": [],
+      "key": "invoiced",
+      "label": "Invoice sent the day a video goes live",
+      "unit": "yesno",
+      "target": 1,
+      "actual": 0,
+      "display": "No",
+      "pace": null,
+      "status": {
+       "text": "Behind",
+       "cls": "risk"
+      },
+      "owner": "Florence",
+      "source": {
+       "label": "Bot tasks",
+       "at": "2026-11-05T21:47:00.000Z",
+       "ageLabel": "updated 20 min ago",
+       "stale": false
+      }
+     }
+    ],
+    "day": [
+     {
+      "note": "",
+      "behind": [],
+      "rows": [],
+      "key": "inbox",
+      "label": "partners@ replies cleared",
+      "unit": "yesno",
+      "target": 1,
+      "actual": 1,
+      "display": "Yes",
+      "pace": null,
+      "status": {
+       "text": "Done",
+       "cls": "ok"
+      },
+      "owner": "Florence",
+      "source": {
+       "label": "partners@ inbox scan",
+       "at": "2026-11-05T21:05:00.000Z",
+       "ageLabel": "updated 1 hr ago",
+       "stale": false
+      }
+     },
+     {
+      "note": "",
+      "behind": [],
+      "rows": [],
+      "key": "prices",
+      "label": "Jon's price decisions answered",
+      "unit": "count",
+      "target": 1,
+      "actual": 0,
+      "display": "0 of 1",
+      "pace": null,
+      "status": {
+       "text": "Behind",
+       "cls": "risk"
+      },
+      "owner": "You",
+      "source": {
+       "label": "Bot tasks",
+       "at": "2026-11-05T21:47:00.000Z",
+       "ageLabel": "updated 20 min ago",
+       "stale": false
+      }
+     }
+    ],
+    "trend": [
+     {
+      "start": "2026-10-26",
+      "label": "Oct 26",
+      "target": 2333,
+      "actual": 0,
+      "current": false
+     },
+     {
+      "start": "2026-11-02",
+      "label": "Nov 2",
+      "target": 2333,
+      "actual": 4250,
+      "current": true
+     },
+     {
+      "start": "2026-11-09",
+      "label": "Nov 9",
+      "target": 2333,
+      "actual": null,
+      "current": false
+     },
+     {
+      "start": "2026-11-16",
+      "label": "Nov 16",
+      "target": 2333,
+      "actual": null,
+      "current": false
+     },
+     {
+      "start": "2026-11-23",
+      "label": "Nov 23",
+      "target": 2333,
+      "actual": null,
+      "current": false
+     },
+     {
+      "start": "2026-11-30",
+      "label": "Nov 30",
+      "target": 2333,
+      "actual": null,
+      "current": false
+     }
+    ]
+   },
+   {
+    "key": "hgp",
+    "title": "Home Guide Press",
+    "owner": "Elle",
+    "team": [
+     "Elle",
+     "Scarlett",
+     "Olivia"
+    ],
+    "project": "home-guide-press",
+    "channels": [
+     {
+      "slug": "giovanni-moretti",
+      "label": "Giovanni Moretti",
+      "focus": true
+     },
+     {
+      "slug": "naomi-takeda-japan",
+      "label": "Naomi Takeda Japan",
+      "focus": true
+     },
+     {
+      "slug": "jack-mercer",
+      "label": "Jack Mercer",
+      "focus": true
+     },
+     {
+      "slug": "dale-whitaker-pitbulls",
+      "label": "Dale Whitaker Pitbulls",
+      "focus": true
+     },
+     {
+      "slug": "peter-collins",
+      "label": "Peter Collins",
+      "focus": true
+     },
+     {
+      "slug": "rosas-clean-home",
+      "label": "Rosa's Clean Home",
+      "focus": true
+     },
+     {
+      "slug": "rosas-house-hacks",
+      "label": "Rosa's House Hacks",
+      "focus": true
+     },
+     {
+      "slug": "ruth-calder",
+      "label": "Ruth Calder",
+      "focus": true
+     },
+     {
+      "slug": "eleanor-whitfield",
+      "label": "Eleanor Whitfield",
+      "focus": true
+     },
+     {
+      "slug": "gail-merriman-golf",
+      "label": "Gail Merriman Golf",
+      "focus": true
+     }
+    ],
+    "parked": [
+     {
+      "slug": "rosa-cooks",
+      "label": "Rosa Cooks"
+     },
+     {
+      "slug": "frank-bennett-dogs",
+      "label": "Frank Bennett Dogs"
+     },
+     {
+      "slug": "nora-fairweather-cats",
+      "label": "Nora Fairweather Cats"
+     },
+     {
+      "slug": "walter-brandt-dogs",
+      "label": "Walter Brandt Dogs"
+     }
+    ],
+    "month": {
+     "note": "Book sales could not be read: the Home Guide Press database is not connected yet.",
+     "behind": [],
+     "rows": [],
+     "key": "sales",
+     "label": "First sales on the focus channels",
+     "unit": "count",
+     "target": 10,
+     "actual": null,
+     "display": "No data",
+     "pace": 2,
+     "status": {
+      "text": "No data",
+      "cls": "idle"
+     },
+     "owner": "Elle",
+     "source": {
+      "label": "Book orders",
+      "at": null,
+      "ageLabel": "never reported",
+      "stale": true
+     }
+    },
+    "week": [
+     {
+      "note": "",
+      "behind": [
+       {
+        "title": "Ruth Calder: 0 of 3 this week",
+        "owner": "Elle",
+        "why": "Script waits on the book PDF"
+       },
+       {
+        "title": "How to Train a Pitbull Puppy - Dale Whitaker Pitbulls",
+        "owner": "Olivia",
+        "why": "Edit running 2 days",
+        "open": "t_00009f3a0000b99a"
+       }
+      ],
+      "rows": [
+       {
+        "label": "Giovanni Moretti",
+        "target": 3,
+        "actual": 2,
+        "display": "2 of 3",
+        "status": {
+         "text": "On pace",
+         "cls": "ok"
+        },
+        "owner": "Elle",
+        "note": ""
+       },
+       {
+        "label": "Naomi Takeda Japan",
+        "target": 3,
+        "actual": 1,
+        "display": "1 of 3",
+        "status": {
+         "text": "Behind",
+         "cls": "risk"
+        },
+        "owner": "Elle",
+        "note": ""
+       },
+       {
+        "label": "Jack Mercer",
+        "target": 3,
+        "actual": 1,
+        "display": "1 of 3",
+        "status": {
+         "text": "Behind",
+         "cls": "risk"
+        },
+        "owner": "Olivia",
+        "note": ""
+       },
+       {
+        "label": "Dale Whitaker Pitbulls",
+        "target": 3,
+        "actual": 0,
+        "display": "0 of 3",
+        "status": {
+         "text": "Off pace",
+         "cls": "crit"
+        },
+        "owner": "Elle",
+        "note": ""
+       },
+       {
+        "label": "Peter Collins",
+        "target": 3,
+        "actual": 1,
+        "display": "1 of 3",
+        "status": {
+         "text": "Behind",
+         "cls": "risk"
+        },
+        "owner": "Elle",
+        "note": ""
+       },
+       {
+        "label": "Rosa's Clean Home",
+        "target": 3,
+        "actual": 2,
+        "display": "2 of 3",
+        "status": {
+         "text": "On pace",
+         "cls": "ok"
+        },
+        "owner": "Olivia",
+        "note": ""
+       },
+       {
+        "label": "Rosa's House Hacks",
+        "target": 3,
+        "actual": 2,
+        "display": "2 of 3",
+        "status": {
+         "text": "On pace",
+         "cls": "ok"
+        },
+        "owner": "Elle",
+        "note": ""
+       },
+       {
+        "label": "Ruth Calder",
+        "target": 3,
+        "actual": 0,
+        "display": "0 of 3",
+        "status": {
+         "text": "Off pace",
+         "cls": "crit"
+        },
+        "owner": "Elle",
+        "note": "Waiting on the book PDF"
+       },
+       {
+        "label": "Eleanor Whitfield",
+        "target": 3,
+        "actual": 1,
+        "display": "1 of 3",
+        "status": {
+         "text": "Behind",
+         "cls": "risk"
+        },
+        "owner": "Olivia",
+        "note": ""
+       },
+       {
+        "label": "Gail Merriman Golf",
+        "target": 3,
+        "actual": 1,
+        "display": "1 of 3",
+        "status": {
+         "text": "Behind",
+         "cls": "risk"
+        },
+        "owner": "Elle",
+        "note": ""
+       }
+      ],
+      "key": "videos",
+      "label": "3 videos per focus channel",
+      "unit": "count",
+      "target": 30,
+      "actual": 11,
+      "display": "11 of 30",
+      "pace": 17,
+      "status": {
+       "text": "Behind",
+       "cls": "risk"
+      },
+      "owner": "Elle",
+      "source": {
+       "label": "Bot tasks",
+       "at": "2026-11-05T21:47:00.000Z",
+       "ageLabel": "updated 20 min ago",
+       "stale": false
+      },
+      "days": [
+       {
+        "ymd": "2026-11-02",
+        "target": 4,
+        "actual": 3
+       },
+       {
+        "ymd": "2026-11-03",
+        "target": 4,
+        "actual": 4
+       },
+       {
+        "ymd": "2026-11-04",
+        "target": 4,
+        "actual": 2
+       },
+       {
+        "ymd": "2026-11-05",
+        "target": 4,
+        "actual": 2
+       },
+       {
+        "ymd": "2026-11-06",
+        "target": 4,
+        "actual": null
+       },
+       {
+        "ymd": "2026-11-07",
+        "target": 4,
+        "actual": null
+       },
+       {
+        "ymd": "2026-11-08",
+        "target": 4,
+        "actual": null
+       }
+      ]
+     },
+     {
+      "note": "",
+      "behind": [
+       {
+        "title": "Rosa's House Hacks book page",
+        "owner": "Lucy",
+        "why": "The buy button opens an error page",
+        "href": "https://homeguidepress.com/rosas-house-hacks"
+       }
+      ],
+      "rows": [],
+      "key": "checkout",
+      "label": "Every landing page checkout working",
+      "unit": "count",
+      "target": 10,
+      "actual": 9,
+      "display": "9 of 10",
+      "pace": null,
+      "status": {
+       "text": "Behind",
+       "cls": "risk"
+      },
+      "owner": "Lucy",
+      "source": {
+       "label": "Checkout check",
+       "at": "2026-11-05T20:05:00.000Z",
+       "ageLabel": "updated 2 hr ago",
+       "stale": false
+      }
+     }
+    ],
+    "day": [
+     {
+      "note": "",
+      "behind": [],
+      "rows": [],
+      "key": "edited",
+      "label": "One video edited and QC-passed every 3 hours",
+      "unit": "count",
+      "target": 4,
+      "actual": 2,
+      "display": "2 of 4",
+      "pace": 2,
+      "status": {
+       "text": "On pace",
+       "cls": "ok"
+      },
+      "owner": "Olivia",
+      "source": {
+       "label": "Bot tasks",
+       "at": "2026-11-05T21:47:00.000Z",
+       "ageLabel": "updated 20 min ago",
+       "stale": false
+      }
+     }
+    ],
+    "trend": [
+     {
+      "start": "2026-10-26",
+      "label": "Oct 26",
+      "target": null,
+      "actual": null,
+      "current": false
+     },
+     {
+      "start": "2026-11-02",
+      "label": "Nov 2",
+      "target": null,
+      "actual": null,
+      "current": true
+     },
+     {
+      "start": "2026-11-09",
+      "label": "Nov 9",
+      "target": null,
+      "actual": null,
+      "current": false
+     },
+     {
+      "start": "2026-11-16",
+      "label": "Nov 16",
+      "target": null,
+      "actual": null,
+      "current": false
+     },
+     {
+      "start": "2026-11-23",
+      "label": "Nov 23",
+      "target": null,
+      "actual": null,
+      "current": false
+     },
+     {
+      "start": "2026-11-30",
+      "label": "Nov 30",
+      "target": null,
+      "actual": null,
+      "current": false
+     }
+    ]
+   },
+   {
+    "key": "jonmac",
+    "title": "Jon Mac",
+    "owner": "Sydney",
+    "team": [
+     "Sydney"
+    ],
+    "project": "jon-mac",
+    "channels": [
+     {
+      "slug": "jon-mac",
+      "label": "Jon Mac",
+      "focus": true
+     }
+    ],
+    "parked": [],
+    "month": {
+     "note": "",
+     "behind": [],
+     "rows": [],
+     "key": "videos",
+     "label": "Videos published",
+     "unit": "count",
+     "target": 13,
+     "actual": 2,
+     "display": "2 of 13",
+     "pace": 2,
+     "status": {
+      "text": "On pace",
+      "cls": "ok"
+     },
+     "owner": "Sydney",
+     "source": {
+      "label": "YouTube Data API",
+      "at": "2026-11-05T19:05:00.000Z",
+      "ageLabel": "updated 3 hr ago",
+      "stale": false
+     }
+    },
+    "week": [
+     {
+      "note": "",
+      "behind": [
+       {
+        "title": "I Let AI Run My Business for 30 Days - Jon Mac",
+        "owner": "Olivia",
+        "why": "Due Friday; edit half done",
+        "open": "t_00009f3a00015445"
+       }
+      ],
+      "rows": [],
+      "key": "videos",
+      "label": "Videos published",
+      "unit": "count",
+      "target": 3,
+      "actual": 1,
+      "display": "1 of 3",
+      "pace": 1.7,
+      "status": {
+       "text": "Behind",
+       "cls": "risk"
+      },
+      "owner": "Sydney",
+      "source": {
+       "label": "YouTube Data API",
+       "at": "2026-11-05T19:05:00.000Z",
+       "ageLabel": "updated 3 hr ago",
+       "stale": false
+      },
+      "days": [
+       {
+        "ymd": "2026-11-02",
+        "target": null,
+        "actual": 1
+       },
+       {
+        "ymd": "2026-11-03",
+        "target": null,
+        "actual": 0
+       },
+       {
+        "ymd": "2026-11-04",
+        "target": null,
+        "actual": 0
+       },
+       {
+        "ymd": "2026-11-05",
+        "target": null,
+        "actual": 0
+       },
+       {
+        "ymd": "2026-11-06",
+        "target": null,
+        "actual": null
+       },
+       {
+        "ymd": "2026-11-07",
+        "target": null,
+        "actual": null
+       },
+       {
+        "ymd": "2026-11-08",
+        "target": null,
+        "actual": null
+       }
+      ]
+     }
+    ],
+    "day": [],
+    "trend": [
+     {
+      "start": "2026-10-26",
+      "label": "Oct 26",
+      "target": 3,
+      "actual": 2,
+      "current": false
+     },
+     {
+      "start": "2026-11-02",
+      "label": "Nov 2",
+      "target": 3,
+      "actual": 1,
+      "current": true
+     },
+     {
+      "start": "2026-11-09",
+      "label": "Nov 9",
+      "target": 3,
+      "actual": null,
+      "current": false
+     },
+     {
+      "start": "2026-11-16",
+      "label": "Nov 16",
+      "target": 3,
+      "actual": null,
+      "current": false
+     },
+     {
+      "start": "2026-11-23",
+      "label": "Nov 23",
+      "target": 3,
+      "actual": null,
+      "current": false
+     },
+     {
+      "start": "2026-11-30",
+      "label": "Nov 30",
+      "target": 3,
+      "actual": null,
+      "current": false
+     }
+    ]
+   },
+   {
+    "key": "jonmacai",
+    "title": "@JonMacAI",
+    "owner": "Sydney",
+    "team": [
+     "Sydney"
+    ],
+    "project": "jonmacai",
+    "channels": [
+     {
+      "slug": "jonmacai",
+      "label": "@JonMacAI",
+      "focus": true
+     }
+    ],
+    "parked": [],
+    "month": {
+     "note": "",
+     "behind": [],
+     "rows": [],
+     "key": "videos",
+     "label": "Videos published",
+     "unit": "count",
+     "target": 13,
+     "actual": 0,
+     "display": "0 of 13",
+     "pace": 2,
+     "status": {
+      "text": "Off pace",
+      "cls": "crit"
+     },
+     "owner": "Sydney",
+     "source": {
+      "label": "YouTube Data API",
+      "at": "2026-11-05T19:05:00.000Z",
+      "ageLabel": "updated 3 hr ago",
+      "stale": false
+     }
+    },
+    "week": [
+     {
+      "note": "",
+      "behind": [
+       {
+        "title": "UGC Ads With No Actors - @JonMacAI",
+        "owner": "Sydney",
+        "why": "No a-roll yet",
+        "open": "t_00009f3a00019223"
+       }
+      ],
+      "rows": [],
+      "key": "videos",
+      "label": "Videos published",
+      "unit": "count",
+      "target": 3,
+      "actual": 0,
+      "display": "0 of 3",
+      "pace": 1.7,
+      "status": {
+       "text": "Off pace",
+       "cls": "crit"
+      },
+      "owner": "Sydney",
+      "source": {
+       "label": "YouTube Data API",
+       "at": "2026-11-05T19:05:00.000Z",
+       "ageLabel": "updated 3 hr ago",
+       "stale": false
+      },
+      "days": [
+       {
+        "ymd": "2026-11-02",
+        "target": null,
+        "actual": 0
+       },
+       {
+        "ymd": "2026-11-03",
+        "target": null,
+        "actual": 0
+       },
+       {
+        "ymd": "2026-11-04",
+        "target": null,
+        "actual": 0
+       },
+       {
+        "ymd": "2026-11-05",
+        "target": null,
+        "actual": 0
+       },
+       {
+        "ymd": "2026-11-06",
+        "target": null,
+        "actual": null
+       },
+       {
+        "ymd": "2026-11-07",
+        "target": null,
+        "actual": null
+       },
+       {
+        "ymd": "2026-11-08",
+        "target": null,
+        "actual": null
+       }
+      ]
+     }
+    ],
+    "day": [],
+    "trend": [
+     {
+      "start": "2026-10-26",
+      "label": "Oct 26",
+      "target": 3,
+      "actual": 1,
+      "current": false
+     },
+     {
+      "start": "2026-11-02",
+      "label": "Nov 2",
+      "target": 3,
+      "actual": 0,
+      "current": true
+     },
+     {
+      "start": "2026-11-09",
+      "label": "Nov 9",
+      "target": 3,
+      "actual": null,
+      "current": false
+     },
+     {
+      "start": "2026-11-16",
+      "label": "Nov 16",
+      "target": 3,
+      "actual": null,
+      "current": false
+     },
+     {
+      "start": "2026-11-23",
+      "label": "Nov 23",
+      "target": 3,
+      "actual": null,
+      "current": false
+     },
+     {
+      "start": "2026-11-30",
+      "label": "Nov 30",
+      "target": 3,
+      "actual": null,
+      "current": false
+     }
+    ]
+   },
+   {
+    "key": "viral",
+    "title": "Viral View and webinar",
+    "owner": "Scarlett",
+    "team": [
+     "Scarlett"
+    ],
+    "project": "viral-view",
+    "channels": [],
+    "parked": [],
+    "month": {
+     "note": "No webinar date yet. Scarlett asked you to pick one.",
+     "behind": [],
+     "rows": [],
+     "key": "webinar",
+     "label": "Webinar date set and run once",
+     "unit": "text",
+     "target": null,
+     "actual": null,
+     "display": "Not set",
+     "pace": null,
+     "status": {
+      "text": "Behind",
+      "cls": "risk"
+     },
+     "owner": "Scarlett",
+     "source": {
+      "label": "Webinar funnel",
+      "at": "2026-11-05T20:05:00.000Z",
+      "ageLabel": "updated 2 hr ago",
+      "stale": false
+     }
+    },
+    "week": [
+     {
+      "note": "",
+      "behind": [],
+      "rows": [],
+      "key": "funnel",
+      "label": "Funnel live",
+      "unit": "yesno",
+      "target": 1,
+      "actual": 1,
+      "display": "Yes",
+      "pace": null,
+      "status": {
+       "text": "Done",
+       "cls": "ok"
+      },
+      "owner": "Scarlett",
+      "source": {
+       "label": "Webinar funnel",
+       "at": "2026-11-05T20:05:00.000Z",
+       "ageLabel": "updated 2 hr ago",
+       "stale": false
+      }
+     },
+     {
+      "note": "",
+      "behind": [],
+      "rows": [],
+      "key": "leads",
+      "label": "Leads counted",
+      "unit": "count",
+      "target": null,
+      "actual": 37,
+      "display": "37",
+      "pace": null,
+      "status": {
+       "text": "On pace",
+       "cls": "ok"
+      },
+      "owner": "Scarlett",
+      "source": {
+       "label": "Webinar funnel",
+       "at": "2026-11-05T20:05:00.000Z",
+       "ageLabel": "updated 2 hr ago",
+       "stale": false
+      }
+     }
+    ],
+    "day": [
+     {
+      "note": "Nobody counts these yet.",
+      "behind": [],
+      "rows": [],
+      "key": "drivers",
+      "label": "Ads and posts that drive leads",
+      "unit": "text",
+      "target": null,
+      "actual": null,
+      "display": "Not tracked yet",
+      "pace": null,
+      "status": {
+       "text": "Not tracked yet",
+       "cls": "idle"
+      },
+      "owner": "Scarlett",
+      "source": {
+       "label": "Webinar funnel",
+       "at": "2026-11-05T20:05:00.000Z",
+       "ageLabel": "updated 2 hr ago",
+       "stale": false
+      }
+     }
+    ],
+    "trend": [
+     {
+      "start": "2026-10-26",
+      "label": "Oct 26",
+      "target": null,
+      "actual": 12,
+      "current": false
+     },
+     {
+      "start": "2026-11-02",
+      "label": "Nov 2",
+      "target": null,
+      "actual": 25,
+      "current": true
+     },
+     {
+      "start": "2026-11-09",
+      "label": "Nov 9",
+      "target": null,
+      "actual": null,
+      "current": false
+     },
+     {
+      "start": "2026-11-16",
+      "label": "Nov 16",
+      "target": null,
+      "actual": null,
+      "current": false
+     },
+     {
+      "start": "2026-11-23",
+      "label": "Nov 23",
+      "target": null,
+      "actual": null,
+      "current": false
+     },
+     {
+      "start": "2026-11-30",
+      "label": "Nov 30",
+      "target": null,
+      "actual": null,
+      "current": false
+     }
+    ]
+   },
+   {
+    "key": "shortform",
+    "title": "Short-form",
+    "owner": "Samantha",
+    "team": [
+     "Samantha"
+    ],
+    "project": "short-form",
+    "channels": [],
+    "parked": [],
+    "month": {
+     "note": "",
+     "behind": [],
+     "rows": [],
+     "key": "clips",
+     "label": "Clips posted",
+     "unit": "count",
+     "target": 90,
+     "actual": 11,
+     "display": "11 of 90",
+     "pace": 14,
+     "status": {
+      "text": "Behind",
+      "cls": "risk"
+     },
+     "owner": "Samantha",
+     "source": {
+      "label": "Short-form post log",
+      "at": "2026-11-03T20:05:00.000Z",
+      "ageLabel": "updated 2 days ago",
+      "stale": true
+     }
+    },
+    "week": [
+     {
+      "note": "",
+      "behind": [
+       {
+        "title": "TikTok upload login",
+        "owner": "Samantha",
+        "why": "TikTok signed out; needs your sign-in",
+        "open": "t_00009f3a0001d001"
+       }
+      ],
+      "rows": [],
+      "key": "clips",
+      "label": "Clips posted",
+      "unit": "count",
+      "target": 21,
+      "actual": 8,
+      "display": "8 of 21",
+      "pace": 12,
+      "status": {
+       "text": "Behind",
+       "cls": "risk"
+      },
+      "owner": "Samantha",
+      "source": {
+       "label": "Short-form post log",
+       "at": "2026-11-03T20:05:00.000Z",
+       "ageLabel": "updated 2 days ago",
+       "stale": true
+      },
+      "days": [
+       {
+        "ymd": "2026-11-02",
+        "target": 3,
+        "actual": 3
+       },
+       {
+        "ymd": "2026-11-03",
+        "target": 3,
+        "actual": 3
+       },
+       {
+        "ymd": "2026-11-04",
+        "target": 3,
+        "actual": 1
+       },
+       {
+        "ymd": "2026-11-05",
+        "target": 3,
+        "actual": 1
+       },
+       {
+        "ymd": "2026-11-06",
+        "target": 3,
+        "actual": null
+       },
+       {
+        "ymd": "2026-11-07",
+        "target": 3,
+        "actual": null
+       },
+       {
+        "ymd": "2026-11-08",
+        "target": 3,
+        "actual": null
+       }
+      ]
+     }
+    ],
+    "day": [
+     {
+      "note": "",
+      "behind": [],
+      "rows": [],
+      "key": "clips",
+      "label": "Clips posted today",
+      "unit": "count",
+      "target": 3,
+      "actual": 1,
+      "display": "1 of 3",
+      "pace": null,
+      "status": {
+       "text": "Behind",
+       "cls": "risk"
+      },
+      "owner": "Samantha",
+      "source": {
+       "label": "Short-form post log",
+       "at": "2026-11-03T20:05:00.000Z",
+       "ageLabel": "updated 2 days ago",
+       "stale": true
+      }
+     }
+    ],
+    "trend": [
+     {
+      "start": "2026-10-26",
+      "label": "Oct 26",
+      "target": 21,
+      "actual": 6,
+      "current": false
+     },
+     {
+      "start": "2026-11-02",
+      "label": "Nov 2",
+      "target": 21,
+      "actual": 8,
+      "current": true
+     },
+     {
+      "start": "2026-11-09",
+      "label": "Nov 9",
+      "target": 21,
+      "actual": null,
+      "current": false
+     },
+     {
+      "start": "2026-11-16",
+      "label": "Nov 16",
+      "target": 21,
+      "actual": null,
+      "current": false
+     },
+     {
+      "start": "2026-11-23",
+      "label": "Nov 23",
+      "target": 21,
+      "actual": null,
+      "current": false
+     },
+     {
+      "start": "2026-11-30",
+      "label": "Nov 30",
+      "target": 21,
+      "actual": null,
+      "current": false
+     }
+    ]
+   }
+  ],
+  "stale": [
+   {
+    "label": "Deposit ledger",
+    "ageLabel": "updated 3 days ago",
+    "goal": "sponsors"
+   },
+   {
+    "label": "Short-form post log",
+    "ageLabel": "updated 2 days ago",
+    "goal": "shortform"
+   },
+   {
+    "label": "Book orders",
+    "ageLabel": "never reported",
+    "goal": "hgp"
+   },
+   {
+    "label": "MoneyClaw RBC import",
+    "ageLabel": "updated 3 days ago"
+   }
+  ],
+  "checks": [
+   {
+    "key": "histories",
+    "title": "Complete Histories",
+    "owner": "Daisy",
+    "today": {
+     "ok": true,
+     "status": {
+      "text": "Done",
+      "cls": "ok"
+     },
+     "links": [
+      {
+       "label": "Spotify episode",
+       "href": "https://open.spotify.com/episode/4xYzq"
+      },
+      {
+       "label": "Community post",
+       "href": "https://www.youtube.com/post/UgkxA1"
+      }
+     ],
+     "facts": [
+      {
+       "label": "Episode",
+       "value": "The Fall of Constantinople"
+      },
+      {
+       "label": "Posted",
+       "value": "7:02 AM"
+      }
+     ],
+     "source": {
+      "label": "Spotify for Creators",
+      "at": "2026-11-05T15:05:00.000Z",
+      "ageLabel": "updated 7 hr ago",
+      "stale": false
+     }
+    },
+    "days": [
+     {
+      "ymd": "2026-11-02",
+      "ok": true,
+      "note": "Episode and post up 7:04 AM"
+     },
+     {
+      "ymd": "2026-11-03",
+      "ok": false,
+      "note": "No episode published"
+     },
+     {
+      "ymd": "2026-11-04",
+      "ok": true,
+      "note": "Episode and post up 7:01 AM"
+     },
+     {
+      "ymd": "2026-11-05",
+      "ok": true,
+      "note": "Episode and post up 7:02 AM"
+     },
+     {
+      "ymd": "2026-11-06",
+      "ok": null,
+      "note": ""
+     },
+     {
+      "ymd": "2026-11-07",
+      "ok": null,
+      "note": ""
+     },
+     {
+      "ymd": "2026-11-08",
+      "ok": null,
+      "note": ""
+     }
+    ]
+   },
+   {
+    "key": "rbc",
+    "title": "RBC expenses",
+    "owner": "Elizabeth",
+    "today": {
+     "ok": null,
+     "status": {
+      "text": "Not run yet",
+      "cls": "idle"
+     },
+     "links": [],
+     "facts": [
+      {
+       "label": "Accounts read",
+       "value": "0 of 7"
+      },
+      {
+       "label": "Bank data through",
+       "value": "Nov 2"
+      },
+      {
+       "label": "Receipts matched",
+       "value": "no"
+      }
+     ],
+     "source": {
+      "label": "MoneyClaw RBC import",
+      "at": "2026-11-02T22:05:00.000Z",
+      "ageLabel": "updated 3 days ago",
+      "stale": true
+     }
+    },
+    "days": [
+     {
+      "ymd": "2026-11-02",
+      "ok": false,
+      "note": "The import did not run"
+     },
+     {
+      "ymd": "2026-11-03",
+      "ok": true,
+      "note": "7 of 7 accounts read"
+     },
+     {
+      "ymd": "2026-11-04",
+      "ok": true,
+      "note": "7 of 7 accounts read"
+     },
+     {
+      "ymd": "2026-11-05",
+      "ok": null,
+      "note": "Runs at 6 PM"
+     },
+     {
+      "ymd": "2026-11-06",
+      "ok": null,
+      "note": ""
+     },
+     {
+      "ymd": "2026-11-07",
+      "ok": null,
+      "note": ""
+     },
+     {
+      "ymd": "2026-11-08",
+      "ok": null,
+      "note": ""
+     }
+    ]
+   }
+  ],
+  "today": {
+   "jon": [
+    {
+     "id": "a_51c0e2",
+     "kind": "approval",
+     "rank": 1,
+     "cls": "risk",
+     "title": "Send the Creatify invoice ($1,500)",
+     "from": "sponsors",
+     "at": "2026-11-05T18:05:00.000Z",
+     "detail": "Runs send invoice.",
+     "notes": [
+      "The video went live Nov 4.",
+      "The invoice is drafted in partners@."
+     ],
+     "links": [
+      {
+       "label": "Draft",
+       "href": "https://mail.google.com/mail/u/0/#drafts/ab12"
+      }
+     ],
+     "decideUrl": "/dashboard/api/v1/approvals/a_51c0e2/decide",
+     "ageLabel": "4 hr ago",
+     "goal": "sponsors",
+     "minutes": 2,
+     "link": {
+      "label": "Open draft in Gmail",
+      "href": "https://mail.google.com/mail/u/0/#drafts/ab12"
+     }
+    },
+    {
+     "id": "q_8e2a41",
+     "kind": "question",
+     "rank": 2,
+     "cls": "risk",
+     "title": "Notion AI offers $4,000 for 2 videos. Accept?",
+     "context": "Rate card says $2,500 a video. They want both live in November.",
+     "options": [
+      "Counter at $5,000 (rate card)",
+      "Accept $4,000",
+      "Other (type your own)"
+     ],
+     "from": "sponsors",
+     "at": "2026-11-05T16:05:00.000Z",
+     "answerUrl": "/dashboard/api/v1/questions/q_8e2a41/answer",
+     "ageLabel": "6 hr ago",
+     "goal": "sponsors",
+     "minutes": 5,
+     "link": null
+    },
+    {
+     "id": "q_3b9c07",
+     "kind": "question",
+     "rank": 2,
+     "cls": "risk",
+     "title": "Ruth Calder book page: cream cover or blue cover?",
+     "context": "Her channel uses cream and dark green.",
+     "options": [
+      "Cream (matches her channel)",
+      "Blue",
+      "Other (type your own)"
+     ],
+     "from": "home-guide-press",
+     "at": "2026-11-05T19:05:00.000Z",
+     "answerUrl": "/dashboard/api/v1/questions/q_3b9c07/answer",
+     "ageLabel": "3 hr ago",
+     "goal": "hgp",
+     "minutes": 2,
+     "link": {
+      "label": "Open page",
+      "href": "https://homeguidepress.com/ruth-calder"
+     }
+    }
+   ],
+   "needs": {
+    "count": 7,
+    "items": [
+     {
+      "id": "a_51c0e2",
+      "kind": "approval",
+      "rank": 1,
+      "cls": "risk",
+      "title": "Send the Creatify invoice ($1,500)",
+      "from": "sponsors",
+      "at": "2026-11-05T18:05:00.000Z",
+      "detail": "Runs send invoice.",
+      "notes": [
+       "The video went live Nov 4.",
+       "The invoice is drafted in partners@."
+      ],
+      "links": [
+       {
+        "label": "Draft",
+        "href": "https://mail.google.com/mail/u/0/#drafts/ab12"
+       }
+      ],
+      "decideUrl": "/dashboard/api/v1/approvals/a_51c0e2/decide",
+      "ageLabel": "4 hr ago",
+      "goal": "sponsors",
+      "minutes": 2,
+      "link": {
+       "label": "Open draft in Gmail",
+       "href": "https://mail.google.com/mail/u/0/#drafts/ab12"
+      }
+     },
+     {
+      "id": "q_8e2a41",
+      "kind": "question",
+      "rank": 2,
+      "cls": "risk",
+      "title": "Notion AI offers $4,000 for 2 videos. Accept?",
+      "context": "Rate card says $2,500 a video. They want both live in November.",
+      "options": [
+       "Counter at $5,000 (rate card)",
+       "Accept $4,000",
+       "Other (type your own)"
+      ],
+      "from": "sponsors",
+      "at": "2026-11-05T16:05:00.000Z",
+      "answerUrl": "/dashboard/api/v1/questions/q_8e2a41/answer",
+      "ageLabel": "6 hr ago",
+      "goal": "sponsors",
+      "minutes": 5,
+      "link": null
+     },
+     {
+      "id": "q_3b9c07",
+      "kind": "question",
+      "rank": 2,
+      "cls": "risk",
+      "title": "Ruth Calder book page: cream cover or blue cover?",
+      "context": "Her channel uses cream and dark green.",
+      "options": [
+       "Cream (matches her channel)",
+       "Blue",
+       "Other (type your own)"
+      ],
+      "from": "home-guide-press",
+      "at": "2026-11-05T19:05:00.000Z",
+      "answerUrl": "/dashboard/api/v1/questions/q_3b9c07/answer",
+      "ageLabel": "3 hr ago",
+      "goal": "hgp",
+      "minutes": 2,
+      "link": {
+       "label": "Open page",
+       "href": "https://homeguidepress.com/ruth-calder"
+      }
+     },
+     {
+      "id": "a_77d1f9",
+      "kind": "approval",
+      "rank": 1,
+      "cls": "risk",
+      "title": "Make 3 Shorts public on YouTube",
+      "from": "short-form",
+      "at": "2026-11-05T13:05:00.000Z",
+      "detail": "Posts to YouTube.",
+      "notes": [
+       "All three passed QC this morning."
+      ],
+      "links": [],
+      "decideUrl": "/dashboard/api/v1/approvals/a_77d1f9/decide",
+      "ageLabel": "9 hr ago",
+      "goal": "shortform",
+      "minutes": 2,
+      "link": null
+     },
+     {
+      "id": "q_c4410d",
+      "kind": "question",
+      "rank": 2,
+      "cls": "risk",
+      "title": "Webinar date: Thursday Nov 19 or Tuesday Nov 24, 6 PM?",
+      "context": "",
+      "options": [
+       "Thu Nov 19, 6 PM",
+       "Tue Nov 24, 6 PM",
+       "Other (type your own)"
+      ],
+      "from": "viral-view",
+      "at": "2026-11-04T18:05:00.000Z",
+      "answerUrl": "/dashboard/api/v1/questions/q_c4410d/answer",
+      "ageLabel": "28 hr ago",
+      "goal": "viral",
+      "minutes": 5,
+      "link": null
+     },
+     {
+      "id": "expenses",
+      "kind": "alert",
+      "rank": 3,
+      "cls": "",
+      "title": "Expenses review (Friday)",
+      "from": "Mila",
+      "detail": "4 known charges from MoneyClaw, held for Friday.",
+      "goal": null,
+      "minutes": 10,
+      "link": null,
+      "ageLabel": ""
+     }
+    ],
+    "healthToAna": 3,
+    "chargesFolded": 4
+   },
+   "expenses": {
+    "count": 4,
+    "items": [
+     {
+      "id": "q_cw0001",
+      "kind": "question",
+      "rank": 2,
+      "cls": "risk",
+      "title": "New charge: Adobe $59.99 on the Visa. Business or personal?",
+      "context": "",
+      "options": [
+       "Business",
+       "Personal"
+      ],
+      "from": "moneyclaw",
+      "at": "2026-11-04T16:05:00.000Z",
+      "answerUrl": "/dashboard/api/v1/questions/q_cw0001/answer",
+      "ageLabel": "30 hr ago",
+      "goal": null,
+      "minutes": 5,
+      "link": null
+     },
+     {
+      "id": "q_cw0002",
+      "kind": "question",
+      "rank": 2,
+      "cls": "risk",
+      "title": "New charge: Canva $16.99. Business or personal?",
+      "context": "",
+      "options": [
+       "Business",
+       "Personal"
+      ],
+      "from": "moneyclaw",
+      "at": "2026-11-04T20:05:00.000Z",
+      "answerUrl": "/dashboard/api/v1/questions/q_cw0002/answer",
+      "ageLabel": "26 hr ago",
+      "goal": null,
+      "minutes": 5,
+      "link": null
+     },
+     {
+      "id": "q_cw0003",
+      "kind": "question",
+      "rank": 2,
+      "cls": "risk",
+      "title": "Big one-off charge: Apple $1,849.00. Business or personal?",
+      "context": "",
+      "options": [
+       "Business",
+       "Personal"
+      ],
+      "from": "moneyclaw",
+      "at": "2026-11-05T02:05:00.000Z",
+      "answerUrl": "/dashboard/api/v1/questions/q_cw0003/answer",
+      "ageLabel": "20 hr ago",
+      "goal": null,
+      "minutes": 5,
+      "link": null
+     },
+     {
+      "id": "q_cw0004",
+      "kind": "question",
+      "rank": 2,
+      "cls": "risk",
+      "title": "New charge: Notion $12.00. Business or personal?",
+      "context": "",
+      "options": [
+       "Business",
+       "Personal"
+      ],
+      "from": "moneyclaw",
+      "at": "2026-11-05T15:05:00.000Z",
+      "answerUrl": "/dashboard/api/v1/questions/q_cw0004/answer",
+      "ageLabel": "7 hr ago",
+      "goal": null,
+      "minutes": 5,
+      "link": null
+     }
+    ],
+    "label": "Expenses review (Friday)"
+   },
+   "targets": [
+    {
+     "goal": "sponsors",
+     "goalTitle": "Sponsors",
+     "label": "partners@ replies cleared",
+     "display": "Yes",
+     "target": 1,
+     "actual": 1,
+     "status": {
+      "text": "Done",
+      "cls": "ok"
+     },
+     "owner": "Florence",
+     "source": {
+      "label": "partners@ inbox scan",
+      "at": "2026-11-05T21:05:00.000Z",
+      "ageLabel": "updated 1 hr ago",
+      "stale": false
+     }
+    },
+    {
+     "goal": "sponsors",
+     "goalTitle": "Sponsors",
+     "label": "Jon's price decisions answered",
+     "display": "0 of 1",
+     "target": 1,
+     "actual": 0,
+     "status": {
+      "text": "Behind",
+      "cls": "risk"
+     },
+     "owner": "You",
+     "source": {
+      "label": "Bot tasks",
+      "at": "2026-11-05T21:47:00.000Z",
+      "ageLabel": "updated 20 min ago",
+      "stale": false
+     }
+    },
+    {
+     "goal": "hgp",
+     "goalTitle": "Home Guide Press",
+     "label": "One video edited and QC-passed every 3 hours",
+     "display": "2 of 4",
+     "target": 4,
+     "actual": 2,
+     "status": {
+      "text": "On pace",
+      "cls": "ok"
+     },
+     "owner": "Olivia",
+     "source": {
+      "label": "Bot tasks",
+      "at": "2026-11-05T21:47:00.000Z",
+      "ageLabel": "updated 20 min ago",
+      "stale": false
+     }
+    },
+    {
+     "goal": "viral",
+     "goalTitle": "Viral View and webinar",
+     "label": "Ads and posts that drive leads",
+     "display": "Not tracked yet",
+     "target": null,
+     "actual": null,
+     "status": {
+      "text": "Not tracked yet",
+      "cls": "idle"
+     },
+     "owner": "Scarlett",
+     "source": {
+      "label": "Webinar funnel",
+      "at": "2026-11-05T20:05:00.000Z",
+      "ageLabel": "updated 2 hr ago",
+      "stale": false
+     }
+    },
+    {
+     "goal": "shortform",
+     "goalTitle": "Short-form",
+     "label": "Clips posted today",
+     "display": "1 of 3",
+     "target": 3,
+     "actual": 1,
+     "status": {
+      "text": "Behind",
+      "cls": "risk"
+     },
+     "owner": "Samantha",
+     "source": {
+      "label": "Short-form post log",
+      "at": "2026-11-03T20:05:00.000Z",
+      "ageLabel": "updated 2 days ago",
+      "stale": true
+     }
+    }
+   ],
+   "blockers": [
+    {
+     "title": "TikTok upload login",
+     "owner": "Samantha",
+     "goal": "shortform",
+     "ageLabel": "5 hr",
+     "why": "TikTok signed out; needs your sign-in",
+     "open": "t_00009f3a0001d001"
+    },
+    {
+     "title": "How to Train a Pitbull Puppy - Dale Whitaker Pitbulls",
+     "owner": "Olivia",
+     "goal": "hgp",
+     "ageLabel": "2 days",
+     "why": "Edit running 2 days; the pack is missing 4 clips"
+    },
+    {
+     "title": "Complete Histories missed Tuesday",
+     "owner": "Daisy",
+     "goal": null,
+     "ageLabel": "2 days",
+     "why": "No episode was published on Tuesday"
+    },
+    {
+     "title": "RBC expenses missed Monday",
+     "owner": "Elizabeth",
+     "goal": null,
+     "ageLabel": "3 days",
+     "why": "The import did not run"
+    }
+   ]
+  },
+  "pipeline": {
+   "boards": [
+    {
+     "goal": "sponsors",
+     "title": "Sponsors",
+     "project": "sponsors",
+     "channels": [],
+     "sponsors": {
+      "title": "Sponsors",
+      "month": "November",
+      "basis": "deposits",
+      "basisLabel": "All deposits · cash_ledger.csv (stale)",
+      "sub": "Source edited unknown · money from deposits",
+      "actions": [
+       {
+        "label": "Open collections page",
+        "href": "https://collections.viralview.io/collections.html"
+       },
+       {
+        "label": "Scan inbox now",
+        "kind": "sponsor.scan_inbox",
+        "payload": {
+         "msg": "Scanning sponsor inbox now"
+        }
+       }
+      ],
+      "tiles": [
+       {
+        "icon": "check",
+        "label": "Collected in November",
+        "value": "$4,250",
+        "goal": "/ $10K",
+        "pct": 43,
+        "sub": "All deposits · cash_ledger.csv (stale) · day 5 of 30 · pace $1,667"
+       },
+       {
+        "icon": "dollar",
+        "label": "Owed to you",
+        "value": "$6,700",
+        "sub": "3 sponsors"
+       },
+       {
+        "icon": "chart",
+        "label": "Average June-August",
+        "value": "$8,802.33",
+        "goal": "/ $10K",
+        "pct": 88,
+        "pg": "risk",
+        "sub": "$1,197.67 a month short of goal"
+       },
+       {
+        "icon": "mail",
+        "label": "Sponsor emails waiting",
+        "value": "1",
+        "sub": "1 reply drafted"
+       }
+      ],
+      "septemberBar": {
+       "title": "November toward $10,000",
+       "meta": "$10,950 if everything owed comes in",
+       "aria": "Collected $4,250, Collect now $1,500, Owed after posting $1,000, Lock deal $4,200",
+       "goalAt": 91.3,
+       "parts": [
+        {
+         "pct": 38.8,
+         "fill": "var(--ok-fill)",
+         "tip": "Collected $4,250",
+         "legend": "Collected",
+         "amount": "$4,250"
+        },
+        {
+         "pct": 13.7,
+         "fill": "var(--crit-fill)",
+         "tip": "Collect now $1,500",
+         "legend": "Collect now",
+         "amount": "$1,500"
+        },
+        {
+         "pct": 9.1,
+         "fill": "var(--accent)",
+         "tip": "Owed after posting $1,000",
+         "legend": "Owed after posting",
+         "amount": "$1,000"
+        },
+        {
+         "pct": 38.4,
+         "fill": "var(--risk-fill)",
+         "tip": "Lock deal $4,200",
+         "legend": "Lock deal",
+         "amount": "$4,200"
+        }
+       ],
+       "line": "Line marks the $10K goal"
+      },
+      "board": {
+       "title": "Deal board",
+       "meta": "Drag a card to move it",
+       "columns": [
+        {
+         "stage": "New inquiry",
+         "boardStage": "new-lead",
+         "empty": "",
+         "cards": [
+          {
+           "id": "gmail-thread-notion",
+           "name": "Notion AI",
+           "boardStage": "new-lead",
+           "pill": "Your move",
+           "pillCls": "blue",
+           "amt": 4000,
+           "amtLabel": "$4,000",
+           "detail": "2 videos in November",
+           "pct": 12,
+           "pg": ""
+          }
+         ]
+        },
+        {
+         "stage": "Negotiating",
+         "boardStage": "negotiating",
+         "empty": "",
+         "cards": [
+          {
+           "id": "gmail-thread-flova",
+           "name": "Flova AI",
+           "boardStage": "negotiating",
+           "pill": "Your move",
+           "pillCls": "blue",
+           "amt": 0,
+           "amtLabel": "Not priced",
+           "detail": "Paid Collaboration Opportunity with Flova AI",
+           "pct": 25,
+           "pg": "",
+           "btn": "Review",
+           "draft": true,
+           "payload": {
+            "id": "gmail-thread-flova",
+            "to": "maria.tang@offer.tec-do.com",
+            "subject": "Re: Paid Collaboration Opportunity with Flova AI",
+            "body": "Hi Maria,\n\nRates below.\n\nBest,\nJon Mac",
+            "saveKind": "sponsor.save_draft",
+            "sendKind": "sponsor.send_draft",
+            "discardKind": "sponsor.discard_draft"
+           }
+          }
+         ]
+        },
+        {
+         "stage": "Waiting on deposit",
+         "boardStage": "invoice-sent",
+         "empty": "",
+         "cards": [
+          {
+           "id": "gmail-thread-topview",
+           "name": "Topview AI",
+           "boardStage": "invoice-sent",
+           "pill": "55 days late",
+           "pillCls": "crit",
+           "amt": 1500,
+           "amtLabel": "$1,500",
+           "detail": "Potential Collaboration with Topview AI",
+           "pct": 37,
+           "pg": "crit",
+           "btn": "Nudge",
+           "kind": "sponsor.nudge",
+           "payload": {
+            "id": "gmail-thread-topview"
+           },
+           "btnCls": "line"
+          },
+          {
+           "id": "gmail-thread-invideo",
+           "name": "Invideo",
+           "boardStage": "invoice-sent",
+           "pill": "50 days quiet",
+           "pillCls": "risk",
+           "amt": 4200,
+           "amtLabel": "$4,200",
+           "detail": "Paid Collaboration with invideo AI",
+           "pct": 37,
+           "pg": "",
+           "btn": "Nudge",
+           "kind": "sponsor.nudge",
+           "payload": {
+            "id": "gmail-thread-invideo"
+           },
+           "btnCls": "line"
+          }
+         ]
+        },
+        {
+         "stage": "Script approval",
+         "boardStage": "script-approval",
+         "empty": "",
+         "cards": [
+          {
+           "id": "gmail-thread-viktor",
+           "name": "Norton Neo",
+           "boardStage": "script-approval",
+           "pill": "56 days quiet",
+           "pillCls": "risk",
+           "amt": 2000,
+           "amtLabel": "$2,000",
+           "detail": "Josef Schalumov sent you Norton Neo",
+           "pct": 50,
+           "pg": "",
+           "btn": "Nudge",
+           "kind": "sponsor.nudge",
+           "payload": {
+            "id": "gmail-thread-viktor"
+           },
+           "btnCls": "line"
+          }
+         ]
+        },
+        {
+         "stage": "With editor",
+         "boardStage": "production",
+         "empty": "",
+         "cards": []
+        },
+        {
+         "stage": "Video approval",
+         "boardStage": "video-approval",
+         "empty": "",
+         "cards": []
+        },
+        {
+         "stage": "Live · send invoice",
+         "boardStage": "publishing",
+         "empty": "Nothing here. Cards land here the moment a sponsor video goes live.",
+         "cards": [
+          {
+           "id": "gmail-thread-live",
+           "name": "LiveCo",
+           "boardStage": "publishing",
+           "pill": "49 days quiet",
+           "pillCls": "risk",
+           "amt": 0,
+           "amtLabel": "Not priced",
+           "detail": "It's up",
+           "pct": 87,
+           "pg": "",
+           "btn": "Send invoice",
+           "kind": "sponsor.send_invoice",
+           "payload": {
+            "id": "gmail-thread-live",
+            "sponsor": "LiveCo"
+           },
+           "btnCls": "line"
+          }
+         ]
+        },
+        {
+         "stage": "Paid in November",
+         "boardStage": "paid",
+         "empty": "",
+         "cards": [
+          {
+           "id": "gmail-thread-poppy",
+           "name": "Poppy",
+           "boardStage": "paid",
+           "pill": "Paid",
+           "pillCls": "ok",
+           "amt": 2500,
+           "amtLabel": "$2,500",
+           "detail": "Deposit",
+           "pct": 100,
+           "pg": "ok"
+          }
+         ]
+        },
+        {
+         "stage": "Archived",
+         "title": "Archived",
+         "archived": true,
+         "cards": [
+          {
+           "id": "gmail-thread-old1",
+           "name": "Pictory",
+           "boardStage": "new-lead",
+           "pill": "74 days quiet",
+           "pillCls": "risk",
+           "amt": 0,
+           "amtLabel": "Not priced",
+           "detail": "Partnership idea",
+           "pct": 12,
+           "pg": ""
+          },
+          {
+           "id": "gmail-thread-old2",
+           "name": "Synthesia",
+           "boardStage": "negotiating",
+           "pill": "91 days quiet",
+           "pillCls": "risk",
+           "amt": 2000,
+           "amtLabel": "$2,000",
+           "detail": "Q3 campaign",
+           "pct": 25,
+           "pg": ""
+          }
+         ]
+        }
+       ]
+      },
+      "collect": {
+       "title": "Money to collect",
+       "meta": "3 open items · $6,700",
+       "rows": [
+        {
+         "sponsor": "TopView",
+         "pill": "Collect now",
+         "pillCls": "crit",
+         "total": "$1,500",
+         "owed": "$1,500",
+         "paidPct": 0,
+         "paid": "$0",
+         "pg": "crit",
+         "block": "Dorothy said the $750 deposit was processed on September 11, but it is not in the bank. September deposits are Creatify $750, Soro/DIGIMERI $750, Viktor/Schalumov $1,000, and Poppy $2,500. No TopView wire.",
+         "next": "Email Dorothy for the wire receipt and SWIFT trace. Do not start production until the $750 deposit lands. Collect the final $750 after posting.",
+         "btn": "Nudge",
+         "btnCls": "line",
+         "kind": "sponsor.nudge",
+         "payload": {
+          "id": "gmail-thread-topview",
+          "sponsor": "TopView"
+         },
+         "paidKind": "sponsor.mark_paid",
+         "paidPayload": {
+          "sponsor": "TopView"
+         }
+        },
+        {
+         "sponsor": "InVideo",
+         "pill": "Lock deal",
+         "pillCls": "risk",
+         "total": "$4,200",
+         "owed": "$4,200",
+         "paidPct": 0,
+         "paid": "$0",
+         "pg": "risk",
+         "block": "Jon accepted $4,200 for two dedicated videos with a 50% deposit, go-live dates September 24 and 29. Waiting on company name and address to invoice. $200 of the total is the on-time September bonus.",
+         "next": "Wait for Nehal's billing details, then invoice the $2,100 deposit. Do not start until the deposit lands.",
+         "btn": "Nudge",
+         "btnCls": "line",
+         "kind": "sponsor.nudge",
+         "payload": {
+          "id": "gmail-thread-invideo",
+          "sponsor": "InVideo"
+         },
+         "paidKind": "sponsor.mark_paid",
+         "paidPayload": {
+          "sponsor": "InVideo"
+         }
+        },
+        {
+         "sponsor": "Viktor",
+         "pill": "Owed after posting",
+         "pillCls": "blue",
+         "total": "$2,000",
+         "owed": "$1,000",
+         "paidPct": 50,
+         "paid": "$1,000",
+         "pg": "risk",
+         "block": "The $1,000 Schalumov deposit landed September 8. Script was sent September 10. Josef has not replied with approval. Remaining $1,000 is due after posting.",
+         "next": "Nudge Josef for script approval, lock the September publish date, then invoice the final $1,000 when the video is live.",
+         "btn": "Nudge",
+         "btnCls": "line",
+         "kind": "sponsor.nudge",
+         "payload": {
+          "id": "gmail-thread-viktor",
+          "sponsor": "Viktor"
+         },
+         "paidKind": "sponsor.mark_paid",
+         "paidPayload": {
+          "sponsor": "Viktor"
+         }
+        }
+       ]
+      },
+      "emails": {
+       "title": "Sponsor emails",
+       "meta": "From the inbox scan · nothing sends without you",
+       "rows": [
+        {
+         "id": "gmail-thread-flova",
+         "title": "Flova AI",
+         "sub": "Paid Collaboration Opportunity with Flova AI",
+         "to": "maria.tang@offer.tec-do.com",
+         "subject": "Re: Paid Collaboration Opportunity with Flova AI",
+         "body": "Hi Maria,\n\nRates below.\n\nBest,\nJon Mac",
+         "send": "Reply sent to Flova AI",
+         "saveKind": "sponsor.save_draft",
+         "sendKind": "sponsor.send_draft",
+         "discardKind": "sponsor.discard_draft"
+        }
+       ]
+      },
+      "byMonth": {
+       "title": "Collected by month",
+       "meta": "Against $10K",
+       "rows": [
+        {
+         "label": "May",
+         "value": "$5,600",
+         "pct": 56,
+         "pg": "risk"
+        },
+        {
+         "label": "June",
+         "value": "$10,400 · goal hit",
+         "pct": 100,
+         "pg": "ok"
+        },
+        {
+         "label": "July",
+         "value": "$8,606",
+         "pct": 86,
+         "pg": "risk"
+        },
+        {
+         "label": "August",
+         "value": "$7,401",
+         "pct": 74,
+         "pg": "risk"
+        },
+        {
+         "label": "September",
+         "value": "$5,000",
+         "pct": 50,
+         "pg": "risk"
+        },
+        {
+         "label": "November so far",
+         "value": "$4,250",
+         "pct": 43,
+         "pg": "risk"
+        }
+       ]
+      },
+      "cash": {
+       "available": true,
+       "month": {
+        "key": "2026-11",
+        "label": "November",
+        "usd": 4250,
+        "payments": 2,
+        "unknown": 0
+       },
+       "trailing": {
+        "avg": 6083,
+        "total": 18250,
+        "since": "Aug 7",
+        "unknown": 0
+       },
+       "pct": 61,
+       "owed": 6750,
+       "unpaidAvailable": true,
+       "unpaidEditedAt": "Nov 3",
+       "unpaid": [
+        {
+         "sponsor": "Topview AI",
+         "owed": 750,
+         "due": "Nov 10",
+         "status": "Deposit late",
+         "lastEmail": "Nov 2"
+        },
+        {
+         "sponsor": "Invideo",
+         "owed": 3000,
+         "due": "",
+         "status": "After posting"
+        },
+        {
+         "sponsor": "Creatify",
+         "owed": 1500,
+         "due": "Nov 19",
+         "status": "Invoice drafted"
+        },
+        {
+         "sponsor": "Soro",
+         "owed": 1500,
+         "due": "Nov 30",
+         "status": "Lock deal"
+        }
+       ],
+       "recent": [
+        {
+         "date": "2026-11-02",
+         "sponsor": "Poppy",
+         "usd": 2500
+        },
+        {
+         "date": "2026-11-04",
+         "sponsor": "Viktor",
+         "usd": 1750
+        }
+       ],
+       "source": {
+        "kind": "ledger",
+        "label": "cash_ledger.csv",
+        "stale": true,
+        "note": "The ledger is 3 days old."
+       }
+      },
+      "hidden": {
+       "receipts": 6,
+       "refunds": 1,
+       "newsletters": 9
+      },
+      "value": {
+       "usd": 12500,
+       "priced": 4,
+       "unpriced": 5
+      }
+     }
+    },
+    {
+     "goal": "hgp",
+     "title": "Home Guide Press",
+     "project": "home-guide-press",
+     "channels": [
+      {
+       "slug": "giovanni-moretti",
+       "label": "Giovanni Moretti",
+       "focus": true
+      },
+      {
+       "slug": "naomi-takeda-japan",
+       "label": "Naomi Takeda Japan",
+       "focus": true
+      },
+      {
+       "slug": "jack-mercer",
+       "label": "Jack Mercer",
+       "focus": true
+      },
+      {
+       "slug": "dale-whitaker-pitbulls",
+       "label": "Dale Whitaker Pitbulls",
+       "focus": true
+      },
+      {
+       "slug": "peter-collins",
+       "label": "Peter Collins",
+       "focus": true
+      },
+      {
+       "slug": "rosas-clean-home",
+       "label": "Rosa's Clean Home",
+       "focus": true
+      },
+      {
+       "slug": "rosas-house-hacks",
+       "label": "Rosa's House Hacks",
+       "focus": true
+      },
+      {
+       "slug": "ruth-calder",
+       "label": "Ruth Calder",
+       "focus": true
+      },
+      {
+       "slug": "eleanor-whitfield",
+       "label": "Eleanor Whitfield",
+       "focus": true
+      },
+      {
+       "slug": "gail-merriman-golf",
+       "label": "Gail Merriman Golf",
+       "focus": true
+      }
+     ]
+    },
+    {
+     "goal": "jonmac",
+     "title": "Jon Mac",
+     "project": "jon-mac",
+     "channels": [
+      {
+       "slug": "jon-mac",
+       "label": "Jon Mac",
+       "focus": true
+      }
+     ]
+    },
+    {
+     "goal": "jonmacai",
+     "title": "@JonMacAI",
+     "project": "jonmacai",
+     "channels": [
+      {
+       "slug": "jonmacai",
+       "label": "@JonMacAI",
+       "focus": true
+      }
+     ]
+    },
+    {
+     "goal": "viral",
+     "title": "Viral View and webinar",
+     "project": "viral-view",
+     "channels": []
+    },
+    {
+     "goal": "shortform",
+     "title": "Short-form",
+     "project": "short-form",
+     "channels": []
+    }
+   ]
+  },
+  "money": {
+   "tiles": [
+    {
+     "label": "Sponsor cash this month",
+     "value": "$4,250",
+     "sub": "2 deposits",
+     "source": {
+      "label": "Deposit ledger",
+      "at": "2026-11-02T22:05:00.000Z",
+      "ageLabel": "updated 3 days ago",
+      "stale": true
+     }
+    },
+    {
+     "label": "Owed to you",
+     "value": "$6,750",
+     "sub": "4 sponsors",
+     "source": {
+      "label": "Sponsor sheet",
+      "at": "2026-11-04T16:05:00.000Z",
+      "ageLabel": "updated 30 hr ago",
+      "stale": true
+     }
+    },
+    {
+     "label": "Viral View MRR",
+     "value": "$3,600",
+     "sub": "40 customers",
+     "source": {
+      "label": "Viral View Stripe",
+      "at": "2026-11-05T21:05:00.000Z",
+      "ageLabel": "updated 1 hr ago",
+      "stale": false
+     }
+    },
+    {
+     "label": "Webinar net",
+     "value": "$0",
+     "sub": "37 visits, no sales yet",
+     "source": {
+      "label": "Webinar funnel",
+      "at": "2026-11-05T20:05:00.000Z",
+      "ageLabel": "updated 2 hr ago",
+      "stale": false
+     }
+    },
+    {
+     "label": "Ebook sales",
+     "value": "No data",
+     "sub": "Book orders are not connected yet",
+     "source": {
+      "label": "Book orders",
+      "at": null,
+      "ageLabel": "never reported",
+      "stale": true
+     }
+    },
+    {
+     "label": "Bank feed",
+     "value": "Nov 2",
+     "sub": "RBC data through Nov 2",
+     "source": {
+      "label": "MoneyClaw RBC import",
+      "at": "2026-11-02T22:05:00.000Z",
+      "ageLabel": "updated 3 days ago",
+      "stale": true
+     }
+    }
+   ]
+  }
+ }
+}

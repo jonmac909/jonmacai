@@ -1,0 +1,65 @@
+{
+  "webinar": { "date": null, "runDate": null },
+  "goals": [
+    {
+      "key": "sponsors", "title": "Sponsors", "owner": "Florence", "team": ["Florence"], "project": "sponsors",
+      "month": { "key": "collected", "label": "Collected this month (about 5 deals)", "metric": "sponsorCash", "unit": "usd", "target": 10000 },
+      "week": [
+        { "key": "signed", "label": "Deals signed", "metric": "dealsSigned", "unit": "count", "target": 2 },
+        { "key": "delivered", "label": "Sponsor videos delivered (1 to 2)", "metric": "sponsorVideos", "unit": "count", "target": 1 },
+        { "key": "invoiced", "label": "Invoice sent the day a video goes live", "metric": "invoicesWaiting", "unit": "count", "target": 0 }
+      ],
+      "day": [
+        { "key": "replies", "label": "partners@ replies cleared", "metric": "tick", "project": "sponsors", "item": "Sort partners@ and draft replies", "unit": "yesno", "target": 1 },
+        { "key": "prices", "label": "Your price decisions answered", "metric": "openQuestions", "bot": "sponsors", "unit": "count", "target": 0 }
+      ]
+    },
+    {
+      "key": "hgp", "title": "Home Guide Press", "owner": "Elle", "team": ["Elle", "Scarlett", "Olivia"], "project": "home-guide-press",
+      "group": "Home Guide Press",
+      "focus": ["giovanni-moretti", "nora-fairweather-cats", "naomi-takeda-japan", "eleanor-whitfield", "claudine-marchand", "peter-collins", "jack-mercer", "diane-kowalski", "dale-whitaker-pitbulls", "rosas-clean-home", "rosas-house-hacks", "takeshi-morimoto", "kenzo-arai", "jiyoung-han", "peggy-donovan", "edna-haynes"],
+      "month": { "key": "firstSales", "label": "First sales on the focus channels", "metric": "firstSales", "unit": "count" },
+      "week": [
+        { "key": "videos", "label": "Videos published (3 per focus channel)", "metric": "videos", "unit": "count", "perChannel": 3 },
+        { "key": "checkout", "label": "Every landing page checkout working", "metric": "tickDays", "project": "home-guide-press", "item": "Site and checkouts checked", "unit": "count", "target": 7 }
+      ],
+      "day": [
+        { "key": "qc", "label": "Videos edited and QC-passed (one every 3 hours)", "metric": "qcPassed", "unit": "count", "everyHours": 3 }
+      ]
+    },
+    {
+      "key": "jonmac", "title": "Jon Mac", "owner": "Sydney", "team": ["Sydney"], "project": "jon-mac", "channels": ["jon-mac"],
+      "month": { "key": "videos", "label": "Videos published", "metric": "videos", "unit": "count", "perChannel": 3 },
+      "week": [{ "key": "videos", "label": "Videos published", "metric": "videos", "unit": "count", "perChannel": 3 }],
+      "day": []
+    },
+    {
+      "key": "jonmacai", "title": "@JonMacAI", "owner": "Sydney", "team": ["Sydney"], "project": "jonmacai", "channels": ["jonmacai"],
+      "month": { "key": "videos", "label": "Videos published", "metric": "videos", "unit": "count", "perChannel": 3 },
+      "week": [{ "key": "videos", "label": "Videos published", "metric": "videos", "unit": "count", "perChannel": 3 }],
+      "day": []
+    },
+    {
+      "key": "viral", "title": "Viral View and webinar", "owner": "Scarlett", "team": ["Scarlett"], "project": "viral-view", "channels": ["viral-view"],
+      "month": { "key": "webinar", "label": "Webinar date set and run once", "metric": "webinarRun", "unit": "yesno", "target": 1 },
+      "week": [
+        { "key": "live", "label": "Funnel live", "metric": "funnelLive", "unit": "yesno", "target": 1 },
+        { "key": "leads", "label": "Leads counted", "metric": "leads", "unit": "count", "target": null }
+      ],
+      "day": [
+        { "key": "drivers", "label": "Ads and posts that drive leads", "metric": "notTracked", "unit": "count", "target": null,
+          "why": "No feed records the day's ads or posts for the funnel yet." }
+      ]
+    },
+    {
+      "key": "shortform", "title": "Short-form", "owner": "Samantha", "team": ["Samantha"], "project": "short-form",
+      "month": { "key": "shorts", "label": "Shorts posted", "metric": "shorts", "unit": "count", "perDay": 3 },
+      "week": [{ "key": "shorts", "label": "Shorts posted", "metric": "shorts", "unit": "count", "perDay": 3 }],
+      "day": [{ "key": "shorts", "label": "Shorts posted", "metric": "shorts", "unit": "count", "perDay": 3 }]
+    }
+  ],
+  "checks": [
+    { "key": "histories", "title": "Complete Histories", "owner": "Daisy", "bot": "spotify", "deadline": "18:00" },
+    { "key": "rbc", "title": "RBC expenses", "owner": "Elizabeth", "project": "accounting", "items": ["08:00 RBC import run", "Receipts matched"], "deadline": "10:00" }
+  ]
+}

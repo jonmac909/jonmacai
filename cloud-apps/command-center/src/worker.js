@@ -8,6 +8,7 @@ import { trackRedirect } from './track.js';
 export { CallRelay } from './call.js';
 
 const PREFIX = '/dashboard';
+const D2 = '/dashboard-2';
 
 async function asset(request, env, assetPath) {
   const assetUrl = new URL(request.url);
@@ -19,12 +20,30 @@ async function asset(request, env, assetPath) {
   return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
 }
 
+const notFound = () => new Response('Not found', { status: 404 });
+// The asset a path could reach: decoded, with repeated slashes and dot segments folded.
+function assetTarget(p) {
+  try { return new URL(decodeURIComponent(p).replace(/[\\/]+/g, '/'), 'https://a').pathname; } catch { return p; }
+}
+// Dashboard 2 serves its two pages and its own css and js, nothing else.
+const D2_FILE = /^\/(login\.html|css\/[\w-]+\.css|js\/(?:[\w-]+\/)*[\w-]+\.js)$/;
+
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
     // Only the separate preview Worker (wrangler --env preview, its own D1) answers on workers.dev.
     if (url.hostname.endsWith('.workers.dev') && env.PREVIEW !== '1') return new Response('Not found', { status: 404 });
     if (url.pathname.startsWith('/v/')) return trackRedirect(request, env, ctx);
+    // Dashboard 2 (docs/dashboard-2.md): its own pages under public/d2; data comes from /dashboard/api/d2.
+    if (url.pathname === D2) {
+      url.pathname = `${D2}/`;
+      return Response.redirect(url.toString(), 308);
+    }
+    if (url.pathname.startsWith(`${D2}/`)) {
+      const path = url.pathname.slice(D2.length);
+      if (path === '/' || path === '/index.html') return asset(request, env, (await readSession(request, env)) ? '/d2/index.html' : '/d2/login.html');
+      return D2_FILE.test(path) ? asset(request, env, `/d2${path}`) : notFound();
+    }
     if (url.pathname === PREFIX) {
       url.pathname = `${PREFIX}/`;
       return Response.redirect(url.toString(), 308);
@@ -39,6 +58,7 @@ export default {
     if (url.pathname.startsWith(`${PREFIX}/api/`)) return handleApi(request, env, ctx);
 
     let assetPath = url.pathname.slice(PREFIX.length) || '/';
+    if (/^\/d2(\/|$)/i.test(assetTarget(assetPath))) return notFound(); // Dashboard 2's files only behind /dashboard-2
     if (assetPath === '/') assetPath = '/index.html';
     if (assetPath === '/call') assetPath = '/call.html';
     const html = assetPath === '/index.html' || assetPath === '/login.html' || assetPath === '/call.html';
