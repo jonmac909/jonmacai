@@ -40,7 +40,7 @@
 .d2behind li{font-size:.86rem;padding:.2rem 0}
 .d2behind b{color:var(--risk-ink);font-weight:600}
 .d2behind a{color:var(--accent);text-decoration:none;font-weight:500}
-[data-open].d2metric,.d2behind [data-open],.d2block [data-open]{cursor:pointer}
+[data-open].d2metric,.d2behind [data-open]{cursor:pointer}
 .d2checks>li{display:flex;flex-direction:column;gap:.45rem;padding:.7rem 0}
 .d2checks>li:first-child{padding-top:0}
 

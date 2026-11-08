@@ -492,6 +492,8 @@ def run(args, ctx):
         return call(ctx, 'PUT', '/feeds/%s' % q(args.name, safe=''), feed_data(args))
     if c == 'feed':
         return call(ctx, 'GET', '/feeds/%s' % q(args.name, safe=''))
+    if c == 'd2-ana':  # lives at /dashboard/api/d2/ana, beside /v1
+        return call(dict(ctx, base=ctx['base'].rstrip('/').rsplit('/v1', 1)[0]), 'GET', '/d2/ana')
     if c == 'daily-sync':
         return call(ctx, 'PUT', '/feeds/daily_checklists', {'projects': daily_lists(args.file)})
     if c == 'daily-done':
@@ -676,6 +678,8 @@ def parser():
 
     a = s.add_parser('feed', help='read the newest entry of a feed')
     a.add_argument('name', choices=FEEDS)
+
+    s.add_parser('d2-ana', help="what Dashboard 2 keeps off Jon's Today (items past his 3, blockers, stale feeds), for Ana")
 
     a = s.add_parser('daily-sync', help='Ana: post the daily checklists from daily-checklists.md')
     a.add_argument('--file', default=DAILY_FILE, help='default %(default)s')
