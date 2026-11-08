@@ -99,7 +99,7 @@ Missing bindings (preview has no HGP_DB, CLONE_DB, REVIEW_DB) or an unreadable t
 
 Needs-you cleanup (view only): a question whose idempotency key starts `team-guard` is bot health and is counted in `toAna.health`, not shown. A question whose key starts `cw:` (MoneyClaw charge watch: "New charge", "Big one-off charge") is a known charge: it moves into `expenses`; Needs you gets one `Expenses review (Friday)` item for them instead, a candidate for `jon` on Fridays only. Everything else stays.
 
-Jon sees at most 3 things (`jon`) and one muted line: "N more went to Ana · M team health alerts went to Ana". `toAna.items` is the rest of Needs you (not the Expenses item outside Friday); `toAna.blockers` are the blockers not about a task in `jon` or `toAna.items`; `toAna.count` counts both. Ana reads them, with `stale`, from `GET /dashboard/api/d2/ana` (her bot token). The Expenses item has `id` and `kind` `'expenses'`. Every `from` and owner in `d2` is a first name.
+Jon sees at most 3 things (`jon`) and one muted line: "N more went to Ana · M team health alerts went to Ana". `toAna.items` is the rest of Needs you (not the Expenses item outside Friday); `toAna.blockers` are the blockers not about a task in `jon` or `toAna.items`; `toAna.count` counts both. Ana reads them, with `stale`, from `GET /dashboard/api/d2/ana` (any bot token; `dash.py d2-ana`). The Expenses item has `id` and `kind` `'expenses'`. Every `from` and owner in `d2` is a first name.
 
 ### Check
 
