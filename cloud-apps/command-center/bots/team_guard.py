@@ -5,7 +5,7 @@ Runs hidden every 10 minutes (see HOOKS.md). Reads OpenBot's database and transc
   over 2 hours old, a message queued 2 hours, or queued 30 minutes with no open turn: bot_stuck to Ana.
   Past the queue limit Ana can't alert herself, so hers go on Jon's Questions page.
 - A video proof pending over 30 minutes: wakes the other QC bot.
-- Fewer than 2 packs ready for Olivia: wakes Elle and Scarlett. Preflight runs at most hourly.
+- Fewer than 2 packs ready for Olivia: wakes Scarlett. Preflight runs at most hourly.
 - A bot whose current or main account is capped by a usage limit: bot_stuck to Ana. If it's Ana's own
   current account she can't read that, so it also goes on Jon's Questions page. Only a bot on the Claude
   provider can be capped: a bot on any other provider (the DeepSeek trial, Jon 2026-11-06) is skipped.
@@ -15,19 +15,22 @@ Runs hidden every 10 minutes (see HOOKS.md). Reads OpenBot's database and transc
 - A card whose note has a line "Waiting external" (optionally "until 2026-11-12") is waiting on a third party: the
   idle nudge skips it, and the load balancer must too. A bot with no Doing card but a Todo card is told to
   "start <its oldest Todo card>".
-- Fewer than 3 a-rolls rendered (pipeline.py's buffer) with passed scripts waiting: wakes the owner (Elle or
-  Scarlett) of the oldest passed script. A bot is woken at most once per 30 minutes, whichever check wakes it.
+- A QC-passed script with no a-roll (Jon, 2026-11-08: no buffer to wait for, no cap): wakes Sydney, whoever holds the card,
+  about the oldest one, to submit its HeyGen a-roll and hand the card to Scarlett. A bot is woken at most once per 30 minutes,
+  whichever check wakes it.
+- Parked channels (every channel not in D:\AgentTeam\rules\facts\focus-channels.txt, Jon 2026-11-08) get no wake, buffer count or GPU time. Pack, clip,
+  GPU-gap, GPU-queue and low-pack wakes go to Scarlett only; script fixes to Sydney; Elle gets none of them.
 - Buffers: fewer than 6 passed scripts wakes Sydney with her oldest Todo topic card; fewer than 3 preflight-passed packs
-  wakes the owner (Elle or Scarlett) of the first pack in D:\AgentTeam\pack-order.txt whose a-roll is in and clips are not
+  wakes Scarlett about the first pack in D:\AgentTeam\pack-order.txt whose a-roll is in and clips are not
   done. At once, no 30-minute wait; none for a card that is Doing, held, or says Waiting external.
 - Next-step wakes: an affiliate card that sat 30 minutes at a hand-off wakes the free bot that takes it next: a failed or
-  unsent script to its owner, a script with a pending proof to a QC bot, an a-roll with no clips to its owner, a
+  unsent script to Sydney, a script with a pending proof to a QC bot, an a-roll with no clips to Scarlett, a
   preflight-passed pack to Olivia (unless she has an edit in hand). Doing cards are the idle nudge's, video QC is the QC check's.
 - GPU gap: GPU1's queue (D:\gpu-queue\gpuq.log) with no job running or waiting for 10 minutes, while a pack has its a-roll and
-  no clips yet: wakes the owner (Elle or Scarlett) of the first such pack in Jon's order to queue the clips. Same rules as Buffers.
+  no clips yet: wakes Scarlett about the first such pack in Jon's order to queue the clips. Same rules as Buffers.
 - Load balancer: a bot is overloaded with more than 3 non-waiting Doing cards, 3 or more queued messages, or a Todo
   card untouched for 2 hours. Its oldest card moves to the first backup that is not overloaded and stays lighter than it
-  (Lucy to Mila to Emma, Elle and Scarlett swap, Sydney to Scarlett), with a card comment and a wake. Each bot gives up at
+  (Lucy to Mila to Emma, Elle to Scarlett; Scarlett and Sydney have none: an overloaded Scarlett or Sydney pages Ana), with a card comment and a wake. Each bot gives up at
   most one card per 30 minutes. No backup: bot_stuck to Ana. QC has one dashboard slug for Jessica and Nina, so no move.
 - GPU2's heartbeat logged low UDP or TCP ports in the last 30 minutes: bot_stuck to Ana, naming who holds them.
 - GPU1's D: under 30 GB free: bot_stuck to Ana.
@@ -63,8 +66,6 @@ sys.path[:0] = [str(TOOLS), r'D:\AgentTeam\grok-voice']  # -I leaves the script'
 
 IDLE_MIN, QUEUE_MIN, QC_MIN, ANA_MIN, BLOCKED_MIN, MIN_PACKS = 30, 120, 30, 45, 90, 2
 READY_MIN, NUDGE_EVERY_S = 10, 1800  # Jon, 2026-11-05: the team works 24/7; no wake storms
-AROLL_MIN = 3  # pipeline.py's a-roll buffer target
-AROLL_STAGES = (3, 4, 5)  # a-roll rendered, clips building, preflight passed: not yet with the editor
 BC = timezone(timedelta(hours=-7))  # Kelowna, permanent UTC-7 since Nov 2026 (no tzdata on this Python)
 WAITING = re.compile(r'(?im)^\W*waiting[ _]external\b(?:[^\n]*?\buntil\s+(\d{4}-\d{2}-\d{2}))?')
 SCRIPT_PASSED = 2
@@ -77,16 +78,19 @@ GPU_JOBS_MIN = 3  # Ana, 2026-11-05: each GPU queue holds this many runnable job
 GPU_QUEUES = {'GPU1': (r'D:\gpu-queue\gpuq.py', 'Omni clip'), 'GPU2': (r'D:\gpu-queue\gpu2.py', 'Qwen still')}  # name -> status CLI, job kind
 GPU_WAIT_MIN = 25  # a 'waiting' line this old with no 'running' after it is a client that gave up (a turn is 20 minutes)
 FAILED_PROOF_MIN = 180  # a QC failure this recent wakes the card's owner at once; older ones wait for the idle nudge
-AROLL_OWNERS = ('home-guide-press', 'viral-view')  # dashboard slugs of Elle and Scarlett
-SCRIPT_OWNERS = AROLL_OWNERS + ('jon-mac-youtube',)  # Sydney writes the scripts, Elle and Scarlett fix the ones on their packs
+PACKER = 'viral-view'  # dashboard slug of Scarlett: source breakdown, packs, clip jobs and preflight (Jon, 2026-11-08); Sydney is WRITER
+CARD_OWNERS = ('home-guide-press', 'viral-view', 'jon-mac-youtube')  # who can hold an affiliate card before the editor (Elle held packs until 2026-11-08)
+PIPELINE_OWNERS = CARD_OWNERS + ('video-editor', 'qc')  # bots that hold a video card on its way to YouTube
+PACK_LINK =re.compile(r'/packs/|preflight|/scenes/|/omni/|/broll/', re.I)  # a failed proof of one of these is Scarlett's to fix
 WAKES = ('idle', 'aroll', 'buffer', 'gpu', 'gpuq', 'balance', 'failed', 'next')  # check names whose keys read 'name:agent:card'
 NEXT_MIN = 30  # a card waits this long at a hand-off before the bot that takes it next is woken
 HELD = ('qc', 'review', 'waiting_on_jon')  # statuses of a card someone else is checking: nothing to do for its owner
 SCRIPT_WRITTEN, SCRIPT_QC, AROLL_DONE, PREFLIGHT_PASSED, EDITING = 0, 1, 3, 5, 6  # pipeline.py's stage numbers
 CLIPS_BUILDING = 4
 MAX_DOING, MAX_QUEUED, WAIT_S = 3, 3, 7200  # overloaded: more Doing cards, as many queued messages, a Todo this old
-BACKUPS = {'developer': ('moneyclaw', 'historient'), 'moneyclaw': ('historient',),  # dashboard slugs, best backup first
-           'home-guide-press': ('viral-view',), 'viral-view': ('home-guide-press',), 'jon-mac-youtube': ('viral-view',)}
+BACKUPS = {'developer': ('moneyclaw',), 'moneyclaw': (),  # dashboard slugs, best backup first; no bot has the historient slug now
+           'home-guide-press': ('viral-view',), 'viral-view': (), 'jon-mac-youtube': ()}  # 2026-11-08: Elle no longer builds packs, so packs
+# have no backup bot (an overloaded Scarlett pages Ana, who adds a copy of her); scripts and a-rolls stay with Sydney
 NAMES = {'developer': 'Lucy', 'moneyclaw': 'Mila', 'historient': 'Emma', 'home-guide-press': 'Elle',
          'viral-view': 'Scarlett', 'jon-mac-youtube': 'Sydney'}
 PREFLIGHT_S = 280
@@ -363,6 +367,50 @@ def check_qc(now, state):
     return found
 
 
+def pipeline_parked():
+    """Jon's focus channel slugs (D:\\AgentTeam\\rules\\facts\\focus-channels.txt, read by pipeline.py); every other channel is parked.
+    Unreadable or empty file: None, which parks nothing, so a bad file can't silence every wake. Named 'parked' for its callers."""
+    try:
+        import pipeline
+        return pipeline.focus_channels()
+    except Exception:  # a file problem must not stop the wakes
+        return None
+
+
+def host_parked(title, focus):
+    if focus is None:  # no focus list to read: nothing is parked
+        return False
+    import pipeline
+    return pipeline.is_parked(title, focus)
+
+
+def parked_card(card, focus):
+    """A video card of a Home Guide Press channel outside Jon's focus list, held by a pipeline bot. Other projects' cards ("- Short-form",
+    "- Jon Mac"), Lucy's, Ana's and Elle's work cards ("... - Home Guide Press", "... - all 13 affiliate channels") never are."""
+    if focus is None or card.get('project') != 'home-guide-press' or card.get('owner') not in PIPELINE_OWNERS:
+        return False  # no list (or no pipeline.py to read it): nothing is parked
+    import pipeline
+    return pipeline.is_video(card.get('title') or '') and host_parked(card.get('title'), focus)
+
+
+def failed_slug(task, proof):
+    """Whose card-owner slug a failed proof wakes. Home Guide Press fixes (Jon, 2026-11-08): a script or a-roll is Sydney's, a
+    pack, clip or preflight proof is Scarlett's, on a card Elle, Scarlett or Sydney holds. Anything else wakes the card's owner."""
+    owner = task.get('owner')
+    if owner not in CARD_OWNERS or task.get('project') != 'home-guide-press':
+        return owner
+    try:
+        import pipeline
+    except ImportError:  # no pipeline.py beside the guard: the card's owner, as before
+        return owner
+    if not pipeline.is_video(task.get('title') or ''):
+        return owner  # a video card only: Elle's ebook-ad or checkout card with a pack link stays hers
+    link = (proof.get('link') or '').replace('\\', '/')
+    if pipeline.SCRIPT.search(link) or any(w in link.lower() for w in ('/aroll/', 'heygen', '/hgp-scripts/')):
+        return WRITER
+    return PACKER if PACK_LINK.search(link) else owner
+
+
 def check_failed(now, state):
     """A card whose proof QC just failed has gone back to doing: wake its owner with the note at once, once per proof, so
     the fix starts now instead of at the next idle nudge. A failure older than FAILED_PROOF_MIN is left to that nudge."""
@@ -373,6 +421,7 @@ def check_failed(now, state):
         return None  # the dashboard not answering must not stop the other checks, nor forget who was already woken
     free = free_bots(now, state)
     ids = bots()
+    focus = pipeline_parked()
     for p in proofs:
         checked = p.get('checkedAt')
         if p.get('status') != 'failed' or not checked or now - ts(checked) > FAILED_PROOF_MIN * 60:
@@ -383,7 +432,9 @@ def check_failed(now, state):
             continue
         if task.get('status') not in ('doing', 'todo'):  # QC's late failure on a done or cancelled card wakes no one
             continue
-        agent = next((a for a in ids.get(task.get('owner')) or () if a in free
+        if parked_card(task, focus):  # a parked channel gets no work until Jon changes the list
+            continue
+        agent = next((a for a in ids.get(failed_slug(task, p)) or () if a in free
                       and not woke_lately(state['seen'], a, now)), None)
         if not agent:
             continue
@@ -500,11 +551,14 @@ def check_idle(now, state):
     seen = state['seen']
     found = {k: None for k, t in seen.items() if k.startswith('idle:') and now - ts(t) < NUDGE_EVERY_S - 60}  # the send lands after `now`
     newest, oldest_todo = {}, {}
+    focus = pipeline_parked()  # a card of a parked channel is nobody's to continue or start (Jon, 2026-11-08)
     for c in dash('tasks', '--status', 'doing', '--limit', '500')['tasks']:
-        if c.get('owner') and not waiting_external(c, now) and c['updatedAt'] > newest.get(c['owner'], {}).get('updatedAt', ''):
+        if c.get('owner') and not waiting_external(c, now) and not parked_card(c, focus) \
+                and c['updatedAt'] > newest.get(c['owner'], {}).get('updatedAt', ''):
             newest[c['owner']] = c
     for c in dash('tasks', '--status', 'todo', '--limit', '500')['tasks']:  # a bot with no Doing card starts its oldest Todo
-        if c.get('owner') and not waiting_external(c, now) and c.get('createdAt', '') < oldest_todo.get(c['owner'], {}).get('createdAt', '~'):
+        if c.get('owner') and not waiting_external(c, now) and not parked_card(c, focus) \
+                and c.get('createdAt', '') < oldest_todo.get(c['owner'], {}).get('createdAt', '~'):
             oldest_todo[c['owner']] = c
     if not newest and not oldest_todo:
         return found
@@ -563,9 +617,10 @@ def check_balance(now, state):
         else:
             del moves[slug]
     cards, ours = {}, set(BACKUPS).union(*BACKUPS.values())
+    focus = pipeline_parked()  # parked channels' cards neither count as load nor move
     for status in ('doing', 'todo'):
         for c in dash('tasks', '--status', status, '--limit', '500')['tasks']:
-            if c.get('owner') in ours and not waiting_external(c, now):
+            if c.get('owner') in ours and not waiting_external(c, now) and not parked_card(c, focus):
                 cards.setdefault(c['owner'], []).append(c)
     ids = bots()
     with contextlib.closing(db()) as con:
@@ -630,7 +685,9 @@ def pipeline_cards(now):
                     out.append((r[0], r[1], card))
                 elif not live and card.get('owner') == WRITER and card.get('status') == 'todo':  # a topic with no script yet
                     topics.append(card)
-        _pipe.update(at=now, cards=out, topics=topics)
+        focus = pipeline_parked()  # channels not in Jon's focus list are parked: no wake, buffer count or GPU time
+        _pipe.update(at=now, cards=[x for x in out if not host_parked(x[2].get('title'), focus)],
+                     topics=[c for c in topics if not host_parked(c.get('title'), focus)])
     return _pipe['cards']
 
 
@@ -641,22 +698,29 @@ def topic_cards(now):
 
 
 def check_aroll(now, state):
-    """Fewer than 3 a-rolls in the pipeline: wake the owner of the oldest passed script. Bots with a wake in the last 30 minutes wait."""
+    """Any QC-passed script with no a-roll wakes Sydney (Jon, 2026-11-08: no buffer to wait for, no cap), oldest first, whoever
+    holds the card. Focus channels only (pipeline_cards drops parked ones). A card that says Waiting external is skipped (its render
+    is submitted). One wake per card and per bot per 30 minutes."""
     seen = state['seen']
     found = {k: None for k, t in seen.items() if k.startswith('aroll:') and now - ts(t) < NUDGE_EVERY_S - 60}
-    cards = pipeline_cards(now)
-    have = sum(stage in AROLL_STAGES for stage, _, _ in cards)
-    if have >= AROLL_MIN:
+    bare = sorted((c for c in pipeline_cards(now) if c[0] == SCRIPT_PASSED and not waiting_external(c[2], now)), key=lambda c: c[1])
+    if not bare:
         return found
     ids, free = bots(), free_bots(now, state)
-    for _, _, card in sorted((c for c in cards if c[0] == SCRIPT_PASSED), key=lambda c: c[1]):
-        agent = next(iter(ids.get(card.get('owner')) or []), None)
-        key = 'aroll:%s:%s' % (agent, card['id'])
-        if card.get('owner') in AROLL_OWNERS and agent in free and key not in found and not woke_lately(seen, agent, now):
-            seen.pop(key, None)  # its last wake is over 30 minutes old
-            found[key] = (agent, 'A-roll buffer is %d of %d. Start the HeyGen a-roll for %s, your longest-waiting passed '
-                          'script. If its render is already submitted, do not submit it again.' % (have, AROLL_MIN, card['title']))
-            break
+    agent = next((a for a in ids.get(WRITER) or () if a in free and not woke_lately(seen, a, now)), None)
+    woke = state.setdefault('aroll_woke', {})  # card id -> when it was last named in a wake
+    for cid in [i for i in woke if i not in {c[2]['id'] for c in bare}]:
+        del woke[cid]
+    # oldest first, but a card already named lately goes behind the ones never named: a render that is submitted yet not marked
+    # "Waiting external" must not hold the first place for ever
+    card = min(bare, key=lambda c: (woke.get(c[2]['id'], 0), c[1]))[2]
+    key = 'aroll:%s:%s' % (agent, card['id'])
+    if agent and key not in found:
+        seen.pop(key, None)  # its last wake is over 30 minutes old
+        woke[card['id']] = now
+        found[key] = (agent, '%d passed scripts have no a-roll. Submit the HeyGen a-roll for "%s" (card %s), the one that has waited '
+                      'longest, following HEYGEN.md, then hand the card to Scarlett (owner viral-view) and take the next one. If its '
+                      'render is already submitted, do not submit it again.' % (len(bare), card['title'], card['id']))
     return found
 
 
@@ -678,20 +742,20 @@ def pack_order():
 
 
 def packs_needing_clips(cards, now):
-    """Cards of Elle and Scarlett whose a-roll is in and clips are not done, first pack in Jon's order first. Not a card that is
-    Doing, held, or waiting on a third party."""
+    """Cards whose a-roll is in and clips are not done, first pack in Jon's order first; Scarlett builds them all (Jon, 2026-11-08),
+    so a card Elle or Sydney still holds counts. Not a card that is Doing, held, or waiting on a third party."""
     order = pack_order()
 
     def rank(item):
         name = pack_name(item[2]).lower()
         return (order.index(name) if name in order else len(order), item[1])
-    return [c for _, _, c in sorted(((s, t, c) for s, t, c in cards if s in (AROLL_DONE, CLIPS_BUILDING) and c.get('owner') in AROLL_OWNERS
+    return [c for _, _, c in sorted(((s, t, c) for s, t, c in cards if s in (AROLL_DONE, CLIPS_BUILDING) and c.get('owner') in CARD_OWNERS
                                      and c.get('status') not in HELD + ('doing',) and not waiting_external(c, now)), key=rank)]
 
 
 def check_buffers(now, state):
     """Fewer than 6 passed scripts: wake Sydney to write the script of her oldest Todo topic. Fewer than 3 preflight-passed
-    packs: wake the owner (Elle or Scarlett) of the first pack in Jon's order whose a-roll is in and clips are not done.
+    packs: wake Scarlett about the first pack in Jon's order whose a-roll is in and clips are not done.
     No 30-minute wait at the hand-off. A free bot only, one wake per bot per 30 minutes, none for a card that waits on a
     third party, and none while Sydney has a script to finish or fix (the idle and next-step checks')."""
     seen = state['seen']
@@ -720,7 +784,7 @@ def check_buffers(now, state):
     if ready < PACKS_MIN:
         left = PACKS_MIN - ready
         for card in packs_needing_clips(cards, now):
-            if left and wake(ids.get(card['owner']) or (), card, 'Pack buffer is %d of %d. Build the clips for "%s" (card %s), '
+            if left and wake(ids.get(PACKER) or (), card, 'Pack buffer is %d of %d. Build the clips for "%s" (card %s), '
                              "the next pack in Jon's order, and run preflight." % (ready, PACKS_MIN, card['title'], card['id'])):
                 left -= 1
     return found
@@ -776,7 +840,7 @@ def check_gpu(now, state):
         return found
     ids, free = bots(), free_bots(now, state)
     for card in packs_needing_clips(pipeline_cards(now), now):
-        agent = next((a for a in ids.get(card['owner']) or () if a in free and not woke_lately(seen, a, now)), None)
+        agent = next((a for a in ids.get(PACKER) or () if a in free and not woke_lately(seen, a, now)), None)
         if agent:
             key = 'gpu:%s:%s' % (agent, card['id'])
             seen.pop(key, None)  # its last wake is over 30 minutes old
@@ -803,7 +867,7 @@ def gpu_queue(name):
 
 
 def check_gpuq(now, state):
-    """A GPU queue under GPU_JOBS_MIN runnable jobs wakes Elle or Scarlett (a free one, once per 30 minutes) to queue the next
+    """A GPU queue under GPU_JOBS_MIN runnable jobs wakes Scarlett (if free, once per 30 minutes) to queue the next
     pack's jobs, or library-seed jobs if nothing is due. GPU2 with no job running for 10 minutes also goes to Ana: GPU1's
     own idle alert is the queue's watchdog in gpuq.py. A queue that can't be read is left alone."""
     seen = state['seen']
@@ -821,7 +885,7 @@ def check_gpuq(now, state):
             found['gpuq:gpu2:idle'] = (URGENT, 'GPU2 has had no job running for %s minutes.' % since)
         if jobs >= GPU_JOBS_MIN or any(k.endswith(':' + name.lower()) for k in found if k.startswith('gpuq:')):  # one wake per queue per 30 minutes
             continue
-        agent = next((a for a in (ELLE, SCARLETT) if a in free and not woke_lately(seen, a, now)), None)
+        agent = next((a for a in (SCARLETT,) if a in free and not woke_lately(seen, a, now)), None)  # packs and clip jobs are hers alone
         if agent:
             key = 'gpuq:%s:%s' % (agent, name.lower())
             seen.pop(key, None)  # its last wake is over 30 minutes old
@@ -858,10 +922,10 @@ def check_next(now, state):
             who = QC_BOTS if any(p.get('status') == 'pending' and not video_proof(p) for p in card.get('proofs') or []) else ()
         elif stage == PREFLIGHT_PASSED:
             who = () if editing else ids.get('video-editor') or ()
-        elif card.get('status') == 'doing' or owner not in (AROLL_OWNERS if stage == AROLL_DONE else SCRIPT_OWNERS):
+        elif card.get('status') == 'doing' or owner not in CARD_OWNERS:
             who = ()
-        else:
-            who = ids.get(owner) or ()
+        else:  # a script to fix is Sydney's whoever holds the card; an a-roll with no clips is Scarlett's (Jon, 2026-11-08)
+            who = ids.get(WRITER if stage == SCRIPT_WRITTEN else PACKER) or ()
         agent = next((a for a in who if a in free and a not in used and not woke_lately(seen, a, now)), None)
         if agent:
             key = 'next:%s:%s' % (agent, card['id'])
@@ -882,7 +946,7 @@ def waiting_packs():
 
 
 def pack_alerts(state):
-    found = {'packs:low:' + a: (a, state['packs_short']) for a in (ELLE, SCARLETT)}
+    found = {'packs:low:' + a: (a, state['packs_short']) for a in (SCARLETT,)}  # Elle no longer builds packs (Jon, 2026-11-08)
     if state.get('packs_unknown'):
         found['packs:unchecked'] = (FAILURE, 'preflight could not check ' + ', '.join(state['packs_unknown']))
     return found
