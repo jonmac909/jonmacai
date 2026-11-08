@@ -7,7 +7,8 @@ Hard limits: `/dashboard` (its pages, its API answers, its data) does not change
 ## Serving
 
 - Worker routes `jonmac.ai/dashboard-2` (308 to `/dashboard-2/`) and `jonmac.ai/dashboard-2/*`, same Worker (`src/worker.js`).
-- `/dashboard-2/` serves `public/d2/index.html` with Jon's session, else `public/d2/login.html` (posts to `/dashboard/api/login`, then reloads `/dashboard-2/`). `/dashboard-2/<path>` serves `public/d2/<path>`. Same headers as `/dashboard` assets (noindex, `no-cache` for html/js/css).
+- `/dashboard-2/` and `/dashboard-2/index.html` serve `public/d2/index.html` with Jon's session, else `public/d2/login.html` (posts to `/dashboard/api/login`, then reloads `/dashboard-2/`). Besides those only `/dashboard-2/login.html`, `/dashboard-2/css/*.css` and `/dashboard-2/js/**/*.js` are served (from `public/d2`); any other path is a 404. `/dashboard/d2/...` is a 404, as before Dashboard 2. Same headers as `/dashboard` assets (noindex, `no-cache` for html/js/css).
+- Signed out (the data answers 401), the page opens `/dashboard-2/` once for sign-in; it never reloads in a loop.
 - The page reuses `/dashboard/css/*` and the existing ES modules under `/dashboard/js/` by absolute URL (renderers, `ui.js`, `modals.js`). It never imports `/dashboard/js/app.js` (side effects on import); `public/d2/js/app.js` is its own shell with the click handlers it needs.
 - Data: `GET /dashboard/api/d2` (Jon's session, `Cache-Control: no-store`). Writes go to the existing endpoints (`/v1/questions/:id/answer`, `/v1/approvals/:id/decide`, `/v1/tasks/:id`, with `X-CC: 1`).
 
@@ -18,10 +19,11 @@ Hard limits: `/dashboard` (its pages, its API answers, its data) does not change
   ok: true,
   build,                      // CF_VERSION_METADATA id, as /snapshot
   asOf,                       // ISO, server time
-  pages: { today, projects, todo, sponsors, viral, webinar, money, calendar, content },
+  pages: { today, projects, sponsors, viral, money, calendar, content },
                               // the exact page objects /dashboard/api/snapshot builds (mergeSnapshot), so reused
                               // renderers show the same numbers. Track is not included: the page loads it with
-                              // GET /dashboard/api/snapshot?pages=track when a channel's Track tab opens.
+                              // GET /dashboard/api/snapshot?pages=track each time a channel's Track tab opens,
+                              // and keeps it across the 60 s refresh only while that Track view stays open.
   d2: {
     period: {
       tz: 'America/Vancouver',
@@ -41,7 +43,7 @@ Hard limits: `/dashboard` (its pages, its API answers, its data) does not change
 }
 ```
 
-Missing bindings (preview has no HGP_DB, CLONE_DB, REVIEW_DB) or an unreadable table give `actual: null` with a plain `note`, never a 500.
+Missing bindings (preview has no HGP_DB, CLONE_DB, REVIEW_DB) or an unreadable table that d2 adds give `actual: null` with a plain `note`, never a 500. An unreadable core table that `/snapshot` also reads (snapshots, habits, deal stage overrides) gives the same error `/snapshot` gives.
 
 ### Goal
 
@@ -68,11 +70,12 @@ Missing bindings (preview has no HGP_DB, CLONE_DB, REVIEW_DB) or an unreadable t
   actual: number | null,      // null = not tracked yet or no data; `note` says which and why
   display: '$4,200' | '7 of 13' | 'Yes' | 'Not set',   // ready to show
   pace: number | null,        // where actual should be by now (month: target x elapsed; week: target x days elapsed / 7)
-  status: { text: 'On pace' | 'Behind' | 'Off pace' | 'Done' | 'No data' | 'Not tracked yet', cls: 'ok' | 'risk' | 'crit' | 'idle' },
+  status: { text: 'On pace' | 'Behind' | 'Off pace' | 'Done' | 'No data' | 'Not tracked yet' | 'None due yet', cls: 'ok' | 'risk' | 'crit' | 'idle' },
   owner: 'Florence',
   source: { label, at, ageLabel, stale },          // as sourceOf() in src/today.js
   note: '',                   // plain words, optional
-  behind: [{ title, owner, why, open?: taskId, href? }],   // week metrics: what is behind and who owns it
+  behind: [{ title, owner, why, open?: taskId, href?, page? }],   // week metrics: what is behind and who owns it;
+                              // page = a Dashboard 2 route, e.g. 'pipeline/hgp/<slug>/calendar' (the channel's Calendar tab)
   rows: [{ label, target, actual, display, status, owner, note }],   // per-channel breakdown (hgp, jonmac videos)
   days: [{ ymd, target, actual }]                 // week metrics countable per day (videos, shorts)
 }
@@ -140,10 +143,10 @@ All targets, labels, owners and the focus channel list live in this one file. A 
 | Goal | Owner | Month | Week | Day |
 |---|---|---|---|---|
 | Sponsors | Florence | $10K collected (about 5 deals) | 2 deals signed; 1 to 2 sponsor videos delivered; invoice sent the day a video goes live | partners@ replies cleared; Jon's price decisions answered |
-| Home Guide Press | Elle (Scarlett, Olivia) | first sales on the focus channels | 3 videos per focus channel; every landing page checkout working | one video edited and QC-passed every 3 hours |
+| Home Guide Press | Elle (Scarlett, Olivia) | first sales on the focus channels | 3 videos per focus channel; every landing page checkout working | one video edited and QC-passed every 3 hours ("None due yet" before 3 AM) |
 | Jon Mac | Sydney | 3 x weeks | 3 videos | |
 | @JonMacAI | Sydney | 3 x weeks | 3 videos | |
 | Viral View and webinar | Scarlett | webinar date set and run once | funnel live; leads counted | ads and posts that drive leads |
-| Short-form | Samantha | 90 | 21 | 3 |
+| Short-form | Samantha | 3 x days in the month (90 in Nov, 93 in Dec, 84 in Feb) | 21 | 3 (`perDay`) |
 
-Focus channels: Jon's 16 (2026-11-08), the `focus` list in `src/d2-goals.json`, a copy of `D:\AgentTeam\rules\facts\focus-channels.txt` (the Worker can't read GPU1 files; `test/d2.test.mjs` fails on GPU1 when the two differ, so a change to the file needs the same edit here and a deploy). 3 videos a week each, 48 in all. Every other Home Guide Press channel is parked: no target, its finished videos still show on its Calendar tab.
+Focus channels: Jon's 16 (2026-11-08), the `focus` list in `src/d2-goals.json`, a copy of `D:\AgentTeam\rules\facts\focus-channels.txt` (the Worker can't read GPU1 files; `test/d2.test.mjs` fails on GPU1 when the two differ, so a change to the file needs the same edit here and a deploy). In that list's order; a slug the dashboard has no channel for yet still counts (label from the slug, "No calendar yet" on its row and a behind line for Elle). 3 videos a week each, 48 in all. Every other Home Guide Press channel is parked: no target, its finished videos still show on its Calendar tab.

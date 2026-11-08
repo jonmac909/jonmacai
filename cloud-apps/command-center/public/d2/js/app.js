@@ -57,17 +57,28 @@ const route = () => {
   return Object.hasOwn(pages, id.split('/')[0]) ? id : 'today';
 };
 const typing = () => [...document.querySelectorAll('#page textarea, #page input:not([type]), #page input[type=text]')].some((el) => el.value.trim());
+const isTrack = (id) => { const [name, , , view] = id.split('/'); return name === 'pipeline' && view === 'track'; };
+
+// Signed out: open /dashboard-2/ once (the Worker serves the sign-in page there). If the data still says signed
+// out after that, stop instead of reloading in a loop; a good load clears the mark.
+const SIGNIN = 'd2-signin';
+function signIn() {
+  let tried = false;
+  try { tried = sessionStorage.getItem(SIGNIN) === '1'; sessionStorage.setItem(SIGNIN, '1'); } catch {}
+  if (!tried) location.replace('/dashboard-2/');
+}
 
 // The deploy this tab's code came from. A newer one reloads the tab, unless a card is open or something is typed.
 let build;
 async function load() {
   const r = await fetch(`${API}/d2`).catch(() => null);
-  if (r?.status === 401) { location.reload(); return false; } // the Worker then serves the sign-in page
+  if (r?.status === 401) { signIn(); return false; }
   const next = r?.ok ? await r.json().catch(() => null) : null;
   if (!next?.d2) return !!data;
+  try { sessionStorage.removeItem(SIGNIN); } catch {}
   build ??= next.build;
   if (next.build && next.build !== build && !document.querySelector('dialog[open]') && !typing()) { location.reload(); return false; }
-  if (data?.pages?.track) next.pages.track = data.pages.track; // Track loads once, when its tab opens
+  if (data?.pages?.track && isTrack(route())) next.pages.track = data.pages.track; // kept only while a Track view stays open
   data = next;
   return true;
 }
@@ -90,7 +101,8 @@ async function go(id, { refetch = false } = {}) {
     return;
   }
   const [name, ...rest] = id.split('/');
-  if (name === 'pipeline' && rest[2] === 'track' && !data.pages.track) {
+  if (!isTrack(id)) delete data.pages.track; // so each open of a Track tab pulls from YouTube again, as /dashboard does
+  else if (!data.pages.track) {
     const r = await fetch(`${API}/snapshot?pages=track`).catch(() => null);
     data.pages.track = (r?.ok && (await r.json().catch(() => null))?.pages?.track) || {}; // {} shows "no data yet"
     if (route() !== id) return; // moved on while it loaded

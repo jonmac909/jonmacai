@@ -86,6 +86,9 @@ test('Week: done vs target, Mon to Sun with today outlined, channel rows, parked
   }
   assert.match(html, /<li tabindex="0" data-open="t_[0-9a-f]{16}"><b>Behind:<\/b> Creatify integration - Jon Mac <span class="muted">· Olivia · In QC since Wednesday/);
   assert.match(html, /Rosa&#39;s House Hacks book page <span class="muted">· Lucy · The buy button opens an error page<\/span> <a href="https:\/\/homeguidepress\.com\/rosas-house-hacks"/);
+  const d = data();
+  d.d2.goals[1].week[0].behind = [{ title: 'Jack Mercer', owner: 'Elle', why: '1 of 3 published', page: 'pipeline/hgp/jack-mercer/calendar' }];
+  assert.match(week(d), /Jack Mercer <span class="muted">· Elle · 1 of 3 published<\/span> <a href="#pipeline\/hgp\/jack-mercer\/calendar" data-page="pipeline\/hgp\/jack-mercer\/calendar">Open<\/a>/, 'a channel opens its Calendar tab here');
 });
 
 test('daily checks: Today shows tick, cross or not yet with links and facts; Week shows a cell per day', () => {

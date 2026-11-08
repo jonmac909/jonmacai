@@ -23,7 +23,7 @@ const SPONSOR_VIDEO = /\bvideo\s+\d+\b/i; // as tools/weekly_counts.py
 const ST = {
   done: { text: 'Done', cls: 'ok' }, on: { text: 'On pace', cls: 'ok' }, early: { text: 'On pace', cls: 'idle' },
   behind: { text: 'Behind', cls: 'risk' }, off: { text: 'Off pace', cls: 'crit' },
-  none: { text: 'No data', cls: 'idle' }, untracked: { text: 'Not tracked yet', cls: 'idle' },
+  none: { text: 'No data', cls: 'idle' }, untracked: { text: 'Not tracked yet', cls: 'idle' }, notDue: { text: 'None due yet', cls: 'idle' },
 };
 
 // ---- dates (Vancouver days as YYYY-MM-DD) ----
@@ -76,17 +76,18 @@ export async function d2Data(env, nowMs) {
     try { return (await db.prepare(sql).bind(...args).all()).results || []; } catch (err) { console.error('d2', err); return null; }
   };
   const db = env.DB;
-  const [calendar, perChannel, channels, tasks, qcPassed, keys, ticks, rbcLast, runs, proofs, orders, funnelWeek] = await Promise.all([
+  const [calendar, calAt, channels, tasks, qcPassed, keys, ticks, rbcLast, runs, proofs, orders, funnelWeek] = await Promise.all([
     q(db, 'SELECT channel, day, status FROM yt_calendar WHERE day >= ? AND day <= ? LIMIT 5000', from, P.month.weeks.at(-1).end),
-    // Per channel: its newest edit, and whether any row ever reached scheduled or published (a channel with a video).
-    q(db, "SELECT channel, MAX(updated_at) AS at, MAX(status IN ('published', 'scheduled')) AS launched FROM yt_calendar GROUP BY channel"),
+    q(db, 'SELECT MAX(updated_at) AS at FROM yt_calendar'), // the calendars' age
     q(db, 'SELECT * FROM yt_channels'),
     // Every sponsor card (a deal's first "video N" card can be old), plus short-form cards done since the month's first week began.
+    // Newest first, so the cap drops the oldest.
     q(db, `SELECT id, title, owner, status, project, due, created_at, done_at FROM bot_tasks WHERE status != 'cancelled'
-      AND (project = 'sponsors' OR (project = 'short-form' AND status = 'done' AND done_at >= ?)) LIMIT 3000`, at(from)),
+      AND (project = 'sponsors' OR (project = 'short-form' AND status = 'done' AND done_at >= ?)) ORDER BY created_at DESC, id LIMIT 3000`, at(from)),
     // "One video edited and QC-passed": a Home Guide Press card owned by Olivia (she edits every video) with a proof QC passed today.
     q(db, `SELECT DISTINCT p.task_id FROM bot_proofs p JOIN bot_tasks t ON t.id = p.task_id
-      WHERE p.status = 'passed' AND p.checked_at >= ? AND t.project = 'home-guide-press' AND t.owner = 'video-editor'`, at(P.today.ymd)),
+      WHERE p.status = 'passed' AND p.created_at >= ? AND p.checked_at >= ? AND t.project = 'home-guide-press' AND t.owner = 'video-editor'`,
+    new Date(nowMs - 14 * DAY).toISOString(), at(P.today.ymd)),
     q(db, "SELECT id, idem_key FROM bot_questions WHERE status = 'open'"),
     q(db, 'SELECT day, project, item, link, created_at FROM bot_daily_ticks WHERE day >= ?', P.week.start),
     q(db, 'SELECT MAX(day) AS day FROM bot_daily_ticks WHERE project = ? AND item = ?', rbc.project, rbc.items[0]),
@@ -97,7 +98,7 @@ export async function d2Data(env, nowMs) {
       new Date(win.start).toISOString(), new Date(win.end).toISOString()),
     funnelMonth(env.CLONE_DB, nowMs - 7 * DAY, nowMs),
   ]);
-  return { calendar, perChannel, channels, tasks, qcPassed, keys, ticks, rbcLast: rbcLast?.[0]?.day ?? null, runs, proofs, orders, hgpBound: !!env.HGP_DB, funnelWeek };
+  return { calendar, calAt: calAt?.[0]?.at ?? null, channels, tasks, qcPassed, keys, ticks, rbcLast: rbcLast?.[0]?.day ?? null, runs, proofs, orders, hgpBound: !!env.HGP_DB, funnelWeek };
 }
 
 // ---- metrics ----
@@ -108,7 +109,8 @@ const parse = (raw) => {
 const usd = (n) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(n);
 const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
 const live = (label, ok, nowMs, why = 'could not be read') => (ok ? { label, at: new Date(nowMs).toISOString(), ageLabel: 'live', stale: false } : { label, at: null, ageLabel: why, stale: true });
-const hiddenKey = (k) => /^(team-guard|cw:)/.test(k || '');
+// Questions kept out of Jon's Needs you, by idempotency key: bot health goes to Ana, MoneyClaw's known charges to the expenses review.
+const hiddenOf = (key) => (/^team-guard/.test(key || '') ? 'health' : /^cw:/.test(key || '') ? 'charge' : null);
 const goalOf = (project) => CONFIG.goals.find((g) => g.project === project)?.key ?? null;
 
 // `clear`: a count to bring to zero (open questions, invoices waiting). Early in a period nothing is due yet.
@@ -145,7 +147,9 @@ function metric(cfg, owner, f) {
 }
 
 const weekDays = (C, fn, target = null) => C.P.week.days.map((d) => ({ ymd: d.ymd, target, actual: d.ymd > C.today ? null : fn(d.ymd) }));
-const videoCards = (C) => C.data.tasks && C.data.tasks.filter((c) => c.project === 'sponsors' && SPONSOR_VIDEO.test(c.title || ''));
+// Oldest first (the query reads newest first, so its cap drops the oldest).
+const videoCards = (C) => C.data.tasks && C.data.tasks.filter((c) => c.project === 'sponsors' && SPONSOR_VIDEO.test(c.title || ''))
+  .sort((a, b) => String(a.created_at).localeCompare(String(b.created_at)));
 const sponsorOf = (title) => title.split(':')[0].replace(/\s*\bvideo\s+\d+\b.*$/i, '').trim() || title;
 
 const METRICS = {
@@ -165,7 +169,7 @@ const METRICS = {
     const cards = videoCards(C);
     // The deal board keeps no signed date, so a deal counts as signed the week its sponsor's first "video N" card was made.
     const first = new Map();
-    for (const c of [...(cards || [])].sort((a, b) => String(a.created_at).localeCompare(String(b.created_at)))) {
+    for (const c of cards || []) {
       const name = sponsorOf(c.title);
       if (!first.has(name.toLowerCase())) first.set(name.toLowerCase(), { name, day: dayOf(c.created_at) });
     }
@@ -221,7 +225,7 @@ const METRICS = {
   },
   openQuestions(cfg, g, C) {
     const qs = C.t.questions;
-    const n = qs ? qs.filter((q) => q.askedBy === cfg.bot && !hiddenKey(C.keyOf.get(q.id))).length : null;
+    const n = qs ? qs.filter((q) => q.askedBy === cfg.bot && !hiddenOf(C.keyOf.get(q.id))).length : null;
     return metric(cfg, g.owner, {
       actual: n, display: n == null ? 'No data' : n ? `${n} open` : 'None open', source: C.src.questions, note: `Open questions ${g.owner} asked you.`,
     });
@@ -240,7 +244,7 @@ const METRICS = {
     const list = C.chans.map((c) => ({ c, n: count(c.slug, 'published'), s: count(c.slug, 'scheduled') }));
     const out = list.map(({ c, n, s }) => ({
       c, s, label: c.label, target: per, actual: n, display: `${n} of ${per}`, status: statusOf(n, per, per * share, 'count'), owner: g.owner,
-      note: s ? `${s} scheduled ${month ? 'this month' : 'this week'}` : '',
+      note: c.noCalendar ? 'No calendar yet' : s ? `${s} scheduled ${month ? 'this month' : 'this week'}` : '',
     }));
     const perDay = {};
     for (const r of mine) if (r.status === 'published') perDay[r.day] = (perDay[r.day] || 0) + 1;
@@ -249,15 +253,17 @@ const METRICS = {
       target, actual: list.reduce((n, x) => n + Math.min(x.n, per), 0), pace: target * share, source: C.src.calendar,
       rows: out.map(({ c, s, ...r }) => r),
       note: [C.chans.length > 1 ? `Counts up to ${per} a channel.` : '', scheduled ? `${scheduled} more scheduled.` : ''].filter(Boolean).join(' '),
-      behind: out.filter((r) => ['risk', 'crit'].includes(r.status.cls)).map((r) => ({
-        title: r.label, owner: g.owner, why: `${r.actual} of ${per} published${r.s ? `, ${r.s} scheduled` : ''}`, href: `/dashboard/#calendar/${r.c.slug}`,
+      behind: out.filter((r) => r.c.noCalendar || ['risk', 'crit'].includes(r.status.cls)).map((r) => ({
+        title: r.label, owner: g.owner, why: r.c.noCalendar ? 'No calendar yet' : `${r.actual} of ${per} published${r.s ? `, ${r.s} scheduled` : ''}`,
+        page: `pipeline/${g.key}/${r.c.slug}/calendar`, // its Calendar tab in the Pipeline
       })),
       days: month ? [] : weekDays(C, (d) => perDay[d] || 0),
       perDay, split: true,
     });
   },
-  shorts(cfg, g, C, period) { // short-form cards moved to Done in the period (done_at)
+  shorts(cfg, g, C, period) { // short-form cards moved to Done in the period (done_at); target perDay x the period's days
     const tasks = C.data.tasks;
+    const target = cfg.perDay * { month: C.P.month.daysInMonth, week: 7, day: 1 }[period];
     const perDay = {};
     for (const c of tasks || []) {
       const d = c.project === 'short-form' && c.status === 'done' && dayOf(c.done_at);
@@ -266,8 +272,8 @@ const METRICS = {
     const [from, to, share] = period === 'month' ? [C.first, C.last, C.P.month.elapsed] : period === 'week' ? [C.ws, C.we, C.weekShare] : [C.today, C.today, C.dayShare];
     const sum = Object.entries(perDay).reduce((n, [d, k]) => n + (d >= from && d <= to ? k : 0), 0);
     return metric(cfg, g.owner, {
-      actual: tasks && sum, pace: cfg.target * share, source: { ...C.src.cards, label: 'Short-form cards moved to Done' },
-      days: period === 'week' && tasks ? weekDays(C, (d) => perDay[d] || 0, cfg.target / 7) : [],
+      target, actual: tasks && sum, pace: target * share, source: { ...C.src.cards, label: 'Short-form cards moved to Done' },
+      days: period === 'week' && tasks ? weekDays(C, (d) => perDay[d] || 0, cfg.perDay) : [],
       perDay: tasks ? perDay : null, split: true,
     });
   },
@@ -304,8 +310,9 @@ const METRICS = {
   qcPassed(cfg, g, C) {
     const n = C.data.qcPassed ? C.data.qcPassed.length : null;
     const target = Math.floor((C.dayShare * 24) / cfg.everyHours);
+    const notDue = n != null && target === 0; // 00:00 to 02:59: nothing to judge yet
     return metric(cfg, g.owner, {
-      target, actual: n, pace: target, display: n == null ? 'No data' : `${n} of ${target} by now`,
+      target, actual: n, pace: target, display: n == null ? 'No data' : notDue ? ST.notDue.text : `${n} of ${target} by now`, status: notDue && ST.notDue,
       source: { ...C.src.cards, label: 'QC checks on Olivia\'s Home Guide Press cards' },
       note: `One every ${cfg.everyHours} hours since midnight: Olivia's Home Guide Press cards with a proof QC passed today.`,
     });
@@ -363,13 +370,15 @@ function trendOf(m, C) {
   });
 }
 
+const titleCase = (slug) => slug.split('-').map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
 function channelsOf(g, C) {
   const all = allChannels(C.data.channels);
-  if (!g.group) return { focus: (g.channels || []).map((slug) => all.find((c) => c.slug === slug)).filter(Boolean), parked: [] };
-  const mine = all.filter((c) => c.group === g.group);
-  // Focus: Jon's list (2026-11-08), a copy of D:\AgentTeam\rules\facts\focus-channels.txt; every other channel is parked.
-  const focus = mine.filter((c) => g.focus.includes(c.slug));
-  return { focus, parked: mine.filter((c) => !focus.includes(c)) };
+  const find = (slug) => all.find((c) => c.slug === slug);
+  if (!g.group) return { focus: (g.channels || []).map(find).filter(Boolean), parked: [] };
+  // Focus: Jon's list (2026-11-08) in its order, a copy of D:\AgentTeam\rules\facts\focus-channels.txt. A slug the
+  // dashboard has no channel for yet still counts (noCalendar). Every other channel of the group is parked.
+  const focus = g.focus.map((slug) => find(slug) || { slug, label: titleCase(slug), group: g.group, noCalendar: true });
+  return { focus, parked: all.filter((c) => c.group === g.group && !g.focus.includes(c.slug)) };
 }
 
 const strip = ({ perDay, split, ...m }) => m;
@@ -501,7 +510,7 @@ function plain(note) {
   const s = String(note || '');
   const move = s.match(/your move:?\s*([\s\S]*?)(?:\n\s*next\b|$)/i)?.[1] || s;
   const t = move.replace(/https?:\/\/\S+/g, '').replace(/[A-Za-z]:[\\/][^\s,;)]*/g, (p) => p.split(/[\\/]/).filter(Boolean).pop())
-    .replace(/^\s*(what happened|your move|next):?/gim, '').replace(/[\s\-•*]+/g, ' ').trim();
+    .replace(/^\s*(what happened|your move|next):?/gim, '').replace(/^\s*[-*•]+\s+|•/gm, ' ').replace(/\s+/g, ' ').trim(); // bullets only, never a word's hyphen
   return t.length > 140 ? `${t.slice(0, 137).trimEnd()}…` : t;
 }
 
@@ -520,9 +529,9 @@ function todayOf(C, goals, checks) {
   const charges = [];
   const items = [];
   for (const it of C.out.pages.today?.needs?.items || []) {
-    const key = it.kind === 'question' ? C.keyOf.get(it.id) || '' : '';
-    if (key.startsWith('team-guard')) health++; // bot health: Ana's, not Jon's
-    else if (key.startsWith('cw:')) charges.push(item(it)); // MoneyClaw's known charges: the Friday expenses review
+    const hidden = it.kind === 'question' ? hiddenOf(C.keyOf.get(it.id)) : null;
+    if (hidden === 'health') health++;
+    else if (hidden === 'charge') charges.push(item(it));
     else items.push(item(it));
   }
   if (charges.length) {
@@ -547,7 +556,7 @@ function todayOf(C, goals, checks) {
   }
   for (const q of t.questions || []) {
     const task = q.taskId && tasks.get(q.taskId);
-    if (!task || ['done', 'cancelled'].includes(task.status) || hiddenKey(C.keyOf.get(q.id)) || blockers.some((b) => b.open === task.id)) continue;
+    if (!task || ['done', 'cancelled'].includes(task.status) || hiddenOf(C.keyOf.get(q.id)) || blockers.some((b) => b.open === task.id)) continue;
     blockers.push({ title: task.title, owner: nameOf(q.askedBy), goal: goalOf(task.project || q.project), ageLabel: age(q.createdAt), why: `Waiting on your answer: ${plain(q.question)}`, open: task.id });
   }
   for (const k of checks) {
@@ -628,7 +637,6 @@ export function buildD2(out, rows, extra, data, nowMs) {
   const P = periodOf(nowMs);
   const by = Object.fromEntries((rows || []).map((r) => [r.source, r]));
   const first = `${P.month.key}-01`;
-  const calAt = (data.perChannel || []).reduce((m, r) => (String(r.at || '') > m ? String(r.at) : m), '');
   const C = {
     P, nowMs, data, out, by, t: extra?.today || {},
     keyOf: new Map((data.keys || []).map((r) => [r.id, r.idem_key || ''])),
@@ -637,7 +645,7 @@ export function buildD2(out, rows, extra, data, nowMs) {
     cards: out.pages.today?.goals || [], cash: out.pages.sponsors?.cash || null,
   };
   C.src = {
-    calendar: data.calendar ? sourceOf('Channel calendars', calAt || null, nowMs) : live('Channel calendars', false, nowMs),
+    calendar: data.calendar ? sourceOf('Channel calendars', data.calAt, nowMs) : live('Channel calendars', false, nowMs),
     cards: live('Dashboard cards', !!data.tasks, nowMs),
     ticks: live('Daily checklist ticks', !!data.ticks, nowMs),
     questions: live('Bot questions', !!C.t.questions, nowMs),

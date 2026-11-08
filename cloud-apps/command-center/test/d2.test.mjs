@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import GOALS from '../src/d2-goals.json' with { type: 'json' };
 import { DatabaseSync } from 'node:sqlite';
 import { sqliteD1 } from './sqlited1.mjs';
@@ -10,17 +10,21 @@ import { signSession, COOKIE } from '../src/auth.js';
 import { mergeSnapshot } from '../src/snapshot.js';
 import { listSnapshots, listDealStages, listHabits } from '../src/db.js';
 import { todayData } from '../src/bots.js';
-import { channelData } from '../src/channels.js';
+import { allChannels, channelData } from '../src/channels.js';
 import { listFunnel } from '../src/webinar.js';
 import snapshot from '../fixtures/snapshot.json' with { type: 'json' };
 
 const FOCUS = GOALS.goals.find((g) => g.key === 'hgp').focus;
+// The server's own answer, which test/d2-ui.test.mjs reads (in its own process). Regenerate: UPDATE_FIXTURES=1 npm test.
+const SAMPLE = new URL('./fixtures/d2-sample.json', import.meta.url);
+const UPDATE = process.env.UPDATE_FIXTURES === '1';
+const SAMPLE_MTIME = statSync(SAMPLE).mtimeMs;
 
 const SECRET = 'test-session-secret-32-bytes-ok!';
 const SUNDAY = Date.parse('2026-11-08T21:05:00Z'); // Sunday Nov 8, 2:05 PM in Kelowna
 const FRIDAY = Date.parse('2026-11-06T14:00:00Z'); // Friday Nov 6, 7:00 AM
 const NAMES = ['Florence', 'Elle', 'Sydney', 'Scarlett', 'Samantha', 'Olivia', 'Daisy', 'Elizabeth', 'Mila', 'Jon'];
-const STATUS = ['On pace', 'Behind', 'Off pace', 'Done', 'No data', 'Not tracked yet'];
+const STATUS = ['On pace', 'Behind', 'Off pace', 'Done', 'No data', 'Not tracked yet', 'None due yet'];
 
 function ins(db, table, row) {
   const keys = Object.keys(row);
@@ -156,7 +160,7 @@ test('d2 answers the contract for all five sections', async () => {
   assert.equal(body.ok, true);
   assert.equal(body.build, 'v1');
   assert.equal(body.asOf, new Date(SUNDAY).toISOString());
-  assert.deepEqual(Object.keys(body.pages), ['today', 'projects', 'todo', 'sponsors', 'viral', 'webinar', 'money', 'calendar', 'content']);
+  assert.deepEqual(Object.keys(body.pages), ['today', 'projects', 'sponsors', 'viral', 'money', 'calendar', 'content']); // only what public/d2 reads
   assert.deepEqual(Object.keys(body.d2), ['period', 'goals', 'stale', 'checks', 'today', 'pipeline', 'money']);
   assert.deepEqual(body.d2.goals.map((g) => g.key), ['sponsors', 'hgp', 'jonmac', 'jonmacai', 'viral', 'shortform']);
   for (const g of body.d2.goals) {
@@ -188,7 +192,12 @@ test('d2 answers the contract for all five sections', async () => {
   // No raw ids or file paths in what Jon reads.
   const text = (JSON.stringify(body.d2.goals) + JSON.stringify(today.blockers) + JSON.stringify(money)).replace(/"open":"t_\d{16}"/g, ''); // a card id is for the click, not shown
   assert.doesNotMatch(text, /[A-Z]:\\\\|t_\d{16}|"owner":"(sponsors|home-guide-press|video-editor|spotify)"/);
-  writeFileSync(new URL('./fixtures/d2-sample.json', import.meta.url), `${JSON.stringify(body, null, 1)}\n`);
+  if (UPDATE) writeFileSync(SAMPLE, `${JSON.stringify(body, null, 1)}\n`);
+  else assert.deepEqual(JSON.parse(readFileSync(SAMPLE, 'utf8')), body, 'test/fixtures/d2-sample.json is out of date: run UPDATE_FIXTURES=1 npm test');
+});
+
+test('a test run never rewrites the tracked d2 sample', { skip: UPDATE && 'UPDATE_FIXTURES=1' }, () => {
+  assert.equal(statSync(SAMPLE).mtimeMs, SAMPLE_MTIME);
 });
 
 test('d2 counts the month, week and day on a Sunday', async () => {
@@ -232,7 +241,8 @@ test('d2 counts the month, week and day on a Sunday', async () => {
   const hgp = goal(body, 'hgp');
   const [videos, checkout] = hgp.week;
   assert.equal(videos.rows.find((r) => r.label === 'Peter Collins').display, '3 of 3');
-  assert.ok(videos.behind.some((b) => b.title === 'Jack Mercer' && b.owner === 'Elle' && b.href === '/dashboard/#calendar/jack-mercer'));
+  assert.deepEqual(videos.behind.find((b) => b.title === 'Jack Mercer'), { title: 'Jack Mercer', owner: 'Elle', why: '1 of 3 published', page: 'pipeline/hgp/jack-mercer/calendar' });
+  assert.equal(jm.week[0].behind[0].page, 'pipeline/jonmac/jon-mac/calendar');
   assert.ok(!videos.behind.some((b) => b.title === 'Peter Collins'));
   assert.deepEqual([checkout.actual, checkout.display], [4, '4 of 7 days checked']);
   assert.match(checkout.behind[0].why, /Wed 4, Fri 6/);
@@ -257,15 +267,21 @@ test('d2 focus list is the same as Jon\'s focus-channels.txt', { skip: !existsSy
   assert.deepEqual([...FOCUS].sort(), [...file].sort());
 });
 
-test('d2 focus channels: Jon\'s list only (no video yet no longer adds one); the rest are parked with no target', async () => {
+test('d2 focus channels: Jon\'s whole list in its order, even channels the dashboard has no calendar for; the rest are parked', async () => {
   const { db } = seed();
   const hgp = goal(await d2At({ DB: db, SESSION_SECRET: SECRET }, SUNDAY), 'hgp');
-  const focus = hgp.channels.map((c) => c.slug);
-  for (const s of ['giovanni-moretti', 'peter-collins', 'jack-mercer', 'eleanor-whitfield']) assert.ok(focus.includes(s), s);
-  assert.ok(focus.every((s) => FOCUS.includes(s)));
-  for (const s of ['rosa-cooks', 'ruth-calder', 'frank-bennett-dogs']) assert.ok(hgp.parked.some((c) => c.slug === s), s);
-  assert.equal(hgp.week[0].target, 3 * focus.length);
-  assert.ok(!hgp.week[0].rows.some((r) => r.label === 'Rosa Cooks'));
+  assert.deepEqual(hgp.channels.map((c) => c.slug), FOCUS);
+  assert.ok(!allChannels([]).some((c) => c.slug === 'edna-haynes'), 'edna-haynes has no channel yet');
+  assert.deepEqual(hgp.channels.find((c) => c.slug === 'edna-haynes'), { slug: 'edna-haynes', label: 'Edna Haynes', focus: true });
+  const [videos] = hgp.week;
+  assert.equal(videos.target, 3 * FOCUS.length); // 48
+  assert.deepEqual(videos.rows.map((r) => r.label), hgp.channels.map((c) => c.label));
+  assert.equal(videos.rows.find((r) => r.label === 'Edna Haynes').note, 'No calendar yet');
+  assert.deepEqual(videos.behind.find((b) => b.title === 'Edna Haynes'), { title: 'Edna Haynes', owner: 'Elle', why: 'No calendar yet', page: 'pipeline/hgp/edna-haynes/calendar' });
+  const parked = allChannels([]).filter((c) => c.group === 'Home Guide Press' && !FOCUS.includes(c.slug)).map((c) => c.slug);
+  assert.ok(parked.includes('rosa-cooks') && parked.includes('ruth-calder'));
+  assert.deepEqual(hgp.parked.map((c) => c.slug), parked);
+  assert.ok(!videos.rows.some((r) => r.label === 'Rosa Cooks'));
   // Viral View gets a channel tab only once a 'viral-view' calendar channel is registered.
   ins(db, 'yt_channels', { slug: 'viral-view', label: 'Viral View', grp: 'Viral View', updated_by: 'ana', updated_at: '2026-11-08T10:00:00Z' });
   const viral = goal(await d2At({ DB: db, SESSION_SECRET: SECRET }, SUNDAY), 'viral');
@@ -399,6 +415,72 @@ test('/dashboard-2 serves its own pages behind the dashboard session', async () 
   assert.equal(await (await fetch('/dashboard/')).text(), 'asset:/login.html');
   assert.equal((await fetch('/dashboard-22')).status, 404);
   assert.equal((await handleApi(new Request('https://jonmac.ai/dashboard/api/d2'), env)).status, 401);
+});
+
+test('Dashboard 2 files open only under /dashboard-2, and no path skips its sign-in', async () => {
+  const env = { SESSION_SECRET: SECRET, ASSETS: { fetch: async (r) => new Response(`asset:${new URL(r.url).pathname}`) } };
+  const fetch = async (path, cookie) => {
+    const res = await worker.fetch(new Request(`https://jonmac.ai${path}`, cookie ? { headers: { Cookie: cookie } } : {}), env, {});
+    return res.status === 404 ? 404 : res.text();
+  };
+  // Under /dashboard they were 404s before Dashboard 2, and still are.
+  for (const p of ['/dashboard/d2/index.html', '/dashboard/d2/', '/dashboard/d2', '/dashboard//d2/index.html', '/dashboard/%642/index.html',
+    '/dashboard/D2/index.html', '/dashboard/d2%2Findex.html', '/dashboard/x/..%2F..%2Fd2/js/app.js', '/dashboard/d2/js/app.js']) {
+    assert.equal(await fetch(p), 404, p);
+  }
+  assert.equal(await fetch('/dashboard/js/app.js'), 'asset:/js/app.js');
+  assert.equal(await fetch('/dashboard/call'), 'asset:/login.html');
+  // /dashboard-2: index and login, its css and js; nothing else, and no spelling of index.html gets past the gate.
+  const cookie = await cookieAt(Date.now());
+  for (const p of ['/dashboard-2/', '/dashboard-2/index.html', '/dashboard-2/./index.html', '/dashboard-2/css/../index.html', '/dashboard-2/js/%2e%2e/index.html']) {
+    assert.equal(await fetch(p), 'asset:/d2/login.html', p);
+    assert.equal(await fetch(p, cookie), 'asset:/d2/index.html', p);
+  }
+  for (const p of ['/dashboard-2//index.html', '/dashboard-2/%69ndex.html', '/dashboard-2/index.htm', '/dashboard-2/d2/index.html', '/dashboard-2/favicon.ico',
+    '/dashboard-2/js/app.js.map', '/dashboard-2/js/%2e%2e%2findex.html', '/dashboard-2/css/d2.css%00.html']) {
+    assert.equal(await fetch(p), 404, p);
+  }
+  assert.equal(await fetch('/dashboard-2/login.html'), 'asset:/d2/login.html');
+  assert.equal(await fetch('/dashboard-2/css/d2.css'), 'asset:/d2/css/d2.css');
+  assert.equal(await fetch('/dashboard-2/js/pages/week.js'), 'asset:/d2/js/pages/week.js');
+});
+
+test('d2 short-form month target is 3 a day: 90 in November, 93 in December, 84 in February', async () => {
+  for (const [at, month] of [['2026-11-08T21:05:00Z', 90], ['2026-12-08T21:05:00Z', 93], ['2027-02-08T21:05:00Z', 84]]) {
+    const sf = goal(await d2At({ SESSION_SECRET: SECRET }, Date.parse(at)), 'shortform');
+    assert.deepEqual([sf.month.target, sf.week[0].target, sf.day[0].target], [month, 21, 3], at);
+  }
+});
+
+test('d2 QC target before 3 AM is none due yet, not Done', async () => {
+  const body = await d2At({ DB: sqliteD1(), SESSION_SECRET: SECRET }, Date.parse('2026-11-08T09:00:00Z')); // 1:00 AM
+  const qc = goal(body, 'hgp').day[0];
+  assert.deepEqual([qc.target, qc.actual, qc.display, qc.status], [0, 0, 'None due yet', { text: 'None due yet', cls: 'idle' }]);
+  assert.equal(body.d2.today.targets.find((t) => t.goal === 'hgp').display, 'None due yet');
+});
+
+test('d2 QC count only reads proofs from the last 14 days', async () => {
+  const { db } = seed();
+  const old = task(db, { title: 'Old edit - Jack Mercer', owner: 'video-editor', project: 'home-guide-press', status: 'review' });
+  ins(db, 'bot_proofs', { id: id('p'), task_id: old, kind: 'url', link: 'https://jonmac.ai/review/old', status: 'passed', created_by: 'video-editor', created_at: '2026-10-20T16:00:00Z', checked_by: 'qc', checked_at: '2026-11-08T18:00:00Z' });
+  assert.equal(goal(await d2At({ DB: db, SESSION_SECRET: SECRET }, SUNDAY), 'hgp').day[0].actual, 1);
+});
+
+test('d2 counts the newest cards when there are more than the 3000 it reads', async () => {
+  const db = sqliteD1();
+  const add = db.sqlite.prepare(`INSERT INTO bot_tasks (id, title, owner, status, project, created_by, updated_by, created_at, updated_at, done_at)
+    VALUES (?, 'Clip', 'short-form', 'done', 'short-form', 'ana', 'ana', '2026-11-01T16:00:00Z', '2026-11-02T18:00:00Z', '2026-11-02T18:00:00Z')`);
+  for (let i = 0; i < 3000; i++) add.run(id('t'));
+  task(db, { title: 'Clip', owner: 'short-form', project: 'short-form', status: 'done', created_at: '2026-11-08T16:00:00Z', done_at: '2026-11-08T17:00:00Z' });
+  assert.equal(goal(await d2At({ DB: db, SESSION_SECRET: SECRET }, SUNDAY), 'shortform').day[0].actual, 1);
+});
+
+test('d2 blocker notes drop bullets but keep hyphens inside words and ranges', async () => {
+  const db = sqliteD1();
+  task(db, { title: 'Book page - Peter Collins', owner: 'home-guide-press', project: 'home-guide-press', status: 'waiting_on_jon',
+    note: 'What happened:\n- Page built\nYour move:\n- Pick the 5-7 days shipping for the e-book\n• then reply\nNext:\n- Publish' });
+  const [b] = (await d2At({ DB: db, SESSION_SECRET: SECRET }, SUNDAY)).d2.today.blockers;
+  assert.equal(b.why, 'Pick the 5-7 days shipping for the e-book then reply');
 });
 
 test('d2 without HGP_DB, CLONE_DB or any D1 answers with nulls and notes, never a 500', async () => {

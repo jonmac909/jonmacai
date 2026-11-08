@@ -20,6 +20,14 @@ async function asset(request, env, assetPath) {
   return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
 }
 
+const notFound = () => new Response('Not found', { status: 404 });
+// The asset a path could reach: decoded, with repeated slashes and dot segments folded.
+function assetTarget(p) {
+  try { return new URL(decodeURIComponent(p).replace(/[\\/]+/g, '/'), 'https://a').pathname; } catch { return p; }
+}
+// Dashboard 2 serves its two pages and its own css and js, nothing else.
+const D2_FILE = /^\/(login\.html|css\/[\w-]+\.css|js\/(?:[\w-]+\/)*[\w-]+\.js)$/;
+
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
@@ -32,9 +40,9 @@ export default {
       return Response.redirect(url.toString(), 308);
     }
     if (url.pathname.startsWith(`${D2}/`)) {
-      let path = url.pathname.slice(D2.length);
-      if (path === '/' || path === '/index.html') path = (await readSession(request, env)) ? '/index.html' : '/login.html';
-      return asset(request, env, `/d2${path}`);
+      const path = url.pathname.slice(D2.length);
+      if (path === '/' || path === '/index.html') return asset(request, env, (await readSession(request, env)) ? '/d2/index.html' : '/d2/login.html');
+      return D2_FILE.test(path) ? asset(request, env, `/d2${path}`) : notFound();
     }
     if (url.pathname === PREFIX) {
       url.pathname = `${PREFIX}/`;
@@ -50,6 +58,7 @@ export default {
     if (url.pathname.startsWith(`${PREFIX}/api/`)) return handleApi(request, env, ctx);
 
     let assetPath = url.pathname.slice(PREFIX.length) || '/';
+    if (/^\/d2(\/|$)/i.test(assetTarget(assetPath))) return notFound(); // Dashboard 2's files only behind /dashboard-2
     if (assetPath === '/') assetPath = '/index.html';
     if (assetPath === '/call') assetPath = '/call.html';
     const html = assetPath === '/index.html' || assetPath === '/login.html' || assetPath === '/call.html';

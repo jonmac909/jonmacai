@@ -112,7 +112,7 @@ async function snapshotExtra(env, base, now) {
   if (base.pages.calendar || base.pages.content) extra.channels = await channelData(env.DB, now);
   return extra;
 }
-const D2_PAGES = 'today,projects,todo,sponsors,viral,webinar,money,calendar,content';
+const D2_PAGES = 'today,projects,sponsors,viral,money,calendar,content';
 
 // Retired 2026-10-29: the old MausBot team's feeds and the pages they fed. A collector still
 // running somewhere gets 200 so it stops retrying, and nothing is stored.

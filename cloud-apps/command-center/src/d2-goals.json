@@ -53,9 +53,9 @@
     },
     {
       "key": "shortform", "title": "Short-form", "owner": "Samantha", "team": ["Samantha"], "project": "short-form",
-      "month": { "key": "shorts", "label": "Shorts posted", "metric": "shorts", "unit": "count", "target": 90 },
-      "week": [{ "key": "shorts", "label": "Shorts posted", "metric": "shorts", "unit": "count", "target": 21 }],
-      "day": [{ "key": "shorts", "label": "Shorts posted", "metric": "shorts", "unit": "count", "target": 3 }]
+      "month": { "key": "shorts", "label": "Shorts posted", "metric": "shorts", "unit": "count", "perDay": 3 },
+      "week": [{ "key": "shorts", "label": "Shorts posted", "metric": "shorts", "unit": "count", "perDay": 3 }],
+      "day": [{ "key": "shorts", "label": "Shorts posted", "metric": "shorts", "unit": "count", "perDay": 3 }]
     }
   ],
   "checks": [

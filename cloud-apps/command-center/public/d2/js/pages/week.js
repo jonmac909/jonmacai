@@ -23,12 +23,14 @@ function metricDays(x, days) {
 
 const rowsList = (rows) => (rows?.length ? `<ul class="d2ch">${rows.map((r) => `<li><span>${esc(r.label)}</span><b>${esc(r.display)}</b>${status(r.status)}<span class="muted">${esc(r.owner || '')}${r.note ? ` · ${esc(r.note)}` : ''}</span></li>`).join('')}</ul>` : '');
 
-// Behind lines name the owner; one with a task opens its card, one with a web link opens that.
+// Behind lines name the owner; one with a task opens its card, one with a web link opens that, one with a page
+// (a channel's Calendar tab) opens it in this dashboard.
 function behindList(list) {
   if (!list?.length) return '';
   return `<ul class="d2behind">${list.map((b) => {
     const open = b.open ? ` tabindex="0" data-open="${esc(b.open)}"` : '';
-    const link = /^https?:\/\//i.test(b.href || '') ? ` <a href="${esc(b.href)}" target="_blank" rel="noopener">Open</a>` : '';
+    const link = /^https?:\/\//i.test(b.href || '') ? ` <a href="${esc(b.href)}" target="_blank" rel="noopener">Open</a>`
+      : b.page ? ` <a href="#${esc(b.page)}" data-page="${esc(b.page)}">Open</a>` : '';
     return `<li${open}><b>Behind:</b> ${esc(b.title)} <span class="muted">· ${esc(b.owner)}${b.why ? ` · ${esc(b.why)}` : ''}</span>${link}</li>`;
   }).join('')}</ul>`;
 }
