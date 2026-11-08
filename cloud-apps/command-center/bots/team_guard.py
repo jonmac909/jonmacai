@@ -7,7 +7,8 @@ Runs hidden every 10 minutes (see HOOKS.md). Reads OpenBot's database and transc
 - A video proof pending over 30 minutes: wakes the other QC bot.
 - Fewer than 2 packs ready for Olivia: wakes Elle and Scarlett. Preflight runs at most hourly.
 - A bot whose current or main account is capped by a usage limit: bot_stuck to Ana. If it's Ana's own
-  current account she can't read that, so it also goes on Jon's Questions page.
+  current account she can't read that, so it also goes on Jon's Questions page. Only a bot on the Claude
+  provider can be capped: a bot on any other provider (the DeepSeek trial, Jon 2026-11-06) is skipped.
 - A bot with a Doing card, no open turn, nothing queued, not capped, and no turn for 10 minutes: wakes it with
   "continue <its newest Doing card>". Once per bot and card per 30 minutes. A slug two bots share (QC)
   wakes one, and none while either is working.
@@ -178,6 +179,18 @@ def agents(con):
     return {a: json.loads(j) for a, j in con.execute('select agent_id, agent_json from projection_agents')}
 
 
+def on_claude(j):
+    """A usage limit is a Claude limit, so it only applies to a bot whose active provider is Claude.
+    Bots on the DeepSeek trial (Jon, 2026-11-06) show provider 'opencode' and no limit. A profile with
+    no provider recorded is treated as Claude, which is every profile made before providers were stored."""
+    return str(j.get('provider') or 'claude').lower() == 'claude'
+
+
+def capped(holds, j, now):
+    """True when this bot is held by an account cap: it is on Claude and its own account is capped."""
+    return bool(j) and on_claude(j) and holds.get(j.get('providerAccountId') or DEFAULT_ACCOUNT, 0) > now
+
+
 def dash(*args):
     r = subprocess.run([PY, '-I', str(TOOLS / 'dash.py'), *args], capture_output=True, encoding='utf-8',
                        errors='replace', env={**os.environ, 'DASH_BOT': 'developer'},
@@ -297,7 +310,7 @@ def check_turns(now, state):
         prompts = {t for t, in con.execute(OPEN_PROMPTS)}
         team = agents(con)
     names = {a: j.get('name', a) for a, j in team.items()}
-    held = state.get('holds', {}).get(team.get(ANA, {}).get('providerAccountId') or DEFAULT_ACCOUNT, 0) > now
+    held = capped(state.get('holds', {}), team.get(ANA), now)
 
     def alert(agent, text):  # Ana can't alert herself
         return (JON, text, SEEN) if agent == ANA else (URGENT, text)
@@ -432,6 +445,8 @@ def check_limits(now, state):
         team = agents(con)
     found = {}
     for agent, j in team.items():
+        if not on_claude(j):
+            continue  # a bot on another provider is not capped by a Claude limit, and must not be reported as held
         current = j.get('providerAccountId') or DEFAULT_ACCOUNT
         back = j.get('usageLimitReturn')  # set while on a backup; its account is the one to return to
         main = (back.get('providerAccountId') or DEFAULT_ACCOUNT) if back else current
@@ -509,7 +524,7 @@ def check_idle(now, state):
             continue
         for agent in ids:
             j = team.get(agent)
-            if j is None or holds.get(j.get('providerAccountId') or DEFAULT_ACCOUNT, 0) > now:
+            if j is None or capped(holds, j, now):
                 continue
             key = 'idle:%s:%s' % (agent, card['id'])
             seen.pop(key, None)  # its last nudge is over 30 minutes old
@@ -527,7 +542,7 @@ def free_bots(now, state):
         busy |= {a for a, t in con.execute(LAST_TURNS) if t and now - ts(t) < READY_MIN * 60}
         team = agents(con)
     holds = state.get('holds', {})
-    return {a for a, j in team.items() if a not in busy and holds.get(j.get('providerAccountId') or DEFAULT_ACCOUNT, 0) <= now}
+    return {a for a, j in team.items() if a not in busy and not capped(holds, j, now)}
 
 
 def woke_lately(seen, agent, now, names=WAKES):
@@ -567,8 +582,8 @@ def check_balance(now, state):
         return doing, waiting, old, doing > MAX_DOING or waiting >= MAX_QUEUED or old
 
     def usable(slug):  # an agent that exists, is not capped and was not woken by any guard check in the last 30 minutes
-        return next((a for a in ids.get(slug, []) if a in team and not woke_lately(seen, a, now) and holds.get(
-            team[a].get('providerAccountId') or DEFAULT_ACCOUNT, 0) <= now), None)
+        return next((a for a in ids.get(slug, []) if a in team and not woke_lately(seen, a, now)
+                     and not capped(holds, team[a], now)), None)
 
     def room(slug, doing):  # takes one more card and one more message, is still not overloaded, and stays lighter than the source
         d, w, _, over = load(slug)
