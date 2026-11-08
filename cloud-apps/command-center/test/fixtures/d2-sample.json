@@ -3706,10 +3706,10 @@
       {
        "label": "Claudine Marchand",
        "target": 1,
-       "actual": null,
-       "display": "No book page yet",
+       "actual": 0,
+       "display": "0 sales",
        "status": {
-        "text": "No data",
+        "text": "On pace",
         "cls": "idle"
        },
        "owner": "Elle",
@@ -3742,10 +3742,10 @@
       {
        "label": "Diane Kowalski",
        "target": 1,
-       "actual": null,
-       "display": "No book page yet",
+       "actual": 0,
+       "display": "0 sales",
        "status": {
-        "text": "No data",
+        "text": "On pace",
         "cls": "idle"
        },
        "owner": "Elle",
