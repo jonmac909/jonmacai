@@ -8,6 +8,7 @@ import { trackRedirect } from './track.js';
 export { CallRelay } from './call.js';
 
 const PREFIX = '/dashboard';
+const D2 = '/dashboard-2';
 
 async function asset(request, env, assetPath) {
   const assetUrl = new URL(request.url);
@@ -25,6 +26,16 @@ export default {
     // Only the separate preview Worker (wrangler --env preview, its own D1) answers on workers.dev.
     if (url.hostname.endsWith('.workers.dev') && env.PREVIEW !== '1') return new Response('Not found', { status: 404 });
     if (url.pathname.startsWith('/v/')) return trackRedirect(request, env, ctx);
+    // Dashboard 2 (docs/dashboard-2.md): its own pages under public/d2; data comes from /dashboard/api/d2.
+    if (url.pathname === D2) {
+      url.pathname = `${D2}/`;
+      return Response.redirect(url.toString(), 308);
+    }
+    if (url.pathname.startsWith(`${D2}/`)) {
+      let path = url.pathname.slice(D2.length);
+      if (path === '/' || path === '/index.html') path = (await readSession(request, env)) ? '/index.html' : '/login.html';
+      return asset(request, env, `/d2${path}`);
+    }
     if (url.pathname === PREFIX) {
       url.pathname = `${PREFIX}/`;
       return Response.redirect(url.toString(), 308);

@@ -18,6 +18,7 @@ import { freshen, youtubeAnalyticsCheck, youtubeCallback, youtubeConnect, youtub
 import { channelData } from './channels.js';
 import { trackData } from './track.js';
 import { monthWindow } from './today.js';
+import { buildD2, d2Data } from './d2.js';
 
 const PREFIX = '/dashboard/api';
 const json = (data, status = 200, headers = {}) =>
@@ -103,6 +104,15 @@ function filterSnapshot(pages) {
   for (const id of want) out[id] = (!LIVE_ONLY.includes(id) && snapshot.pages[id]) || {};
   return JSON.parse(JSON.stringify({ pages: out, nav: liveNav(snapshot.nav), sources: snapshot.sources }));
 }
+
+// The bot-table and calendar rows the live pages need, shared by /snapshot and /d2.
+async function snapshotExtra(env, base, now) {
+  const extra = { habits: await listHabits(env.DB), funnel: await listFunnel(env.CLONE_DB) };
+  if (base.pages.today || base.pages.projects || base.pages.todo) extra.today = await todayData(env.DB, now, monthWindow(now).key);
+  if (base.pages.calendar || base.pages.content) extra.channels = await channelData(env.DB, now);
+  return extra;
+}
+const D2_PAGES = 'today,projects,todo,sponsors,viral,webinar,money,calendar,content';
 
 // Retired 2026-10-29: the old MausBot team's feeds and the pages they fed. A collector still
 // running somewhere gets 200 so it stops retrying, and nothing is stored.
@@ -275,9 +285,7 @@ export async function handleApi(request, env, ctx) {
     const base = filterSnapshot(url.searchParams.get('pages'));
     if (!env.DB) return json(base);
     const now = Date.now();
-    const extra = { habits: await listHabits(env.DB), funnel: await listFunnel(env.CLONE_DB) };
-    if (base.pages.today || base.pages.projects || base.pages.todo) extra.today = await todayData(env.DB, now, monthWindow(now).key);
-    if (base.pages.calendar || base.pages.content) extra.channels = await channelData(env.DB, now);
+    const extra = await snapshotExtra(env, base, now);
     // Only when Track is opened (?pages=track), never on the snapshot every page load and 60 s poll fetch.
     // Track syncs from the YouTube APIs first on every open or refresh (15 s floor); the cron syncs hourly too (src/youtube.js).
     if ((url.searchParams.get('pages') || '').split(',').some((p) => p.trim() === 'track')) {
@@ -286,6 +294,18 @@ export async function handleApi(request, env, ctx) {
     }
     const build = env.CF_VERSION_METADATA?.id ?? null; // this deploy; an open page reloads when it changes (app.js)
     return json({ ...mergeSnapshot(base, await listSnapshots(env.DB), now, await listDealStages(env.DB), extra), build });
+  }
+  // Dashboard 2 (docs/dashboard-2.md): the same pages /snapshot builds, plus the `d2` view. Read only.
+  if (rest === '/d2' && method === 'GET') {
+    const denied = await needSession(request, env);
+    if (denied) return denied;
+    const now = Date.now();
+    const base = filterSnapshot(D2_PAGES);
+    const rows = env.DB ? await listSnapshots(env.DB) : [];
+    const extra = env.DB ? await snapshotExtra(env, base, now) : {};
+    const out = mergeSnapshot(base, rows, now, env.DB ? await listDealStages(env.DB) : {}, extra);
+    const d2 = buildD2(out, rows, extra, await d2Data(env, now), now);
+    return json({ ok: true, build: env.CF_VERSION_METADATA?.id ?? null, asOf: new Date(now).toISOString(), pages: out.pages, d2 });
   }
 
   if (rest === '/ingest' && method === 'POST') {
