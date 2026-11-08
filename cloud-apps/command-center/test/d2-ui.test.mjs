@@ -38,6 +38,19 @@ test('all five pages and every Pipeline view render, with data and without', () 
   assert.match(pipeline({ d2: {} }), /Pipeline has no data yet/);
 });
 
+// The server's own answer (test/d2.test.mjs writes it): the two halves of the contract fit.
+test('every page renders the server sample without throwing, with no raw IDs or paths', () => {
+  const server = JSON.parse(readFileSync(new URL('./fixtures/d2-sample.json', import.meta.url), 'utf8'));
+  const views = everyView(server);
+  assert.ok(views.length >= 5);
+  for (const [id, html] of views) {
+    assert.match(html, /^<div class="wrap/, id);
+    assert.doesNotMatch(text(html), /\bt_[0-9a-f]{8,}\b|[A-Za-z]:\\|undefined|NaN|\[object Object\]/, id);
+  }
+  assert.ok(server.d2.today.jon.length <= 3);
+  assert.equal(server.d2.checks.length, 2);
+});
+
 test('every page starts with the stale banner, and a stale number carries a red Stale pill', () => {
   const d = data();
   for (const [id, html] of everyView(d)) {
