@@ -1,5 +1,4 @@
 /* Dashboard 2: only what /dashboard/css lacks. Phone first. */
-.d2stale{margin:0;padding:.6rem .8rem;border:1px solid var(--crit-line);border-radius:.7rem;background:var(--crit-bg);color:var(--crit-ink);font-size:.88rem}
 .d2age{font-size:.78rem;color:var(--muted);display:inline-flex;align-items:center;gap:.35rem;flex-wrap:wrap}
 .d2t{display:flex;align-items:center;flex-wrap:wrap;gap:.3rem .55rem}
 .d2t .muted{font-size:.85rem}
@@ -57,7 +56,7 @@
 .d2facts{display:flex;flex-wrap:wrap;gap:.2rem 1rem;font-size:.86rem;color:var(--ink-2)}
 .d2exp summary{cursor:pointer;padding:.1rem 0}
 .d2exp .qlist{margin:.6rem 0 0 .4rem}
-.d2health{margin:.6rem 0 0;font-size:.82rem}
+.d2ana{margin:.6rem 0 0;font-size:.82rem}
 
 /* Daily Summary: folded sections on a phone; on a desktop one grid, fold marker hidden */
 .d2sumgrid{display:grid;gap:.6rem;grid-template-columns:minmax(0,1fr)}

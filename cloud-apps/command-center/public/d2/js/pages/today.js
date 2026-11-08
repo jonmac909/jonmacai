@@ -2,20 +2,34 @@ import { esc, botName } from '/dashboard/js/ui.js';
 import { needItem } from '/dashboard/js/pages/today.js';
 import { age, status, top } from './month.js';
 
-// Today: at most 3 things for Jon, the team's targets for today, the daily checks, blockers, then the rest
-// of Needs you. Questions and approvals use /dashboard's own cards, so Send, Approve and Reject work the same.
+// Today: at most 3 things for Jon (the rest and the blockers go to Ana: one muted line says how many), the team's
+// targets for today and the daily checks. Questions and approvals use /dashboard's own cards, so Send, Approve and
+// Reject work the same.
 const web = (h) => /^https?:\/\//i.test(String(h || ''));
 const linkBtn = (l) => (l && web(l.href) ? `<a class="btn line sm" href="${esc(l.href)}" target="_blank" rel="noopener">${esc(l.label || 'Open')}</a>` : '');
 const item = (it) => needItem({ ...it, from: botName(it.from), project: '' }); // names, never bot slugs
-const key = (it) => it.decideUrl || it.answerUrl || it.id || it.title;
 
-function forJon(list, goals) {
+// Known charges sit folded under the one Expenses review item (Fridays), answerable there.
+function fold(it, exp) {
+  return `<li class="nyi d2exp"><details data-keep="expenses"><summary><b>${esc(exp.label)}</b> <span class="muted">${esc(exp.count ?? (exp.items || []).length)} charges</span></summary>
+    ${it.detail ? `<p class="qctx">${esc(it.detail)}</p>` : ''}<ul class="qlist">${(exp.items || []).map(item).join('')}</ul></details></li>`;
+}
+
+// What went to Ana instead: everything past Jon's 3 and the bot health alerts, as one muted line.
+function toAna(a) {
+  const parts = [a?.count && `${a.count} more went to Ana`, a?.health && `${a.health} team health alert${a.health === 1 ? '' : 's'} went to Ana`].filter(Boolean);
+  return parts.length ? `<p class="muted d2ana">${esc(parts.join(' · '))}</p>` : '';
+}
+
+function forJon(t, goals) {
+  const list = t.jon || [];
+  const exp = t.expenses || {};
   const title = (k) => goals.find((g) => g.key === k)?.title || '';
   const rows = list.slice(0, 3).map((it) => `<li class="d2jon">
     <p class="d2why">${title(it.goal) ? `Unblocks <b>${esc(title(it.goal))}</b> · ` : ''}${esc(it.minutes ?? 2)} min ${linkBtn(it.link)}</p>
-    <ul class="qlist">${item(it)}</ul></li>`).join('');
+    <ul class="qlist">${exp.label && it.title === exp.label ? fold(it, exp) : item(it)}</ul></li>`).join('');
   return `<section class="card pad"><div class="cardhead"><h2>For you</h2><span class="meta">${list.length ? 'What unblocks the most first' : ''}</span></div>
-    ${rows ? `<ol class="d2jonlist">${rows}</ol>` : '<p class="muted">Nothing needs you right now.</p>'}</section>`;
+    ${rows ? `<ol class="d2jonlist">${rows}</ol>` : '<p class="muted">Nothing needs you right now.</p>'}${toAna(t.toAna)}</section>`;
 }
 
 function targets(list) {
@@ -38,27 +52,6 @@ function checks(list) {
   return `<section class="card pad"><div class="cardhead"><h2>Daily checks</h2></div><ul class="d2list">${rows}</ul></section>`;
 }
 
-function blockers(list) {
-  if (!list?.length) return '';
-  const rows = list.map((b) => `<li${b.open ? ` tabindex="0" data-open="${esc(b.open)}"` : ''}><div class="d2t"><b>${esc(b.title)}</b></div>
-    <div class="d2meta"><span>${esc(b.owner)}${b.ageLabel ? ` · ${esc(b.ageLabel)}` : ''}</span>${b.why ? `<span>${esc(b.why)}</span>` : ''}</div></li>`).join('');
-  return `<section class="card pad"><div class="cardhead"><h2>Blockers</h2><span class="meta">${list.length}</span></div><ul class="d2list d2block">${rows}</ul></section>`;
-}
-
-// The rest of Needs you. Known charges sit folded under the one Expenses review item, answerable there.
-function needs(t) {
-  const n = t.needs || {};
-  const shown = new Set((t.jon || []).map(key));
-  const exp = t.expenses || {};
-  const rows = (n.items || []).filter((it) => !shown.has(key(it))).map((it) => (exp.label && it.title === exp.label
-    ? `<li class="nyi d2exp"><details data-keep="expenses"><summary><b>${esc(exp.label)}</b> <span class="muted">${esc(exp.count ?? (exp.items || []).length)} charges</span></summary>
-        ${it.detail ? `<p class="qctx">${esc(it.detail)}</p>` : ''}<ul class="qlist">${(exp.items || []).map(item).join('')}</ul></details></li>`
-    : item(it))).join('');
-  const health = n.healthToAna ? `<p class="muted d2health">${n.healthToAna} team health alert${n.healthToAna === 1 ? '' : 's'} went to Ana</p>` : '';
-  return `<section class="card pad"><div class="cardhead"><h2>Also needs you</h2></div>
-    ${rows ? `<ul class="qlist nylist">${rows}</ul>` : '<p class="muted">Nothing else.</p>'}${health}</section>`;
-}
-
 // Daily Summary (docs/dashboard-2.md): the server words every line; this only lays it out. Open on a desktop, folded on a phone.
 function summary(sum) {
   if (!sum?.sections?.length) return '';
@@ -79,9 +72,7 @@ export function render(data) {
   return `<div class="wrap">
   ${top('Today', `${day.label || ''}${day.clock ? ` · ${day.clock} PT` : ''}`, d2)}
   ${summary(d2.summary)}
-  ${forJon(t.jon || [], d2.goals || [])}
+  ${forJon(t, d2.goals || [])}
   <div class="split even">${targets(t.targets)}${checks(d2.checks)}</div>
-  ${blockers(t.blockers)}
-  ${needs(t)}
 </div>`;
 }
