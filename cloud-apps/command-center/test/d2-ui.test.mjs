@@ -51,15 +51,34 @@ test('every page renders the server sample without throwing, with no raw IDs or 
   assert.equal(server.d2.checks.length, 2);
 });
 
-test('every page starts with the stale banner, and a stale number carries a red Stale pill', () => {
+test('no page shows the stale banner; a stale number keeps a small grey "as of <date>", a fresh one its age', () => {
   const d = data();
   for (const [id, html] of everyView(d)) {
-    assert.match(html, /^<div class="wrap[^>]*>\s*<div class="head">[\s\S]*?<\/div><p class="d2stale" role="status"><b>These numbers are old:<\/b> Deposit ledger \(updated 3 days ago\) · Short-form post log/, id);
+    assert.doesNotMatch(text(html), /These numbers are old/, id);
+    assert.doesNotMatch(html, /d2stale|pill crit">Stale/, id);
   }
-  assert.match(month(d), /Deposit ledger · updated 3 days ago <span class="pill crit">Stale<\/span>/);
-  assert.match(month(d), /YouTube Data API · updated 3 hr ago<\/span>/, 'a fresh source has no pill');
-  d.d2.stale = [];
-  assert.doesNotMatch(today(d), /d2stale/, 'no banner when nothing is old');
+  assert.match(month(d), /<span class="d2age">Deposit ledger · as of Nov 2<\/span>/);
+  assert.match(month(d), /<span class="d2age">YouTube Data API · updated 3 hr ago<\/span>/, 'a fresh source keeps its age');
+  assert.match(today(d), /MoneyClaw RBC import · as of Nov 2/);
+  d.d2.money.tiles[0].source = { label: 'MoneyClaw bank feed', at: '2026-11-05T20:00:00Z', asOf: '2026-11-01', ageLabel: 'updated 1 hr ago', stale: true };
+  assert.match(money(d), /MoneyClaw bank feed · as of Nov 1/, 'the bank feed is as of its data, not its collection');
+  const never = data();
+  never.d2.goals[1].month.source = { label: 'Book orders', at: null, ageLabel: 'never reported', stale: true };
+  assert.match(month(never), /Book orders · never reported/, 'no date to show: it says why');
+});
+
+test('Month: a yes/no goal reads as its value alone, never "of Yes" or a "Pace for today: Yes"', () => {
+  const d = data();
+  const row = (html) => text(html).match(/Viral View and webinar .*?(?=Short-form)/)?.[0] || '';
+  assert.match(row(month(d)), /Webinar date set and run once Not set Webinar funnel/);
+  assert.doesNotMatch(row(month(d)), /of Yes|of No|Pace for today/);
+  // Every yes/no goal, done or not: the server's shape (target 1, pace a share of the month).
+  for (const actual of [0, 1]) {
+    d.d2.goals[4].month = { ...d.d2.goals[4].month, actual, display: actual ? 'Ran Nov 19' : 'Set for Nov 19', target: 1, pace: 0.6 };
+    assert.doesNotMatch(row(month(d)), /of Yes|of No|Pace for today/, String(actual));
+    assert.doesNotMatch(month(d), /class="pacemark" style="left:60%"/, 'no pace mark on a yes/no bar');
+  }
+  assert.match(text(month(data())), /Pace for today: \$1,533/, 'a number keeps its pace');
 });
 
 test('Month: a row per goal with target, pace, status and trend; no data says why, never 0', () => {
@@ -96,14 +115,14 @@ test('daily checks: Today shows tick, cross or not yet with links and facts; Wee
   const t = today(d);
   assert.match(text(t), /✓ Complete Histories Daisy Done Episode: The Fall of Constantinople/);
   assert.match(t, /<a class="btn line sm" href="https:\/\/open\.spotify\.com\/episode\/4xYzq" target="_blank" rel="noopener">Spotify episode<\/a><a class="btn line sm" [^>]*>Community post<\/a>/);
-  assert.match(text(t), /not yet RBC expenses Elizabeth Not run yet Accounts read: 0 of 7 Bank data through: Nov 2 Receipts matched: no MoneyClaw RBC import · updated 3 days ago Stale/);
+  assert.match(text(t), /not yet RBC expenses Elizabeth Not run yet Accounts read: 0 of 7 Bank data through: Nov 2 Receipts matched: no MoneyClaw RBC import · as of Nov 2/);
   const w = week(d);
   const checks = w.slice(w.indexOf('Daily checks'), w.indexOf('</section>', w.indexOf('Daily checks')));
   assert.match(checks, /<li class="miss" title="Tue 3: No episode published"><small>Tue 3<\/small><b>✗<\/b>/);
   assert.match(checks, /<li class="ok today" title="Thu 5: Episode and post up 7:02 AM"><small>Thu 5<\/small><b>✓<\/b>/);
   assert.match(checks, /<li class=" today" title="Thu 5: Runs at 6 PM"><small>Thu 5<\/small><b><\/b>/, 'RBC has not run today: blank, outlined');
   assert.match(checks, /<li class=""><small>Sat 7<\/small><b><\/b><\/li>/, 'the future is blank');
-  assert.match(text(t), /Blockers 4 .*Complete Histories missed Tuesday Daisy · 2 days No episode was published on Tuesday/, 'missed days arrive as blockers');
+  assert.doesNotMatch(text(t), /Blockers|Complete Histories missed Tuesday/, 'missed days go to Ana with the other blockers');
 });
 
 test('Today: at most 3 things for Jon, each with what it unblocks, minutes, link and its own answer controls', () => {
@@ -113,22 +132,41 @@ test('Today: at most 3 things for Jon, each with what it unblocks, minutes, link
   assert.match(text(html), /Unblocks Sponsors · 2 min Open draft in Gmail/);
   assert.match(html, /data-tdecide="\/dashboard\/api\/v1\/approvals\/a_51c0e2\/decide" data-decision="approve"/);
   assert.match(html, /data-tsend="\/dashboard\/api\/v1\/questions\/q_8e2a41\/answer"/);
-  assert.equal(count(text(html), /Notion AI offers \$4,000 for 2 videos/g), 1, 'not repeated under Also needs you');
+  assert.equal(count(text(html), /Notion AI offers \$4,000 for 2 videos/g), 1, 'shown once');
   assert.match(html, /<span class="jttag">Florence<\/span>/, 'names, never bot slugs');
-  d.d2.today.jon = [...d.d2.today.jon, ...d.d2.today.needs.items.slice(3, 5)];
+  d.d2.today.jon = [...d.d2.today.jon, ...d.d2.today.toAna.items];
   assert.equal(count(today(d), /<li class="d2jon">/g), 3, 'never more than 3, whatever the server sends');
 });
 
-test('Today: one muted health line, and Expenses review folds its charges, answerable in place', () => {
+test('Today: Jon acts on at most 3 things; the rest and the blockers are one muted line saying they went to Ana', () => {
   const html = today(data());
-  assert.match(html, /<p class="muted d2health">3 team health alerts went to Ana<\/p>/);
+  const acts = count(html, /data-tsend=|data-tdecide="[^"]*" data-decision="approve"|data-ttick=/g);
+  assert.ok(acts <= 3, `${acts} things to act on`);
+  assert.doesNotMatch(text(html), /Also needs you|Blockers|Make 3 Shorts public|Webinar date: Thursday|TikTok upload login/);
+  assert.match(html, /<p class="muted d2ana">6 more went to Ana · 3 team health alerts went to Ana<\/p>/);
+  assert.ok(html.indexOf('d2ana') < html.indexOf('Team targets today'), 'right under For you, not at the bottom');
+});
+
+test('Today: the health line shows whenever alerts went to Ana, even with nothing for Jon', () => {
+  const d = data();
+  d.d2.today.jon = [];
+  d.d2.today.toAna = { count: 0, health: 1, items: [], blockers: [] };
+  const html = today(d);
+  assert.match(text(html), /Nothing needs you right now\. 1 team health alert went to Ana/);
+  d.d2.today.toAna.health = 0;
+  assert.doesNotMatch(today(d), /d2ana/, 'nothing routed, no line');
+});
+
+test('Today: on Friday the Expenses review is one of Jon\'s 3 and folds its charges, answerable in place', () => {
+  const d = data();
+  const exp = { id: 'expenses', kind: 'expenses', title: 'Expenses review (Friday)', detail: '4 known charges from MoneyClaw to look over', from: 'Mila', minutes: 15, goal: null, link: null };
+  d.d2.today.jon = [d.d2.today.jon[0], exp];
+  const html = today(d);
   const fold = html.match(/<details data-keep="expenses">([\s\S]*?)<\/details>/)?.[1] || '';
   assert.match(fold, /^<summary><b>Expenses review \(Friday\)<\/b> <span class="muted">4 charges<\/span><\/summary>/);
   assert.equal(count(fold, /data-tsend="\/dashboard\/api\/v1\/questions\/q_cw000\d\/answer"/g), 4);
   assert.doesNotMatch(html.replace(fold, ''), /New charge: Adobe/, 'known charges only inside the fold');
-  const one = data();
-  one.d2.today.needs.healthToAna = 1;
-  assert.match(today(one), /1 team health alert went to Ana/);
+  assert.doesNotMatch(today(data()), /Expenses review/, 'not Friday: not shown');
 });
 
 test('Pipeline: goal tabs, the Projects board, the deal board with Archived hidden, channel tabs', () => {
@@ -156,7 +194,7 @@ test('Money: d2 tiles with their source age first, then the Money page, sponsor 
   const html = money(data());
   const order = ['Sponsor cash this month', 'Personal', 'Cash received', 'Money to collect', 'Collected by month', 'Viral View revenue'].map((s) => html.indexOf(s));
   assert.ok(order.every((n, i) => n > 0 && (i === 0 || n > order[i - 1])), String(order));
-  assert.match(html, /2 deposits<br><span class="d2age">Deposit ledger · updated 3 days ago <span class="pill crit">Stale<\/span>/);
+  assert.match(html, /2 deposits<br><span class="d2age">Deposit ledger · as of Nov 2<\/span>/);
   assert.match(money({ ...data(), pages: { ...data().pages, money: { title: 'broken' } } }), /Money could not be drawn/);
 });
 

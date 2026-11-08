@@ -296,15 +296,18 @@ export async function handleApi(request, env, ctx) {
     return json({ ...mergeSnapshot(base, await listSnapshots(env.DB), now, await listDealStages(env.DB), extra), build });
   }
   // Dashboard 2 (docs/dashboard-2.md): the same pages /snapshot builds, plus the `d2` view. Read only.
-  if (rest === '/d2' && method === 'GET') {
-    const denied = await needSession(request, env);
-    if (denied) return denied;
+  // /d2/ana: what Dashboard 2 keeps off Jon's pages (stale feeds, items past his 3), for Ana's hourly check with her bot token.
+  if ((rest === '/d2' || rest === '/d2/ana') && method === 'GET') {
+    const ana = rest === '/d2/ana';
+    const ok = ana && request.headers.get('Authorization') ? await botOf(request, env.DB) : await readSession(request, env);
+    if (!ok) return json({ error: 'Sign in' }, 401);
     const now = Date.now();
     const base = filterSnapshot(D2_PAGES);
     const rows = env.DB ? await listSnapshots(env.DB) : [];
     const extra = env.DB ? await snapshotExtra(env, base, now) : {};
     const out = mergeSnapshot(base, rows, now, env.DB ? await listDealStages(env.DB) : {}, extra);
     const d2 = buildD2(out, rows, extra, await d2Data(env, now), now);
+    if (ana) return json({ ok: true, asOf: new Date(now).toISOString(), stale: d2.stale, toAna: d2.today.toAna });
     return json({ ok: true, build: env.CF_VERSION_METADATA?.id ?? null, asOf: new Date(now).toISOString(), pages: out.pages, d2 });
   }
 

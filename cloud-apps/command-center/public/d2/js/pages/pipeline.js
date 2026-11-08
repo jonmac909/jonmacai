@@ -48,7 +48,7 @@ export function render(data, sub = '') {
   const boards = d2.pipeline?.boards || [];
   const [goal, slug, v] = sub.split('/');
   const b = boards.find((x) => x.goal === goal) || boards[0];
-  if (!b) return `<div class="wrap">${top('Pipeline', '', d2)}<div class="card pad"><p class="muted">Pipeline has no data yet.</p></div></div>`;
+  if (!b) return `<div class="wrap">${top('Pipeline', '')}<div class="card pad"><p class="muted">Pipeline has no data yet.</p></div></div>`;
   const ch = (b.channels || []).find((c) => c.slug === slug);
   const view = VIEWS[v] ? v : 'calendar';
   const tabs = `<nav class="chips d2tabs" aria-label="Goals">${boards.map((x) => chip(x.title, `pipeline/${x.goal}`, x === b)).join('')}</nav>`;
@@ -58,7 +58,7 @@ export function render(data, sub = '') {
   const body = ch ? channelView(data, ch.slug, view)
     : `${known ? projects(named(data.pages.projects), data, b.project) : '<div class="card pad"><p class="muted">This goal has no work board yet.</p></div>'}${b.sponsors ? deals(b.sponsors) : ''}`;
   return `<div class="wrap d2pipe">
-  ${top('Pipeline', ch ? `${b.title} · ${ch.label}` : b.title, d2)}
+  ${top('Pipeline', ch ? `${b.title} · ${ch.label}` : b.title)}
   <div class="d2nav">${tabs}${chans}${views}</div>
   <div class="d2sub">${body}</div>
 </div>`;

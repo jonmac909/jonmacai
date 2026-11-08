@@ -4066,11 +4066,11 @@
      "rows": [],
      "key": "webinar",
      "label": "Webinar date set and run once",
-     "unit": "text",
-     "target": null,
-     "actual": null,
+     "unit": "yesno",
+     "target": 1,
+     "actual": 0,
      "display": "Not set",
-     "pace": null,
+     "pace": 0.2,
      "status": {
       "text": "Behind",
       "cls": "risk"
@@ -4616,80 +4616,10 @@
      }
     }
    ],
-   "needs": {
-    "count": 7,
+   "toAna": {
+    "count": 6,
+    "health": 3,
     "items": [
-     {
-      "id": "a_51c0e2",
-      "kind": "approval",
-      "rank": 1,
-      "cls": "risk",
-      "title": "Send the Creatify invoice ($1,500)",
-      "from": "sponsors",
-      "at": "2026-11-05T18:05:00.000Z",
-      "detail": "Runs send invoice.",
-      "notes": [
-       "The video went live Nov 4.",
-       "The invoice is drafted in partners@."
-      ],
-      "links": [
-       {
-        "label": "Draft",
-        "href": "https://mail.google.com/mail/u/0/#drafts/ab12"
-       }
-      ],
-      "decideUrl": "/dashboard/api/v1/approvals/a_51c0e2/decide",
-      "ageLabel": "4 hr ago",
-      "goal": "sponsors",
-      "minutes": 2,
-      "link": {
-       "label": "Open draft in Gmail",
-       "href": "https://mail.google.com/mail/u/0/#drafts/ab12"
-      }
-     },
-     {
-      "id": "q_8e2a41",
-      "kind": "question",
-      "rank": 2,
-      "cls": "risk",
-      "title": "Notion AI offers $4,000 for 2 videos. Accept?",
-      "context": "Rate card says $2,500 a video. They want both live in November.",
-      "options": [
-       "Counter at $5,000 (rate card)",
-       "Accept $4,000",
-       "Other (type your own)"
-      ],
-      "from": "sponsors",
-      "at": "2026-11-05T16:05:00.000Z",
-      "answerUrl": "/dashboard/api/v1/questions/q_8e2a41/answer",
-      "ageLabel": "6 hr ago",
-      "goal": "sponsors",
-      "minutes": 5,
-      "link": null
-     },
-     {
-      "id": "q_3b9c07",
-      "kind": "question",
-      "rank": 2,
-      "cls": "risk",
-      "title": "Ruth Calder book page: cream cover or blue cover?",
-      "context": "Her channel uses cream and dark green.",
-      "options": [
-       "Cream (matches her channel)",
-       "Blue",
-       "Other (type your own)"
-      ],
-      "from": "home-guide-press",
-      "at": "2026-11-05T19:05:00.000Z",
-      "answerUrl": "/dashboard/api/v1/questions/q_3b9c07/answer",
-      "ageLabel": "3 hr ago",
-      "goal": "hgp",
-      "minutes": 2,
-      "link": {
-       "label": "Open page",
-       "href": "https://homeguidepress.com/ruth-calder"
-      }
-     },
      {
       "id": "a_77d1f9",
       "kind": "approval",
@@ -4728,23 +4658,39 @@
       "goal": "viral",
       "minutes": 5,
       "link": null
-     },
-     {
-      "id": "expenses",
-      "kind": "alert",
-      "rank": 3,
-      "cls": "",
-      "title": "Expenses review (Friday)",
-      "from": "Mila",
-      "detail": "4 known charges from MoneyClaw, held for Friday.",
-      "goal": null,
-      "minutes": 10,
-      "link": null,
-      "ageLabel": ""
      }
     ],
-    "healthToAna": 3,
-    "chargesFolded": 4
+    "blockers": [
+     {
+      "title": "TikTok upload login",
+      "owner": "Samantha",
+      "goal": "shortform",
+      "ageLabel": "5 hr",
+      "why": "TikTok signed out; needs your sign-in",
+      "open": "t_00009f3a0001d001"
+     },
+     {
+      "title": "How to Train a Pitbull Puppy - Dale Whitaker Pitbulls",
+      "owner": "Olivia",
+      "goal": "hgp",
+      "ageLabel": "2 days",
+      "why": "Edit running 2 days; the pack is missing 4 clips"
+     },
+     {
+      "title": "Complete Histories missed Tuesday",
+      "owner": "Daisy",
+      "goal": null,
+      "ageLabel": "2 days",
+      "why": "No episode was published on Tuesday"
+     },
+     {
+      "title": "RBC expenses missed Monday",
+      "owner": "Elizabeth",
+      "goal": null,
+      "ageLabel": "3 days",
+      "why": "The import did not run"
+     }
+    ]
    },
    "expenses": {
     "count": 4,
@@ -4923,37 +4869,6 @@
       "ageLabel": "updated 2 days ago",
       "stale": true
      }
-    }
-   ],
-   "blockers": [
-    {
-     "title": "TikTok upload login",
-     "owner": "Samantha",
-     "goal": "shortform",
-     "ageLabel": "5 hr",
-     "why": "TikTok signed out; needs your sign-in",
-     "open": "t_00009f3a0001d001"
-    },
-    {
-     "title": "How to Train a Pitbull Puppy - Dale Whitaker Pitbulls",
-     "owner": "Olivia",
-     "goal": "hgp",
-     "ageLabel": "2 days",
-     "why": "Edit running 2 days; the pack is missing 4 clips"
-    },
-    {
-     "title": "Complete Histories missed Tuesday",
-     "owner": "Daisy",
-     "goal": null,
-     "ageLabel": "2 days",
-     "why": "No episode was published on Tuesday"
-    },
-    {
-     "title": "RBC expenses missed Monday",
-     "owner": "Elizabeth",
-     "goal": null,
-     "ageLabel": "3 days",
-     "why": "The import did not run"
     }
    ]
   },
