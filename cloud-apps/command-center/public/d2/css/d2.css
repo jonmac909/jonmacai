@@ -1,0 +1,80 @@
+/* Dashboard 2: only what /dashboard/css lacks. Phone first. */
+.d2stale{margin:0;padding:.6rem .8rem;border:1px solid var(--crit-line);border-radius:.7rem;background:var(--crit-bg);color:var(--crit-ink);font-size:.88rem}
+.d2age{font-size:.78rem;color:var(--muted);display:inline-flex;align-items:center;gap:.35rem;flex-wrap:wrap}
+.d2t{display:flex;align-items:center;flex-wrap:wrap;gap:.3rem .55rem}
+.d2t .muted{font-size:.85rem}
+.d2lab{font-size:.85rem;color:var(--ink-2)}
+.d2v b{font-size:1.5rem;font-weight:600;letter-spacing:-.01em}
+.d2note{color:var(--ink-2);font-size:.92rem}
+.d2meta{display:flex;flex-wrap:wrap;align-items:center;gap:.25rem 1rem;font-size:.82rem;color:var(--ink-2)}
+
+/* Month: one row per goal, its trend on the right (below on a phone) */
+.d2rows,.d2list,.d2ch,.d2behind,.d2checks,.d2jonlist{list-style:none;margin:0;padding:0}
+.d2row{display:grid;grid-template-columns:minmax(0,1fr);gap:.8rem;padding:1rem 0}
+.d2row:first-child{padding-top:0}.d2row:last-child{padding-bottom:0}
+.d2row+.d2row,.d2list>li+li,.d2checks>li+li,.d2metric+.d2metric{border-top:1px solid var(--line)}
+.d2main{display:flex;flex-direction:column;gap:.45rem;min-width:0}
+@media (min-width:700px){.d2row{grid-template-columns:minmax(0,1fr) 15rem;align-items:center}}
+.d2trend{margin:0}
+.d2trend svg{display:block;width:100%;height:3.2rem}
+.d2trend rect{fill:var(--idle-line)}.d2trend rect.ok{fill:var(--ok-fill)}.d2trend rect.now{fill:var(--accent)}
+.d2trend line{stroke:var(--ink);stroke-width:1;opacity:.45;vector-effect:non-scaling-stroke}
+.d2trend figcaption{display:flex;margin-top:.2rem;font-size:.68rem;color:var(--muted)}
+.d2trend figcaption span{flex:1;text-align:center;white-space:nowrap}
+.d2trend figcaption .on{color:var(--ink);font-weight:600}
+
+/* Week: metrics, Mon to Sun cells, channel rows, behind lines */
+.d2metric{display:flex;flex-direction:column;gap:.5rem;padding:.9rem 0}
+.d2metric:first-of-type{padding-top:0}
+.d2days{list-style:none;margin:0;padding:0;max-width:44rem;display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:.3rem}
+.d2days li{border:1px solid var(--line);border-radius:.5rem;padding:.25rem .2rem;text-align:center;min-height:2.6rem;display:flex;flex-direction:column;justify-content:center}
+.d2days small{font-size:.66rem;color:var(--muted);white-space:nowrap}
+.d2days b{font-size:.82rem;font-variant-numeric:tabular-nums}
+.d2days .ok{background:var(--ok-bg);border-color:var(--ok-line);color:var(--ok-ink)}
+.d2days .miss{background:var(--crit-bg);border-color:var(--crit-line);color:var(--crit-ink)}
+.d2days .today{outline:2px solid var(--accent);outline-offset:1px}
+.d2ch{max-width:44rem}
+.d2ch li{display:flex;flex-wrap:wrap;align-items:center;gap:.2rem .6rem;padding:.35rem 0;font-size:.88rem}
+.d2ch li+li{border-top:1px dashed var(--line)}
+.d2ch li>span:first-child{flex:1 1 9rem;min-width:0}
+.d2ch.parked{opacity:.55;margin-top:.4rem}
+.d2behind li{font-size:.86rem;padding:.2rem 0}
+.d2behind b{color:var(--risk-ink);font-weight:600}
+.d2behind a{color:var(--accent);text-decoration:none;font-weight:500}
+[data-open].d2metric,.d2behind [data-open],.d2block [data-open]{cursor:pointer}
+.d2checks>li{display:flex;flex-direction:column;gap:.45rem;padding:.7rem 0}
+.d2checks>li:first-child{padding-top:0}
+
+/* Today */
+.d2jonlist{display:flex;flex-direction:column;gap:.9rem}
+.d2jon+.d2jon{border-top:1px solid var(--line);padding-top:.9rem}
+.d2why{margin:0 0 .4rem;display:flex;flex-wrap:wrap;align-items:center;gap:.4rem;font-size:.86rem;color:var(--ink-2)}
+.d2jon .qlist{margin:0}
+.d2list>li{display:flex;flex-direction:column;gap:.35rem;padding:.65rem 0}
+.d2list>li:first-child{padding-top:0}
+.d2mark{display:inline-grid;place-items:center;min-width:1.4rem;height:1.4rem;padding:0 .35rem;border-radius:1rem;font-size:.75rem;font-weight:700;background:var(--idle-bg);color:var(--idle-ink)}
+.d2mark.ok{background:var(--ok-bg);color:var(--ok-ink)}.d2mark.miss{background:var(--crit-bg);color:var(--crit-ink)}
+.d2facts{display:flex;flex-wrap:wrap;gap:.2rem 1rem;font-size:.86rem;color:var(--ink-2)}
+.d2exp summary{cursor:pointer;padding:.1rem 0}
+.d2exp .qlist{margin:.6rem 0 0 .4rem}
+.d2health{margin:.6rem 0 0;font-size:.82rem}
+
+.d2tiles{grid-template-columns:repeat(auto-fit,minmax(min(100%,19rem),1fr))}
+.sec>.bar{flex-wrap:wrap;row-gap:.2rem} /* a long note goes under its heading on a phone */
+
+/* Pipeline: tabs, then the reused /dashboard renderers without their own page head and tab rows */
+.d2nav{display:flex;flex-direction:column;gap:.5rem}
+.d2sub{display:flex;flex-direction:column;gap:1.5rem}
+.d2tabs{flex-wrap:nowrap;overflow-x:auto;padding-bottom:.2rem}
+.d2tabs .chip{flex:none;white-space:nowrap;cursor:pointer}
+.d2pipe .d2sub>.wrap>.head,.d2pipe .pjlist,.d2pipe .cctabs{display:none}
+.d2pipe .pjpage{grid-template-columns:minmax(0,1fr)}
+.d2pipe .pjpage>.pjright{grid-column:auto}
+@media (min-width:1240px){.d2pipe .pjpage{grid-template-columns:minmax(0,1fr) 20rem}}
+.d2sub>.wrap{gap:1rem}
+.d2sub .wrap>.head h1{font-size:1.15rem}
+.d2deals .kcard{cursor:default}
+.d2arch>summary{cursor:pointer;color:var(--accent);font-weight:500;font-size:.9rem;margin:.6rem 0}
+/* View only: /dashboard's action buttons (scan, nudge, send to planner) have no handler here */
+.d2sub [data-kind],.d2sub [data-msg],.d2sub [data-draft],.d2sub .head .right{display:none}
+.d2more summary{list-style:none}
