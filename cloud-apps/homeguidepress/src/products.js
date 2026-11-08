@@ -980,7 +980,6 @@ export const PRODUCTS = [
       key: 'jiyoung',
       path: 'fresher-after-60-the-korean-way',
       ready: true,
-      listed: false,
       persona: { host: "Jiyoung Han", brand: "Jiyoung Han" },
       kicker: "Gentle Korean skin care after 60",
       title: "Fresher After 60, the Korean Way",
@@ -1014,13 +1013,12 @@ export const PRODUCTS = [
         ["My skin is easily bothered.", "The guide starts with a patch test and adds one new product at a time. Strong products with acids or retinol are left out. Ask your doctor or pharmacist about any skin problem."],
       ],
       notice: "General information only, not medical or dermatology advice. Test any new product on a small spot first and stop if you feel stinging, itching or see redness. For a rash that spreads, or a spot that changes, bleeds or does not heal, see a doctor.",
-      files: [],
+      files: [{ name: "Jiyoung Han - Fresher After 60, the Korean Way.pdf", object: "jiyoung/fresher-after-60-the-korean-way.pdf" }],
   },
   {
       key: 'peggy',
       path: 'the-fixed-income-pantry',
       ready: true,
-      listed: false,
       persona: { host: "Peggy Donovan", brand: "Peggy Donovan" },
       kicker: "Smart, cheap groceries for one",
       title: "The Fixed-Income Pantry",
@@ -1054,7 +1052,7 @@ export const PRODUCTS = [
         ["Can I print the worksheets?", "Yes. The worksheets and checklists are made to print for your own use."],
       ],
       notice: "General information only, not financial advice. Not medical, nutrition or benefits advice: if you have a health condition, a special diet or an allergy, ask your doctor before you change what you eat. Follow package directions and food safety guidance for every food. Rules for food help programs differ by place.",
-      files: [],
+      files: [{ name: "Peggy Donovan - The Fixed-Income Pantry.pdf", object: "peggy/the-fixed-income-pantry.pdf" }],
     },
 ];
 

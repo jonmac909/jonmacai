@@ -253,7 +253,7 @@ test('every public page renders', async () => {
   assert.equal((await get(f, '/nope')).status, 404);
 });
 
-test('focus channel pages (Takeshi, Kenzo, Edna, Jiyoung, Peggy): served as clones, $27, no buy link until the book is ready', async () => {
+test('focus channel pages (Takeshi, Kenzo, Edna, Jiyoung, Peggy): served as clones, $27; Jiyoung and Peggy sell, the rest wait for their book', async () => {
   const ASSETS = { async fetch(u) {
     try { return new Response(readFileSync(new URL('../public' + new URL(u).pathname, import.meta.url), 'utf8')); }
     catch { return new Response('', { status: 404 }); }
@@ -261,21 +261,28 @@ test('focus channel pages (Takeshi, Kenzo, Edna, Jiyoung, Peggy): served as clon
   const pages = { takeshi: ['/the-japanese-way-to-a-lighter-home', 'Takeshi Morimoto'], kenzo: ['/calm-and-ready', 'Kenzo Arai'],
     edna: ['/three-ingredients-and-a-pan', 'Edna Haynes'], jiyoung: ['/fresher-after-60-the-korean-way', 'Jiyoung Han'],
     peggy: ['/the-fixed-income-pantry', 'Peggy Donovan'] };
+  const SOLD = { jiyoung: 'https://commas.com/checkout/w4gy8obq1WOiKe', peggy: 'https://commas.com/checkout/g4XDGDUvQL5ougI' };
   for (const [key, [path, host]] of Object.entries(pages)) {
-    const f = fixture({ ASSETS });
+    const sold = SOLD[key];
+    const f = fixture({ ASSETS, ...(sold ? { CHECKOUT_URLS: JSON.stringify({ [key]: sold }) } : {}) });
     const r = await get(f, path + '?src=aff-' + key + '-1');
     assert.equal(r.status, 200, path);
     assert.match(r.headers.get('content-security-policy'), /fonts\.googleapis\.com/, path);  // CLONE_CSP, so it is the clone
     const body = await r.text();
     assert.match(body, /\$27/, path);
     assert.match(body, new RegExp(host + ' is an AI-created character'), path);
-    assert.match(body, /Checkout opens soon/, path);
-    assert.doesNotMatch(body, new RegExp('href="/go/' + key), path);
+    if (sold) {
+      assert.doesNotMatch(body, /Checkout opens soon/, path);
+      assert.match(body, new RegExp('<a class="buy" data-buy="' + key + '" href="/go/' + key + '">Buy now for \\$27</a>'), path);
+    } else {
+      assert.match(body, /Checkout opens soon/, path);
+      assert.doesNotMatch(body, new RegExp('href="/go/' + key), path);
+    }
     assert.doesNotMatch(body, /\d+\s*(pages|chapters)\b|testimonial|countdown|bestsell|hurry|limited time|—/i, path);
     assert.doesNotMatch(body, /<script|src="http/i, path);
     await f.settle();
     assert.equal(f.sql.prepare("SELECT COUNT(*) n FROM clicks WHERE kind='view' AND slug=?").get(key).n, 1, path);
-    assert.equal((await get(f, '/go/' + key)).headers.get('location'), 'https://homeguidepress.com' + path, path);  // no checkout yet
+    assert.equal((await get(f, '/go/' + key)).headers.get('location'), sold || 'https://homeguidepress.com' + path, path);
   }
 });
 
@@ -289,10 +296,10 @@ test('every product with a live checkout link has a file to deliver', () => {
   }
 });
 
-test('homepage shelf leaves out the 5 books that are not for sale yet', async () => {
+test('homepage shelf lists Jiyoung and Peggy and leaves out the 3 books not for sale yet', async () => {
   const body = await (await get(fixture(), '/')).text();
-  assert.match(body, /href="\/finally-written-down"/);
-  for (const path of ['/the-japanese-way-to-a-lighter-home', '/calm-and-ready', '/three-ingredients-and-a-pan', '/fresher-after-60-the-korean-way', '/the-fixed-income-pantry'])
+  for (const path of ['/finally-written-down', '/fresher-after-60-the-korean-way', '/the-fixed-income-pantry']) assert.match(body, new RegExp('href="' + path + '"'), path);
+  for (const path of ['/the-japanese-way-to-a-lighter-home', '/calm-and-ready', '/three-ingredients-and-a-pan'])
     assert.doesNotMatch(body, new RegExp('href="' + path + '"'), path);
 });
 
