@@ -3790,10 +3790,10 @@
       {
        "label": "Takeshi Morimoto",
        "target": 1,
-       "actual": null,
-       "display": "No book page yet",
+       "actual": 0,
+       "display": "0 sales",
        "status": {
-        "text": "No data",
+        "text": "On pace",
         "cls": "idle"
        },
        "owner": "Elle",
@@ -3802,10 +3802,10 @@
       {
        "label": "Kenzo Arai",
        "target": 1,
-       "actual": null,
-       "display": "No book page yet",
+       "actual": 0,
+       "display": "0 sales",
        "status": {
-        "text": "No data",
+        "text": "On pace",
         "cls": "idle"
        },
        "owner": "Elle",
@@ -3814,10 +3814,10 @@
       {
        "label": "Jiyoung Han",
        "target": 1,
-       "actual": null,
-       "display": "No book page yet",
+       "actual": 0,
+       "display": "0 sales",
        "status": {
-        "text": "No data",
+        "text": "On pace",
         "cls": "idle"
        },
        "owner": "Elle",
@@ -3826,10 +3826,10 @@
       {
        "label": "Peggy Donovan",
        "target": 1,
-       "actual": null,
-       "display": "No book page yet",
+       "actual": 0,
+       "display": "0 sales",
        "status": {
-        "text": "No data",
+        "text": "On pace",
         "cls": "idle"
        },
        "owner": "Elle",
@@ -3838,10 +3838,10 @@
       {
        "label": "Edna Haynes",
        "target": 1,
-       "actual": null,
-       "display": "No book page yet",
+       "actual": 0,
+       "display": "0 sales",
        "status": {
-        "text": "No data",
+        "text": "On pace",
         "cls": "idle"
        },
        "owner": "Elle",

@@ -251,3 +251,29 @@ test('every public page renders', async () => {
   assert.match(await (await get(f, '/the-hand-me-down-kitchen')).text(), /Checkout opens soon/);
   assert.equal((await get(f, '/nope')).status, 404);
 });
+
+test('focus channel pages (Takeshi, Kenzo, Edna, Jiyoung, Peggy): served as clones, $27, no buy link until the book is ready', async () => {
+  const ASSETS = { async fetch(u) {
+    try { return new Response(readFileSync(new URL('../public' + new URL(u).pathname, import.meta.url), 'utf8')); }
+    catch { return new Response('', { status: 404 }); }
+  } };
+  const pages = { takeshi: ['/the-japanese-way-to-a-lighter-home', 'Takeshi Morimoto'], kenzo: ['/calm-and-ready', 'Kenzo Arai'],
+    edna: ['/three-ingredients-and-a-pan', 'Edna Haynes'], jiyoung: ['/fresher-after-60-the-korean-way', 'Jiyoung Han'],
+    peggy: ['/the-fixed-income-pantry', 'Peggy Donovan'] };
+  for (const [key, [path, host]] of Object.entries(pages)) {
+    const f = fixture({ ASSETS });
+    const r = await get(f, path + '?src=aff-' + key + '-1');
+    assert.equal(r.status, 200, path);
+    assert.match(r.headers.get('content-security-policy'), /fonts\.googleapis\.com/, path);  // CLONE_CSP, so it is the clone
+    const body = await r.text();
+    assert.match(body, /\$27/, path);
+    assert.match(body, new RegExp(host + ' is an AI-created character'), path);
+    assert.match(body, /Checkout opens soon/, path);
+    assert.doesNotMatch(body, new RegExp('href="/go/' + key), path);
+    assert.doesNotMatch(body, /\d+\s*(pages|chapters)\b|testimonial|countdown|bestsell|hurry|limited time|—/i, path);
+    assert.doesNotMatch(body, /<script|src="http/i, path);
+    await f.settle();
+    assert.equal(f.sql.prepare("SELECT COUNT(*) n FROM clicks WHERE kind='view' AND slug=?").get(key).n, 1, path);
+    assert.equal((await get(f, '/go/' + key)).headers.get('location'), 'https://homeguidepress.com' + path, path);  // no checkout yet
+  }
+});

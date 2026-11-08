@@ -1,0 +1,396 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>The Fixed-Income Pantry &middot; Peggy Donovan</title>
+<meta name="description" content="Smart, cheap groceries for one: what to buy, how to store it, and how to make a small monthly check last. Instant PDF, $27, one payment, 30-day money-back guarantee.">
+<meta name="theme-color" content="#3A2E26">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=Barlow+Condensed:wght@600;700&family=Lora:ital,wght@0,400;0,600;1,400&family=Roboto+Slab:wght@500;700;800&display=swap" rel="stylesheet">
+<style>
+:root{--paper:#F6EFE3;--paper2:#FFFDF8;--ink:#3A2E26;--ink2:#54483E;--accent:#C97D33;--accent2:#8E5318;--green:#4F6343;
+ --line:#E6D9C4;--dark:#3A2E26;--glow:#F2BE7E;--deep:#2A211B}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth;-webkit-text-size-adjust:100%}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+body{background:var(--paper);color:var(--ink);font-family:Lora,Georgia,serif;font-size:20px;line-height:1.6;-webkit-font-smoothing:antialiased}
+img{max-width:100%;height:auto;display:block}
+a{color:inherit;text-underline-offset:.18em}
+:focus-visible{outline:3px solid var(--accent);outline-offset:3px}
+.skip{position:absolute;left:-999px;top:0;background:var(--ink);color:#fff;padding:10px 16px;z-index:10}
+.skip:focus{left:12px}
+.wrap{max-width:880px;margin:0 auto;padding:0 20px}
+.narrow{max-width:700px;margin:0 auto}
+.k{font-family:'Barlow Condensed',sans-serif;font-weight:700;letter-spacing:.2em;text-transform:uppercase;color:var(--accent2);font-size:17px}
+h1,h2,h3,h4{font-family:'Roboto Slab',Georgia,serif;line-height:1.15}
+.disp{font-family:'DM Serif Display',Georgia,serif;font-weight:400;letter-spacing:.005em}
+section{padding:68px 0}
+.center{text-align:center}
+.soft{background:var(--paper2);border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+
+/* top line */
+.top{background:var(--dark);color:#efe6d4;text-align:center;font-family:'Barlow Condensed',sans-serif;font-weight:600;letter-spacing:.08em;font-size:17px;padding:10px 12px;text-transform:uppercase}
+.top b{color:var(--glow)}
+
+/* hero */
+.hero{background:linear-gradient(180deg,#3A2E26,#4E3F33);color:#f4ecdc;padding:50px 0 58px}
+.hero .k{color:var(--glow)}
+.hero h1{font-size:clamp(38px,6.4vw,60px);line-height:1.06;margin:14px auto 16px;max-width:780px}
+.hero h1 em{font-style:normal;color:var(--glow)}
+.hero .sub{color:#e6dcc8;max-width:640px;margin:0 auto;font-size:21px}
+.hero .by{font-style:italic;color:#d3c6ae;font-size:18px;margin-top:10px}
+.pill{display:inline-block;color:#fff;font-family:'Roboto Slab',serif;font-weight:700;font-size:17px;padding:10px 20px;border-radius:30px;margin:28px 0 18px;background:#B26A24}
+.frame{max-width:780px;margin:0 auto;border-radius:10px;overflow:hidden;box-shadow:0 24px 60px rgba(0,0,0,.45);
+ background:radial-gradient(120% 140% at 20% 10%,#6a5544 0%,#3f3229 55%,#2A211B 100%);display:grid;grid-template-columns:250px 1fr;gap:34px;align-items:center;padding:34px 40px;text-align:left}
+.frame img{border-radius:4px;box-shadow:0 18px 40px rgba(0,0,0,.5)}
+.frame h2{font-family:'Barlow Condensed',sans-serif;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:var(--glow);font-size:18px;margin-bottom:10px}
+.frame ul{list-style:none}
+.frame li{position:relative;padding:9px 0 9px 34px;border-bottom:1px solid rgba(242,190,126,.22);font-size:20px;color:#f4ecdc;line-height:1.4}
+.frame li:last-child{border-bottom:0}
+.frame li:before{content:"\2713";position:absolute;left:0;top:9px;width:24px;height:24px;border-radius:50%;background:var(--accent);color:#fff;font:700 14px/24px 'Roboto Slab',serif;text-align:center}
+.hero .cta{margin-top:30px}
+.btn-note{font-size:17px;color:#e6dcc8;margin-top:12px}
+.peek{display:inline-block;margin-top:14px;color:var(--glow);font-size:18px}
+.gi{display:inline-block;margin-top:20px;font-size:16px;color:#d3c6ae;border:1px solid rgba(242,190,126,.35);border-radius:8px;padding:8px 14px}
+
+/* buttons */
+.buy,.jump{display:inline-block;background:linear-gradient(180deg,#D68B3F,#B86C22);color:#fff;text-decoration:none;font-family:'Roboto Slab',serif;font-weight:800;font-size:23px;padding:18px 34px 16px;border-radius:10px;box-shadow:0 10px 26px rgba(184,108,34,.38);text-align:center;line-height:1.2;width:100%;max-width:460px;border:0}
+.jump{font-size:20px;max-width:340px;padding:15px 26px 13px}
+.jump:hover,.buy:not(.off):hover{filter:brightness(1.05)}
+.buy.off{opacity:.82;filter:saturate(.7);cursor:default;box-shadow:0 6px 16px rgba(184,108,34,.22)}
+
+/* blocks */
+h2.t{font-size:clamp(30px,4.6vw,40px);margin:8px 0 14px}
+.lead{color:var(--ink2);max-width:640px;margin:0 auto 34px}
+.steps{display:grid;grid-template-columns:repeat(3,1fr);gap:22px;text-align:left}
+.steps div{background:var(--paper2);border:1px solid var(--line);border-radius:10px;padding:20px}
+.steps b{display:flex;align-items:center;gap:10px;font-family:'Roboto Slab',serif;font-size:20px;margin-bottom:6px}
+.steps b i{font-style:normal;flex:none;width:32px;height:32px;border-radius:50%;background:#B26A24;color:#fff;display:flex;align-items:center;justify-content:center;font-size:16px}
+.steps p{font-size:18px;color:var(--ink2);line-height:1.5}
+.note{margin-top:22px;font-weight:600}
+.math{display:grid;grid-template-columns:1fr 1fr;gap:20px;text-align:left}
+.col{background:#fff;border:1px solid var(--line);border-top:5px solid #b9a98f;border-radius:10px;padding:20px 22px}
+.col.k2{border-top-color:var(--green)}
+.col h3{font-size:22px;margin-bottom:8px}
+.col .r{padding:10px 0;border-bottom:1px solid var(--line);font-size:19px;line-height:1.4}
+.col .r span{display:block;font-family:'Roboto Slab',serif;font-weight:700;color:#93391F;font-size:17px;margin-top:2px}
+.col.k2 .r span{color:var(--green)}
+.col .tot{display:flex;justify-content:space-between;gap:12px;font-family:'Roboto Slab',serif;font-weight:800;font-size:20px;padding-top:12px}
+.col .tot span:first-child{white-space:nowrap}
+.col .tot span:last-child{text-align:right}
+.col.k2 .tot{color:var(--green)}
+.fine{font-size:17px;color:var(--ink2);margin-top:16px;line-height:1.5}
+.dark{background:var(--dark);color:#f4ecdc}
+
+/* look inside */
+.strip{display:flex;gap:18px;overflow-x:auto;scroll-snap-type:x mandatory;padding:6px 20px 20px;margin:0 -20px;text-align:left}
+.strip figure{flex:0 0 min(74%,280px);scroll-snap-align:start}
+.pg{aspect-ratio:8.5/11;background:#fff;border-radius:6px;box-shadow:0 10px 28px rgba(80,40,30,.22);padding:26px 22px;display:flex;flex-direction:column;overflow:hidden}
+.pg .pt{font:700 13px/1.2 'Barlow Condensed',sans-serif;letter-spacing:.2em;text-transform:uppercase;color:var(--accent2)}
+.pg .pn{font:700 12px/1.2 'Barlow Condensed',sans-serif;letter-spacing:.18em;text-transform:uppercase;color:#8a7b6c;margin-top:16px}
+.pg h3{font-family:'DM Serif Display',Georgia,serif;font-weight:400;font-size:25px;line-height:1.12;margin:6px 0 12px;color:var(--ink)}
+.pg .pr{font-style:italic;font-size:15px;line-height:1.45;color:var(--ink2);border-top:2px solid var(--accent);padding-top:10px}
+.pg .ln{margin-top:auto;display:grid;gap:9px}
+.pg .ln i{display:block;height:7px;border-radius:3px;background:#efe6d6}
+.pg .ln i:nth-child(2n){width:86%}
+.pg .ln i:last-child{width:58%}
+.pg.ws .f{font-size:14px;line-height:1.3;color:var(--ink);padding:9px 0 4px;border-bottom:1.5px solid #cdbfa8}
+.pg.ws .f:first-of-type{margin-top:4px}
+.strip figcaption{font-size:17px;color:var(--ink2);margin-top:12px;line-height:1.45}
+.swipe{font-size:17px;color:var(--ink2);margin-top:6px}
+
+/* inside list */
+.fix{border-bottom:1px solid var(--line);padding:12px 0;text-align:left;line-height:1.45}
+.fix b{font-family:'Roboto Slab',serif;font-weight:700}
+.fix span{color:var(--ink2);font-size:17px;white-space:nowrap}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;text-align:center}
+.stats b{display:block;font-family:'DM Serif Display',serif;font-weight:400;color:var(--glow);font-size:clamp(40px,6vw,54px);line-height:1}
+.stats span{display:block;margin-top:8px;font-size:17px;color:#e6dcc8;line-height:1.4}
+
+/* buy card */
+.card{background:#fff;border:1px solid var(--line);border-radius:14px;box-shadow:0 20px 50px rgba(80,40,30,.12);overflow:hidden;text-align:left}
+.cardin{display:grid;grid-template-columns:230px 1fr;gap:28px;padding:28px}
+.card img.cv{border-radius:6px;box-shadow:0 14px 30px rgba(0,0,0,.25)}
+.card h3{font-size:30px;margin:4px 0 4px}
+.card .cs{font-style:italic;color:var(--ink2);font-size:18px;margin-bottom:14px}
+.card ul{list-style:none;margin:0 0 18px}
+.card li{padding:4px 0 4px 28px;position:relative;font-size:19px;line-height:1.45}
+.card li:before{content:"\2713";position:absolute;left:0;color:var(--green);font-weight:700}
+.price{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 12px;margin:6px 0 14px}
+.price b{font-family:'DM Serif Display',serif;font-size:50px;font-weight:400;color:var(--ink);line-height:1}
+.price span{font-size:18px;color:var(--ink2)}
+.card .buy{max-width:none}
+.under{font-size:17px;color:var(--ink2);margin-top:10px;text-align:center}
+.secure{font-size:17px;color:var(--ink2);margin-top:4px;text-align:center}
+.secure:before{content:"";display:inline-block;width:11px;height:9px;border:2px solid var(--ink2);border-radius:2px;margin-right:8px;vertical-align:-1px}
+.promise{border-top:1px solid var(--line);background:var(--paper2);padding:20px 28px}
+.promise h4{font-size:20px;margin-bottom:4px}
+.promise p{font-size:18px;color:var(--ink2)}
+
+/* about */
+.mono{width:150px;height:150px;border-radius:14px;margin:0 auto 18px;display:grid;place-items:center;background:linear-gradient(160deg,#4E3F33,#2A211B);color:var(--glow);font:400 58px/1 'DM Serif Display',serif;box-shadow:0 12px 30px rgba(0,0,0,.2)}
+.about p{margin:0 auto 14px;max-width:640px}
+.ai{font-size:18px;color:var(--ink2);max-width:640px;margin:18px auto 0;padding:14px 18px;border:1px dashed #b7a68b;border-radius:8px}
+
+/* faq */
+.faq{text-align:left}
+.faq h3{font-size:21px;margin:26px 0 6px}
+.faq p{color:var(--ink2)}
+
+footer{background:var(--deep);color:#dcd2bf;text-align:center;font-size:17px;line-height:1.55;padding:34px 20px 40px}
+footer p{max-width:740px;margin:0 auto 12px}
+footer a{color:var(--glow)}
+footer nav{display:flex;flex-wrap:wrap;justify-content:center;gap:4px 22px;margin:4px 0 12px}
+footer nav a{min-height:44px;display:inline-flex;align-items:center}
+
+@media (max-width:720px){
+ body{font-size:19px}
+ section{padding:50px 0}
+ .top{font-size:15px;letter-spacing:.05em}
+ .hero{padding:38px 0 46px}
+ .hero .sub{font-size:20px}
+ .frame{grid-template-columns:1fr;padding:24px 20px;gap:22px}
+ .frame img{max-width:210px;margin:0 auto}
+ .frame li{font-size:19px}
+ .steps,.math{grid-template-columns:1fr}
+ .stats{grid-template-columns:repeat(2,1fr);gap:26px 14px}
+ .cardin{grid-template-columns:1fr;padding:20px}
+ .card img.cv{max-width:210px;margin:0 auto}
+ .promise{padding:18px 20px}
+ .fix span{white-space:normal}
+ .buy{font-size:21px;padding:17px 22px 15px}
+}
+</style>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<div class="top">Instant PDF &middot; <b>$27 one payment</b> &middot; 30-day money-back guarantee &middot; nothing ships</div>
+
+<header class="hero center">
+ <div class="wrap">
+  <div class="k">Smart, cheap groceries for one</div>
+  <h1 class="disp">Shop for one. Waste less. <em>Make the check last.</em></h1>
+  <p class="sub">Plain grocery habits for one person on a fixed income: what to buy, how to store it so it keeps, and how to carry a small monthly check to the end of the month.</p>
+  <p class="by">The Fixed-Income Pantry, by Peggy Donovan</p>
+  <div class="pill">Instant PDF &middot; phone, tablet or computer &middot; prints at home</div>
+  <div class="frame">
+   <img src="/covers/peggy.jpg" width="800" height="1036" alt="Cover of The Fixed-Income Pantry by Peggy Donovan: a cloth shopping bag, a bowl of apples and a loaf of bread on a wooden table" fetchpriority="high">
+   <div>
+    <h2>Inside the guide</h2>
+    <ul>
+     <li>What to buy when you shop for one</li>
+     <li>How to store it so less ends up in the trash</li>
+     <li>A simple monthly grocery budget</li>
+     <li>A gentle first-month plan to get started</li>
+    </ul>
+   </div>
+  </div>
+  <div class="cta"><a class="buy off" data-buy="peggy" aria-disabled="true">Checkout opens soon</a></div>
+  <p class="btn-note">Instant PDF &middot; $27, one payment &middot; 30-day money-back guarantee</p>
+  <a class="peek" href="#look">See what is inside first &#9660;</a><br>
+  <p class="gi">General information only, not financial advice.</p>
+ </div>
+</header>
+
+<main id="main">
+
+<section class="center">
+ <div class="wrap">
+  <div class="k">01</div>
+  <h2 class="t">How it works</h2>
+  <div class="steps">
+   <div><b><i>1</i>You pay</b><p>On a secure checkout page. We never see your card number.</p></div>
+   <div><b><i>2</i>The guide opens</b><p>Your download link appears right after payment, and a copy is emailed to you.</p></div>
+   <div><b><i>3</i>It stays yours</b><p>Keep it on any device, print the worksheets, and come back to it each month.</p></div>
+  </div>
+  <p class="note">Nothing ships. No account, no password, and nothing renews.</p>
+ </div>
+</section>
+
+<section class="center soft">
+ <div class="wrap">
+  <div class="k">02</div>
+  <h2 class="t">Where the grocery money goes</h2>
+  <p class="lead">Most of us lose a little in the same few places. Here they are, next to what the guide has you do instead.</p>
+  <div class="math">
+   <div class="col">
+    <h3>The usual leaks</h3>
+    <div class="r">Food that gets bought, then thrown out<span>money already spent, gone in the trash</span></div>
+    <div class="r">The family pack nobody finishes<span>a bargain only if you eat it all</span></div>
+    <div class="r">Unplanned buys along the aisle<span>one is harmless, a cart full adds up</span></div>
+    <div class="r">Soap and paper goods on the food bill<span>they quietly share the grocery money</span></div>
+    <div class="tot"><span>Your leaks</span><span>yours to find</span></div>
+   </div>
+   <div class="col k2">
+    <h3>The guide's way</h3>
+    <div class="r">One honest week of notes<span>to see where your money really goes (Part 1)</span></div>
+    <div class="r">Split, wrap and label<span>big packs become single portions (Part 2)</span></div>
+    <div class="r">A short weekly list<span>built from the foods you really eat (Part 1)</span></div>
+    <div class="r">A line of their own<span>for household extras, plus a treat line (Part 3)</span></div>
+    <div class="tot"><span>To start</span><span>a pencil and a notebook</span></div>
+   </div>
+  </div>
+  <p class="fine">The guide prints no prices and promises no savings figure. Prices differ by store, by town and by week, so it shows you how to check your own. General information only, not financial advice.</p>
+ </div>
+</section>
+
+<section class="center" id="look">
+ <div class="wrap">
+  <div class="k">03</div>
+  <h2 class="t">A look at the pages</h2>
+  <p class="lead">How a few of the chapters open, and one of the fill-in worksheets, shown in the guide's own style.</p>
+  <div class="strip">
+   <figure>
+    <div class="pg"><span class="pt">Part 1 &middot; Shopping for one</span><span class="pn">Chapter</span><h3>Read the Shelf: Unit Prices and Store Brands</h3><p class="pr">The small tag under the product says more than the big sign above it.</p><div class="ln"><i></i><i></i><i></i><i></i><i></i></div></div>
+    <figcaption>Part 1: the little shelf tag that lets you compare any two items.</figcaption>
+   </figure>
+   <figure>
+    <div class="pg"><span class="pt">Part 2 &middot; Stocking a small pantry</span><span class="pn">Chapter</span><h3>The Freezer for One</h3><p class="pr">Big, cheap packs turned into single portions, so nothing spoils first.</p><div class="ln"><i></i><i></i><i></i><i></i><i></i></div></div>
+    <figcaption>Part 2: split, wrap and label the day you get home.</figcaption>
+   </figure>
+   <figure>
+    <div class="pg"><span class="pt">Part 2 &middot; Stocking a small pantry</span><span class="pn">Chapter</span><h3>Fresh Food That Lasts</h3><p class="pr">Eat the delicate things first and build the week around the ones that keep.</p><div class="ln"><i></i><i></i><i></i><i></i><i></i></div></div>
+    <figcaption>Part 2: keepers, sprinters and the use-it-up shelf.</figcaption>
+   </figure>
+   <figure>
+    <div class="pg ws"><span class="pt">Part 4 &middot; Worksheet</span><h3 style="margin-top:14px">My Monthly Grocery Budget</h3><span class="f">My monthly check:</span><span class="f">My grocery line for this month:</span><span class="f">My weekly share:</span><span class="f">My buffer:</span><span class="f">My weekly method (envelope or cap):</span></div>
+    <figcaption>Part 4: one number, one notebook, one envelope.</figcaption>
+   </figure>
+   <figure>
+    <div class="pg"><span class="pt">Part 3 &middot; Stretching the check</span><span class="pn">Chapter</span><h3>Cheaper Swaps That Do Not Feel Like Giving Up</h3><p class="pr">Change one thing a week and keep the foods you love.</p><div class="ln"><i></i><i></i><i></i><i></i><i></i></div></div>
+    <figcaption>Part 3: same meal, a lighter bite out of the check.</figcaption>
+   </figure>
+   <figure>
+    <div class="pg"><span class="pt">Part 4 &middot; Making it last</span><span class="pn">Chapter</span><h3>Your First-Month Pantry Plan</h3><p class="pr">One small job each week, and you skip whatever does not suit you.</p><div class="ln"><i></i><i></i><i></i><i></i><i></i></div></div>
+    <figcaption>Part 4: a gentle month to put the ideas on a shelf.</figcaption>
+   </figure>
+  </div>
+  <p class="swipe">&larr; swipe or scroll sideways to see more &rarr;</p>
+  <div style="margin-top:24px"><a class="jump" href="#buy">Show me the price &darr;</a></div>
+ </div>
+</section>
+
+<section class="soft">
+ <div class="wrap narrow">
+  <div class="center"><div class="k">04</div><h2 class="t">What's inside</h2>
+  <p class="lead">Shop, stock, stretch, then make it last. Each chapter opens with a short promise, then plain steps, with lines to fill in along the way.</p></div>
+  <div class="fix"><b>Why one person pays more</b>, and the small leaks behind it &middot; <span>Part 1</span></div>
+  <div class="fix"><b>A weekly list built around what you eat</b>, with a sale slot and a treat slot &middot; <span>Part 1</span></div>
+  <div class="fix"><b>Reading the shelf tag</b>, unit prices and store brands side by side &middot; <span>Part 1</span></div>
+  <div class="fix"><b>Where and when to shop</b>, counting the trip, not only the price &middot; <span>Part 1</span></div>
+  <div class="fix"><b>A core pantry for one</b>, bought a few items at a time &middot; <span>Part 2</span></div>
+  <div class="fix"><b>The freezer for one</b>, family packs turned into single portions &middot; <span>Part 2</span></div>
+  <div class="fix"><b>Fresh food that lasts</b>, keepers, sprinters and the use-it-up shelf &middot; <span>Part 2</span></div>
+  <div class="fix"><b>Waste less first</b>, one small weekly look in the fridge &middot; <span>Part 3</span></div>
+  <div class="fix"><b>Free help close to home</b>, and why real food help never charges a fee &middot; <span>Part 3</span></div>
+  <div class="fix"><b>A monthly grocery budget</b>, one number, one notebook, one envelope &middot; <span>Part 4</span></div>
+  <div class="fix"><b>Getting it home safely</b>, easy on the back and knees, cold food still cold &middot; <span>Part 4</span></div>
+  <div class="fix"><b>Your first-month plan</b>, one small job each week &middot; <span>Part 4</span></div>
+  <p class="fine center" style="margin-top:18px">And that is only part of it. The worksheets and checklists are made to print for your own use.</p>
+ </div>
+</section>
+
+<section class="dark">
+ <div class="wrap stats">
+  <div><b>$27</b><span>one payment, no subscription</span></div>
+  <div><b>30</b><span>days to ask for your money back</span></div>
+  <div><b>1</b><span>shopper: written for groceries for one</span></div>
+  <div><b>0</b><span>monthly fees, nothing renews</span></div>
+ </div>
+</section>
+
+<section id="buy" class="center">
+ <div class="wrap">
+  <div class="k">05</div>
+  <h2 class="t">Get your copy</h2>
+  <p class="lead">A PDF you download right after checkout. There is nothing to wait for in the mail.</p>
+  <div class="card">
+   <div class="cardin">
+    <img class="cv" src="/covers/peggy.jpg" width="800" height="1036" loading="lazy" alt="Cover of The Fixed-Income Pantry">
+    <div>
+     <div class="k">Groceries for one, on a fixed check</div>
+     <h3>The Fixed-Income Pantry</h3>
+     <p class="cs">Smart, cheap groceries for one</p>
+     <ul>
+      <li>What to buy when you shop for one</li>
+      <li>How to store it on the shelf, in the fridge and in the freezer</li>
+      <li>A simple monthly grocery budget and a first-month plan</li>
+      <li>Worksheets and checklists you can print</li>
+      <li>30-day money-back guarantee</li>
+     </ul>
+     <div class="price"><b>$27</b><span>One payment, no subscription</span></div>
+     <a class="buy off" data-buy="peggy" aria-disabled="true">Checkout opens soon</a>
+     <p class="under">Instant PDF download</p>
+     <p class="secure">Secure checkout</p>
+    </div>
+   </div>
+   <div class="promise">
+    <h4>The 30-day money-back guarantee</h4>
+    <p>Read it. If it is not what you needed, email us within 30 days of buying and you get your money back.</p>
+   </div>
+  </div>
+ </div>
+</section>
+
+<section class="about center soft">
+ <div class="wrap">
+  <div class="mono" aria-hidden="true">PD</div>
+  <h2 class="t">Peggy Donovan</h2>
+  <p>Peggy Donovan is the name on <em>The Fixed-Income Pantry</em>, a Home Guide Press guide for people who buy groceries for one on a fixed income.</p>
+  <p>The guide keeps to habits anyone can start this week: a short list, the shelf tag, the freezer, a notebook and an envelope. It prints no prices, so nothing in it goes out of date at the register.</p>
+  <p class="ai">Peggy Donovan is an AI-created character. The guide is general information only, not financial advice.</p>
+ </div>
+</section>
+
+<section>
+ <div class="wrap narrow faq">
+  <div class="center"><h2 class="t">Your questions, answered plainly</h2></div>
+  <h3>Will a paper book come in the mail?</h3>
+  <p>No. It is a PDF, a digital guide, so nothing ships. You download it right after you pay, the link is also emailed to you, and you can print any page you like.</p>
+  <h3>I am not good with computers.</h3>
+  <p>You do not need to be. After you pay, you press one button and the guide opens. There is no account and no password. If it will not open, write to us and we will help.</p>
+  <h3>Is this a subscription?</h3>
+  <p>No. One payment, once. No membership and nothing that renews.</p>
+  <h3>I live alone. Is this for me?</h3>
+  <p>Yes. It is written for shopping for one: smaller amounts, single portions in the freezer, and big packs only when you can really finish them.</p>
+  <h3>Is it a cookbook?</h3>
+  <p>No. You will find short meal ideas, but no recipes. It is about the habits around food: what to buy, how to store it and how to budget for it.</p>
+  <h3>How much will I save?</h3>
+  <p>The guide does not promise a number. Prices differ by store, by town and by week, and so does what you buy now. It shows you how to find your own leaks and check your own prices.</p>
+  <h3>Is this financial, diet or benefits advice?</h3>
+  <p>No. It is general information only, not financial advice. If you have a health condition, a special diet or an allergy, ask your doctor before you change what you eat. Rules for food help programs differ by place, so ask your local senior center, library or area agency on aging.</p>
+  <h3>Can I print the worksheets?</h3>
+  <p>Yes. The worksheets and checklists are made to print for your own use.</p>
+  <h3>What if it is not for me?</h3>
+  <p>Email us within 30 days of buying and we will refund you. See the <a href="/refunds">refund policy</a>.</p>
+ </div>
+</section>
+
+<section class="dark center">
+ <div class="wrap">
+  <h2 class="t" style="color:#f4ecdc">Start with one honest week</h2>
+  <p class="lead" style="color:#e6dcc8">Keep your grocery receipts for a week, and let the guide show you where the money goes and what to do next.</p>
+  <a class="buy off" data-buy="peggy" aria-disabled="true">Checkout opens soon</a>
+  <p class="btn-note">$27, one payment &middot; 30-day money-back guarantee</p>
+ </div>
+</section>
+
+</main>
+
+<footer>
+ <p><b>The Fixed-Income Pantry</b> is a digital guide (PDF) by Peggy Donovan, published by Home Guide Press. Nothing ships. One payment, no subscription. 30-day money-back guarantee.</p>
+ <p>General information only, not financial advice. Not medical, nutrition or benefits advice. Follow package directions and food safety guidance for every food.</p>
+ <nav aria-label="Legal and help">
+  <a href="/">Home Guide Press</a>
+  <a href="/terms">Terms</a>
+  <a href="/privacy">Privacy</a>
+  <a href="/refunds">Refunds</a>
+  <a href="mailto:partners@thejonmac.com">Contact</a>
+ </nav>
+ <p>Peggy Donovan is an AI-created character. &copy; 2026 Home Guide Press.</p>
+</footer>
+</body>
+</html>
