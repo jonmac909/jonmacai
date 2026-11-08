@@ -33,6 +33,7 @@ Hard limits: `/dashboard` (its pages, its API answers, its data) does not change
     },
     goals: [Goal],            // config order (src/d2-goals.json)
     stale: [{ label, ageLabel, goal? }],   // every stale or missing source used by any number, for the banner
+    checks: [Check],          // daily checks, a tick per day on Today and Week (Ana, 2026-11-08)
     today: Today,
     pipeline: Pipeline,
     money: Money
@@ -93,6 +94,22 @@ Missing bindings (preview has no HGP_DB, CLONE_DB, REVIEW_DB) or an unreadable t
 `Item` is exactly the shape of `pages.today.needs.items` (`approvalItem` / `questionItem` / alerts in `src/today.js`), plus `goal`, `minutes` (the row's `minutes`, else 2 for an approval and 5 for a question) and `link: { label, href } | null` (its task's deliverable or first web link).
 
 Needs-you cleanup (view only): a question whose idempotency key starts `team-guard` is bot health and is counted in `healthToAna`, not shown. A question whose key starts `cw:` (MoneyClaw charge watch: "New charge", "Big one-off charge") is a known charge: it moves into `expenses` and counts in `chargesFolded`; `needs.items` gets one `Expenses review (Friday)` item for them instead. Everything else stays.
+
+`needs.items` leaves out the items already in `jon`; `needs.count` counts `needs.items`. The Expenses item has `id` and `kind` `'expenses'`. Every `from` and owner in `d2` is a first name.
+
+### Check
+
+```
+{
+  key: 'histories' | 'rbc', title, owner: 'Daisy' | 'Elizabeth',
+  today: { ok: true | false | null, status, links: [{ label, href }], facts: [{ label, value }], source },
+  days: [{ ymd, ok, cls, note }] x7 Mon-Sun   // ok null = future or not due yet
+}
+```
+
+- Complete Histories (Daisy): a day is ok when Daisy's ok run reports (`bot_runs`, bot `spotify`) that day say the Spotify episode and the community post are live; links come from those notes. Her notes are free text and the Spotify link is the show page, so this trusts her report; reading the show's episode list is the v2 fallback.
+- RBC expenses (Elizabeth): a day is ok when the Accounting checklist has both "08:00 RBC import run" and "Receipts matched" ticked; today also needs the bank scan not failed. Facts: accounts read (bank scan), last import tick, bank data through (MoneyClaw), receipts matched. Never reads RBC.
+- Deadlines (`checks` in `src/d2-goals.json`): after it, a day not ok is red and joins Today's blockers.
 
 ### Pipeline
 
