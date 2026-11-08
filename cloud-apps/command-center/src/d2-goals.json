@@ -17,7 +17,7 @@
     {
       "key": "hgp", "title": "Home Guide Press", "owner": "Elle", "team": ["Elle", "Scarlett", "Olivia"], "project": "home-guide-press",
       "group": "Home Guide Press",
-      "also": ["giovanni-moretti", "naomi-takeda-japan", "jack-mercer", "dale-whitaker-pitbulls", "peter-collins", "rosas-clean-home", "rosas-house-hacks", "ruth-calder"],
+      "focus": ["giovanni-moretti", "nora-fairweather-cats", "naomi-takeda-japan", "eleanor-whitfield", "claudine-marchand", "peter-collins", "jack-mercer", "diane-kowalski", "dale-whitaker-pitbulls", "rosas-clean-home", "rosas-house-hacks", "takeshi-morimoto", "kenzo-arai", "jiyoung-han", "peggy-donovan", "edna-haynes"],
       "month": { "key": "firstSales", "label": "First sales on the focus channels", "metric": "firstSales", "unit": "count" },
       "week": [
         { "key": "videos", "label": "Videos published (3 per focus channel)", "metric": "videos", "unit": "count", "perChannel": 3 },

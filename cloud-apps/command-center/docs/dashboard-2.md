@@ -146,4 +146,4 @@ All targets, labels, owners and the focus channel list live in this one file. A 
 | Viral View and webinar | Scarlett | webinar date set and run once | funnel live; leads counted | ads and posts that drive leads |
 | Short-form | Samantha | 90 | 21 | 3 |
 
-Focus channels: every Home Guide Press channel with no video yet, plus giovanni-moretti, naomi-takeda-japan, jack-mercer, dale-whitaker-pitbulls, peter-collins, rosas-clean-home, rosas-house-hacks, ruth-calder. Parked channels show no target.
+Focus channels: Jon's 16 (2026-11-08), the `focus` list in `src/d2-goals.json`, a copy of `D:\AgentTeam\rules\facts\focus-channels.txt` (the Worker can't read GPU1 files; `test/d2.test.mjs` fails on GPU1 when the two differ, so a change to the file needs the same edit here and a deploy). 3 videos a week each, 48 in all. Every other Home Guide Press channel is parked: no target, its finished videos still show on its Calendar tab.

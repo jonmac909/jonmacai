@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import GOALS from '../src/d2-goals.json' with { type: 'json' };
 import { DatabaseSync } from 'node:sqlite';
 import { sqliteD1 } from './sqlited1.mjs';
 import { handleApi, PAGES, liveNav } from '../src/api.js';
@@ -12,6 +13,8 @@ import { todayData } from '../src/bots.js';
 import { channelData } from '../src/channels.js';
 import { listFunnel } from '../src/webinar.js';
 import snapshot from '../fixtures/snapshot.json' with { type: 'json' };
+
+const FOCUS = GOALS.goals.find((g) => g.key === 'hgp').focus;
 
 const SECRET = 'test-session-secret-32-bytes-ok!';
 const SUNDAY = Date.parse('2026-11-08T21:05:00Z'); // Sunday Nov 8, 2:05 PM in Kelowna
@@ -175,8 +178,8 @@ test('d2 answers the contract for all five sections', async () => {
   for (const it of [...today.needs.items, ...today.expenses.items]) assert.ok('goal' in it && 'minutes' in it && 'link' in it);
   for (const b of today.blockers) assert.ok(NAMES.includes(b.owner), b.owner);
   assert.deepEqual(pipeline.boards.map((b) => [b.goal, b.project]), [['sponsors', 'sponsors'], ['hgp', 'home-guide-press'], ['jonmac', 'jon-mac'], ['jonmacai', 'jonmacai'], ['viral', 'viral-view'], ['shortform', 'short-form']]);
-  assert.deepEqual(pipeline.boards.map((b) => b.channels.length), [0, 14, 1, 1, 0, 0]); // hgp: 12 focus + 2 parked
-  assert.deepEqual(pipeline.boards[1].channels.filter((c) => !c.focus).map((c) => c.slug), ['rosa-cooks', 'eleanor-whitfield']);
+  assert.deepEqual(pipeline.boards.map((b) => b.channels.length > 0), [false, true, true, true, false, false]);
+  assert.ok(pipeline.boards[1].channels.filter((c) => !c.focus).every((c) => !FOCUS.includes(c.slug)));
   assert.equal(money.tiles.length, 6);
   assert.deepEqual(money.tiles.map((t) => t.value), ['$3,100', '$2,100', 'no data', '$47', '$27', 'Through Nov 7']);
   assert.equal(money.tiles[0].sub, 'Deposits this month: 2 · $2,100 owed');
@@ -247,12 +250,20 @@ test('d2 counts the month, week and day on a Sunday', async () => {
   assert.equal(new Set(body.d2.stale.map((s) => s.label)).size, body.d2.stale.length);
 });
 
-test('d2 focus channels: the list plus channels with no video yet; the rest are parked', async () => {
+// Jon's list lives on GPU1; the Worker can't read it, so d2-goals.json keeps a copy and this fails when they drift.
+const FOCUS_FILE = 'D:\\AgentTeam\\rules\\facts\\focus-channels.txt';
+test('d2 focus list is the same as Jon\'s focus-channels.txt', { skip: !existsSync(FOCUS_FILE) && 'not on GPU1' }, () => {
+  const file = readFileSync(FOCUS_FILE, 'utf8').split(/\r?\n/).map((s) => s.trim()).filter(Boolean);
+  assert.deepEqual([...FOCUS].sort(), [...file].sort());
+});
+
+test('d2 focus channels: Jon\'s list only (no video yet no longer adds one); the rest are parked with no target', async () => {
   const { db } = seed();
   const hgp = goal(await d2At({ DB: db, SESSION_SECRET: SECRET }, SUNDAY), 'hgp');
   const focus = hgp.channels.map((c) => c.slug);
-  for (const s of ['giovanni-moretti', 'peter-collins', 'jack-mercer', 'frank-bennett-dogs', 'walter-brandt-dogs']) assert.ok(focus.includes(s), s);
-  assert.deepEqual(hgp.parked.map((c) => c.slug), ['rosa-cooks', 'eleanor-whitfield']);
+  for (const s of ['giovanni-moretti', 'peter-collins', 'jack-mercer', 'eleanor-whitfield']) assert.ok(focus.includes(s), s);
+  assert.ok(focus.every((s) => FOCUS.includes(s)));
+  for (const s of ['rosa-cooks', 'ruth-calder', 'frank-bennett-dogs']) assert.ok(hgp.parked.some((c) => c.slug === s), s);
   assert.equal(hgp.week[0].target, 3 * focus.length);
   assert.ok(!hgp.week[0].rows.some((r) => r.label === 'Rosa Cooks'));
   // Viral View gets a channel tab only once a 'viral-view' calendar channel is registered.

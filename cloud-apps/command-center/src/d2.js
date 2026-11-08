@@ -367,9 +367,8 @@ function channelsOf(g, C) {
   const all = allChannels(C.data.channels);
   if (!g.group) return { focus: (g.channels || []).map((slug) => all.find((c) => c.slug === slug)).filter(Boolean), parked: [] };
   const mine = all.filter((c) => c.group === g.group);
-  const launched = C.data.perChannel && new Set(C.data.perChannel.filter((r) => Number(r.launched)).map((r) => r.channel));
-  // Focus: Jon's list plus every channel with no video yet (no calendar row ever scheduled or published).
-  const focus = mine.filter((c) => g.also.includes(c.slug) || (launched && !launched.has(c.slug)));
+  // Focus: Jon's list (2026-11-08), a copy of D:\AgentTeam\rules\facts\focus-channels.txt; every other channel is parked.
+  const focus = mine.filter((c) => g.focus.includes(c.slug));
   return { focus, parked: mine.filter((c) => !focus.includes(c)) };
 }
 
