@@ -167,3 +167,19 @@ test('nothing Jon reads looks like a raw task ID or a Windows path', () => {
     assert.doesNotMatch(t, /\b[A-Za-z]:\\/, id);
   }
 });
+
+test('Today starts with the Daily Summary: every section folded on a phone, with its source line', () => {
+  const server = JSON.parse(readFileSync(new URL('./fixtures/d2-sample.json', import.meta.url), 'utf8'));
+  const html = today(server);
+  assert.ok(html.indexOf('Daily Summary') < html.indexOf('For you'), 'summary sits above everything else');
+  const keys = [...html.matchAll(/<details class="d2sec d2sec-(\w+)"/g)].map((m) => m[1]);
+  assert.deepEqual(keys, ['weather', 'calendar', 'markets', 'expenses', 'sponsors', 'jonmac', 'jonmacai', 'hgp']);
+  assert.equal(count(html, /<details class="d2sec[^>]* open>/g), keys.length, 'no matchMedia here: the desktop layout, all open');
+  const t = text(html);
+  assert.match(t, /Weather · West Kelowna Mila Now 6°C, light rain/);
+  assert.match(t, /VOO \$701\.89 2% below all-time high/);
+  assert.match(t, /Open-Meteo · updated just now/);
+  assert.equal(today({ d2: { today: {} } }).includes('Daily Summary'), false, 'an old answer without a summary still renders');
+  globalThis.matchMedia = () => ({ matches: false });
+  try { assert.equal(count(today(server), /<details class="d2sec[^>]* open>/g), 0, 'phone: folded'); } finally { delete globalThis.matchMedia; }
+});

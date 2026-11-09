@@ -14,6 +14,12 @@ import { allChannels, channelData } from '../src/channels.js';
 import { listFunnel } from '../src/webinar.js';
 import snapshot from '../fixtures/snapshot.json' with { type: 'json' };
 
+// The Daily Summary's weather is the one network call (Open-Meteo); no test reaches the real one.
+globalThis.fetch = async (url) => {
+  if (!/open-meteo/.test(String(url))) throw new Error(`no network in tests: ${url}`);
+  return Response.json({ current: { temperature_2m: 6.4, weather_code: 61 }, daily: { temperature_2m_max: [9.1], temperature_2m_min: [2.2], precipitation_probability_max: [60] } });
+};
+
 const FOCUS = GOALS.goals.find((g) => g.key === 'hgp').focus;
 // The server's own answer, which test/d2-ui.test.mjs reads (in its own process). Regenerate: UPDATE_FIXTURES=1 npm test.
 const SAMPLE = new URL('./fixtures/d2-sample.json', import.meta.url);
@@ -39,6 +45,30 @@ const tick = (db, day, project, item, at = `${day}T16:00:00Z`, link = 'https://e
 const cal = (db, channel, day, status, title = `Video ${channel} ${day}`) => ins(db, 'yt_calendar', { id: id('v'), channel, title, day, status, created_by: 'ana', updated_by: 'ana', created_at: '2026-11-01T10:00:00Z', updated_at: '2026-11-08T18:00:00Z' });
 const snap = (db, source, data, at) => ins(db, 'snapshots', { source, data, collected_at: at, received_at: at });
 
+// MoneyClaw's markets and expenses (with charge lists) for the Daily Summary: a repeated Canva charge, a big Adobe one, a new OpenAI one.
+const charge = (date, description, amount, extra = {}) => ({ date, description, amount, pending: false, ...extra });
+const period = (total, extra = {}) => ({ total, pending: 0, posted: total, totalCents: Math.round(total * 100), pendingCents: 0, ...extra });
+const MONEY_EXTRA = {
+  expenses: {
+    business: {
+      yesterday: period(209.97), week: period(250), month: period(500),
+      lastMonth: period(110, { startDate: '2026-10-01', endDate: '2026-10-31', charges: [
+        charge('2026-10-05', 'ADOBE CREATIVE CLOUD', 20), charge('2026-10-12', 'ADOBE CREATIVE CLOUD', 20), charge('2026-10-19', 'ADOBE CREATIVE CLOUD', 20),
+        charge('2026-10-10', 'CANVA 04123', 14.99), charge('2026-10-26', 'ZOOM.US', 15.99),
+      ] }),
+      month: period(500, { startDate: '2026-11-01', endDate: '2026-11-07', charges: [
+        charge('2026-11-06', 'ADOBE CREATIVE CLOUD', 90), charge('2026-11-07', 'CANVA 98765', 14.99), charge('2026-11-07', 'CANVA 98766', 14.99),
+        charge('2026-11-07', 'OPENAI API', 180.01), charge('2026-11-02', 'ZOOM.US', 15.99, { currency: 'EUR' }),
+      ] }),
+    },
+    personal: { yesterday: period(0), week: period(12), month: period(42), lastMonth: period(80) },
+  },
+  markets: { core: [
+    { symbol: 'VOO', label: 'VOO', price: 701.89, allTimeHigh: 716.39, todayPct: 0.1, pctOffHigh: 2 },
+    { symbol: 'QQQ', label: 'QQQ', price: 721.35, allTimeHigh: 748.65, todayPct: 0.6, pctOffHigh: 3.6 },
+  ] },
+};
+
 // One week of team data: Sunday Nov 8, 2026.
 function seed() {
   const db = sqliteD1();
@@ -63,7 +93,8 @@ function seed() {
   snap(db, 'sponsors_cash', { ok: true, ledgerEditedAt: '2026-11-08T18:00:00Z', rows: [] }, '2026-11-08T21:00:00Z');
   snap(db, 'moneyclaw', { income: { since: '2026-10-01', asOf: '2026-11-07', deposits: [
     { date: '2026-11-01', amount: 1000, description: 'POPPY WIRE' }, { date: '2026-11-03', amount: 2100, description: 'INVIDEO WIRE' },
-  ] } }, '2026-11-08T20:00:00Z');
+  ] }, asOf: '2026-11-07', ...MONEY_EXTRA }, '2026-11-08T20:00:00Z');
+  ins(db, 'bot_feed_entries', { id: id('f'), name: 'calendar_today', bot: 'ana', data: { date: '2026-11-08', events: [{ start: '15:00', end: '15:30', title: 'Call with Poppy', calendar: 'jon@' }] }, created_at: '2026-11-08T15:00:00Z' });
   snap(db, 'bank_scan', { accounts: [
     { id: 'rbc-business', title: 'RBC business accounts', scanned: 0, total: 4, status: 'failed', scannedAt: '2026-11-08T15:10:00Z' },
     { id: 'rbc-personal', title: 'Personal accounts', scanned: 0, total: 3, status: 'failed', scannedAt: '2026-11-08T15:10:00Z' },
@@ -152,6 +183,22 @@ async function d2At(env, ms) {
   return res.json();
 }
 
+test('Daily Summary: a malformed market feed does not take /d2 down; the other sections still render', async () => {
+  const { db } = seed();
+  const row = db.sqlite.prepare("SELECT data FROM snapshots WHERE source = 'moneyclaw'").get();
+  const mc = JSON.parse(row.data);
+  mc.markets.core = [null, ...mc.markets.core];
+  mc.expenses.business.month.charges = [null, ...mc.expenses.business.month.charges];
+  db.sqlite.prepare("UPDATE snapshots SET data = ? WHERE source = 'moneyclaw'").run(JSON.stringify(mc));
+  const body = await d2At({ DB: db, HGP_DB: hgpDb(), SESSION_SECRET: SECRET, CF_VERSION_METADATA: { id: 'v1' } }, SUNDAY);
+  const by = Object.fromEntries(body.d2.summary.sections.map((s) => [s.key, s]));
+  assert.equal(by.markets.rows[0].value, '$701.89');
+  assert.equal(by.calendar.rows[0].value, 'Call with Poppy');
+  assert.match(by.expenses.rows[0].value, /^Yesterday /);
+  assert.equal(by.sponsors.rows.length, 5);
+  assert.ok(body.d2.today && body.d2.goals.length === 6, 'the rest of d2 is intact');
+});
+
 const goal = (body, key) => body.d2.goals.find((g) => g.key === key);
 
 test('d2 answers the contract for all five sections', async () => {
@@ -161,7 +208,7 @@ test('d2 answers the contract for all five sections', async () => {
   assert.equal(body.build, 'v1');
   assert.equal(body.asOf, new Date(SUNDAY).toISOString());
   assert.deepEqual(Object.keys(body.pages), ['today', 'projects', 'sponsors', 'viral', 'money', 'calendar', 'content']); // only what public/d2 reads
-  assert.deepEqual(Object.keys(body.d2), ['period', 'goals', 'stale', 'checks', 'today', 'pipeline', 'money']);
+  assert.deepEqual(Object.keys(body.d2), ['period', 'goals', 'stale', 'checks', 'today', 'pipeline', 'money', 'summary']);
   assert.deepEqual(body.d2.goals.map((g) => g.key), ['sponsors', 'hgp', 'jonmac', 'jonmacai', 'viral', 'shortform']);
   for (const g of body.d2.goals) {
     for (const k of ['key', 'title', 'owner', 'team', 'project', 'channels', 'month', 'week', 'day', 'trend']) assert.ok(k in g, `${g.key}.${k}`);
