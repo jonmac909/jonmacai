@@ -82,7 +82,8 @@ async function channelTotals(db) {
 export const BOOKS = { 'peter-collins': 'gary', 'jack-mercer': 'prepared', 'rosa-cooks': 'rosa-cooks', 'rosas-clean-home': 'rosa-clean',
   'rosas-house-hacks': 'rosa-hacks', 'giovanni-moretti': 'angelo', 'frank-bennett-dogs': 'steve', 'ruth-calder': 'ruth',
   'dale-whitaker-pitbulls': 'dale', 'nora-fairweather-cats': 'nora', 'gail-merriman-golf': 'gail', 'naomi-takeda-japan': 'naomi',
-  'walter-brandt-dogs': 'walter', 'eleanor-whitfield': 'eleanor', 'diane-kowalski': 'diane', 'claudine-marchand': 'paris' };
+  'walter-brandt-dogs': 'walter', 'eleanor-whitfield': 'eleanor', 'diane-kowalski': 'diane', 'claudine-marchand': 'paris',
+  'takeshi-morimoto': 'takeshi', 'kenzo-arai': 'kenzo', 'jiyoung-han': 'jiyoung', 'peggy-donovan': 'peggy', 'edna-haynes': 'edna' };
 
 // Since launch, per channel: clicks are the channel's /v/ link clicks (YouTube viewers only, our ?qc=1 checks out), sales and
 // revenue are paid Commas orders from the homeguidepress D1 (HGP_DB, read only) with tests and refunds out. Null when that D1

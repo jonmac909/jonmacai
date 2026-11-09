@@ -156,7 +156,7 @@ function playbook(p, { checkoutReady, query = '' }) {
 
 export function index() {
   const body = `<section class="intro"><h1>${esc(BRAND)}</h1><p class="lede">Plain, practical guides for home, kitchen, travel and the road. Large print, no fluff, instant download.</p></section>
-<ul class="shelf">${PRODUCTS.map(p => `<li><a href="/${p.path}">${cover(p, 'small')}<span class="name">${esc(p.title)}</span><span class="meta">${esc(p.kicker)} · ${priceText(p)}</span></a></li>`).join('')}</ul>`;
+<ul class="shelf">${PRODUCTS.filter(p => p.listed !== false).map(p => `<li><a href="/${p.path}">${cover(p, 'small')}<span class="name">${esc(p.title)}</span><span class="meta">${esc(p.kicker)} · ${priceText(p)}</span></a></li>`).join('')}</ul>`;
   return layout({ title: BRAND, description: 'Practical guides from Home Guide Press.', body });
 }
 
