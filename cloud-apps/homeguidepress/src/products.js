@@ -838,6 +838,7 @@ export const PRODUCTS = [
     key: 'paris',
     path: 'the-french-wardrobe-after-60',
     ready: true,
+    theme: 'paris-look',
     persona: { host: "Claudine Marchand", brand: "Claudine Marchand" },
     kicker: "French style for women over 60",
     title: "The French Wardrobe After 60",
