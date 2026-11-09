@@ -56,7 +56,7 @@ test('a public video moves its card to done, with the watch link as passed proof
     assert.equal(calls[0].url, `https://www.youtube.com/oembed?format=json&url=${encodeURIComponent(WATCH)}`, 'the server asks YouTube itself');
   });
   const card = (await call(env, 'GET', `/tasks/${id}`, { bot: 'developer' })).body.task;
-  assert.deepEqual(card.deliverable, { link: WATCH, kind: 'url', web: true }, 'Jon opens the live video from the Done card');
+  assert.deepEqual(card.deliverable, { link: WATCH, kind: 'url', web: true, status: 'passed' }, 'Jon opens the live video from the Done card');
   assert.ok(card.history.some((h) => h.detail === 'status review → done (live on YouTube)'));
 });
 
