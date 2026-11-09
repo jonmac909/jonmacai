@@ -29,18 +29,21 @@ function behindList(list) {
   if (!list?.length) return '';
   return `<ul class="d2behind">${list.map((b) => {
     const open = b.open ? ` tabindex="0" data-open="${esc(b.open)}"` : '';
-    const link = /^https?:\/\//i.test(b.href || '') ? ` <a href="${esc(b.href)}" target="_blank" rel="noopener">Open</a>`
+    const link = /^https?:\/\//i.test(b.href || '') ? ` <a href="${esc(b.href)}" target="_blank" rel="noopener">${esc(b.linkLabel || 'Open')}</a>`
       : b.page ? ` <a href="#${esc(b.page)}" data-page="${esc(b.page)}">Open</a>` : '';
     return `<li${open}><b>Behind:</b> ${esc(b.title)} <span class="muted">· ${esc(b.owner)}${b.why ? ` · ${esc(b.why)}` : ''}</span>${link}</li>`;
   }).join('')}</ul>`;
 }
+
+// Small facts under a metric (last check date, published today, waiting for review), each with its links.
+const factsList = (facts) => (facts?.length ? `<ul class="d2ch d2facts">${facts.map((f) => `<li><span>${esc(f.label)}</span><b>${esc(f.value)}</b>${(f.links || []).filter((l) => /^https?:\/\//i.test(l.href || '')).map((l) => ` <a href="${esc(l.href)}" target="_blank" rel="noopener">${esc(l.label)}</a>`).join('')}</li>`).join('')}</ul>` : '');
 
 function metric(x, days) {
   const target = x.target == null || x.actual == null || x.unit === 'yesno' || / of /.test(x.display) ? '' : ` <span class="muted">target ${esc(fmt(x.unit, x.target))}</span>`;
   return `<div class="d2metric">
     <div class="d2t"><b>${esc(x.label)}</b>${status(x.status)}<span class="muted">${esc(x.owner || '')}</span></div>
     <div class="d2v">${value(x)}${target}</div>
-    ${bar(x)}${metricDays(x, days)}${rowsList(x.rows)}${behindList(x.behind)}
+    ${bar(x)}${metricDays(x, days)}${factsList(x.facts)}${rowsList(x.rows)}${behindList(x.behind)}
     <div class="d2meta">${age(x.source)}</div>
   </div>`;
 }
@@ -54,26 +57,12 @@ function goalCard(g, days) {
   </section>`;
 }
 
-// The two daily checks (Complete Histories, RBC expenses): a tick per day, red for a missed past day.
-export function checksWeek(checks, days) {
-  if (!checks?.length) return '';
-  return `<section class="card pad"><div class="cardhead"><h2>Daily checks</h2></div><ul class="d2checks">${checks.map((c) => {
-    const by = new Map((c.days || []).map((d) => [d.ymd, d]));
-    return `<li><div class="d2t"><b>${esc(c.title)}</b><span class="muted">${esc(c.owner)}</span></div>${dayRow(days, (d) => {
-      const v = by.get(d.ymd);
-      const tip = v?.note ? `${d.label}: ${v.note}` : '';
-      return v?.ok === true ? ['ok', '✓', tip] : v?.ok === false ? ['miss', '✗', tip] : ['', '', tip];
-    })}</li>`;
-  }).join('')}</ul></section>`;
-}
-
 export function render(data) {
   const d2 = data?.d2 || {};
   const w = d2.period?.week || {};
   const days = w.days || [];
   return `<div class="wrap">
   ${top('Week', w.label || '', d2)}
-  ${checksWeek(d2.checks, days)}
   ${(d2.goals || []).map((g) => goalCard(g, days)).join('')}
 </div>`;
 }

@@ -91,18 +91,13 @@ test('Week: done vs target, Mon to Sun with today outlined, channel rows, parked
   assert.match(week(d), /Jack Mercer <span class="muted">· Elle · 1 of 3 published<\/span> <a href="#pipeline\/hgp\/jack-mercer\/calendar" data-page="pipeline\/hgp\/jack-mercer\/calendar">Open<\/a>/, 'a channel opens its Calendar tab here');
 });
 
-test('daily checks: Today shows tick, cross or not yet with links and facts; Week shows a cell per day', () => {
+test('daily checks: Today shows tick, cross or not yet with links and facts; Week has none', () => {
   const d = data();
   const t = today(d);
   assert.match(text(t), /✓ Complete Histories Daisy Done Episode: The Fall of Constantinople/);
   assert.match(t, /<a class="btn line sm" href="https:\/\/open\.spotify\.com\/episode\/4xYzq" target="_blank" rel="noopener">Spotify episode<\/a><a class="btn line sm" [^>]*>Community post<\/a>/);
   assert.match(text(t), /not yet RBC expenses Elizabeth Not run yet Accounts read: 0 of 7 Bank data through: Nov 2 Receipts matched: no MoneyClaw RBC import · updated 3 days ago Stale/);
-  const w = week(d);
-  const checks = w.slice(w.indexOf('Daily checks'), w.indexOf('</section>', w.indexOf('Daily checks')));
-  assert.match(checks, /<li class="miss" title="Tue 3: No episode published"><small>Tue 3<\/small><b>✗<\/b>/);
-  assert.match(checks, /<li class="ok today" title="Thu 5: Episode and post up 7:02 AM"><small>Thu 5<\/small><b>✓<\/b>/);
-  assert.match(checks, /<li class=" today" title="Thu 5: Runs at 6 PM"><small>Thu 5<\/small><b><\/b>/, 'RBC has not run today: blank, outlined');
-  assert.match(checks, /<li class=""><small>Sat 7<\/small><b><\/b><\/li>/, 'the future is blank');
+  assert.doesNotMatch(week(d), /Daily checks/, 'Week no longer has the checks block');
   assert.match(text(t), /Blockers 4 .*Complete Histories missed Tuesday Daisy · 2 days No episode was published on Tuesday/, 'missed days arrive as blockers');
 });
 

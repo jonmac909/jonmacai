@@ -110,11 +110,17 @@ function seed() {
   for (const d of ['2026-11-02', '2026-11-03', '2026-11-04']) cal(db, 'peter-collins', d, 'published');
   cal(db, 'jack-mercer', '2026-11-06', 'published');
   cal(db, 'rosa-cooks', '2026-10-20', 'published');
+  cal(db, 'rosa-cooks', '2026-11-04', 'published', 'Invideo review - Rosa'); // Invideo's video is live on YouTube
+  cal(db, 'rosa-cooks', '2026-10-28', 'published', 'Topview review - Rosa');
+  cal(db, 'rosa-cooks', '2026-11-04', 'published', 'Topview review 2 - Rosa');
   cal(db, 'eleanor-whitfield', '2026-11-12', 'scheduled');
 
   // Sponsor cards: Invideo's deal is old (video 1 delivered this week, video 2 late); Poppy's first card is this week.
   task(db, { title: 'Invideo video 1: dedicated', project: 'sponsors', status: 'done', created_at: '2026-10-20T16:00:00Z', done_at: '2026-11-04T18:00:00Z' });
   task(db, { title: 'Invideo video 2: dedicated', project: 'sponsors', status: 'doing', created_at: '2026-10-20T16:00:00Z', due: '2026-11-07' });
+  task(db, { title: 'Topview video 2: dedicated', project: 'sponsors', status: 'review', created_at: '2026-10-20T16:00:00Z', due: '2026-11-04' }); // live since Nov 4, card still In Review
+  task(db, { title: 'Notion video 1: dedicated', project: 'sponsors', status: 'waiting_on_jon', created_at: '2026-10-20T16:00:00Z', due: '2026-11-07',
+    note: 'What happened:\n- Draft ready\nYour move:\n- Approve the script so editing can start\nNext:\n- Edit' });
   const poppy = task(db, { title: 'Poppy video 1: integration', project: 'sponsors', created_at: '2026-11-03T16:00:00Z' });
   task(db, { title: 'Soro video 1', project: 'sponsors', status: 'cancelled', created_at: '2026-11-05T16:00:00Z' });
   // Shorts done: Nov 1 (last week), 3 on Nov 2, 3 on Nov 3, 2 today.
@@ -125,7 +131,7 @@ function seed() {
     note: 'What happened:\n- Pack made\nYour move:\n- Approve the thumbnail D:\\AgentTeam\\packs\\peter\\thumb.png\nNext:\n- Upload', updated_at: '2026-11-07T20:00:00Z' });
   const jmTask = task(db, { title: 'Jon Mac upload - Jon Mac', owner: 'jon-mac-youtube', project: 'jon-mac', status: 'waiting_on_jon', updated_at: '2026-11-06T20:00:00Z' });
   const edit = task(db, { title: 'Jack Mercer video 2 edit - Jack Mercer', owner: 'video-editor', project: 'home-guide-press', status: 'review' });
-  ins(db, 'bot_proofs', { id: id('p'), task_id: edit, kind: 'url', link: 'https://jonmac.ai/review/jack-2', status: 'passed', created_by: 'video-editor', created_at: '2026-11-08T16:00:00Z', checked_by: 'qc', checked_at: '2026-11-08T17:00:00Z' });
+  ins(db, 'bot_proofs', { id: id('p'), task_id: edit, kind: 'render', link: 'https://jonmac.ai/review/jack-2', status: 'passed', created_by: 'video-editor', created_at: '2026-11-08T16:00:00Z', checked_by: 'qc', checked_at: '2026-11-08T17:00:00Z' });
   const daisy = task(db, { title: 'Complete Histories daily', owner: 'spotify', project: null, status: 'doing' });
 
   // Questions and approvals: 2 bot-health, 3 known charges, and the rest for Jon.
@@ -214,7 +220,7 @@ test('d2 answers the contract for all five sections', async () => {
     for (const k of ['key', 'title', 'owner', 'team', 'project', 'channels', 'month', 'week', 'day', 'trend']) assert.ok(k in g, `${g.key}.${k}`);
     assert.ok(NAMES.includes(g.owner) && g.team.every((x) => NAMES.includes(x)), g.key);
     for (const m of [g.month, ...g.week, ...g.day]) {
-      assert.deepEqual(Object.keys(m), ['key', 'label', 'unit', 'target', 'actual', 'display', 'pace', 'status', 'owner', 'source', 'note', 'behind', 'rows', 'days'], `${g.key}.${m.key}`);
+      assert.deepEqual(Object.keys(m), ['key', 'label', 'unit', 'target', 'actual', 'display', 'pace', 'status', 'owner', 'source', 'note', 'behind', 'rows', 'days', 'facts'], `${g.key}.${m.key}`);
       assert.ok(STATUS.includes(m.status.text), `${g.key}.${m.key}: ${m.status.text}`);
       assert.ok(['ok', 'risk', 'crit', 'idle'].includes(m.status.cls));
       assert.ok(NAMES.includes(m.owner));
@@ -281,8 +287,10 @@ test('d2 counts the month, week and day on a Sunday', async () => {
   assert.equal(signed.actual, 1);
   assert.match(signed.note, /Poppy/);
   assert.equal(delivered.actual, 1);
-  assert.deepEqual(delivered.behind.map((b) => [b.title, b.owner]), [['Invideo video 2', 'Florence'], ['Poppy video 1', 'Florence']]);
+  assert.deepEqual(delivered.behind.map((b) => [b.title, b.owner]), [['Invideo video 2', 'Florence'], ['Notion video 1', 'Florence'], ['Poppy video 1', 'Florence']], 'Topview is live, so it is not behind');
+  assert.equal(delivered.behind.find((b) => b.title === 'Notion video 1').why, 'Waiting on you: Approve the script so editing can start', 'the Your move line, not just the status');
   assert.deepEqual([invoiced.actual, invoiced.display, invoiced.behind[0].title], [1, '1 waiting', 'Invideo']);
+  assert.match(invoiced.note, /confirmed live/);
   assert.deepEqual(sp.day.map((m) => [m.key, m.actual, m.status.text]), [['replies', 1, 'Done'], ['prices', 1, 'Behind']]);
 
   const hgp = goal(body, 'hgp');
@@ -293,6 +301,8 @@ test('d2 counts the month, week and day on a Sunday', async () => {
   assert.ok(!videos.behind.some((b) => b.title === 'Peter Collins'));
   assert.deepEqual([checkout.actual, checkout.display], [4, '4 of 7 days checked']);
   assert.match(checkout.behind[0].why, /Wed 4, Fri 6/);
+  assert.deepEqual(checkout.facts, [{ label: 'Last check', value: 'Nov 7 (Sat 7)' }, { label: 'Missed', value: 'Elle: Wed 4, Fri 6' }]);
+  assert.deepEqual(videos.facts.map((f) => [f.label, f.value]), [['Published today', '0'], ['Waiting for your review', '1']]);
   assert.deepEqual([hgp.month.actual, hgp.month.rows.find((r) => r.label === 'Peter Collins').actual, hgp.month.rows.find((r) => r.label === 'Jack Mercer').actual], [4, 3, 1]); // videos published, from the channel calendars
   assert.deepEqual([hgp.day[0].actual, hgp.day[0].target], [1, 4]); // floor(14 h / 3)
 
