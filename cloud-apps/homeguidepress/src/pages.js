@@ -3,6 +3,7 @@
 import { BRAND, BY_KEY, LINK_DAYS, PRODUCTS, REFUND_DAYS, STATEMENT_NAME, SUPPORT_EMAIL, byline, priceText } from './products.js';
 import { dianeLook } from './looks/diane.js';
 import { eleanorLook } from './looks/eleanor.js';
+import { parisLook } from './looks/paris.js';
 
 export const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
@@ -56,6 +57,7 @@ export function faqItems(p) {
 }
 
 export function landing(p, { checkoutReady, query = '' }) {
+  if (p.theme === 'paris-look') return parisLook(p, { checkoutReady, query });
   if (p.theme === 'diane-look') return dianeLook(p, { checkoutReady, query });
   if (p.theme === 'eleanor-look') return eleanorLook(p, { checkoutReady, query });
   const sections = [];
