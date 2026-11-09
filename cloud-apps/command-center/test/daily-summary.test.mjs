@@ -124,6 +124,13 @@ test('calendar: no feed says "Calendar feed not connected. Owner: Ana."; a feed 
   assert.equal(sec(buildSummary(ctx(feed(TODAY, [])), X()), 'calendar').line, 'No events today.');
 });
 
+test('calendar: all-day events read "All day", and the footer shows the push time in Kelowna time', () => {
+  const feed = { t: { feeds: { calendar_today: { createdAt: ago(1), data: { date: TODAY, events: [{ start: 'All day', end: 'All day', title: 'Trip', calendar: 'jonstagger@' }] } } }, questions: [], tasks: [] } };
+  const s = sec(buildSummary(ctx(feed), X()), 'calendar');
+  assert.deepEqual(s.rows, [{ label: 'All day', value: 'Trip', sub: 'jonstagger@' }]);
+  assert.match(s.sources[0].ageLabel, /^updated \d{1,2}:\d{2} (AM|PM) \(12 min ago\)$/);
+});
+
 const core = [
   { symbol: 'VOO', price: 701.89, allTimeHigh: 716.39, todayPct: 0.1, pctOffHigh: 2 },
   { symbol: 'QQQ', price: 721.35, allTimeHigh: 748.65, todayPct: -0.6 },

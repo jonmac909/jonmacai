@@ -109,10 +109,15 @@ function calendarSection(feed, today, nowMs) {
   const title = 'Calendar · today';
   if (!feed) return none('calendar', title, 'Ana', [], 'Calendar feed not connected. Owner: Ana.');
   const src = sourceOf("Ana's calendar post", feed.createdAt, nowMs);
+  const pushed = Date.parse(feed.createdAt);
+  if (Number.isFinite(pushed)) { // "updated 9:15 AM (12 min ago)": the clock time of the push, Kelowna time
+    const clock = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Vancouver', hour: 'numeric', minute: '2-digit' }).format(new Date(pushed));
+    src.ageLabel = src.ageLabel.replace(/^updated /, `updated ${clock} (`) + ')';
+  }
   if (feed.data?.date !== today) return none('calendar', title, 'Ana', [src], `Calendar feed is from ${isDay(feed.data?.date) ? short(feed.data.date) : 'an unknown day'}, not today. Owner: Ana.`);
   const events = feed.data.events || [];
   if (!events.length) return none('calendar', title, 'Ana', [src], 'No events today.');
-  return section('calendar', title, 'Ana', [src], { rows: events.map((e) => row(`${e.start}-${e.end}`, e.title, e.calendar || '')) });
+  return section('calendar', title, 'Ana', [src], { rows: events.map((e) => row(e.start === 'All day' ? 'All day' : `${e.start}-${e.end}`, e.title, e.calendar || '')) });
 }
 
 function marketsSection(row0, nowMs) {
