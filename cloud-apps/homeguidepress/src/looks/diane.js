@@ -28,7 +28,7 @@ const READS = [
   ['A spare key under the mat or in a flowerpot', 'where he looks first'],
   ['The same dark windows every evening', 'looks empty'],
   ['Curtains and blinds that never move', 'looks unused'],
-  ['Your first name and “Ms.” on the mat or mailbox', 'one woman lives here'],
+  ['Your first name and “Ms.” on the mat or door sign', 'one woman lives here'],
 ];
 const FIXES = [
   ['Mail picked up every day, or by a neighbor you trust', 'page 12'],
@@ -57,7 +57,7 @@ const LOOK = [
   [4, 'Contents', 'Four parts and twelve chapters, from the sidewalk to bedtime.'],
   [20, 'My One-Page Safety Plan', 'Your numbers, your check-in buddy and your spare key, on one sheet.'],
   [38, 'Chapter 7: The Knock at the Door', 'The one rule that makes the rest easy.'],
-  [42, 'My Door Checklist', 'Eight boxes to tick, from the deadbolt to the lines by the door.'],
+  [42, 'My Door Checklist', 'Eight boxes to tick, from the deadbolt to calling 911 from inside.'],
   [58, 'My Bedtime Walk', 'Every door, window and light, checked before bed.'],
 ];
 
@@ -85,7 +85,7 @@ export function dianeLook(p, { checkoutReady, query = '' }) {
   const host = p.persona.host;
 
   const body = `<div class="head"><div class="wrap">
-  <a class="mark" href="#top"><i>${esc(host.split(' ').map(w => w[0]).join(''))}</i><span>${esc(host.toUpperCase())}</span></a>
+  <a class="mark" href="#top" aria-label="${esc(host)}"><i>${esc(host.split(' ').map(w => w[0]).join(''))}</i><span>${esc(host.toUpperCase())}</span></a>
   <a class="btn" href="#buy">Get my copy</a>
 </div></div>
 

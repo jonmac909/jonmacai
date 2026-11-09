@@ -185,7 +185,7 @@ p { margin: 0 0 18px; }
 .author p { font-size: 19px; color: #d4dbe6; }
 .author blockquote { margin: 26px 0 18px; border-left: 3px solid var(--gold); padding: 2px 0 2px 22px; font-style: italic; font-size: 21px; color: #fff; }
 .sig { font-style: italic; font-size: 26px; color: var(--gold); }
-.author .ai { font: 600 14px var(--sans); color: #aab6c6; margin: 18px 0 0; }
+.author .ai { font-size: 18px; color: #aab6c6; margin: 18px 0 0; }
 
 /* questions */
 .faq { max-width: 760px; margin-top: 26px; border-top: 1px solid var(--line2); }
@@ -226,6 +226,9 @@ footer a { color: var(--navy); }
 .sticky .sl .now { font: 700 15px var(--sans); color: var(--red); }
 .sticky .btn { flex: none; padding: 10px 18px; font-size: 14px; min-height: 46px; }
 
+/* no reading text under 18px on any screen; only the short notes under prices and buttons are smaller */
+.what, .goes, .offer .links, .fraction, .readnote, .bk .sub, .bk li, .measure .sub, .pg b, .pg p, .note, .shelfnote, .stats span, .ticks li { font-size: 18px; }
+
 @media (max-width: 960px) {
   .pages { grid-template-columns: repeat(3, 1fr); }
   .shelf { grid-template-columns: repeat(2, 1fr); }
@@ -259,7 +262,6 @@ footer a { color: var(--navy); }
   .bk img { grid-row: span 3; margin: 0; }
   .bk ul { grid-column: 1 / -1; margin-top: 12px; }
   .bk .pp { grid-column: 1 / -1; }
-  .bk li { font-size: 18px; }
   .finds li { font-size: 18px; flex-direction: column; gap: 2px; }
   .finds li small { font-size: 14px; }
   .stats { grid-template-columns: repeat(2, 1fr); }
@@ -272,19 +274,15 @@ footer a { color: var(--navy); }
   .buybox { grid-template-columns: 1fr; padding: 24px 18px; gap: 20px; }
   .buyimg { width: 170px; margin: 0 auto; }
   .buybox h2 { font-size: 29px; }
-  .ticks li { font-size: 18px; }
-  .note { font-size: 16px; }
   .author .wrap { gap: 26px; }
   .author img { max-width: 300px; }
   .author p { font-size: 18px; }
-  .author .ai { font-size: 16px; }
   .faq summary { font-size: 19px; }
   .faq p { font-size: 18px; }
   .sticky .wrap { gap: 10px; }
   .sticky .sl b { font-size: 16px; }
   .sticky .sl span.long { display: none; }
-  /* every sentence 18px on a phone; the short notes under prices and buttons 16px */
-  .what, .goes, .offer .links, .fraction, .readnote, .bk .sub, .measure .sub, .pg p, .note, .shelfnote { font-size: 18px; }
+  /* the short notes under prices and buttons 16px on a phone */
   .promise1, .how .nothing, .secure, .bk .pp, .dots, .trust, .trustrow { font-size: 16px; }
 }
 @media (max-width: 380px) {
