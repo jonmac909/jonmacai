@@ -137,7 +137,7 @@
     "count": 10,
     "items": [
      {
-      "id": "a_0000000000000107",
+      "id": "a_0000000000000117",
       "kind": "approval",
       "rank": 1,
       "cls": "risk",
@@ -147,11 +147,11 @@
       "detail": "Posts to TikTok.",
       "notes": [],
       "links": [],
-      "decideUrl": "/dashboard/api/v1/approvals/a_0000000000000107/decide",
+      "decideUrl": "/dashboard/api/v1/approvals/a_0000000000000117/decide",
       "ageLabel": "5 days ago"
      },
      {
-      "id": "a_0000000000000106",
+      "id": "a_0000000000000116",
       "kind": "approval",
       "rank": 1,
       "cls": "risk",
@@ -166,11 +166,11 @@
         "href": "https://jonmac.ai/review/jm-5"
        }
       ],
-      "decideUrl": "/dashboard/api/v1/approvals/a_0000000000000106/decide",
+      "decideUrl": "/dashboard/api/v1/approvals/a_0000000000000116/decide",
       "ageLabel": "2 days ago"
      },
      {
-      "id": "q_0000000000000105",
+      "id": "q_0000000000000115",
       "kind": "question",
       "rank": 2,
       "cls": "risk",
@@ -182,11 +182,11 @@
       ],
       "from": "short-form",
       "at": "2026-11-01T16:00:00Z",
-      "answerUrl": "/dashboard/api/v1/questions/q_0000000000000105/answer",
+      "answerUrl": "/dashboard/api/v1/questions/q_0000000000000115/answer",
       "ageLabel": "7 days ago"
      },
      {
-      "id": "q_0000000000000100",
+      "id": "q_0000000000000110",
       "kind": "question",
       "rank": 2,
       "cls": "risk",
@@ -198,11 +198,11 @@
       ],
       "from": "moneyclaw",
       "at": "2026-11-02T16:00:00Z",
-      "answerUrl": "/dashboard/api/v1/questions/q_0000000000000100/answer",
+      "answerUrl": "/dashboard/api/v1/questions/q_0000000000000110/answer",
       "ageLabel": "6 days ago"
      },
      {
-      "id": "q_0000000000000101",
+      "id": "q_0000000000000111",
       "kind": "question",
       "rank": 2,
       "cls": "risk",
@@ -214,11 +214,11 @@
       ],
       "from": "moneyclaw",
       "at": "2026-11-03T16:00:00Z",
-      "answerUrl": "/dashboard/api/v1/questions/q_0000000000000101/answer",
+      "answerUrl": "/dashboard/api/v1/questions/q_0000000000000111/answer",
       "ageLabel": "5 days ago"
      },
      {
-      "id": "q_0000000000000102",
+      "id": "q_0000000000000112",
       "kind": "question",
       "rank": 2,
       "cls": "risk",
@@ -230,11 +230,11 @@
       ],
       "from": "moneyclaw",
       "at": "2026-11-04T16:00:00Z",
-      "answerUrl": "/dashboard/api/v1/questions/q_0000000000000102/answer",
+      "answerUrl": "/dashboard/api/v1/questions/q_0000000000000112/answer",
       "ageLabel": "4 days ago"
      },
      {
-      "id": "q_0000000000000104",
+      "id": "q_0000000000000114",
       "kind": "question",
       "rank": 2,
       "cls": "risk",
@@ -246,11 +246,11 @@
       ],
       "from": "home-guide-press",
       "at": "2026-11-04T16:00:00Z",
-      "answerUrl": "/dashboard/api/v1/questions/q_0000000000000104/answer",
+      "answerUrl": "/dashboard/api/v1/questions/q_0000000000000114/answer",
       "ageLabel": "4 days ago"
      },
      {
-      "id": "q_0000000000000098",
+      "id": "q_0000000000000108",
       "kind": "question",
       "rank": 2,
       "cls": "risk",
@@ -262,11 +262,11 @@
       ],
       "from": "ana",
       "at": "2026-11-05T16:00:00Z",
-      "answerUrl": "/dashboard/api/v1/questions/q_0000000000000098/answer",
+      "answerUrl": "/dashboard/api/v1/questions/q_0000000000000108/answer",
       "ageLabel": "3 days ago"
      },
      {
-      "id": "q_0000000000000099",
+      "id": "q_0000000000000109",
       "kind": "question",
       "rank": 2,
       "cls": "risk",
@@ -278,11 +278,11 @@
       ],
       "from": "ana",
       "at": "2026-11-05T16:00:00Z",
-      "answerUrl": "/dashboard/api/v1/questions/q_0000000000000099/answer",
+      "answerUrl": "/dashboard/api/v1/questions/q_0000000000000109/answer",
       "ageLabel": "3 days ago"
      },
      {
-      "id": "q_0000000000000103",
+      "id": "q_0000000000000113",
       "kind": "question",
       "rank": 2,
       "cls": "risk",
@@ -294,7 +294,7 @@
       ],
       "from": "sponsors",
       "at": "2026-11-07T16:00:00Z",
-      "answerUrl": "/dashboard/api/v1/questions/q_0000000000000103/answer",
+      "answerUrl": "/dashboard/api/v1/questions/q_0000000000000113/answer",
       "ageLabel": "29 hr ago"
      }
     ],
@@ -341,7 +341,7 @@
      "checklist": {
       "missing": "Ana syncs the daily checklist with dash.py daily-sync"
      },
-     "waiting": 1,
+     "waiting": 3,
      "goals": [
       {
        "key": "sponsors",
@@ -382,7 +382,7 @@
        "items": [
         {
          "kind": "task",
-         "id": "t_0000000000000082",
+         "id": "t_0000000000000092",
          "title": "Poppy video 1: integration",
          "from": "sponsors",
          "ageLabel": "5 days ago",
@@ -397,7 +397,7 @@
        "items": [
         {
          "kind": "task",
-         "id": "t_0000000000000081",
+         "id": "t_0000000000000089",
          "title": "Invideo video 2: dedicated",
          "from": "sponsors",
          "ageLabel": "19 days ago",
@@ -411,7 +411,16 @@
        "label": "Waiting on Jon",
        "items": [
         {
-         "id": "q_0000000000000103",
+         "kind": "task",
+         "id": "t_0000000000000091",
+         "title": "Notion video 1: dedicated",
+         "from": "sponsors",
+         "ageLabel": "19 days ago",
+         "proof": "",
+         "deliverable": null
+        },
+        {
+         "id": "q_0000000000000113",
          "kind": "question",
          "rank": 2,
          "cls": "risk",
@@ -423,7 +432,7 @@
          ],
          "from": "sponsors",
          "at": "2026-11-07T16:00:00Z",
-         "answerUrl": "/dashboard/api/v1/questions/q_0000000000000103/answer",
+         "answerUrl": "/dashboard/api/v1/questions/q_0000000000000113/answer",
          "ageLabel": "29 hr ago"
         }
        ]
@@ -436,7 +445,18 @@
       {
        "key": "review",
        "label": "Review",
-       "items": []
+       "items": [
+        {
+         "kind": "task",
+         "id": "t_0000000000000090",
+         "title": "Topview video 2: dedicated",
+         "from": "sponsors",
+         "ageLabel": "19 days ago",
+         "proof": "",
+         "deliverable": null,
+         "reviewUrl": "/dashboard/api/v1/tasks/t_0000000000000090"
+        }
+       ]
       },
       {
        "key": "done",
@@ -444,7 +464,7 @@
        "items": [
         {
          "kind": "task",
-         "id": "t_0000000000000080",
+         "id": "t_0000000000000088",
          "title": "Invideo video 1: dedicated",
          "from": "sponsors",
          "ageLabel": "19 days ago",
@@ -480,7 +500,7 @@
        "items": [
         {
          "kind": "task",
-         "id": "t_0000000000000094",
+         "id": "t_0000000000000104",
          "title": "Jon Mac upload - Jon Mac",
          "from": "jon-mac-youtube",
          "ageLabel": "7 days ago",
@@ -488,7 +508,7 @@
          "deliverable": null
         },
         {
-         "id": "a_0000000000000106",
+         "id": "a_0000000000000116",
          "kind": "approval",
          "rank": 1,
          "cls": "risk",
@@ -503,7 +523,7 @@
            "href": "https://jonmac.ai/review/jm-5"
           }
          ],
-         "decideUrl": "/dashboard/api/v1/approvals/a_0000000000000106/decide",
+         "decideUrl": "/dashboard/api/v1/approvals/a_0000000000000116/decide",
          "ageLabel": "2 days ago"
         }
        ]
@@ -721,7 +741,7 @@
        "items": [
         {
          "kind": "task",
-         "id": "t_0000000000000093",
+         "id": "t_0000000000000103",
          "title": "Peter Collins first video - Peter Collins",
          "from": "home-guide-press",
          "ageLabel": "7 days ago",
@@ -729,7 +749,7 @@
          "deliverable": null
         },
         {
-         "id": "q_0000000000000104",
+         "id": "q_0000000000000114",
          "kind": "question",
          "rank": 2,
          "cls": "risk",
@@ -741,7 +761,7 @@
          ],
          "from": "home-guide-press",
          "at": "2026-11-04T16:00:00Z",
-         "answerUrl": "/dashboard/api/v1/questions/q_0000000000000104/answer",
+         "answerUrl": "/dashboard/api/v1/questions/q_0000000000000114/answer",
          "ageLabel": "4 days ago"
         }
        ]
@@ -757,7 +777,7 @@
        "items": [
         {
          "kind": "task",
-         "id": "t_0000000000000095",
+         "id": "t_0000000000000105",
          "title": "Jack Mercer video 2 edit - Jack Mercer",
          "from": "video-editor",
          "ageLabel": "7 days ago",
@@ -768,7 +788,7 @@
           "web": true,
           "status": "passed"
          },
-         "reviewUrl": "/dashboard/api/v1/tasks/t_0000000000000095"
+         "reviewUrl": "/dashboard/api/v1/tasks/t_0000000000000105"
         }
        ]
       },
@@ -803,7 +823,7 @@
        "label": "Waiting on Jon",
        "items": [
         {
-         "id": "a_0000000000000107",
+         "id": "a_0000000000000117",
          "kind": "approval",
          "rank": 1,
          "cls": "risk",
@@ -813,11 +833,11 @@
          "detail": "Posts to TikTok.",
          "notes": [],
          "links": [],
-         "decideUrl": "/dashboard/api/v1/approvals/a_0000000000000107/decide",
+         "decideUrl": "/dashboard/api/v1/approvals/a_0000000000000117/decide",
          "ageLabel": "5 days ago"
         },
         {
-         "id": "q_0000000000000105",
+         "id": "q_0000000000000115",
          "kind": "question",
          "rank": 2,
          "cls": "risk",
@@ -829,7 +849,7 @@
          ],
          "from": "short-form",
          "at": "2026-11-01T16:00:00Z",
-         "answerUrl": "/dashboard/api/v1/questions/q_0000000000000105/answer",
+         "answerUrl": "/dashboard/api/v1/questions/q_0000000000000115/answer",
          "ageLabel": "7 days ago"
         }
        ]
@@ -850,7 +870,7 @@
        "items": [
         {
          "kind": "task",
-         "id": "t_0000000000000085",
+         "id": "t_0000000000000095",
          "title": "Clip",
          "from": "short-form",
          "ageLabel": "7 days ago",
@@ -859,7 +879,7 @@
         },
         {
          "kind": "task",
-         "id": "t_0000000000000086",
+         "id": "t_0000000000000096",
          "title": "Clip",
          "from": "short-form",
          "ageLabel": "7 days ago",
@@ -868,7 +888,7 @@
         },
         {
          "kind": "task",
-         "id": "t_0000000000000087",
+         "id": "t_0000000000000097",
          "title": "Clip",
          "from": "short-form",
          "ageLabel": "7 days ago",
@@ -877,7 +897,7 @@
         },
         {
          "kind": "task",
-         "id": "t_0000000000000088",
+         "id": "t_0000000000000098",
          "title": "Clip",
          "from": "short-form",
          "ageLabel": "7 days ago",
@@ -886,7 +906,7 @@
         },
         {
          "kind": "task",
-         "id": "t_0000000000000089",
+         "id": "t_0000000000000099",
          "title": "Clip",
          "from": "short-form",
          "ageLabel": "7 days ago",
@@ -895,7 +915,7 @@
         },
         {
          "kind": "task",
-         "id": "t_0000000000000090",
+         "id": "t_0000000000000100",
          "title": "Clip",
          "from": "short-form",
          "ageLabel": "7 days ago",
@@ -904,7 +924,7 @@
         },
         {
          "kind": "task",
-         "id": "t_0000000000000091",
+         "id": "t_0000000000000101",
          "title": "Clip",
          "from": "short-form",
          "ageLabel": "7 days ago",
@@ -913,7 +933,7 @@
         },
         {
          "kind": "task",
-         "id": "t_0000000000000092",
+         "id": "t_0000000000000102",
          "title": "Clip",
          "from": "short-form",
          "ageLabel": "7 days ago",
@@ -948,7 +968,7 @@
        "label": "Waiting on Jon",
        "items": [
         {
-         "id": "q_0000000000000100",
+         "id": "q_0000000000000110",
          "kind": "question",
          "rank": 2,
          "cls": "risk",
@@ -960,11 +980,11 @@
          ],
          "from": "moneyclaw",
          "at": "2026-11-02T16:00:00Z",
-         "answerUrl": "/dashboard/api/v1/questions/q_0000000000000100/answer",
+         "answerUrl": "/dashboard/api/v1/questions/q_0000000000000110/answer",
          "ageLabel": "6 days ago"
         },
         {
-         "id": "q_0000000000000101",
+         "id": "q_0000000000000111",
          "kind": "question",
          "rank": 2,
          "cls": "risk",
@@ -976,11 +996,11 @@
          ],
          "from": "moneyclaw",
          "at": "2026-11-03T16:00:00Z",
-         "answerUrl": "/dashboard/api/v1/questions/q_0000000000000101/answer",
+         "answerUrl": "/dashboard/api/v1/questions/q_0000000000000111/answer",
          "ageLabel": "5 days ago"
         },
         {
-         "id": "q_0000000000000102",
+         "id": "q_0000000000000112",
          "kind": "question",
          "rank": 2,
          "cls": "risk",
@@ -992,7 +1012,7 @@
          ],
          "from": "moneyclaw",
          "at": "2026-11-04T16:00:00Z",
-         "answerUrl": "/dashboard/api/v1/questions/q_0000000000000102/answer",
+         "answerUrl": "/dashboard/api/v1/questions/q_0000000000000112/answer",
          "ageLabel": "4 days ago"
         }
        ]
@@ -1038,7 +1058,7 @@
        "label": "Waiting on Jon",
        "items": [
         {
-         "id": "q_0000000000000098",
+         "id": "q_0000000000000108",
          "kind": "question",
          "rank": 2,
          "cls": "risk",
@@ -1050,11 +1070,11 @@
          ],
          "from": "ana",
          "at": "2026-11-05T16:00:00Z",
-         "answerUrl": "/dashboard/api/v1/questions/q_0000000000000098/answer",
+         "answerUrl": "/dashboard/api/v1/questions/q_0000000000000108/answer",
          "ageLabel": "3 days ago"
         },
         {
-         "id": "q_0000000000000099",
+         "id": "q_0000000000000109",
          "kind": "question",
          "rank": 2,
          "cls": "risk",
@@ -1066,7 +1086,7 @@
          ],
          "from": "ana",
          "at": "2026-11-05T16:00:00Z",
-         "answerUrl": "/dashboard/api/v1/questions/q_0000000000000099/answer",
+         "answerUrl": "/dashboard/api/v1/questions/q_0000000000000109/answer",
          "ageLabel": "3 days ago"
         }
        ]
@@ -1105,7 +1125,7 @@
        "items": [
         {
          "kind": "task",
-         "id": "t_0000000000000097",
+         "id": "t_0000000000000107",
          "title": "Complete Histories daily",
          "from": "spotify",
          "ageLabel": "7 days ago",
@@ -2363,7 +2383,7 @@
      "count": 2,
      "upcoming": [
       {
-       "id": "v_0000000000000071",
+       "id": "v_0000000000000076",
        "title": "Video jon-mac 2026-11-08",
        "status": "scheduled",
        "date": "2026-11-08",
@@ -2375,7 +2395,7 @@
        "planned": null
       },
       {
-       "id": "v_0000000000000079",
+       "id": "v_0000000000000087",
        "title": "Video eleanor-whitfield 2026-11-12",
        "status": "scheduled",
        "date": "2026-11-12",
@@ -2389,7 +2409,7 @@
      ],
      "earlier": [
       {
-       "id": "v_0000000000000077",
+       "id": "v_0000000000000082",
        "title": "Video jack-mercer 2026-11-06",
        "status": "published",
        "date": "2026-11-06",
@@ -2401,7 +2421,7 @@
        "planned": null
       },
       {
-       "id": "v_0000000000000070",
+       "id": "v_0000000000000075",
        "title": "Video jon-mac 2026-11-05",
        "status": "published",
        "date": "2026-11-05",
@@ -2413,7 +2433,31 @@
        "planned": null
       },
       {
-       "id": "v_0000000000000076",
+       "id": "v_0000000000000086",
+       "title": "Topview review 2 - Rosa",
+       "status": "published",
+       "date": "2026-11-04",
+       "dateLabel": "Wed, Nov 4",
+       "timeLabel": "",
+       "link": null,
+       "channel": "Rosa Cooks",
+       "differs": [],
+       "planned": null
+      },
+      {
+       "id": "v_0000000000000084",
+       "title": "Invideo review - Rosa",
+       "status": "published",
+       "date": "2026-11-04",
+       "dateLabel": "Wed, Nov 4",
+       "timeLabel": "",
+       "link": null,
+       "channel": "Rosa Cooks",
+       "differs": [],
+       "planned": null
+      },
+      {
+       "id": "v_0000000000000081",
        "title": "Video peter-collins 2026-11-04",
        "status": "published",
        "date": "2026-11-04",
@@ -2425,7 +2469,7 @@
        "planned": null
       },
       {
-       "id": "v_0000000000000073",
+       "id": "v_0000000000000078",
        "title": "Video jonmacai 2026-11-04",
        "status": "published",
        "date": "2026-11-04",
@@ -2437,7 +2481,7 @@
        "planned": null
       },
       {
-       "id": "v_0000000000000075",
+       "id": "v_0000000000000080",
        "title": "Video peter-collins 2026-11-03",
        "status": "published",
        "date": "2026-11-03",
@@ -2449,7 +2493,7 @@
        "planned": null
       },
       {
-       "id": "v_0000000000000069",
+       "id": "v_0000000000000074",
        "title": "Video jon-mac 2026-11-03",
        "status": "published",
        "date": "2026-11-03",
@@ -2461,7 +2505,7 @@
        "planned": null
       },
       {
-       "id": "v_0000000000000074",
+       "id": "v_0000000000000079",
        "title": "Video peter-collins 2026-11-02",
        "status": "published",
        "date": "2026-11-02",
@@ -2473,7 +2517,7 @@
        "planned": null
       },
       {
-       "id": "v_0000000000000072",
+       "id": "v_0000000000000077",
        "title": "Video jon-mac 2026-11-01",
        "status": "published",
        "date": "2026-11-01",
@@ -2485,7 +2529,19 @@
        "planned": null
       },
       {
-       "id": "v_0000000000000078",
+       "id": "v_0000000000000085",
+       "title": "Topview review - Rosa",
+       "status": "published",
+       "date": "2026-10-28",
+       "dateLabel": "Wed, Oct 28",
+       "timeLabel": "",
+       "link": null,
+       "channel": "Rosa Cooks",
+       "differs": [],
+       "planned": null
+      },
+      {
+       "id": "v_0000000000000083",
        "title": "Video rosa-cooks 2026-10-20",
        "status": "published",
        "date": "2026-10-20",
@@ -2506,7 +2562,7 @@
      "count": 1,
      "upcoming": [
       {
-       "id": "v_0000000000000071",
+       "id": "v_0000000000000076",
        "title": "Video jon-mac 2026-11-08",
        "status": "scheduled",
        "date": "2026-11-08",
@@ -2520,7 +2576,7 @@
      ],
      "earlier": [
       {
-       "id": "v_0000000000000070",
+       "id": "v_0000000000000075",
        "title": "Video jon-mac 2026-11-05",
        "status": "published",
        "date": "2026-11-05",
@@ -2532,7 +2588,7 @@
        "planned": null
       },
       {
-       "id": "v_0000000000000069",
+       "id": "v_0000000000000074",
        "title": "Video jon-mac 2026-11-03",
        "status": "published",
        "date": "2026-11-03",
@@ -2544,7 +2600,7 @@
        "planned": null
       },
       {
-       "id": "v_0000000000000072",
+       "id": "v_0000000000000077",
        "title": "Video jon-mac 2026-11-01",
        "status": "published",
        "date": "2026-11-01",
@@ -2566,7 +2622,7 @@
      "upcoming": [],
      "earlier": [
       {
-       "id": "v_0000000000000073",
+       "id": "v_0000000000000078",
        "title": "Video jonmacai 2026-11-04",
        "status": "published",
        "date": "2026-11-04",
@@ -2660,7 +2716,7 @@
      "upcoming": [],
      "earlier": [
       {
-       "id": "v_0000000000000076",
+       "id": "v_0000000000000081",
        "title": "Video peter-collins 2026-11-04",
        "status": "published",
        "date": "2026-11-04",
@@ -2672,7 +2728,7 @@
        "planned": null
       },
       {
-       "id": "v_0000000000000075",
+       "id": "v_0000000000000080",
        "title": "Video peter-collins 2026-11-03",
        "status": "published",
        "date": "2026-11-03",
@@ -2684,7 +2740,7 @@
        "planned": null
       },
       {
-       "id": "v_0000000000000074",
+       "id": "v_0000000000000079",
        "title": "Video peter-collins 2026-11-02",
        "status": "published",
        "date": "2026-11-02",
@@ -2706,7 +2762,7 @@
      "upcoming": [],
      "earlier": [
       {
-       "id": "v_0000000000000077",
+       "id": "v_0000000000000082",
        "title": "Video jack-mercer 2026-11-06",
        "status": "published",
        "date": "2026-11-06",
@@ -2728,7 +2784,43 @@
      "upcoming": [],
      "earlier": [
       {
-       "id": "v_0000000000000078",
+       "id": "v_0000000000000086",
+       "title": "Topview review 2 - Rosa",
+       "status": "published",
+       "date": "2026-11-04",
+       "dateLabel": "Wed, Nov 4",
+       "timeLabel": "",
+       "link": null,
+       "channel": "Rosa Cooks",
+       "differs": [],
+       "planned": null
+      },
+      {
+       "id": "v_0000000000000084",
+       "title": "Invideo review - Rosa",
+       "status": "published",
+       "date": "2026-11-04",
+       "dateLabel": "Wed, Nov 4",
+       "timeLabel": "",
+       "link": null,
+       "channel": "Rosa Cooks",
+       "differs": [],
+       "planned": null
+      },
+      {
+       "id": "v_0000000000000085",
+       "title": "Topview review - Rosa",
+       "status": "published",
+       "date": "2026-10-28",
+       "dateLabel": "Wed, Oct 28",
+       "timeLabel": "",
+       "link": null,
+       "channel": "Rosa Cooks",
+       "differs": [],
+       "planned": null
+      },
+      {
+       "id": "v_0000000000000083",
        "title": "Video rosa-cooks 2026-10-20",
        "status": "published",
        "date": "2026-10-20",
@@ -2839,7 +2931,7 @@
      "count": 1,
      "upcoming": [
       {
-       "id": "v_0000000000000079",
+       "id": "v_0000000000000087",
        "title": "Video eleanor-whitfield 2026-11-12",
        "status": "scheduled",
        "date": "2026-11-12",
@@ -3312,7 +3404,8 @@
      "note": "No deposit ledger has reported, so deposits after Nov 7 are not counted.",
      "behind": [],
      "rows": [],
-     "days": []
+     "days": [],
+     "facts": []
     },
     "week": [
      {
@@ -3373,7 +3466,8 @@
         "target": null,
         "actual": 0
        }
-      ]
+      ],
+      "facts": []
      },
      {
       "key": "delivered",
@@ -3400,13 +3494,19 @@
         "title": "Invideo video 2",
         "owner": "Florence",
         "why": "In production, due Nov 7",
-        "open": "t_0000000000000081"
+        "open": "t_0000000000000089"
+       },
+       {
+        "title": "Notion video 1",
+        "owner": "Florence",
+        "why": "Waiting on you: Approve the script so editing can start",
+        "open": "t_0000000000000091"
        },
        {
         "title": "Poppy video 1",
         "owner": "Florence",
         "why": "Not started",
-        "open": "t_0000000000000082"
+        "open": "t_0000000000000092"
        }
       ],
       "rows": [],
@@ -3446,7 +3546,8 @@
         "target": null,
         "actual": 0
        }
-      ]
+      ],
+      "facts": []
      },
      {
       "key": "invoiced",
@@ -3467,7 +3568,7 @@
        "ageLabel": "updated 5 min ago",
        "stale": false
       },
-      "note": "Cards in \"Live · send invoice\" on the deal board. The day each video went live is not recorded.",
+      "note": "Deals in \"Live · send invoice\" whose video is confirmed live on YouTube.",
       "behind": [
        {
         "title": "Invideo",
@@ -3476,7 +3577,8 @@
        }
       ],
       "rows": [],
-      "days": []
+      "days": [],
+      "facts": []
      }
     ],
     "day": [
@@ -3502,7 +3604,8 @@
       "note": "The \"Sort partners@ and draft replies\" checklist tick.",
       "behind": [],
       "rows": [],
-      "days": []
+      "days": [],
+      "facts": []
      },
      {
       "key": "prices",
@@ -3526,7 +3629,8 @@
       "note": "Open questions Florence asked you.",
       "behind": [],
       "rows": [],
-      "days": []
+      "days": [],
+      "facts": []
      }
     ],
     "trend": [
@@ -4016,7 +4120,8 @@
        "note": "No calendar yet"
       }
      ],
-     "days": []
+     "days": [],
+     "facts": []
     },
     "week": [
      {
@@ -4361,6 +4466,23 @@
         "target": null,
         "actual": 0
        }
+      ],
+      "facts": [
+       {
+        "label": "Published today",
+        "value": "0",
+        "links": []
+       },
+       {
+        "label": "Waiting for your review",
+        "value": "1",
+        "links": [
+         {
+          "label": "Jack Mercer video 2 edit - Jack Mercer",
+          "href": "https://jonmac.ai/review/jack-2"
+         }
+        ]
+       }
       ]
      },
      {
@@ -4427,6 +4549,16 @@
         "target": 1,
         "actual": 0
        }
+      ],
+      "facts": [
+       {
+        "label": "Last check",
+        "value": "Nov 7 (Sat 7)"
+       },
+       {
+        "label": "Missed",
+        "value": "Elle: Wed 4, Fri 6"
+       }
       ]
      }
     ],
@@ -4453,7 +4585,8 @@
       "note": "One every 3 hours since midnight: Olivia's Home Guide Press cards with a proof QC passed today.",
       "behind": [],
       "rows": [],
-      "days": []
+      "days": [],
+      "facts": []
      }
     ],
     "trend": [
@@ -4558,7 +4691,8 @@
        "note": "1 scheduled this month"
       }
      ],
-     "days": []
+     "days": [],
+     "facts": []
     },
     "week": [
      {
@@ -4638,6 +4772,18 @@
         "ymd": "2026-11-08",
         "target": null,
         "actual": 0
+       }
+      ],
+      "facts": [
+       {
+        "label": "Published today",
+        "value": "0",
+        "links": []
+       },
+       {
+        "label": "Waiting for your review",
+        "value": "0",
+        "links": []
        }
       ]
      }
@@ -4745,7 +4891,8 @@
        "note": ""
       }
      ],
-     "days": []
+     "days": [],
+     "facts": []
     },
     "week": [
      {
@@ -4825,6 +4972,18 @@
         "ymd": "2026-11-08",
         "target": null,
         "actual": 0
+       }
+      ],
+      "facts": [
+       {
+        "label": "Published today",
+        "value": "0",
+        "links": []
+       },
+       {
+        "label": "Waiting for your review",
+        "value": "0",
+        "links": []
        }
       ]
      }
@@ -4906,7 +5065,8 @@
      "note": "No webinar date is set yet.",
      "behind": [],
      "rows": [],
-     "days": []
+     "days": [],
+     "facts": []
     },
     "week": [
      {
@@ -4931,7 +5091,8 @@
       "note": "Last funnel activity 27 hr ago.",
       "behind": [],
       "rows": [],
-      "days": []
+      "days": [],
+      "facts": []
      },
      {
       "key": "leads",
@@ -4955,7 +5116,8 @@
       "note": "The clone funnel records lander visits and payments, but no lead or registration count.",
       "behind": [],
       "rows": [],
-      "days": []
+      "days": [],
+      "facts": []
      }
     ],
     "day": [
@@ -4981,7 +5143,8 @@
       "note": "No feed records the day's ads or posts for the funnel yet.",
       "behind": [],
       "rows": [],
-      "days": []
+      "days": [],
+      "facts": []
      }
     ],
     "trend": [
@@ -5060,7 +5223,8 @@
      "note": "",
      "behind": [],
      "rows": [],
-     "days": []
+     "days": [],
+     "facts": []
     },
     "week": [
      {
@@ -5121,7 +5285,8 @@
         "target": 3,
         "actual": 2
        }
-      ]
+      ],
+      "facts": []
      }
     ],
     "day": [
@@ -5147,7 +5312,8 @@
       "note": "",
       "behind": [],
       "rows": [],
-      "days": []
+      "days": [],
+      "facts": []
      }
     ],
     "trend": [
@@ -5376,7 +5542,7 @@
   "today": {
    "jon": [
     {
-     "id": "q_0000000000000103",
+     "id": "q_0000000000000113",
      "kind": "question",
      "rank": 2,
      "cls": "risk",
@@ -5388,14 +5554,14 @@
      ],
      "from": "Florence",
      "at": "2026-11-07T16:00:00Z",
-     "answerUrl": "/dashboard/api/v1/questions/q_0000000000000103/answer",
+     "answerUrl": "/dashboard/api/v1/questions/q_0000000000000113/answer",
      "ageLabel": "29 hr ago",
      "goal": "sponsors",
      "minutes": 5,
      "link": null
     },
     {
-     "id": "q_0000000000000104",
+     "id": "q_0000000000000114",
      "kind": "question",
      "rank": 2,
      "cls": "risk",
@@ -5407,7 +5573,7 @@
      ],
      "from": "Elle",
      "at": "2026-11-04T16:00:00Z",
-     "answerUrl": "/dashboard/api/v1/questions/q_0000000000000104/answer",
+     "answerUrl": "/dashboard/api/v1/questions/q_0000000000000114/answer",
      "ageLabel": "4 days ago",
      "goal": "hgp",
      "minutes": 5,
@@ -5417,7 +5583,7 @@
      }
     },
     {
-     "id": "a_0000000000000106",
+     "id": "a_0000000000000116",
      "kind": "approval",
      "rank": 1,
      "cls": "risk",
@@ -5432,7 +5598,7 @@
        "href": "https://jonmac.ai/review/jm-5"
       }
      ],
-     "decideUrl": "/dashboard/api/v1/approvals/a_0000000000000106/decide",
+     "decideUrl": "/dashboard/api/v1/approvals/a_0000000000000116/decide",
      "ageLabel": "2 days ago",
      "goal": "jonmac",
      "minutes": 2,
@@ -5446,7 +5612,7 @@
     "count": 3,
     "items": [
      {
-      "id": "a_0000000000000107",
+      "id": "a_0000000000000117",
       "kind": "approval",
       "rank": 1,
       "cls": "risk",
@@ -5456,14 +5622,14 @@
       "detail": "Posts to TikTok.",
       "notes": [],
       "links": [],
-      "decideUrl": "/dashboard/api/v1/approvals/a_0000000000000107/decide",
+      "decideUrl": "/dashboard/api/v1/approvals/a_0000000000000117/decide",
       "ageLabel": "5 days ago",
       "goal": "shortform",
       "minutes": 3,
       "link": null
      },
      {
-      "id": "q_0000000000000105",
+      "id": "q_0000000000000115",
       "kind": "question",
       "rank": 2,
       "cls": "risk",
@@ -5475,7 +5641,7 @@
       ],
       "from": "Samantha",
       "at": "2026-11-01T16:00:00Z",
-      "answerUrl": "/dashboard/api/v1/questions/q_0000000000000105/answer",
+      "answerUrl": "/dashboard/api/v1/questions/q_0000000000000115/answer",
       "ageLabel": "7 days ago",
       "goal": "shortform",
       "minutes": 5,
@@ -5505,7 +5671,7 @@
     "count": 3,
     "items": [
      {
-      "id": "q_0000000000000100",
+      "id": "q_0000000000000110",
       "kind": "question",
       "rank": 2,
       "cls": "risk",
@@ -5517,14 +5683,14 @@
       ],
       "from": "Mila",
       "at": "2026-11-02T16:00:00Z",
-      "answerUrl": "/dashboard/api/v1/questions/q_0000000000000100/answer",
+      "answerUrl": "/dashboard/api/v1/questions/q_0000000000000110/answer",
       "ageLabel": "6 days ago",
       "goal": null,
       "minutes": 5,
       "link": null
      },
      {
-      "id": "q_0000000000000101",
+      "id": "q_0000000000000111",
       "kind": "question",
       "rank": 2,
       "cls": "risk",
@@ -5536,14 +5702,14 @@
       ],
       "from": "Mila",
       "at": "2026-11-03T16:00:00Z",
-      "answerUrl": "/dashboard/api/v1/questions/q_0000000000000101/answer",
+      "answerUrl": "/dashboard/api/v1/questions/q_0000000000000111/answer",
       "ageLabel": "5 days ago",
       "goal": null,
       "minutes": 5,
       "link": null
      },
      {
-      "id": "q_0000000000000102",
+      "id": "q_0000000000000112",
       "kind": "question",
       "rank": 2,
       "cls": "risk",
@@ -5555,7 +5721,7 @@
       ],
       "from": "Mila",
       "at": "2026-11-04T16:00:00Z",
-      "answerUrl": "/dashboard/api/v1/questions/q_0000000000000102/answer",
+      "answerUrl": "/dashboard/api/v1/questions/q_0000000000000112/answer",
       "ageLabel": "4 days ago",
       "goal": null,
       "minutes": 5,
@@ -5668,7 +5834,15 @@
      "goal": "hgp",
      "ageLabel": "25 hr ago",
      "why": "Approve the thumbnail thumb.png",
-     "open": "t_0000000000000093"
+     "open": "t_0000000000000103"
+    },
+    {
+     "title": "Notion video 1: dedicated",
+     "owner": "Florence",
+     "goal": "sponsors",
+     "ageLabel": "29 hr ago",
+     "why": "Approve the script so editing can start",
+     "open": "t_0000000000000091"
     },
     {
      "title": "Jon Mac upload - Jon Mac",
@@ -5676,7 +5850,7 @@
      "goal": "jonmac",
      "ageLabel": "2 days ago",
      "why": "Waiting on you",
-     "open": "t_0000000000000094"
+     "open": "t_0000000000000104"
     },
     {
      "title": "Poppy video 1: integration",
@@ -5684,7 +5858,7 @@
      "goal": "sponsors",
      "ageLabel": "29 hr ago",
      "why": "Waiting on your answer: Poppy offers $2,000. Accept?",
-     "open": "t_0000000000000082"
+     "open": "t_0000000000000092"
     },
     {
      "title": "Complete Histories missed Thu 5",
@@ -6606,8 +6780,8 @@
       },
       {
        "label": "Videos still to make",
-       "value": "2 sponsor videos",
-       "sub": "Invideo video 2 (due Nov 7), Poppy video 1"
+       "value": "4 sponsor videos",
+       "sub": "Invideo video 2 (due Nov 7), Topview video 2 (due Nov 4), Notion video 1 (due Nov 7), Poppy video 1"
       }
      ],
      "notes": []
