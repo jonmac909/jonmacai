@@ -2942,6 +2942,87 @@
      ],
      "earlier": [],
      "schedule": "Thu"
+    },
+    {
+     "slug": "claudine-marchand",
+     "label": "Claudine Marchand",
+     "group": "Home Guide Press",
+     "count": 0,
+     "upcoming": [],
+     "earlier": [],
+     "schedule": null
+    },
+    {
+     "slug": "diane-kowalski",
+     "label": "Diane Kowalski",
+     "group": "Home Guide Press",
+     "count": 0,
+     "upcoming": [],
+     "earlier": [],
+     "schedule": null
+    },
+    {
+     "slug": "jiyoung-han",
+     "label": "Jiyoung Han",
+     "group": "Home Guide Press",
+     "count": 0,
+     "upcoming": [],
+     "earlier": [],
+     "schedule": null
+    },
+    {
+     "slug": "peggy-donovan",
+     "label": "Peggy Donovan",
+     "group": "Home Guide Press",
+     "count": 0,
+     "upcoming": [],
+     "earlier": [],
+     "schedule": null
+    },
+    {
+     "slug": "takeshi-morimoto",
+     "label": "Takeshi Morimoto",
+     "group": "Home Guide Press",
+     "count": 0,
+     "upcoming": [],
+     "earlier": [],
+     "schedule": null
+    },
+    {
+     "slug": "agnes-thornbury",
+     "label": "Agnes Thornbury",
+     "group": "Home Guide Press",
+     "count": 0,
+     "upcoming": [],
+     "earlier": [],
+     "schedule": null
+    },
+    {
+     "slug": "astrid-lindqvist",
+     "label": "Astrid Lindqvist",
+     "group": "Home Guide Press",
+     "count": 0,
+     "upcoming": [],
+     "earlier": [],
+     "schedule": null
+    },
+    {
+     "slug": "carla-benedetti",
+     "label": "Carla Benedetti",
+     "group": "Home Guide Press",
+     "count": 0,
+     "upcoming": [],
+     "earlier": [],
+     "schedule": null
+    },
+    {
+     "slug": "lou-brennan",
+     "label": "Lou Brennan",
+     "group": "Home Guide Press",
+     "count": 0,
+     "upcoming": [],
+     "earlier": [],
+     "schedule": null
     }
    ]
   },
@@ -3113,6 +3194,69 @@
     {
      "slug": "eleanor-whitfield",
      "label": "Eleanor Whitfield",
+     "group": "Home Guide Press",
+     "count": 0,
+     "outliers": []
+    },
+    {
+     "slug": "claudine-marchand",
+     "label": "Claudine Marchand",
+     "group": "Home Guide Press",
+     "count": 0,
+     "outliers": []
+    },
+    {
+     "slug": "diane-kowalski",
+     "label": "Diane Kowalski",
+     "group": "Home Guide Press",
+     "count": 0,
+     "outliers": []
+    },
+    {
+     "slug": "jiyoung-han",
+     "label": "Jiyoung Han",
+     "group": "Home Guide Press",
+     "count": 0,
+     "outliers": []
+    },
+    {
+     "slug": "peggy-donovan",
+     "label": "Peggy Donovan",
+     "group": "Home Guide Press",
+     "count": 0,
+     "outliers": []
+    },
+    {
+     "slug": "takeshi-morimoto",
+     "label": "Takeshi Morimoto",
+     "group": "Home Guide Press",
+     "count": 0,
+     "outliers": []
+    },
+    {
+     "slug": "agnes-thornbury",
+     "label": "Agnes Thornbury",
+     "group": "Home Guide Press",
+     "count": 0,
+     "outliers": []
+    },
+    {
+     "slug": "astrid-lindqvist",
+     "label": "Astrid Lindqvist",
+     "group": "Home Guide Press",
+     "count": 0,
+     "outliers": []
+    },
+    {
+     "slug": "carla-benedetti",
+     "label": "Carla Benedetti",
+     "group": "Home Guide Press",
+     "count": 0,
+     "outliers": []
+    },
+    {
+     "slug": "lou-brennan",
+     "label": "Lou Brennan",
      "group": "Home Guide Press",
      "count": 0,
      "outliers": []
@@ -3631,6 +3775,22 @@
      {
       "slug": "walter-brandt-dogs",
       "label": "Walter Brandt Dogs"
+     },
+     {
+      "slug": "agnes-thornbury",
+      "label": "Agnes Thornbury"
+     },
+     {
+      "slug": "astrid-lindqvist",
+      "label": "Astrid Lindqvist"
+     },
+     {
+      "slug": "carla-benedetti",
+      "label": "Carla Benedetti"
+     },
+     {
+      "slug": "lou-brennan",
+      "label": "Lou Brennan"
      }
     ],
     "month": {
@@ -3899,7 +4059,7 @@
        {
         "title": "Claudine Marchand",
         "owner": "Elle",
-        "why": "No calendar yet",
+        "why": "0 of 3 published",
         "page": "pipeline/hgp/claudine-marchand/calendar"
        },
        {
@@ -3911,7 +4071,7 @@
        {
         "title": "Diane Kowalski",
         "owner": "Elle",
-        "why": "No calendar yet",
+        "why": "0 of 3 published",
         "page": "pipeline/hgp/diane-kowalski/calendar"
        },
        {
@@ -3935,7 +4095,7 @@
        {
         "title": "Takeshi Morimoto",
         "owner": "Elle",
-        "why": "No calendar yet",
+        "why": "0 of 3 published",
         "page": "pipeline/hgp/takeshi-morimoto/calendar"
        },
        {
@@ -3947,13 +4107,13 @@
        {
         "title": "Jiyoung Han",
         "owner": "Elle",
-        "why": "No calendar yet",
+        "why": "0 of 3 published",
         "page": "pipeline/hgp/jiyoung-han/calendar"
        },
        {
         "title": "Peggy Donovan",
         "owner": "Elle",
-        "why": "No calendar yet",
+        "why": "0 of 3 published",
         "page": "pipeline/hgp/peggy-donovan/calendar"
        },
        {
@@ -4022,7 +4182,7 @@
          "cls": "crit"
         },
         "owner": "Elle",
-        "note": "No calendar yet"
+        "note": ""
        },
        {
         "label": "Peter Collins",
@@ -4058,7 +4218,7 @@
          "cls": "crit"
         },
         "owner": "Elle",
-        "note": "No calendar yet"
+        "note": ""
        },
        {
         "label": "Dale Whitaker Pitbulls",
@@ -4106,7 +4266,7 @@
          "cls": "crit"
         },
         "owner": "Elle",
-        "note": "No calendar yet"
+        "note": ""
        },
        {
         "label": "Kenzo Arai",
@@ -4130,7 +4290,7 @@
          "cls": "crit"
         },
         "owner": "Elle",
-        "note": "No calendar yet"
+        "note": ""
        },
        {
         "label": "Peggy Donovan",
@@ -4142,7 +4302,7 @@
          "cls": "crit"
         },
         "owner": "Elle",
-        "note": "No calendar yet"
+        "note": ""
        },
        {
         "label": "Edna Haynes",
@@ -6066,6 +6226,26 @@
       {
        "slug": "walter-brandt-dogs",
        "label": "Walter Brandt Dogs",
+       "focus": false
+      },
+      {
+       "slug": "agnes-thornbury",
+       "label": "Agnes Thornbury",
+       "focus": false
+      },
+      {
+       "slug": "astrid-lindqvist",
+       "label": "Astrid Lindqvist",
+       "focus": false
+      },
+      {
+       "slug": "carla-benedetti",
+       "label": "Carla Benedetti",
+       "focus": false
+      },
+      {
+       "slug": "lou-brennan",
+       "label": "Lou Brennan",
        "focus": false
       }
      ]
