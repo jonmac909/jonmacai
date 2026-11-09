@@ -131,7 +131,7 @@ function seed() {
     note: 'What happened:\n- Pack made\nYour move:\n- Approve the thumbnail D:\\AgentTeam\\packs\\peter\\thumb.png\nNext:\n- Upload', updated_at: '2026-11-07T20:00:00Z' });
   const jmTask = task(db, { title: 'Jon Mac upload - Jon Mac', owner: 'jon-mac-youtube', project: 'jon-mac', status: 'waiting_on_jon', updated_at: '2026-11-06T20:00:00Z' });
   const edit = task(db, { title: 'Jack Mercer video 2 edit - Jack Mercer', owner: 'video-editor', project: 'home-guide-press', status: 'review' });
-  ins(db, 'bot_proofs', { id: id('p'), task_id: edit, kind: 'url', link: 'https://jonmac.ai/review/jack-2', status: 'passed', created_by: 'video-editor', created_at: '2026-11-08T16:00:00Z', checked_by: 'qc', checked_at: '2026-11-08T17:00:00Z' });
+  ins(db, 'bot_proofs', { id: id('p'), task_id: edit, kind: 'render', link: 'https://jonmac.ai/review/jack-2', status: 'passed', created_by: 'video-editor', created_at: '2026-11-08T16:00:00Z', checked_by: 'qc', checked_at: '2026-11-08T17:00:00Z' });
   const daisy = task(db, { title: 'Complete Histories daily', owner: 'spotify', project: null, status: 'doing' });
 
   // Questions and approvals: 2 bot-health, 3 known charges, and the rest for Jon.

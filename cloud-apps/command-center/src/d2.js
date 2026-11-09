@@ -77,8 +77,11 @@ export async function d2Data(env, nowMs) {
     try { return (await db.prepare(sql).bind(...args).all()).results || []; } catch (err) { console.error('d2', err); return null; }
   };
   const db = env.DB;
-  const [calendar, calAt, channels, tasks, qcPassed, keys, ticks, rbcLast, runs, proofs, orders, funnelWeek, weather] = await Promise.all([
+  const [calendar, published, lastTicks, calAt, channels, tasks, qcPassed, keys, ticks, rbcLast, runs, proofs, orders, funnelWeek, weather] = await Promise.all([
     q(db, 'SELECT channel, day, status, title, link FROM yt_calendar WHERE day >= ? AND day <= ? LIMIT 5000', from, P.month.weeks.at(-1).end),
+    // Every published row, whenever it went live: a sponsor video from October is still live (newest first, so the cap drops the oldest).
+    q(db, "SELECT title FROM yt_calendar WHERE status = 'published' ORDER BY day DESC LIMIT 5000"),
+    q(db, 'SELECT project, item, MAX(day) AS day FROM bot_daily_ticks GROUP BY project, item'), // "Last check" on a Monday looks back past the week
     q(db, 'SELECT MAX(updated_at) AS at FROM yt_calendar'), // the calendars' age
     q(db, 'SELECT * FROM yt_channels'),
     // Every sponsor card (a deal's first "video N" card can be old), plus short-form cards done since the month's first week began.
@@ -100,7 +103,7 @@ export async function d2Data(env, nowMs) {
     funnelMonth(env.CLONE_DB, nowMs - 7 * DAY, nowMs),
     fetchWeather(nowMs), // the one network call: Open-Meteo, kept 10 minutes
   ]);
-  return { calendar, calAt: calAt?.[0]?.at ?? null, channels, tasks, qcPassed, keys, ticks, rbcLast: rbcLast?.[0]?.day ?? null, runs, proofs, orders, hgpBound: !!env.HGP_DB, funnelWeek, weather };
+  return { calendar, published, lastTicks, calAt: calAt?.[0]?.at ?? null, channels, tasks, qcPassed, keys, ticks, rbcLast: rbcLast?.[0]?.day ?? null, runs, proofs, orders, hgpBound: !!env.HGP_DB, funnelWeek, weather };
 }
 
 // ---- metrics ----
@@ -152,12 +155,21 @@ const weekDays = (C, fn, target = null) => C.P.week.days.map((d) => ({ ymd: d.ym
 // Oldest first (the query reads newest first, so its cap drops the oldest).
 const videoCards = (C) => C.data.tasks && C.data.tasks.filter((c) => c.project === 'sponsors' && SPONSOR_VIDEO.test(c.title || ''))
   .sort((a, b) => String(a.created_at).localeCompare(String(b.created_at)));
-// A sponsor's video N is live when at least N published calendar rows name the sponsor (Lucy's YouTube sync keeps
-// those rows current). Behind and the invoice count never include a live video.
+// A sponsor's video N is live when at least N published calendar rows (any date) name the sponsor (Lucy's YouTube sync keeps
+// those rows current). Whole words only, and a trailing "AI" or "app" on the board name is optional ("Invideo AI" matches
+// "Invideo review"). Behind and the invoice count never include a live video.
+const GENERIC = new Set(['ai', 'app', 'io', 'inc', 'co', 'the']);
+const wordsOf = (x) => String(x || '').toLowerCase().match(/[a-z0-9]+/g) || [];
 const liveSponsor = (C) => {
-  const titles = (C.data.calendar || []).filter((r) => r.status === 'published').map((r) => String(r.title || '').toLowerCase());
-  return (name, nth = 1) => { const n = String(name || '').toLowerCase(); return !!n && titles.filter((t) => t.includes(n)).length >= nth; };
+  const titles = (C.data.published || C.data.calendar?.filter((r) => r.status === 'published') || []).map((r) => new Set(wordsOf(r.title)));
+  return (name, nth = 1) => {
+    const all = wordsOf(name);
+    const need = all.filter((w) => !GENERIC.has(w));
+    const want = need.length ? need : all;
+    return want.length > 0 && titles.filter((t) => want.every((w) => t.has(w))).length >= nth;
+  };
 };
+const moveLink = (t) => linkOf({}, null, t) || (/^https?:\/\//i.test(t?.proofLink || '') ? { label: 'Open link', href: t.proofLink } : null);
 const sponsorOf = (title) => title.split(':')[0].replace(/\s*\bvideo\s+\d+\b.*$/i, '').trim() || title;
 
 const METRICS = {
@@ -199,7 +211,7 @@ const METRICS = {
       actual: cards && done.length, pace: cfg.target * C.weekShare, source: { ...C.src.cards, label: 'Sponsor video cards' },
       behind: open.map((c) => {
         const t = full.get(c.id);
-        const link = c.status === 'waiting_on_jon' && t ? linkOf({}, null, t) : null; // Waiting on you: the card's Your move line and its link
+        const link = c.status === 'waiting_on_jon' && t ? moveLink(t) : null; // Waiting on you: the card's Your move line and its link
         const why = c.status === 'waiting_on_jon' && t ? `Waiting on you: ${plain(t.note) || 'open the card'}` : `${STAGE[c.status] || c.status}${c.due ? `, due ${short(c.due)}` : ''}`;
         return { title: c.title.split(':')[0].trim(), owner: nameOf(c.owner), why, open: c.id, ...(link ? { href: link.href, linkLabel: link.label } : {}) };
       }),
@@ -234,14 +246,14 @@ const METRICS = {
     const days = weekDays(C, (d) => (ticks.some((x) => x.day === d && x.project === cfg.project && x.item === cfg.item) ? 1 : 0), 1);
     const n = days.reduce((s, d) => s + (d.actual || 0), 0);
     const missed = days.filter((d) => d.ymd < C.today && !d.actual);
-    const last = days.filter((d) => d.actual).map((d) => d.ymd).pop() || null;
+    const last = [...days.filter((d) => d.actual).map((d) => d.ymd), C.data.lastTicks?.find((x) => x.project === cfg.project && x.item === cfg.item)?.day].filter(Boolean).sort().pop() || null;
     return metric(cfg, g.owner, {
       actual: n, display: `${n} of ${cfg.target} days checked`, pace: cfg.target * C.weekShare, days,
       source: { ...C.src.ticks, label: `${g.owner}'s daily checklist` },
       note: `The daily "${cfg.item}" tick. Site check failures go to Ana and are not stored on the dashboard.`,
       behind: missed.length ? [{ title: cfg.item, owner: g.owner, why: `Not ticked ${missed.map((d) => dayName(d.ymd)).join(', ')}` }] : [],
       facts: [
-        { label: 'Last check', value: last ? `${short(last)} (${dayName(last)})` : 'None this week' },
+        { label: 'Last check', value: last ? `${short(last)} (${dayName(last)})` : 'No check yet' },
         { label: 'Missed', value: missed.length ? `${g.owner}: ${missed.map((d) => dayName(d.ymd)).join(', ')}` : 'No one' },
       ],
     });
@@ -274,10 +286,11 @@ const METRICS = {
     const scheduled = list.reduce((n, x) => n + x.s, 0);
     const label = new Map(C.chans.map((c) => [c.slug, c.label]));
     const todays = mine.filter((r) => r.status === 'published' && r.day === C.today);
-    const waiting = (C.t.tasks || []).filter((x) => x.status === 'review' && x.project === g.project);
-    const facts = month ? [] : [
+    // Videos only: a review card with a rendered video (landing pages and fixes are not videos). Unreadable cards give No data.
+    const waiting = C.t.tasks ? C.t.tasks.filter((x) => x.status === 'review' && x.project === g.project && x.deliverable?.kind === 'render') : null;
+    const facts = period !== 'week' ? [] : [
       { label: 'Published today', value: String(todays.length), links: todays.filter((r) => /^https?:\/\//i.test(r.link || '')).map((r) => ({ label: `${r.title} - ${label.get(r.channel) || r.channel}`, href: r.link })) },
-      { label: 'Waiting for your review', value: String(waiting.length), links: waiting.map((x) => ({ label: x.title, href: linkOf({}, null, x)?.href })).filter((l) => l.href) },
+      { label: 'Waiting for your review', value: waiting ? String(waiting.length) : 'No data', links: (waiting || []).map((x) => ({ label: x.title, href: moveLink(x)?.href })).filter((l) => l.href) },
     ];
     return metric(cfg, g.owner, {
       facts, target, actual: list.reduce((n, x) => n + Math.min(x.n, per), 0), pace: target * share, source: C.src.calendar,

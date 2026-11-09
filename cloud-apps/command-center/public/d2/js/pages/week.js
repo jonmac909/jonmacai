@@ -36,7 +36,7 @@ function behindList(list) {
 }
 
 // Small facts under a metric (last check date, published today, waiting for review), each with its links.
-const factsList = (facts) => (facts?.length ? `<ul class="d2ch d2facts">${facts.map((f) => `<li><span>${esc(f.label)}</span><b>${esc(f.value)}</b>${(f.links || []).map((l) => ` <a href="${esc(l.href)}" target="_blank" rel="noopener">${esc(l.label)}</a>`).join('')}</li>`).join('')}</ul>` : '');
+const factsList = (facts) => (facts?.length ? `<ul class="d2ch d2facts">${facts.map((f) => `<li><span>${esc(f.label)}</span><b>${esc(f.value)}</b>${(f.links || []).filter((l) => /^https?:\/\//i.test(l.href || '')).map((l) => ` <a href="${esc(l.href)}" target="_blank" rel="noopener">${esc(l.label)}</a>`).join('')}</li>`).join('')}</ul>` : '');
 
 function metric(x, days) {
   const target = x.target == null || x.actual == null || x.unit === 'yesno' || / of /.test(x.display) ? '' : ` <span class="muted">target ${esc(fmt(x.unit, x.target))}</span>`;

@@ -764,7 +764,7 @@
          "proof": "https://jonmac.ai/review/jack-2",
          "deliverable": {
           "link": "https://jonmac.ai/review/jack-2",
-          "kind": "url",
+          "kind": "render",
           "web": true,
           "status": "passed"
          },
