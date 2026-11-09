@@ -3425,27 +3425,318 @@
      }
     ],
     "month": {
-     "note": "Book sales could not be read: the Home Guide Press database is not connected yet.",
-     "behind": [],
-     "rows": [],
-     "key": "sales",
-     "label": "First sales on the focus channels",
+     "key": "videos",
+     "label": "Videos published (3 a week per focus channel)",
      "unit": "count",
-     "target": 10,
-     "actual": null,
-     "display": "No data",
-     "pace": 2,
+     "target": 208,
+     "actual": 4,
+     "display": "4 of 208",
+     "pace": 52.6,
      "status": {
-      "text": "No data",
-      "cls": "idle"
+      "text": "Off pace",
+      "cls": "crit"
      },
      "owner": "Elle",
      "source": {
-      "label": "Book orders",
-      "at": null,
-      "ageLabel": "never reported",
-      "stale": true
-     }
+      "label": "Channel calendars",
+      "at": "2026-11-08T18:00:00Z",
+      "ageLabel": "updated 3 hr ago",
+      "stale": false
+     },
+     "note": "Counts up to 13 a channel. 1 more scheduled.",
+     "behind": [
+      {
+       "title": "Giovanni Moretti",
+       "owner": "Elle",
+       "why": "0 of 13 published",
+       "page": "pipeline/hgp/giovanni-moretti/calendar"
+      },
+      {
+       "title": "Nora Fairweather Cats",
+       "owner": "Elle",
+       "why": "0 of 13 published",
+       "page": "pipeline/hgp/nora-fairweather-cats/calendar"
+      },
+      {
+       "title": "Naomi Takeda Japan",
+       "owner": "Elle",
+       "why": "0 of 13 published",
+       "page": "pipeline/hgp/naomi-takeda-japan/calendar"
+      },
+      {
+       "title": "Eleanor Whitfield",
+       "owner": "Elle",
+       "why": "0 of 13 published, 1 scheduled",
+       "page": "pipeline/hgp/eleanor-whitfield/calendar"
+      },
+      {
+       "title": "Claudine Marchand",
+       "owner": "Elle",
+       "why": "No calendar yet",
+       "page": "pipeline/hgp/claudine-marchand/calendar"
+      },
+      {
+       "title": "Peter Collins",
+       "owner": "Elle",
+       "why": "3 of 13 published",
+       "page": "pipeline/hgp/peter-collins/calendar"
+      },
+      {
+       "title": "Jack Mercer",
+       "owner": "Elle",
+       "why": "1 of 13 published",
+       "page": "pipeline/hgp/jack-mercer/calendar"
+      },
+      {
+       "title": "Diane Kowalski",
+       "owner": "Elle",
+       "why": "No calendar yet",
+       "page": "pipeline/hgp/diane-kowalski/calendar"
+      },
+      {
+       "title": "Dale Whitaker Pitbulls",
+       "owner": "Elle",
+       "why": "0 of 13 published",
+       "page": "pipeline/hgp/dale-whitaker-pitbulls/calendar"
+      },
+      {
+       "title": "Rosa's Clean Home",
+       "owner": "Elle",
+       "why": "0 of 13 published",
+       "page": "pipeline/hgp/rosas-clean-home/calendar"
+      },
+      {
+       "title": "Rosa's House Hacks",
+       "owner": "Elle",
+       "why": "0 of 13 published",
+       "page": "pipeline/hgp/rosas-house-hacks/calendar"
+      },
+      {
+       "title": "Takeshi Morimoto",
+       "owner": "Elle",
+       "why": "No calendar yet",
+       "page": "pipeline/hgp/takeshi-morimoto/calendar"
+      },
+      {
+       "title": "Kenzo Arai",
+       "owner": "Elle",
+       "why": "No calendar yet",
+       "page": "pipeline/hgp/kenzo-arai/calendar"
+      },
+      {
+       "title": "Jiyoung Han",
+       "owner": "Elle",
+       "why": "No calendar yet",
+       "page": "pipeline/hgp/jiyoung-han/calendar"
+      },
+      {
+       "title": "Peggy Donovan",
+       "owner": "Elle",
+       "why": "No calendar yet",
+       "page": "pipeline/hgp/peggy-donovan/calendar"
+      },
+      {
+       "title": "Edna Haynes",
+       "owner": "Elle",
+       "why": "No calendar yet",
+       "page": "pipeline/hgp/edna-haynes/calendar"
+      }
+     ],
+     "rows": [
+      {
+       "label": "Giovanni Moretti",
+       "target": 13,
+       "actual": 0,
+       "display": "0 of 13",
+       "status": {
+        "text": "Off pace",
+        "cls": "crit"
+       },
+       "owner": "Elle",
+       "note": ""
+      },
+      {
+       "label": "Nora Fairweather Cats",
+       "target": 13,
+       "actual": 0,
+       "display": "0 of 13",
+       "status": {
+        "text": "Off pace",
+        "cls": "crit"
+       },
+       "owner": "Elle",
+       "note": ""
+      },
+      {
+       "label": "Naomi Takeda Japan",
+       "target": 13,
+       "actual": 0,
+       "display": "0 of 13",
+       "status": {
+        "text": "Off pace",
+        "cls": "crit"
+       },
+       "owner": "Elle",
+       "note": ""
+      },
+      {
+       "label": "Eleanor Whitfield",
+       "target": 13,
+       "actual": 0,
+       "display": "0 of 13",
+       "status": {
+        "text": "Off pace",
+        "cls": "crit"
+       },
+       "owner": "Elle",
+       "note": "1 scheduled this month"
+      },
+      {
+       "label": "Claudine Marchand",
+       "target": 13,
+       "actual": 0,
+       "display": "0 of 13",
+       "status": {
+        "text": "Off pace",
+        "cls": "crit"
+       },
+       "owner": "Elle",
+       "note": "No calendar yet"
+      },
+      {
+       "label": "Peter Collins",
+       "target": 13,
+       "actual": 3,
+       "display": "3 of 13",
+       "status": {
+        "text": "Behind",
+        "cls": "risk"
+       },
+       "owner": "Elle",
+       "note": ""
+      },
+      {
+       "label": "Jack Mercer",
+       "target": 13,
+       "actual": 1,
+       "display": "1 of 13",
+       "status": {
+        "text": "Off pace",
+        "cls": "crit"
+       },
+       "owner": "Elle",
+       "note": ""
+      },
+      {
+       "label": "Diane Kowalski",
+       "target": 13,
+       "actual": 0,
+       "display": "0 of 13",
+       "status": {
+        "text": "Off pace",
+        "cls": "crit"
+       },
+       "owner": "Elle",
+       "note": "No calendar yet"
+      },
+      {
+       "label": "Dale Whitaker Pitbulls",
+       "target": 13,
+       "actual": 0,
+       "display": "0 of 13",
+       "status": {
+        "text": "Off pace",
+        "cls": "crit"
+       },
+       "owner": "Elle",
+       "note": ""
+      },
+      {
+       "label": "Rosa's Clean Home",
+       "target": 13,
+       "actual": 0,
+       "display": "0 of 13",
+       "status": {
+        "text": "Off pace",
+        "cls": "crit"
+       },
+       "owner": "Elle",
+       "note": ""
+      },
+      {
+       "label": "Rosa's House Hacks",
+       "target": 13,
+       "actual": 0,
+       "display": "0 of 13",
+       "status": {
+        "text": "Off pace",
+        "cls": "crit"
+       },
+       "owner": "Elle",
+       "note": ""
+      },
+      {
+       "label": "Takeshi Morimoto",
+       "target": 13,
+       "actual": 0,
+       "display": "0 of 13",
+       "status": {
+        "text": "Off pace",
+        "cls": "crit"
+       },
+       "owner": "Elle",
+       "note": "No calendar yet"
+      },
+      {
+       "label": "Kenzo Arai",
+       "target": 13,
+       "actual": 0,
+       "display": "0 of 13",
+       "status": {
+        "text": "Off pace",
+        "cls": "crit"
+       },
+       "owner": "Elle",
+       "note": "No calendar yet"
+      },
+      {
+       "label": "Jiyoung Han",
+       "target": 13,
+       "actual": 0,
+       "display": "0 of 13",
+       "status": {
+        "text": "Off pace",
+        "cls": "crit"
+       },
+       "owner": "Elle",
+       "note": "No calendar yet"
+      },
+      {
+       "label": "Peggy Donovan",
+       "target": 13,
+       "actual": 0,
+       "display": "0 of 13",
+       "status": {
+        "text": "Off pace",
+        "cls": "crit"
+       },
+       "owner": "Elle",
+       "note": "No calendar yet"
+      },
+      {
+       "label": "Edna Haynes",
+       "target": 13,
+       "actual": 0,
+       "display": "0 of 13",
+       "status": {
+        "text": "Off pace",
+        "cls": "crit"
+       },
+       "owner": "Elle",
+       "note": "No calendar yet"
+      }
+     ],
+     "days": []
     },
     "week": [
      {
