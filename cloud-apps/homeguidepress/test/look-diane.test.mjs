@@ -55,5 +55,5 @@ test('other products keep their layouts', async () => {
   assert.match(plain, /href="\/styles\.css"/);
   assert.match(plain, /<article class="product">/);
   assert.doesNotMatch(plain, /looks\/diane/);
-  assert.match(await (await get('/the-christmas-home-plan')).text(), /class="product playbook"/);
+  assert.match(await (await get('/the-christmas-home-plan')).text(), /href="\/looks\/eleanor\.css"/);
 });

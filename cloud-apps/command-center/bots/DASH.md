@@ -36,6 +36,7 @@ dash.py tasks [--owner me|jon|<slug>] [--status todo,doing] [--project ..]      
   - `qc` needs at least one proof that QC hasn't failed.
   - QC passing a proof on a `qc` task moves it to `review` by itself. You may set `review` yourself only when QC has passed one of its proofs.
   - Only Jon sets `done`, by approving on the dashboard. `--status done` is refused.
+  - One exception (Jon, 2026-11-09): the daily live-YouTube sync (Developer only) runs `dash.py yt-live-done t_… --link https://www.youtube.com/watch?v=<id>`. The dashboard checks the video is public itself (YouTube oEmbed, no sign-in), saves the watch link as passed proof and moves the open card to `done`. A done or cancelled card, any other link, a private or missing video, and every other bot are refused.
   - Jon's send-back wakes you with `card_comment` and `data.sentBack: true`; `data.comment` says what to change. Do it, add new proof, move to `qc` again.
   - If QC fails the last proof that supported a `qc`, `review` or `done` task, the task goes back to `doing`.
 - Make the proof link the deliverable itself whenever you can: an https link Jon can open (the review page, the live page, the render). Jon sees it on the Review card. A file path shows only as text.

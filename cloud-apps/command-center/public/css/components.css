@@ -789,7 +789,9 @@ body:has(.cardmodal[open]){overflow:hidden} /* the page behind stays put */
 .fyt span{flex:none;min-width:4.6rem}
 .fyt em{font-style:normal;min-width:0;overflow:hidden;text-overflow:ellipsis}
 .fyt.on{color:var(--ink-2)} .fyt.on span{color:var(--ok-ink);font-weight:600}
-.fyt:not(.on) .fydot{background:var(--idle-line);animation:none}
+.fyt.qd{color:var(--ink-2)} .fyt.qd span{color:#a16207;font-weight:600}
+.fyt.qd .fydot{background:#eab308;animation:none}
+.fyt:not(.on):not(.qd) .fydot{background:var(--idle-line);animation:none}
 .fyt .fydot{flex:none;margin-right:0}
 @media (max-width:820px){.fyteam{grid-template-columns:minmax(0,1fr)}}
 .fytable{table-layout:fixed;--fyc1:16rem;--fyn:7;width:calc(var(--fyc1) + var(--fyn) * 6rem + 6.5rem);min-width:100%}

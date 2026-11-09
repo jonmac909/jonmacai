@@ -11,7 +11,8 @@ import { trackVideos } from './track.js';
 import { MONTH_HABITS, WEEK_HABITS, monthKey, weekStart } from './periods.js';
 import { upsertHabit } from './db.js';
 
-// todo/doing → qc (proof) → review (QC passed it) → done (Jon approved it). Only Jon sets done.
+// todo/doing → qc (proof) → review (QC passed it) → done (Jon approved it). Only Jon sets done, except the
+// live-YouTube sync for a card whose video the server itself found public (liveDone).
 export const TASK_STATUSES = ['todo', 'doing', 'waiting_on_jon', 'qc', 'review', 'done', 'cancelled'];
 const OPEN_STATUSES = ['todo', 'doing', 'waiting_on_jon'];
 export const PROOF_KINDS = ['render', 'url', 'pdf', 'test'];
@@ -367,6 +368,64 @@ export async function tickTask(db, env, ctx, id, body, now, extra = {}) {
   if (!comment) return json({ ok: true, task: taskOut(row) });
   const c = await postComment(db, env, ctx, { jon: true }, row, comment, now, { ...(close ? { closed: true } : { sentBack: true }), ...extra });
   return json({ ok: true, task: taskOut(row), comment: commentOut(c) });
+}
+
+// ---- live on YouTube (Jon, 2026-11-09): "the daily YouTube sync moves its card to Done" ----
+
+// The bot that runs the team's scripts (yt_live_sync.py). Apart from this path, only Jon sets done.
+const LIVE_SYNC_BOTS = ['developer'];
+const WATCH_HOSTS = ['youtube.com', 'www.youtube.com', 'm.youtube.com'];
+
+// The video id of an https youtube.com/watch?v= or youtu.be/ link, else null. No other link counts as live proof.
+export function watchIdOf(value) {
+  if (typeof value !== 'string' || value.length > 300) return null;
+  let u;
+  try { u = new URL(value.trim()); } catch { return null; }
+  if (u.protocol !== 'https:' || u.username || u.password || u.port) return null;
+  const id = u.hostname === 'youtu.be' ? u.pathname.slice(1)
+    : WATCH_HOSTS.includes(u.hostname) && u.pathname === '/watch' ? u.searchParams.get('v') : null;
+  return id && /^[\w-]{11}$/.test(id) ? id : null;
+}
+
+// YouTube's oEmbed answers with no sign-in only for a video anyone can open: 200 with its title. Private, deleted
+// or missing: 401, 403 or 404. shortcut: an unlisted video answers 200 too; the sync only sends ids from a channel's public feed.
+async function publicVideo(id) {
+  const link = `https://www.youtube.com/watch?v=${id}`;
+  let r;
+  try {
+    r = await fetch(`https://www.youtube.com/oembed?format=json&url=${encodeURIComponent(link)}`, { redirect: 'manual', signal: AbortSignal.timeout(10000) });
+  } catch {
+    throw new Bad(502, 'Could not reach YouTube to check the video; try again later');
+  }
+  if ([400, 401, 403, 404].includes(r.status)) throw new Bad(422, `YouTube says video ${id} is not public (HTTP ${r.status})`);
+  const data = r.status === 200 ? await r.json().catch(() => null) : null;
+  if (typeof data?.title !== 'string') throw new Bad(502, `YouTube's check of video ${id} failed (HTTP ${r.status}); try again later`);
+  return { id, link, title: data.title.slice(0, 300), author: typeof data.author_name === 'string' ? data.author_name.slice(0, 100) : null };
+}
+
+// POST tasks/:id/live {link}: the sync found this card's video live. The server checks the video is public itself,
+// then saves the watch link as passed proof and moves the card to done in one batch. A done or cancelled card stays.
+async function liveDone(db, who, id, body, now) {
+  if (!LIVE_SYNC_BOTS.includes(who.bot)) throw new Bad(403, `Only ${LIVE_SYNC_BOTS.join(', ')} can mark a live video done`);
+  const videoId = watchIdOf(body.link);
+  if (!videoId) throw new Bad(400, 'link must be an https://www.youtube.com/watch?v=… or https://youtu.be/… link');
+  const task = await taskRow(db, id);
+  if (!task) throw new Bad(404, 'Task not found');
+  if (['done', 'cancelled'].includes(task.status)) throw new Bad(409, `Task is already ${task.status}`);
+  const video = await publicVideo(videoId);
+  const open = "id = ? AND status NOT IN ('done', 'cancelled')";
+  const proofId = newId('p');
+  const [, moved] = await db.batch([
+    db.prepare(`INSERT INTO bot_proofs (id, task_id, kind, link, note, status, created_by, created_at, checked_by, checked_at, check_note)
+      SELECT ?, id, 'url', ?, ?, 'passed', ?, ?, ?, ?, ? FROM bot_tasks WHERE ${open}`)
+      .bind(proofId, video.link, `Live on YouTube: ${video.title}`, who.bot, now, who.bot, now, 'Public on YouTube (the dashboard checked it)', id),
+    db.prepare(`UPDATE bot_tasks SET status = 'done', done_at = ?, updated_by = ?, updated_at = ? WHERE ${open}`).bind(now, who.bot, now, id),
+  ]);
+  if (!changed(moved)) throw new Bad(409, `Task is already ${(await taskRow(db, id))?.status ?? 'gone'}`);
+  await logEvent(db, id, now, who.bot, 'proof', 'proof added (url)');
+  await logEvent(db, id, now, who.bot, 'status', `status ${task.status} → done (live on YouTube)`);
+  const proof = await db.prepare('SELECT * FROM bot_proofs WHERE id = ?').bind(proofId).first();
+  return json({ ok: true, task: taskOut(await taskRow(db, id)), proof: proofOut(proof), video });
 }
 
 async function listTasks(db, who, q) {
@@ -1551,6 +1610,7 @@ async function route(request, db, who, rest, env, ctx) {
     case 'PATCH tasks/:id': return who.jon ? tickTask(db, env, ctx, id, body, now) : updateTask(db, who, id, body, now);
     case 'POST tasks/:id/proofs': needBot(who); return addProof(db, who, id, body, now);
     case 'POST tasks/:id/comments': return addComment(db, env, ctx, who, id, body, now);
+    case 'POST tasks/:id/live': needBot(who); return liveDone(db, who, id, body, now);
     case 'GET proofs': return listProofs(db, q);
     case 'POST proofs/:id/check': needBot(who); return checkProof(db, who, id, body, now);
     case 'GET questions': return listQuestions(db, who, q);

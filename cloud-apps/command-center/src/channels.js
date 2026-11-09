@@ -11,7 +11,10 @@ export const CHANNELS = [
     ['rosas-clean-home', 'Rosa\'s Clean Home'], ['rosas-house-hacks', 'Rosa\'s House Hacks'], ['giovanni-moretti', 'Giovanni Moretti'],
     ['frank-bennett-dogs', 'Frank Bennett Dogs'], ['ruth-calder', 'Ruth Calder'], ['dale-whitaker-pitbulls', 'Dale Whitaker Pitbulls'],
     ['nora-fairweather-cats', 'Nora Fairweather Cats'], ['gail-merriman-golf', 'Gail Merriman Golf'],
-    ['naomi-takeda-japan', 'Naomi Takeda Japan'], ['walter-brandt-dogs', 'Walter Brandt Dogs'], ['eleanor-whitfield', 'Eleanor Whitfield']]],
+    ['naomi-takeda-japan', 'Naomi Takeda Japan'], ['walter-brandt-dogs', 'Walter Brandt Dogs'], ['eleanor-whitfield', 'Eleanor Whitfield'],
+    ['claudine-marchand', 'Claudine Marchand'], ['diane-kowalski', 'Diane Kowalski'], ['jiyoung-han', 'Jiyoung Han'],
+    ['peggy-donovan', 'Peggy Donovan'], ['takeshi-morimoto', 'Takeshi Morimoto'], ['agnes-thornbury', 'Agnes Thornbury'],
+    ['astrid-lindqvist', 'Astrid Lindqvist'], ['carla-benedetti', 'Carla Benedetti'], ['lou-brennan', 'Lou Brennan']]],
 ].flatMap(([group, list]) => list.map(([slug, label]) => ({ slug, label, group })));
 
 // Channels dash.py registered from a CSV file name (yt_channels rows with a label), after the fixed list.
