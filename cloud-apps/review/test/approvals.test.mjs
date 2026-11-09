@@ -36,7 +36,7 @@ const call = async (path, init) => {
 async function publish(slug, extra = {}) {
   const key = `review/${slug}/video-test.mp4`;
   await runtime.bucket.put(key, new Uint8Array([0, 0, 0, 24]));
-  const [, video, version] = /^(.*)-(v\d+)$/.exec(slug);
+  const [, video, version] = /^(.*)-(v\d+[a-z]?)$/.exec(slug);
   return call(`/api/review/${slug}/publish`, jsonInit("POST", { channel: "test", video, version, title: TITLE, video_key: key, ...extra }));
 }
 const submit = (slug, kind) => call(`/api/review/${slug}/submit`, jsonInit("POST", { kind }, asJon()));
@@ -141,6 +141,42 @@ test("after an approval a newer version is refused with 409, until Jon asks for 
   const subs = await call("/api/review/submissions", { headers: agent });
   assert.deepEqual(subs.body.submissions.filter((s) => s.slug.startsWith("dummy-1-")).map((s) => [s.slug, s.kind]),
     [["dummy-1-v2", "approve"], ["dummy-1-v1", "changes"], ["dummy-1-v1", "approve"]], "every press kept, newest first");
+});
+
+test("a QC fix on top of an approved version goes up with a fix note, stays QC-only and never reaches Jon's list", { skip }, async () => {
+  const jonList = async () => (await call("/api/review/jon-list", { headers: agent })).body.slugs.filter((s) => s.startsWith("fixv-"));
+  const fix = { fix: "New opening: host on screen from the first frame", title: "Fix test video - Nowhere" }; // no card: Jon's approve posts nowhere
+  assert.equal((await publish("fixv-2-v1", fix)).status, 409, "a fix needs a standing approval");
+  assert.equal((await publish("fixv-1-v1", { title: fix.title })).status, 201);
+  await qcPass("fixv-1-v1");
+  assert.equal((await submit("fixv-1-v1", "approve")).status, 201);
+
+  const plain = await publish("fixv-1-v2", { title: fix.title });
+  assert.equal(plain.status, 409, "without a fix note the lock still holds");
+  assert.match(plain.body.error, /--fix/);
+  assert.equal((await call("/api/review/fixv-1-v2/uploads", jsonInit("POST", { kind: "video" }))).status, 409);
+  assert.equal((await call("/api/review/fixv-1-v1b/uploads", jsonInit("POST", { kind: "video", ...fix }))).status, 201);
+  assert.equal((await publish("fixv-1-v1", fix)).status, 409, "a fix never overwrites the approved version");
+
+  const fixed = await publish("fixv-1-v1b", fix);
+  assert.equal(fixed.status, 201);
+  assert.equal(fixed.body.fix_of, "fixv-1-v1");
+  assert.equal(fixed.body.qc_only, true);
+  assert.equal(fixed.body.video.status, "approved");
+  assert.equal(fixed.body.video.notes, "Fix on top of approved v1 (Jon's approval carries; upload it once QC passes): New opening: host on screen from the first frame");
+  assert.deepEqual(await jonList(), [], "QC-only, and approved");
+  const page = await (await fetchApp("/review/fixv-1-v1b", { headers: asJon() })).text();
+  assert.match(page, /id="qc-only"/, "QC-only until QC passes it");
+  await qcPass("fixv-1-v1b");
+  assert.deepEqual(await jonList(), [], "after QC passes it still asks Jon nothing");
+  assert.doesNotMatch(await (await fetchApp("/review/fixv-1-v1b", { headers: asJon() })).text(), /id="qc-only"/);
+
+  // QC finds another fault: the same fix slug goes up again; anything without a fix note is still refused.
+  assert.equal((await publish("fixv-1-v1b", fix)).status, 200);
+  assert.equal((await publish("fixv-1-v3", { title: fix.title })).status, 409);
+  const subs = await call("/api/review/submissions", { headers: agent });
+  assert.deepEqual(subs.body.submissions.filter((s) => s.slug.startsWith("fixv-")).map((s) => [s.slug, s.kind]), [["fixv-1-v1", "approve"]],
+    "a fix adds no submission");
 });
 
 test("a stored task id picks the card; each submission is posted once; a failed post can be retried", { skip }, async () => {

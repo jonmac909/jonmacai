@@ -253,12 +253,16 @@ async function stemRows(env, table, columns, slug) {
 }
 
 // Jon approved a version and has not asked for changes on any version since: the newest submission across the
-// video's versions is an approval. While it stands, no new version of the video is uploaded or published (409).
-async function approvalLock(env, slug) {
+// video's versions is an approval. While it stands, no new version of the video is uploaded or published (409), except
+// a fix: a QC fault found after his approval, fixed on top of the approved version and sent with a fix note naming the
+// change (Jon, 2026-11-09). A fix stays QC-only like any version and carries his approval, so it never asks him again.
+async function standingApproval(env, slug) {
   const [last] = await stemRows(env, "submissions", "slug, kind, created_at", slug);
-  if (last?.kind !== "approve") return null;
-  const when = new Date(last.created_at).toLocaleString("en-US", { timeZone: "America/Vancouver", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
-  return fail(409, `Jon approved ${last.slug} on the review page (${when} Kelowna). That version is final: no new version of this video until he asks for changes on the review page.`);
+  return last?.kind === "approve" ? last : null;
+}
+function approvalLock(approval) {
+  const when = new Date(approval.created_at).toLocaleString("en-US", { timeZone: "America/Vancouver", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+  return fail(409, `Jon approved ${approval.slug} on the review page (${when} Kelowna). That version is final: no new version of this video until he asks for changes on the review page. A QC fault fix on top of it goes up with a fix note naming the change (--fix "...").`);
 }
 
 // The QC gate (Jon, 2026-11-09: "never put videos on review page before QC"). Every published video file starts QC-only
@@ -737,8 +741,8 @@ async function publishApi(request, env, url, slug, resource, uploadId, action) {
   if (resource === "uploads" && uploadId === undefined && method === "POST") {
     const body = await readJson(request);
     if (!body || !["video", "source", "compare"].includes(body.kind)) return fail(400, "kind must be video, source or compare");
-    const locked = body.kind === "video" && await approvalLock(env, slug); // refused before the upload, not after it
-    if (locked) return locked;
+    const approval = body.kind === "video" && !text(body.fix, 300) && await standingApproval(env, slug); // refused before the upload, not after it
+    if (approval) return approvalLock(approval);
     const key =`review/${slug}/${body.kind}-${Date.now().toString(36)}${crypto.randomUUID().slice(0, 6)}.mp4`;
     const upload = await env.MEDIA.createMultipartUpload(key, { httpMetadata: { contentType: "video/mp4" } });
     return json({ key, uploadId: upload.uploadId }, 201);
@@ -797,15 +801,23 @@ async function publishApi(request, env, url, slug, resource, uploadId, action) {
   if (resource === "publish" && uploadId === undefined && method === "POST") {
     const body = await readJson(request);
     if (!body) return fail(400, "send JSON metadata");
-    const locked = await approvalLock(env, slug);
-    if (locked) return locked;
+    const approval = await standingApproval(env, slug);
+    const fix = text(body.fix, 300);
+    if (approval && !fix) return approvalLock(approval);
+    if (fix && !approval) return fail(409, "Jon has no standing approval on this video, so there is nothing to fix on top of. Publish it as a normal version, without a fix note.");
+    const previous = await env.DB.prepare("SELECT video_key, source_key, compare_key, created_at FROM videos WHERE slug = ?").bind(slug).first();
+    // A fix is a new version: it never overwrites the approved file or any version that existed when Jon approved.
+    if (fix && previous && previous.created_at <= approval.created_at) return fail(409, `${slug} existed when Jon approved ${approval.slug}. Publish the fix under a new version slug.`);
     const taskId = body.task_id == null || body.task_id === "" ? null : String(body.task_id);
     if (taskId && !TASK_ID.test(taskId)) return fail(400, "task_id must be a dashboard task id (t_ and 16 hex digits)");
     const channel = text(body.channel, 40).toLowerCase();
     const video = text(body.video, 80).toLowerCase();
     const version = text(body.version, 40);
     const title = text(body.title, 200);
-    const status = body.status === undefined ? "needs_review" : body.status;
+    // A fix carries Jon's approval: "approved" keeps it off his review list for good, and its note says what it fixed.
+    const status = fix ? "approved" : body.status === undefined ? "needs_review" : body.status;
+    const approvedAs = fix && ((await env.DB.prepare("SELECT version FROM videos WHERE slug = ?").bind(approval.slug).first())?.version || approval.slug);
+    const notes = [fix && `Fix on top of approved ${approvedAs} (Jon's approval carries; upload it once QC passes): ${fix}`, text(body.notes, fix ? 1600 : 2000)].filter(Boolean).join("\n");
     if (!validSlug(channel) || !validSlug(video) || !version || !title) return fail(400, "channel, video, version and title are required (lowercase slugs)");
     if (!STATUSES.includes(status)) return fail(400, "bad status");
     const extras = ["source_key", "compare_key"];
@@ -820,7 +832,6 @@ async function publishApi(request, env, url, slug, resource, uploadId, action) {
     const syncOk = (s) => Array.isArray(s) && s.length === 4 && s.every((n) => typeof n === "number" && Number.isFinite(n) && n >= 0);
     const syncMap = Array.isArray(body.sync) && body.sync.length && body.sync.length <= 5000 && body.sync.every(syncOk)
       ? JSON.stringify(body.sync.map((s) => s.map((n) => Math.round(n * 1000) / 1000))) : null;
-    const previous = await env.DB.prepare("SELECT video_key, source_key, compare_key FROM videos WHERE slug = ?").bind(slug).first();
     const sourceKey = body.source_key || previous?.source_key || null; // a recut of the same video keeps its original
     const stamp = now();
     await env.DB.batch([
@@ -836,7 +847,7 @@ async function publishApi(request, env, url, slug, resource, uploadId, action) {
         .bind(slug, channel, video, version, title, status, body.video_key, videoInfo.size,
           /^[a-f0-9]{64}$/.test(body.video_sha256 || "") ? body.video_sha256 : null,
           sourceKey, body.compare_key || null, Number.isFinite(duration) && duration > 0 ? duration : null,
-          chapters, syncMap, text(body.notes, 2000) || null, stamp, stamp),
+          chapters, syncMap, notes || null, stamp, stamp),
       ...(taskId ? [env.DB.prepare("INSERT OR IGNORE INTO video_tasks (slug, task_id, created_at) VALUES (?, ?, ?)").bind(slug, taskId, stamp)] : []),
       // The QC gate: this file is QC-only until QC passes its dashboard proof (a recut of a passed version is held again).
       env.DB.prepare("INSERT OR IGNORE INTO qc_holds (slug, video_key, created_at) VALUES (?, ?, ?)").bind(slug, body.video_key, stamp),
@@ -845,7 +856,8 @@ async function publishApi(request, env, url, slug, resource, uploadId, action) {
     const stale = [previous?.video_key, previous?.source_key, previous?.compare_key].filter((k) => k && !kept.has(k));
     if (stale.length) await env.MEDIA.delete(stale);
     return json({ video: publicVideo(await getVideo(env, slug), url.origin), qc_only: true,
-      visible_to_jon: "only after QC passes its dashboard proof" }, previous ? 200 : 201);
+      ...(fix ? { fix_of: approval.slug, visible_to_jon: "never as a new request: it carries his approval; upload it once QC passes it" }
+        : { visible_to_jon: "only after QC passes its dashboard proof" }) }, previous ? 200 : 201);
   }
 
   return fail(405, "method_not_allowed");

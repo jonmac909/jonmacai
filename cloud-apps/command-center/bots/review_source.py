@@ -36,12 +36,12 @@ quote = lambda s: urllib.parse.quote(s, safe='')  # noqa: E731
 
 
 def stem(slug):
-    return re.sub(r'-v\d+$', '', slug)
+    return re.sub(r'-v\d+[a-z]?$', '', slug)  # v3b, a fix on top of approved v3, is the same video
 
 
 def version(slug):
-    found = re.search(r'-v(\d+)$', slug)
-    return int(found.group(1)) if found else 0
+    found = re.search(r'-v(\d+)([a-z]?)$', slug)
+    return (int(found.group(1)), found.group(2)) if found else (0, '')
 
 
 def references(video):
