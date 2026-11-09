@@ -73,7 +73,7 @@ test('strange purchases: only the last 7 days are flagged, and a refund is never
 // ---- the sections ----
 const ctx = (over = {}) => ({
   nowMs: NOW, today: TODAY, ws: '2026-11-09', we: '2026-11-15', by: {}, keyOf: new Map(), cards: [], cash: null,
-  t: { feeds: {}, questions: [], tasks: [] }, data: { calendar: [] },
+  t: { feeds: {}, questions: [], tasks: [] }, data: { calendar: [], keys: [] },
   src: { calendar: { label: 'Channel calendars', ageLabel: 'updated 1 hr ago', stale: false } }, ...over,
 });
 const X = (over = {}) => ({ weather: null, videoCards: [], sponsors: undefined, goals: [], ...over });
@@ -96,7 +96,7 @@ test('weather: plain words from the WMO code, and the failure line names Open-Me
   assert.equal(sec(buildSummary(ctx(), X()), 'weather').line, 'Weather unavailable (Open-Meteo), owner Mila');
 });
 
-test('weather fetch: kept 10 minutes, a failure is kept only a minute and never throws', async () => {
+test('weather fetch: kept 10 minutes, a failure is kept 5 minutes and never throws', async () => {
   let calls = 0;
   const good = async () => { calls++; return Response.json({ current: { temperature_2m: 3, weather_code: 0 }, daily: { temperature_2m_max: [5], temperature_2m_min: [1], precipitation_probability_max: [0] } }); };
   const t0 = Date.parse('2030-01-01T00:00:00Z');
@@ -108,9 +108,9 @@ test('weather fetch: kept 10 minutes, a failure is kept only a minute and never 
   assert.equal(calls, 2);
   const t1 = t0 + 3600000;
   assert.equal(await fetchWeather(t1, async () => { throw new Error('offline'); }), null);
-  assert.equal(await fetchWeather(t1 + 30000, good), null, 'a failure is remembered for a minute');
-  assert.equal(await fetchWeather(t1 + 120000, async () => new Response('x', { status: 500 })), null);
-  assert.equal(await fetchWeather(t1 + 240000, async () => Response.json({ current: {} })), null, 'an answer without a temperature is a failure');
+  assert.equal(await fetchWeather(t1 + 240000, good), null, 'a failure is remembered for 5 minutes');
+  assert.equal(await fetchWeather(t1 + 301000, async () => new Response('x', { status: 500 })), null);
+  assert.equal(await fetchWeather(t1 + 700000, async () => Response.json({ current: {} })), null, 'an answer without a temperature is a failure');
 });
 
 test('calendar: no feed says "Calendar feed not connected. Owner: Ana."; a feed from another day is not today\'s', () => {
@@ -221,4 +221,45 @@ test('channels: scheduled of planned this week plus open cards, one line a chann
   assert.deepEqual(s.notes, ['1 more open card not tied to one channel.']);
   const lost = sec(buildSummary(ctx({ data: { calendar: null }, t: { feeds: {}, questions: [], tasks: null } }), X({ goals })), 'hgp');
   assert.deepEqual(lost.notes, ['Channel calendars unavailable. Owner: Elle.', 'Open cards unavailable (dashboard cards unreadable). Owner: Elle.']);
+});
+
+test('expenses: strange purchases are capped at 8 lines with "+N more"', () => {
+  const many = Array.from({ length: 11 }, (_, i) => [ch('2026-11-08', `DUP${String.fromCharCode(97 + i)}`, 10), ch('2026-11-08', `DUP${String.fromCharCode(97 + i)}`, 10)]).flat();
+  const e = sec(buildSummary(ctx({ by: money(ago(1), expenses(biz(many))) }), X()), 'expenses');
+  assert.equal(e.strange.length, 11);
+  assert.equal(e.rows.filter((r) => r.cls === 'crit').length, 8);
+  assert.ok(e.notes.includes('+3 more strange purchases.'));
+});
+
+test('expenses: when the charge-watch lookup fails it says so and never claims "no strange purchases"', () => {
+  const by = money(ago(1), expenses(biz(clean)));
+  for (const bad of [{ data: { calendar: [], keys: null } }, { t: { feeds: {}, questions: null, tasks: [] } }]) {
+    const e = sec(buildSummary(ctx({ by, ...bad }), X()), 'expenses');
+    assert.ok(e.notes.includes('Charge-watch flags unavailable (bot questions unreadable). Owner: Mila.'));
+    assert.equal(e.notes.some((n) => /No strange purchases/.test(n)), false);
+  }
+});
+
+test('expenses: notes when the feed yesterday total and its charge list disagree', () => {
+  const list = [ch('2026-11-08', 'ZOOM.US', 15.99)];
+  const off = sec(buildSummary(ctx({ by: money(ago(1), expenses(biz(list))) }), X()), 'expenses'); // feed says $20, list says $15.99
+  assert.ok(off.notes.some((n) => /Business: yesterday is MoneyClaw's total \(\$20\.00\); its charge list adds to \$15\.99/.test(n)));
+  const same = expenses(biz(list));
+  same.expenses.business.yesterday = period(15.99);
+  assert.equal(sec(buildSummary(ctx({ by: money(ago(1), same) }), X()), 'expenses').notes.some((n) => /yesterday is MoneyClaw/.test(n)), false);
+});
+
+// One bad source must not blank the others (or /d2, see test/d2.test.mjs).
+test('a malformed source turns only its own section into an unavailable line', () => {
+  const bad = ctx({
+    by: money(ago(1), { markets: { core: [null, ...core] }, ...expenses(biz([null, ...clean])) }),
+    t: { feeds: { calendar_today: { createdAt: ago(1), data: { date: TODAY, events: 'not a list' } } }, questions: [], tasks: [] },
+    cards: null, // Sponsors reads this and throws
+  });
+  const s = buildSummary(bad, X({ weather: { at: new Date(NOW).toISOString(), temp: 1, code: 0 } }));
+  assert.equal(sec(s, 'calendar').line, 'Calendar unavailable (could not read its data). Owner: Ana.');
+  assert.equal(sec(s, 'sponsors').line, 'Sponsors unavailable (could not read its data). Owner: Florence.');
+  assert.equal(sec(s, 'markets').rows[0].value, '$701.89', 'a null entry in markets.core is skipped');
+  assert.match(sec(s, 'expenses').rows[0].value, /^Yesterday \$20/, 'a null entry in the charge list is skipped');
+  assert.equal(sec(s, 'weather').rows[0].value, '1°C, clear');
 });

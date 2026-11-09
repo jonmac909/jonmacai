@@ -40,7 +40,7 @@ export async function fetchWeather(nowMs, fetchFn = globalThis.fetch) {
       value = { at: new Date(nowMs).toISOString(), temp: j.current.temperature_2m, code, hi: j.daily?.temperature_2m_max?.[0], lo: j.daily?.temperature_2m_min?.[0], rain: j.daily?.precipitation_probability_max?.[0] };
     }
   } catch (err) { console.error('weather', err.message); }
-  cached = { at: nowMs, ttl: value ? 10 * 60000 : 60000, value };
+  cached = { at: nowMs, ttl: value ? 10 * 60000 : 5 * 60000, value };
   return value;
 }
 
@@ -121,7 +121,7 @@ function marketsSection(row0, nowMs) {
   if (!Array.isArray(core)) return none('markets', title, 'Mila', [], 'Market feed not connected (MoneyClaw). Owner: Mila.');
   const src = sourceOf('MoneyClaw markets', row0.collected_at, nowMs);
   const rows = ['VOO', 'QQQ'].map((sym) => {
-    const m = core.find((x) => x.symbol === sym);
+    const m = core.find((x) => x?.symbol === sym);
     if (!m || !Number.isFinite(Number(m.price))) return row(sym, '', 'Not in the MoneyClaw feed. Owner: Mila.', 'muted');
     const ath = Number(m.allTimeHigh);
     const off = Number.isFinite(Number(m.pctOffHigh)) ? Number(m.pctOffHigh) : Number.isFinite(ath) && ath > 0 ? Math.round((1 - m.price / ath) * 1000) / 10 : null;
@@ -131,7 +131,7 @@ function marketsSection(row0, nowMs) {
   return section('markets', title, 'Mila', [src], { rows });
 }
 
-function expensesSection(row0, questions, keyOf, today, nowMs) {
+function expensesSection(row0, questions, keyOf, today, nowMs) { // questions is null when the open questions or their keys could not be read
   const title = 'RBC expenses';
   const ex = row0 ? parse(row0.data).expenses : null;
   if (!ex || !(ex.personal || ex.business)) return none('expenses', title, 'Mila', [], 'Expenses feed not connected (MoneyClaw). Owner: Mila.');
@@ -148,7 +148,7 @@ function expensesSection(row0, questions, keyOf, today, nowMs) {
   const lists = Object.fromEntries(groups.map(([k]) => {
     const lm = ex[k].lastMonth;
     const cur = ex[k].month;
-    const charges = [...(Array.isArray(lm?.charges) ? lm.charges : []), ...(Array.isArray(cur?.charges) ? cur.charges : [])];
+    const charges = [...(Array.isArray(lm?.charges) ? lm.charges : []), ...(Array.isArray(cur?.charges) ? cur.charges : [])].filter((c) => c && typeof c === 'object');
     const from = Array.isArray(lm?.charges) && isDay(lm.startDate) ? lm.startDate : Array.isArray(cur?.charges) && isDay(cur.startDate) ? cur.startDate : null;
     return [k, { charges, from }];
   }));
@@ -160,6 +160,7 @@ function expensesSection(row0, questions, keyOf, today, nowMs) {
     const y = Number.isFinite(Number(ex[k].yesterday?.total)) ? Number(ex[k].yesterday.total) : null;
     if (!listed) { rows.push(row(label, y == null ? '' : `Yesterday ${money(y)}`, 'Charge list not in feed, so no 7 or 30 day total. Owner: Mila.', 'muted')); continue; }
     const t = windowTotals(charges, today, from);
+    if (y != null && Math.abs(y - t.yesterday.total) > 0.01) notes.push(`${label}: yesterday is MoneyClaw's total (${money(y, true)}); its charge list adds to ${money(t.yesterday.total, true)}, so the 7 and 30 day totals may differ slightly.`);
     rows.push(row(label, `Yesterday ${money(y ?? t.yesterday.total)} · 7 days ${money(t.week.total)} · 30 days ${money(t.month.total)}`,
       !t.month.partial ? '' : from ? `30 days counts only from ${short(from)}, where the charge list starts` : '30 days may be partial: the charge list does not say where it starts'));
     const s = strangePurchases(charges, { today, coverFrom: from });
@@ -172,11 +173,12 @@ function expensesSection(row0, questions, keyOf, today, nowMs) {
   }
   // Charge watch: MoneyClaw's own flags (new subscription, price rise, big one-off, charged after cancel) are open questions keyed cw:.
   const watch = questions ? questions.filter((q) => /^cw:/.test(keyOf.get(q.id) || '')) : null;
-  const flagged = [...strange.map((s) => row(`${s.group} · ${short(s.date)}`, `${s.merchant} ${money(s.amount, true)}`, s.detail, 'crit')),
+  const flagged = [...strange.slice(0, 8).map((s) => row(`${s.group} · ${short(s.date)}`, `${s.merchant} ${money(s.amount, true)}`, s.detail, 'crit')),
     ...(watch || []).slice(0, 5).map((q) => row('Charge watch', String(q.question).slice(0, 120), 'Open question for you', 'crit'))];
+  if (strange.length > 8) notes.push(`+${strange.length - 8} more strange purchases.`);
   if (watch && watch.length > 5) notes.push(`${watch.length - 5} more charge-watch flags are on the Questions page.`);
-  if (!watch) notes.push('Charge watch flags unavailable (bot questions unreadable). Owner: Mila.');
-  if (anyList && !flagged.length) notes.push('No strange purchases in the last 7 days.');
+  if (!watch) notes.push('Charge-watch flags unavailable (bot questions unreadable). Owner: Mila.');
+  if (anyList && watch && !flagged.length) notes.push('No strange purchases in the last 7 days.');
   return section('expenses', title, 'Mila', [src], { rows: [...rows, ...flagged], notes, currency, strange });
 }
 
@@ -219,44 +221,51 @@ function sponsorsSection(C, X) {
 }
 
 // ---- channels: videos on the calendar this week plus open cards ----
-function channelSections(C, X) {
+function channelSection(C, g) {
   const calOk = !!C.data.calendar;
   const tasks = C.t.tasks;
   const norm = (s) => String(s || '').toLowerCase().replace(/[’‘`]/g, "'");
   const week = (slug) => (C.data.calendar || []).filter((r) => r.channel === slug && r.day >= C.ws && r.day <= C.we);
   const sources = [C.src.calendar, { label: 'Dashboard cards', at: null, ageLabel: tasks ? 'live' : 'could not be read', stale: !tasks }];
-  return X.goals.map((g) => {
-    const open = tasks ? tasks.filter((t) => t.project === g.project && OPEN_CARD.includes(t.status)) : null;
-    let used = 0;
-    const rows = g.chans.map((c) => {
-      const cards = open && (g.group ? open.filter((t) => norm(t.title).includes(norm(c.label))) : open);
-      used += cards ? cards.length : 0;
-      const w = c.noCalendar || !calOk ? null : week(c.slug);
-      const cal = w ? (w.length ? `${w.filter((r) => r.status === 'scheduled' || r.status === 'published').length} of ${w.length} scheduled or live` : 'Nothing planned this week')
-        : c.noCalendar ? 'No calendar yet' : 'Calendar unavailable';
-      const cardText = cards ? `${cards.length} open card${cards.length === 1 ? '' : 's'}` : 'cards unavailable';
-      return row(c.label, cal, cardText, !w || !w.some((r) => ['scheduled', 'published'].includes(r.status)) ? 'risk' : '');
-    });
-    const notes = [];
-    if (!calOk) notes.push(`Channel calendars unavailable. Owner: ${g.owner}.`);
-    if (!tasks) notes.push(`Open cards unavailable (dashboard cards unreadable). Owner: ${g.owner}.`);
-    else if (g.group && open.length > used) notes.push(`${open.length - used} more open card${open.length - used === 1 ? '' : 's'} not tied to one channel.`);
-    return section(g.key, g.title, g.owner, sources, { rows, notes });
+  const open = tasks ? tasks.filter((t) => t.project === g.project && OPEN_CARD.includes(t.status)) : null;
+  let used = 0;
+  const rows = g.chans.map((c) => {
+    const cards = open && (g.group ? open.filter((t) => norm(t.title).includes(norm(c.label))) : open);
+    used += cards ? cards.length : 0;
+    const w = c.noCalendar || !calOk ? null : week(c.slug);
+    const cal = w ? (w.length ? `${w.filter((r) => r.status === 'scheduled' || r.status === 'published').length} of ${w.length} scheduled or live` : 'Nothing planned this week')
+      : c.noCalendar ? 'No calendar yet' : 'Calendar unavailable';
+    const cardText = cards ? `${cards.length} open card${cards.length === 1 ? '' : 's'}` : 'cards unavailable';
+    return row(c.label, cal, cardText, !w || !w.some((r) => ['scheduled', 'published'].includes(r.status)) ? 'risk' : '');
   });
+  const notes = [];
+  if (!calOk) notes.push(`Channel calendars unavailable. Owner: ${g.owner}.`);
+  if (!tasks) notes.push(`Open cards unavailable (dashboard cards unreadable). Owner: ${g.owner}.`);
+  else if (g.group && open.length > used) notes.push(`${open.length - used} more open card${open.length - used === 1 ? '' : 's'} not tied to one channel.`);
+  return section(g.key, g.title, g.owner, sources, { rows, notes });
+}
+
+// One bad source must not take the others down (or /d2): a section that throws becomes its "unavailable" line.
+function safe(key, title, owner, build) {
+  try { return build(); } catch (err) {
+    console.error('summary', key, err);
+    return none(key, title, owner, [], `${title} unavailable (could not read its data). Owner: ${owner}.`);
+  }
 }
 
 // `C` is buildD2's context; `X` carries what d2.js already built: { weather, goals: [{ key, title, owner, project, group, chans }], videoCards, sponsors }.
 export function buildSummary(C, X) {
   const mc = C.by.moneyclaw;
+  const asks = C.data.keys && C.t.questions ? C.t.questions : null; // a charge-watch flag is a question matched by its key
   return {
     asOf: new Date(C.nowMs).toISOString(), tz: TZ, today: vanYmd(C.nowMs),
     sections: [
-      weatherSection(X.weather, C.nowMs),
-      calendarSection(C.t.feeds?.calendar_today, C.today, C.nowMs),
-      marketsSection(mc, C.nowMs),
-      expensesSection(mc, C.t.questions, C.keyOf, C.today, C.nowMs),
-      sponsorsSection(C, X),
-      ...channelSections(C, X),
+      safe('weather', 'Weather', 'Mila', () => weatherSection(X.weather, C.nowMs)),
+      safe('calendar', 'Calendar', 'Ana', () => calendarSection(C.t.feeds?.calendar_today, C.today, C.nowMs)),
+      safe('markets', 'Markets', 'Mila', () => marketsSection(mc, C.nowMs)),
+      safe('expenses', 'RBC expenses', 'Mila', () => expensesSection(mc, asks, C.keyOf, C.today, C.nowMs)),
+      safe('sponsors', 'Sponsors', 'Florence', () => sponsorsSection(C, X)),
+      ...X.goals.map((g) => safe(g.key, g.title, g.owner, () => channelSection(C, g))),
     ],
   };
 }

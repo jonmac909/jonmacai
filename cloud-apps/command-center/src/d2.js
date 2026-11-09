@@ -664,12 +664,15 @@ export function buildD2(out, rows, extra, data, nowMs) {
   for (const k of checks) add(k.today.source);
   for (const tile of money.tiles) add(tile.source);
   for (const s of out.pages.today?.needs?.sources || []) add(s);
-  const summary = buildSummary(C, {
-    weather: data.weather, videoCards: videoCards(C), sponsors: cleanSponsors(C),
-    goals: ['jonmac', 'jonmacai', 'hgp'].map((k) => CONFIG.goals.find((g) => g.key === k)).map((g) => ({
-      key: g.key, title: g.title, owner: g.owner, project: g.project, group: g.group, chans: channelsOf(g, C).focus,
-    })),
-  });
+  let summary; // a failure here must never take the rest of /d2 down; the page shows no summary
+  try {
+    summary = buildSummary(C, {
+      weather: data.weather, videoCards: videoCards(C), sponsors: cleanSponsors(C),
+      goals: ['jonmac', 'jonmacai', 'hgp'].map((k) => CONFIG.goals.find((g) => g.key === k)).map((g) => ({
+        key: g.key, title: g.title, owner: g.owner, project: g.project, group: g.group, chans: channelsOf(g, C).focus,
+      })),
+    });
+  } catch (err) { console.error('summary', err); }
   return {
     period: P,
     goals,

@@ -183,6 +183,22 @@ async function d2At(env, ms) {
   return res.json();
 }
 
+test('Daily Summary: a malformed market feed does not take /d2 down; the other sections still render', async () => {
+  const { db } = seed();
+  const row = db.sqlite.prepare("SELECT data FROM snapshots WHERE source = 'moneyclaw'").get();
+  const mc = JSON.parse(row.data);
+  mc.markets.core = [null, ...mc.markets.core];
+  mc.expenses.business.month.charges = [null, ...mc.expenses.business.month.charges];
+  db.sqlite.prepare("UPDATE snapshots SET data = ? WHERE source = 'moneyclaw'").run(JSON.stringify(mc));
+  const body = await d2At({ DB: db, HGP_DB: hgpDb(), SESSION_SECRET: SECRET, CF_VERSION_METADATA: { id: 'v1' } }, SUNDAY);
+  const by = Object.fromEntries(body.d2.summary.sections.map((s) => [s.key, s]));
+  assert.equal(by.markets.rows[0].value, '$701.89');
+  assert.equal(by.calendar.rows[0].value, 'Call with Poppy');
+  assert.match(by.expenses.rows[0].value, /^Yesterday /);
+  assert.equal(by.sponsors.rows.length, 5);
+  assert.ok(body.d2.today && body.d2.goals.length === 6, 'the rest of d2 is intact');
+});
+
 const goal = (body, key) => body.d2.goals.find((g) => g.key === key);
 
 test('d2 answers the contract for all five sections', async () => {
