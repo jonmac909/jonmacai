@@ -720,44 +720,8 @@ export const PRODUCTS = [
     path: 'the-christmas-home-plan',
     ready: true,
     persona: { host: "Eleanor Whitfield", brand: "Eleanor Whitfield" },
-    // Copies the look of the source channel's own sales page (publy.store/t/nAgYA0E, Decor With Dorothy).
-    theme: 'playbook',
-    eyebrow: "A room by room playbook",
-    chips: [
-      ["18 chapters", "Cover to cover"],
-      ["Instant access", "Right after checkout"],
-      ["Any device", "Phone, tablet, desktop"],
-      ["One payment", "Yours forever"],
-    ],
-    band: "One payment. 18 chapters. Yours to keep.",
-    problem: [
-      "You bought the garland and the ornaments everyone was buying, and the room still reads busy instead of finished.",
-      "You redo the same tree every year, moving the same things around, and it never quite lands.",
-      "You lose a whole weekend to it, then stand back and see the bare spots, the crowded mantel and the dark corner.",
-    ],
-    problemClose: "That gap isn't your taste or your effort. It's the order: nobody showed you plan, light, place, finish.",
-    myths: [
-      ["Buy more to look finished", "The finished look comes from placement and light, not from another box from the store."],
-      ["New ornaments every year", "Two or three colors and one ribbon do more than a tree with everything on it."],
-      ["More surfaces, more magic", "A crowded room reads smaller. One star spot per room does more than five small ones."],
-      ["You need a ladder", "Most of the work is at arm's height: the mantel, the table, the door and the middle of the tree."],
-    ],
-    shift: {
-      line: "The finished look isn't bought. It's placed, from what you already own.",
-      text: "Eighteen chapters in the order the work happens: plan the rooms, light from the inside out, dress the tree, then finish room by room. No brands, no stores, no new shopping list.",
-    },
-    walkAway: [
-      "Walk your rooms once and know what to keep, fix or let go.",
-      "Light a tree so it glows from the inside instead of the outside.",
-      "Hang garland and ribbon without a ladder.",
-      "Set a mantel and table that still leave room for plates and faces.",
-      "Finish a room and take the photo that tells you it's done.",
-    ],
-    notForIf: [
-      "You want a shopping list of new decorations to buy.",
-      "You want trend advice, brand names or a store guide.",
-      "You are decorating one small corner and want a quick tip, not a plan.",
-    ],
+    // Copies the look of the source channel's own sales page (publy.store/t/nAgYA0E, Decor With Dorothy): src/looks/eleanor.js.
+    theme: 'eleanor-look',
     kicker: "Christmas decorating, room by room",
     title: "The Christmas Home Plan",
     subtitle: "Room by room decorating that looks finished, feels cozy and stays safe",

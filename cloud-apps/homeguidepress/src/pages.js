@@ -2,6 +2,7 @@
 // Large type and high contrast: most visitors come from YouTube and are older.
 import { BRAND, BY_KEY, LINK_DAYS, PRODUCTS, REFUND_DAYS, STATEMENT_NAME, SUPPORT_EMAIL, byline, priceText } from './products.js';
 import { dianeLook } from './looks/diane.js';
+import { eleanorLook } from './looks/eleanor.js';
 import { parisLook } from './looks/paris.js';
 
 export const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -57,8 +58,8 @@ export function faqItems(p) {
 
 export function landing(p, { checkoutReady, query = '' }) {
   if (p.theme === 'paris-look') return parisLook(p, { checkoutReady, query });
-  if (p.theme === 'playbook') return playbook(p, { checkoutReady, query });
   if (p.theme === 'diane-look') return dianeLook(p, { checkoutReady, query });
+  if (p.theme === 'eleanor-look') return eleanorLook(p, { checkoutReady, query });
   const sections = [];
   if (p.promises.length) sections.push(`<section><h2>What makes it different</h2><ul class="promises">${p.promises.map(([h, t]) => `<li><strong>${esc(h)}</strong><span>${esc(t)}</span></li>`).join('')}</ul></section>`);
   sections.push(p.chapters.length
@@ -88,74 +89,6 @@ ${sections.join('\n')}
 </section>
 </article>`;
   return layout({ title: `${p.title} | ${BRAND}`, description: p.lede, body, product: p });
-}
-
-// Playbook layout: copies the look of the source channel's own sales page (gradient hero with the cover on
-// the right, price card, promise chips, dark problem section, myth grid, then the plain sections).
-function playbook(p, { checkoutReady, query = '' }) {
-  const buy = checkoutReady
-    ? `<a class="pb-buy" href="/go/${p.key}${query}">Buy now for ${priceText(p)} <span aria-hidden="true">&rarr;</span></a>`
-    : `<p class="pb-buy off" aria-disabled="true">Checkout opens soon</p>`;
-  const faq = faqItems(p);
-  const hero = `<section class="pb-hero">
-  <div class="pb-pitch">
-    <p class="pb-who"><span class="pb-mark" aria-hidden="true">${esc(p.persona.host.split(' ').map(w => w[0]).join(''))}</span>${esc(p.persona.host)}</p>
-    <p class="pb-eyebrow">${esc(p.eyebrow)}</p>
-    <h1>${esc(p.headline)}</h1>
-    <p class="pb-lede">${esc(p.lede)}</p>
-    <div class="pb-card">
-      <p class="pb-price">${priceText(p)} <span>once, yours forever</span></p>
-      <p class="pb-note">No subscription. Nothing to cancel.</p>
-      ${buy}
-      <p class="pb-under">${esc(p.format.split(',')[0])}, ${esc(p.format.split(',')[1] || '').trim()}.</p>
-      ${guarantee()}
-    </div>
-  </div>
-  <div class="pb-art">${cover(p)}</div>
-</section>`;
-  const chips = `<section class="pb-chips">${p.chips.map(([h, t]) => `<div class="pb-chip"><strong>${esc(h)}</strong><span>${esc(t)}</span></div>`).join('')}</section>`;
-  const band = `<section class="pb-band"><p>${esc(p.band)}</p></section>`;
-  const problem = `<section class="pb-problem">
-  <p class="pb-eyebrow">The problem</p>
-  <h2>The room that still doesn't look finished</h2>
-  <hr>
-  <ul>${p.problem.map(t => `<li>${esc(t)}</li>`).join('')}</ul>
-  <p class="pb-close">${esc(p.problemClose)}</p>
-</section>`;
-  const myths = `<section class="pb-myths">
-  <p class="pb-eyebrow">Stop believing</p>
-  <h2>What you have been told</h2>
-  <div class="pb-grid">${p.myths.map(([h, t]) => `<div class="pb-myth"><strong><span aria-hidden="true">&times;</span> ${esc(h)}</strong><p>${esc(t)}</p></div>`).join('')}</div>
-</section>`;
-  const shift = `<section class="pb-shift">
-  <p class="pb-eyebrow">The shift</p>
-  <p class="pb-line">${esc(p.shift.line)}</p>
-  <p class="pb-small">${esc(p.shift.text)}</p>
-</section>`;
-  const away = `<section class="pb-away">
-  <p class="pb-eyebrow">Why it works</p>
-  <h2>What you walk away able to do</h2>
-  <ul>${p.walkAway.map(t => `<li><span class="pb-dot" aria-hidden="true">&#10003;</span>${esc(t)}</li>`).join('')}</ul>
-</section>`;
-  const who = `<section class="pb-who-box">
-  <p class="pb-eyebrow">Is this you?</p>
-  <h2>Who this is for</h2>
-  <div class="pb-pair">
-    <div class="pb-for"><strong>This is for you if</strong><ul>${p.forWho.map(t => `<li>${esc(t)}</li>`).join('')}</ul></div>
-    <div class="pb-not"><strong>Not for you if</strong><ul>${p.notForIf.map(t => `<li>${esc(t)}</li>`).join('')}</ul></div>
-  </div>
-</section>`;
-  const inside = `<section class="pb-inside">
-  <p class="pb-eyebrow">Inside</p>
-  <h2>What you get</h2>
-  <p class="pb-small">${esc(p.format)}.</p>
-  <ol class="pb-parts">${p.chapters.map(([h, t], i) => `<li><span class="pb-num">${String(i + 1).padStart(2, '0')}</span><span class="pb-part"><strong>${esc(h)}</strong><span>${esc(t)}</span></span><span class="pb-side">Part ${i + 1}</span></li>`).join('')}</ol>
-</section>`;
-  const promises = p.promises.length ? `<section class="pb-promises"><h2>What makes it different</h2><ul>${p.promises.map(([h, t]) => `<li><strong>${esc(h)}</strong><span>${esc(t)}</span></li>`).join('')}</ul></section>` : '';
-  const questions = `<section class="pb-faq"><h2>Questions</h2><dl class="faq">${faq.map(([q, a]) => `<dt>${esc(q)}</dt><dd>${esc(a)}</dd>`).join('')}</dl></section>`;
-  const again = `<section class="pb-again"><p class="pb-price">${priceText(p)} <span>${esc(p.format)}</span></p>${buy}${guarantee()}</section>`;
-  const body = `<article class="product playbook">${hero}${chips}${band}${problem}${myths}${shift}${away}${who}${inside}${promises}${questions}${again}</article>`;
-  return layout({ title: `${p.title} | ${BRAND}`, description: p.lede, body, product: p, bodyClass: 'pb-page' });
 }
 
 export function index() {
