@@ -19,7 +19,7 @@ test('paris page uses its own look: film, 8 real pages in the slider, parts, and
   let at = -1;
   for (const mark of order) { const i = body.indexOf(mark, at + 1); assert.ok(i > at, mark); at = i; }
   assert.match(body, /<video [^>]*poster="\/looks\/paris\/claudine-wide\.jpg"[^>]*><source src="\/looks\/paris\/claudine-wide\.mp4" type="video\/mp4"><track kind="captions" src="\/looks\/paris\/claudine-intro\.vtt"/);
-  for (const n of [4, 9, 17, 38, 46, 68, 75, 82]) assert.match(body, new RegExp(`src="/looks/paris/page-${n}\\.jpg"`), `page ${n}`);
+  for (const n of [4, 9, 16, 34, 40, 60, 64, 73]) assert.match(body, new RegExp(`src="/looks/paris/page-${n}\\.jpg"`), `page ${n}`);
   assert.equal((body.match(/class="pg-r" type="radio"/g) || []).length, 8);
   assert.equal((body.match(/class="part-n"/g) || []).length, 4);
 
