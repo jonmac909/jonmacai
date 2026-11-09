@@ -623,6 +623,15 @@ const JUNK = [
 ];
 const junkOf = (r) => r && JUNK.find(([, subject, sender]) => subject.test(`${r.subject || ''} ${r.reason || ''}`) || sender?.test(`${r.to || ''} ${r.contact || ''}`))?.[0];
 
+// Sponsors board stages, by the card's stage in the deal feed. A stage not listed is a Leads card, as /dashboard does.
+// "Balance Invoice" waits for a feed stage 'balance-invoice'; the feed has none yet, so it stays empty until it does.
+const SPONSOR_STAGES = [
+  ['Leads', ['drafts', 'new-lead']], ['Negotiations', ['negotiating']], ['Deals', ['contract-brief']],
+  ['Deposit Invoice', ['invoice-sent']], ['Deposit Paid', ['deposit-paid', 'script-approval']], ['Video Production', ['production']],
+  ['Video Approved', ['video-approval']], ['Video Live', ['publishing']], ['Balance Invoice', ['balance-invoice']], ['Paid & Done', ['paid', 'done']],
+];
+const ALL_STAGES = SPONSOR_STAGES.flatMap(([, st]) => st);
+
 function cleanSponsors(C) {
   const page = C.out.pages.sponsors;
   if (!page) return undefined;
@@ -645,6 +654,9 @@ function cleanSponsors(C) {
       return true;
     });
   }
+  // Jon's stages (2026-11-09): the 8 /dashboard columns regrouped by each card's own stage, view only.
+  const open = copy.board.columns.flatMap((c) => c.cards);
+  copy.board.columns = SPONSOR_STAGES.map(([title, stages]) => ({ stage: title, title, boardStage: null, empty: '', cards: open.filter((k) => (stages.includes(k.boardStage) || (title === 'Leads' && !ALL_STAGES.includes(k.boardStage)))) }));
   copy.board.columns.push({ stage: 'Archived', title: 'Archived', archived: true, boardStage: null, empty: 'Nothing quiet for 60 days.', cards: archived });
   return { ...copy, hidden, value };
 }

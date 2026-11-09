@@ -214,7 +214,7 @@ function sponsorsSection(C, X) {
     rows.push(missing('Collections due', 'The sponsor collections feed has not reported. No source, owner Florence'));
   }
   const real = !!parse(C.by.sponsors?.data).collections;
-  const neg = real ? X.sponsors?.board?.columns?.find((c) => c.boardStage === 'negotiating')?.cards : null;
+  const neg = real ? X.sponsors?.board?.columns?.filter((c) => !c.archived).flatMap((c) => c.cards).filter((k) => k.boardStage === 'negotiating') : null;
   rows.push(neg ? (neg.length ? row('Negotiating, to close', `${neg.length} deal${neg.length === 1 ? '' : 's'}`, neg.slice(0, 5).map((k) => `${k.name}${k.amt > 0 ? ` ${k.amtLabel}` : ''}`).join(', ')) : row('Negotiating, to close', 'None open'))
     : missing('Negotiating, to close', 'The sponsor deal board has not reported. No source, owner Florence'));
   if (real) sources.push(sourceOf('Sponsor deal board', C.by.sponsors.collected_at, C.nowMs));

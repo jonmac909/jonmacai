@@ -3,6 +3,7 @@ import { render as week } from './pages/week.js';
 import { render as today } from './pages/today.js';
 import { render as pipeline } from './pages/pipeline.js';
 import { render as money } from './pages/money.js';
+import { mount as mountFactory } from '/dashboard/js/pages/factory.js';
 import { noLoneWords } from '/dashboard/js/ui.js';
 import { setSort } from '/dashboard/js/pages/track.js';
 import { bindModals, openCard, restoreAnswers, typedAnswers } from '/dashboard/js/modals.js';
@@ -57,7 +58,9 @@ const route = () => {
   return Object.hasOwn(pages, id.split('/')[0]) ? id : 'today';
 };
 const typing = () => [...document.querySelectorAll('#page textarea, #page input:not([type]), #page input[type=text]')].some((el) => el.value.trim());
-const isTrack = (id) => { const [name, , , view] = id.split('/'); return name === 'pipeline' && view === 'track'; };
+const isTrack = (id) => { const [name, , x, view] = id.split('/'); return name === 'pipeline' && (view === 'track' || (x === 'track' && !view)); };
+// The video stage board reads the Factory feed: Jon Mac, @JonMacAI and Home Guide Press, board view only.
+const needsFactory = (id) => { const [name, goal, slug] = id.split('/'); return name === 'pipeline' && ['hgp', 'jonmac', 'jonmacai'].includes(goal) && !slug; };
 
 // Signed out: open /dashboard-2/ once (the Worker serves the sign-in page there). If the data still says signed
 // out after that, stop instead of reloading in a loop; a good load clears the mark.
@@ -107,6 +110,11 @@ async function go(id, { refetch = false } = {}) {
     data.pages.track = (r?.ok && (await r.json().catch(() => null))?.pages?.track) || {}; // {} shows "no data yet"
     if (route() !== id) return; // moved on while it loaded
   }
+  if (needsFactory(id)) {
+    const r = await fetch(`${API}/v1/factory`, { signal: AbortSignal.timeout(5000) }).catch(() => null);
+    data.factory = (r?.ok && (await r.json().catch(() => null))) || data.factory || null; // a failed refetch keeps the last good answer; none shows "no data yet"
+    if (route() !== id) return;
+  }
   document.querySelectorAll('.nav[data-page]').forEach((n) => {
     if (n.dataset.page === name) n.setAttribute('aria-current', 'page'); else n.removeAttribute('aria-current');
   });
@@ -117,6 +125,7 @@ async function go(id, { refetch = false } = {}) {
   const open = same ? [...el.querySelectorAll('details[data-keep][open]')].map((d) => d.dataset.keep) : [];
   el.innerHTML = pages[name](data, rest.join('/'));
   restoreAnswers(el, typed);
+  if (name === 'pipeline' && rest[1] === 'factory') mountFactory(el.querySelector('.d2sub > .wrap[data-sub]')); // the old Factory table polls itself
   open.forEach((k) => { const d = el.querySelector(`details[data-keep="${k}"]`); if (d) d.open = true; });
   counts(el);
   shown = id;
@@ -128,8 +137,9 @@ async function go(id, { refetch = false } = {}) {
 function follow(page) {
   const [name] = page.split('/');
   const m = /^(calendar|content|track)\/(.+)$/.exec(page);
+  const f = /^factory(?:\/(.+))?$/.exec(page); // a Factory channel tab stays in the Pipeline
   const cur = route().split('/');
-  const id = Object.hasOwn(pages, name) ? page : m && cur[0] === 'pipeline' ? `pipeline/${cur[1]}/${m[2]}/${m[1]}` : null;
+  const id = Object.hasOwn(pages, name) ? page : m && cur[0] === 'pipeline' ? `pipeline/${cur[1]}/${m[2]}/${m[1]}` : f && cur[0] === 'pipeline' ? `pipeline/${cur[1]}/factory${f[1] ? `/${f[1]}` : ''}` : null;
   if (!id) { location.href = `/dashboard/#${page}`; return; }
   if (location.hash === `#${id}`) go(id); else location.hash = id;
 }
