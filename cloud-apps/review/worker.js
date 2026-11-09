@@ -817,7 +817,7 @@ async function publishApi(request, env, url, slug, resource, uploadId, action) {
     // A fix carries Jon's approval: "approved" keeps it off his review list for good, and its note says what it fixed.
     const status = fix ? "approved" : body.status === undefined ? "needs_review" : body.status;
     const approvedAs = fix && ((await env.DB.prepare("SELECT version FROM videos WHERE slug = ?").bind(approval.slug).first())?.version || approval.slug);
-    const notes = [fix && `Fix on top of approved ${approvedAs} (Jon's approval carries; upload it once QC passes): ${fix}`, text(body.notes, 1600)].filter(Boolean).join("\n");
+    const notes = [fix && `Fix on top of approved ${approvedAs} (Jon's approval carries; upload it once QC passes): ${fix}`, text(body.notes, fix ? 1600 : 2000)].filter(Boolean).join("\n");
     if (!validSlug(channel) || !validSlug(video) || !version || !title) return fail(400, "channel, video, version and title are required (lowercase slugs)");
     if (!STATUSES.includes(status)) return fail(400, "bad status");
     const extras = ["source_key", "compare_key"];
