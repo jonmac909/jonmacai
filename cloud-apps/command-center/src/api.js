@@ -307,7 +307,8 @@ export async function handleApi(request, env, ctx) {
     const extra = env.DB ? await snapshotExtra(env, base, now) : {};
     const out = mergeSnapshot(base, rows, now, env.DB ? await listDealStages(env.DB) : {}, extra);
     const d2 = buildD2(out, rows, extra, await d2Data(env, now), now);
-    const pending = buildPending(await pendingData(env.DB), now); // the Pending page: Jon's ask cards, view only
+    let pending = null; // the Pending page: Jon's ask cards, view only; a failure here never takes down the rest of /d2
+    try { pending = buildPending(await pendingData(env.DB), now); } catch (err) { console.error('pending', err); }
     return json({ ok: true, build: env.CF_VERSION_METADATA?.id ?? null, asOf: new Date(now).toISOString(), pages: out.pages, d2, pending });
   }
   // Dashboard 3 (docs/dashboard-3.md): the rail's status lines and the Goals numbers /d2 doesn't carry. Read only.

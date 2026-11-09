@@ -12,7 +12,7 @@ const GROUPS = [
 function row(r, done) {
   const needs = r.needs ? `<div class="d2note"><b>Needs from ${esc(r.from === 'You' ? 'you' : r.from)}:</b> ${esc(r.needs)}</div>` : '';
   return `<li tabindex="0" data-open="${esc(r.id)}">
-    <div class="d2t"><span class="d2mark ${done ? 'ok' : ''}" aria-label="${done ? 'Done' : 'Not done'}">${done ? '✓' : '○'}</span><b>${esc(r.title)}</b>${pill(r.status.text, r.status.cls === 'idle' ? '' : r.status.cls)}</div>
+    <div class="d2t"><span class="d2mark ${done ? 'ok' : ''}" role="img" aria-label="${done ? 'Done' : 'Not done'}">${done ? '✓' : '○'}</span><b>${esc(r.title)}</b>${pill(r.status.text, r.status.cls === 'idle' ? '' : r.status.cls)}</div>
     ${needs}
     <div class="d2meta"><span>${esc(r.owner)}</span><span>${esc(r.due.label)}${r.due.late ? ` ${pill('Late', 'crit')}` : ''}</span><span>${esc(r.updated.label)}</span></div>
   </li>`;
@@ -31,5 +31,6 @@ export function render(data) {
   return `<div class="wrap">
   ${top('Pending', `Everything you asked for · ${(p.done?.length || 0)} done of ${(p.done?.length || 0) + (p.progress?.length || 0) + (p.blocked?.length || 0)}`, data.d2)}
   ${sections}
+  ${p.capped ? '<p class="muted">Showing the newest 500 cards.</p>' : ''}
 </div>`;
 }

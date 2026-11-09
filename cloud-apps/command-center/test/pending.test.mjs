@@ -12,7 +12,7 @@ const pub = new URL('../public/', import.meta.url);
 registerHooks({ resolve: (spec, ctx, next) => next(spec.startsWith('/dashboard/js/') ? new URL(spec.slice('/dashboard/'.length), pub).href : spec, ctx) });
 const { render } = await import('../public/d2/js/pages/pending.js');
 
-const NOW = Date.parse('2026-11-09T22:00:00Z'); // Mon Nov 9, 2:00 PM in Kelowna
+const NOW = Date.parse('2026-11-09T22:00:00Z'); // Mon Nov 9, 3:00 PM in Kelowna (UTC-7)
 const text = (html) => html.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ');
 let n = 0;
 const card = (db, t) => {
@@ -96,6 +96,46 @@ test('/dashboard/api/d2 carries pending, and answers with pending null when it h
   const body = await get({ DB: seed(), SESSION_SECRET: SECRET });
   assert.deepEqual([body.pending.done.length, body.pending.progress.length, body.pending.blocked.length], [2, 3, 3]);
   assert.equal((await get({ SESSION_SECRET: SECRET })).pending, null);
+});
+
+test('Pending: a card due today is not late, an impossible due day is "no due time", and nothing throws', async () => {
+  const db = sqliteD1();
+  card(db, { title: "Jon's ask: due today", status: 'doing', due: '2026-11-09' });
+  card(db, { title: "Jon's ask: impossible day", status: 'doing', due: '2026-02-30' });
+  card(db, { title: "Jon's ask: junk day", status: 'doing', due: '2026-13-45' });
+  card(db, { title: "Jon's ask: full time past", status: 'doing', due: '2026-11-09T20:00:00Z' });
+  card(db, { title: "Jon's ask: full time soon", status: 'doing', due: '2026-11-10T09:00:00Z' });
+  const at = Date.parse('2026-11-10T03:00:00Z'); // 8:00 PM Nov 9 in Kelowna; the day there is still Nov 9
+  const rows = Object.fromEntries(buildPending(await pendingData(db), at).progress.map((r) => [r.title.split(': ')[1], r.due]));
+  assert.deepEqual([rows['due today'].late, rows['due today'].label], [false, 'Due Nov 9']);
+  assert.deepEqual([rows['impossible day'], rows['junk day']], [{ label: 'No due time set', on: null, late: false }, { label: 'No due time set', on: null, late: false }]);
+  assert.deepEqual([rows['full time past'].late, rows['full time past'].label], [true, 'Due Nov 9, 1:00 PM']);
+  assert.equal(rows['full time soon'].late, false);
+});
+
+test('Pending: markup in a title, note or question is shown as text, never as HTML', async () => {
+  const db = sqliteD1();
+  const evil = '<img src=x onerror=alert(1)>"\'';
+  card(db, { title: `Jon's ask: ${evil}`, owner: evil, status: 'waiting_on_jon', note: `Your move: ${evil}` });
+  const html = render({ pending: buildPending(await pendingData(db), NOW), d2: {} });
+  assert.doesNotMatch(html, /<img/);
+  assert.doesNotMatch(html, /data-open="[^"]*"[^>]*onerror/);
+  assert.match(html, /&lt;img src=x onerror=alert\(1\)&gt;/);
+});
+
+test('Pending: the Blocked line names who is waited on, you only when it says so, and 500 is the cap', async () => {
+  const db = sqliteD1();
+  card(db, { title: "Jon's ask: a", status: 'todo', note: 'Blocked: Lucy must fix the route so you can approve' });
+  card(db, { title: "Jon's ask: b", status: 'todo', note: 'Blocked: needs you to pick a price' });
+  card(db, { title: "Jon's ask: c", status: 'todo', note: 'Blocked: the render queue is full' });
+  const by = Object.fromEntries(buildPending(await pendingData(db), NOW).blocked.map((r) => [r.title.split(': ')[1], r.from]));
+  assert.deepEqual(by, { a: 'Lucy', b: 'You', c: 'Not named on the card' });
+  const big = sqliteD1();
+  for (let i = 0; i < 501; i++) card(big, { title: `Jon's ask: card ${i}`, status: 'todo' });
+  const p = buildPending(await pendingData(big), NOW);
+  assert.equal(p.progress.length, 500);
+  assert.equal(p.capped, true);
+  assert.match(text(render({ pending: p, d2: {} })), /Showing the newest 500 cards\./);
 });
 
 test('Pending is in the Dashboard 2 nav and the page router', () => {

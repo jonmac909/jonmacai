@@ -14,7 +14,7 @@ export async function pendingData(db) {
   try {
     const [cards, questions] = await Promise.all([
       // Cancelled cards are not pending. Newest update first, so a cap drops the oldest.
-      db.prepare("SELECT id, title, owner, status, note, due, updated_at, done_at FROM bot_tasks WHERE status != 'cancelled' AND title LIKE '%Jon_s ask%' ORDER BY updated_at DESC LIMIT 500").all(),
+      db.prepare("SELECT id, title, owner, status, note, due, updated_at, done_at FROM bot_tasks WHERE status != 'cancelled' AND title LIKE '%Jon_s ask%' ORDER BY updated_at DESC LIMIT 501").all(),
       db.prepare("SELECT task_id, asked_by, question FROM bot_questions WHERE status = 'open' AND task_id IS NOT NULL").all(),
     ]);
     return { cards: cards.results || [], questions: questions.results || [] };
@@ -24,19 +24,21 @@ export async function pendingData(db) {
   }
 }
 
+const realDay = (ymd) => /^\d{4}-\d{2}-\d{2}$/.test(ymd) && Number.isFinite(Date.parse(`${ymd}T12:00:00Z`)) && new Date(`${ymd}T12:00:00Z`).toISOString().slice(0, 10) === ymd; // 2026-02-30 is no day
 const day = (ymd) => new Intl.DateTimeFormat('en-US', { timeZone: 'UTC', month: 'short', day: 'numeric' }).format(new Date(`${ymd}T12:00:00Z`));
 const clock = (ms) => new Intl.DateTimeFormat('en-US', { timeZone: 'America/Vancouver', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }).format(new Date(ms));
 
 // Due is a day (YYYY-MM-DD) or a full time; no due time is said out loud, never hidden.
 function dueOf(due, closed, nowMs) {
   if (!due) return { label: 'No due time set', on: null, late: false };
+  if (/^\d{4}-\d{2}-\d{2}$/.test(due) && !realDay(due)) return { label: 'No due time set', on: null, late: false };
   if (/^\d{4}-\d{2}-\d{2}$/.test(due)) return { label: `Due ${day(due)}`, on: due, late: !closed && due < vanYmd(nowMs) };
   const at = Date.parse(due);
   return Number.isFinite(at) ? { label: `Due ${clock(at)}`, on: new Date(at).toISOString(), late: !closed && at < nowMs } : { label: 'No due time set', on: null, late: false };
 }
 
 // Who a "Blocked ..." line in a card note is waiting on: the first team first name it mentions.
-const fromLine = (line) => (/\b(you|your)\b/i.test(line) ? 'You' : FIRST_NAMES.find((n) => new RegExp(`\\b${n}\\b`).test(line)) || 'Not named on the card');
+const fromLine = (line) => FIRST_NAMES.find((n) => new RegExp(`\\b${n}\\b`).test(line)) || (/\b(needs?|waiting (on|for)|from) you\b/i.test(line) ? 'You' : 'Not named on the card');
 
 function blockOf(card, asked) {
   if (asked) return { needs: `Your answer to "${plain(asked.question)}"`, from: 'You' };
@@ -51,7 +53,7 @@ export function buildPending(data, nowMs) {
   const open = new Map();
   for (const q of data.questions) if (!open.has(q.task_id)) open.set(q.task_id, q);
   const groups = { done: [], progress: [], blocked: [] };
-  for (const c of data.cards) {
+  for (const c of data.cards.slice(0, 500)) {
     if (!MARK.test(c.title)) continue;
     const closed = c.status === 'done';
     const block = closed ? null : blockOf(c, open.get(c.id));
@@ -70,5 +72,5 @@ export function buildPending(data, nowMs) {
   groups.done.sort((a, b) => byUpdate(b, a));
   groups.progress.sort(byDue);
   groups.blocked.sort(byDue);
-  return { asOf: new Date(nowMs).toISOString(), ...groups };
+  return { asOf: new Date(nowMs).toISOString(), ...(data.cards.length > 500 ? { capped: true } : {}), ...groups };
 }
