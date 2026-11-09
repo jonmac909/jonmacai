@@ -263,6 +263,12 @@ test("QC gate: a new version is QC-only (off Jon's list, no Approve, no link to 
   assert.equal((await call("/api/review/gate-1-v1/status", jsonInit("POST", { status: "approved" }, asJon()))).status, 409);
   assert.equal((await call("/api/review/videos", { headers: asJon() })).body.videos.some((v) => v.slug === "gate-1-v1"), false, "not in a reviewer's JSON list");
   assert.ok((await call("/api/review/videos", { headers: agent })).body.videos.some((v) => v.slug === "gate-1-v1"), "agents still list it");
+  // The status every API reader sees: needs_review only once QC passed this file; until then qc_only (the stored value is unchanged).
+  const seen = async (as) => (await call("/api/review/gate-1-v1", { headers: as })).body.video;
+  assert.deepEqual([(await seen(agent)).status, (await seen(agent)).qc_only], ["qc_only", true]);
+  assert.equal((await call("/api/review/videos", { headers: agent })).body.videos.find((v) => v.slug === "gate-1-v1").status, "qc_only");
+  assert.equal(published.body.video.status, "qc_only");
+  assert.equal((await rows("SELECT 1 FROM bot_proofs WHERE link LIKE '%gate-1-v1' AND status = 'passed'")).length, 0);
   // A proof that is waiting for QC or failed it doesn't count.
   for (const [n, status] of [["f1", "pending"], ["f2", "failed"]]) {
     await ccDb.prepare("INSERT INTO bot_proofs (id, task_id, kind, link, status, created_by, created_at) VALUES (?, ?, 'render', 'https://jonmac.ai/review/gate-1-v1', ?, 'video-editor', ?)")
@@ -286,6 +292,7 @@ test("QC gate: a new version is QC-only (off Jon's list, no Approve, no link to 
   // QC passes them: they show, link and approve like any version.
   await qcPass("gate-1-v1");
   await qcPass("gate-2-v2");
+  assert.deepEqual([(await seen(agent)).status, (await seen(agent)).qc_only], ["needs_review", false], "QC passed: now it is needs_review");
   assert.equal(await onIndex("gate-1-v1"), true);
   assert.match(await page("gate-1-v1"), /id="approve"/);
   assert.match(await page("gate-2-v1"), /href="\/review\/gate-2-v2"/);
