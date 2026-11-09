@@ -111,8 +111,8 @@ async function go(id, { refetch = false } = {}) {
     if (route() !== id) return; // moved on while it loaded
   }
   if (needsFactory(id)) {
-    const r = await fetch(`${API}/v1/factory`).catch(() => null);
-    data.factory = (r?.ok && (await r.json().catch(() => null))) || null; // null shows "no data yet"
+    const r = await fetch(`${API}/v1/factory`, { signal: AbortSignal.timeout(5000) }).catch(() => null);
+    data.factory = (r?.ok && (await r.json().catch(() => null))) || data.factory || null; // a failed refetch keeps the last good answer; none shows "no data yet"
     if (route() !== id) return;
   }
   document.querySelectorAll('.nav[data-page]').forEach((n) => {

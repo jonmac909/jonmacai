@@ -7,7 +7,7 @@ import { readFileSync } from 'node:fs';
 // by absolute URL, as the browser does; here that maps to public/js/*.
 const pub = new URL('../public/', import.meta.url);
 registerHooks({ resolve: (spec, ctx, next) => next(spec.startsWith('/dashboard/js/') ? new URL(spec.slice('/dashboard/'.length), pub).href : spec, ctx) });
-const { stageOf, STAGES } = await import('../public/d2/js/pages/stages.js');
+const { stageOf, STAGES, stageBoard } = await import('../public/d2/js/pages/stages.js');
 const [month, week, today, pipeline, money] = await Promise.all(['month', 'week', 'today', 'pipeline', 'money']
   .map((p) => import(`../public/d2/js/pages/${p}.js`).then((m) => m.render)));
 
@@ -215,6 +215,22 @@ test('Pipeline (Jon, 2026-11-09): no Morning summary, video stages, week calenda
   assert.match(w, /class="chip on" data-page="pipeline\/week"/);
   assert.equal(count(w, /class="d2wkday/g), 7);
   assert.match(text(w), /This week .*all channels/);
+});
+
+test('Pipeline: one video never shows in two stages, and a missing channel list does not blank the page', () => {
+  const d = data();
+  const channels = [{ slug: 'jack-mercer', label: 'Jack Mercer' }];
+  const feed = { factory: { tiles: [
+    { id: 'card-1', title: 'Live One - Jack Mercer', channel: 'Jack Mercer', cells: [{ s: 'done' }, { s: 'done' }, { s: 'done' }, { s: 'done' }, { s: 'done' }, { s: 'done' }, { s: 'done' }, { s: 'done' }, { s: 'done' }, { s: 'done' }, { s: 'done' }] },
+    { id: 'cal-1', title: 'Live One - Jack Mercer', channel: 'Jack Mercer', stage: 'published', link: 'https://youtu.be/abcdefghijk' },
+    null] } };
+  const html = stageBoard(feed, channels);
+  assert.equal(count(html, /Live One/g), 1, 'the open card and the calendar tile are one video');
+  assert.match(html, /<h3>Published <span class="kn">1<\/span>/);
+  assert.match(html, /<h3>Schedule <span class="kn">0<\/span>/);
+  const none = structuredClone(d);
+  for (const b of none.d2.pipeline.boards) b.channels = [];
+  assert.doesNotThrow(() => pipeline(none, 'jonmac/content'));
 });
 
 test('Sponsors board uses the ten stages Jon set, in order', () => {

@@ -70,7 +70,7 @@ export function render(data, sub = '') {
   if (wk) body = weekCalendar(data);
   else if (gv === 'factory') body = factory(null, null, v || '');
   else if (gv === 'track') body = channelView(data, 'all', 'track');
-  else if (gv === 'content') body = channelView(data, b.channels[0].slug, 'content');
+  else if (gv === 'content') body = b.channels?.[0] ? channelView(data, b.channels[0].slug, 'content') : '<div class="card pad"><p class="muted">The channel list has no data yet.</p></div>';
   else if (ch) body = channelView(data, ch.slug, view);
   else body = `${VIDEO_GOALS.includes(b.goal) ? stageBoard(data.factory, b.channels || []) : ''}${known ? projects(named(data.pages.projects), data, b.project) : '<div class="card pad"><p class="muted">This goal has no work board yet.</p></div>'}${b.sponsors ? deals(b.sponsors) : ''}`;
   const where = wk ? 'This week' : ch ? `${b.title} · ${ch.label}` : gv ? `${b.title} · ${extra[gv]}` : b.title;

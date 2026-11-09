@@ -198,7 +198,7 @@ test('sponsors: every piece without a source says so and names Florence', () => 
 
 test('sponsors: income, who owes, due dates, deals to close and videos to make from the existing feeds', () => {
   const cash = { month: { usd: 3100, payments: 2 }, unpaidAvailable: true, owed: 2100, unpaid: [{ sponsor: 'Invideo', owed: 2100, due: '2026-11-08' }] };
-  const sponsors = { board: { columns: [{ boardStage: 'negotiating', cards: [{ name: 'Poppy', amt: 2500, amtLabel: '$2,500' }] }] } };
+  const sponsors = { board: { columns: [{ boardStage: 'negotiating', cards: [{ boardStage: 'negotiating', name: 'Poppy', amt: 2500, amtLabel: '$2,500' }] }] } };
   const c = ctx({
     cash, cards: [{ key: 'sponsors', usd: 3100, source: { label: 'Sponsor cash', ageLabel: 'updated 1 hr ago', stale: false } }],
     by: { sponsors: { collected_at: ago(1), data: JSON.stringify({ collections: { items: [] } }) } }, src: { calendar: {}, cards: { label: 'Dashboard cards', ageLabel: 'live', stale: false } },

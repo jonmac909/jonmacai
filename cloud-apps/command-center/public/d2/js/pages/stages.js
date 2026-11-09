@@ -30,7 +30,10 @@ export function stageBoard(feed, channels) {
   const tiles = feed?.factory?.tiles;
   if (!Array.isArray(tiles)) return msg('The video board has no data yet. The Factory feed on GPU1 has not posted.');
   const by = new Map(STAGES.map((s) => [s, []]));
+  // A published video can still have its open card and also a calendar tile: keep the calendar tile only.
+  const live = new Set(tiles.filter((t) => t && String(t.id).startsWith('cal-')).map((t) => `${t.channel}|${name(t)}`.toLowerCase()));
   for (const t of tiles) {
+    if (!t || (!String(t.id).startsWith('cal-') && live.has(`${t.channel}|${name(t)}`.toLowerCase()))) continue;
     const slug = chipOf(t.channel, channels);
     if (channels.some((c) => c.slug === slug)) by.get(stageOf(t)).push(t);
   }
