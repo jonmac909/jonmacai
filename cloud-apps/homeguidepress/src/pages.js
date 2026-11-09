@@ -1,6 +1,7 @@
 // Server-rendered HTML for homeguidepress.com. No client JavaScript.
 // Large type and high contrast: most visitors come from YouTube and are older.
 import { BRAND, BY_KEY, LINK_DAYS, PRODUCTS, REFUND_DAYS, STATEMENT_NAME, SUPPORT_EMAIL, byline, priceText } from './products.js';
+import { dianeLook } from './looks/diane.js';
 
 export const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
@@ -43,9 +44,9 @@ function buyButton(p, checkoutReady, query) {
   return `<a class="buy" href="/go/${p.key}${query}">Buy now for ${priceText(p)}</a>`;
 }
 
-const guarantee = () => `<p class="guarantee"><strong>${REFUND_DAYS}-day money-back guarantee.</strong> If it isn't for you, email us within ${REFUND_DAYS} days for a full refund.</p>`;
+export const guarantee = () => `<p class="guarantee"><strong>${REFUND_DAYS}-day money-back guarantee.</strong> If it isn't for you, email us within ${REFUND_DAYS} days for a full refund.</p>`;
 
-function faqItems(p) {
+export function faqItems(p) {
   return [...p.faq,
     ['How do I get it?', `Right after you pay, we email you a download link. Click it and save the PDF to your computer, phone or tablet. The link works for ${LINK_DAYS} days, and you can ask for a fresh one any time.`],
     ['What will my card statement say?', `Payments go through Commas, so the charge shows as ${STATEMENT_NAME}, not the book's name.`],
@@ -55,6 +56,7 @@ function faqItems(p) {
 
 export function landing(p, { checkoutReady, query = '' }) {
   if (p.theme === 'playbook') return playbook(p, { checkoutReady, query });
+  if (p.theme === 'diane-look') return dianeLook(p, { checkoutReady, query });
   const sections = [];
   if (p.promises.length) sections.push(`<section><h2>What makes it different</h2><ul class="promises">${p.promises.map(([h, t]) => `<li><strong>${esc(h)}</strong><span>${esc(t)}</span></li>`).join('')}</ul></section>`);
   sections.push(p.chapters.length
