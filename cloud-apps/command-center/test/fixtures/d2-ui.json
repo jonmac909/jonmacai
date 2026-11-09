@@ -5347,8 +5347,9 @@
        "meta": "Drag a card to move it",
        "columns": [
         {
-         "stage": "New inquiry",
-         "boardStage": "new-lead",
+         "stage": "Leads",
+         "title": "Leads",
+         "boardStage": null,
          "empty": "",
          "cards": [
           {
@@ -5366,8 +5367,9 @@
          ]
         },
         {
-         "stage": "Negotiating",
-         "boardStage": "negotiating",
+         "stage": "Negotiations",
+         "title": "Negotiations",
+         "boardStage": null,
          "empty": "",
          "cards": [
           {
@@ -5396,8 +5398,16 @@
          ]
         },
         {
-         "stage": "Waiting on deposit",
-         "boardStage": "invoice-sent",
+         "stage": "Deals",
+         "title": "Deals",
+         "boardStage": null,
+         "empty": "",
+         "cards": []
+        },
+        {
+         "stage": "Deposit Invoice",
+         "title": "Deposit Invoice",
+         "boardStage": null,
          "empty": "",
          "cards": [
           {
@@ -5439,8 +5449,9 @@
          ]
         },
         {
-         "stage": "Script approval",
-         "boardStage": "script-approval",
+         "stage": "Deposit Paid",
+         "title": "Deposit Paid",
+         "boardStage": null,
          "empty": "",
          "cards": [
           {
@@ -5464,21 +5475,24 @@
          ]
         },
         {
-         "stage": "With editor",
-         "boardStage": "production",
+         "stage": "Video Production",
+         "title": "Video Production",
+         "boardStage": null,
          "empty": "",
          "cards": []
         },
         {
-         "stage": "Video approval",
-         "boardStage": "video-approval",
+         "stage": "Video Approved",
+         "title": "Video Approved",
+         "boardStage": null,
          "empty": "",
          "cards": []
         },
         {
-         "stage": "Live · send invoice",
-         "boardStage": "publishing",
-         "empty": "Nothing here. Cards land here the moment a sponsor video goes live.",
+         "stage": "Video Live",
+         "title": "Video Live",
+         "boardStage": null,
+         "empty": "",
          "cards": [
           {
            "id": "gmail-thread-live",
@@ -5502,8 +5516,16 @@
          ]
         },
         {
-         "stage": "Paid in November",
-         "boardStage": "paid",
+         "stage": "Balance Invoice",
+         "title": "Balance Invoice",
+         "boardStage": null,
+         "empty": "",
+         "cards": []
+        },
+        {
+         "stage": "Paid & Done",
+         "title": "Paid & Done",
+         "boardStage": null,
          "empty": "",
          "cards": [
           {

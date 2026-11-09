@@ -12,7 +12,7 @@ const fold = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, '');
 const words = (s) => String(s || '').toLowerCase().match(/[a-z0-9]+/g) || [];
 // A card names its host short ("Nora Fairweather"); the chip has the full name ("Nora Fairweather Cats"). The tile joins the chip with that exact
 // name, or the one chip whose name begins with the host's words. Two chips that fit (just "Rosa") join neither.
-function chipOf(host, known) {
+export function chipOf(host, known) {
   const f = fold(host);
   if (!f) return '';
   const exact = known.find((c) => f === fold(c.label) || f === fold(c.slug));

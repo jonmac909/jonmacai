@@ -1,6 +1,6 @@
 # Dashboard 2 (jonmac.ai/dashboard-2)
 
-Jon approved 2026-11-08 (card "Jon's ask: Dashboard 2 at jonmac.ai/dashboard-2"). A top-down view next to `/dashboard`: month goals, then this week's targets, then today. Five pages: Month, Week, Today, Pipeline, Money. Feed, Life, Journal, Review and the old dashboard are links in a menu (they open the existing `/dashboard` pages).
+Jon approved 2026-11-08 (card "Jon's ask: Dashboard 2 at jonmac.ai/dashboard-2"). A top-down view next to `/dashboard`: month goals, then this week's targets, then today. Five pages: Month, Week, Today, Pipeline, Money. Review is in the main nav (it opens `/dashboard/review`). Feed, Life, Journal and the old dashboard are links in a menu (they open the existing `/dashboard` pages).
 
 Hard limits: `/dashboard` (its pages, its API answers, its data) does not change. Views only: nothing is deleted or rewritten. No new feeds, collectors or automations. Every number names its source and age; a stale feed is flagged on the number and in a banner. Plain words for Jon: video titles as "<title> - <channel>", no raw IDs or file paths.
 
@@ -129,6 +129,14 @@ Needs-you cleanup (view only): a question whose idempotency key starts `team-gua
 ```
 
 `SponsorsPage` keeps the shape of `pages.sponsors` (so the existing sponsor renderer draws it) with: receipts, refunds and newsletters removed (`hidden: { receipts, refunds, newsletters }` counts them); cards quiet 60 days or more moved to a last column `{ title: 'Archived', archived: true, cards }`, hidden by default; pipeline value counting priced leads only (`value: { usd, priced, unpriced }`).
+
+### Pipeline layout and stages (Jon, 2026-11-09)
+
+- No Morning summary on any Pipeline page (D2 passes `summary: null` to the shared Projects renderer, which then skips the card; `/dashboard` always has one).
+- Tab `This week` (`#pipeline/week`): Mon to Sun, every channel, from the Calendar page's All channels rows (ideas left out), each with time, channel and status.
+- Sponsors board, 10 stages by the deal feed's own stage (view only; unknown stages are Leads): Leads (`drafts`, `new-lead`), Negotiations (`negotiating`), Deals (`contract-brief`), Deposit Invoice (`invoice-sent`), Deposit Paid (`deposit-paid`, `script-approval`), Video Production (`production`), Video Approved (`video-approval`), Video Live (`publishing`), Balance Invoice (`balance-invoice`: the feed has no such stage yet, so empty), Paid & Done (`paid`, `done`). Archived stays a hidden last column.
+- Jon Mac, @JonMacAI and Home Guide Press Board: "Videos by stage" (Outlier, Script, HeyGen, Edit, QC, Review, Schedule, Published) drawn from the Factory feed (`GET /dashboard/api/v1/factory`, fetched by the page; `/dashboard` unchanged), above the Projects board. A video sits at its first Factory step not done: Outlier = Outlier; Script, Script QC = Script; A-roll = HeyGen; Images, Clips, Preflight, Edit = Edit; Video QC = QC; Thumbnail, Upload = Review; every step done = Schedule. Calendar videos scheduled = Schedule, published = Published. Only the goal's own channels show.
+- Home Guide Press tabs: `Factory table` (the old Factory page, as is) and `Track` (the old Track page, all channels). Jon Mac tab: `Content` (the old Content page).
 
 ### Money
 
