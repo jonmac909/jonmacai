@@ -868,7 +868,9 @@ async function publishApi(request, env, url, slug, resource, uploadId, action) {
     const kept = new Set([body.video_key, sourceKey, body.compare_key]);
     const stale = [previous?.video_key, previous?.source_key, previous?.compare_key].filter((k) => k && !kept.has(k));
     if (stale.length) await env.MEDIA.delete(stale);
-    return json({ video: await gatedVideo(env, await getVideo(env, slug), url.origin), qc_only: true,
+    // A file that was just published always starts QC-only (its qc_holds row is new), so no dashboard read is needed to say so.
+    const stored = publicVideo(await getVideo(env, slug), url.origin);
+    return json({ video: { ...stored, status: stored.status === "needs_review" ? "qc_only" : stored.status, qc_only: true }, qc_only: true,
       ...(fix ? { fix_of: approval.slug, visible_to_jon: "never as a new request: it carries his approval; upload it once QC passes it" }
         : { visible_to_jon: "only after QC passes its dashboard proof" }) }, previous ? 200 : 201);
   }
