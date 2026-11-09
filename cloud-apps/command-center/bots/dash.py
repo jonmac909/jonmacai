@@ -504,6 +504,8 @@ def run(args, ctx):
         if not body:
             raise Fail(2, 'Nothing to change: pass --status, --owner, --note, --title, --project, --minutes or --due.')
         return call(ctx, 'PATCH', '/tasks/%s' % q(args.id, safe=''), body)
+    if c == 'yt-live-done':  # the dashboard checks the video is public itself before it moves the card
+        return call(ctx, 'POST', '/tasks/%s/live' % q(args.task_id, safe=''), {'link': args.link})
     if c == 'tasks':
         return call(ctx, 'GET', '/tasks', query={'owner': args.owner, 'status': args.status, 'project': project,
                                                  'limit': args.limit})
@@ -647,6 +649,10 @@ def parser():
     a.add_argument('--title')
     project_args(a)
     a.add_argument('--due', help='YYYY-MM-DD')
+
+    a = s.add_parser('yt-live-done', help='live-YouTube sync only (Developer): move a card to done once the dashboard finds its video public')
+    a.add_argument('task_id')
+    a.add_argument('--link', required=True, help='https://www.youtube.com/watch?v=<id> or https://youtu.be/<id>')
 
     a = s.add_parser('tasks', help='list tasks')
     a.add_argument('--owner', help='bot slug, jon or "me"')
