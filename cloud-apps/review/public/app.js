@@ -411,7 +411,7 @@
   }
 
   function setStatus(status) {
-    for (const b of $("status").querySelectorAll("button")) b.setAttribute("aria-pressed", String(b.dataset.status === status));
+    for (const b of $("status")?.querySelectorAll("button") || []) b.setAttribute("aria-pressed", String(b.dataset.status === status));
   }
 
   async function send(kind, button) {
@@ -424,7 +424,7 @@
     const ask = data.dashboard ? "Approve this version? Its dashboard task moves to Done."
       : "Approve this version? The agent will mark it approved and start this channel's next video.";
     if (kind === "approve" && !window.confirm(ask)) return;
-    for (const b of [$("send-changes"), $("approve")]) b.disabled = true;
+    for (const b of [$("send-changes"), $("approve")].filter(Boolean)) b.disabled = true;
     status.textContent = "Sending…";
     try {
       const result = await call("/submit", { method: "POST", body: JSON.stringify({ kind }) });
@@ -439,11 +439,11 @@
     } catch (error) {
       status.textContent = error.message;
     } finally {
-      for (const b of [$("send-changes"), $("approve")]) b.disabled = false;
+      for (const b of [$("send-changes"), $("approve")].filter(Boolean)) b.disabled = false;
     }
   }
   $("send-changes").addEventListener("click", (event) => send("changes", event.currentTarget));
-  $("approve").addEventListener("click", (event) => send("approve", event.currentTarget));
+  $("approve")?.addEventListener("click", (event) => send("approve", event.currentTarget));
 
   async function load() {
     try {
@@ -509,7 +509,7 @@
     }
   });
 
-  $("status").addEventListener("click", async (event) => {
+  $("status")?.addEventListener("click", async (event) => {
     const button = event.target.closest("button[data-status]");
     if (!button || button.getAttribute("aria-pressed") === "true") return;
     try {

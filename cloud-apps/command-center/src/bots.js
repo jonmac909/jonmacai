@@ -396,7 +396,8 @@ async function getTask(db, id) {
 
 // What Jon opens on a Review or Done card: the newest QC-passed proof, else the newest proof.
 // Only an http(s) link is `web` (clickable); a file path on GPU1 shows as text.
-const deliverableOf = (p) => (p?.link ? { link: p.link, kind: p.kind, web: /^https?:\/\//i.test(p.link) } : null);
+// status lets the page hold back a review link QC hasn't passed (the QC gate, public/js/pages/projects.js deliverableLink).
+const deliverableOf = (p) => (p?.link ? { link: p.link, kind: p.kind, web: /^https?:\/\//i.test(p.link), ...(p.status ? { status: p.status } : {}) } : null);
 
 // Tasks from before history began have no "created" row: start theirs with one, plus the proofs
 // added before their first recorded event.
@@ -1462,7 +1463,7 @@ export async function todayData(db, nowMs, month) {
     // web proof link and its deliverable (picked as in deliverableOf).
     tryRead(db.prepare(`SELECT t.*, (SELECT p.link FROM bot_proofs p WHERE p.task_id = t.id AND (p.link LIKE 'http://%' OR p.link LIKE 'https://%')
       ORDER BY p.created_at DESC LIMIT 1) AS proof_link,
-      (SELECT json_object('link', p.link, 'kind', p.kind) FROM bot_proofs p WHERE p.task_id = t.id
+      (SELECT json_object('link', p.link, 'kind', p.kind, 'status', p.status) FROM bot_proofs p WHERE p.task_id = t.id
       ORDER BY p.status = 'passed' DESC, p.created_at DESC, p.rowid DESC LIMIT 1) AS deliverable FROM bot_tasks t
       WHERE t.status IN ('todo', 'doing', 'waiting_on_jon', 'qc', 'review') OR (t.status = 'done' AND t.done_at >= ?) ORDER BY t.updated_at DESC LIMIT 500`).bind(since).all()),
     tryRead(latestFeed(db, 'daily_checklists')),

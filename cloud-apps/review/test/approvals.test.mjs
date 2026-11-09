@@ -5,7 +5,8 @@ import test, { after, before } from "node:test";
 import assert from "node:assert/strict";
 import { existsSync } from "node:fs";
 import { Response as MFResponse } from "miniflare";
-import { SECRETS, startRuntime } from "./harness.mjs";
+import { SECRETS, migrationStatements, startRuntime } from "./harness.mjs";
+import { openVideos } from "../pages.js";
 
 const cc = new URL("../../command-center/", import.meta.url);
 // The Docker checks build with cloud-apps/review alone as context, so the dashboard's code is not there.
@@ -21,7 +22,7 @@ const OTHER = "t_00000000000000b1"; // a differently named card, linked by the s
 const TITLE = "DUMMY dryer video! - Test Channel (v1)"; // case, punctuation and a (vN) tail all differ from the card
 const HOOKS = Object.fromEntries(["video-editor", "home-guide-press", "ana"].map((bot) => [bot, { url: `https://hooks.example/${bot}`, secret: `whsec_${bot}` }]));
 
-let runtime, cookie, ccDb, dashboardDown = false;
+let runtime, cookie, ccDb, dashboardDown = false, submissionDown = false;
 const wakes = [];
 const realFetch = globalThis.fetch;
 
@@ -42,6 +43,10 @@ const submit = (slug, kind) => call(`/api/review/${slug}/submit`, jsonInit("POST
 const rows = async (sql, ...args) => (await ccDb.prepare(sql).bind(...args).all()).results;
 const cardComments = (id) => rows("SELECT author, body, wake_status FROM bot_task_comments WHERE task_id = ? ORDER BY created_at, rowid", id);
 const cardHistory = (id) => rows("SELECT \"by\", kind, detail FROM bot_task_events WHERE task_id = ? AND kind = 'review' ORDER BY at, rowid", id);
+// QC passes a version: a passed proof on a card, checked now (after the version's file was published).
+const qcPass = (slug, link = `https://jonmac.ai/review/${slug}`, task = CARD) => ccDb.prepare(`INSERT INTO bot_proofs (id, task_id, kind, link, status,
+    created_by, created_at, checked_by, checked_at) VALUES (?, ?, 'render', ?, 'passed', 'video-editor', ?, 'qc', ?)`)
+  .bind(`p_${crypto.randomUUID().replace(/-/g, "").slice(0, 16)}`, task, link, new Date().toISOString(), new Date().toISOString()).run();
 
 before(async () => {
   if (skip) return;
@@ -65,7 +70,7 @@ before(async () => {
   };
   runtime = await startRuntime({
     dashboard: async (request) => {
-      if (dashboardDown) return new MFResponse("down", { status: 500 });
+      if (dashboardDown || (submissionDown && !request.url.endsWith("/qc"))) return new MFResponse("down", { status: 500 });
       const res = await reviewHook(request, ccEnv); // no ctx: the wake is one awaited try
       return new MFResponse(await res.text(), { status: res.status, headers: { "Content-Type": "application/json" } });
     },
@@ -81,6 +86,7 @@ after(async () => {
 
 test("approve: Jon's comment and a history line land on the card, and its owner is woken", { skip }, async () => {
   assert.equal((await publish("dummy-1-v1")).status, 201);
+  await qcPass("dummy-1-v1");
   const approved = await submit("dummy-1-v1", "approve");
   assert.equal(approved.status, 201);
   assert.equal(approved.body.card, "posted");
@@ -128,7 +134,8 @@ test("after an approval a newer version is refused with 409, until Jon asks for 
   assert.equal(wakes.at(-1).body.data.review.kind, "changes");
   assert.equal((await publish("dummy-1-v2")).status, 201);
 
-  // Approving the new version locks the video again.
+  // Approving the new version (once QC passed it) locks the video again.
+  await qcPass("dummy-1-v2");
   assert.equal((await submit("dummy-1-v2", "approve")).status, 201);
   assert.equal((await publish("dummy-1-v3")).status, 409);
   const subs = await call("/api/review/submissions", { headers: agent });
@@ -139,6 +146,7 @@ test("after an approval a newer version is refused with 409, until Jon asks for 
 test("a stored task id picks the card; each submission is posted once; a failed post can be retried", { skip }, async () => {
   assert.equal((await publish("dummy-2-v1", { task_id: "t_nope" })).status, 400);
   assert.equal((await publish("dummy-2-v1", { task_id: OTHER })).status, 201);
+  await qcPass("dummy-2-v1");
   const approved = await submit("dummy-2-v1", "approve");
   assert.equal(approved.body.card, "posted");
   assert.equal(approved.body.cardNote, "It is on the video's dashboard card and home-guide-press was told.");
@@ -150,13 +158,14 @@ test("a stored task id picks the card; each submission is posted once; a failed 
   assert.equal((await call(`/api/review/submissions/${id}/card`, jsonInit("POST", {}, asJon()))).status, 403, "agent token only");
 
   // The dashboard is down: Jon's approval still saves, the page says the card missed it, and a retry posts it.
-  dashboardDown = true;
   assert.equal((await publish("dummy-3-v1", { task_id: OTHER })).status, 201);
+  await qcPass("dummy-3-v1");
+  submissionDown = true;
   const missed = await submit("dummy-3-v1", "approve");
   assert.equal(missed.status, 201);
   assert.equal(missed.body.card, "error 500");
   assert.equal(missed.body.cardNote, "Saved, but the video's dashboard card could not be updated.");
-  dashboardDown = false;
+  submissionDown = false;
   const retried = await call(`/api/review/submissions/${missed.body.submission.id}/card`, jsonInit("POST", {}));
   assert.equal(retried.body.result, "posted");
   assert.equal((await cardComments(OTHER)).length, 2);
@@ -167,7 +176,7 @@ test("a stored task id picks the card; each submission is posted once; a failed 
 test("Jon's list shows only each video's newest QC-passed version; nothing is deleted", { skip }, async () => {
   for (const slug of ["qcvid-1-v1", "qcvid-1-v2", "qcvid-1-v3", "qcvid-2-v1", "qcvid-4-v1"]) assert.equal((await publish(slug)).status, 201, slug);
   const proof = (n, task, link, status) => ccDb.prepare("INSERT INTO bot_proofs (id, task_id, kind, link, status, created_by, created_at) VALUES (?, ?, 'render', ?, ?, 'video-editor', ?)")
-    .bind(`p_00000000000000${n}`, task, link, status, "2026-11-09T12:00:00.000Z").run();
+    .bind(`p_00000000000000${n}`, task, link, status, new Date().toISOString()).run();
   await proof("c1", CARD, "https://jonmac.ai/review/qcvid-1-v1", "passed");
   await proof("c2", CARD, "https://jonmac.ai/dashboard/review/qcvid-1-v2", "passed");
   await proof("c3", CARD, "https://jonmac.ai/review/qcvid-1-v3", "pending"); // not checked yet
@@ -184,10 +193,98 @@ test("Jon's list shows only each video's newest QC-passed version; nothing is de
   for (const slug of ["qcvid-1-v1", "qcvid-1-v3", "qcvid-2-v1"]) assert.ok(all.includes(slug), `${slug} is kept`);
   assert.equal((await fetchApp("/review/qcvid-1-v3", { headers: asJon() })).status, 200, "a hidden version still opens by its link");
 
-  // The dashboard can't say: the list falls back to the newest version and says so.
+  // The dashboard can't say: the gate fails closed, so nothing is shown and the page says why.
   dashboardDown = true;
   const fallback = await listed();
+  const jonList = (await call("/api/review/jon-list", { headers: agent })).body;
+  const approve = await submit("qcvid-1-v2", "approve");
   dashboardDown = false;
-  assert.deepEqual(fallback.slugs.sort(), ["qcvid-1-v3", "qcvid-2-v1", "qcvid-4-v1"]);
-  assert.match(fallback.page, /QC results could not be read from the dashboard/);
+  assert.deepEqual(fallback.slugs, []);
+  assert.match(fallback.page, /QC results could not be read from the dashboard, so no video is shown/);
+  assert.deepEqual(jonList, { qc_read: false, slugs: [] });
+  assert.equal(approve.status, 503);
+  assert.deepEqual(openVideos([{ slug: "a-1-v1", status: "needs_review", created_at: "2026-11-09" }], null), []);
+});
+
+test("QC gate: a new version is QC-only (off Jon's list, no Approve, no link to Jon) until QC passes it", { skip }, async () => {
+  const page = async (slug) => (await fetchApp(`/review/${slug}`, { headers: asJon() })).text();
+  const jonList = async () => (await call("/api/review/jon-list", { headers: agent })).body.slugs;
+  const onIndex = async (slug) => (await (await fetchApp("/review", { headers: asJon() })).text()).includes(`href="/review/${slug}"`);
+  const before = { comments: (await rows("SELECT id FROM bot_task_comments")).length, wakes: wakes.length };
+
+  const published = await publish("gate-1-v1");
+  assert.equal(published.status, 201);
+  assert.deepEqual([published.body.qc_only, published.body.visible_to_jon], [true, "only after QC passes its dashboard proof"]);
+  assert.equal(await onIndex("gate-1-v1"), false);
+  assert.equal((await jonList()).includes("gate-1-v1"), false);
+  const held = await page("gate-1-v1");
+  assert.match(held, /QC only: this version is hidden from Jon's list and can't be approved/);
+  assert.match(held, /<video id="player"/, "QC can still open and play it");
+  assert.doesNotMatch(held, /id="approve"|id="status"/);
+  const refused = await submit("gate-1-v1", "approve");
+  assert.equal(refused.status, 409);
+  assert.match(refused.body.error, /^QC has not passed this version yet/);
+  assert.equal((await call("/api/review/gate-1-v1/status", jsonInit("POST", { status: "approved" }, asJon()))).status, 409);
+  assert.equal((await call("/api/review/videos", { headers: asJon() })).body.videos.some((v) => v.slug === "gate-1-v1"), false, "not in a reviewer's JSON list");
+  assert.ok((await call("/api/review/videos", { headers: agent })).body.videos.some((v) => v.slug === "gate-1-v1"), "agents still list it");
+  // A proof that is waiting for QC or failed it doesn't count.
+  for (const [n, status] of [["f1", "pending"], ["f2", "failed"]]) {
+    await ccDb.prepare("INSERT INTO bot_proofs (id, task_id, kind, link, status, created_by, created_at) VALUES (?, ?, 'render', 'https://jonmac.ai/review/gate-1-v1', ?, 'video-editor', ?)")
+      .bind(`p_00000000000000${n}`, CARD, status, new Date().toISOString()).run();
+  }
+  assert.equal(await onIndex("gate-1-v1"), false);
+  assert.deepEqual([(await rows("SELECT id FROM bot_task_comments")).length, wakes.length], [before.comments, before.wakes], "no card or wake carried its link");
+
+  // A newer QC-only version is never linked from a page Jon can open: not in the version nav, not as "New version ready".
+  assert.equal((await publish("gate-2-v1")).status, 201);
+  await qcPass("gate-2-v1");
+  assert.equal((await publish("gate-2-v2")).status, 201);
+  await call("/api/review/gate-2-v1/comments", jsonInit("POST", { author: "Jon", t: 1, text: "Trim the intro" }, asJon()));
+  assert.equal((await submit("gate-2-v1", "changes")).status, 201);
+  assert.equal((await call("/api/review/gate-2-v1/next", jsonInit("POST", { result_slug: "gate-2-v2" }))).status, 200);
+  assert.doesNotMatch(await page("gate-2-v1"), /gate-2-v2/);
+  assert.ok((await call("/api/review/gate-2-v1/submissions", { headers: asJon() })).body.submissions.every((s) => s.result_slug === null));
+  assert.equal((await call("/api/review/gate-2-v1/submissions", { headers: agent })).body.submissions[0].result_slug, "gate-2-v2", "stored as sent");
+  assert.ok((await jonList()).includes("gate-2-v1"));
+
+  // QC passes them: they show, link and approve like any version.
+  await qcPass("gate-1-v1");
+  await qcPass("gate-2-v2");
+  assert.equal(await onIndex("gate-1-v1"), true);
+  assert.match(await page("gate-1-v1"), /id="approve"/);
+  assert.match(await page("gate-2-v1"), /href="\/review\/gate-2-v2"/);
+  assert.equal((await submit("gate-1-v1", "approve")).status, 201);
+
+  // A recut of a passed version is QC-only again until QC passes the new file.
+  const key = "review/gate-2-v2/video-recut.mp4";
+  await runtime.bucket.put(key, new Uint8Array([0, 0, 0, 24]));
+  assert.equal((await call("/api/review/gate-2-v2/publish", jsonInit("POST", { channel: "test", video: "gate-2", version: "v2", title: TITLE, video_key: key }))).status, 200);
+  assert.equal((await jonList()).includes("gate-2-v2"), false);
+  await qcPass("gate-2-v2");
+  assert.equal((await jonList()).includes("gate-2-v2"), true);
+});
+
+test("existing versions are held by migration 0007, a new table only, until a QC pass after they were made", { skip }, async () => {
+  const made = "2026-11-01T10:00:00.000Z";
+  await runtime.db.prepare(`INSERT INTO videos (slug, channel, video, version, title, status, video_key, created_at, updated_at)
+    VALUES ('legacy-1-v1', 'test', 'legacy-1', 'v1', 'Legacy video - Test Channel', 'needs_review', 'review/legacy-1-v1/video-old.mp4', ?, ?)`).bind(made, made).run();
+  const snapshot = async () => [await runtime.db.prepare("SELECT COUNT(*) AS n, MAX(updated_at) AS u, GROUP_CONCAT(status) AS s FROM videos").first(),
+    await runtime.db.prepare("SELECT COUNT(*) AS n FROM submissions").first()];
+  const was = await snapshot();
+  const hold = migrationStatements().filter((s) => /INTO qc_holds/.test(s) && /FROM videos/.test(s));
+  assert.equal(hold.length, 1);
+  await runtime.db.batch(hold.map((s) => runtime.db.prepare(s)));
+  assert.deepEqual(await runtime.db.prepare("SELECT slug, video_key, created_at FROM qc_holds WHERE slug = 'legacy-1-v1'").first(),
+    { slug: "legacy-1-v1", video_key: "review/legacy-1-v1/video-old.mp4", created_at: made });
+  assert.deepEqual(await snapshot(), was, "no video or submission row changed");
+  const jonList = async () => (await call("/api/review/jon-list", { headers: agent })).body.slugs;
+  assert.equal((await jonList()).includes("legacy-1-v1"), false);
+  // A pass checked before the video was made doesn't release it; one after does.
+  await ccDb.prepare("INSERT INTO bot_proofs (id, task_id, kind, link, status, created_by, created_at, checked_at) VALUES ('p_00000000000000e1', ?, 'render', 'https://jonmac.ai/review/legacy-1-v1', 'passed', 'qc', ?, ?)")
+    .bind(CARD, "2026-10-30T00:00:00.000Z", "2026-10-31T00:00:00.000Z").run();
+  assert.equal((await jonList()).includes("legacy-1-v1"), false);
+  await qcPass("legacy-1-v1");
+  assert.equal((await jonList()).includes("legacy-1-v1"), true);
+  await runtime.db.batch(hold.map((s) => runtime.db.prepare(s))); // a rerun adds nothing
+  assert.equal((await runtime.db.prepare("SELECT COUNT(*) AS n FROM qc_holds WHERE slug = 'legacy-1-v1'").first()).n, 1);
 });

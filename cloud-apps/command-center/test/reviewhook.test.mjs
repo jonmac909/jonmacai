@@ -59,5 +59,5 @@ test('the hook needs the review token; the backfill fills only open cards and wa
   assert.equal(sent.at(-1).body.data.review.slug, 'none-1-v1');
 
   await db.prepare("INSERT INTO bot_proofs (id, task_id, kind, link, status, created_by, created_at) VALUES ('p_00000000000000d1', 't_00000000000000d1', 'render', 'https://jonmac.ai/review/old-1-v2', 'passed', 'qc', 'x')").run();
-  assert.deepEqual((await (await hook(null, TOKEN, 'qc')).json()).slugs, ['old-1-v2']);
+  assert.deepEqual((await (await hook(null, TOKEN, 'qc')).json()).passes, { 'old-1-v2': 'x' });
 });

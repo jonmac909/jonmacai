@@ -51,10 +51,11 @@ export function renderGate({ next, k, error = "" }) {
 // stem groups versions: the video key and the channel can differ between them. This only hides rows: direct links, the
 // version nav and /api/review/videos keep every version.
 // `passed` (Jon, 2026-11-09): the slugs QC passed. Given, only those count, so a newer version QC hasn't passed waits
-// off the list; null means the dashboard could not say, and the list falls back to the newest version, with a note.
+// off the list; null means the dashboard could not say, and the list is empty, with a note (the QC gate fails closed).
 const CLEARED_BEFORE = "2026-10-17"; // Jon cleared the Oct 14 to 16 batch off the list
 export const stem = (slug) => slug.replace(/-v\d+$/, "");
 export function openVideos(videos, passed = undefined) {
+  if (passed === null) return [];
   const newest = new Map();
   for (const v of videos) {
     if (passed && !passed.has(v.slug)) continue;
@@ -87,7 +88,7 @@ export function renderIndex({ channels, videos, passed }, message = "", prefix =
   ${prefix ? `<p class="crumbs"><a href="${prefix}/">Dashboard</a></p>` : ""}
   <header class="top"><h1>Video reviews</h1><p class="muted">${escapeHtml(counts.join(" · "))}</p></header>
   ${message ? `<p class="error" role="alert">${escapeHtml(message)}</p>` : ""}
-  ${passed === null ? `<p class="error" role="status">QC results could not be read from the dashboard, so this shows each video's newest version, checked or not.</p>` : ""}
+  ${passed === null ? `<p class="error" role="status">QC results could not be read from the dashboard, so no video is shown until they can be. Reload in a minute.</p>` : ""}
   ${sections}
 </main>`, { prefix });
 }
@@ -101,8 +102,9 @@ const extra = (id, label, url) => url ? `<details class="extra" id="${id}"><summ
 const ours = (video) => `<div class="stage"><video id="player" controls playsinline webkit-playsinline preload="metadata"
     src="${escapeHtml(video.video_url)}#t=0.001" aria-label="Our video"></video><canvas id="ink" class="ink" aria-hidden="true"></canvas></div>`;
 
-export function renderVideo(video, versions, channelName, submissions = [], prefix = "") {
-  const data = JSON.stringify({ slug: video.slug, duration: video.duration, chapters: video.chapters, status: video.status, sync: video.sync, submissions,
+// gate.qcOnly: QC hasn't passed this version, so the page says so and has no Approve and no status buttons.
+export function renderVideo(video, versions, channelName, submissions = [], prefix = "", gate = {}) {
+  const data = JSON.stringify({ slug: video.slug, duration: video.duration, chapters: video.chapters, status: video.status, sync: video.sync, submissions, qcOnly: Boolean(gate.qcOnly),
     base: `${prefix}/review`, api: `${prefix}/api/review`, dashboard: Boolean(prefix) })
     .replace(/</g, "\\u003c");
   const versionLinks = versions.length > 1 ? `<nav class="version-nav" aria-label="Versions">${versions.map((v) =>
@@ -117,6 +119,7 @@ export function renderVideo(video, versions, channelName, submissions = [], pref
     <h1>${escapeHtml(video.title)} <span class="muted">${escapeHtml(video.version)}</span></h1>
     ${versionLinks}
   </header>
+  ${gate.qcOnly ? `<p class="error" role="status" id="qc-only">${gate.qcUnknown ? "QC results could not be read from the dashboard. " : ""}QC only: this version is hidden from Jon's list and can't be approved until QC passes its dashboard proof.</p>` : ""}
   ${video.source_url ? `<div class="duo" id="duo">
     <figure class="pane"><figcaption>Source <span class="muted" id="source-audio">muted</span></figcaption>
       <video id="source-player" controls playsinline webkit-playsinline muted preload="metadata"
@@ -137,7 +140,7 @@ export function renderVideo(video, versions, channelName, submissions = [], pref
   </div>` : ours(video)}
   ${video.chapters.length ? `<div class="chapters" id="chapters">${video.chapters.map(([t, label]) =>
     `<button type="button" data-t="${Number(t)}">${formatTime(t)} ${escapeHtml(label)}</button>`).join("")}</div>` : ""}
-  <div class="status-row"><span class="muted">Status</span><div class="status-btns" id="status">${statusButtons}</div></div>
+  ${gate.qcOnly ? "" : `<div class="status-row"><span class="muted">Status</span><div class="status-btns" id="status">${statusButtons}</div></div>`}
   ${video.notes ? `<p class="notes">${escapeHtml(video.notes)}</p>` : ""}
   ${extra("compare", "First 60 s side by side (muted)", video.compare_url)}
   <section class="composer" aria-label="Add a comment">
@@ -171,7 +174,7 @@ export function renderVideo(video, versions, channelName, submissions = [], pref
   <section class="send" id="send" aria-label="Send to the agent">
     <div class="send-btns">
       <button type="button" class="primary big" id="send-changes">${prefix ? "Send back" : "Submit changes"}</button>
-      <button type="button" class="big approve" id="approve">Approve</button>
+      ${gate.qcOnly ? "" : '<button type="button" class="big approve" id="approve">Approve</button>'}
     </div>
     <p class="send-hint muted" id="send-status" role="status">${prefix
       ? "When you are done commenting, press Send back: its task goes back to Doing with your open comments. Approve moves the task to Done."

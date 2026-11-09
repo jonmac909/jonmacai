@@ -21,6 +21,14 @@ export function migrationStatements() {
   return sql.split(/;\s*\n/).map((s) => s.trim().replace(/;$/, "")).filter(Boolean);
 }
 
+// A dashboard where QC passed every published version, for the tests of everything but the QC gate.
+export const allPassed = (runtime) => async (request) => {
+  const reply = (body) => new MFResponse(JSON.stringify(body), { headers: { "Content-Type": "application/json" } });
+  if (!new URL(request.url).pathname.endsWith("/qc")) return reply({ ok: true, result: "no_card" });
+  const { results } = await runtime().db.prepare("SELECT slug FROM videos").all();
+  return reply({ ok: true, passes: Object.fromEntries(results.map((r) => [r.slug, "9999-12-31T00:00:00.000Z"])) });
+};
+
 // `dashboard`: the DASHBOARD service binding, a function (Request) => Response, or none (the binding is left out).
 export async function startRuntime({ listen = false, https = true, bindings = SECRETS, dashboard } = {}) {
   const mf = new Miniflare({

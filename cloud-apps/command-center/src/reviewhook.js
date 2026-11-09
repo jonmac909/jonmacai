@@ -3,7 +3,8 @@
 // for /dashboard/review:
 //   POST /dashboard/api/review-hook/submission  Jon's Approve or Submit changes: a comment from Jon on the video's card,
 //        which wakes its owner like any comment of his (postComment, card_comment), plus one history line.
-//   GET  /dashboard/api/review-hook/qc          the review pages a QC-passed proof links to, for Jon's review list.
+//   GET  /dashboard/api/review-hook/qc          each review page's newest QC pass, for the review Worker's QC gate
+//        (a version is QC-only, hidden from Jon, until a pass checked after its file was published).
 // The card: the task id the publisher stored, else the card titled like the video ("<title> - <channel>"; case,
 // punctuation and the channel suffix ignored), else the card whose proof is that review page (linkedTask).
 import { logEvent, postComment, wakeOwner } from './bots.js';
@@ -117,11 +118,16 @@ async function submission(request, env, ctx) {
     wakes: task.owner === 'jon' ? null : task.owner });
 }
 
+// {slug: newest checked_at} over passed proofs on a review page (a page or its media link), Coding and cancelled cards left out.
 async function qcPassed(env) {
-  const { results } = await env.DB.prepare(`SELECT DISTINCT p.link FROM bot_proofs p JOIN bot_tasks t ON t.id = p.task_id
+  const { results } = await env.DB.prepare(`SELECT p.link, COALESCE(p.checked_at, p.created_at) AS at FROM bot_proofs p JOIN bot_tasks t ON t.id = p.task_id
     WHERE p.status = 'passed' AND p.link LIKE '%/review/%' AND t.status != 'cancelled' AND t.project IS NOT 'coding'`).all();
-  const slugs = new Set((results || []).map((r) => REVIEW_PAGE.exec(r.link || '')?.[1]?.toLowerCase()).filter((s) => s && s !== 'media'));
-  return json({ ok: true, slugs: [...slugs] });
+  const passes = {};
+  for (const r of results || []) {
+    const slug = REVIEW_PAGE.exec(r.link || '')?.[1]?.toLowerCase();
+    if (slug && slug !== 'media' && !(passes[slug] >= r.at)) passes[slug] = r.at;
+  }
+  return json({ ok: true, passes });
 }
 
 export async function reviewHook(request, env, ctx) {

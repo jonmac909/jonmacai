@@ -19,7 +19,8 @@ const STATUS = { todo: 'To do', doing: 'Doing', waiting_on_jon: 'Waiting on you'
 // line of its note. The rest of the note and QC's notes sit behind Details.
 function proofItem(p) {
   const review = REVIEW_LINK.exec(p.link || ''); // a review-site video opens in the dashboard's Review page, no passcode
-  const open = /^https?:\/\//i.test(p.link)
+  const open = review && p.status !== 'passed' ? '<span class="cmfile">Review page: waiting for QC</span>' // the QC gate: no link before QC passes it
+    : /^https?:\/\//i.test(p.link)
     ? `<a class="btn line cmopen" href="${esc(review ? `/dashboard/review/${review[1].toLowerCase()}` : p.link)}" target="_blank" rel="noopener">${esc(linkLabel(p.link, p.kind))}</a>`
     : `<span class="cmfile">Local file: ${esc(String(p.link || '').split(/[\\/]/).pop())}</span>`;
   const qc = p.status === 'passed' ? 'QC passed' : p.status === 'failed' ? 'QC failed' : 'Waiting for QC';
