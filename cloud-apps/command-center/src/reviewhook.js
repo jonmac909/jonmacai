@@ -68,12 +68,16 @@ export async function findCard(db, { task_id: id, slug, title }) {
   return linked ? { task: linked, by: 'proof' } : { task: null, by: null };
 }
 
-// What Jon reads on the card, and the owner in its wake.
-export function commentOf(p, now) {
+// What Jon reads on the card, and the owner in its wake. qcOk false: an approval from before the QC gate, on a version
+// with no QC pass; it still goes through QC, fixed on top of that version.
+export function commentOf(p, now, qcOk = true) {
   const what = `${p.version} of "${bare(p.title)}"`;
   const late = p.at && Date.parse(now) - Date.parse(p.at) > LATE_MS ? ` (${p.kind === 'approve' ? 'approved' : 'sent'} ${day(p.at)}, posted late)` : '';
   if (p.kind === 'approve') {
-    return `Jon approved ${what} on the review page${late}. That version is final: upload it, and don't post a newer one unless he asks for changes.\n${PUBLIC}/${p.slug}`;
+    return `Jon approved ${what} on the review page${late}. ` + (qcOk
+      ? "That version is final: upload it, and don't post a newer one unless he asks for changes."
+      : "It hadn't passed QC yet: get this version through QC first (fix any fault on top of it, no new version), then upload it.")
+      + `\n${PUBLIC}/${p.slug}`;
   }
   const notes = p.comments.map((c) => `- ${clock(c.t)} ${c.text || (c.voice ? 'Voice note' : 'Drawing')}`
     + `${c.transcript ? ` (said: "${c.transcript}")` : c.voice && c.text ? ' [voice note]' : ''}${c.drawing && c.text ? ' [drawing]' : ''}`);
@@ -103,7 +107,7 @@ async function submission(request, env, ctx) {
   const { task, by } = await findCard(env.DB, p);
   // The backfill only fills in cards that are still open, and wakes no one for a video without a card.
   if (p.backfill && (!task || task.status === 'done')) return json({ ok: true, result: task ? 'skipped' : 'no_card', task, matched_by: by });
-  const body = commentOf(p, now);
+  const body = commentOf(p, now, p.kind !== 'approve' || Boolean((await passesOf(env.DB))[p.slug.toLowerCase()]));
   const review = { slug: p.slug, kind: p.kind, submission: p.submission_id || null };
   if (!task) { // like a review comment on a video no card links to yet (videoreview.js wakeForComment)
     const wake = wakeOwner(env, { id: null, title: p.title, project: null, owner: NO_TASK_OWNER }, { id: p.submission_id || `review-${p.slug}-${now}`, body },
@@ -119,15 +123,19 @@ async function submission(request, env, ctx) {
 }
 
 // {slug: newest checked_at} over passed proofs on a review page (a page or its media link), Coding and cancelled cards left out.
-async function qcPassed(env) {
-  const { results } = await env.DB.prepare(`SELECT p.link, COALESCE(p.checked_at, p.created_at) AS at FROM bot_proofs p JOIN bot_tasks t ON t.id = p.task_id
+async function passesOf(db) {
+  const { results } = await db.prepare(`SELECT p.link, COALESCE(p.checked_at, p.created_at) AS at FROM bot_proofs p JOIN bot_tasks t ON t.id = p.task_id
     WHERE p.status = 'passed' AND p.link LIKE '%/review/%' AND t.status != 'cancelled' AND t.project IS NOT 'coding'`).all();
   const passes = {};
   for (const r of results || []) {
     const slug = REVIEW_PAGE.exec(r.link || '')?.[1]?.toLowerCase();
     if (slug && slug !== 'media' && !(passes[slug] >= r.at)) passes[slug] = r.at;
   }
-  return json({ ok: true, passes });
+  return passes;
+}
+
+async function qcPassed(env) {
+  return json({ ok: true, passes: await passesOf(env.DB) });
 }
 
 export async function reviewHook(request, env, ctx) {
