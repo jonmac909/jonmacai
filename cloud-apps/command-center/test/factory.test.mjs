@@ -283,14 +283,16 @@ test('factory table: an Original link sits above the title, only for a real YouT
 test('factory panel: GPU1 and GPU2 lines with what runs and how many wait, the team working first then idle', async () => {
   const keep = { gpus: TABLE.gpus, team: TABLE.team };
   TABLE.gpus = { gpu1: { running: [{ type: 'Clips', what: 'peter-2', runningS: 600 }], waiting: 4 }, gpu2: { running: [{ type: 'Z-Image Turbo', what: 'rosa-house', runningS: 125 }], waiting: 12 } };
-  TABLE.team = [{ name: 'Elle', working: true, idleMin: 0, card: 'Rosa <b>' }, { name: 'Ana', working: false, idleMin: 75, card: '' }];
+  TABLE.team = [{ name: 'Elle', state: 'working', working: true, queued: 0, idleMin: 0, card: 'Rosa <b>' }, { name: 'Emma', state: 'queued', working: false, queued: 2, idleMin: 3, card: '' }, { name: 'Ana', state: 'idle', working: false, queued: 0, idleMin: 75, card: '' }, { name: 'Old', working: false, idleMin: 5, card: '' }];
   try {
     const pg = await open();
     const p = pg.nodes['.fypanel'].innerHTML;
     assert.match(p, /<b>GPU1<\/b> Clips · peter-2 · 10m · 4 waiting/);
     assert.match(p, /<b>GPU2<\/b> Z-Image Turbo · rosa-house · 2m · 12 waiting/);
     assert.ok(p.indexOf('Elle') < p.indexOf('Ana'), 'the feed order (working first) is kept');
-    assert.match(p, /<p class="fyt on"><i class="fydot"><\/i><b>Elle<\/b><span>Working<\/span><em title="Rosa &lt;b&gt;">Rosa &lt;b&gt;<\/em>/);
+    assert.match(p, /<p class="fyt on" title="last activity 0m ago"><i class="fydot"><\/i><b>Elle<\/b><span>Working · 0m<\/span><em title="Rosa &lt;b&gt;">Rosa &lt;b&gt;<\/em>/);
+    assert.match(p, /<p class="fyt qd" title="last activity 3m ago"><i class="fydot"><\/i><b>Emma<\/b><span>Queued 2 · 3m<\/span>/, 'queued bots show yellow with the count');
+    assert.match(p, /<b>Old<\/b><span>Idle 5m<\/span>/, 'an older feed without state still reads');
     assert.match(p, /<b>Ana<\/b><span>Idle 1h 15m<\/span>/);
     TABLE.gpus = { gpu1: null, gpu2: { running: [], waiting: 0 } };
     assert.match((await open()).nodes['.fypanel'].innerHTML, /<b>GPU1<\/b> <span class="muted">queue unreadable<\/span>.*<b>GPU2<\/b> <span class="muted">Idle<\/span> · 0 waiting/);
