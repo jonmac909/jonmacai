@@ -75,10 +75,11 @@ Missing bindings (preview has no HGP_DB, CLONE_DB, REVIEW_DB) or an unreadable t
   owner: 'Florence',
   source: { label, at, ageLabel, stale },          // as sourceOf() in src/today.js
   note: '',                   // plain words, optional
-  behind: [{ title, owner, why, open?: taskId, href?, page? }],   // week metrics: what is behind and who owns it;
+  behind: [{ title, owner, why, open?: taskId, href?, linkLabel?, page? }],   // week metrics: what is behind and who owns it;
                               // page = a Dashboard 2 route, e.g. 'pipeline/hgp/<slug>/calendar' (the channel's Calendar tab)
   rows: [{ label, target, actual, display, status, owner, note }],   // per-channel breakdown (hgp, jonmac videos)
   days: [{ ymd, target, actual }]                 // week metrics countable per day (videos, shorts)
+  facts: [{ label, value, links?: [{ label, href }] }]   // week: HGP videos (Published today, Waiting for your review), checkout (Last check, Missed)
 }
 ```
 
@@ -179,3 +180,12 @@ All targets, labels, owners and the focus channel list live in this one file. A 
 | Short-form | Samantha | 3 x days in the month (90 in Nov, 93 in Dec, 84 in Feb) | 21 | 3 (`perDay`) |
 
 Focus channels: Jon's 16 (2026-11-08), the `focus` list in `src/d2-goals.json`, a copy of `D:\AgentTeam\rules\facts\focus-channels.txt` (the Worker can't read GPU1 files; `test/d2.test.mjs` fails on GPU1 when the two differ, so a change to the file needs the same edit here and a deploy). In that list's order; a slug the dashboard has no channel for yet still counts (label from the slug, "No calendar yet" on its row and a behind line for Elle). 3 videos a week each, 48 in all. Every other Home Guide Press channel is parked: no target, its finished videos still show on its Calendar tab.
+
+## Week page rules (Jon, 2026-11-09)
+
+- No daily checks block on Week (they stay on Today).
+- Behind never lists a video that is live on YouTube. A sponsor's video N is live when at least N published calendar rows name the sponsor; Lucy's YouTube sync keeps those rows current and moves live cards to Done.
+- A Behind line for a card that waits on Jon shows its "Your move" line (plain words) and the card's labeled link, not just the status.
+- "Invoice sent the day a video goes live" counts only deals in "Live · send invoice" whose sponsor has a live video (at least one published calendar row naming it). The rest of that column is named in the note and not counted.
+- HGP "Videos published" also shows how many went out today and how many wait for Jon's review, with links.
+- "Every landing page checkout working" shows the last check date and who missed which days.

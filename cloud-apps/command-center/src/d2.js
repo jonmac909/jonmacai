@@ -78,7 +78,7 @@ export async function d2Data(env, nowMs) {
   };
   const db = env.DB;
   const [calendar, calAt, channels, tasks, qcPassed, keys, ticks, rbcLast, runs, proofs, orders, funnelWeek, weather] = await Promise.all([
-    q(db, 'SELECT channel, day, status FROM yt_calendar WHERE day >= ? AND day <= ? LIMIT 5000', from, P.month.weeks.at(-1).end),
+    q(db, 'SELECT channel, day, status, title, link FROM yt_calendar WHERE day >= ? AND day <= ? LIMIT 5000', from, P.month.weeks.at(-1).end),
     q(db, 'SELECT MAX(updated_at) AS at FROM yt_calendar'), // the calendars' age
     q(db, 'SELECT * FROM yt_channels'),
     // Every sponsor card (a deal's first "video N" card can be old), plus short-form cards done since the month's first week began.
@@ -143,7 +143,7 @@ function metric(cfg, owner, f) {
     display: f.display ?? (f.untracked ? 'Not tracked yet' : displayOf(cfg.unit, actual, target)),
     pace,
     status: f.status || (f.untracked ? ST.untracked : statusOf(actual, target, pace, cfg.unit, cfg.target === 0)),
-    owner, source: f.source, note: f.note || '', behind: f.behind || [], rows: f.rows || [], days: f.days || [],
+    owner, source: f.source, note: f.note || '', behind: f.behind || [], rows: f.rows || [], days: f.days || [], facts: f.facts || [],
     ...(f.perDay ? { perDay: f.perDay, split: !!f.split } : {}), // trend inputs, removed before the answer
   };
 }
@@ -152,6 +152,12 @@ const weekDays = (C, fn, target = null) => C.P.week.days.map((d) => ({ ymd: d.ym
 // Oldest first (the query reads newest first, so its cap drops the oldest).
 const videoCards = (C) => C.data.tasks && C.data.tasks.filter((c) => c.project === 'sponsors' && SPONSOR_VIDEO.test(c.title || ''))
   .sort((a, b) => String(a.created_at).localeCompare(String(b.created_at)));
+// A sponsor's video N is live when at least N published calendar rows name the sponsor (Lucy's YouTube sync keeps
+// those rows current). Behind and the invoice count never include a live video.
+const liveSponsor = (C) => {
+  const titles = (C.data.calendar || []).filter((r) => r.status === 'published').map((r) => String(r.title || '').toLowerCase());
+  return (name, nth = 1) => { const n = String(name || '').toLowerCase(); return !!n && titles.filter((t) => t.includes(n)).length >= nth; };
+};
 const sponsorOf = (title) => title.split(':')[0].replace(/\s*\bvideo\s+\d+\b.*$/i, '').trim() || title;
 
 const METRICS = {
@@ -186,21 +192,31 @@ const METRICS = {
   sponsorVideos(cfg, g, C) {
     const cards = videoCards(C);
     const done = (cards || []).filter((c) => c.status === 'done' && dayOf(c.done_at) >= C.ws && dayOf(c.done_at) <= C.we);
-    const open = (cards || []).filter((c) => c.status !== 'done' && (!c.due || c.due <= C.we));
+    const isLive = liveSponsor(C);
+    const full = new Map((C.t.tasks || []).map((x) => [x.id, x]));
+    const open = (cards || []).filter((c) => c.status !== 'done' && (!c.due || c.due <= C.we) && !isLive(sponsorOf(c.title), Number(/video\s+(\d+)/i.exec(c.title)?.[1]) || 1));
     return metric(cfg, g.owner, {
       actual: cards && done.length, pace: cfg.target * C.weekShare, source: { ...C.src.cards, label: 'Sponsor video cards' },
-      behind: open.map((c) => ({ title: c.title.split(':')[0].trim(), owner: nameOf(c.owner), why: `${STAGE[c.status] || c.status}${c.due ? `, due ${short(c.due)}` : ''}`, open: c.id })),
+      behind: open.map((c) => {
+        const t = full.get(c.id);
+        const link = c.status === 'waiting_on_jon' && t ? linkOf({}, null, t) : null; // Waiting on you: the card's Your move line and its link
+        const why = c.status === 'waiting_on_jon' && t ? `Waiting on you: ${plain(t.note) || 'open the card'}` : `${STAGE[c.status] || c.status}${c.due ? `, due ${short(c.due)}` : ''}`;
+        return { title: c.title.split(':')[0].trim(), owner: nameOf(c.owner), why, open: c.id, ...(link ? { href: link.href, linkLabel: link.label } : {}) };
+      }),
       days: cards ? weekDays(C, (d) => done.filter((c) => dayOf(c.done_at) === d).length) : [],
     });
   },
   invoicesWaiting(cfg, g, C) {
     // Without a sponsors feed, pages.sponsors is still the fixture's mockup: no number from it.
     const real = !!parse(C.by.sponsors?.data).collections;
-    const cards = real ? C.out.pages.sponsors?.board?.columns?.find((c) => c.boardStage === 'publishing')?.cards || [] : null;
+    const all = real ? C.out.pages.sponsors?.board?.columns?.find((c) => c.boardStage === 'publishing')?.cards || [] : null;
+    const isLive = liveSponsor(C);
+    const cards = all && all.filter((k) => isLive(k.name)); // signed, video live, balance invoice not sent
+    const unsure = all ? all.length - cards.length : 0;
     return metric(cfg, g.owner, {
       actual: cards && cards.length, display: !cards ? 'No data' : cards.length ? `${cards.length} waiting` : 'None waiting',
       source: sourceOf('Sponsor deal board', C.by.sponsors?.collected_at, C.nowMs),
-      note: 'Cards in "Live · send invoice" on the deal board. The day each video went live is not recorded.',
+      note: `Deals in "Live · send invoice" whose video is confirmed live on YouTube.${unsure ? ` ${unsure} more sit in that column with no live video found, so they are not counted.` : ''}`,
       behind: (cards || []).map((k) => ({ title: k.name, owner: g.owner, why: 'Video is live, invoice not sent' })),
     });
   },
@@ -218,11 +234,16 @@ const METRICS = {
     const days = weekDays(C, (d) => (ticks.some((x) => x.day === d && x.project === cfg.project && x.item === cfg.item) ? 1 : 0), 1);
     const n = days.reduce((s, d) => s + (d.actual || 0), 0);
     const missed = days.filter((d) => d.ymd < C.today && !d.actual);
+    const last = days.filter((d) => d.actual).map((d) => d.ymd).pop() || null;
     return metric(cfg, g.owner, {
       actual: n, display: `${n} of ${cfg.target} days checked`, pace: cfg.target * C.weekShare, days,
       source: { ...C.src.ticks, label: `${g.owner}'s daily checklist` },
       note: `The daily "${cfg.item}" tick. Site check failures go to Ana and are not stored on the dashboard.`,
       behind: missed.length ? [{ title: cfg.item, owner: g.owner, why: `Not ticked ${missed.map((d) => dayName(d.ymd)).join(', ')}` }] : [],
+      facts: [
+        { label: 'Last check', value: last ? `${short(last)} (${dayName(last)})` : 'None this week' },
+        { label: 'Missed', value: missed.length ? `${g.owner}: ${missed.map((d) => dayName(d.ymd)).join(', ')}` : 'No one' },
+      ],
     });
   },
   openQuestions(cfg, g, C) {
@@ -251,8 +272,15 @@ const METRICS = {
     const perDay = {};
     for (const r of mine) if (r.status === 'published') perDay[r.day] = (perDay[r.day] || 0) + 1;
     const scheduled = list.reduce((n, x) => n + x.s, 0);
+    const label = new Map(C.chans.map((c) => [c.slug, c.label]));
+    const todays = mine.filter((r) => r.status === 'published' && r.day === C.today);
+    const waiting = (C.t.tasks || []).filter((x) => x.status === 'review' && x.project === g.project);
+    const facts = month ? [] : [
+      { label: 'Published today', value: String(todays.length), links: todays.filter((r) => /^https?:\/\//i.test(r.link || '')).map((r) => ({ label: `${r.title} - ${label.get(r.channel) || r.channel}`, href: r.link })) },
+      { label: 'Waiting for your review', value: String(waiting.length), links: waiting.map((x) => ({ label: x.title, href: linkOf({}, null, x)?.href })).filter((l) => l.href) },
+    ];
     return metric(cfg, g.owner, {
-      target, actual: list.reduce((n, x) => n + Math.min(x.n, per), 0), pace: target * share, source: C.src.calendar,
+      facts, target, actual: list.reduce((n, x) => n + Math.min(x.n, per), 0), pace: target * share, source: C.src.calendar,
       rows: out.map(({ c, s, ...r }) => r),
       note: [C.chans.length > 1 ? `Counts up to ${per} a channel.` : '', scheduled ? `${scheduled} more scheduled.` : ''].filter(Boolean).join(' '),
       behind: out.filter((r) => r.c.noCalendar || ['risk', 'crit'].includes(r.status.cls)).map((r) => ({
