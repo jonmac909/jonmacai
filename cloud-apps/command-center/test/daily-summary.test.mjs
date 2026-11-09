@@ -128,7 +128,7 @@ test('calendar: all-day events read "All day", and the footer shows the push tim
   const feed = { t: { feeds: { calendar_today: { createdAt: ago(1), data: { date: TODAY, events: [{ start: 'All day', end: 'All day', title: 'Trip', calendar: 'jonstagger@' }] } } }, questions: [], tasks: [] } };
   const s = sec(buildSummary(ctx(feed), X()), 'calendar');
   assert.deepEqual(s.rows, [{ label: 'All day', value: 'Trip', sub: 'jonstagger@' }]);
-  assert.match(s.sources[0].ageLabel, /^updated \d{1,2}:\d{2} (AM|PM) \(12 min ago\)$/);
+  assert.match(s.sources[0].ageLabel, /^updated \d{1,2}:\d{2} (AM|PM) \(1 hr ago\)$/);
 });
 
 const core = [
