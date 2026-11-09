@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { SECRETS, startRuntime } from "./harness.mjs";
+import { SECRETS, allPassed, startRuntime } from "./harness.mjs";
 
 const clipPath = fileURLToPath(new URL("./fixtures/clip.mp4", import.meta.url));
 const clip = readFileSync(clipPath);
@@ -24,7 +24,7 @@ function publish(args) {
   return JSON.parse(result.stdout);
 }
 
-before(async () => { runtime = await startRuntime({ listen: true }); });
+before(async () => { runtime = await startRuntime({ listen: true, dashboard: allPassed(() => runtime) }); });
 after(async () => { await runtime?.mf.dispose(); });
 
 // A stylesheet's first :root block as { "--name": value }.

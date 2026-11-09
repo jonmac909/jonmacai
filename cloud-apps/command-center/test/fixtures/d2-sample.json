@@ -765,7 +765,8 @@
          "deliverable": {
           "link": "https://jonmac.ai/review/jack-2",
           "kind": "url",
-          "web": true
+          "web": true,
+          "status": "passed"
          },
          "reviewUrl": "/dashboard/api/v1/tasks/t_0000000000000028"
         }
@@ -1112,7 +1113,8 @@
          "deliverable": {
           "link": "https://www.youtube.com/post/UgkxAbc",
           "kind": "url",
-          "web": true
+          "web": true,
+          "status": "pending"
          }
         }
        ]

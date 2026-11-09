@@ -33,3 +33,9 @@ migrations_dir = "migrations"
 [[r2_buckets]]
 binding = "MEDIA"
 bucket_name = "jonmac-review-media"
+
+# Approve / Submit changes go to the video's dashboard card, and the list reads which versions QC passed
+# (command-center src/reviewhook.js, authorised with the REVIEW_API_TOKEN both Workers already hold).
+[[services]]
+binding = "DASHBOARD"
+service = "jonmac-command-center"

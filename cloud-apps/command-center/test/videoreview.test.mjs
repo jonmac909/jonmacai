@@ -310,4 +310,10 @@ test('the review link convention: proof links (and only exact slugs) tie a task 
   assert.equal(deliverableLink({ link: `https://jonmac.ai/review/${SLUG}?k=x`, kind: 'render' }),
     `<a class="pjdeliv" href="/dashboard/review/${SLUG}" target="_blank" rel="noopener">Open review</a>`);
   assert.match(deliverableLink({ link: 'https://jonmac.ai/other', kind: 'url' }), /href="https:\/\/jonmac.ai\/other"/);
+  // The QC gate: a review page QC hasn't passed is never a link for Jon; other links and passed ones are.
+  for (const status of ['pending', 'failed']) {
+    assert.equal(deliverableLink({ link: `https://jonmac.ai/review/${SLUG}`, kind: 'render', status }), '<span class="pjdeliv">Review page: waiting for QC</span>');
+  }
+  assert.match(deliverableLink({ link: `https://jonmac.ai/review/${SLUG}`, kind: 'render', status: 'passed' }), /Open review/);
+  assert.match(deliverableLink({ link: 'https://jonmac.ai/other', kind: 'url', status: 'pending' }), /href="https:\/\/jonmac.ai\/other"/);
 });

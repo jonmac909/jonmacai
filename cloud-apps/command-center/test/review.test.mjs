@@ -146,14 +146,14 @@ test('deliverable: the newest QC-passed proof, else the newest proof; on GET /ta
   const { db, env } = await setup();
   const { task, proof } = await inQc(env, false, 'https://jonmac.ai/review/v1');
   const get = async (id) => (await call(env, 'GET', `/tasks/${id}`, { jon: true })).body.task.deliverable;
-  assert.deepEqual(await get(task.id), { link: 'https://jonmac.ai/review/v1', kind: 'render', web: true }, 'none passed: the newest');
+  assert.deepEqual(await get(task.id), { link: 'https://jonmac.ai/review/v1', kind: 'render', web: true, status: 'pending' }, 'none passed: the newest');
   await call(env, 'POST', `/proofs/${proof.id}/check`, { bot: 'qc', body: { result: 'passed' } });
   await call(env, 'POST', `/tasks/${task.id}/proofs`, { bot: 'sponsors', body: { kind: 'pdf', link: 'D:\\out\\later.pdf' } });
-  assert.deepEqual(await get(task.id), { link: 'https://jonmac.ai/review/v1', kind: 'render', web: true }, 'the passed one beats a newer pending one');
+  assert.deepEqual(await get(task.id), { link: 'https://jonmac.ai/review/v1', kind: 'render', web: true, status: 'passed' }, 'the passed one beats a newer pending one');
   const local = (await call(env, 'POST', '/tasks', { bot: 'sponsors', body: { title: 'Local', status: 'doing' } })).body.task;
   await call(env, 'POST', `/tasks/${local.id}/proofs`, { bot: 'sponsors', body: { kind: 'render', link: 'D:\\renders\\a.mp4' } });
   const none = (await call(env, 'POST', '/tasks', { bot: 'sponsors', body: { title: 'None' } })).body.task;
-  assert.deepEqual([await get(local.id), await get(none.id)], [{ link: 'D:\\renders\\a.mp4', kind: 'render', web: false }, null]);
+  assert.deepEqual([await get(local.id), await get(none.id)], [{ link: 'D:\\renders\\a.mp4', kind: 'render', web: false, status: 'pending' }, null]);
 
   const board = Object.fromEntries((await todayData(db, Date.now(), '2026-10')).tasks.map((x) => [x.id, x.deliverable]));
   assert.deepEqual(board, { [task.id]: await get(task.id), [local.id]: await get(local.id), [none.id]: null });
