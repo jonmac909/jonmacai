@@ -30,11 +30,11 @@ async function call(env, method, path, { bot, body, jon, cc = true } = {}) {
 const VIDEO = { channel: 'jon-mac', title: 'Topview video 1', date: '2026-11-03', status: 'scheduled', link: 'https://youtu.be/abc' };
 const OUTLIER = { channel: 'theo-creates', title: 'AI UGC in 10 min', link: 'https://www.youtube.com/watch?v=x', views: 42000, avg: 10000, published: '2026-10-27' };
 
-test('the channel list is the 23 channels in channels.md, Jon\'s own first', () => {
-  assert.equal(CHANNELS.length, 24);
+test('the channel list is the 32 channels in channels.md, Jon\'s own first', () => {
+  assert.equal(CHANNELS.length, 33);
   assert.deepEqual(CHANNELS.slice(0, 3).map((c) => c.label), ['Jon Mac', '@JonMacAI', 'Complete Histories']);
-  assert.deepEqual(['Jon\'s own', 'Viral View', 'Home Guide Press'].map((g) => CHANNELS.filter((c) => c.group === g).length), [3, 7, 14]);
-  assert.equal(new Set(CHANNELS.map((c) => c.slug)).size, 24);
+  assert.deepEqual(['Jon\'s own', 'Viral View', 'Home Guide Press'].map((g) => CHANNELS.filter((c) => c.group === g).length), [3, 7, 23]);
+  assert.equal(new Set(CHANNELS.map((c) => c.slug)).size, 33);
 });
 
 test('only the channel bots, Developer and Ana write; Jon only toggles selected, with X-CC', async () => {
@@ -103,7 +103,7 @@ test('keys make adds safe to retry; schedules and selects are safe to repeat', a
     assert.deepEqual([r.status, r.body.channel.slug, r.body.channel.schedule], [200, 'jon-mac', 'Tue and Fri 9 am PT']);
   }
   const list = (await call(env, 'GET', '/v1/channels', { jon: true })).body.channels;
-  assert.deepEqual([list.length, list[0].schedule, list[1].schedule], [24, 'Tue and Fri 9 am PT', null]);
+  assert.deepEqual([list.length, list[0].schedule, list[1].schedule], [33, 'Tue and Fri 9 am PT', null]);
   await call(env, 'PUT', '/v1/channels/jon-mac', { bot: 'ana', body: { schedule: '' } });
   assert.equal((await call(env, 'GET', '/v1/channels', { bot: 'qc' })).body.channels[0].schedule, null, '"" clears it');
 });
@@ -190,13 +190,13 @@ test('snapshot: Calendar and Content are in the nav, served from D1, never the o
   const ids = snap.nav.groups.flatMap((g) => g.items.map((i) => i.id));
   assert.deepEqual(ids.slice(7, 9), ['calendar', 'content'], 'after Today, Weekly, Monthly, Todo, Projects, Feed and Review');
   assert.equal(snap.pages.content.tiles, undefined, 'no mockup tiles');
-  assert.deepEqual([snap.pages.calendar.available, snap.pages.calendar.channels.length, snap.pages.content.channels.length], [true, 25, 24], 'Calendar has All channels first');
+  assert.deepEqual([snap.pages.calendar.available, snap.pages.calendar.channels.length, snap.pages.content.channels.length], [true, 34, 33], 'Calendar has All channels first');
   const bare = (await handleApi(new Request('https://jonmac.ai/dashboard/api/snapshot?pages=content', { headers: { Cookie: `${COOKIE}=${await signSession(SECRET, Math.floor(Date.now() / 1000) + 3600)}` } }), { SESSION_SECRET: SECRET })).json();
   assert.deepEqual((await bare).pages, { content: {} }, 'without D1 too');
   // Before migration 0014 is applied the pages still load and say the tables could not be read.
   const old = { prepare: (sql) => (/yt_/.test(sql) ? { bind() { return this; }, all: async () => { throw new Error('no such table: yt_channels'); } } : env.DB.prepare(sql)) };
   const r = (await call({ ...env, DB: old }, 'GET', '/snapshot?pages=calendar', { jon: true })).body.pages.calendar;
-  assert.deepEqual([r.available, r.channels.length], [false, 25]);
+  assert.deepEqual([r.available, r.channels.length], [false, 34]);
 });
 
 test('calendar CSV import: PUT calendar/<channel> replaces only that channel\'s CSV rows; new statuses and a posting time', async () => {
@@ -294,20 +294,20 @@ test('CSV imports: hand-added rows cannot take csv: keys; Jon\'s Select matches 
 test('a new clone registers from its CSV name and imports; Indy may import outliers only (Jon, 2026-11-04)', async () => {
   const { db, env } = await setup();
   const items = { outliers: [{ title: 'Ten pantry fixes', link: 'https://www.youtube.com/watch?v=y', views: 30000, avg: 9000, published: '2026-10-20' }] };
-  assert.equal((await call(env, 'PUT', '/v1/outliers/diane-kowalski', { bot: 'yt-strategy', body: items })).status, 400, 'unknown before it registers');
-  const r = await call(env, 'POST', '/v1/channels', { bot: 'yt-strategy', body: { slug: 'diane-kowalski' } });
-  assert.deepEqual([r.status, r.body.channel, r.body.added], [200, { slug: 'diane-kowalski', label: 'Diane Kowalski', group: 'Home Guide Press' }, true]);
-  assert.equal((await call(env, 'POST', '/v1/channels', { bot: 'yt-strategy', body: { slug: 'diane-kowalski', label: 'Other' } })).body.added, false, 'repeat is a no-op');
+  assert.equal((await call(env, 'PUT', '/v1/outliers/kenzo-arai', { bot: 'yt-strategy', body: items })).status, 400, 'unknown before it registers');
+  const r = await call(env, 'POST', '/v1/channels', { bot: 'yt-strategy', body: { slug: 'kenzo-arai' } });
+  assert.deepEqual([r.status, r.body.channel, r.body.added], [200, { slug: 'kenzo-arai', label: 'Kenzo Arai', group: 'Home Guide Press' }, true]);
+  assert.equal((await call(env, 'POST', '/v1/channels', { bot: 'yt-strategy', body: { slug: 'kenzo-arai', label: 'Other' } })).body.added, false, 'repeat is a no-op');
   assert.equal((await call(env, 'POST', '/v1/channels', { bot: 'home-guide-press', body: { slug: 'peter-collins' } })).body.added, false, 'a fixed channel stays');
   assert.equal((await call(env, 'POST', '/v1/channels', { bot: 'home-guide-press', body: { slug: 'Bad Slug' } })).status, 400);
   assert.equal((await call(env, 'POST', '/v1/channels', { bot: 'sponsors', body: { slug: 'x-y' } })).status, 403);
-  assert.equal((await call(env, 'PUT', '/v1/outliers/diane-kowalski', { bot: 'yt-strategy', body: items })).status, 200);
-  assert.equal((await call(env, 'PUT', '/v1/calendar/diane-kowalski', { bot: 'yt-strategy', body: { videos: [] } })).status, 403, 'Indy: content-import only');
-  assert.equal((await call(env, 'PUT', '/v1/calendar/diane-kowalski', { bot: 'home-guide-press', body: { videos: [] } })).status, 200);
+  assert.equal((await call(env, 'PUT', '/v1/outliers/kenzo-arai', { bot: 'yt-strategy', body: items })).status, 200);
+  assert.equal((await call(env, 'PUT', '/v1/calendar/kenzo-arai', { bot: 'yt-strategy', body: { videos: [] } })).status, 403, 'Indy: content-import only');
+  assert.equal((await call(env, 'PUT', '/v1/calendar/kenzo-arai', { bot: 'home-guide-press', body: { videos: [] } })).status, 200);
   const list = (await call(env, 'GET', '/v1/channels', { bot: 'ana' })).body.channels;
-  assert.equal(list.at(-1).slug, 'diane-kowalski');
+  assert.equal(list.at(-1).slug, 'kenzo-arai');
   const out = { pages: { calendar: {}, content: {} } };
   buildChannelPages(out, { channels: (await db.prepare('SELECT * FROM yt_channels').all()).results, calendar: [], outliers: [] }, NOW);
-  assert.equal(out.pages.content.channels.find((c) => c.slug === 'diane-kowalski').group, 'Home Guide Press', 'the new tab shows on Content');
-  assert.ok(out.pages.calendar.channels.some((c) => c.slug === 'diane-kowalski'), 'and on Calendar');
+  assert.equal(out.pages.content.channels.find((c) => c.slug === 'kenzo-arai').group, 'Home Guide Press', 'the new tab shows on Content');
+  assert.ok(out.pages.calendar.channels.some((c) => c.slug === 'kenzo-arai'), 'and on Calendar');
 });

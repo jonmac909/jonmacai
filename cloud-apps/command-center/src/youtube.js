@@ -51,6 +51,15 @@ export const CHANNEL_IDS = {
   'gail-merriman-golf': 'UCmuuW-Cd9JI_FvD6JnC4MSQ',
   'naomi-takeda-japan': 'UCVQ1IvY122yx8G8zXAgPo1g',
   'walter-brandt-dogs': 'UCFohnIKCzMdwzUQw5rIjKUw',
+  'claudine-marchand': 'UCyBJaWxzNoXyR6nBf4Y8uDg',
+  'diane-kowalski': 'UCmTfNCYmvxUje6c3g7hXDEA',
+  'jiyoung-han': 'UCXvC3lvBpWEn4Sf-JPG8ciw',
+  'peggy-donovan': 'UCEp_PCGPgMZPchVx9PhTCWg',
+  'takeshi-morimoto': 'UCEsVi44L42jpDj-v1Kzq8sQ',
+  'agnes-thornbury': 'UCfD7iWhP8TxSpTF2QS9SnfA',
+  'astrid-lindqvist': 'UCWDedmGXGCBkJta-NdeWX7g',
+  'carla-benedetti': 'UCkMyv_RhNntKTGDgN1tV0Pg',
+  'lou-brennan': 'UCfOXSPt5N5HgM8W_cFFDy4g',
 };
 
 const ready = (env) => !!(env.YT_CLIENT_ID && env.YT_CLIENT_SECRET && env.YT_TOKEN_KEY && env.DB);
