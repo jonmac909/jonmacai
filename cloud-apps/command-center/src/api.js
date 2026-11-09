@@ -19,6 +19,7 @@ import { channelData } from './channels.js';
 import { trackData } from './track.js';
 import { monthWindow } from './today.js';
 import { buildD2, d2Data } from './d2.js';
+import { funnelsData } from './funnels.js';
 
 const PREFIX = '/dashboard/api';
 const json = (data, status = 200, headers = {}) =>
@@ -306,6 +307,12 @@ export async function handleApi(request, env, ctx) {
     const out = mergeSnapshot(base, rows, now, env.DB ? await listDealStages(env.DB) : {}, extra);
     const d2 = buildD2(out, rows, extra, await d2Data(env, now), now);
     return json({ ok: true, build: env.CF_VERSION_METADATA?.id ?? null, asOf: new Date(now).toISOString(), pages: out.pages, d2 });
+  }
+  // Dashboard 2 Funnels: every Home Guide Press book page and Buy link, checked live on each open (src/funnels.js). Read only.
+  if (rest === '/d2/funnels' && method === 'GET') {
+    const denied = await needSession(request, env);
+    if (denied) return denied;
+    return json({ ok: true, funnels: await funnelsData(env) });
   }
 
   if (rest === '/ingest' && method === 'POST') {
