@@ -66,8 +66,8 @@ test('Month: a row per goal with target, pace, status and trend; no data says wh
   const html = month(data());
   assert.equal(count(html, /class="d2row"/g), 6);
   assert.match(text(html), /Sponsors Florence On pace \$10K collected \$4,250 of \$10,000 Pace for today: \$1,533/);
-  assert.match(html, /Book sales could not be read: the Home Guide Press database is not connected yet\./);
-  assert.doesNotMatch(text(html), /First sales on the focus channels 0/);
+  assert.match(text(html), /Home Guide Press Elle .*Videos published \(3 a week per focus channel\) 4 of 208/, 'the Home Guide Press goal counts videos published over the 16 focus channels');
+  assert.doesNotMatch(text(html), /First sales on the focus channels/);
   assert.equal(count(html, /<figure class="d2trend">/g), 5, 'a goal with no weekly numbers draws no empty chart');
   assert.match(text(html), /Jon Mac Sydney On pace Videos published 2 of 13 Pace for today: 2 /);
   assert.match(html, /<rect class="now"/, 'this week stands out');

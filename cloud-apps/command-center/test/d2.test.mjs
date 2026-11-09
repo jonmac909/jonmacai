@@ -246,7 +246,7 @@ test('d2 counts the month, week and day on a Sunday', async () => {
   assert.ok(!videos.behind.some((b) => b.title === 'Peter Collins'));
   assert.deepEqual([checkout.actual, checkout.display], [4, '4 of 7 days checked']);
   assert.match(checkout.behind[0].why, /Wed 4, Fri 6/);
-  assert.deepEqual([hgp.month.actual, hgp.month.rows.find((r) => r.label === 'Peter Collins').actual, hgp.month.rows.find((r) => r.label === 'Jack Mercer').actual], [1, 1, 0]);
+  assert.deepEqual([hgp.month.actual, hgp.month.rows.find((r) => r.label === 'Peter Collins').actual, hgp.month.rows.find((r) => r.label === 'Jack Mercer').actual], [4, 3, 1]); // videos published, from the channel calendars
   assert.deepEqual([hgp.day[0].actual, hgp.day[0].target], [1, 4]); // floor(14 h / 3)
 
   const viral = goal(body, 'viral');
@@ -487,10 +487,9 @@ test('d2 without HGP_DB, CLONE_DB or any D1 answers with nulls and notes, never 
   const { db } = seed();
   const body = await d2At({ DB: db, SESSION_SECRET: SECRET }, SUNDAY);
   const hgp = goal(body, 'hgp');
-  assert.equal(hgp.month.actual, null);
-  assert.equal(hgp.month.status.text, 'No data');
-  assert.match(hgp.month.note, /not connected/);
-  assert.ok(body.d2.stale.some((s) => s.label === 'Home Guide Press orders'));
+  assert.equal(hgp.month.actual, 4, 'the month goal counts published videos from the calendars, so the sales database being down does not blank it');
+  assert.equal(hgp.month.label, 'Videos published (3 a week per focus channel)');
+  assert.ok(!body.d2.stale.some((s) => s.label === 'Home Guide Press orders'), 'the sales database is no longer behind a goal, so it is not a stale source on Month');
   const none = await d2At({ SESSION_SECRET: SECRET }, SUNDAY);
   assert.equal(goal(none, 'jonmac').week[0].actual, null);
   assert.equal(none.d2.checks[0].today.status.text, 'No data');

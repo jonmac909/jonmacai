@@ -143,7 +143,7 @@ All targets, labels, owners and the focus channel list live in this one file. A 
 | Goal | Owner | Month | Week | Day |
 |---|---|---|---|---|
 | Sponsors | Florence | $10K collected (about 5 deals) | 2 deals signed; 1 to 2 sponsor videos delivered; invoice sent the day a video goes live | partners@ replies cleared; Jon's price decisions answered |
-| Home Guide Press | Elle (Scarlett, Olivia) | first sales on the focus channels | 3 videos per focus channel; every landing page checkout working | one video edited and QC-passed every 3 hours ("None due yet" before 3 AM) |
+| Home Guide Press | Elle (Scarlett, Olivia) | videos published (3 a week per focus channel) | 3 videos per focus channel; every landing page checkout working | one video edited and QC-passed every 3 hours ("None due yet" before 3 AM) |
 | Jon Mac | Sydney | 3 x weeks | 3 videos | |
 | @JonMacAI | Sydney | 3 x weeks | 3 videos | |
 | Viral View and webinar | Scarlett | webinar date set and run once | funnel live; leads counted | ads and posts that drive leads |
