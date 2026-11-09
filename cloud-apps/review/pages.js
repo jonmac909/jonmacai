@@ -53,7 +53,7 @@ export function renderGate({ next, k, error = "" }) {
 // `passed` (Jon, 2026-11-09): the slugs QC passed. Given, only those count, so a newer version QC hasn't passed waits
 // off the list; null means the dashboard could not say, and the list is empty, with a note (the QC gate fails closed).
 const CLEARED_BEFORE = "2026-10-17"; // Jon cleared the Oct 14 to 16 batch off the list
-export const stem = (slug) => slug.replace(/-v\d+$/, "");
+export const stem = (slug) => slug.replace(/-v\d+[a-z]?$/, ""); // v9b, a fix on top of v9, is the same video
 export function openVideos(videos, passed = undefined) {
   if (passed === null) return [];
   const newest = new Map();
