@@ -2,7 +2,9 @@
 // Secrets (wrangler secret put, never committed): REVIEW_SHARE_KEY, REVIEW_PASSCODE,
 // REVIEW_SESSION_SECRET, REVIEW_API_TOKEN. Missing secrets fail closed with 503.
 // jonmac.ai/dashboard/review serves these same pages under the dashboard sign-in (see caller()).
-import { INK, renderGate, renderIndex, renderVideo } from "./pages.js";
+// DASHBOARD (service binding to the dashboard Worker, same REVIEW_API_TOKEN) posts Jon's Approve and Submit changes to the
+// video's card and reads which versions QC passed (cloud-apps/command-center/src/reviewhook.js).
+import { INK, renderGate, renderIndex, renderVideo, stem } from "./pages.js";
 
 export const STATUSES = ["needs_review", "changes_requested", "approved"];
 const SECRETS = ["REVIEW_SHARE_KEY", "REVIEW_PASSCODE", "REVIEW_SESSION_SECRET", "REVIEW_API_TOKEN"];
@@ -23,6 +25,8 @@ const VOICE = {
   "audio/ogg": { ext: "ogg", ok: (b) => String.fromCharCode(...b.subarray(0, 4)) === "OggS" },
 };
 const VOICE_MAX = 5 * 1024 * 1024;
+const DASHBOARD_HOOK = "https://jonmac.ai/dashboard/api/review-hook";
+const TASK_ID = /^t_[0-9a-f]{16}$/;
 const enc = new TextEncoder();
 
 export const validSlug = (slug) => typeof slug === "string" && SLUG.test(slug) && !RESERVED.has(slug);
@@ -240,6 +244,79 @@ async function listVideos(env) {
 }
 const getVideo = (env, slug) => env.DB.prepare(`${VIDEO_LIST} WHERE v.slug = ?`).bind(slug).first();
 
+// Rows for every version of a video (the slug stem, as the review list groups them), newest first.
+async function stemRows(env, table, columns, slug) {
+  const s = stem(slug);
+  const { results } = await env.DB.prepare(`SELECT ${columns} FROM ${table} WHERE slug = ? OR slug LIKE ? ORDER BY created_at DESC LIMIT 500`)
+    .bind(s, `${s}-v%`).all();
+  return results.filter((r) => stem(r.slug) === s);
+}
+
+// Jon approved a version and has not asked for changes on any version since: the newest submission across the
+// video's versions is an approval. While it stands, no new version of the video is uploaded or published (409).
+async function approvalLock(env, slug) {
+  const [last] = await stemRows(env, "submissions", "slug, kind, created_at", slug);
+  if (last?.kind !== "approve") return null;
+  const when = new Date(last.created_at).toLocaleString("en-US", { timeZone: "America/Vancouver", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+  return fail(409, `Jon approved ${last.slug} on the review page (${when} Kelowna). That version is final: no new version of this video until he asks for changes on the review page.`);
+}
+
+// Jon's list shows each video's newest QC-passed version; QC passes live on the dashboard cards. null: it could not say.
+async function qcPassed(env) {
+  if (!env.DASHBOARD) return null;
+  try {
+    const res = await env.DASHBOARD.fetch(new Request(`${DASHBOARD_HOOK}/qc`, { headers: { Authorization: `Bearer ${env.REVIEW_API_TOKEN}` } }));
+    if (!res.ok) throw new Error(`dashboard answered ${res.status}`);
+    return new Set((await res.json()).slugs);
+  } catch (error) {
+    console.error("qc lookup", error?.stack || error);
+    return null;
+  }
+}
+
+// Jon's Approve or Submit changes goes to the video's dashboard card: the dashboard posts it as Jon's comment (which wakes
+// the card owner) plus a history line. Once per submission: each try leaves a card_posts row, and a posted one ends it.
+async function tellCard(env, submission, video, backfill = false) {
+  if (await env.DB.prepare("SELECT 1 FROM card_posts WHERE submission_id = ? AND result = 'posted'").bind(submission.id).first()) {
+    return { result: "already_posted" };
+  }
+  let result = "error not_connected", task = null, owner = null;
+  if (env.DASHBOARD) {
+    try {
+      const [stored] = await stemRows(env, "video_tasks", "slug, task_id", video.slug);
+      let ids = [];
+      try { ids = JSON.parse(submission.comment_ids || "[]"); } catch {}
+      const sent = ids.length ? (await env.DB.prepare("SELECT t, text, transcript, audio_key, drawing FROM comments WHERE id IN (SELECT value FROM json_each(?)) ORDER BY t, created_at")
+        .bind(JSON.stringify(ids)).all()).results : [];
+      const res = await env.DASHBOARD.fetch(new Request(`${DASHBOARD_HOOK}/submission`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${env.REVIEW_API_TOKEN}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          kind: submission.kind, slug: video.slug, title: video.title, version: video.version, channel: video.channel,
+          task_id: stored?.task_id || null, submission_id: submission.id, at: submission.created_at, backfill,
+          comments: sent.map((c) => ({ t: c.t, text: c.text, transcript: c.transcript, voice: Boolean(c.audio_key), drawing: Boolean(c.drawing) })),
+        }),
+      }));
+      const out = await res.json().catch(() => ({}));
+      result = res.ok && out.result ? out.result : `error ${res.status}`;
+      task = out.task?.id || null;
+      owner = out.task?.owner || out.wakes || null;
+    } catch (error) {
+      console.error("dashboard card", error?.stack || error);
+      result = "error unreachable";
+    }
+  }
+  await env.DB.prepare("INSERT INTO card_posts (id, submission_id, task_id, result, created_at) VALUES (?, ?, ?, ?, ?)")
+    .bind(crypto.randomUUID(), submission.id, task, String(result).slice(0, 80), now()).run();
+  return { result, task, owner };
+}
+
+const cardNote = ({ result, owner }) => result === "posted" ? `It is on the video's dashboard card${owner && owner !== "jon" ? ` and ${owner} was told` : ""}.`
+  : result === "no_card" ? `No dashboard card matched this video${owner ? `, so ${owner} was told` : ""}.`
+  : result === "already_posted" ? "It was already on the video's dashboard card."
+  : result === "skipped" ? "Its dashboard card is done, so the backfill left it."
+  : "Saved, but the video's dashboard card could not be updated.";
+
 async function streamMedia(request, env, key, type) {
   if (!key) return notFound();
   const info = await env.MEDIA.head(key);
@@ -328,9 +405,13 @@ async function pages(request, env, url) {
   // Signed in: drop the share key from the address bar.
   if (url.searchParams.has("k")) return redirect(who.prefix + path);
 
-  if (slug === null) return html(renderIndex(await listVideos(env), "", who.prefix));
+  const index = async () => {
+    const [list, passed] = await Promise.all([listVideos(env), qcPassed(env)]);
+    return { ...list, passed };
+  };
+  if (slug === null) return html(renderIndex(await index(), "", who.prefix));
   const row = await getVideo(env, slug);
-  if (!row) return html(renderIndex(await listVideos(env), `No video called “${slug}”.`, who.prefix), 404);
+  if (!row) return html(renderIndex(await index(), `No video called “${slug}”.`, who.prefix), 404);
   const versions = await env.DB.prepare(
     "SELECT slug, version, status, created_at FROM videos WHERE channel = ? AND video = ? ORDER BY created_at DESC",
   ).bind(row.channel, row.video).all();
@@ -513,7 +594,13 @@ async function submit(request, env, base, row, who = {}) {
   ]);
   const saved = await env.DB.prepare("SELECT * FROM submissions WHERE dedupe_key = ?").bind(dedupe).first();
   const duplicate = saved.id !== id;
-  return json({ submission: publicSubmission(saved, base), status: KINDS[kind], duplicate }, duplicate ? 200 : 201);
+  // A reviewer's press goes to the card, except a Send back the dashboard already wakes the owner for (told).
+  let card = null;
+  if (!duplicate && who.reviewer && !told) {
+    card = await tellCard(env, saved, row).catch((error) => (console.error("card post", error?.stack || error), { result: "error" }));
+  }
+  return json({ submission: publicSubmission(saved, base), status: KINDS[kind], duplicate, ...(card ? { card: card.result, cardNote: cardNote(card) } : {}) },
+    duplicate ? 200 : 201);
 }
 
 // The GPU2 router (agent token only):
@@ -547,6 +634,15 @@ async function routerApi(request, env, url, [id, action, extra]) {
   if (id !== undefined && action === "requeue" && extra === undefined && method === "POST") {
     await env.DB.prepare("UPDATE submissions SET delivered_at = NULL, delivered_to = NULL WHERE id = ? AND delivered_to = 'dashboard'").bind(id).run();
     return json({ ok: true });
+  }
+  // POST /api/review/submissions/<id>/card {backfill?}: post a stored Approve or Submit changes to its card (once; the
+  // one-off backfill, scripts/backfill_card_posts.mjs, and a retry after a failed post).
+  if (id !== undefined && action === "card" && extra === undefined && method === "POST") {
+    const saved = await env.DB.prepare("SELECT * FROM submissions WHERE id = ?").bind(id).first();
+    if (!saved) return fail(404, "submission_not_found");
+    const video = await env.DB.prepare("SELECT slug, channel, title, version FROM videos WHERE slug = ?").bind(saved.slug).first();
+    const card = await tellCard(env, saved, video, (await readJson(request))?.backfill === true);
+    return json({ submission_id: id, ...card, note: cardNote(card) });
   }
   if (id !== undefined && action === "delivered" && extra === undefined && method === "POST") {
     const body = await readJson(request);
@@ -606,7 +702,9 @@ async function publishApi(request, env, url, slug, resource, uploadId, action) {
   if (resource === "uploads" && uploadId === undefined && method === "POST") {
     const body = await readJson(request);
     if (!body || !["video", "source", "compare"].includes(body.kind)) return fail(400, "kind must be video, source or compare");
-    const key = `review/${slug}/${body.kind}-${Date.now().toString(36)}${crypto.randomUUID().slice(0, 6)}.mp4`;
+    const locked = body.kind === "video" && await approvalLock(env, slug); // refused before the upload, not after it
+    if (locked) return locked;
+    const key =`review/${slug}/${body.kind}-${Date.now().toString(36)}${crypto.randomUUID().slice(0, 6)}.mp4`;
     const upload = await env.MEDIA.createMultipartUpload(key, { httpMetadata: { contentType: "video/mp4" } });
     return json({ key, uploadId: upload.uploadId }, 201);
   }
@@ -664,6 +762,10 @@ async function publishApi(request, env, url, slug, resource, uploadId, action) {
   if (resource === "publish" && uploadId === undefined && method === "POST") {
     const body = await readJson(request);
     if (!body) return fail(400, "send JSON metadata");
+    const locked = await approvalLock(env, slug);
+    if (locked) return locked;
+    const taskId = body.task_id == null || body.task_id === "" ? null : String(body.task_id);
+    if (taskId && !TASK_ID.test(taskId)) return fail(400, "task_id must be a dashboard task id (t_ and 16 hex digits)");
     const channel = text(body.channel, 40).toLowerCase();
     const video = text(body.video, 80).toLowerCase();
     const version = text(body.version, 40);
@@ -700,6 +802,7 @@ async function publishApi(request, env, url, slug, resource, uploadId, action) {
           /^[a-f0-9]{64}$/.test(body.video_sha256 || "") ? body.video_sha256 : null,
           sourceKey, body.compare_key || null, Number.isFinite(duration) && duration > 0 ? duration : null,
           chapters, syncMap, text(body.notes, 2000) || null, stamp, stamp),
+      ...(taskId ? [env.DB.prepare("INSERT OR IGNORE INTO video_tasks (slug, task_id, created_at) VALUES (?, ?, ?)").bind(slug, taskId, stamp)] : []),
     ]);
     const kept = new Set([body.video_key, sourceKey, body.compare_key]);
     const stale = [previous?.video_key, previous?.source_key, previous?.compare_key].filter((k) => k && !kept.has(k));

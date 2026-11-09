@@ -21,7 +21,8 @@ export function migrationStatements() {
   return sql.split(/;\s*\n/).map((s) => s.trim().replace(/;$/, "")).filter(Boolean);
 }
 
-export async function startRuntime({ listen = false, https = true, bindings = SECRETS } = {}) {
+// `dashboard`: the DASHBOARD service binding, a function (Request) => Response, or none (the binding is left out).
+export async function startRuntime({ listen = false, https = true, bindings = SECRETS, dashboard } = {}) {
   const mf = new Miniflare({
     modules: true,
     scriptPath: fileURLToPath(new URL("worker.js", root)),
@@ -37,6 +38,7 @@ export async function startRuntime({ listen = false, https = true, bindings = SE
         if (!/^(app\.(js|css)|geist\.woff2)$/.test(name)) return new MFResponse("missing", { status: 404 });
         return new MFResponse(readFileSync(new URL(`public/${name}`, root)), { headers: { "Content-Type": TYPES[name.split(".").pop()] } });
       },
+      ...(dashboard ? { DASHBOARD: dashboard } : {}),
     },
   });
   const url = await mf.ready;

@@ -433,7 +433,7 @@
       const count = `${result.submission.comment_count} comment${result.submission.comment_count === 1 ? "" : "s"}`;
       status.textContent = (kind === "approve" ? "Approved." : data.dashboard ? `Sent back ${count}.`
         : `Submitted ${count}. You can keep commenting; new comments go in the next submission.`) +
-        (result.taskNote ? ` ${result.taskNote}` : "");
+        (result.cardNote ? ` ${result.cardNote}` : "") + (result.taskNote ? ` ${result.taskNote}` : "");
       renderSubmissions();
       await load();
     } catch (error) {

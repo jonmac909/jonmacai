@@ -262,7 +262,7 @@ async function createTask(db, who, body, now) {
 
 // One history row. Best effort: the change it records is already saved, and failing here would make
 // the bot retry (and, for proofs, add a copy).
-async function logEvent(db, taskId, at, by, kind, detail) {
+export async function logEvent(db, taskId, at, by, kind, detail) {
   try {
     await db.prepare('INSERT INTO bot_task_events (id, task_id, at, "by", kind, detail) VALUES (?, ?, ?, ?, ?, ?)')
       .bind(newId('e'), taskId, at, by, kind, detail).run();

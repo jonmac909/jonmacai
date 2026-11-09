@@ -50,16 +50,21 @@ export function renderGate({ next, k, error = "" }) {
 // The review list is a to-do list (Jon, 2026-11-01): one row per video, its newest version, gone once approved. The slug
 // stem groups versions: the video key and the channel can differ between them. This only hides rows: direct links, the
 // version nav and /api/review/videos keep every version.
+// `passed` (Jon, 2026-11-09): the slugs QC passed. Given, only those count, so a newer version QC hasn't passed waits
+// off the list; null means the dashboard could not say, and the list falls back to the newest version, with a note.
 const CLEARED_BEFORE = "2026-10-17"; // Jon cleared the Oct 14 to 16 batch off the list
-const stem = (slug) => slug.replace(/-v\d+$/, "");
-export function openVideos(videos) {
+export const stem = (slug) => slug.replace(/-v\d+$/, "");
+export function openVideos(videos, passed = undefined) {
   const newest = new Map();
-  for (const v of videos) if (!(newest.get(stem(v.slug))?.created_at >= v.created_at)) newest.set(stem(v.slug), v);
+  for (const v of videos) {
+    if (passed && !passed.has(v.slug)) continue;
+    if (!(newest.get(stem(v.slug))?.created_at >= v.created_at)) newest.set(stem(v.slug), v);
+  }
   return [...newest.values()].filter((v) => v.status !== "approved" && v.created_at >= CLEARED_BEFORE);
 }
 
-export function renderIndex({ channels, videos }, message = "", prefix = "") {
-  const open = openVideos(videos);
+export function renderIndex({ channels, videos, passed }, message = "", prefix = "") {
+  const open = openVideos(videos, passed);
   const byChannel = new Map(channels.map((c) => [c.slug, { ...c, videos: [] }]));
   for (const v of open) {
     if (!byChannel.has(v.channel)) byChannel.set(v.channel, { slug: v.channel, name: v.channel, videos: [] });
@@ -82,6 +87,7 @@ export function renderIndex({ channels, videos }, message = "", prefix = "") {
   ${prefix ? `<p class="crumbs"><a href="${prefix}/">Dashboard</a></p>` : ""}
   <header class="top"><h1>Video reviews</h1><p class="muted">${escapeHtml(counts.join(" · "))}</p></header>
   ${message ? `<p class="error" role="alert">${escapeHtml(message)}</p>` : ""}
+  ${passed === null ? `<p class="error" role="status">QC results could not be read from the dashboard, so this shows each video's newest version, checked or not.</p>` : ""}
   ${sections}
 </main>`, { prefix });
 }

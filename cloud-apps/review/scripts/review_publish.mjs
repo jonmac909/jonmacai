@@ -6,8 +6,10 @@
 //   node review_publish.mjs --slug mina-1-v9 --channel mina --video mina-1 --version v9 \
 //     --title "Mina: AI shorts tutorial" --file mina01_v9.mp4 [--source source_h264.mp4] \
 //     [--compare first60_side_by_side.mp4] [--chapters versions.json] [--sync versions.json]
-//     [--notes "what changed"] [--replaces mina-1-v8] [--dry-run]
+//     [--notes "what changed"] [--replaces mina-1-v8] [--task t_0123456789abcdef] [--dry-run]
 //
+// --task <dashboard task id>: the video's card, so Jon's Approve and Submit changes land on it (else matched by title).
+// After Jon approves a version, publishing a new one is refused (409) until he asks for changes.
 // --replaces <old slug>: after publishing, link this version from the old page ("New version ready")
 // via POST /api/review/<old slug>/next, answering Jon's latest Submit changes there.
 // --file/--source/--compare accept a local path or an http(s) URL. --chapters accepts a JSON array of
@@ -197,7 +199,7 @@ async function verify(url, token, size) {
 async function main() {
   const args = parseArgs(process.argv.slice(2));
   if (args.help) {
-    console.log(readFileSync(new URL(import.meta.url), "utf8").split("\n").slice(1, 16).join("\n").replace(/^\/\/ ?/gm, ""));
+    console.log(readFileSync(new URL(import.meta.url), "utf8").split("\n").slice(1, 19).join("\n").replace(/^\/\/ ?/gm, ""));
     return;
   }
   loadEnvFile(args["env-file"] || join(homedir(), ".jonmac-review.env"));
@@ -230,7 +232,7 @@ async function main() {
     method: "POST",
     body: {
       channel: args.channel, channel_name: args["channel-name"], video: args.video, version: args.version,
-      title: args.title, status: args.status, notes: args.notes, chapters, sync,
+      title: args.title, status: args.status, notes: args.notes, chapters, sync, task_id: args.task,
       video_key: videoKey, video_sha256: video.sha256, source_key: sourceKey, compare_key: compareKey, duration: video.duration,
     },
   });
