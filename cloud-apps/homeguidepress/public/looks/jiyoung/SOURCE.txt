@@ -1,0 +1,4 @@
+Source page: https://soojinparkbooks.com/ (the Younger After 60 sales page this page copies), fetched 2026-11-09 at 1440 and 390.
+Copied: section order, fonts, colours, layout and where each image sits (hero portrait, offer card photos, video block, 8 photo step grid, photo card, author portrait).
+Replaced with our own: the book cover, the book's own product photographs (from the PDF's photo set), the Jiyoung Han channel host image and profile picture. No source photo, name, price, review or logo is used.
+Video: no Jiyoung book video exists. The source's video block is matched by a poster of the host with no play button.
