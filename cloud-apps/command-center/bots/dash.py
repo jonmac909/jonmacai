@@ -245,6 +245,73 @@ def wake_qc(out, task_id, ctx):
         print('dash.py: proof saved, but QC was not woken (%s); QC will see it in its queue.' % bad, file=sys.stderr)
 
 
+QC_TRIES = 2  # Jon, 2026-11-05: a video that failed QC twice gets no third post; Ana takes it
+
+
+def proof_group(kind, link=''):
+    """Ana, 2026-11-09: a video's 2 tries are render tries; a failed pack, script or plan proof is another deliverable.
+    A jonmac.ai review page is the video even when posted as url (QC, 2026-11-09)."""
+    return 'render' if kind == 'render' or 'jonmac.ai/review' in (link or '') else 'other'
+
+
+def qc_fails(proofs, kind='render', link=''):
+    """QC fails on the current deliverable: failed proofs of the same group (render vs pack/plan) since the newest passed
+    one of that group (proofs have no version field)."""
+    fails = 0
+    for p in sorted((p for p in proofs if proof_group(p.get('kind'), p.get('link')) == proof_group(kind, link)), key=lambda p: p.get('createdAt') or ''):
+        fails = 0 if p.get('status') == 'passed' else fails + (p.get('status') == 'failed')
+    return fails
+
+
+def look_gate_check(ctx, args):
+    """First-try QC (Jon, 2026-11-05; Ana, 2026-11-06): a render post for a review page with an HGP source needs a passing look_gate stamp.
+    Warn only until D:/AgentTeam/look_gate/BLOCK exists, then it blocks. Ana and QC are exempt. Errors reading the stamp let the post through."""
+    if ctx['bot'] in ('ana', 'qc', 'nina') or args.kind != 'render':
+        return
+    try:
+        sys.path.insert(0, str(Path(__file__).resolve().parent))
+        import look_gate
+        why = look_gate.problem(args.link)
+        blocking = look_gate.BLOCK_FLAG.exists()
+    except Exception as err:
+        print('dash.py: warning: could not check first-try QC (%s); posting anyway.' % err, file=sys.stderr)
+        return
+    if why and blocking:
+        raise Fail(1, 'Blocked: %s.' % why)
+    if why:
+        print('dash.py: warning (first-try QC, warn-only for now): %s.' % why, file=sys.stderr)
+
+
+def qc_limit(ctx, task_id, kind='render', link=''):
+    """Block a proof on a task whose current deliverable failed QC QC_TRIES times, and tell Ana. Ana is exempt.
+    If the proofs can't be read, let it through."""
+    if ctx['bot'] == 'ana':
+        return
+    try:
+        proofs = (call(ctx, 'GET', '/tasks/%s' % urllib.parse.quote(task_id, safe='')).get('task') or {}).get('proofs') or []
+    except Fail as err:
+        print('dash.py: warning: could not check past QC fails (%s); posting anyway.' % err, file=sys.stderr)
+        return
+    fails = qc_fails(proofs, kind, link)
+    if proof_group(kind, link) != 'render':  # review 2026-11-09: a third render must not get through as a url or pdf post
+        fails = max(fails, qc_fails(proofs, 'render'))
+    if fails < QC_TRIES:
+        return
+    text = '@Ana %s tried a third QC post on this video. It failed QC twice, so the post was blocked. Please take it.' % ctx['bot']
+    try:
+        call(ctx, 'POST', '/tasks/%s/comments' % urllib.parse.quote(task_id, safe=''), {'body': text})
+    except Fail:
+        pass  # the hook below still tells her
+    try:
+        sys.path.insert(0, str(Path(__file__).resolve().parent))
+        import hook
+        hook.fire('bot_stuck', {'alerts': ['QC limit: task %s failed QC twice; %s tried a third post (blocked).' % (task_id, ctx['bot'])],
+                                'task': task_id}, key='qc3-%s-%d' % (task_id, fails), routes=['ana'])
+    except Exception as err:
+        print('dash.py: could not alert Ana by hook (%s); the card comment is there.' % err, file=sys.stderr)
+    raise Fail(1, 'This video failed QC twice. A third try is blocked; Ana has been told.')
+
+
 def daily_lists(path):
     """{slug: [item, ...]} from the `## <tab label>` sections' `- item` lines; every other line is ignored."""
     lists, slug = {}, None
@@ -333,6 +400,15 @@ def csv_import(ctx, paths, folder, resource, key, row_of):
             skipped.append('%s: not imported until its %d bad row(s) are fixed; the page keeps the last good import' % (f.name, bad))
         else:
             channels[f.stem] = items
+    # The file name is the channel: register any the dashboard doesn't know yet, so a new clone imports
+    # without a code change (Jon, 2026-11-04).
+    if channels:
+        known = {c['slug'] for c in call(ctx, 'GET', '/channels')['channels']}
+        for channel in [c for c in channels if c.lower() not in known]:
+            try:
+                call(ctx, 'POST', '/channels', {'slug': channel.lower()})
+            except Fail as err:
+                skipped.append('%s: not registered: %s' % (channel, err))
     done = {}
     for channel, items in channels.items():
         try:
@@ -443,6 +519,8 @@ def run(args, ctx):
             raise Fail(2, 'The comment is longer than 4000 characters.')
         return call(ctx, 'POST', '/tasks/%s/comments' % q(args.task_id, safe=''), {'body': body})
     if c == 'proof-add':
+        look_gate_check(ctx, args)
+        qc_limit(ctx, args.task_id, args.kind, args.link)
         out = call(ctx, 'POST', '/tasks/%s/proofs' % q(args.task_id, safe=''),
                    only({'kind': args.kind, 'link': args.link, 'note': args.note}))
         wake_qc(out, args.task_id, ctx)
@@ -492,6 +570,8 @@ def run(args, ctx):
         return call(ctx, 'PUT', '/feeds/%s' % q(args.name, safe=''), feed_data(args))
     if c == 'feed':
         return call(ctx, 'GET', '/feeds/%s' % q(args.name, safe=''))
+    if c == 'd2-ana':  # lives at /dashboard/api/d2/ana, beside /v1
+        return call(dict(ctx, base=ctx['base'].rstrip('/').rsplit('/v1', 1)[0]), 'GET', '/d2/ana')
     if c == 'daily-sync':
         return call(ctx, 'PUT', '/feeds/daily_checklists', {'projects': daily_lists(args.file)})
     if c == 'daily-done':
@@ -676,6 +756,8 @@ def parser():
 
     a = s.add_parser('feed', help='read the newest entry of a feed')
     a.add_argument('name', choices=FEEDS)
+
+    s.add_parser('d2-ana', help="what Dashboard 2 keeps off Jon's Today (items past his 3, blockers, stale feeds), for Ana")
 
     a = s.add_parser('daily-sync', help='Ana: post the daily checklists from daily-checklists.md')
     a.add_argument('--file', default=DAILY_FILE, help='default %(default)s')
