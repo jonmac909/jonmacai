@@ -810,7 +810,7 @@ export const PRODUCTS = [
     headline: "Quiet French ease, in the closet you already have.",
     lede: "A calm, practical guide to dressing well after 60: see your closet with fresh eyes, get the fit right, keep the pieces that do the work, choose colors that suit you now, and finish each outfit with one small touch.",
     price: 27,
-    format: "PDF guide, 70 pages, 12 chapters in 4 parts, with printable checklists and worksheets",
+    format: "PDF guide, 73 pages, 12 chapters in 4 parts, with printable checklists and worksheets",
     cover: { color: '#1f2a44', accent: '#f3ede2' },
     coverImage: '/covers/paris.jpg',
     promises: [
