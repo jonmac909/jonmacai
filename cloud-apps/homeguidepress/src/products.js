@@ -798,6 +798,7 @@ export const PRODUCTS = [
     key: 'diane',
     path: 'the-safe-house-guide',
     ready: true,
+    theme: 'diane-look',
     persona: { host: "Diane Kowalski", brand: "Diane Kowalski" },
     kicker: "Home safety for women living alone",
     title: "The Safe House Guide for Women Living Alone",
