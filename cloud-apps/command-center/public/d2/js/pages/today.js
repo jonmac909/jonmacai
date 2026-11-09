@@ -59,12 +59,26 @@ function needs(t) {
     ${rows ? `<ul class="qlist nylist">${rows}</ul>` : '<p class="muted">Nothing else.</p>'}${health}</section>`;
 }
 
+// Daily Summary (docs/dashboard-2.md): the server words every line; this only lays it out. Open on a desktop, folded on a phone.
+function summary(sum) {
+  if (!sum?.sections?.length) return '';
+  const wide = typeof matchMedia === 'function' ? matchMedia('(min-width: 700px)').matches : true;
+  const body = (s) => {
+    const rows = s.rows.map((r) => `<li class="${esc(r.cls || '')}"><span class="k">${esc(r.label)}</span>${r.value ? `<b class="v">${esc(r.value)}</b>` : ''}${r.sub ? `<span class="s">${esc(r.sub)}</span>` : ''}</li>`).join('');
+    return `${s.line ? `<p class="d2note">${esc(s.line)}</p>` : ''}${rows ? `<ul class="d2sumrows">${rows}</ul>` : ''}${s.notes.map((n) => `<p class="d2sumnote">${esc(n)}</p>`).join('')}
+      <p class="d2meta">${s.sources.length ? s.sources.map(age).join('') : `<span class="d2age">No source yet · owner ${esc(s.owner)}</span>`}</p>`;
+  };
+  return `<section class="card pad d2sum"><div class="cardhead"><h2>Daily Summary</h2></div><div class="d2sumgrid">${sum.sections.map((s) =>
+    `<details class="d2sec d2sec-${esc(s.key)}" data-keep="sum-${esc(s.key)}"${wide ? ' open' : ''}><summary><b>${esc(s.title)}</b> <span class="muted">${esc(s.owner)}</span></summary>${body(s)}</details>`).join('')}</div></section>`;
+}
+
 export function render(data) {
   const d2 = data?.d2 || {};
   const t = d2.today || {};
   const day = d2.period?.today || {};
   return `<div class="wrap">
   ${top('Today', `${day.label || ''}${day.clock ? ` · ${day.clock} PT` : ''}`, d2)}
+  ${summary(d2.summary)}
   ${forJon(t.jon || [], d2.goals || [])}
   <div class="split even">${targets(t.targets)}${checks(d2.checks)}</div>
   ${blockers(t.blockers)}

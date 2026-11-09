@@ -38,7 +38,8 @@ Hard limits: `/dashboard` (its pages, its API answers, its data) does not change
     checks: [Check],          // daily checks, a tick per day on Today and Week (Ana, 2026-11-08)
     today: Today,
     pipeline: Pipeline,
-    money: Money
+    money: Money,
+    summary: Summary           // the Daily Summary at the top of Today (below)
   }
 }
 ```
@@ -135,6 +136,34 @@ Needs-you cleanup (view only): a question whose idempotency key starts `team-gua
 ```
 
 The Money page shows these tiles, then the existing Money page (`pages.money`), the sponsor collections (`pages.sponsors` collect / by month / cash) and Viral View revenue (`pages.viral`).
+
+### Summary (Daily Summary, top of the Today page)
+
+Built by `buildSummary` in `src/summary.js` from rows the endpoint already loads. The one new network call is the weather (Open-Meteo, no key), fetched in the Worker with a 10 minute cache (a failure is remembered for 1 minute). No collector, no schedule, nothing stored. Every number comes from a real feed; a section or row with no data says why in one line and names its owner.
+
+```
+{ asOf, tz, today: 'YYYY-MM-DD',
+  sections: [{ key, title, owner,         // weather, calendar, markets, expenses, sponsors, jonmac, jonmacai, hgp (this order)
+               sources: [{ label, ageLabel, stale }],   // the one-line footer
+               line: '',                  // when set, the only content: why there is no data, with the owner
+               rows: [{ label, value, sub?, cls? }],    // cls: crit | risk | muted (muted = no source)
+               notes: [string],           // one-line caveats (partial window, check skipped)
+               strange?, currency? }]     // expenses only: the flagged charges, the feed's currency (CAD unless it says otherwise)
+}
+```
+
+| Section | Source | Shows | When there is nothing |
+|---|---|---|---|
+| Weather, West Kelowna | Open-Meteo, 49.86 / -119.58, Vancouver time | now (temp, WMO code in words), high, low, rain chance | `Weather unavailable (Open-Meteo), owner Mila` |
+| Calendar | the `calendar_today` bot feed (Ana only, `PUT /v1/feeds/calendar_today`, `{ date, events: [{ start, end, title, calendar? }] }`) | today's events | no feed: `Calendar feed not connected. Owner: Ana.`; feed dated another day: says so |
+| Markets | MoneyClaw snapshot, `markets.core` VOO and QQQ | last price, % below all-time high, today's move | `Market feed not connected (MoneyClaw). Owner: Mila.`; stale after 24 hours |
+| RBC expenses | MoneyClaw snapshot, `expenses.{business,personal}`; read only | yesterday (the feed's total), last 7 and last 30 days (summed from `lastMonth.charges` + `month.charges`, counted back from today, Kelowna time, pending in, refunds netted); strange purchases; open charge-watch flags (`cw:` questions) | `Expenses feed not connected (MoneyClaw). Owner: Mila.`; stale after 2 days or when `asOf` is older; a window the lists do not cover is labelled partial |
+| Sponsors | cash (`buildCash`), collections feed, deal board, sponsor video cards | income this month, who owes, collections due (feed due dates; overdue in red), deals negotiating, videos still to make | a piece with no feed: `No source, owner Florence` |
+| Jon Mac, @JonMacAI, Home Guide Press (the 16 focus channels) | channel calendars (this week, Mon to Sun) and open dashboard cards (todo, doing, waiting, QC, review) | per channel `N of M scheduled or live` (M = calendar rows dated this week) and open cards; Home Guide Press cards are matched to a channel by the channel name in the card title | `Nothing planned this week`, `No calendar yet`, or the section note names the owner |
+
+Strange purchases (`strangePurchases`, pure, tested in `test/daily-summary.test.mjs`), over charges dated in the last 7 days and judged against every charge in the two lists: **duplicate** (same merchant and amount twice one day); **high** (over 3x the merchant's median, at least 3 earlier charges); **newMerchant** (first charge from a merchant, over $100, only when the lists reach back 14 days before it, else a note says the check is limited); **currency** (a per-charge currency other than CAD or USD; with no currency in the feed the note reads `currency not in feed`). Merchant = the description's first three words, digits and symbols dropped. Charge watch flags are the open questions MoneyClaw's charge watch already files (`src/chargewatch.js`, idempotency key `cw:`).
+
+The page opens every section on a desktop and folds them on a phone (under 700 px); the open state survives the 60 second refresh like other folds.
 
 ## Goals config (`src/d2-goals.json`)
 

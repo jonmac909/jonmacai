@@ -7,6 +7,7 @@ import { overlayBankScan } from './money.js';
 import { vanYmd, weekStart } from './periods.js';
 import { agoLabel, monthWindow, sourceOf, vanMidnight } from './today.js';
 import { BOOKS } from './track.js';
+import { buildSummary, fetchWeather } from './summary.js';
 import { funnelMonth } from './webinar.js';
 
 const TZ = 'America/Vancouver';
@@ -76,7 +77,7 @@ export async function d2Data(env, nowMs) {
     try { return (await db.prepare(sql).bind(...args).all()).results || []; } catch (err) { console.error('d2', err); return null; }
   };
   const db = env.DB;
-  const [calendar, calAt, channels, tasks, qcPassed, keys, ticks, rbcLast, runs, proofs, orders, funnelWeek] = await Promise.all([
+  const [calendar, calAt, channels, tasks, qcPassed, keys, ticks, rbcLast, runs, proofs, orders, funnelWeek, weather] = await Promise.all([
     q(db, 'SELECT channel, day, status FROM yt_calendar WHERE day >= ? AND day <= ? LIMIT 5000', from, P.month.weeks.at(-1).end),
     q(db, 'SELECT MAX(updated_at) AS at FROM yt_calendar'), // the calendars' age
     q(db, 'SELECT * FROM yt_channels'),
@@ -97,8 +98,9 @@ export async function d2Data(env, nowMs) {
     q(env.HGP_DB, 'SELECT slug, created_at FROM orders WHERE is_test = 0 AND revoked_at IS NULL AND created_at >= ? AND created_at < ?',
       new Date(win.start).toISOString(), new Date(win.end).toISOString()),
     funnelMonth(env.CLONE_DB, nowMs - 7 * DAY, nowMs),
+    fetchWeather(nowMs), // the one network call: Open-Meteo, kept 10 minutes
   ]);
-  return { calendar, calAt: calAt?.[0]?.at ?? null, channels, tasks, qcPassed, keys, ticks, rbcLast: rbcLast?.[0]?.day ?? null, runs, proofs, orders, hgpBound: !!env.HGP_DB, funnelWeek };
+  return { calendar, calAt: calAt?.[0]?.at ?? null, channels, tasks, qcPassed, keys, ticks, rbcLast: rbcLast?.[0]?.day ?? null, runs, proofs, orders, hgpBound: !!env.HGP_DB, funnelWeek, weather };
 }
 
 // ---- metrics ----
@@ -662,6 +664,12 @@ export function buildD2(out, rows, extra, data, nowMs) {
   for (const k of checks) add(k.today.source);
   for (const tile of money.tiles) add(tile.source);
   for (const s of out.pages.today?.needs?.sources || []) add(s);
+  const summary = buildSummary(C, {
+    weather: data.weather, videoCards: videoCards(C), sponsors: cleanSponsors(C),
+    goals: ['jonmac', 'jonmacai', 'hgp'].map((k) => CONFIG.goals.find((g) => g.key === k)).map((g) => ({
+      key: g.key, title: g.title, owner: g.owner, project: g.project, group: g.group, chans: channelsOf(g, C).focus,
+    })),
+  });
   return {
     period: P,
     goals,
@@ -675,5 +683,6 @@ export function buildD2(out, rows, extra, data, nowMs) {
       })),
     },
     money,
+    summary,
   };
 }

@@ -59,6 +59,26 @@
 .d2exp .qlist{margin:.6rem 0 0 .4rem}
 .d2health{margin:.6rem 0 0;font-size:.82rem}
 
+/* Daily Summary: folded sections on a phone; on a desktop one grid, fold marker hidden */
+.d2sumgrid{display:grid;gap:.6rem;grid-template-columns:minmax(0,1fr)}
+.d2sec{border:1px solid var(--line);border-radius:.7rem;padding:.5rem .7rem;min-width:0}
+.d2sec>summary{cursor:pointer;display:flex;align-items:baseline;gap:.5rem;font-size:.92rem}
+.d2sec[open]>summary{margin-bottom:.35rem}
+.d2sumrows{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:.25rem;font-size:.84rem}
+.d2sumrows li{display:flex;flex-wrap:wrap;align-items:baseline;gap:0 .45rem;line-height:1.3}
+.d2sumrows .k{color:var(--ink-2)}
+.d2sumrows .s{color:var(--muted);font-size:.78rem}
+.d2sumrows li.crit .v,.d2sumrows li.crit .k{color:var(--crit-ink)}
+.d2sumrows li.risk .v{color:var(--risk-ink)}
+.d2sumrows li.muted .s{font-size:.82rem;color:var(--ink-2)}
+.d2sumnote{margin:.3rem 0 0;font-size:.78rem;color:var(--muted)}
+.d2sec .d2meta{margin:.4rem 0 0;font-size:.75rem}
+@media (min-width:1100px){
+  .d2sumgrid{grid-template-columns:repeat(4,minmax(0,1fr));grid-auto-flow:dense;gap:.5rem}
+  .d2sec-expenses,.d2sec-sponsors{grid-column:span 2}
+  .d2sec-hgp{grid-column:span 3}
+  .d2sec-hgp .d2sumrows{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.2rem 1.2rem}
+}
 .d2tiles{grid-template-columns:repeat(auto-fit,minmax(min(100%,19rem),1fr))}
 .sec>.bar{flex-wrap:wrap;row-gap:.2rem} /* a long note goes under its heading on a phone */
 
