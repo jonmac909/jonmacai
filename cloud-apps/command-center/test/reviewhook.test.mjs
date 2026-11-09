@@ -53,6 +53,9 @@ test('the hook needs the review token; the backfill fills only open cards and wa
   assert.deepEqual([live.result, live.matched_by], ['posted', 'title']);
   const { body } = await db.prepare("SELECT body FROM bot_task_comments WHERE task_id = 't_00000000000000d1'").first();
   assert.match(body, /^Jon approved v2 of "Old Video - Test" on the review page \(approved Nov 1, posted late\)\./);
+  // approved before the QC gate, no QC pass: the owner is told to QC it first, not to upload it
+  assert.match(body, /\. It hadn't passed QC yet: get this version through QC first \(fix any fault on top of it, no new version\), then upload it\.\n/);
+  assert.doesNotMatch(body, /That version is final/);
   const none = await (await hook({ ...old, slug: 'none-1-v1', title: 'No Card - Test' })).json();
   assert.deepEqual([none.result, none.wakes], ['no_card', 'video-editor']);
   assert.equal(sent.at(-1).url, 'https://hooks.example/video-editor');
@@ -60,4 +63,9 @@ test('the hook needs the review token; the backfill fills only open cards and wa
 
   await db.prepare("INSERT INTO bot_proofs (id, task_id, kind, link, status, created_by, created_at) VALUES ('p_00000000000000d1', 't_00000000000000d1', 'render', 'https://jonmac.ai/review/old-1-v2', 'passed', 'qc', 'x')").run();
   assert.deepEqual((await (await hook(null, TOKEN, 'qc')).json()).passes, { 'old-1-v2': 'x' });
+  // with its QC pass on the dashboard, the same approval says it's final and ready to upload
+  await hook(old);
+  const { results } = await db.prepare("SELECT body FROM bot_task_comments WHERE task_id = 't_00000000000000d1' ORDER BY rowid").all();
+  assert.equal(results.length, 2);
+  assert.match(results[1].body, /posted late\)\. That version is final: upload it, and don't post a newer one unless he asks for changes\.\n/);
 });
