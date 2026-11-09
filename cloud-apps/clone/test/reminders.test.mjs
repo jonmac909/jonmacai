@@ -242,6 +242,57 @@ test('durable scheduling, authenticated hooks, retries and cancellation', async 
     assert.equal(f.sql.prepare("SELECT state FROM clone_webinar_steps WHERE step = 'C0'").get().state, 'submitted');
   });
 
+  const addSession = (f, ref, purchasedAt, sessionAt, steps = ['E1']) => {
+    f.sql.prepare(`INSERT INTO clone_webinar_sessions (transaction_ref, payment_ref, email, purchased_at, session_at, session_label, unsubscribe_token, complete, initialized)
+      VALUES (?, ?, ?, ?, ?, 'Thursday, November 12, 2026 at 7:00 PM EST', ?, 1, 1)`).run(ref, ref, `${ref}@example.com`, purchasedAt, sessionAt, ref.padEnd(64, 'd').slice(0, 64));
+    for (const step of steps) f.sql.prepare("INSERT INTO clone_webinar_steps(transaction_ref, step, payload, state) VALUES (?, ?, '{}', 'submitted')").run(ref, step);
+  };
+  const c0State = (f, ref) => f.sql.prepare("SELECT state FROM clone_webinar_steps WHERE transaction_ref = ? AND step = 'C0'").get(ref)?.state;
+
+  await t.test('backfill and C0 skip a buyer whose stored session already passed', async () => {
+    const f = fixture(), p = provider();
+    addSession(f, 'ORD-passed', Date.parse('2026-10-30T12:00:00Z'), '2026-11-01T00:00:00.000Z');
+    await retryReminders(f.env);
+    assert.equal(c0State(f, 'ORD-passed'), 'skipped');
+    // A C0 already waiting for the link is dropped, not sent, once its session has passed.
+    f.sql.prepare("INSERT INTO clone_webinar_steps(transaction_ref, step, payload, state) VALUES ('ORD-passed', 'E9', '{}', 'submitted')").run();
+    f.sql.prepare("UPDATE clone_webinar_steps SET state = 'awaiting_link' WHERE step = 'C0'").run();
+    f.sql.prepare("UPDATE clone_webinar_sessions SET complete = 0").run();
+    await retryReminders(f.env);
+    assert.equal(c0State(f, 'ORD-passed'), 'skipped');
+    assert.equal(p.calls.filter(c => c.path === '/emails').length, 0, 'nothing is sent for a session that has started');
+  });
+
+  await t.test('late buyers cannot crowd real buyers out of the 50-row backfill batch', async () => {
+    const f = fixture(), p = provider();
+    for (let n = 0; n < 55; n++) addSession(f, `ORD-late-${n}`, Date.parse('2026-11-13T02:00:00Z'), '2026-11-13T00:00:00.000Z');
+    addSession(f, 'ORD-real', ms, '2026-11-13T00:00:00.000Z');
+    await retryReminders(f.env);
+    await retryReminders(f.env);
+    assert.equal(c0State(f, 'ORD-late-0'), 'skipped');
+    assert.equal(c0State(f, 'ORD-real'), 'submitted', 'the real buyer gets the Zoom link within two cycles');
+    assert.equal(p.calls.filter(c => c.path === '/emails' && JSON.parse(c.body).tags[1].value === 'C0').length, 1);
+  });
+
+  await t.test('a run that finishes cannot close a session the backfill reopened mid-run', async () => {
+    const f = fixture();
+    addSession(f, 'ORD-race', ms, '2026-11-13T00:00:00.000Z', []);
+    f.sql.prepare("UPDATE clone_webinar_sessions SET complete = 0 WHERE transaction_ref = 'ORD-race'").run();
+    let reopened = false;
+    provider({ async intercept(path) {
+      if (path === '/emails' && !reopened) {
+        reopened = true;
+        f.sql.prepare("INSERT INTO clone_webinar_steps(transaction_ref, step, payload, state) VALUES ('ORD-race', 'C0', '{}', 'pending')").run();
+        f.sql.prepare("UPDATE clone_webinar_sessions SET complete = 0 WHERE transaction_ref = 'ORD-race'").run();
+      }
+      return null;
+    } });
+    f.sql.prepare("INSERT INTO clone_webinar_steps(transaction_ref, step, payload, state, scheduled_at) VALUES ('ORD-race', 'E1', ?, 'pending', NULL)").run(JSON.stringify({ to: 'x@example.com', subject: 's', text: 't', tags: [{ name: 'a', value: 'b' }, { name: 'step', value: 'E1' }] }));
+    await scheduleSession(f.env, 'ORD-race');
+    assert.equal(reopened, true);
+    assert.equal(f.sql.prepare("SELECT complete FROM clone_webinar_sessions WHERE transaction_ref = 'ORD-race'").get().complete, 0);
+  });
+
   await t.test('missing links hold C0 and E4-E8 until they are configured, then send them', async () => {
     const f = fixture(), p = provider();
     delete f.env.CLONE_ZOOM_JOIN_URL; delete f.env.CLONE_REPLAY_URL;

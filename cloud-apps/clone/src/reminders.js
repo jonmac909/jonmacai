@@ -127,6 +127,11 @@ export async function scheduleSession(env, transactionRef) {
       if (['submitted', 'skipped', 'cancelled'].includes(step.state)) continue;
       session = await first(db, 'SELECT * FROM clone_webinar_sessions WHERE transaction_ref = ?', transactionRef);
       if (session.state !== 'active' || await optedOut(db, session.email)) return await stopSession(env, session);
+      // A join link is pointless once the session has started (a backfilled or held C0 must not go out then).
+      if (step.step === 'C0' && Date.parse(session.session_at) <= Date.now()) {
+        await run(db, "UPDATE clone_webinar_steps SET state = 'skipped' WHERE transaction_ref = ? AND step = 'C0' AND state IN ('pending', 'awaiting_link')", transactionRef);
+        continue;
+      }
       if (step.state === 'awaiting_link') {
         if (missingLink(step.step, links)) { waiting = true; continue; }
         // The link arrived after booking: render the stored email again with it.
@@ -188,7 +193,10 @@ export async function scheduleSession(env, transactionRef) {
       // Stay below the default Resend account rate limit; 429s remain retriable.
       await new Promise(resolve => setTimeout(resolve, 250));
     }
-    await run(db, 'UPDATE clone_webinar_sessions SET complete = ? WHERE transaction_ref = ?', waiting ? 0 : 1, transactionRef);
+    // Never close a session over a step that arrived while this run held it (the C0 backfill reopens it).
+    await run(db, `UPDATE clone_webinar_sessions SET complete = CASE WHEN ? = 1 AND NOT EXISTS (SELECT 1 FROM clone_webinar_steps
+      WHERE transaction_ref = ? AND state IN ('pending', 'awaiting_link', 'processing')) THEN 1 ELSE 0 END WHERE transaction_ref = ?`,
+    waiting ? 0 : 1, transactionRef, transactionRef);
   } finally {
     await run(db, 'UPDATE clone_webinar_sessions SET locked_until = 0 WHERE transaction_ref = ? AND locked_until = ?', transactionRef, lockUntil);
   }
@@ -273,7 +281,12 @@ export async function backfillConfirmation(env) {
   const missing = await rows(db, `SELECT * FROM clone_webinar_sessions s WHERE state = 'active' AND initialized = 1
     AND NOT EXISTS (SELECT 1 FROM clone_webinar_steps t WHERE t.transaction_ref = s.transaction_ref AND t.step = 'C0') LIMIT 50`);
   for (const session of missing) {
-    if (lateBuyer(session)) continue;
+    // Late buyers and started sessions get a skipped C0 row, so they leave this query and cannot crowd out real buyers (LIMIT 50).
+    if (lateBuyer(session) || Date.parse(session.session_at) <= Date.now()) {
+      await run(db, `INSERT INTO clone_webinar_steps(transaction_ref, step, scheduled_at, payload, state)
+        VALUES (?, 'C0', NULL, '{}', 'skipped') ON CONFLICT(transaction_ref, step) DO NOTHING`, session.transaction_ref);
+      continue;
+    }
     const plan = reminderPlan(session, env).find(p => p.step === 'C0');
     await run(db, `INSERT INTO clone_webinar_steps(transaction_ref, step, scheduled_at, payload, state)
       VALUES (?, 'C0', NULL, ?, ?) ON CONFLICT(transaction_ref, step) DO NOTHING`,
