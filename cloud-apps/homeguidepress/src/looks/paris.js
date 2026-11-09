@@ -13,10 +13,10 @@ const SLIDES = [
   [9, 'See it like a stranger', 'A photograph and a tip: step back from a long mirror and look for three seconds.'],
   [4, 'Contents', 'Twelve chapters in four parts, from the closet you have to the day you have.'],
   [16, 'The fit check', 'Ten checks in one long mirror, from the shoulder seam to the trouser hem.'],
-  [34, 'The capsule', 'Twelve to fifteen pieces that all go together can dress you for weeks.'],
+  [34, 'The capsule', 'A sample week of seven outfits, all from the same thirteen pieces.'],
   [40, 'Your colors', 'The color right under your chin, tested in daylight before you trust it.'],
   [60, 'Step by step', 'Scarf ties in numbered steps. Try each one once, then keep the two you like.'],
-  [64, 'Real days', 'A belted raincoat by the door, and the outfit laid out the night before.'],
+  [64, 'Real days', 'Outfit formulas for the market, lunch with friends and a family celebration.'],
   [73, 'Before I buy', 'The checklist to take shopping, and a last word from Claudine.'],
 ];
 
