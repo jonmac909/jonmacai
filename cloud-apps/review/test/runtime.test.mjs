@@ -1,7 +1,7 @@
 // End-to-end Worker checks in workerd: access gate, publish (real script), Range media, comments API.
 import test, { after, before } from "node:test";
 import assert from "node:assert/strict";
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { SECRETS, allPassed, startRuntime } from "./harness.mjs";
@@ -636,19 +636,25 @@ test("voice notes: webm, mp4 or ogg up to 5 MB, checked by first bytes; ranged p
 
   // GPU1: review_voice.mjs (with a stand-in for gpuq + Parakeet) transcribes every untranscribed note once.
   const voiceScript = fileURLToPath(new URL("../scripts/review_voice.mjs", import.meta.url));
-  const run = (args) => spawnSync(process.execPath, [voiceScript, "--base", runtime.url, ...args], {
-    encoding: "utf8",
-    env: { ...process.env, REVIEW_API_TOKEN: SECRETS.REVIEW_API_TOKEN, NODE_TLS_REJECT_UNAUTHORIZED: "0", NODE_NO_WARNINGS: "1",
-      GPUQ_PYTHON: process.execPath, GPUQ: fileURLToPath(new URL("./fixtures/fake_gpuq.mjs", import.meta.url)), HOOK_PY: "none" },
+  // Async, not spawnSync: the comments listing asks the in-process DASHBOARD stub whether QC passed, so the loop must keep running.
+  const run = (args) => new Promise((resolve) => {
+    const child = spawn(process.execPath, [voiceScript, "--base", runtime.url, ...args], {
+      env: { ...process.env, REVIEW_API_TOKEN: SECRETS.REVIEW_API_TOKEN, NODE_TLS_REJECT_UNAUTHORIZED: "0", NODE_NO_WARNINGS: "1",
+        GPUQ_PYTHON: process.execPath, GPUQ: fileURLToPath(new URL("./fixtures/fake_gpuq.mjs", import.meta.url)), HOOK_PY: "none" },
+    });
+    let stdout = "", stderr = "";
+    child.stdout.on("data", (d) => { stdout += d; });
+    child.stderr.on("data", (d) => { stderr += d; });
+    child.on("close", (status) => resolve({ status, stdout, stderr }));
   });
-  const result = run(["--slug", "mina-1-v8"]);
+  const result = await run(["--slug", "mina-1-v8"]);
   assert.equal(result.status, 0, result.stderr);
   const out = JSON.parse(result.stdout);
   assert.deepEqual(out.transcribed.map((x) => x.transcript).sort(), ["heard 2000 bytes", "heard 23 bytes", "heard 3000 bytes"]);
-  assert.deepEqual(JSON.parse(run(["--slug", "mina-1-v8"]).stdout).transcribed, [], "a second run has nothing left to do");
-  const again = run(["--slug", "mina-1-v8", "--comment", comment.id]);
+  assert.deepEqual(JSON.parse((await run(["--slug", "mina-1-v8"])).stdout).transcribed, [], "a second run has nothing left to do");
+  const again = await run(["--slug", "mina-1-v8", "--comment", comment.id]);
   assert.equal(JSON.parse(again.stdout).transcribed.length, 1, "--comment redoes that one");
-  assert.equal(run(["--slug", "mina-1-v8", "--comment", "nope"]).status, 1);
+  assert.equal((await run(["--slug", "mina-1-v8", "--comment", "nope"])).status, 1);
   const saved = (await (await fetchApp("/api/review/mina-1-v8/comments", { headers: { Cookie: cookie } })).json()).comments.find((c) => c.id === iphone.comment.id);
   assert.deepEqual([saved.text, saved.transcript], ["said it", "heard 3000 bytes"]);
 

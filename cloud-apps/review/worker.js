@@ -288,6 +288,17 @@ async function visibleSlugs(env, rows) {
   return new Set(rows.filter((r) => passes[r.slug] && passes[r.slug] >= (held.get(`${r.slug}|${r.video_key}`) || "")).map((r) => r.slug));
 }
 
+// What an API reader sees as a version's status. needs_review means "on Jon's list", so it is only reported once QC passed
+// this file; until then it reads qc_only (and qc_only is true). The stored status stays needs_review, so a QC pass needs no sync.
+async function gatedVideos(env, rows, origin) {
+  const visible = await visibleSlugs(env, rows);
+  return rows.map((row) => {
+    const qcOnly = !visible?.has(row.slug);
+    return { ...publicVideo(row, origin), status: qcOnly && row.status === "needs_review" ? "qc_only" : row.status, qc_only: qcOnly };
+  });
+}
+const gatedVideo = async (env, row, origin) => (await gatedVideos(env, [row], origin))[0];
+
 // Jon's Approve or Submit changes goes to the video's dashboard card: the dashboard posts it as Jon's comment (which wakes
 // the card owner) plus a history line. Once per submission: each try leaves a card_posts row, and a posted one ends it.
 async function tellCard(env, submission, video, backfill = false) {
@@ -434,7 +445,9 @@ async function pages(request, env, url) {
   const visible = await visibleSlugs(env, versions);
   const seen = (s) => Boolean(s && visible?.has(s));
   const submissions = (await slugSubmissions(env, slug, 10)).results.map((s) => publicSubmission(seen(s.result_slug) ? s : { ...s, result_slug: null }, who.prefix));
-  return html(renderVideo(publicVideo(row, who.prefix), versions.filter((v) => v.slug === slug || seen(v.slug)), channel?.name || row.channel, submissions,
+  const page = publicVideo(row, who.prefix);
+  if (!seen(slug) && page.status === "needs_review") page.status = "qc_only";
+  return html(renderVideo(page, versions.filter((v) => v.slug === slug || seen(v.slug)), channel?.name || row.channel, submissions,
     who.prefix, { qcOnly: !seen(slug), qcUnknown: visible === null }));
 }
 
@@ -453,8 +466,8 @@ async function api(request, env, url) {
   const method = request.method;
   if (parts.length === 1 && parts[0] === "videos" && method === "GET") {
     const { channels, videos } = await listVideos(env);
-    const shown = reviewer ? await visibleSlugs(env, videos) : null; // a reviewer gets QC-passed versions only
-    return json({ channels, videos: videos.filter((row) => !reviewer || shown?.has(row.slug)).map((row) => publicVideo(row, base)) });
+    const all = await gatedVideos(env, videos, base);
+    return json({ channels, videos: all.filter((v) => !reviewer || !v.qc_only) }); // a reviewer gets QC-passed versions only
   }
   // GET /api/review/jon-list: the slugs on Jon's review list right now, as the page shows them (pipeline.py checks each one
   // against the dashboard's QC passes, so a broken gate shows up within the hour).
@@ -478,7 +491,7 @@ async function api(request, env, url) {
   const row = await getVideo(env, slug);
   if (!row) return fail(404, "video_not_found");
 
-  if (resource === undefined && method === "GET") return json({ video: publicVideo(row, base) });
+  if (resource === undefined && method === "GET") return json({ video: await gatedVideo(env, row, base) });
   if (resource === undefined && method === "DELETE") {
     if (!agent) return fail(403, "agent_token_required");
     return deleteVideo(env, row);
@@ -515,7 +528,7 @@ async function api(request, env, url) {
     if (!["all", "open", "resolved"].includes(filter)) return fail(400, "status must be all, open or resolved");
     const where = filter === "open" ? " AND resolved = 0" : filter === "resolved" ? " AND resolved = 1" : "";
     const rows = await env.DB.prepare(`SELECT * FROM comments WHERE slug = ?${where} ORDER BY t, created_at`).bind(slug).all();
-    return json({ video: publicVideo(row, base), comments: rows.results.map((c) => publicComment(c, base)) });
+    return json({ video: await gatedVideo(env, row, base), comments: rows.results.map((c) => publicComment(c, base)) });
   }
 
   // A comment: JSON {author, t, text, drawing?}, or a multipart form with the same fields plus an audio file
@@ -779,7 +792,7 @@ async function publishApi(request, env, url, slug, resource, uploadId, action) {
     // The cut map only fits the original it was made for.
     await env.DB.prepare("UPDATE videos SET source_key = NULL, sync_map = NULL, updated_at = ? WHERE slug = ?").bind(now(), slug).run();
     await env.MEDIA.delete(row.source_key);
-    return json({ video: publicVideo(await getVideo(env, slug), url.origin) });
+    return json({ video: await gatedVideo(env, await getVideo(env, slug), url.origin) });
   }
 
   // Adds the original to a video that has none. It never replaces one, and an upload it refuses is removed.
@@ -795,7 +808,7 @@ async function publishApi(request, env, url, slug, resource, uploadId, action) {
       if (body.source_key !== row?.source_key) await env.MEDIA.delete(body.source_key);
       return fail(409, "no such video, or it already has a source");
     }
-    return json({ video: publicVideo(await getVideo(env, slug), url.origin) });
+    return json({ video: await gatedVideo(env, await getVideo(env, slug), url.origin) });
   }
 
   if (resource === "publish" && uploadId === undefined && method === "POST") {
@@ -855,7 +868,9 @@ async function publishApi(request, env, url, slug, resource, uploadId, action) {
     const kept = new Set([body.video_key, sourceKey, body.compare_key]);
     const stale = [previous?.video_key, previous?.source_key, previous?.compare_key].filter((k) => k && !kept.has(k));
     if (stale.length) await env.MEDIA.delete(stale);
-    return json({ video: publicVideo(await getVideo(env, slug), url.origin), qc_only: true,
+    // A file that was just published always starts QC-only (its qc_holds row is new), so no dashboard read is needed to say so.
+    const stored = publicVideo(await getVideo(env, slug), url.origin);
+    return json({ video: { ...stored, status: stored.status === "needs_review" ? "qc_only" : stored.status, qc_only: true }, qc_only: true,
       ...(fix ? { fix_of: approval.slug, visible_to_jon: "never as a new request: it carries his approval; upload it once QC passes it" }
         : { visible_to_jon: "only after QC passes its dashboard proof" }) }, previous ? 200 : 201);
   }
