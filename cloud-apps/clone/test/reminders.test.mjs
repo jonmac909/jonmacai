@@ -81,20 +81,22 @@ test('plans skip past steps, hold steps awaiting links, and keep keys stable', (
   const env = { CLONE_ZOOM_JOIN_URL: join, CLONE_REPLAY_URL: replay };
   const plan = reminderPlan(session, env, ms);
   assert.ok(plan.every(p => !p.skip && !p.awaiting));
+  assert.equal(plan[0].step, 'C0');
   assert.equal(plan[0].scheduled_at, null);
-  assert.equal(plan[1].scheduled_at, '2026-11-12T00:00:00.000Z');
-  assert.equal(plan[2].scheduled_at, '2026-11-12T14:00:00.000Z');
-  assert.equal(plan[7].scheduled_at, '2026-11-13T14:00:00.000Z');
+  assert.equal(plan[1].scheduled_at, null);
+  assert.equal(plan[2].scheduled_at, '2026-11-12T00:00:00.000Z');
+  assert.equal(plan[3].scheduled_at, '2026-11-12T14:00:00.000Z');
+  assert.equal(plan[8].scheduled_at, '2026-11-13T14:00:00.000Z');
   assert.deepEqual(plan.map(p => p.idempotency_key), reminderPlan(session, env, ms + 1000).map(p => p.idempotency_key));
   const late = reminderPlan(session, env, Date.parse('2026-11-12T23:55:00Z'));
-  assert.deepEqual(late.filter(p => !p.skip).map(p => p.step), ['E1', 'E6', 'E7', 'E8']);
+  assert.deepEqual(late.filter(p => !p.skip).map(p => p.step), ['C0', 'E1', 'E6', 'E7', 'E8']);
   const noLinks = reminderPlan(session, {}, ms);
   assert.ok(noLinks.every(p => !p.skip));
-  assert.deepEqual(noLinks.filter(p => p.awaiting).map(p => p.step), ['E4', 'E5', 'E6', 'E7', 'E8']);
-  assert.equal(reminderPlan(session, { CLONE_ZOOM_JOIN_URL: 'https://zoom.us.evil.example/j/1' }, ms)[3].awaiting, 'missing_join_url');
-  assert.equal(reminderPlan(session, { CLONE_REPLAY_URL: 'javascript:alert(1)' }, ms)[7].awaiting, 'missing_replay_url');
+  assert.deepEqual(noLinks.filter(p => p.awaiting).map(p => p.step), ['C0', 'E4', 'E5', 'E6', 'E7', 'E8']);
+  assert.equal(reminderPlan(session, { CLONE_ZOOM_JOIN_URL: 'https://zoom.us.evil.example/j/1' }, ms)[4].awaiting, 'missing_join_url');
+  assert.equal(reminderPlan(session, { CLONE_REPLAY_URL: 'javascript:alert(1)' }, ms)[8].awaiting, 'missing_replay_url');
   const close = Date.parse('2026-11-12T01:00:00Z');
-  assert.equal(reminderPlan({ ...session, purchased_at: close, ...assignSession(close) }, env, close)[1].skip, 'within_24_hours');
+  assert.equal(reminderPlan({ ...session, purchased_at: close, ...assignSession(close) }, env, close)[2].skip, 'within_24_hours');
   const latePurchase = Date.parse('2026-11-13T02:00:00Z');
   const lateNoReplay = reminderPlan({ ...session, purchased_at: latePurchase, ...assignSession(latePurchase) }, {}, ms);
   assert.deepEqual(lateNoReplay.map(p => [p.step, p.awaiting]), [['L1', 'missing_replay_url']]);
@@ -125,7 +127,7 @@ test('every email has simple HTML, text, unsubscribe and email-only join links',
     assert.match(message.headers['List-Unsubscribe'], /https:\/\/jonmac.ai\//);
     assert.equal(message.headers['List-Unsubscribe-Post'], 'List-Unsubscribe=One-Click');
     assert.equal(message.reply_to, 'jon@thejonmac.com');
-    assert.equal(message.text.includes(join), ['E4', 'E5', 'E6', 'E7'].includes(p.step));
+    assert.equal(message.text.includes(join), ['C0', 'E4', 'E5', 'E6', 'E7'].includes(p.step));
     assert.equal((message.text.match(/Your live training:|Your session was/g) || []).length, 1);
   }
   const calendar = new URL(calendarUrl(session.session_at));
@@ -139,16 +141,16 @@ test('durable scheduling, authenticated hooks, retries and cancellation', async 
   globalThis.setTimeout = callback => originalTimer(callback, 0);
   t.after(() => { globalThis.fetch = originalFetch; Date.now = originalNow; globalThis.setTimeout = originalTimer; });
 
-  await t.test('one verified purchase persists the lead and sends all eight steps plus event', async () => {
+  await t.test('one verified purchase persists the lead and sends all nine steps plus event', async () => {
     const f = fixture(), p = provider();
     await purchaseReminders(seat(), f.env);
-    assert.equal(p.calls.filter(c => c.path === '/emails').length, 8);
+    assert.equal(p.calls.filter(c => c.path === '/emails').length, 9);
     const event = JSON.parse(p.calls.find(c => c.path === '/events/send').body);
     const lead = JSON.parse(f.leads.get('lead:test_user_mock@example.com'));
     assert.equal(event.payload.session_at, lead.session_at);
     assert.equal(lead.session_at, '2026-11-13T00:00:00.000Z');
     assert.ok(lead.purchased);
-    assert.equal(f.sql.prepare('SELECT COUNT(*) AS n FROM clone_webinar_steps WHERE email_id IS NOT NULL').get().n, 9);
+    assert.equal(f.sql.prepare('SELECT COUNT(*) AS n FROM clone_webinar_steps WHERE email_id IS NOT NULL').get().n, 10);
   });
 
   await t.test('duplicate/concurrent deliveries and deliveries after 24 hours never duplicate', async () => {
@@ -158,7 +160,7 @@ test('durable scheduling, authenticated hooks, retries and cancellation', async 
     Date.now = () => ms + 2 * 24 * 3600000;
     await purchaseReminders(seat(), f.env);
     Date.now = () => ms;
-    assert.equal(p.calls.filter(c => c.path === '/emails').length, 8);
+    assert.equal(p.calls.filter(c => c.path === '/emails').length, 9);
     assert.equal(p.calls.filter(c => c.path === '/events/send').length, 1);
     assert.equal(JSON.parse(f.leads.get('lead:test_user_mock@example.com')).session_at, '2026-11-13T00:00:00.000Z');
   });
@@ -172,7 +174,7 @@ test('durable scheduling, authenticated hooks, retries and cancellation', async 
     await assert.rejects(() => purchaseReminders(seat(), f.env));
     await retryReminders(f.env);
     assert.equal(p.calls.filter(c => c.path === '/emails' && c.headers['Idempotency-Key'].endsWith('-E1')).length, 1);
-    assert.equal(p.accepted.size, 9);
+    assert.equal(p.accepted.size, 10);
   });
 
   await t.test('a lost accepted response recovers the same email with the same key', async () => {
@@ -186,7 +188,7 @@ test('durable scheduling, authenticated hooks, retries and cancellation', async 
     await assert.rejects(() => purchaseReminders(seat(), f.env));
     await purchaseReminders(seat(), f.env);
     assert.equal(f.sql.prepare("SELECT email_id FROM clone_webinar_steps WHERE step = 'E1'").get().email_id, 'mock-lost-email');
-    assert.equal(p.accepted.size, 9);
+    assert.equal(p.accepted.size, 10);
   });
 
   await t.test('an ambiguous submission older than 24 hours requires reconciliation', async () => {
@@ -196,7 +198,7 @@ test('durable scheduling, authenticated hooks, retries and cancellation', async 
     await assert.rejects(() => purchaseReminders(seat(), f.env), /reconciliation/);
     Date.now = () => ms;
     assert.equal(p.calls.filter(c => c.path === '/emails').length, 1);
-    assert.equal(f.sql.prepare("SELECT state FROM clone_webinar_steps WHERE step = 'E1'").get().state, 'unknown');
+    assert.equal(f.sql.prepare("SELECT state FROM clone_webinar_steps WHERE step = 'C0'").get().state, 'unknown');
   });
 
   await t.test('an ambiguous purchase event is held for review instead of triggering twice', async () => {
@@ -206,7 +208,7 @@ test('durable scheduling, authenticated hooks, retries and cancellation', async 
     await assert.rejects(() => purchaseReminders(seat(), f.env));
     await assert.rejects(() => purchaseReminders(seat(), f.env), /event_needs_reconciliation/);
     assert.equal(p.calls.filter(c => c.path === '/events/send').length, 1);
-    assert.equal(p.calls.filter(c => c.path === '/emails').length, 8);
+    assert.equal(p.calls.filter(c => c.path === '/emails').length, 9);
   });
 
   await t.test('late retries skip past unsent reminders', async () => {
@@ -217,10 +219,30 @@ test('durable scheduling, authenticated hooks, retries and cancellation', async 
     Date.now = () => Date.parse('2026-11-12T23:55:00Z');
     await purchaseReminders(seat(), f.env);
     Date.now = () => ms;
-    assert.deepEqual(p.calls.filter(c => c.path === '/emails' && p.accepted.has(c.headers['Idempotency-Key'])).map(c => c.headers['Idempotency-Key'].split('-').pop()), ['E1', 'E6', 'E7', 'E8']);
+    assert.deepEqual(p.calls.filter(c => c.path === '/emails' && p.accepted.has(c.headers['Idempotency-Key'])).map(c => c.headers['Idempotency-Key'].split('-').pop()), ['C0', 'E1', 'E6', 'E7', 'E8']);
   });
 
-  await t.test('missing links hold E4-E8 until they are configured, then send them', async () => {
+  await t.test('a buyer booked before C0 existed gets the Zoom confirmation once the link is set, and only once', async () => {
+    const f = fixture(), p = provider(), ref = 'ORD-before-c0';
+    delete f.env.CLONE_ZOOM_JOIN_URL;
+    f.sql.prepare(`INSERT INTO clone_webinar_sessions (transaction_ref, payment_ref, email, purchased_at, session_at, session_label, unsubscribe_token, complete, initialized)
+      VALUES (?, ?, 'test_user_mock@example.com', ?, '2026-11-13T00:00:00.000Z', 'Thursday, November 12, 2026 at 7:00 PM EST', ?, 1, 1)`).run(ref, ref, ms, 'c'.repeat(64));
+    f.sql.prepare("INSERT INTO clone_webinar_steps(transaction_ref, step, payload, state) VALUES (?, 'E1', '{}', 'submitted')").run(ref);
+    await retryReminders(f.env);
+    assert.equal(f.sql.prepare("SELECT state FROM clone_webinar_steps WHERE step = 'C0'").get().state, 'awaiting_link');
+    assert.equal(p.calls.length, 0, 'no Zoom link yet: nothing may be sent');
+    f.env.CLONE_ZOOM_JOIN_URL = join;
+    await retryReminders(f.env);
+    await retryReminders(f.env);
+    const c0 = p.calls.filter(c => c.path === '/emails' && JSON.parse(c.body).tags[1].value === 'C0');
+    assert.equal(c0.length, 1);
+    const body = JSON.parse(c0[0].body);
+    assert.ok(body.text.includes(join));
+    assert.equal(body.scheduled_at, undefined, 'sent at once, not scheduled');
+    assert.equal(f.sql.prepare("SELECT state FROM clone_webinar_steps WHERE step = 'C0'").get().state, 'submitted');
+  });
+
+  await t.test('missing links hold C0 and E4-E8 until they are configured, then send them', async () => {
     const f = fixture(), p = provider();
     delete f.env.CLONE_ZOOM_JOIN_URL; delete f.env.CLONE_REPLAY_URL;
     await purchaseReminders(seat(), f.env);
@@ -231,7 +253,7 @@ test('durable scheduling, authenticated hooks, retries and cancellation', async 
     assert.equal(p.calls.length, before, 'held steps must not call Resend every minute');
     f.env.CLONE_ZOOM_JOIN_URL = join; f.env.CLONE_REPLAY_URL = replay;
     await retryReminders(f.env);
-    assert.deepEqual(sent(), ['E1', 'E2', 'E3', 'E4', 'E5', 'E6', 'E7', 'E8']);
+    assert.deepEqual(sent(), ['E1', 'E2', 'E3', 'C0', 'E4', 'E5', 'E6', 'E7', 'E8']);
     assert.ok(JSON.parse(p.calls.find(c => c.path === '/emails' && JSON.parse(c.body).tags[1].value === 'E5').body).text.includes(join));
     assert.equal(f.sql.prepare('SELECT complete FROM clone_webinar_sessions').get().complete, 1);
   });
@@ -262,7 +284,7 @@ test('durable scheduling, authenticated hooks, retries and cancellation', async 
     await purchaseReminders(refund, f.env);
     await purchaseReminders(seat(), f.env);
     assert.equal(p.calls.filter(c => c.path.endsWith('/cancel')).length, 7);
-    assert.equal(p.calls.filter(c => c.path === '/emails').length, 8);
+    assert.equal(p.calls.filter(c => c.path === '/emails').length, 9);
     assert.equal(JSON.parse(f.leads.get('lead:test_user_mock@example.com')).purchased, false);
     await purchaseReminders({ type: 'refund.created', data: { transaction_history_id: 'ORD-mock-upsell' } }, f.env);
     assert.equal(p.calls.filter(c => c.path.endsWith('/cancel')).length, 7);
@@ -285,7 +307,7 @@ test('durable scheduling, authenticated hooks, retries and cancellation', async 
     await assert.rejects(() => purchaseReminders(seat(), f.env));
     await purchaseReminders({ type: 'refund.created', data: { payment_id: 'ORD-mock-seat' } }, f.env);
     assert.ok(p.calls.some(c => c.path === '/emails/mock-lost-schedule/cancel'));
-    assert.equal(p.accepted.size, 2);
+    assert.equal(p.accepted.size, 3);
     assert.equal(JSON.parse(f.leads.get('lead:test_user_mock@example.com')).purchased, false);
   });
 
@@ -314,7 +336,7 @@ test('durable scheduling, authenticated hooks, retries and cancellation', async 
       }
     } });
     await purchaseReminders(seat(), f.env);
-    assert.equal(p.accepted.size, 2, 'Idempotent recovery must not create another email');
+    assert.equal(p.accepted.size, 3, 'Idempotent recovery must not create another email');
     assert.equal(p.calls.filter(c => c.path.endsWith('/cancel')).length, 1);
   });
 
@@ -339,7 +361,7 @@ test('durable scheduling, authenticated hooks, retries and cancellation', async 
     await assert.rejects(() => purchaseReminders({ type: 'refund.created', data: { payment_id: 'ORD-mock-seat' } }, f.env), /reconciliation/);
     Date.now = () => ms;
     assert.equal(p.calls.filter(c => c.path.endsWith('/cancel')).length, 6);
-    assert.equal(p.calls.filter(c => c.path === '/emails').length, 8);
+    assert.equal(p.calls.filter(c => c.path === '/emails').length, 9);
     assert.equal(f.sql.prepare('SELECT complete FROM clone_webinar_sessions').get().complete, 2);
   });
 
@@ -353,7 +375,7 @@ test('durable scheduling, authenticated hooks, retries and cancellation', async 
     assert.equal((await unsubscribeReminders(new Request(url, { method: 'POST', body: 'List-Unsubscribe=One-Click' }), f.env)).status, 200);
     assert.equal(p.calls.filter(c => c.path.endsWith('/cancel')).length, 7);
     await purchaseReminders(seat({}, 'ORD-mock-new'), f.env);
-    assert.equal(p.calls.filter(c => c.path === '/emails').length, 8);
+    assert.equal(p.calls.filter(c => c.path === '/emails').length, 9);
     assert.equal((await unsubscribeReminders(new Request(url + 'bad'), f.env)).status, 404);
   });
 

@@ -1,5 +1,5 @@
 import { isSandbox, leadKey, paymentConfig } from './payment-config.js';
-import { assignSession, escapeHtml, lateBuyer, missingLink, reminderLinks, reminderMessage, reminderPlan, replayStep, SALES_CLOSE,
+import { assignSession, escapeHtml, lateBuyer, missingLink, reminderLinks, reminderMessage, reminderPlan, replayStep, SALES_CLOSE, salesClosed,
   SANDBOX_REMINDER_RECIPIENT } from './reminder-plan.js';
 
 const DAY = 24 * 60 * 60 * 1000;
@@ -265,12 +265,30 @@ async function initializeSteps(env, session) {
   await run(db, 'UPDATE clone_webinar_sessions SET initialized = 1 WHERE transaction_ref = ?', session.transaction_ref);
 }
 
+// Buyers booked before the C0 confirmation existed get it too: add the missing step (held until the Zoom link is set)
+// and reopen the session so the per-minute retry sends it. Idempotent; late, closed and cancelled sessions are left alone.
+export async function backfillConfirmation(env) {
+  if (salesClosed()) return;
+  const db = reminderDb(env);
+  const missing = await rows(db, `SELECT * FROM clone_webinar_sessions s WHERE state = 'active' AND initialized = 1
+    AND NOT EXISTS (SELECT 1 FROM clone_webinar_steps t WHERE t.transaction_ref = s.transaction_ref AND t.step = 'C0') LIMIT 50`);
+  for (const session of missing) {
+    if (lateBuyer(session)) continue;
+    const plan = reminderPlan(session, env).find(p => p.step === 'C0');
+    await run(db, `INSERT INTO clone_webinar_steps(transaction_ref, step, scheduled_at, payload, state)
+      VALUES (?, 'C0', NULL, ?, ?) ON CONFLICT(transaction_ref, step) DO NOTHING`,
+    session.transaction_ref, JSON.stringify(reminderMessage(session, plan, env)), plan.awaiting ? 'awaiting_link' : 'pending');
+    await run(db, 'UPDATE clone_webinar_sessions SET complete = 0 WHERE transaction_ref = ? AND complete = 1', session.transaction_ref);
+  }
+}
+
 export async function retryReminders(env) {
   if (!env.CLONE_UPSELLS) return;
+  try { await backfillConfirmation(env); } catch { console.error('Clone confirmation backfill pending.'); }
   // Skip sessions whose only open steps still wait for an unset link, so the
   // per-minute cron does not call Resend for them until the link is configured.
   const links = reminderLinks(env);
-  const held = ['E4', 'E5', 'E6', 'E7', 'E8', 'L1'].filter(step => missingLink(step, links));
+  const held = ['C0', 'E4', 'E5', 'E6', 'E7', 'E8', 'L1'].filter(step => missingLink(step, links));
   const sessions = await rows(reminderDb(env), `SELECT transaction_ref FROM clone_webinar_sessions s
     WHERE complete = 0 AND locked_until < ? AND (state != 'active' OR initialized = 0 OR EXISTS (
       SELECT 1 FROM clone_webinar_steps t WHERE t.transaction_ref = s.transaction_ref

@@ -46,7 +46,7 @@ test('every buyer before 5:30 PM PT (8:30 PM ET) Nov 12 gets the single Nov 12 s
 test('a Nov 3 buyer gets the day-before email on Nov 11 and the morning-of email on Nov 12; late buyers get only L1', () => {
   const env = { CLONE_PAYMENT_MODE: 'production', CLONE_ZOOM_JOIN_URL: join, CLONE_REPLAY_URL: replay };
   const steps = Object.fromEntries(reminderPlan({ transaction_ref: 'T', purchased_at: early, session_at: SESSION }, env, early).map(s => [s.step, s]));
-  assert.deepEqual(Object.keys(steps), ['E1', 'E2', 'E3', 'E4', 'E5', 'E6', 'E7', 'E8']);
+  assert.deepEqual(Object.keys(steps), ['C0', 'E1', 'E2', 'E3', 'E4', 'E5', 'E6', 'E7', 'E8']);
   assert.equal(steps.E2.scheduled_at, '2026-11-12T00:00:00.000Z'); assert.equal(steps.E2.skip, null);
   assert.equal(steps.E3.scheduled_at, '2026-11-12T14:00:00.000Z'); assert.equal(steps.E3.skip, null);
   assert.equal(steps.E8.scheduled_at, '2026-11-13T14:00:00.000Z');
@@ -60,7 +60,7 @@ test('a Nov 3 buyer gets the day-before email on Nov 11 and the morning-of email
   // Paying while the session is live (7 PM to the 8:30 PM ET close) sends the join link at once.
   const live745pm = Date.parse('2026-11-13T00:45:00Z');
   const liveBuyer = reminderPlan({ transaction_ref: 'T', purchased_at: live745pm, session_at: SESSION }, env, live745pm);
-  assert.deepEqual(liveBuyer.filter(s => !s.skip).map(s => [s.step, s.scheduled_at]), [['E1', null], ['E6', null], ['E8', '2026-11-13T14:00:00.000Z']]);
+  assert.deepEqual(liveBuyer.filter(s => !s.skip).map(s => [s.step, s.scheduled_at]), [['C0', null], ['E1', null], ['E6', null], ['E8', '2026-11-13T14:00:00.000Z']]);
   assert.equal(liveBuyer.find(s => s.step === 'E6').awaiting, null);
   assert.equal(reminderPlan({ transaction_ref: 'T', purchased_at: live745pm, session_at: SESSION }, {}, live745pm).find(s => s.step === 'E6').awaiting, 'missing_join_url');
 });
