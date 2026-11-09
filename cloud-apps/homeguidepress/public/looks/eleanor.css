@@ -5,7 +5,6 @@
    the brand pill move with CSS scroll timelines where the browser has them, and simply stay put where it doesn't. */
 @font-face { font-family: "Fraunces"; src: url(/looks/eleanor/fonts/fraunces-latin-var.woff2) format("woff2"); font-weight: 500 700; font-style: normal; font-display: swap; }
 @font-face { font-family: "General Sans"; src: url(/looks/eleanor/fonts/general-sans-400-normal.woff2) format("woff2"); font-weight: 400; font-style: normal; font-display: swap; }
-@font-face { font-family: "General Sans"; src: url(/looks/eleanor/fonts/general-sans-500-normal.woff2) format("woff2"); font-weight: 500; font-style: normal; font-display: swap; }
 @font-face { font-family: "General Sans"; src: url(/looks/eleanor/fonts/general-sans-600-normal.woff2) format("woff2"); font-weight: 600; font-style: normal; font-display: swap; }
 @font-face { font-family: "General Sans"; src: url(/looks/eleanor/fonts/general-sans-700-normal.woff2) format("woff2"); font-weight: 700; font-style: normal; font-display: swap; }
 
@@ -47,7 +46,8 @@ a { color: inherit; }
 .cta-off:hover { filter: none; transform: none; box-shadow: none; }
 
 /* Hero: a blurred wash of the channel art, the pitch left, the book right */
-.hero-band { position: relative; overflow: hidden; background: radial-gradient(120% 120% at 85% 0%, var(--tint), var(--paper) 60%); border-bottom: 1px solid var(--line); }
+/* clip, not hidden: hidden makes the band a scroll container, and the buy bar's timeline would watch it, not the page */
+.hero-band { position: relative; overflow: hidden; overflow: clip; background: radial-gradient(120% 120% at 85% 0%, var(--tint), var(--paper) 60%); border-bottom: 1px solid var(--line); }
 .hero-band > .wrap { position: relative; z-index: 2; }
 .hero-band::before { content: ""; position: absolute; inset: -12%; z-index: 0; background-image: url(/looks/eleanor/art-wash.jpg); background-size: cover; background-position: center right; filter: blur(56px) saturate(.8); opacity: calc(.92 - .39 * .34); }
 .hero-band::after { content: ""; position: absolute; inset: 0; z-index: 1; background: radial-gradient(85% 120% at 78% 6%, color-mix(in srgb, var(--fill) 15%, transparent), transparent 62%), linear-gradient(100deg, var(--paper) 20%, color-mix(in srgb, var(--paper) 74%, transparent) 60%, color-mix(in srgb, var(--paper) 56%, transparent)); }
@@ -283,6 +283,9 @@ footer p { margin: 10px auto 0; max-width: 70ch; font-size: 12.5px; }
   .madepill { left: 12px; bottom: 12px; padding: 6px 10px; }
   .madepill-lead { font-size: 10.5px; }
   .madepill-mark { font-size: 13px; }
+  /* Not in the source: there the unwrapping button widens the hero past a phone screen and cuts the headline off. */
+  .hero-copy { min-width: 0; }
+  .cta-lg, .cta-inv { white-space: normal; justify-content: center; text-align: center; padding: 14px 20px; }
 }
 @media (max-width: 760px) {
   ul.myths { gap: 22px; }
