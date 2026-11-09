@@ -18,7 +18,7 @@ const NAMES = {
   'home-guide-press': 'Elle', 'short-form': 'Samantha', accounting: 'Elizabeth', developer: 'Lucy', qc: 'Jessica', inbox: 'Zendaya',
   spotify: 'Daisy', moneyclaw: 'Mila', historient: 'Emma', 'yt-strategy': 'Indy',
 };
-const nameOf = (slug) => NAMES[slug] || String(slug || '');
+export const nameOf = (slug) => NAMES[slug] || String(slug || '');
 const STAGE = { todo: 'Not started', doing: 'In production', waiting_on_jon: 'Waiting on you', qc: 'In QC', review: 'In Review', done: 'Done' };
 const SPONSOR_VIDEO = /\bvideo\s+\d+\b/i; // as tools/weekly_counts.py
 const ST = {
