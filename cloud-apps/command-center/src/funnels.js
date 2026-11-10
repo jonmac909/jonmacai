@@ -9,7 +9,7 @@ const TAG = 'src=dashboard-check';
 const SINGLE = 27;
 const CHECKOUT = /^https:\/\/(?:www\.)?commas\.com\/checkout\/[A-Za-z0-9]+/;
 const TZ = 'America/Vancouver';
-const RANK = { crit: 0, risk: 1, ok: 2 };
+const RANK = { crit: 0, risk: 1, blue: 2, ok: 2 }; // blue: reaches a checkout, no sale yet; not a problem
 
 async function hit(fetcher, url) {
   try {
@@ -37,7 +37,7 @@ async function lastSales(db) {
 function buyOf(buy, p, sale, salesKnown) {
   if (buy.code === 302 && CHECKOUT.test(buy.to)) {
     if (!salesKnown) return { text: 'Goes to checkout', cls: 'risk', note: 'Sales could not be read' };
-    if (!sale) return { text: 'No sale yet', cls: 'risk', note: 'Goes to a Commas checkout; no sale proves it yet' };
+    if (!sale) return { text: 'Reaches checkout', cls: 'blue', note: `No sale yet to prove the ${usd(p.price)} price` };
     const paid = sale.amount_cents / 100;
     const note = `Last sale ${usd(paid)} on ${day(sale.last)}, ${sale.n} sold`;
     return Math.abs(paid - p.price) < 0.005 ? { text: 'Working', cls: 'ok', note } : { text: 'Check price', cls: 'crit', note: `${note}; the page says ${usd(p.price)}` };
@@ -61,6 +61,7 @@ export async function funnelsData(env, fetcher = fetch, nowMs = Date.now()) {
       price: p.price === SINGLE ? { text: usd(p.price), cls: 'ok' } : { text: usd(p.price), cls: 'risk', note: `Not the ${usd(SINGLE)} single price` },
       buy: buyOf(buy, p, sales?.[p.key], !!sales),
       order: i,
+      reach: buy.code === 302 && CHECKOUT.test(buy.to),
     };
     row.worst = Math.min(...[row.page, row.price, row.buy].map((x) => RANK[x.cls]));
     return row;
@@ -73,8 +74,9 @@ export async function funnelsData(env, fetcher = fetch, nowMs = Date.now()) {
     total: rows.length,
     loads: count((r) => r.page.cls === 'ok'),
     working: count((r) => r.buy.cls === 'ok'),
+    reach: count((r) => r.reach),
     problems: count((r) => r.worst === RANK.crit),
     salesKnown: !!sales,
-    rows: rows.map(({ order, worst, ...r }) => r),
+    rows: rows.map(({ order, worst, reach, ...r }) => r),
   };
 }

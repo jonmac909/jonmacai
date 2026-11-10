@@ -14,7 +14,7 @@ export function render(data) {
   const rows = f.rows.map((r) => `<tr><td><b>${esc(r.book)}</b><small>${esc(r.author)}</small></td><td>${esc(r.channel)}</td>
     <td><a href="${esc(r.url)}" target="_blank" rel="noopener">${esc(r.url.replace(/^https:\/\//, ''))}</a><small>${cell(r.page)}</small></td>
     <td>${cell(r.price)}</td><td>${cell(r.buy)}</td></tr>`).join('');
-  const sub = `${f.total} pages · ${f.loads} load · ${f.working} with a working checkout${f.problems ? ` · ${f.problems} to fix` : ''}`;
+  const sub = `${f.total} pages · ${f.loads} load · ${f.reach} reach a checkout · ${f.working} with a working checkout${f.problems ? ` · ${f.problems} to fix` : ''}`;
   return `<div class="wrap">
   ${head(sub)}
   <div class="card pad"><div class="cardhead"><h2>Book pages</h2><span class="meta">Checked live at ${esc(f.checked)} ${again}</span></div>

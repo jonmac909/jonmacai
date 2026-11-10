@@ -49,8 +49,11 @@ test('problems: no checkout, a page that is down, a sale at another price, no sa
   assert.deepEqual([by(f, down.key).page.text, by(f, down.key).page.note], ['Down', 'Answered 500']);
   assert.equal(by(f, wrongPrice.key).buy.text, 'Check price');
   assert.match(by(f, wrongPrice.key).buy.note, /Last sale \$19 on Nov 8/);
-  assert.equal(by(f, unsold.key).buy.text, 'No sale yet');
+  assert.deepEqual([by(f, unsold.key).buy.text, by(f, unsold.key).buy.cls], ['Reaches checkout', 'blue']);
+  assert.equal(by(f, unsold.key).buy.note, `No sale yet to prove the $${unsold.price} price`);
   assert.equal(f.problems, 3);
+  assert.equal(f.reach, PRODUCTS.length - 1); // all but the one whose Buy goes back to the page
+  assert.ok(f.rows.every((r) => !('reach' in r)), 'internal fields stay off the rows');
   const firstOk = f.rows.findIndex((r) => [r.page, r.price, r.buy].every((x) => x.cls !== 'crit'));
   assert.ok(f.rows.slice(0, firstOk).length === 3, 'the three broken pages come first');
 });
@@ -88,7 +91,7 @@ test('the page: one row per book with its link, then loading and error states', 
     assert.ok(html.includes(`href="${SITE}/${p.path}"`), p.path);
   }
   assert.match(text, /Checked live at 3:30 PM/);
-  assert.match(text, /3 to fix/);
+  assert.match(text, new RegExp(`${PRODUCTS.length - 1} reach a checkout · 2 with a working checkout · 3 to fix`)); // working + the page that is down
   assert.ok(html.includes('data-fcheck'));
   assert.match(render({ pages: {}, d2: {} }), /Checking every book page/);
   assert.match(render({ pages: { funnels: { error: true } }, d2: {} }), /Could not check the pages/);
