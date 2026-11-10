@@ -48,3 +48,16 @@ test('/go/jiyoung still forwards to the Commas checkout', async () => {
   assert.equal(r.status, 302);
   assert.equal(r.headers.get('location'), CHECKOUT + '?src=aff-jiyoung-1');
 });
+
+test('jiyoung page has the sale popup (no clock, no strike-through), real numbers band, and 10 open FAQ questions', async () => {
+  const body = await (await get('/fresher-after-60-the-korean-way?src=aff-jiyoung-1')).text();
+  const at = body.indexOf('id="pop1"');
+  const pop = body.slice(at, body.indexOf('</label>', body.indexOf('modal-secondary', at)));
+  assert.doesNotMatch(body, /<script/);
+  assert.match(pop, /\$27/);
+  assert.match(pop, /href="\/go\/jiyoung"/);
+  assert.doesNotMatch(pop, /<s>|<del>|line-through|countdown|hours left|only \d+/i);
+  const band = body.slice(body.indexOf('class="counts"'), body.indexOf('</section>', body.indexOf('class="counts"')));
+  for (const n of ['<b>91</b>', '<b>4</b>', '<b>16</b>', '<b>8</b>', '<b>$27</b>']) assert.ok(band.includes(n), n);
+  assert.equal((body.match(/<details open>/g) || []).length, 10);
+});

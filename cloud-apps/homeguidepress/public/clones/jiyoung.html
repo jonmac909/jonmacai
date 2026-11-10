@@ -379,6 +379,20 @@ footer p{max-width:820px;margin:0 auto 10px}
 .shot2{display:block;width:100%;height:460px;object-fit:cover}
 .letter .photo img.auth{display:block;width:100%;max-width:360px;aspect-ratio:4/5;object-fit:cover;margin:0 auto;border-radius:20px;transform:none;box-shadow:0 18px 36px rgba(42,33,64,.22)}
 @media (max-width:820px){.mirror .shot{height:260px;object-position:50% 18%}.trio-icons img{height:180px}.step .n{width:34px;height:34px;font-size:18px}.step .txt{padding:12px 10px 14px;font-size:15px}.shot2{height:300px}.letter .photo img.auth{max-width:240px}}
+
+/* sale popup: opens over the hero shortly after load, no script, no clock, no strike-through price */
+.popx{position:absolute;opacity:0;pointer-events:none}
+.modal{position:fixed;inset:0;z-index:10000;display:flex;align-items:center;justify-content:center;padding:20px;background:rgba(20,14,34,.72);backdrop-filter:blur(4px);opacity:0;visibility:hidden;animation:popin .4s ease 1.2s forwards}
+@keyframes popin{to{opacity:1;visibility:visible}}
+.popx:checked+.modal{display:none}
+.modal-card{position:relative;width:100%;max-width:440px;max-height:92vh;overflow:auto;background:var(--white);color:var(--ink);border-radius:22px;padding:34px 30px 26px;text-align:center;box-shadow:0 30px 70px rgba(0,0,0,.45)}
+.modal-close{display:block;position:absolute;top:10px;right:14px;background:none;border:0;color:var(--muted);font-size:30px;line-height:1;cursor:pointer}
+.modal-card img{display:block;margin:0 auto 14px;height:170px;width:auto;border-radius:3px;box-shadow:0 12px 26px rgba(42,33,64,.35)}
+.modal-eyebrow{font-size:14px;letter-spacing:.14em;text-transform:uppercase;color:var(--cinnabar);font-weight:700}
+.modal-card h3{font-family:var(--serif);font-size:28px;line-height:1.25;margin:6px 0 8px}
+.modal-card p{font-size:18px;line-height:1.55;color:var(--muted);margin:0 0 16px}
+.modal .buy{width:100%}
+.modal-secondary{display:block;width:100%;margin-top:10px;background:none;border:0;cursor:pointer;font-size:16px;color:var(--muted);text-decoration:underline}
 </style>
 </head>
 <body>
@@ -473,14 +487,14 @@ footer p{max-width:820px;margin:0 auto 10px}
   </div>
 </section>
 
-<!-- IDEAS BAND -->
-<section class="counts" aria-label="The ideas in the guide">
+<!-- NUMBERS BAND -->
+<section class="counts" aria-label="The guide in numbers">
   <div class="wrap">
-    <div><b>Gentle</b><span>lukewarm water, soft towel</span></div>
-    <div><b>Steady</b><span>a little, every day</span></div>
-    <div><b>Thin</b><span>light layers, patted in</span></div>
-    <div><b>Daily</b><span>sun care each morning</span></div>
-    <div><b>Tested</b><span>one new product at a time</span></div>
+    <div><b>91</b><span>pages</span></div>
+    <div><b>4</b><span>parts</span></div>
+    <div><b>16</b><span>chapters</span></div>
+    <div><b>8</b><span>plain steps</span></div>
+    <div><b>$27</b><span>one-time price</span></div>
   </div>
 </section>
 
@@ -511,14 +525,14 @@ footer p{max-width:820px;margin:0 auto 10px}
       <p>A short, quiet check before a new cleanser, cream, sunscreen or makeup reaches your face.</p>
       <div class="need"><span>the one new product</span><span>clean, dry hands</span><span>a small notebook</span><span>daylight</span><span>lukewarm water</span></div>
       <div class="steps">
-        <div class="step"><img src="/looks/jiyoung/step-1.jpg" width="560" height="560" loading="lazy" alt="Three plain bottles and tubes on a white tray, with a folded towel"><div class="txt"><span class="n">1</span><br>Wash and dry your hands. Pick just one new product.</div></div>
-        <div class="step"><img src="/looks/jiyoung/step-2.jpg" width="560" height="560" loading="lazy" alt="A morning sink tray with a row of plain bottles and a towel"><div class="txt"><span class="n">2</span><br>Choose a small, clean spot: the inner forearm or behind the ear.</div></div>
-        <div class="step"><img src="/looks/jiyoung/step-3.jpg" width="560" height="560" loading="lazy" alt="Hand cream, a bottle and a nail file on a folded cloth"><div class="txt"><span class="n">3</span><br>Apply a little, as the maker says. More does not help.</div></div>
-        <div class="step"><img src="/looks/jiyoung/step-4.jpg" width="560" height="560" loading="lazy" alt="A bedside table with a tube and a towel under a soft lamp"><div class="txt"><span class="n">4</span><br>Wait as long as the label asks. Without a note, a day or two is a careful choice.</div></div>
-        <div class="step"><img src="/looks/jiyoung/step-5.jpg" width="560" height="560" loading="lazy" alt="A notebook, a pencil and a small mirror by a bright window"><div class="txt"><span class="n">5</span><br>Look at the spot in daylight each day for redness, bumps or swelling.</div></div>
-        <div class="step"><img src="/looks/jiyoung/step-6.jpg" width="560" height="560" loading="lazy" alt="A bowl of warm water, a cloth and a soap bar on a shelf"><div class="txt"><span class="n">6</span><br>Anything there? Stop, rinse with lukewarm water and set it aside.</div></div>
-        <div class="step"><img src="/looks/jiyoung/step-7.jpg" width="560" height="560" loading="lazy" alt="A pot of cream color and soft pads on a linen cloth"><div class="txt"><span class="n">7</span><br>Still calm? Try a small patch of your face, like the jawline, for a few days.</div></div>
-        <div class="step done"><img src="/looks/jiyoung/step-8.jpg" width="560" height="560" loading="lazy" alt="A plain notebook and a pencil beside a hand mirror"><div class="txt"><span class="n">&#10003;</span><br>Write one line in your skin diary, then wait before the next new thing.</div></div>
+        <div class="step"><img src="/looks/jiyoung/step-1.jpg" width="560" height="560" loading="lazy" alt="Jiyoung at her vanity, ready to begin"><div class="txt"><span class="n">1</span><br>Wash and dry your hands. Pick just one new product.</div></div>
+        <div class="step"><img src="/looks/jiyoung/step-2.jpg" width="560" height="560" loading="lazy" alt="Jiyoung close up, looking calmly at the camera"><div class="txt"><span class="n">2</span><br>Choose a small, clean spot: the inner forearm or behind the ear.</div></div>
+        <div class="step"><img src="/looks/jiyoung/step-3.jpg" width="560" height="560" loading="lazy" alt="Jiyoung beside the mirror and her shelf"><div class="txt"><span class="n">3</span><br>Apply a little, as the maker says. More does not help.</div></div>
+        <div class="step"><img src="/looks/jiyoung/step-4.jpg" width="560" height="560" loading="lazy" alt="Jiyoung, relaxed, waiting a moment"><div class="txt"><span class="n">4</span><br>Wait as long as the label asks. Without a note, a day or two is a careful choice.</div></div>
+        <div class="step"><img src="/looks/jiyoung/step-5.jpg" width="560" height="560" loading="lazy" alt="Jiyoung at her vanity in soft daylight"><div class="txt"><span class="n">5</span><br>Look at the spot in daylight each day for redness, bumps or swelling.</div></div>
+        <div class="step"><img src="/looks/jiyoung/step-6.jpg" width="560" height="560" loading="lazy" alt="Jiyoung, calm, after the test"><div class="txt"><span class="n">6</span><br>Anything there? Stop, rinse with lukewarm water and set it aside.</div></div>
+        <div class="step"><img src="/looks/jiyoung/step-7.jpg" width="560" height="560" loading="lazy" alt="Jiyoung close up, smiling gently"><div class="txt"><span class="n">7</span><br>Still calm? Try a small patch of your face, like the jawline, for a few days.</div></div>
+        <div class="step done"><img src="/looks/jiyoung/step-8.jpg" width="560" height="560" loading="lazy" alt="Jiyoung, finished for the day"><div class="txt"><span class="n">&#10003;</span><br>Write one line in your skin diary, then wait before the next new thing.</div></div>
       </div>
       <p class="careful"><b>Take care:</b> stop at once if you feel stinging or itching, or see redness. If a rash spreads, swells or hurts, see a doctor. The guide marks steps like this with a Take Care box.</p>
     </div>
@@ -751,15 +765,16 @@ footer p{max-width:820px;margin:0 auto 10px}
       <h2>Questions, answered plainly</h2>
     </div>
     <div class="faq">
-      <details><summary>Is Jiyoung a doctor or a skin specialist?</summary><p>No. Jiyoung Han is an AI-created character, and this guide offers general information only. It is not medical or dermatology advice. For a rash, a spot that changes, or itching that will not go away, please see your doctor.</p></details>
-      <details><summary>Do I need to be Korean to use it?</summary><p>No. These are simple habits that many Korean routines share, and nothing in the guide needs special products from Korea.</p></details>
-      <details><summary>Will it make me look younger?</summary><p>It makes no promises about results, and no step in it changes how old you look. It aims for skin that feels comfortable and a face that looks rested.</p></details>
-      <details><summary>Do I need to buy a lot of products?</summary><p>No. The starting routine uses three: a gentle cleanser, a moisturizer and a broad-spectrum sunscreen. Everything else is optional, and the guide names no brands.</p></details>
-      <details><summary>My skin is easily bothered.</summary><p>The guide starts with a patch test and adds one new product at a time. Strong products with acids or retinol are left out. Ask your doctor or pharmacist about any skin problem.</p></details>
-      <details><summary>I have hooded eyes.</summary><p>There is a section just for you: a soft brow, a thin line close to the lashes, and color placed where your lid shows when your eyes are open.</p></details>
-      <details><summary>Computers are not my strong suit.</summary><p>That is fine. Right after you pay, we email you a download link. Click it once and the guide is on your device. Print only the pages you need.</p></details>
-      <details><summary>Does anything come in the mail?</summary><p>No. The guide is a file you download, so no parcel is coming.</p></details>
-      <details><summary>What if it is not for me?</summary><p>Write to us within 30 days of buying and you get your money back.</p></details>
+      <details open><summary>Is Jiyoung a doctor or a skin specialist?</summary><p>No. Jiyoung Han is an AI-created character, and this guide offers general information only. It is not medical or dermatology advice. For a rash, a spot that changes, or itching that will not go away, please see your doctor.</p></details>
+      <details open><summary>Do I need to be Korean to use it?</summary><p>No. These are simple habits that many Korean routines share, and nothing in the guide needs special products from Korea.</p></details>
+      <details open><summary>Will it make me look younger?</summary><p>It makes no promises about results, and no step in it changes how old you look. It aims for skin that feels comfortable and a face that looks rested.</p></details>
+      <details open><summary>Do I need to buy a lot of products?</summary><p>No. The starting routine uses three: a gentle cleanser, a moisturizer and a broad-spectrum sunscreen. Everything else is optional, and the guide names no brands.</p></details>
+      <details open><summary>My skin is easily bothered.</summary><p>The guide starts with a patch test and adds one new product at a time. Strong products with acids or retinol are left out. Ask your doctor or pharmacist about any skin problem.</p></details>
+      <details open><summary>I have hooded eyes.</summary><p>There is a section just for you: a soft brow, a thin line close to the lashes, and color placed where your lid shows when your eyes are open.</p></details>
+      <details open><summary>Computers are not my strong suit.</summary><p>That is fine. Right after you pay, we email you a download link. Click it once and the guide is on your device. Print only the pages you need.</p></details>
+      <details open><summary>Does anything come in the mail?</summary><p>No. The guide is a file you download, so no parcel is coming.</p></details>
+      <details open><summary>Can I print it?</summary><p>Yes. The checklists and fill-in pages are made to print, and you can print only the pages you need.</p></details>
+      <details open><summary>What if it is not for me?</summary><p>Write to us within 30 days of buying and you get your money back.</p></details>
     </div>
   </div>
 </section>
@@ -793,5 +808,18 @@ footer p{max-width:820px;margin:0 auto 10px}
     <p>General information only, not medical or dermatology advice. Test any new product on a small spot first and stop if your skin reacts. For a rash that spreads, or a spot that changes, bleeds or does not heal, see a doctor. &copy; 2026 Home Guide Press.</p>
   </div>
 </footer>
+
+<input type="checkbox" class="popx" id="popx" aria-hidden="true" tabindex="-1">
+<div class="modal" id="pop1" role="dialog" aria-modal="true" aria-labelledby="pop1h">
+  <div class="modal-card">
+    <label class="modal-close" for="popx" aria-label="Close">&times;</label>
+    <img src="/covers/jiyoung.jpg" alt="Fresher After 60, the Korean Way, book cover">
+    <div class="modal-eyebrow">A note from Jiyoung Han</div>
+    <h3 id="pop1h">Fresher After 60, the Korean Way</h3>
+    <p>Gentle Korean habits, one small step at a time. Instant PDF download, with a 30-day money-back guarantee.</p>
+    <a class="buy" data-buy="jiyoung" href="/go/jiyoung">Get the guide for $27</a>
+    <label class="modal-secondary" for="popx">Keep reading first</label>
+  </div>
+</div>
 </body>
 </html>
