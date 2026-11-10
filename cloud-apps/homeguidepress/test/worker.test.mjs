@@ -242,13 +242,13 @@ test('every public page renders', async () => {
   assert.equal((await get(f, '/nope')).status, 404);
 });
 
-test('focus channel pages (Takeshi, Kenzo, Edna, Jiyoung, Peggy): served as clones, $27; Jiyoung and Peggy sell, the rest wait for their book', async () => {
+test('focus channel pages (Takeshi, Kenzo, Jiyoung, Peggy): served as clones, $27; Jiyoung and Peggy sell, the rest wait for their book', async () => {
   const ASSETS = { async fetch(u) {
     try { return new Response(readFileSync(new URL('../public' + new URL(u).pathname, import.meta.url), 'utf8')); }
     catch { return new Response('', { status: 404 }); }
   } };
   const pages = { takeshi: ['/the-japanese-way-to-a-lighter-home', 'Takeshi Morimoto'], kenzo: ['/calm-and-ready', 'Kenzo Arai'],
-    edna: ['/three-ingredients-and-a-pan', 'Edna Haynes'], jiyoung: ['/fresher-after-60-the-korean-way', 'Jiyoung Han'],
+    jiyoung: ['/fresher-after-60-the-korean-way', 'Jiyoung Han'],
     peggy: ['/the-fixed-income-pantry', 'Peggy Donovan'] };
   const SOLD = { jiyoung: 'https://commas.com/checkout/w4gy8obq1WOiKe', peggy: 'https://commas.com/checkout/g4XDGDUvQL5ougI' };
   for (const [key, [path, host]] of Object.entries(pages)) {
@@ -294,7 +294,7 @@ test('homepage shelf lists Jiyoung and Peggy and leaves out the 3 books not for 
 
 test('books with no chapter list yet still render from the template when no clone is served', async () => {
   const f = fixture();
-  for (const path of ['/the-japanese-way-to-a-lighter-home', '/calm-and-ready', '/three-ingredients-and-a-pan']) {
+  for (const path of ['/the-japanese-way-to-a-lighter-home', '/calm-and-ready']) {
     const r = await get(f, path);
     assert.equal(r.status, 200, path);
     assert.match(await r.text(), /The full chapter list goes here once the book is finished/, path);

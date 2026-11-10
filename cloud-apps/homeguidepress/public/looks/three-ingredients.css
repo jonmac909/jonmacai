@@ -1,0 +1,111 @@
+/* Three Ingredients and a Pan (Edna Haynes) in the look of a Gumroad product page
+   (bakingwithcarol.gumroad.com/l/easy-baking-for-seniors): white page, black 1px rules, pink #ff90e8 tag and button
+   with a black border and a pop-out hover, one grotesk at 16px. The source's ABC Favorit is not ours to ship, so
+   General Sans (ITF Free Font License) stands in. No JavaScript. */
+@font-face { font-family: "General Sans"; src: url(/looks/three-ingredients/fonts/general-sans-400-normal.woff2) format("woff2"); font-weight: 400; font-style: normal; font-display: swap; }
+@font-face { font-family: "General Sans"; src: url(/looks/three-ingredients/fonts/general-sans-700-normal.woff2) format("woff2"); font-weight: 700; font-style: normal; font-display: swap; }
+
+:root { --pink: #ff90e8; --ink: #000; }
+* { box-sizing: border-box; }
+body { margin: 0; font: 400 16px/22px "General Sans", system-ui, sans-serif; color: var(--ink); background: #fff; timeline-scope: --buy; -webkit-font-smoothing: antialiased; }
+h1, h2, h3, h5, p, figure { margin: 0; font-weight: 400; }
+a { color: inherit; }
+.sr { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+
+/* price tag: a pink swallowtail flag with a black edge */
+.tag { display: inline-block; background: var(--ink); clip-path: polygon(0 0, 100% 0, calc(100% - 15px) 50%, 100% 100%, 0 100%); }
+.tag > span { display: block; margin: 1px 0 1px 1px; padding: 3px 24px 3px 8px; background: var(--pink); clip-path: polygon(0 0, 100% 0, calc(100% - 15px) 50%, 100% 100%, 0 100%); white-space: nowrap; }
+
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 48px; padding: 0 16px; border: 1px solid var(--ink); border-radius: 4px; background: var(--pink); color: var(--ink); font: inherit; text-decoration: none; cursor: pointer; transition: transform .14s, box-shadow .14s; }
+.btn:hover:not(.off) { transform: translate(-4px, -4px); box-shadow: 4px 4px 0 var(--ink); }
+.btn.off { cursor: default; }
+.btn-out { background: #fff; }
+.btn-sm { white-space: nowrap; }
+.guar { display: inline-flex; align-items: center; gap: 8px; }
+
+/* fixed top bar (desktop) */
+.topbar { display: none; }
+
+/* the card */
+.card { display: grid; margin: 16px; border: 1px solid var(--ink); border-radius: 4px; background: #fff; }
+.covers { position: relative; aspect-ratio: 3 / 4; }
+.covers .slide { display: none; width: 100%; height: 100%; object-fit: contain; border-radius: 3px 3px 0 0; }
+#c1:checked ~ .s1, #c2:checked ~ .s2, #c3:checked ~ .s3 { display: block; }
+.dots { position: absolute; inset: auto 0 12px; display: flex; justify-content: center; gap: 8px; }
+.dots label { width: 18px; height: 18px; border: 1px solid var(--ink); border-radius: 50%; background: #fff; cursor: pointer; }
+#c1:checked ~ .dots label:nth-child(1), #c2:checked ~ .dots label:nth-child(2), #c3:checked ~ .dots label:nth-child(3) { background: var(--ink); }
+#c1:focus-visible ~ .dots label:nth-child(1), #c2:focus-visible ~ .dots label:nth-child(2), #c3:focus-visible ~ .dots label:nth-child(3) { outline: 2px solid var(--ink); outline-offset: 2px; }
+
+.title { padding: 24px; border-top: 1px solid var(--ink); }
+h1 { font-size: 40px; line-height: 48px; overflow-wrap: anywhere; }
+.price { border-top: 1px solid var(--ink); padding: 17px 24px; }
+.controls { border-top: 1px solid var(--ink); }
+.buy-box { display: grid; gap: 16px; padding: 24px; view-timeline: --buy block; }
+.inc { font-size: 14px; line-height: 20px; }
+.already { text-align: center; font-size: 14px; line-height: 20px; }
+.attr { display: flex; justify-content: space-between; gap: 16px; padding: 14px 16px; border: 1px solid var(--ink); border-radius: 4px; }
+.attr h5 { font-size: 14px; line-height: 18px; font-weight: 700; flex: none; }
+.attr span { font-size: 14px; line-height: 18px; text-align: right; }
+.refund { text-align: center; }
+.box2 { display: grid; gap: 12px; padding: 24px; border-top: 1px solid var(--ink); }
+.box2 h3 { font-size: 18.4px; line-height: 25px; }
+.box2 p { font-size: 14px; line-height: 20px; }
+
+.by { border-top: 1px solid var(--ink); display: grid; }
+.by > * { padding: 16px 24px; }
+.by .guar { border-top: 1px solid var(--ink); }
+.author { display: flex; align-items: center; gap: 8px; }
+.av { display: grid; place-items: center; width: 20px; height: 20px; border: 1px solid var(--ink); border-radius: 50%; background: var(--pink); font-size: 12px; line-height: 1; }
+.who { text-decoration: underline; }
+
+.desc { border-top: 1px solid var(--ink); padding: 24px; }
+.desc p { margin: 0 0 16px; }
+.desc h2 { font-size: 20px; line-height: 26px; margin: 32px 0 16px; }
+.desc ul { margin: 0 0 16px; padding-left: 48px; }
+.desc li { margin: 0 0 16px; }
+.desc strong { font-weight: 700; }
+.desc-body > :last-child { margin-bottom: 0; }
+.readmore { display: none; }
+
+footer { margin-top: 48px; border-top: 1px solid var(--ink); padding: 48px 16px; }
+.foot-in { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px 32px; max-width: 1230px; margin: 0 auto; }
+.brand { font-weight: 700; font-size: 20px; text-decoration: none; }
+footer nav { display: flex; gap: 24px; }
+footer p { flex-basis: 100%; font-size: 14px; }
+
+/* phone and tablet: stacked card, collapsed description, buy bar that rides up once the buy button scrolls away */
+@media (max-width: 1023px) {
+  .desc-body { max-height: 400px; overflow: hidden; -webkit-mask-image: linear-gradient(#000 60%, transparent); mask-image: linear-gradient(#000 60%, transparent); }
+  #more:checked ~ .desc-body { max-height: none; -webkit-mask-image: none; mask-image: none; }
+  .readmore { display: inline-flex; align-items: center; gap: 8px; margin-top: 8px; text-decoration: underline; cursor: pointer; }
+  #more:checked ~ .readmore { display: none; }
+  #more:focus-visible ~ .readmore { outline: 2px solid var(--ink); }
+  .covers .slide { border-radius: 3px 3px 0 0; }
+  .box2 { display: none; }
+  .buybar { position: fixed; inset: auto 0 0; z-index: 20; display: grid; gap: 10px; padding: 16px; background: #fff; border-top: 1px solid var(--ink); justify-items: start; }
+  .buybar .btn { width: 100%; }
+  @supports (animation-timeline: view()) {
+    .buybar { animation: bar-in linear both; animation-timeline: --buy; animation-range: exit 80% exit 100%; }
+  }
+  main { padding-bottom: 140px; }
+}
+@keyframes bar-in { from { transform: translateY(110%); } to { transform: none; } }
+
+/* desktop */
+@media (min-width: 1024px) {
+  .topbar { display: block; position: fixed; inset: 0 0 auto; z-index: 20; height: 80px; background: #fff; border-bottom: 1px solid var(--ink); }
+  .topbar-in { display: flex; align-items: center; gap: 32px; max-width: 1140px; height: 100%; margin: 0 auto; }
+  .topbar h3 { flex: 1; min-width: 0; font-size: 18.4px; line-height: 25px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .topbar .guar { white-space: nowrap; gap: 6px; }
+  main { padding-top: 80px; }
+  .card { width: 1140px; margin: 0 auto; border-top: 0; border-radius: 0 0 4px 4px; grid-template-columns: 2fr 1fr; grid-template-rows: auto auto auto auto 1fr; grid-template-areas: "covers covers" "title price" "title controls" "by controls" "desc controls"; }
+  .covers { grid-area: covers; aspect-ratio: auto; height: 705px; border-bottom: 1px solid var(--ink); }
+  .covers .slide { width: auto; max-width: 100%; margin: 0 auto; border-radius: 0; }
+  .title { grid-area: title; border-top: 0; }
+  .price { grid-area: price; border-top: 0; border-left: 1px solid var(--ink); padding: 25px 24px 0; height: 56px; }
+  .controls { grid-area: controls; border-top: 0; border-left: 1px solid var(--ink); }
+  .by { grid-area: by; grid-template-columns: 1fr auto; }
+  .by .guar { border-top: 0; border-left: 1px solid var(--ink); }
+  .desc { grid-area: desc; }
+  .buybar { display: none; }
+}

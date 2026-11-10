@@ -913,6 +913,8 @@ export const PRODUCTS = [
       path: 'three-ingredients-and-a-pan',
       ready: true,
       listed: false,
+      // Copies the look of the source channel's own Gumroad page (bakingwithcarol.gumroad.com): src/looks/edna.js.
+      theme: 'edna-look',
       persona: { host: "Edna Haynes", brand: "Edna Haynes" },
       kicker: "Easy baking, every day",
       title: "Three Ingredients and a Pan",

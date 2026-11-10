@@ -3,6 +3,7 @@
 import { BRAND, BY_KEY, LINK_DAYS, PRODUCTS, REFUND_DAYS, STATEMENT_NAME, SUPPORT_EMAIL, byline, priceText } from './products.js';
 import { dianeLook } from './looks/diane.js';
 import { eleanorLook } from './looks/eleanor.js';
+import { ednaLook } from './looks/edna.js';
 import { parisLook } from './looks/paris.js';
 
 export const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -60,6 +61,7 @@ export function landing(p, { checkoutReady, query = '' }) {
   if (p.theme === 'paris-look') return parisLook(p, { checkoutReady, query });
   if (p.theme === 'diane-look') return dianeLook(p, { checkoutReady, query });
   if (p.theme === 'eleanor-look') return eleanorLook(p, { checkoutReady, query });
+  if (p.theme === 'edna-look') return ednaLook(p, { checkoutReady, query });
   const sections = [];
   if (p.promises.length) sections.push(`<section><h2>What makes it different</h2><ul class="promises">${p.promises.map(([h, t]) => `<li><strong>${esc(h)}</strong><span>${esc(t)}</span></li>`).join('')}</ul></section>`);
   sections.push(p.chapters.length

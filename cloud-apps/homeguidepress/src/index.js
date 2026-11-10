@@ -9,7 +9,7 @@ const CLONES = { '/drivers-bundle': ['gary', 'gary'], '/ready-at-home': ['ray', 
   '/the-pitbull-playbook': ['pit', 'dale'], '/the-dark-house-plan': ['ruth', 'ruth'], '/yards-back': ['yards-back', 'gail'], '/reading-your-cat': ['reading-your-cat', 'nora'],
   '/japan-before-you-go': ['naomi', 'naomi'], '/the-good-old-cat-and-dog': ['the-good-old-cat-and-dog', 'helenwalter'],
   '/the-good-old-dog': ['the-good-old-dog', 'walter'], '/the-good-old-cat': ['the-good-old-cat', 'helen'],
-  '/the-japanese-way-to-a-lighter-home': ['takeshi', 'takeshi'], '/calm-and-ready': ['kenzo', 'kenzo'], '/three-ingredients-and-a-pan': ['edna', 'edna'],
+  '/the-japanese-way-to-a-lighter-home': ['takeshi', 'takeshi'], '/calm-and-ready': ['kenzo', 'kenzo'],
   '/fresher-after-60-the-korean-way': ['jiyoung', 'jiyoung'], '/the-fixed-income-pantry': ['peggy', 'peggy'] };
 const CLONE_CSP = "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; script-src 'self' 'unsafe-inline'; frame-src https://www.youtube.com https://www.youtube-nocookie.com; form-action 'self' mailto:; frame-ancestors 'none'; base-uri 'none'";
 
