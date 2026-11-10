@@ -1,0 +1,5 @@
+Source: https://bakingwithcarol.gumroad.com/l/easy-baking-for-seniors (Gumroad product page, Baking With Carol)
+Captured: 2026-11-09, Playwright (Edge) at 1440 and 390; screenshots in D:\AgentTeam\work\hgp-m-three-ingredients-proof\ (shot-src-*.png).
+Copied: layout and order (fixed top bar, photo carousel, title, author row, price flag, buy box, long description, footer), pink #ff90e8 tag and button with black border, one grotesk at 16px, mobile sticky buy bar.
+Replaced: author, book, cover and slides (our own art), price ($27), brand, all copy. Font: General Sans (free licence) stands in for Gumroad's ABC Favorit.
+Dropped, no honest equivalent: star ratings, rating bars, 2 customer reviews, wishlist, currency picker, Gumroad footer. Ratings slot carries the 30-day refund promise.
