@@ -30,6 +30,8 @@ test('ruth phone layout keeps the numbers strip and every section the source sho
   // no phone rule hides them
   for (const m of b.matchAll(/([^{}]*)\{display:none!important\}/g))
     assert.doesNotMatch(m[1], /\.stats|#inside|#house|#free|#honest/, 'hidden on phone: ' + m[1]);
+  // phone keeps all 8 questions, chapter text and nav button, and adds no sticky buy bar the source lacks
+  assert.doesNotMatch(b, /nth-of-type\(n\+5\)|class="mbuy"|\.chap \.part p\{display:none/);
   const buys = [...b.matchAll(/href="(\/go\/[^"]*)"/g)].map(m => m[1]);
   assert.ok(buys.length >= 3);
   for (const h of buys) assert.equal(h, '/go/ruth');
