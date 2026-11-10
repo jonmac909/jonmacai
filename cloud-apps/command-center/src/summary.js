@@ -129,8 +129,9 @@ function marketsSection(row0, nowMs) {
     const m = core.find((x) => x?.symbol === sym);
     if (!m || !Number.isFinite(Number(m.price))) return row(sym, '', 'Not in the MoneyClaw feed. Owner: Mila.', 'muted');
     const ath = Number(m.allTimeHigh);
-    const off = Number.isFinite(Number(m.pctOffHigh)) ? Number(m.pctOffHigh) : Number.isFinite(ath) && ath > 0 ? Math.round((1 - m.price / ath) * 1000) / 10 : null;
-    const day = Number.isFinite(Number(m.todayPct)) ? ` · today ${m.todayPct > 0 ? '+' : ''}${m.todayPct}%` : '';
+    const r1 = (x) => Math.round(Number(x) * 10) / 10; // one decimal: the feed can send 2.4226704540324375
+    const off = Number.isFinite(Number(m.pctOffHigh)) ? r1(m.pctOffHigh) : Number.isFinite(ath) && ath > 0 ? r1((1 - m.price / ath) * 100) : null;
+    const day = Number.isFinite(Number(m.todayPct)) ? ` · today ${r1(m.todayPct) > 0 ? '+' : ''}${r1(m.todayPct)}%` : '';
     return row(sym, money(Number(m.price), true), off == null ? `all-time high not in feed${day}` : `${off === 0 ? 'at its all-time high' : `${off}% below all-time high`}${day}`);
   });
   return section('markets', title, 'Mila', [src], { rows });
