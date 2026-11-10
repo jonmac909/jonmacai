@@ -145,6 +145,12 @@ test('markets: price and % below all-time high, a missing symbol or feed says so
   assert.equal(sec(buildSummary(ctx(), X()), 'markets').line, 'Market feed not connected (MoneyClaw). Owner: Mila.');
 });
 
+test('markets: percentages from the feed print with one decimal', () => {
+  const long = [{ symbol: 'VOO', price: 701.89, allTimeHigh: 716.39, todayPct: 2.4226704540324375, pctOffHigh: 3.55586424054159 }, { symbol: 'QQQ', price: 721.35, allTimeHigh: 748.65, todayPct: -0.04 }];
+  const m = sec(buildSummary(ctx({ by: money(ago(1), { markets: { core: long } }) }), X()), 'markets');
+  assert.deepEqual(m.rows.map((r) => r.sub), ['3.6% below all-time high · today +2.4%', '3.6% below all-time high · today 0%']);
+});
+
 const period = (total, extra = {}) => ({ total, ...extra });
 const expenses = (business) => ({ asOf: '2026-11-08', expenses: { business, personal: { yesterday: period(0), week: period(0), month: period(0), lastMonth: period(0) } } });
 const biz = (charges, from = '2026-10-01') => ({
