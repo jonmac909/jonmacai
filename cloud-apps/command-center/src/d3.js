@@ -37,7 +37,7 @@ export async function d3Data(env, nowMs) {
   };
   const today0 = new Date(midnight(vanYmd(nowMs))).toISOString();
   const [youtube, review, approvals, questions, usage, lastUsage, open, proofs, habits, calendar, charges,
-    tasks, finished, stuck, failsToday, runs, runBots] = await Promise.all([
+    tasks, finished, stuck, failsToday, runs, runBots, scripts] = await Promise.all([
     q('SELECT channel, sync_error FROM yt_api'),
     // Review cards with their newest proof link (a passed one first), as the card modal picks its deliverable.
     q(`SELECT t.id, t.title, t.owner, t.project, t.due, t.note, t.updated_at AS at,
@@ -66,10 +66,20 @@ export async function d3Data(env, nowMs) {
     q('SELECT bot, status, started_at, tokens FROM bot_runs WHERE started_at >= ? ORDER BY started_at LIMIT 2000', new Date(nowMs - DAY).toISOString()),
     // Bots that post runs: only runs from the last 30 days, newest first, bounded.
     q('SELECT DISTINCT bot FROM (SELECT bot FROM bot_runs WHERE started_at >= ? ORDER BY started_at DESC LIMIT 5000)', new Date(nowMs - 30 * DAY).toISOString()),
+    // Scripts page: open @JonMacAI cards, newest first, with the newest Doc link a proof carries (passed first) and
+    // whether a QC-passed proof names the a-roll or footage (a note that is still waiting on it, or a draft, doesn't count).
+    q(`SELECT t.id, t.title, t.status, t.stage, t.note, t.created_at,
+      (SELECT p.link FROM bot_proofs p WHERE p.task_id = t.id AND p.link LIKE 'https://docs.google.com/%'
+        ORDER BY p.status = 'passed' DESC, p.created_at DESC, p.rowid DESC LIMIT 1) AS doc,
+      EXISTS (SELECT 1 FROM bot_proofs p WHERE p.task_id = t.id AND p.status = 'passed'
+        AND (LOWER(COALESCE(p.note, '')) LIKE '%a-roll%' OR LOWER(COALESCE(p.note, '')) LIKE '%aroll%' OR LOWER(COALESCE(p.note, '')) LIKE '%footage%')
+        AND LOWER(COALESCE(p.note, '')) NOT LIKE '%waiting%' AND LOWER(COALESCE(p.note, '')) NOT LIKE '%draft%') AS footage
+      FROM bot_tasks t WHERE t.project = 'jonmacai' AND t.status IN ${OPEN} AND t.title LIKE '%@JonMacAI%'
+      ORDER BY t.created_at DESC, t.rowid DESC LIMIT 500`),
   ]);
   return {
     youtube, review, approvals, questions, usage, lastUsage: lastUsage && (lastUsage[0] || undefined), open, proofs, habits, calendar: calendar && parse(calendar[0]?.data), charges,
-    tasks, finished, stuck, failsToday, runs, runBots, today0, nowMs,
+    tasks, finished, stuck, failsToday, runs, runBots, scripts, today0, nowMs,
   };
 }
 
@@ -368,6 +378,24 @@ function blockersOf(D) {
   return out;
 }
 
+// ---- Scripts: every open @JonMacAI video card, newest first, with its script Doc and whether Jon has recorded it ----
+// Video card: title ends "- @JonMacAI" (a trailing "(note)" allowed) or names "@JonMacAI video:"; TEAM (QC helper)
+// cards are left out.
+// Doc: the first docs.google.com link in the note ("Script Doc: [label](url)"), else the newest Doc a proof carries.
+// Recorded: a QC-passed proof names the a-roll or footage (not waiting on it, not a draft), or the card's stage is past
+// recording (edit, render qc, publish; a pack can be built before Jon records). Everything else reads "To record".
+const VIDEO_CARD = /(^|\s)[-–—]\s*@JonMacAI\s*(\([^()]*\)\s*)?$|@JonMacAI video:/i;
+const PAST_RECORDING = new Set(['edit', 'render qc', 'publish']);
+const DOC = /https:\/\/docs\.google\.com\/[^\s)\]>"'<]+/i;
+const docOf = (note, proofDoc) => (String(note || '').match(DOC) || [])[0] || (DOC.test(proofDoc || '') ? String(proofDoc).match(DOC)[0] : null);
+function scriptsOf(D) {
+  if (!D.scripts) return null;
+  return D.scripts.filter((t) => VIDEO_CARD.test(t.title || '') && !/^\s*TEAM\b/i.test(t.title || '')).map((t) => {
+    const recorded = !!Number(t.footage) || PAST_RECORDING.has(String(t.stage || '').trim().toLowerCase());
+    return { id: t.id, title: t.title, at: t.created_at, doc: docOf(t.note, t.doc), status: recorded ? 'Recorded' : 'To record' };
+  });
+}
+
 export function buildD3(D) {
   const nowMs = D.nowMs;
   const win = monthWindow(nowMs);
@@ -389,6 +417,7 @@ export function buildD3(D) {
     queue: queueOf(D),
     team: teamOf(D, P.today),
     blockers: blockersOf(D),
+    scripts: scriptsOf(D),
     openCards: D.open ? Object.fromEntries(D.open.map((r) => [r.project || '', Number(r.n) || 0])) : null,
     goals: {
       tokenWeeks: tokenWeeks(D.usage, first, P.last),
