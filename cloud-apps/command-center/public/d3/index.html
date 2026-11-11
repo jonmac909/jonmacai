@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Jon Mac · Control room</title>
+<script>try{if(localStorage.getItem('d3-theme')==='dark')document.documentElement.setAttribute('data-theme','dark')}catch(e){}</script>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600&family=Geist:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="css/d3.css">
+</head>
+<body>
+<div class="d3">
+<div class="shell">
+<aside class="rail" aria-label="Menu">
+<div class="hd" style="padding: 0 8px">
+<span aria-hidden="true" style="display: inline-flex; align-items: center; justify-content: center; width: 34px; height: 34px; border-radius: 11px; background: #2563eb; color: #ffffff; font-size: 13px; font-weight: 700">JM</span>
+<div style="display: flex; flex-direction: column; line-height: 1.25"><b style="font-size: 15px; font-weight: 600">Jon Mac</b><span class="mut" style="font-size: 12px">Control room</span></div>
+</div>
+<nav class="nav" aria-label="Pages" id="nav">
+<a href="#goals" data-nav="goals"><svg class="ic" aria-hidden="true" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"></circle><circle cx="12" cy="12" r="5"></circle><circle cx="12" cy="12" r="1"></circle></svg>Goals</a>
+<a href="#team" data-nav="team"><svg class="ic" aria-hidden="true" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M22 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>Team</a>
+<a href="#blockers" data-nav="blockers"><svg class="ic" aria-hidden="true" viewBox="0 0 24 24"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><path d="M12 9v4"></path><path d="M12 17h.01"></path></svg>Blockers<span class="badge bad sp" id="nBlockers" hidden></span></a>
+<a href="#review" data-nav="review"><svg class="ic" aria-hidden="true" viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><path d="M22 4 12 14.01l-3-3"></path></svg>Review<span class="badge blue sp" id="nReview" hidden></span></a>
+<a href="#scripts" data-nav="scripts"><svg class="ic" aria-hidden="true" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><path d="M14 2v6h6"></path><path d="M16 13H8"></path><path d="M16 17H8"></path></svg>Scripts</a>
+<a href="#money" data-nav="money"><svg class="ic" aria-hidden="true" viewBox="0 0 24 24"><path d="M12 2v20"></path><path d="M17 6H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg>Money</a>
+<a href="#bluesky" data-nav="bluesky"><svg class="ic" aria-hidden="true" viewBox="0 0 24 24"><path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"></path></svg>Bluesky</a>
+<a href="#system" data-nav="system"><svg class="ic" aria-hidden="true" viewBox="0 0 24 24"><rect x="9" y="2" width="6" height="6" rx="1"></rect><rect x="2" y="16" width="6" height="6" rx="1"></rect><rect x="16" y="16" width="6" height="6" rx="1"></rect><path d="M5 16v-3a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v3"></path><path d="M12 12V8"></path></svg>System</a>
+</nav>
+<div class="stat" aria-label="System state" id="stat">
+<div><span class="dot"></span><span class="nfl">Loading</span></div>
+</div>
+<div class="seg" role="group" aria-label="Theme">
+<button type="button" data-theme-set="light" aria-pressed="true">Light</button>
+<button type="button" data-theme-set="dark" aria-pressed="false">Dark</button>
+</div>
+</aside>
+<main class="main" id="main"></main>
+</div>
+</div>
+<script type="module" src="js/app.js"></script>
+</body>
+</html>

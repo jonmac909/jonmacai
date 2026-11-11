@@ -1,0 +1,155 @@
+/* Dashboard 3 (docs/dashboard-3.md). The rules down to "Build additions" are the approved design's <style> block
+   (D:\AgentTeamriefs\dashboard3\Home.dc.html), unchanged except that the theme sits on <html data-theme>
+   so it is applied before the first paint. */
+body{margin:0;background:#eef0f3}
+html[data-theme="dark"] body{background:#0b0b0c}
+.d3{--ground:#eef0f3;--card:#ffffff;--card2:#f2f4f7;--line:#e1e4ea;--track:#dce0e7;--ink:#101216;--ink2:#474c56;--muted:#676d79;--link:#1d4ed8;--fill:#2563eb;--ok:#22a55b;--ok-ink:#157a41;--warn:#e59a0b;--warn-ink:#8a5a00;--bad:#e5484d;--bad-ink:#b3262b;--col1:#d3d9e4;--col2:#edf0f5;--shadow:0 1px 2px rgba(16,24,40,0.05);--sans:Geist,system-ui,-apple-system,"Segoe UI",sans-serif;--disp:Outfit,Geist,system-ui,-apple-system,"Segoe UI",sans-serif;color-scheme:light;font-family:var(--sans);font-size:14px;line-height:1.45;color:var(--ink);background:var(--ground);box-sizing:border-box;padding:16px;font-variant-numeric:tabular-nums}
+[data-theme="dark"] .d3{--ground:#0b0b0c;--card:#121213;--card2:#1b1b1d;--line:#28282b;--track:#2b2b2e;--ink:#f5f5f6;--ink2:#b7b7bc;--muted:#8f8f95;--link:#8ab4ff;--fill:#1f7aff;--ok:#34c773;--ok-ink:#4ade80;--warn:#f5b83d;--warn-ink:#f7c867;--bad:#f2555a;--bad-ink:#ff8d90;--col1:#2e2e31;--col2:#1c1c1e;--shadow:none;color-scheme:dark}
+.d3 *{box-sizing:border-box}
+.d3 h1{margin:0;font-family:var(--disp);font-size:34px;font-weight:400;letter-spacing:-0.02em;line-height:1.1}
+.d3 h2{margin:0;font-family:var(--disp);font-size:17px;font-weight:500}
+.d3 p{margin:0}
+.d3 a{color:var(--link)}
+.d3 button{font:inherit;cursor:pointer;color:inherit}
+.d3 .shell{max-width:1500px;margin:0 auto;display:flex;flex-wrap:wrap;gap:16px}
+.d3 .rail{flex:1 1 200px;min-width:0;background:var(--card);border:1px solid var(--line);border-radius:22px;box-shadow:var(--shadow);padding:18px 12px;display:flex;flex-direction:column;gap:18px}
+.d3 .main{flex:999 1 560px;min-width:0;display:flex;flex-direction:column;gap:16px}
+.d3 .nav{display:flex;flex-direction:column;gap:2px}
+.d3 .nav a{display:flex;align-items:center;gap:10px;min-height:40px;padding:0 12px;border-radius:12px;color:var(--ink2);font-size:14px;font-weight:500;text-decoration:none}
+.d3 .nav a[aria-current]{background:var(--card2);color:var(--ink);font-weight:600}
+.d3 .ic{width:17px;height:17px;flex:none;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.d3 .stat{display:flex;flex-direction:column;gap:8px;padding:14px;border-radius:14px;border:1px solid var(--line);font-size:13px;color:var(--ink2)}
+.d3 .stat div{display:flex;align-items:center;gap:8px}
+.d3 .seg{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px;padding:4px;border-radius:999px;background:var(--card2)}
+.d3 .seg button{min-height:32px;border:0;border-radius:999px;background:transparent;color:var(--ink2);font-size:13px;font-weight:500}
+.d3 .seg button[aria-pressed="true"]{background:var(--card);color:var(--ink);font-weight:600;box-shadow:var(--shadow)}
+.d3 .card{background:var(--card);border:1px solid var(--line);border-radius:22px;box-shadow:var(--shadow);padding:22px;min-width:0;display:flex;flex-direction:column;gap:14px}
+.d3 .cardhd{margin:-22px -22px 0;padding:16px 22px;border-bottom:1px solid var(--line)}
+.d3 .row{display:flex;flex-wrap:wrap;gap:16px}
+.d3 .hd{display:flex;align-items:center;gap:10px;min-width:0}
+.d3 .sp{margin-left:auto}
+.d3 .mut{color:var(--muted);font-size:13px}
+.d3 .sub{color:var(--ink2)}
+.d3 .dim{color:var(--muted);font-weight:400}
+.d3 .num{font-family:var(--disp);font-size:44px;font-weight:400;letter-spacing:-0.02em;line-height:1}
+.d3 .datechip{display:flex;flex-direction:column;align-items:center;justify-content:center;width:54px;height:54px;flex:none;border-radius:16px;background:var(--card);border:1px solid var(--line);box-shadow:var(--shadow);line-height:1.15}
+.d3 .datechip b{font-family:var(--disp);font-size:19px;font-weight:500}
+.d3 .datechip span{font-size:12px;color:var(--muted)}
+.d3 .chip{display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;flex:none;border-radius:11px;border:1px solid var(--line);color:var(--ink2)}
+.d3 .go{display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;flex:none;border-radius:11px;border:1px solid var(--line);color:var(--ink2);text-decoration:none}
+.d3 .av{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;flex:none;border-radius:50%;background:var(--card2);color:var(--ink2);font-size:11px;font-weight:600}
+.d3 .pill{display:inline-flex;align-items:center;gap:7px;padding:3px 10px;border-radius:8px;background:var(--card2);color:var(--ink2);font-size:12px;font-weight:500;white-space:nowrap}
+.d3 .pill.ok,.d3 .pill.warn,.d3 .pill.bad{background:transparent;box-shadow:inset 0 0 0 1px var(--line)}
+.d3 .pill.ok{color:var(--ok-ink)}.d3 .pill.warn{color:var(--warn-ink)}.d3 .pill.bad{color:var(--bad-ink)}
+.d3 .pill.ok::before,.d3 .pill.warn::before,.d3 .pill.bad::before{content:"";width:6px;height:6px;border-radius:50%;flex:none;background:currentColor}
+.d3 .badge{display:inline-flex;align-items:center;justify-content:center;min-width:24px;padding:2px 8px;border-radius:8px;font-size:12px;font-weight:600}
+.d3 .badge.bad{background:var(--card2);color:var(--ink)}
+.d3 .blue{background:#2563eb;color:#ffffff}
+.d3 .dot{display:inline-block;width:8px;height:8px;border-radius:50%;flex:none;background:var(--track)}
+.d3 .dot.g{background:var(--ok)}.d3 .dot.y{background:var(--warn)}.d3 .dot.r{background:var(--bad)}
+.d3 .btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:34px;padding:0 14px;border-radius:10px;border:1px solid var(--line);background:transparent;color:var(--ink);font-size:13px;font-weight:500;text-decoration:none;white-space:nowrap}
+.d3 .btn.sm{min-height:28px;padding:0 11px;font-size:12px;border-radius:8px}
+.d3 .pips{display:flex;gap:4px}
+.d3 .pip{display:block;flex:1;height:14px;border-radius:4px;background:var(--track)}
+.d3 .pip.f{background:var(--fill)}
+.d3 .bar{display:block;position:relative;height:8px;border-radius:4px;background:var(--track)}
+.d3 .bar i{position:absolute;left:0;top:0;bottom:0;max-width:100%;border-radius:4px;background:var(--fill)}
+.d3 .bar b{position:absolute;top:-4px;bottom:-4px;width:2px;margin-left:-1px;border-radius:1px;background:var(--ink)}
+.d3 .cols{display:flex;gap:6px;height:104px}
+.d3 .col{flex:1;min-width:0;position:relative;border-radius:8px;overflow:hidden;background:linear-gradient(180deg,var(--col1),var(--col2))}
+.d3 .col i{position:absolute;left:0;right:0;bottom:0;border-radius:8px;background:var(--fill)}
+.d3 .kr{display:flex;flex-direction:column;gap:8px}
+.d3 .krb{border:0;background:transparent;padding:0;display:flex;align-items:baseline;gap:10px;width:100%;text-align:left}
+.d3 .krn{flex:1;min-width:0;font-weight:500;color:var(--ink2)}
+.d3 .krv{font-family:var(--disp);font-size:17px;font-weight:500;white-space:nowrap}
+.d3 .krl{display:flex;align-items:center;gap:12px;min-height:16px}
+.d3 .krl .bar{flex:1}
+.d3 .tile{display:flex;align-items:center;gap:12px;flex:1;min-width:0;background:var(--card);border:1px solid var(--line);border-radius:22px;box-shadow:var(--shadow);padding:14px 18px;color:var(--ink);text-decoration:none}
+.d3 .inner{background:transparent;border:1px solid var(--line);border-radius:16px;padding:16px;display:flex;flex-direction:column;gap:12px;min-width:0}
+.d3 .kc{border:1px solid var(--line);border-radius:10px;padding:8px 12px;display:flex;align-items:center;gap:8px;min-width:0;font-size:13px}
+.d3 svg .ax{stroke:var(--line);stroke-width:1}
+.d3 svg .pace{stroke:var(--muted);stroke-width:1.5;stroke-dasharray:5 4}
+.d3 svg .act{fill:none;stroke:var(--fill);stroke-width:3;stroke-linejoin:round;stroke-linecap:round}
+.d3 svg .fc{fill:none;stroke:var(--ink2);stroke-width:1.5;stroke-dasharray:1 5;stroke-linecap:round}
+.d3 svg .today{stroke:var(--ink2);stroke-width:1}
+.d3 svg text{font-family:var(--sans);font-size:15px;fill:var(--ink2);text-anchor:middle}
+/* From the Team and Blockers designs' <style> block (Team.dc.html, Blockers.dc.html), unchanged, except that
+   ".d3 b{font-weight:600}" is kept off the Goals page, whose design (Home.dc.html) doesn't have it. */
+.d3 .main:not([data-page="goals"]) b{font-weight:600}
+.d3 .stack{display:flex;flex-direction:column;min-width:0}
+.d3 .ell{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.d3 .btn.pri{background:#2563eb;border-color:#2563eb;color:#ffffff}
+.d3 .btn.lg{min-height:44px;padding:0 22px;font-size:14px;border-radius:12px}
+.d3 .btn[aria-pressed="true"]{background:var(--ink);border-color:var(--ink);color:var(--card)}
+.d3 .thead{font-size:12px;color:var(--muted)}
+.d3 .brow{display:grid;grid-template-columns:170px minmax(0,1fr) 116px 60px 60px 56px 84px;gap:12px;align-items:center;width:100%;text-align:left;border:0;background:transparent;padding:12px 0}
+.d3 button.brow{border-top:1px solid var(--line)}
+.d3 .board{display:grid;gap:8px}
+.d3 .stage{border:1px solid var(--line);border-radius:14px;padding:10px;display:flex;flex-direction:column;gap:8px;min-width:0}
+.d3 .vcard{background:var(--card2);border-radius:10px;padding:8px 10px;display:flex;flex-direction:column;gap:2px;min-width:0;font-size:13px}
+.d3 .hrow{display:flex;align-items:center;gap:8px;min-height:28px;font-size:13px;min-width:0}
+.d3 .hrow > b{margin-left:auto;font-weight:500;white-space:nowrap}
+.d3 .blrow{display:grid;grid-template-columns:minmax(0,1fr) 160px 90px 104px;gap:12px;align-items:center;width:100%;text-align:left;border:0;border-top:1px solid var(--line);background:transparent;padding:14px 0}
+.d3 .blrow.first{border-top:0}
+.d3 .scrow{display:grid;grid-template-columns:minmax(0,1fr) 110px 120px;gap:12px;align-items:center;border-top:1px solid var(--line);padding:14px 0}
+.d3 .scrow.first{border-top:0}
+.d3 .qrow{display:flex;align-items:center;gap:10px;width:100%;min-height:56px;text-align:left;border:0;background:transparent;padding:8px 10px;border-radius:12px}
+.d3 .qrow[aria-current="true"]{background:var(--card2)}
+
+/* ---- Build additions (not in the design file) ---- */
+.d3{min-height:100vh}
+.d3 [hidden]{display:none !important}
+.d3 .nav a .badge{margin-left:auto}
+.d3 .nf{color:var(--muted);font-weight:400}
+.d3 .num.nf{font-size:22px;letter-spacing:0}
+.d3 .krb[aria-expanded]{cursor:pointer}
+/* Key results rows (Goals): name, actual / target, bar, status; stacks to two lines when the card is narrow. */
+.d3 .ks{container-type:inline-size}
+.d3 .ksl{display:flex;flex-direction:column}
+.d3 .ksr{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(60px,110px) 68px;gap:6px 12px;align-items:center;padding:9px 0;border-top:1px solid var(--line);font-size:14px}
+.d3 .ksl>.ksr:first-child{border-top:0}
+.d3 .ksn{display:flex;align-items:center;gap:8px;min-width:0;font-weight:500;color:var(--ink)}
+.d3 .ksv{font-family:var(--disp);font-weight:500;white-space:nowrap;text-align:right}
+.d3 .kss{font-size:12px;font-weight:500;color:var(--muted);text-align:right;white-space:nowrap}
+.d3 .kss.r{color:var(--bad-ink)}.d3 .kss.y{color:var(--warn-ink)}.d3 .kss.g{color:var(--ok-ink)}
+.d3 .ksr .bar{height:6px}.d3 .ksr .bar.nb{background:none}
+.d3 .ksr .bar i.r{background:var(--bad)}.d3 .ksr .bar i.y{background:var(--warn)}.d3 .ksr .bar i.g{background:var(--ok)}
+.d3 .ksm summary{cursor:pointer;font-size:13px;padding:6px 0}
+@container (max-width:460px){
+  .d3 .ksr{grid-template-columns:minmax(0,1fr) auto}
+  .d3 .ksr .ksn{grid-column:1;grid-row:1}.d3 .ksr .kss{grid-column:2;grid-row:1}
+  .d3 .ksr .bar{grid-column:1;grid-row:2}.d3 .ksr .ksv{grid-column:2;grid-row:2}
+}
+.d3 .btn:disabled{opacity:.5;cursor:default}
+.d3 .btn.primary{background:var(--fill);border-color:var(--fill);color:#ffffff}
+.d3 .stat .nfl{color:var(--muted)}
+.d3 .rvtext,.d3 .rvin{width:100%;min-height:36px;padding:8px 12px;border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--ink);font:inherit;resize:vertical}
+.d3 textarea.rvin{min-height:220px}
+.d3 .login{min-height:calc(100vh - 32px);display:grid;place-items:center}
+.d3 .login .card{width:min(380px,100%)}
+.d3 .login input[type=password]{width:100%;min-height:40px;padding:0 12px;border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--ink);font:inherit}
+.d3 .login .err{color:var(--bad-ink);min-height:20px;font-size:13px}
+.d3 .login label.rm{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--ink2)}
+/* Narrow screens: no sideways scroll. Wider than 983px the design layout above is unchanged (the Team row needs ~690px
+   of card; the rail sits beside the main column from 808px up). */
+@media (max-width:983px){
+  .d3 .brow{grid-template-columns:170px minmax(0,1fr) 116px}
+  .d3 .brow>:nth-child(n+4){display:none}
+  .d3 .board{grid-template-columns:repeat(4,minmax(0,1fr)) !important}
+}
+@media (max-width:560px){
+  .d3 header.hd{flex-wrap:wrap}
+  .d3 .brow{grid-template-columns:minmax(0,1fr) auto;row-gap:6px}
+  .d3 .brow>:nth-child(1){grid-column:1;grid-row:1}
+  .d3 .brow>:nth-child(2){grid-column:1/-1;grid-row:2}
+  .d3 .brow>:nth-child(3){grid-column:2;grid-row:1}
+  .d3 .brow.thead{display:none}
+  .d3 .blrow{grid-template-columns:minmax(0,1fr) auto}
+  .d3 .blrow>:nth-child(2),.d3 .blrow>:nth-child(3){display:none}
+  .d3 .scrow{grid-template-columns:minmax(0,1fr) auto;row-gap:8px}
+  .d3 .scrow>:nth-child(1){grid-column:1/-1}
+  .d3 .scrow .ell{white-space:normal}
+  .d3 .scrow>:nth-child(3){text-align:right}
+  .d3 .board{grid-template-columns:repeat(2,minmax(0,1fr)) !important}
+}
+.d3 .btn.lg[data-rv="opt"]{white-space:normal;text-align:left;height:auto;padding:10px 16px}

@@ -72,7 +72,7 @@ export function buildProjects(out, by, cash, extra = {}, nowMs = Date.now()) {
     projects: lanes.filter((l) => l.slug !== 'unsorted' || l.columns.some((c) => c.items.length)),
     summary: summaryCard(feeds.morning_summary, nowMs),
     calendar: cal?.data?.date === today
-      ? { events: (cal.data.events || []).map((e) => ({ time: `${e.start}-${e.end}`, title: e.title })) }
+      ? { events: (Array.isArray(cal.data.events) ? cal.data.events : []).filter(Boolean).map((e) => ({ time: `${e.start}-${e.end}`, title: e.title })) }
       : { missing: "Ana posts today's calendar each morning." },
   };
 }

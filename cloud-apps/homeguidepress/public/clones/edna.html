@@ -1,0 +1,546 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>Three Ingredients and a Pan &middot; Edna Haynes</title>
+<meta name="description" content="Three Ingredients and a Pan: easy baking for every day. Short ingredient lists, one pan and no mixer. Instant PDF guide, $27.">
+<meta name="theme-color" content="#3a1520">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&display=swap">
+<style>
+:root{
+  --cream:#f4ecdf;--paper:#fcf8f1;--ink:#2a1d1f;--muted:#5f4d50;--line:#e2d3c4;--blush:#efe2d4;
+  --berry:#8a3b4f;--berry-deep:#5e2534;--berry-dark:#3a1520;--caramel:#9a4c28;--gold:#d4a373;
+  --serif:"Source Serif 4",Georgia,"Times New Roman",serif;
+  --cond:"Oswald","Arial Narrow",Arial,sans-serif;
+  --sans:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+}
+*,*::before,*::after{box-sizing:border-box}
+html{scroll-behavior:smooth;scroll-padding-top:20px;-webkit-text-size-adjust:100%}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+body{margin:0;background:var(--cream);color:var(--ink);font:20px/1.65 var(--sans)}
+h1,h2,h3,p{margin:0}
+h1,h2,h3{font-family:var(--serif);font-weight:600;line-height:1.12}
+h1{font-size:clamp(40px,4.4vw,60px);letter-spacing:-1.2px;line-height:1.06}
+h2{font-size:clamp(32px,3.4vw,46px);letter-spacing:-.6px}
+p+p{margin-top:16px}
+a{color:inherit}
+:focus-visible{outline:3px solid var(--berry);outline-offset:3px}
+.skip{position:absolute;left:-999px;top:0;background:var(--berry-dark);color:#fff;padding:10px 16px;z-index:10}
+.skip:focus{left:16px}
+.wrap{max-width:1100px;margin:0 auto;padding:0 32px}
+.center{text-align:center}
+.eyebrow{font:500 15px/1.3 var(--cond);letter-spacing:1.6px;text-transform:uppercase;color:var(--caramel);margin-bottom:14px}
+.small{font-size:16px;line-height:1.55;color:var(--muted)}
+.text-link{font-weight:700;font-size:18px;text-underline-offset:5px;color:var(--ink)}
+.cover{display:block;width:100%;height:auto}
+
+/* buy buttons */
+.buy{display:inline-flex;align-items:center;justify-content:center;gap:12px;min-height:56px;background:var(--berry);color:#fff;text-decoration:none;
+  font:600 20px/1.3 var(--cond);text-transform:uppercase;letter-spacing:.7px;padding:15px 28px;border-radius:3px;box-shadow:0 3px 0 var(--berry-dark);cursor:pointer}
+.buy.off{background:#9b5566;box-shadow:0 3px 0 #6b3443;cursor:not-allowed}
+.price-line{font-size:18px;color:var(--muted);margin:0 0 16px}
+.price-line b{font:600 34px/1 var(--cond);color:var(--berry);margin-right:10px;vertical-align:-3px}
+
+/* top buy bar + masthead */
+.buy-top{background:var(--paper);padding:9px 0;border-bottom:1px solid var(--line)}
+.buy-top .wrap{display:flex;align-items:center;justify-content:space-between;gap:16px}
+.buy-top p{font-size:17px;line-height:1.35}
+.buy-top .buy{font-size:16px;min-height:44px;padding:9px 16px;flex:none}
+.masthead{background:radial-gradient(ellipse at 82% 50%,#7a3a4c,#3a1520 70%);color:#f6dcc0;border-bottom:5px solid var(--gold)}
+.masthead .wrap{display:flex;align-items:center;justify-content:space-between;min-height:150px;gap:20px}
+.masthead .brand{font:600 clamp(30px,4vw,48px)/1.1 var(--cond);letter-spacing:5px;text-transform:uppercase}
+.masthead small{display:block;font:500 14px var(--cond);letter-spacing:2.4px;margin-top:9px;color:#e9c9a6}
+.masthead svg{width:230px;height:120px;opacity:.65;flex-shrink:0}
+
+/* hero */
+.hero{display:grid;grid-template-columns:1.05fr .95fr;gap:55px;padding-top:62px;padding-bottom:46px;align-items:start}
+.hero h1 em{font-style:normal;color:var(--berry)}
+.hero .intro{font:23px/1.45 var(--serif);color:#4b3b3d;margin:24px 0 0}
+.checklist{list-style:none;padding:0;margin:22px 0 26px;font-size:19px}
+.checklist li{margin:9px 0;padding-left:30px;position:relative}
+.checklist li::before{content:"\2713";position:absolute;left:0;font-weight:700;color:var(--caramel)}
+.hero-actions{display:flex;align-items:center;gap:22px;flex-wrap:wrap}
+.hero .small{margin-top:14px}
+.hero-art{padding:12px;background:var(--paper);border:1px solid var(--line);border-radius:2px;box-shadow:0 3px 10px rgba(58,21,32,.08);margin-top:8px}
+.hero-art .stage{height:400px;display:grid;place-items:center;background:radial-gradient(ellipse at 50% 88%,rgba(196,160,130,.45),transparent 62%),#efe2d4}
+.hero-art .stage .cover{width:auto;height:340px;filter:drop-shadow(8px 12px 14px rgba(58,21,32,.28))}
+.hero-art .cap{text-align:center;padding:18px 8px 8px}
+.hero-art .cap span{font:500 14px var(--cond);letter-spacing:2px;text-transform:uppercase}
+.hero-art .cap p{font:italic 23px/1.35 var(--serif);margin-top:10px}
+
+/* proof strip */
+.proof-grid{display:grid;grid-template-columns:repeat(4,1fr);text-align:center;padding:28px 0 40px;border-top:1px solid var(--line)}
+.proof-grid strong{display:block;font:600 36px/1.2 var(--cond);color:var(--caramel)}
+.proof-grid span{font:500 15px var(--cond);text-transform:uppercase;letter-spacing:1px}
+
+section{padding:84px 0}
+.section-heading{max-width:760px;margin-bottom:40px}
+.section-heading.center{margin-left:auto;margin-right:auto}
+.section-heading>p:not(.eyebrow){margin-top:18px;color:var(--muted)}
+.section-buy{text-align:center;margin-top:46px}
+.section-buy p{font-size:18px;margin-bottom:16px;color:var(--muted)}
+
+/* about */
+.about{border-top:1px solid var(--line)}
+.about .copy{max-width:740px;margin:0 auto;text-align:center;color:#4b3b3d}
+.about h2{margin-bottom:24px;color:var(--ink)}
+.about .motto{font:italic 22px var(--serif);color:var(--berry);margin-top:20px}
+
+/* order */
+.order{background:var(--paper);border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+.order-grid{display:grid;grid-template-columns:1fr 1.08fr;gap:50px;align-items:start}
+.book-display{position:relative;height:370px;max-width:440px;margin:6px auto 18px;background:radial-gradient(ellipse at 50% 92%,rgba(196,160,130,.4),transparent 60%)}
+.book-display .pg{position:absolute;top:58px;width:165px;height:220px;background:#fff;border-radius:2px;box-shadow:8px 12px 16px rgba(58,21,32,.22);padding:22px 16px}
+.book-display .pg::before{content:"";display:block;height:10px;width:70%;background:var(--berry);opacity:.7;margin-bottom:14px}
+.book-display .pg::after{content:"";display:block;height:150px;background:repeating-linear-gradient(#fff 0 12px,#e2d3c4 12px 14px)}
+.book-display .p1{left:8px;transform:rotate(-10deg)}
+.book-display .p3{right:8px;transform:rotate(9deg)}
+.book-display .b2{position:absolute;left:50%;top:16px;width:225px;margin-left:-112px;z-index:2;filter:drop-shadow(8px 12px 14px rgba(58,21,32,.28))}
+.display-caption{text-align:center;font-size:16px;color:var(--muted)}
+.order-quote{font:italic 24px/1.45 var(--serif);text-align:center;margin:26px 6px 8px}
+.order-quote+.small{text-align:center}
+.order-detail h3{font:600 30px/1.2 var(--cond);text-transform:uppercase;margin-bottom:14px}
+.order-detail>p{font-size:19px;color:var(--muted)}
+.bundle-list{list-style:none;padding:0;margin:20px 0 0}
+.bundle-list li{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:15px 0;border-bottom:1px solid var(--line);font-size:19px;line-height:1.35}
+.bundle-list small{display:block;color:var(--muted);font-size:16px;line-height:1.45;margin-top:4px}
+.bundle-list b{font:500 14px var(--cond);text-transform:uppercase;letter-spacing:.6px;color:var(--caramel);flex:none}
+.order-total{display:flex;justify-content:space-between;align-items:center;padding:20px 0}
+.order-total>span{font:600 19px var(--cond);text-transform:uppercase}
+.order-total strong{font:600 42px var(--cond);color:var(--berry)}
+.order-total strong small{font:15px var(--sans);color:var(--muted);margin-left:4px}
+.order .buy{width:100%}
+.pay-once{text-align:center;font:500 15px var(--cond);letter-spacing:1.4px;text-transform:uppercase;margin:16px 0}
+.promise{display:flex;gap:18px;align-items:center;border:1px solid var(--berry);padding:20px;background:#fff;margin:22px 0}
+.promise h3{font:600 22px/1.25 var(--cond);text-transform:uppercase;color:var(--berry);margin-bottom:6px}
+.promise p{font-size:17px;line-height:1.55;color:var(--muted)}
+.seal{width:68px;height:80px;flex-shrink:0;border:2px solid var(--gold);border-radius:40% 40% 45% 45%;display:flex;flex-direction:column;align-items:center;justify-content:center;font:600 24px/1 var(--cond);color:var(--caramel)}
+.seal small{font:500 11px var(--cond);letter-spacing:1.5px;margin-top:4px}
+.secure-line{text-align:center;font-size:17px}
+.secure-line::before{content:"";display:inline-block;width:11px;height:9px;border:2px solid var(--muted);border-radius:2px;margin-right:8px;vertical-align:0}
+.support{text-align:center;font-size:17px;margin-top:12px;color:var(--muted)}
+
+/* sorted by day */
+.sorted-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:18px}
+.tier{background:var(--paper);border:1px solid var(--line);padding:24px 22px;border-top:4px solid var(--gold)}
+.tier:nth-child(1){border-top-color:var(--berry)}
+.tier .when{font:italic 22px/1.35 var(--serif)}
+.tier h3{font:600 19px var(--cond);text-transform:uppercase;letter-spacing:.4px;margin-top:16px;color:var(--berry)}
+.tier ul{list-style:none;padding:0;margin:10px 0 0;font-size:17px;color:var(--muted)}
+.tier li{padding:6px 0;border-top:1px solid var(--line)}
+
+/* library */
+.library{background:var(--paper);border-top:1px solid var(--line)}
+.feature{display:grid;grid-template-columns:230px 1fr;gap:36px;align-items:center;background:var(--cream);border:1px solid var(--line);padding:30px;margin-bottom:46px}
+.feature .cover{filter:drop-shadow(8px 12px 14px rgba(58,21,32,.24))}
+.feature .pill{display:inline-block;font-size:14px;background:var(--blush);border-radius:20px;padding:3px 12px;margin-bottom:12px;text-transform:uppercase;letter-spacing:.5px}
+.feature h3{font-size:32px;margin-bottom:14px}
+.feature p{color:#4b3b3d}
+.list-title{font:600 22px var(--cond);text-transform:uppercase;letter-spacing:.4px;margin-bottom:18px;padding-top:18px;border-top:1px solid var(--line)}
+.book-list{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.book-item{background:var(--cream);border:1px solid var(--line);padding:22px 20px}
+.book-item .k{font:500 14px var(--cond);letter-spacing:1.2px;text-transform:uppercase;color:var(--caramel)}
+.book-item h3{font:500 22px/1.2 var(--cond);text-transform:uppercase;margin:8px 0}
+.book-item p{font-size:18px;line-height:1.5;color:var(--muted)}
+.companions{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px}
+.companion{background:var(--blush);border:1px solid var(--line);padding:26px}
+.companion h3{font:500 24px var(--cond);text-transform:uppercase;margin:8px 0 10px}
+.companion ul{list-style:none;padding:0;margin:0;font-size:19px;color:#4b3b3d}
+.companion li{position:relative;padding:8px 0 8px 30px;border-top:1px solid var(--line)}
+.companion li::before{position:absolute;left:0;top:8px;font-weight:700}
+.companion.yes li::before{content:"\2713";color:var(--caramel)}
+.companion.no li::before{content:"\00D7";color:var(--berry);font-size:24px;top:2px}
+
+/* how it works cards */
+.recipe-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:22px}
+.recipe{border:1px solid var(--line);background:var(--paper);border-radius:2px;overflow:hidden}
+.recipe-top{padding:24px 24px 22px;background:#f3dfe3;min-height:170px}
+.recipe:nth-child(2) .recipe-top{background:#f4e3c8}
+.recipe:nth-child(3) .recipe-top{background:#e6e8d8}
+.recipe-top .eyebrow{margin-bottom:10px}
+.recipe h3{font:500 30px/1.12 var(--cond);text-transform:uppercase}
+.tags{display:flex;gap:7px;flex-wrap:wrap;margin-top:16px}
+.tags span{font-size:15px;border:1px solid #a88c80;border-radius:2px;padding:2px 10px}
+.recipe-body{padding:22px 24px;font-size:19px}
+.recipe-note{margin-top:22px;font-size:17px;color:var(--muted)}
+
+/* why three */
+.saving{background:var(--blush);border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+.split{display:grid;grid-template-columns:1fr 1fr;gap:64px;align-items:center}
+.saving h2 em{font-style:normal;color:var(--berry)}
+.saving h2+p{margin-top:22px}
+.story{border-left:3px solid var(--berry);padding-left:20px;margin-top:26px;font:italic 22px/1.45 var(--serif)}
+.math-card{background:var(--paper);border:1px solid var(--line);padding:32px;box-shadow:0 3px 8px rgba(58,21,32,.05)}
+.math-card h3{font-size:26px;margin-bottom:14px}
+.math-card ul{list-style:none;padding:0;margin:0}
+.math-card li{position:relative;padding:10px 0 10px 32px;border-top:1px solid var(--line)}
+.math-card li::before{content:"\00D7";position:absolute;left:2px;top:4px;font-size:26px;color:var(--berry)}
+.result{border-top:1px solid var(--line);padding-top:18px;margin-top:6px}
+.result .lbl{font:500 15px var(--cond);text-transform:uppercase;letter-spacing:1px}
+.result p{font:600 34px/1.2 var(--serif);color:var(--berry);margin-top:6px}
+
+/* faq */
+.faq{max-width:820px}
+.faq details{border-bottom:1px solid var(--line);padding:16px 0}
+.faq summary{font:500 21px/1.35 var(--cond);text-transform:uppercase;cursor:pointer;letter-spacing:.3px;min-height:32px}
+.faq details p{margin-top:12px;color:#4b3b3d}
+.notice{max-width:820px;margin-top:34px;background:var(--paper);border-left:4px solid var(--berry);padding:16px 20px;font-size:18px;line-height:1.55;color:var(--ink)}
+
+/* final */
+.final{background:var(--paper);border-top:1px solid var(--line)}
+.final h2{margin-bottom:18px}
+
+/* footer */
+footer{background:var(--berry-dark);color:#f2dccb;padding:46px 0 56px}
+footer .row{display:flex;justify-content:space-between;align-items:flex-start;gap:24px;flex-wrap:wrap}
+footer .brand{font:600 24px var(--cond);text-transform:uppercase;letter-spacing:1px}
+footer .brand small{display:block;font:500 13px var(--cond);letter-spacing:2px;margin-top:6px;color:#e3c7b6}
+footer nav{display:flex;flex-wrap:wrap;gap:4px 22px;font-size:17px}
+footer nav a{min-height:44px;display:inline-flex;align-items:center;color:#f2dccb}
+footer .small{color:#e3c7b6;margin-top:22px;max-width:900px}
+
+@media (max-width:900px){
+  .wrap{padding:0 20px}
+  .masthead .wrap{min-height:112px}
+  .masthead svg{display:none}
+  .masthead .brand{letter-spacing:3px}
+  .hero,.order-grid,.split{grid-template-columns:1fr;gap:36px}
+  .hero{padding-top:40px}
+  .hero .intro{font-size:21px}
+  .hero-art .stage{height:340px}
+  .hero-art .stage .cover{height:290px}
+  .sorted-grid{grid-template-columns:1fr 1fr}
+  .book-list{grid-template-columns:1fr 1fr}
+  .recipe-grid{grid-template-columns:1fr}
+  .recipe-top{min-height:0}
+  section{padding:60px 0}
+}
+@media (max-width:640px){
+  .buy-top .wrap{flex-direction:column;align-items:stretch;text-align:center;gap:8px}
+  .masthead .brand{font-size:30px}
+  .proof-grid{grid-template-columns:1fr 1fr;row-gap:18px}
+  .sorted-grid,.book-list,.companions{grid-template-columns:1fr}
+  .feature{grid-template-columns:1fr;padding:22px}
+  .feature .cover{max-width:200px;margin:0 auto}
+  .book-display{height:320px}
+  .book-display .pg{width:130px;height:180px}
+  .book-display .pg::after{height:110px}
+  .book-display .b2{width:190px;margin-left:-95px}
+  .hero-actions .buy,.section-buy .buy,.final .buy{width:100%}
+  .order-total strong{font-size:36px}
+  .promise{align-items:flex-start}
+}
+</style>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <symbol id="cover" viewBox="0 0 300 400">
+    <rect width="300" height="400" fill="#5e2534"/>
+    <rect x="12" y="12" width="276" height="376" fill="none" stroke="#d4a373" stroke-width="2"/>
+    <rect x="18" y="18" width="264" height="364" fill="none" stroke="#d4a373" stroke-width="0.8" opacity="0.6"/>
+    <text x="150" y="52" text-anchor="middle" font-family="Oswald, 'Arial Narrow', sans-serif" font-weight="500" font-size="12" letter-spacing="3.5" fill="#e9c9a6">HOME GUIDE PRESS</text>
+    <text x="150" y="112" text-anchor="middle" font-family="'Source Serif 4', Georgia, serif" font-weight="600" font-size="50" fill="#f4e3c8">Three</text>
+    <text x="150" y="154" text-anchor="middle" font-family="'Source Serif 4', Georgia, serif" font-weight="600" font-size="36" fill="#f4e3c8">Ingredients</text>
+    <text x="150" y="192" text-anchor="middle" font-family="'Source Serif 4', Georgia, serif" font-style="italic" font-size="30" fill="#f4e3c8">and a Pan</text>
+    <line x1="110" y1="212" x2="190" y2="212" stroke="#d4a373" stroke-width="2"/>
+    <text x="150" y="238" text-anchor="middle" font-family="Oswald, 'Arial Narrow', sans-serif" font-weight="500" font-size="13" letter-spacing="2.4" fill="#d4a373">EASY BAKING FOR EVERY DAY</text>
+    <circle cx="122" cy="272" r="9" fill="#f4e3c8"/>
+    <circle cx="150" cy="268" r="9" fill="#d4a373"/>
+    <circle cx="178" cy="272" r="9" fill="#e9b7c2"/>
+    <rect x="70" y="290" width="160" height="9" rx="4.5" fill="#f4e3c8"/>
+    <path d="M86 299 L94 330 Q95 334 99 334 L201 334 Q205 334 206 330 L214 299" fill="none" stroke="#f4e3c8" stroke-width="3" stroke-linejoin="round"/>
+    <text x="150" y="368" text-anchor="middle" font-family="Oswald, 'Arial Narrow', sans-serif" font-weight="600" font-size="17" letter-spacing="4" fill="#f4e3c8">EDNA HAYNES</text>
+  </symbol>
+</svg>
+
+<div class="buy-top">
+  <div class="wrap">
+    <p><strong>Three Ingredients and a Pan.</strong> Easy baking for every day, $27.</p>
+    <a class="buy off" data-buy="edna" aria-disabled="true">Checkout opens soon</a>
+  </div>
+</div>
+
+<header class="masthead">
+  <div class="wrap">
+    <div class="brand">Edna Haynes<small>Easy baking for every day</small></div>
+    <svg viewBox="0 0 230 120" aria-hidden="true" fill="none" stroke="#f6dcc0" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="62" cy="40" r="9"/><circle cx="92" cy="32" r="9"/><circle cx="122" cy="40" r="9"/>
+      <path d="M22 62 H162"/><path d="M34 62 L44 100 H140 L150 62"/>
+      <path d="M44 80 H140" opacity=".5"/>
+      <ellipse cx="196" cy="30" rx="11" ry="17" transform="rotate(14 196 30)"/>
+      <path d="M192 47 L182 108"/>
+    </svg>
+  </div>
+</header>
+
+<main id="main">
+
+<div class="wrap hero">
+  <div>
+    <p class="eyebrow">A short list. A single pan.</p>
+    <h1>Three ingredients, <em>one pan, and something sweet.</em></h1>
+    <p class="intro">This guide keeps home baking small and easy. Each bake is built around three ingredients and one pan, with no mixer to lift and fewer dishes when you are done.</p>
+    <ul class="checklist">
+      <li><b>Three ingredients</b>, so the shopping list stays short</li>
+      <li><b>One pan</b>, so there is less to wash afterward</li>
+      <li><b>No mixer</b> to lift, plug in or clean</li>
+    </ul>
+    <p class="price-line"><b>$27</b>One payment &middot; 30-day money-back guarantee</p>
+    <div class="hero-actions">
+      <a class="buy off" data-buy="edna" aria-disabled="true">Checkout opens soon</a>
+      <a class="text-link" href="#inside">See what the guide covers</a>
+    </div>
+    <p class="small">One guide &middot; Instant PDF &middot; No subscription</p>
+  </div>
+  <figure class="hero-art" style="margin:8px 0 0">
+    <div class="stage">
+      <svg class="cover" viewBox="0 0 300 400" role="img" aria-label="Cover of Three Ingredients and a Pan, Easy Baking for Every Day, by Edna Haynes, Home Guide Press"><use href="#cover"/></svg>
+    </div>
+    <figcaption class="cap">
+      <span>Home Guide Press</span>
+      <p>Three ingredients. One pan.<br>A little something sweet.</p>
+    </figcaption>
+  </figure>
+</div>
+
+<div class="wrap">
+  <div class="proof-grid">
+    <div><strong>Three</strong><span>Ingredients</span></div>
+    <div><strong>One</strong><span>Pan</span></div>
+    <div><strong>No</strong><span>Mixer needed</span></div>
+    <div><strong>$27</strong><span>One payment</span></div>
+  </div>
+</div>
+
+<section class="about">
+  <div class="wrap">
+    <div class="copy">
+      <p class="eyebrow">Why this guide</p>
+      <h2>For the days you want something sweet, not a big project.</h2>
+      <p>Some days you would like a warm treat after supper without hauling out a heavy machine or buying a long list of things you will use once.</p>
+      <p><em>Three Ingredients and a Pan</em> keeps each bake small: a short list from the store, one pan in the oven, and a little stirring by hand. Bake for yourself, or bake something to share.</p>
+      <p class="motto">Three ingredients. One pan. Something sweet.</p>
+    </div>
+    <div class="section-buy">
+      <p>One guide. One payment. Yours to keep.</p>
+      <a class="buy off" data-buy="edna" aria-disabled="true">Checkout opens soon</a>
+    </div>
+  </div>
+</section>
+
+<section class="order" id="order">
+  <div class="wrap">
+    <div class="section-heading center">
+      <p class="eyebrow">Order the guide</p>
+      <h2>Everything you get for $27.</h2>
+      <p>One easy baking guide, built around short ingredient lists and one pan. Save it once, then open it on any phone, tablet or computer.</p>
+    </div>
+    <div class="order-grid">
+      <div>
+        <div class="book-display" aria-hidden="true">
+          <div class="pg p1"></div>
+          <svg class="cover b2" viewBox="0 0 300 400"><use href="#cover"/></svg>
+          <div class="pg p3"></div>
+        </div>
+        <p class="display-caption">An illustration of the guide</p>
+        <p class="order-quote">"Open the cupboard, pick three things, and let the oven do the rest."</p>
+        <p class="small">The idea behind the guide</p>
+      </div>
+      <div class="order-detail">
+        <h3>One guide. One pan. One payment.</h3>
+        <p>Made for an ordinary afternoon, with nothing fussy and nothing to plug in.</p>
+        <ul class="bundle-list">
+          <li><span>Three-ingredient baking<small>Bakes built around a short list</small></span><b>Included</b></li>
+          <li><span>One-pan baking<small>Fewer dishes when you are done</small></span><b>Included</b></li>
+          <li><span>No mixer needed<small>Stir by hand, nothing heavy to lift</small></span><b>Included</b></li>
+          <li><span>Easy baking for every day<small>Simple sweets for a regular weekday</small></span><b>Included</b></li>
+          <li><span>Instant PDF download<small>Phone, tablet or computer</small></span><b>Included</b></li>
+        </ul>
+        <div class="order-total"><span>You get the whole guide</span><strong>$27<small>USD</small></strong></div>
+        <a class="buy off" data-buy="edna" aria-disabled="true">Checkout opens soon</a>
+        <p class="pay-once">One payment &middot; No subscription</p>
+        <div class="promise">
+          <div class="seal" aria-hidden="true">30<small>DAY</small></div>
+          <div>
+            <h3>30-day money-back guarantee</h3>
+            <p>If the guide is not right for your kitchen, write to us within 30 days of buying and we will refund you.</p>
+          </div>
+        </div>
+        <p class="secure-line">Secure checkout</p>
+        <p class="support">Questions about the guide? Use the contact link at the bottom of the page.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="section-heading">
+      <p class="eyebrow">Made for the day you are having</p>
+      <h2>Easy enough for an ordinary weekday.</h2>
+      <p>The idea is simple: less to buy, less to lift and less to wash.</p>
+    </div>
+    <div class="sorted-grid">
+      <div class="tier"><p class="when">A tired afternoon</p><h3>Short shopping list</h3><ul><li>Three ingredients</li><li>Less to carry home</li></ul></div>
+      <div class="tier"><p class="when">Hands that tire easily</p><h3>No mixer to lift</h3><ul><li>Stir by hand</li><li>Nothing to plug in</li></ul></div>
+      <div class="tier"><p class="when">A small kitchen</p><h3>One pan</h3><ul><li>Less to wash</li><li>Less counter space</li></ul></div>
+      <div class="tier"><p class="when">A treat to share</p><h3>Something sweet</h3><ul><li>Bake for yourself</li><li>Or bring it along</li></ul></div>
+    </div>
+    <div class="section-buy">
+      <p>Every bake starts with a short list and one pan.</p>
+      <a class="buy off" data-buy="edna" aria-disabled="true">Checkout opens soon</a>
+    </div>
+  </div>
+</section>
+
+<section class="library" id="inside">
+  <div class="wrap">
+    <div class="section-heading">
+      <p class="eyebrow">What the guide covers</p>
+      <h2>Baking that asks very little of you.</h2>
+      <p>Short lists, one pan and no mixer. Here is what the guide is about.</p>
+    </div>
+    <div class="feature">
+      <svg class="cover" viewBox="0 0 300 400" role="img" aria-label="Cover of Three Ingredients and a Pan"><use href="#cover"/></svg>
+      <div>
+        <span class="pill">Where to begin</span>
+        <h3>Begin with what your cupboard already holds.</h3>
+        <p>The guide is for anyone who would like homemade sweets to feel easy again. Whether you are new to baking or coming back to it after a long break, you begin with a short list and one pan.</p>
+      </div>
+    </div>
+    <h3 class="list-title">The topics, in plain words</h3>
+    <div class="book-list">
+      <div class="book-item"><span class="k">Short lists</span><h3>Three ingredients</h3><p>Bakes built around three ingredients, so shopping is quick and the cupboard does most of the work.</p></div>
+      <div class="book-item"><span class="k">One pan</span><h3>Bake in one pan</h3><p>One pan in the oven means fewer dishes once the sweet part is over.</p></div>
+      <div class="book-item"><span class="k">No mixer</span><h3>Stir by hand</h3><p>No heavy machine to lift, plug in or wash. Just a spoon and a little stirring.</p></div>
+      <div class="book-item"><span class="k">Every day</span><h3>Simple sweets</h3><p>Homemade treats easy enough for a regular weekday, not only for holidays.</p></div>
+      <div class="book-item"><span class="k">Getting started</span><h3>New or coming back</h3><p>For beginners, and for anyone returning to the oven after years away.</p></div>
+      <div class="book-item"><span class="k">Plain words</span><h3>Easy to follow</h3><p>Plain language and short steps, so you know what comes next.</p></div>
+    </div>
+    <div class="companions">
+      <div class="companion yes">
+        <span class="eyebrow">Is it for you</span>
+        <h3>A good fit if</h3>
+        <ul>
+          <li>You want a homemade sweet without a long shopping list.</li>
+          <li>Your hands tire easily and you would rather skip the mixer.</li>
+          <li>You want fewer dishes when you are done.</li>
+          <li>You are new to baking, or coming back to it after a long break.</li>
+        </ul>
+      </div>
+      <div class="companion no">
+        <span class="eyebrow">Be honest with yourself</span>
+        <h3>Probably not a fit if</h3>
+        <ul>
+          <li>You want fancy decorating, tall showpiece cakes or bakery pastry.</li>
+          <li>You need a sugar-free, diabetic or allergy cookbook. This guide is about easy baking, not dieting.</li>
+          <li>You love long weekend baking projects and own every gadget already.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="section-heading">
+      <p class="eyebrow">How it works</p>
+      <h2>Three easy steps from here to your kitchen.</h2>
+    </div>
+    <div class="recipe-grid">
+      <div class="recipe">
+        <div class="recipe-top"><p class="eyebrow">Step one</p><h3>Pay once</h3><div class="tags"><span>One payment</span><span>Secure checkout</span></div></div>
+        <div class="recipe-body"><p>Checkout takes a minute on a secure page. Your card details go to the payment company, not to us.</p></div>
+      </div>
+      <div class="recipe">
+        <div class="recipe-top"><p class="eyebrow">Step two</p><h3>Check your email</h3><div class="tags"><span>Link by email</span></div></div>
+        <div class="recipe-body"><p>Right after you pay, we email you a download link. The guide opens on any phone, tablet or computer.</p></div>
+      </div>
+      <div class="recipe">
+        <div class="recipe-top"><p class="eyebrow">Step three</p><h3>Keep the email</h3><div class="tags"><span>Yours to keep</span></div></div>
+        <div class="recipe-body"><p>Save that email. If you need the guide again later, you can ask for a fresh link any time.</p></div>
+      </div>
+    </div>
+    <p class="recipe-note">Nothing ships, there is no account to make, and nothing renews.</p>
+  </div>
+</section>
+
+<section class="saving">
+  <div class="wrap split">
+    <div>
+      <p class="eyebrow">Less to buy, lift and wash</p>
+      <h2>Why <em>three ingredients</em> make baking easier.</h2>
+      <p>A long ingredient list means a long walk through the store, a crowded counter and more to measure. Keeping it to three turns a homemade treat back into a small, friendly job.</p>
+      <p class="story">One pan in the oven, and one pan to wash.</p>
+    </div>
+    <div class="math-card">
+      <h3>What you will not need</h3>
+      <ul>
+        <li>A stand mixer</li>
+        <li>A long shopping list</li>
+        <li>A stack of pans and bowls</li>
+        <li>Fancy baking skills</li>
+      </ul>
+      <div class="result">
+        <span class="lbl">What you will need</span>
+        <p>Three ingredients and a pan.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="section-heading">
+      <p class="eyebrow">Questions people ask</p>
+      <h2>Short, honest answers.</h2>
+    </div>
+    <div class="faq">
+      <details><summary>What does my $27 buy?</summary><p>One easy baking guide, <em>Three Ingredients and a Pan</em>, as a PDF file. Right after you pay, we email you a download link.</p></details>
+      <details><summary>Will it work on a tablet or phone?</summary><p>Yes. A PDF opens on any phone, tablet or computer, and you can print the pages you bake from most.</p></details>
+      <details><summary>Do I need a mixer?</summary><p>No. The guide is about easy baking without a mixer: a short list, one pan and your oven.</p></details>
+      <details><summary>Is it made for diabetic or sugar-free diets?</summary><p>No. It is about easy everyday baking, not dieting, and it does not claim to help your health. It is general baking information, not dietary or medical advice.</p></details>
+      <details><summary>What about food allergies?</summary><p>Read every label, and follow any diet your doctor has set for you. The guide does not replace that advice.</p></details>
+      <details><summary>Will a paper copy come in the mail?</summary><p>No. It comes as a file you download. Print whichever pages you like and keep them by the oven.</p></details>
+      <details><summary>Is this a subscription?</summary><p>No. One payment, once. No membership, and nothing renews.</p></details>
+      <details><summary>What if it is not for me?</summary><p>Write to us within 30 days of buying and we will refund you. See the <a href="/refunds">refund policy</a>.</p></details>
+    </div>
+    <p class="notice">General information only, not medical, dietary or food safety advice. Check labels if you have allergies or a special diet, and bake until done. Ovens vary.</p>
+  </div>
+</section>
+
+<section class="final">
+  <div class="wrap center">
+    <p class="eyebrow">Easy baking for every day</p>
+    <h2>Three ingredients. One pan. Yours to keep.</h2>
+    <p class="price-line"><b>$27</b>One payment &middot; 30-day money-back guarantee</p>
+    <a class="buy off" data-buy="edna" aria-disabled="true">Checkout opens soon</a>
+    <p class="small" style="margin-top:14px">Instant PDF &middot; No subscription</p>
+  </div>
+</section>
+
+</main>
+
+<footer>
+  <div class="wrap">
+    <div class="row">
+      <div class="brand">Edna Haynes<small>Easy baking for every day</small></div>
+      <nav aria-label="Legal and help">
+        <a href="/">Home Guide Press</a>
+        <a href="/privacy">Privacy</a>
+        <a href="/terms">Terms</a>
+        <a href="/refunds">Refunds</a>
+        <a href="mailto:partners@thejonmac.com">Contact</a>
+      </nav>
+    </div>
+    <p class="small"><em>Three Ingredients and a Pan</em> is written by Edna Haynes and published by Home Guide Press. General information only, not medical, dietary or food safety advice. Edna Haynes is an AI-created character. &copy; 2026 Home Guide Press.</p>
+  </div>
+</footer>
+</body>
+</html>

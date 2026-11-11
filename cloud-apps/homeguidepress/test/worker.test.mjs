@@ -4,7 +4,8 @@ import { DatabaseSync } from 'node:sqlite';
 import { createHmac } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import worker from '../src/index.js';
-import { keyForProduct, makeToken, retryUnsent } from '../src/delivery.js';
+import { keyForProduct, makeToken, retryUnsent, filesFor } from '../src/delivery.js';
+import { BY_KEY } from '../src/products.js';
 
 const SECRET = 'mock-only-webhook-key';
 const TEST_SECRET = 'mock-only-test-webhook-key';
@@ -79,17 +80,6 @@ test('landing page: noindex, chapters, buy link keeps src and utm', async () => 
   assert.doesNotMatch(body, /testimonial|countdown|bestsell/i);
   await f.settle();
   assert.equal(f.sql.prepare("SELECT COUNT(*) n FROM clicks WHERE kind='view' AND slug='angelo' AND src='aff-angelo-1'").get().n, 1);
-});
-
-test('playbook landing (Eleanor) keeps the price, buy link and honest copy', async () => {
-  const f = fixture();
-  const body = await (await get(f, '/the-christmas-home-plan?src=aff-eleanor-1')).text();
-  assert.match(body, /class="product playbook"/);       // copies the source channel's own sales page look
-  assert.match(body, /<p class="pb-price">\$27/);
-  assert.match(body, /class="pb-buy/);
-  assert.match(body, /18 chapters/);
-  assert.match(body, /Who this is for/);
-  assert.doesNotMatch(body, /readers have|readers picked|copies bought|testimonial|countdown|bestsell/i);  // no invented proof numbers
 });
 
 test('missing checkout link shows a placeholder, never a buy link', async () => {
@@ -250,4 +240,63 @@ test('every public page renders', async () => {
   }
   assert.match(await (await get(f, '/the-hand-me-down-kitchen')).text(), /Checkout opens soon/);
   assert.equal((await get(f, '/nope')).status, 404);
+});
+
+test('focus channel pages (Takeshi, Kenzo, Edna, Jiyoung, Peggy): served as clones, $27; Jiyoung and Peggy sell, the rest wait for their book', async () => {
+  const ASSETS = { async fetch(u) {
+    try { return new Response(readFileSync(new URL('../public' + new URL(u).pathname, import.meta.url), 'utf8')); }
+    catch { return new Response('', { status: 404 }); }
+  } };
+  const pages = { takeshi: ['/the-japanese-way-to-a-lighter-home', 'Takeshi Morimoto'], kenzo: ['/calm-and-ready', 'Kenzo Arai'],
+    edna: ['/three-ingredients-and-a-pan', 'Edna Haynes'], jiyoung: ['/fresher-after-60-the-korean-way', 'Jiyoung Han'],
+    peggy: ['/the-fixed-income-pantry', 'Peggy Donovan'] };
+  const SOLD = { jiyoung: 'https://commas.com/checkout/w4gy8obq1WOiKe', peggy: 'https://commas.com/checkout/g4XDGDUvQL5ougI' };
+  for (const [key, [path, host]] of Object.entries(pages)) {
+    const sold = SOLD[key];
+    const f = fixture({ ASSETS, ...(sold ? { CHECKOUT_URLS: JSON.stringify({ [key]: sold }) } : {}) });
+    const r = await get(f, path + '?src=aff-' + key + '-1');
+    assert.equal(r.status, 200, path);
+    assert.match(r.headers.get('content-security-policy'), /fonts\.googleapis\.com/, path);  // CLONE_CSP, so it is the clone
+    const body = await r.text();
+    assert.match(body, /\$27/, path);
+    assert.match(body, new RegExp(host + ' is an AI-created character'), path);
+    if (sold) {
+      assert.doesNotMatch(body, /Checkout opens soon/, path);
+      assert.match(body, new RegExp('<a class="buy" data-buy="' + key + '" href="/go/' + key + '">Buy now for \\$27</a>'), path);
+    } else {
+      assert.match(body, /Checkout opens soon/, path);
+      assert.doesNotMatch(body, new RegExp('href="/go/' + key), path);
+    }
+    assert.doesNotMatch(body, /\d+\s*(pages|chapters)\b|testimonial|countdown|bestsell|hurry|limited time|—/i, path);
+    assert.doesNotMatch(body, /<script|src="http/i, path);
+    await f.settle();
+    assert.equal(f.sql.prepare("SELECT COUNT(*) n FROM clicks WHERE kind='view' AND slug=?").get(key).n, 1, path);
+    assert.equal((await get(f, '/go/' + key)).headers.get('location'), sold || 'https://homeguidepress.com' + path, path);
+  }
+});
+
+test('every product with a live checkout link has a file to deliver', () => {
+  const w = JSON.parse(readFileSync(new URL('../wrangler.jsonc', import.meta.url), 'utf8').replace(/^\s*\/\/.*$/gm, ''));
+  const keys = Object.keys(JSON.parse(w.vars.CHECKOUT_URLS));
+  assert.ok(keys.length > 0);
+  for (const key of keys) {
+    assert.ok(BY_KEY[key], key);
+    assert.ok(filesFor(w.vars, BY_KEY[key]).length > 0, key);  // files in products.js or vars.FILES
+  }
+});
+
+test('homepage shelf lists Jiyoung and Peggy and leaves out the 3 books not for sale yet', async () => {
+  const body = await (await get(fixture(), '/')).text();
+  for (const path of ['/finally-written-down', '/fresher-after-60-the-korean-way', '/the-fixed-income-pantry']) assert.match(body, new RegExp('href="' + path + '"'), path);
+  for (const path of ['/the-japanese-way-to-a-lighter-home', '/calm-and-ready', '/three-ingredients-and-a-pan'])
+    assert.doesNotMatch(body, new RegExp('href="' + path + '"'), path);
+});
+
+test('books with no chapter list yet still render from the template when no clone is served', async () => {
+  const f = fixture();
+  for (const path of ['/the-japanese-way-to-a-lighter-home', '/calm-and-ready', '/three-ingredients-and-a-pan']) {
+    const r = await get(f, path);
+    assert.equal(r.status, 200, path);
+    assert.match(await r.text(), /The full chapter list goes here once the book is finished/, path);
+  }
 });

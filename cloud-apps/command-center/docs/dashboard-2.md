@@ -1,6 +1,6 @@
 # Dashboard 2 (jonmac.ai/dashboard-2)
 
-Jon approved 2026-11-08 (card "Jon's ask: Dashboard 2 at jonmac.ai/dashboard-2"). A top-down view next to `/dashboard`: month goals, then this week's targets, then today. Five pages: Month, Week, Today, Pipeline, Money. Feed, Life, Journal, Review and the old dashboard are links in a menu (they open the existing `/dashboard` pages).
+Jon approved 2026-11-08 (card "Jon's ask: Dashboard 2 at jonmac.ai/dashboard-2"). A top-down view next to `/dashboard`: month goals, then this week's targets, then today. Five pages: Month, Week, Today, Pipeline, Money. Review is in the main nav (it opens `/dashboard/review`). Feed, Life, Journal and the old dashboard are links in a menu (they open the existing `/dashboard` pages).
 
 Hard limits: `/dashboard` (its pages, its API answers, its data) does not change. Views only: nothing is deleted or rewritten. No new feeds, collectors or automations. Every number names its source and age; a stale one shows a small grey "as of <date>" (no banner on Jon's pages: the stale feeds go to Ana through `GET /dashboard/api/d2/ana`). Plain words for Jon: video titles as "<title> - <channel>", no raw IDs or file paths.
 
@@ -38,7 +38,8 @@ Hard limits: `/dashboard` (its pages, its API answers, its data) does not change
     checks: [Check],          // daily checks, a tick per day on Today and Week (Ana, 2026-11-08)
     today: Today,
     pipeline: Pipeline,
-    money: Money
+    money: Money,
+    summary: Summary           // the Daily Summary at the top of Today (below)
   }
 }
 ```
@@ -74,10 +75,11 @@ Missing bindings (preview has no HGP_DB, CLONE_DB, REVIEW_DB) or an unreadable t
   owner: 'Florence',
   source: { label, at, ageLabel, stale },          // as sourceOf() in src/today.js
   note: '',                   // plain words, optional
-  behind: [{ title, owner, why, open?: taskId, href?, page? }],   // week metrics: what is behind and who owns it;
+  behind: [{ title, owner, why, open?: taskId, href?, linkLabel?, page? }],   // week metrics: what is behind and who owns it;
                               // page = a Dashboard 2 route, e.g. 'pipeline/hgp/<slug>/calendar' (the channel's Calendar tab)
   rows: [{ label, target, actual, display, status, owner, note }],   // per-channel breakdown (hgp, jonmac videos)
   days: [{ ymd, target, actual }]                 // week metrics countable per day (videos, shorts)
+  facts: [{ label, value, links?: [{ label, href }] }]   // week: HGP videos (Published today, Waiting for your review), checkout (Last check, Missed)
 }
 ```
 
@@ -127,6 +129,14 @@ Jon sees at most 3 things (`jon`) and one muted line: "N more went to Ana · M t
 
 `SponsorsPage` keeps the shape of `pages.sponsors` (so the existing sponsor renderer draws it) with: receipts, refunds and newsletters removed (`hidden: { receipts, refunds, newsletters }` counts them); cards quiet 60 days or more moved to a last column `{ title: 'Archived', archived: true, cards }`, hidden by default; pipeline value counting priced leads only (`value: { usd, priced, unpriced }`).
 
+### Pipeline layout and stages (Jon, 2026-11-09)
+
+- No Morning summary on any Pipeline page (D2 passes `summary: null` to the shared Projects renderer, which then skips the card; `/dashboard` always has one).
+- Tab `This week` (`#pipeline/week`): Mon to Sun, every channel, from the Calendar page's All channels rows (ideas left out), each with time, channel and status.
+- Sponsors board, 10 stages by the deal feed's own stage (view only; unknown stages are Leads): Leads (`drafts`, `new-lead`), Negotiations (`negotiating`), Deals (`contract-brief`), Deposit Invoice (`invoice-sent`), Deposit Paid (`deposit-paid`, `script-approval`), Video Production (`production`), Video Approved (`video-approval`), Video Live (`publishing`), Balance Invoice (`balance-invoice`: the feed has no such stage yet, so empty), Paid & Done (`paid`, `done`). Archived stays a hidden last column.
+- Jon Mac, @JonMacAI and Home Guide Press Board: "Videos by stage" (Outlier, Script, HeyGen, Edit, QC, Review, Schedule, Published) drawn from the Factory feed (`GET /dashboard/api/v1/factory`, fetched by the page; `/dashboard` unchanged), above the Projects board. A video sits at its first Factory step not done: Outlier = Outlier; Script, Script QC = Script; A-roll = HeyGen; Images, Clips, Preflight, Edit = Edit; Video QC = QC; Thumbnail, Upload = Review; every step done = Schedule. Calendar videos scheduled = Schedule, published = Published. Only the goal's own channels show.
+- Home Guide Press tabs: `Factory table` (the old Factory page, as is) and `Track` (the old Track page, all channels). Jon Mac tab: `Content` (the old Content page).
+
 ### Money
 
 ```
@@ -135,6 +145,34 @@ Jon sees at most 3 things (`jon`) and one muted line: "N more went to Ana · M t
 
 The Money page shows these tiles, then the existing Money page (`pages.money`), the sponsor collections (`pages.sponsors` collect / by month / cash) and Viral View revenue (`pages.viral`).
 
+### Summary (Daily Summary, top of the Today page)
+
+Built by `buildSummary` in `src/summary.js` from rows the endpoint already loads. The one new network call is the weather (Open-Meteo, no key), fetched in the Worker with a 10 minute cache (a failure is remembered for 1 minute). No collector, no schedule, nothing stored. Every number comes from a real feed; a section or row with no data says why in one line and names its owner.
+
+```
+{ asOf, tz, today: 'YYYY-MM-DD',
+  sections: [{ key, title, owner,         // weather, calendar, markets, expenses, sponsors, jonmac, jonmacai, hgp (this order)
+               sources: [{ label, ageLabel, stale }],   // the one-line footer
+               line: '',                  // when set, the only content: why there is no data, with the owner
+               rows: [{ label, value, sub?, cls? }],    // cls: crit | risk | muted (muted = no source)
+               notes: [string],           // one-line caveats (partial window, check skipped)
+               strange?, currency? }]     // expenses only: the flagged charges, the feed's currency (CAD unless it says otherwise)
+}
+```
+
+| Section | Source | Shows | When there is nothing |
+|---|---|---|---|
+| Weather, West Kelowna | Open-Meteo, 49.86 / -119.58, Vancouver time | now (temp, WMO code in words), high, low, rain chance | `Weather unavailable (Open-Meteo), owner Mila` |
+| Calendar | the `calendar_today` bot feed (Ana only, `PUT /v1/feeds/calendar_today`, `{ date, events: [{ start, end, title, calendar? }] }`) | today's events | no feed: `Calendar feed not connected. Owner: Ana.`; feed dated another day: says so |
+| Markets | MoneyClaw snapshot, `markets.core` VOO and QQQ | last price, % below all-time high, today's move | `Market feed not connected (MoneyClaw). Owner: Mila.`; stale after 24 hours |
+| RBC expenses | MoneyClaw snapshot, `expenses.{business,personal}`; read only | yesterday (the feed's total), last 7 and last 30 days (summed from `lastMonth.charges` + `month.charges`, counted back from today, Kelowna time, pending in, refunds netted); strange purchases; open charge-watch flags (`cw:` questions) | `Expenses feed not connected (MoneyClaw). Owner: Mila.`; stale after 2 days or when `asOf` is older; a window the lists do not cover is labelled partial |
+| Sponsors | cash (`buildCash`), collections feed, deal board, sponsor video cards | income this month, who owes, collections due (feed due dates; overdue in red), deals negotiating, videos still to make | a piece with no feed: `No source, owner Florence` |
+| Jon Mac, @JonMacAI, Home Guide Press (the 4 focus channels) | channel calendars (this week, Mon to Sun) and open dashboard cards (todo, doing, waiting, QC, review) | per channel `N of M scheduled or live` (M = calendar rows dated this week) and open cards; Home Guide Press cards are matched to a channel by the channel name in the card title | `Nothing planned this week`, `No calendar yet`, or the section note names the owner |
+
+Strange purchases (`strangePurchases`, pure, tested in `test/daily-summary.test.mjs`), over charges dated in the last 7 days and judged against every charge in the two lists: **duplicate** (same merchant and amount twice one day); **high** (over 3x the merchant's median, at least 3 earlier charges); **newMerchant** (first charge from a merchant, over $100, only when the lists reach back 14 days before it, else a note says the check is limited); **currency** (a per-charge currency other than CAD or USD; with no currency in the feed the note reads `currency not in feed`). Merchant = the description's first three words, digits and symbols dropped. Charge watch flags are the open questions MoneyClaw's charge watch already files (`src/chargewatch.js`, idempotency key `cw:`).
+
+The page opens every section on a desktop and folds them on a phone (under 700 px); the open state survives the 60 second refresh like other folds.
+
 ## Goals config (`src/d2-goals.json`)
 
 All targets, labels, owners and the focus channel list live in this one file. A `metric` names the function in `src/d2.js` that counts it; changing a target or owner is a JSON edit, not code. Month target for a video goal = weekly target x `weeksInMonth`, rounded.
@@ -142,10 +180,19 @@ All targets, labels, owners and the focus channel list live in this one file. A 
 | Goal | Owner | Month | Week | Day |
 |---|---|---|---|---|
 | Sponsors | Florence | $10K collected (about 5 deals) | 2 deals signed; 1 to 2 sponsor videos delivered; invoice sent the day a video goes live | partners@ replies cleared; Jon's price decisions answered |
-| Home Guide Press | Elle (Scarlett, Olivia) | first sales on the focus channels | 3 videos per focus channel; every landing page checkout working | one video edited and QC-passed every 3 hours ("None due yet" before 3 AM) |
+| Home Guide Press | Elle (Scarlett, Olivia) | videos published (1 a day per focus channel) | 7 videos per focus channel (28 in all); every landing page checkout working | one video edited and QC-passed per focus channel (4 a day; pace runs through the day) |
 | Jon Mac | Sydney | 3 x weeks | 3 videos | |
 | @JonMacAI | Sydney | 3 x weeks | 3 videos | |
 | Viral View and webinar | Scarlett | webinar date set and run once | funnel live; leads counted | ads and posts that drive leads |
 | Short-form | Samantha | 3 x days in the month (90 in Nov, 93 in Dec, 84 in Feb) | 21 | 3 (`perDay`) |
 
-Focus channels: Jon's 16 (2026-11-08), the `focus` list in `src/d2-goals.json`, a copy of `D:\AgentTeam\rules\facts\focus-channels.txt` (the Worker can't read GPU1 files; `test/d2.test.mjs` fails on GPU1 when the two differ, so a change to the file needs the same edit here and a deploy). In that list's order; a slug the dashboard has no channel for yet still counts (label from the slug, "No calendar yet" on its row and a behind line for Elle). 3 videos a week each, 48 in all. Every other Home Guide Press channel is parked: no target, its finished videos still show on its Calendar tab.
+Focus channels: Jon's 4 (2026-11-10), the `focus` list in `src/d2-goals.json`, a copy of `D:\AgentTeam\rules\facts\focus-channels.txt` (the Worker can't read GPU1 files; `test/d2.test.mjs` fails on GPU1 when the two differ, so a change to the file needs the same edit here and a deploy). In that list's order; a slug the dashboard has no channel for yet still counts (label from the slug, "No calendar yet" on its row and a behind line for Elle). 1 video a day each: 7 a week, 28 in all (Jon Mac and @JonMacAI stay at 3 a week each). Every other Home Guide Press channel is parked: no target, its finished videos still show on its Calendar tab.
+
+## Week page rules (Jon, 2026-11-09)
+
+- No daily checks block on Week (they stay on Today).
+- Behind never lists a video that is live on YouTube. A sponsor's video N is live when at least N published calendar rows name the sponsor; Lucy's YouTube sync keeps those rows current and moves live cards to Done.
+- A Behind line for a card that waits on Jon shows its "Your move" line (plain words) and the card's labeled link, not just the status.
+- "Invoice sent the day a video goes live" counts only deals in "Live · send invoice" whose sponsor has a live video (at least one published calendar row naming it). The rest of that column is named in the note and not counted.
+- HGP "Videos published" also shows how many went out today and how many wait for Jon's review, with links.
+- "Every landing page checkout working" shows the last check date and who missed which days.

@@ -3,12 +3,15 @@ import { handleCron } from './cron.js';
 import { readSession } from './auth.js';
 import { handleCall } from './call.js';
 import { reviewProxy } from './videoreview.js';
+import { reviewHook } from './reviewhook.js';
 import { trackRedirect } from './track.js';
+import { FILE_PREFIX, serveProofFile, uploadProofFile } from './prooffiles.js';
 
 export { CallRelay } from './call.js';
 
 const PREFIX = '/dashboard';
 const D2 = '/dashboard-2';
+const D3 = '/dash';
 
 async function asset(request, env, assetPath) {
   const assetUrl = new URL(request.url);
@@ -25,7 +28,7 @@ const notFound = () => new Response('Not found', { status: 404 });
 function assetTarget(p) {
   try { return new URL(decodeURIComponent(p).replace(/[\\/]+/g, '/'), 'https://a').pathname; } catch { return p; }
 }
-// Dashboard 2 serves its two pages and its own css and js, nothing else.
+// Dashboards 2 and 3 serve their two pages and their own css and js, nothing else.
 const D2_FILE = /^\/(login\.html|css\/[\w-]+\.css|js\/(?:[\w-]+\/)*[\w-]+\.js)$/;
 
 export default {
@@ -44,6 +47,17 @@ export default {
       if (path === '/' || path === '/index.html') return asset(request, env, (await readSession(request, env)) ? '/d2/index.html' : '/d2/login.html');
       return D2_FILE.test(path) ? asset(request, env, `/d2${path}`) : notFound();
     }
+    // Dashboard 3 (docs/dashboard-3.md): its own pages under public/d3; data from /dashboard/api/d2 and /dashboard/api/d3.
+    // Exact matches only, so /dashboard and /dashboard-2 never land here.
+    if (url.pathname === D3) {
+      url.pathname = `${D3}/`;
+      return Response.redirect(url.toString(), 308);
+    }
+    if (url.pathname.startsWith(`${D3}/`)) {
+      const path = url.pathname.slice(D3.length);
+      if (path === '/' || path === '/index.html') return asset(request, env, (await readSession(request, env)) ? '/d3/index.html' : '/d3/login.html');
+      return D2_FILE.test(path) ? asset(request, env, `/d3${path}`) : notFound();
+    }
     if (url.pathname === PREFIX) {
       url.pathname = `${PREFIX}/`;
       return Response.redirect(url.toString(), 308);
@@ -51,14 +65,17 @@ export default {
     if (url.pathname !== PREFIX && !url.pathname.startsWith(`${PREFIX}/`)) {
       return new Response('Not found', { status: 404 });
     }
+    if (url.pathname.startsWith(FILE_PREFIX)) return serveProofFile(request, env);
+    if (url.pathname === `${PREFIX}/api/v1/files`) return uploadProofFile(request, env);
     if (url.pathname.startsWith(`${PREFIX}/api/call/`)) return handleCall(request, env);
+    if (url.pathname.startsWith(`${PREFIX}/api/review-hook/`)) return reviewHook(request, env, ctx);
     if (url.pathname === `${PREFIX}/review` || url.pathname.startsWith(`${PREFIX}/review/`) || url.pathname.startsWith(`${PREFIX}/api/review/`)) {
       return reviewProxy(request, env, ctx);
     }
     if (url.pathname.startsWith(`${PREFIX}/api/`)) return handleApi(request, env, ctx);
 
     let assetPath = url.pathname.slice(PREFIX.length) || '/';
-    if (/^\/d2(\/|$)/i.test(assetTarget(assetPath))) return notFound(); // Dashboard 2's files only behind /dashboard-2
+    if (/^\/d[23](\/|$)/i.test(assetTarget(assetPath))) return notFound(); // Dashboard 2's and 3's files only behind /dashboard-2 and /dash
     if (assetPath === '/') assetPath = '/index.html';
     if (assetPath === '/call') assetPath = '/call.html';
     const html = assetPath === '/index.html' || assetPath === '/login.html' || assetPath === '/call.html';

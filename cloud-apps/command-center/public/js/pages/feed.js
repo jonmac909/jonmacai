@@ -16,7 +16,7 @@ function phrase(r) {
 
 export function rowHtml(r, now = Date.now()) {
   const card = r.taskId || (r.pending ? r.id : ''); // an answered question or decided approval has no card of its own
-  const more = r.kind === 'proof' ? deliverableLink({ link: r.link, kind: r.body })
+  const more = r.kind === 'proof' ? deliverableLink({ link: r.link, kind: r.body, status: 'pending' }) /* a proof just added: no review link yet (QC gate) */
     : r.kind === 'comment' || r.kind === 'answer' ? linkify(r.body) : '';
   return `<li class="fdrow"${card ? ` tabindex="0" data-open="${esc(card)}"` : ''}>
     <div class="fdtop"><b>${esc(botName(r.who))}</b><span>${esc(phrase(r))}</span><time datetime="${esc(r.at)}">${esc(whenLabel(r.at, now))}</time></div>

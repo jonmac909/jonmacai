@@ -176,7 +176,7 @@ test('opening or refreshing Track syncs views, status and subs, with a 15 s floo
   assert.equal((await call(env, '/youtube/status', { jon: false })).status, 401);
   const st = await (await call(env, '/youtube/status', { jon: false, bot: true })).json();
   const peter = st.channels.find((c) => c.channel === 'peter-collins');
-  assert.equal(st.channels.length, 23);
+  assert.equal(st.channels.length, 32);
   assert.deepEqual([peter.connected, peter.subscribers, peter.lastError, peter.reachJob], [true, 120, null, true]);
   assert.deepEqual(peter.studio, { views: 1000, subs: 8, avdSeconds: 200.4 });
   assert.ok(peter.lastSync);

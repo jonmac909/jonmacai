@@ -11,7 +11,8 @@ import { trackVideos } from './track.js';
 import { MONTH_HABITS, WEEK_HABITS, monthKey, weekStart } from './periods.js';
 import { upsertHabit } from './db.js';
 
-// todo/doing → qc (proof) → review (QC passed it) → done (Jon approved it). Only Jon sets done.
+// todo/doing → qc (proof) → review (QC passed it) → done (Jon approved it). Only Jon sets done, except the
+// live-YouTube sync for a card whose video the server itself found public (liveDone).
 export const TASK_STATUSES = ['todo', 'doing', 'waiting_on_jon', 'qc', 'review', 'done', 'cancelled'];
 const OPEN_STATUSES = ['todo', 'doing', 'waiting_on_jon'];
 export const PROOF_KINDS = ['render', 'url', 'pdf', 'test'];
@@ -189,7 +190,7 @@ async function linkedTask(db, body) {
 
 const taskOut = (r) => ({
   id: r.id, title: r.title, owner: r.owner, status: r.status, note: r.note ?? null,
-  project: r.project ?? null, minutes: r.minutes ?? null, due: r.due ?? null,
+  project: r.project ?? null, minutes: r.minutes ?? null, due: r.due ?? null, stage: r.stage ?? null, stageSince: r.stage_since ?? null,
   createdBy: r.created_by, updatedBy: r.updated_by, createdAt: r.created_at, updatedAt: r.updated_at, doneAt: r.done_at ?? null,
 });
 const proofOut = (r) => ({
@@ -262,7 +263,7 @@ async function createTask(db, who, body, now) {
 
 // One history row. Best effort: the change it records is already saved, and failing here would make
 // the bot retry (and, for proofs, add a copy).
-async function logEvent(db, taskId, at, by, kind, detail) {
+export async function logEvent(db, taskId, at, by, kind, detail) {
   try {
     await db.prepare('INSERT INTO bot_task_events (id, task_id, at, "by", kind, detail) VALUES (?, ?, ?, ?, ?, ?)')
       .bind(newId('e'), taskId, at, by, kind, detail).run();
@@ -308,6 +309,13 @@ async function updateTask(db, who, id, body, now) {
   if ('project' in body) { sets.push('project = ?'); args.push(next.project = projectOf(body.project)); }
   if ('minutes' in body) { sets.push('minutes = ?'); args.push(minutesOf(body)); }
   if ('due' in body) { sets.push('due = ?'); args.push(next.due = matchOf(body, 'due', DAY_RE, '2026-10-29')); }
+  // Stage of a staged card (lowercase, e.g. "script", "sponsor review"); '' or null clears it. stage_since moves only
+  // when the stage changes, so setting the same stage again keeps how long the card has been in it.
+  if ('stage' in body) {
+    const stage = text(body, 'stage', 40)?.toLowerCase().replace(/\s+/g, ' ') ?? null;
+    if (stage && !/^[a-z0-9][a-z0-9 -]*$/.test(stage)) throw new Bad(400, 'stage: letters, digits, spaces and - only');
+    if (stage !== (row.stage ?? null)) { sets.push('stage = ?', 'stage_since = ?'); args.push(next.stage = stage, stage ? now : null); }
+  }
   if ('status' in body) {
     const status = next.status = oneOf(body.status, TASK_STATUSES, 'status');
     if (status === 'done') throw new Bad(403, 'Bots cannot set done: Jon approves a task from review to done on the dashboard');
@@ -321,7 +329,8 @@ async function updateTask(db, who, id, body, now) {
     sets.push('status = ?', 'done_at = NULL');
     args.push(status);
   }
-  if (!sets.length) throw new Bad(400, 'Nothing to change: send title, owner, status, note, project, minutes or due');
+  if (!sets.length && 'stage' in body) return json({ ok: true, task: taskOut(row) }); // the same stage again: nothing to do
+  if (!sets.length) throw new Bad(400, 'Nothing to change: send title, owner, status, note, project, minutes, due or stage');
   // Re-check the proof inside the UPDATE so a QC fail landing in between can't be skipped.
   const moving = 'status' in body && body.status !== row.status ? String(body.status).trim().toLowerCase() : '';
   const guard = moving === 'review' ? ` AND EXISTS (${PASSED_SINCE_SENT_BACK})`
@@ -369,6 +378,64 @@ export async function tickTask(db, env, ctx, id, body, now, extra = {}) {
   return json({ ok: true, task: taskOut(row), comment: commentOut(c) });
 }
 
+// ---- live on YouTube (Jon, 2026-11-09): "the daily YouTube sync moves its card to Done" ----
+
+// The bot that runs the team's scripts (yt_live_sync.py). Apart from this path, only Jon sets done.
+const LIVE_SYNC_BOTS = ['developer'];
+const WATCH_HOSTS = ['youtube.com', 'www.youtube.com', 'm.youtube.com'];
+
+// The video id of an https youtube.com/watch?v= or youtu.be/ link, else null. No other link counts as live proof.
+export function watchIdOf(value) {
+  if (typeof value !== 'string' || value.length > 300) return null;
+  let u;
+  try { u = new URL(value.trim()); } catch { return null; }
+  if (u.protocol !== 'https:' || u.username || u.password || u.port) return null;
+  const id = u.hostname === 'youtu.be' ? u.pathname.slice(1)
+    : WATCH_HOSTS.includes(u.hostname) && u.pathname === '/watch' ? u.searchParams.get('v') : null;
+  return id && /^[\w-]{11}$/.test(id) ? id : null;
+}
+
+// YouTube's oEmbed answers with no sign-in only for a video anyone can open: 200 with its title. Private, deleted
+// or missing: 401, 403 or 404. shortcut: an unlisted video answers 200 too; the sync only sends ids from a channel's public feed.
+async function publicVideo(id) {
+  const link = `https://www.youtube.com/watch?v=${id}`;
+  let r;
+  try {
+    r = await fetch(`https://www.youtube.com/oembed?format=json&url=${encodeURIComponent(link)}`, { redirect: 'manual', signal: AbortSignal.timeout(10000) });
+  } catch {
+    throw new Bad(502, 'Could not reach YouTube to check the video; try again later');
+  }
+  if ([400, 401, 403, 404].includes(r.status)) throw new Bad(422, `YouTube says video ${id} is not public (HTTP ${r.status})`);
+  const data = r.status === 200 ? await r.json().catch(() => null) : null;
+  if (typeof data?.title !== 'string') throw new Bad(502, `YouTube's check of video ${id} failed (HTTP ${r.status}); try again later`);
+  return { id, link, title: data.title.slice(0, 300), author: typeof data.author_name === 'string' ? data.author_name.slice(0, 100) : null };
+}
+
+// POST tasks/:id/live {link}: the sync found this card's video live. The server checks the video is public itself,
+// then saves the watch link as passed proof and moves the card to done in one batch. A done or cancelled card stays.
+async function liveDone(db, who, id, body, now) {
+  if (!LIVE_SYNC_BOTS.includes(who.bot)) throw new Bad(403, `Only ${LIVE_SYNC_BOTS.join(', ')} can mark a live video done`);
+  const videoId = watchIdOf(body.link);
+  if (!videoId) throw new Bad(400, 'link must be an https://www.youtube.com/watch?v=… or https://youtu.be/… link');
+  const task = await taskRow(db, id);
+  if (!task) throw new Bad(404, 'Task not found');
+  if (['done', 'cancelled'].includes(task.status)) throw new Bad(409, `Task is already ${task.status}`);
+  const video = await publicVideo(videoId);
+  const open = "id = ? AND status NOT IN ('done', 'cancelled')";
+  const proofId = newId('p');
+  const [, moved] = await db.batch([
+    db.prepare(`INSERT INTO bot_proofs (id, task_id, kind, link, note, status, created_by, created_at, checked_by, checked_at, check_note)
+      SELECT ?, id, 'url', ?, ?, 'passed', ?, ?, ?, ?, ? FROM bot_tasks WHERE ${open}`)
+      .bind(proofId, video.link, `Live on YouTube: ${video.title}`, who.bot, now, who.bot, now, 'Public on YouTube (the dashboard checked it)', id),
+    db.prepare(`UPDATE bot_tasks SET status = 'done', done_at = ?, updated_by = ?, updated_at = ? WHERE ${open}`).bind(now, who.bot, now, id),
+  ]);
+  if (!changed(moved)) throw new Bad(409, `Task is already ${(await taskRow(db, id))?.status ?? 'gone'}`);
+  await logEvent(db, id, now, who.bot, 'proof', 'proof added (url)');
+  await logEvent(db, id, now, who.bot, 'status', `status ${task.status} → done (live on YouTube)`);
+  const proof = await db.prepare('SELECT * FROM bot_proofs WHERE id = ?').bind(proofId).first();
+  return json({ ok: true, task: taskOut(await taskRow(db, id)), proof: proofOut(proof), video });
+}
+
 async function listTasks(db, who, q) {
   const where = [];
   const args = [];
@@ -396,7 +463,8 @@ async function getTask(db, id) {
 
 // What Jon opens on a Review or Done card: the newest QC-passed proof, else the newest proof.
 // Only an http(s) link is `web` (clickable); a file path on GPU1 shows as text.
-const deliverableOf = (p) => (p?.link ? { link: p.link, kind: p.kind, web: /^https?:\/\//i.test(p.link) } : null);
+// status lets the page hold back a review link QC hasn't passed (the QC gate, public/js/pages/projects.js deliverableLink).
+const deliverableOf = (p) => (p?.link ? { link: p.link, kind: p.kind, web: /^https?:\/\//i.test(p.link), ...(p.status ? { status: p.status } : {}) } : null);
 
 // Tasks from before history began have no "created" row: start theirs with one, plus the proofs
 // added before their first recorded event.
@@ -506,7 +574,11 @@ async function addProof(db, who, taskId, body, now) {
 }
 
 async function checkProof(db, who, id, body, now) {
-  if (who.bot !== QC_BOT) throw new Bad(403, 'Only QC can pass or fail proof');
+  // QC rules on proof. Ana may also rule on a proof QC posted itself, which nobody else could check.
+  if (who.bot !== QC_BOT) {
+    const own = who.bot === 'ana' ? await db.prepare('SELECT created_by FROM bot_proofs WHERE id = ?').bind(id).first() : null;
+    if (own?.created_by !== QC_BOT) throw new Bad(403, 'Only QC can pass or fail proof (Ana only for proof QC posted)');
+  }
   const result = oneOf(body.result, ['passed', 'failed'], 'result');
   const note = text(body, 'note', 4000);
   const r = await db.prepare('UPDATE bot_proofs SET status = ?, checked_by = ?, checked_at = ?, check_note = ? WHERE id = ?')
@@ -716,6 +788,44 @@ async function decideApproval(db, id, body, now) {
   return moveApproval(db, id, ['pending'],
     'UPDATE bot_approvals SET status = ?, decided_by = ?, decided_at = ?, decision_note = ?, updated_at = ?',
     [decision === 'approve' ? 'approved' : 'rejected', 'jon', now, note, now], (s) => `Approval is already ${s}`);
+}
+
+// ---- Needs you (Jon, 2026-11-11): Drop or Not now on a row of his work list ----
+// Drop: a card closes as Close card does, a question closes, an approval is rejected. Not now: the item leaves the list
+// (and the rail count and Blockers) for 24 hours. Each one is written on the linked card's history.
+const LATER_MS = 24 * 3600000;
+async function needsAct(db, env, ctx, id, verb, now) {
+  const kind = id[0];
+  const row = kind === 't' ? await taskRow(db, id) : kind === 'q' ? await questionRow(db, id) : kind === 'a' ? await approvalRow(db, id) : null;
+  if (!row) throw new Bad(404, 'Not found');
+  const card = kind === 't' ? id : row.task_id || null;
+  if (verb === 'later') {
+    const open = kind === 't' ? !['done', 'cancelled'].includes(row.status) : row.status === (kind === 'q' ? 'open' : 'pending');
+    if (!open) throw new Bad(409, `Already ${row.status}`);
+    const until = new Date(Date.parse(now) + LATER_MS).toISOString();
+    try {
+      await db.prepare('DELETE FROM needs_later WHERE until <= ?').bind(now).run(); // expired rows
+      await db.prepare('INSERT INTO needs_later (item, until, "by", at) VALUES (?, ?, \'jon\', ?) ON CONFLICT(item) DO UPDATE SET until = excluded.until, at = excluded.at')
+        .bind(id, until, now).run();
+    } catch (e) {
+      if (/no such table/i.test(String(e?.message))) throw new Bad(503, "Not now isn't set up yet");
+      throw e;
+    }
+    if (card) await logEvent(db, card, now, 'jon', 'needs', `not now until ${until} (Needs you)`);
+    return json({ ok: true, item: id, until });
+  }
+  if (kind === 't') return tickTask(db, env, ctx, id, { status: 'cancelled' }, now); // logs "closed by Jon"
+  let res;
+  if (kind === 'q') {
+    const r = await db.prepare("UPDATE bot_questions SET status = 'closed', closed_by = 'jon', closed_at = ?, updated_at = ? WHERE id = ? AND status = 'open'")
+      .bind(now, now, id).run();
+    const after = await questionRow(db, id);
+    res = changed(r) ? json({ ok: true, question: questionOut(after) }) : json({ ok: false, error: `Question is already ${after.status}`, question: questionOut(after) }, 409);
+  } else {
+    res = await decideApproval(db, id, { decision: 'reject', note: 'dropped by Jon' }, now);
+  }
+  if (res.ok && card) await logEvent(db, card, now, 'jon', 'needs', `${kind === 'q' ? 'question' : 'approval'} dropped by Jon (Needs you): ${String(kind === 'q' ? row.question : row.title).slice(0, 120)}`);
+  return res;
 }
 
 // ---- runs ----
@@ -1463,7 +1573,7 @@ export async function todayData(db, nowMs, month) {
     // web proof link and its deliverable (picked as in deliverableOf).
     tryRead(db.prepare(`SELECT t.*, (SELECT p.link FROM bot_proofs p WHERE p.task_id = t.id AND (p.link LIKE 'http://%' OR p.link LIKE 'https://%')
       ORDER BY p.created_at DESC LIMIT 1) AS proof_link,
-      (SELECT json_object('link', p.link, 'kind', p.kind) FROM bot_proofs p WHERE p.task_id = t.id
+      (SELECT json_object('link', p.link, 'kind', p.kind, 'status', p.status) FROM bot_proofs p WHERE p.task_id = t.id
       ORDER BY p.status = 'passed' DESC, p.created_at DESC, p.rowid DESC LIMIT 1) AS deliverable FROM bot_tasks t
       WHERE t.status IN ('todo', 'doing', 'waiting_on_jon', 'qc', 'review') OR (t.status = 'done' AND t.done_at >= ?) ORDER BY t.updated_at DESC LIMIT 500`).bind(since).all()),
     tryRead(latestFeed(db, 'daily_checklists')),
@@ -1551,6 +1661,7 @@ async function route(request, db, who, rest, env, ctx) {
     case 'PATCH tasks/:id': return who.jon ? tickTask(db, env, ctx, id, body, now) : updateTask(db, who, id, body, now);
     case 'POST tasks/:id/proofs': needBot(who); return addProof(db, who, id, body, now);
     case 'POST tasks/:id/comments': return addComment(db, env, ctx, who, id, body, now);
+    case 'POST tasks/:id/live': needBot(who); return liveDone(db, who, id, body, now);
     case 'GET proofs': return listProofs(db, q);
     case 'POST proofs/:id/check': needBot(who); return checkProof(db, who, id, body, now);
     case 'GET questions': return listQuestions(db, who, q);
@@ -1574,6 +1685,8 @@ async function route(request, db, who, rest, env, ctx) {
     case 'POST approvals/:id/release': needBot(who); return releaseApproval(db, who, id, body, now);
     case 'POST approvals/:id/cancel': needBot(who); return cancelApproval(db, who, id, body, now);
     case 'POST approvals/:id/decide': needJon(who); return decideApproval(db, id, body, now);
+    case 'POST needs/:id/drop': needJon(who); return needsAct(db, env, ctx, id, 'drop', now);
+    case 'POST needs/:id/later': needJon(who); return needsAct(db, env, ctx, id, 'later', now);
     case 'GET runs': return listRuns(db, who, q);
     case 'POST runs': needBot(who); return reportRun(db, who, body, now);
     case 'GET daily': return listDaily(db, q);

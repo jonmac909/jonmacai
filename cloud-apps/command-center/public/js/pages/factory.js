@@ -12,7 +12,7 @@ const fold = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, '');
 const words = (s) => String(s || '').toLowerCase().match(/[a-z0-9]+/g) || [];
 // A card names its host short ("Nora Fairweather"); the chip has the full name ("Nora Fairweather Cats"). The tile joins the chip with that exact
 // name, or the one chip whose name begins with the host's words. Two chips that fit (just "Rosa") join neither.
-function chipOf(host, known) {
+export function chipOf(host, known) {
   const f = fold(host);
   if (!f) return '';
   const exact = known.find((c) => f === fold(c.label) || f === fold(c.slug));
@@ -83,7 +83,13 @@ function panel(f) {
   if (g1 === undefined && f.gpu) g1 = { running: (f.gpu.running || []).map((r) => ({ type: r.model, what: r.who, runningS: r.runningS })), waiting: f.gpu.waiting }; // an older snapshot has GPU1 only
   const team = Array.isArray(f.team) ? f.team : [];
   const gpus = gpuRow('GPU1', g1) + gpuRow('GPU2', f.gpus ? f.gpus.gpu2 : undefined);
-  const who = (m) => `<p class="fyt${m.working ? ' on' : ''}"><i class="fydot"></i><b>${esc(m.name)}</b><span>${m.working ? 'Working' : `Idle${m.idleMin == null ? '' : ` ${esc(wait(m.idleMin))}`}`}</span><em title="${esc(m.card || '')}">${esc(m.card || '')}</em></p>`;
+  // The states OpenBot's agent list shows (Jon, 2026-11-09): Working, Queued (yellow) and Idle, each with the minutes since its last activity.
+  const who = (m) => {
+    const st = m.state || (m.working ? 'working' : 'idle');
+    const ago = m.idleMin == null ? '' : esc(wait(m.idleMin) || '0m');
+    const text = st === 'working' ? `Working${ago ? ` · ${ago}` : ''}` : st === 'queued' ? `Queued ${Number(m.queued) || 0}${ago ? ` · ${ago}` : ''}` : `Idle${ago ? ` ${ago}` : ''}`;
+    return `<p class="fyt ${st === 'working' ? 'on' : st === 'queued' ? 'qd' : ''}"${ago ? ` title="last activity ${ago} ago"` : ''}><i class="fydot"></i><b>${esc(m.name)}</b><span>${text}</span><em title="${esc(m.card || '')}">${esc(m.card || '')}</em></p>`;
+  };
   return gpus || team.length ? `<div class="fypan">${gpus ? `<div class="fygpus">${gpus}</div>` : ''}${team.length ? `<div class="fyteam">${team.map(who).join('')}</div>` : ''}</div>` : '';
 }
 

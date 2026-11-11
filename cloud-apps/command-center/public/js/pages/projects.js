@@ -11,6 +11,7 @@ export const REVIEW_LINK = /^https:\/\/jonmac\.ai\/(?:dashboard\/)?review\/([a-z
 export function deliverableLink(d, cls = '') {
   if (!d?.link) return '';
   const review = REVIEW_LINK.exec(d.link);
+  if (review && d.status && d.status !== 'passed') return '<span class="pjdeliv">Review page: waiting for QC</span>'; // the QC gate: no link before QC passes it
   if (review) return `<a class="pjdeliv${cls ? ` ${cls}` : ''}" href="/dashboard/review/${esc(review[1].toLowerCase())}" target="_blank" rel="noopener">Open review</a>`;
   return /^https?:\/\//i.test(d.link)
     ? `<a class="pjdeliv${cls ? ` ${cls}` : ''}" href="${esc(d.link)}" target="_blank" rel="noopener">${esc(linkLabel(d.link, d.kind))}</a>`
@@ -78,7 +79,7 @@ export function render(d, _data, sub) {
       <div class="card pad"><div class="cardhead"><h2>Board</h2>${d.available ? '' : '<span class="meta">The bot tables could not be read.</span>'}</div>
         <div class="pjkan">${p.columns.map(column).join('')}</div></div>
     </div>
-    <div class="pjright todayside">${checklistCard(p.checklist)}${summaryCard(d.summary)}${calendarCard(d.calendar)}</div>
+    <div class="pjright todayside">${checklistCard(p.checklist)}${d.summary ? summaryCard(d.summary) : ''}${calendarCard(d.calendar)}</div>
   </div>
 </div>`;
 }

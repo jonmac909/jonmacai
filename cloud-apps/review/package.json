@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node --test test/worker.test.mjs test/runtime.test.mjs",
+    "test": "node --test test/worker.test.mjs test/runtime.test.mjs test/approvals.test.mjs",
     "test:browser": "node test/browser.mjs",
     "proof": "node test/browser.mjs --live",
     "publish": "node scripts/review_publish.mjs"

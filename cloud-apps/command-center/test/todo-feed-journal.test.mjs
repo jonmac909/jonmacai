@@ -179,7 +179,10 @@ test('feed page: first names, friendly times, escaped rows with link labels, and
   assert.doesNotMatch(textOf(comment), /https?:/, 'no raw URL on screen');
   const proof = rowHtml(r({ who: 'sponsors', kind: 'proof', body: 'render', link: 'javascript:alert(1)' }), now);
   assert.doesNotMatch(proof, /href/, 'only web links are links');
-  assert.match(rowHtml(r({ who: 'sponsors', kind: 'proof', body: 'url', link: 'https://jonmac.ai/review/1' }), now), /<a class="pjdeliv" href="\/dashboard\/review\/1"[^>]*>Open review<\/a>/, 'a review-site video opens the dashboard Review page');
+  // The QC gate: a proof just added hasn't passed QC, so the feed never links Jon to its review page.
+  const review = rowHtml(r({ who: 'sponsors', kind: 'proof', body: 'url', link: 'https://jonmac.ai/review/1' }), now);
+  assert.match(review, /Review page: waiting for QC/);
+  assert.doesNotMatch(review, /href=/, 'no review link before QC passes it');
   const ask = (more) => rowHtml(r({ id: 'q_0123456789abcdef', who: 'home-guide-press', kind: 'question', taskId: null, title: 'Which cover?', body: null, ...more }), now);
   assert.match(ask({ pending: true }), /data-open="q_0123456789abcdef".*<b>Elle<\/b><span>asked<\/span>/s, 'an open question opens its card');
   assert.doesNotMatch(ask({ pending: false }), /data-open/, 'an answered one without a task has no card');

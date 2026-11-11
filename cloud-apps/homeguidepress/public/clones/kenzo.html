@@ -1,0 +1,548 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>Calm and Ready &middot; Kenzo Arai &middot; Home Guide Press</title>
+<meta name="description" content="Calm and Ready: everyday safety and self-defense after 60. A plain-words PDF guide to awareness, everyday items and a calm head. General safety information, not self-defense training. $27.">
+<meta name="theme-color" content="#0f0f0f">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anton&family=Roboto:wght@400;500;700&display=swap">
+<style>
+:root{
+  --ink:#0f0f0f;--muted:#474747;--line:#e2e2e2;--chip:#f2f2f2;--page:#fff;--soft:#f7f4ef;
+  --red:#e8231f;--redd:#c4161c;--char:#17181a;--gold:#d9a441;--cream:#f4efe6;
+  --ui:"Roboto",system-ui,-apple-system,"Segoe UI",Arial,sans-serif;
+  --thumb:"Anton",Impact,"Arial Narrow",sans-serif;
+  --wrap:1180px;
+  --outline:.055em .055em 0 #000,-.055em .055em 0 #000,.055em -.055em 0 #000,-.055em -.055em 0 #000,0 .07em 0 #000,0 -.07em 0 #000,.07em 0 0 #000,-.07em 0 0 #000,.08em .11em 0 rgba(0,0,0,.55);
+}
+*,*::before,*::after{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%;scroll-behavior:smooth}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+body{margin:0;background:var(--page);color:var(--ink);font:400 1.25rem/1.6 var(--ui)}
+a{color:var(--ink);text-underline-offset:.18em}
+:focus-visible{outline:3px solid var(--redd);outline-offset:3px;border-radius:4px}
+.skip{position:absolute;left:-999px;top:0;background:var(--ink);color:#fff;padding:.6rem 1rem;z-index:10}
+.skip:focus{left:1rem}
+.wrap{max-width:var(--wrap);margin:0 auto;padding:0 1.25rem}
+p{margin:0 0 1.1rem}
+section{padding:3.5rem 0}
+@media(min-width:900px){section{padding:5rem 0}}
+h1,h2,h3{margin:0 0 1rem;color:var(--ink)}
+h2{font:400 clamp(2.1rem,5vw,3.2rem)/1.05 var(--thumb);text-transform:uppercase;letter-spacing:.01em}
+h2 em,h1 em{font-style:normal;color:var(--redd)}
+.eyebrow{font:700 1rem/1.3 var(--ui);letter-spacing:.14em;text-transform:uppercase;color:var(--redd);margin:0 0 .7rem}
+.read{max-width:44rem}
+.muted{color:var(--muted)}
+
+/* buy buttons (styled like the channel's black pill button) */
+.buy{display:inline-flex;align-items:center;justify-content:center;min-height:58px;padding:0 1.9rem;border-radius:999px;background:var(--ink);color:#fff;font:500 1.2rem/1.2 var(--ui);text-decoration:none;white-space:nowrap;user-select:none;cursor:pointer}
+.buy.off{background:#3b3b3b;color:#f2f2f2;cursor:not-allowed}
+
+/* top bar */
+.top{border-bottom:1px solid var(--line);background:#fff}
+.top .wrap{display:flex;align-items:center;justify-content:space-between;gap:1rem;min-height:64px}
+.brand{display:flex;align-items:center;gap:.6rem;font:700 1.15rem/1 var(--ui);color:var(--ink);text-decoration:none;letter-spacing:-.01em}
+.brand i{width:26px;height:26px;border-radius:50%;background:var(--red);box-shadow:inset 0 0 0 4px var(--ink)}
+.top-link{display:inline-flex;align-items:center;min-height:44px;padding:0 1.1rem;border:1px solid #c9c9c9;border-radius:999px;font:500 1rem/1 var(--ui);color:var(--ink);text-decoration:none}
+.top-link:hover{background:var(--chip)}
+
+/* channel header */
+.chan{padding:2rem 0 0}
+.chan-in{display:flex;gap:1.75rem;align-items:center}
+.avatar{flex:none;width:160px;height:160px;border-radius:50%;display:grid;place-items:center;background:radial-gradient(circle at 50% 52%,var(--red) 0 33%,transparent 34%),radial-gradient(120% 100% at 50% 15%,#f0c27a 0%,#b9773a 45%,#5a3417 80%,#2e1a0a 100%);box-shadow:inset 0 0 0 5px var(--ink)}
+.avatar span{font:400 3.6rem/1 var(--thumb);color:#fff;text-shadow:var(--outline);letter-spacing:.02em}
+.chan-name{font:700 clamp(1.75rem,4vw,2.5rem)/1.15 var(--ui);margin:0 0 .4rem;letter-spacing:-.01em}
+.chan-name span{color:#9a9a9a;font-weight:400}
+.chan-meta{font:500 1.05rem/1.4 var(--ui);color:var(--muted);margin:0 0 .35rem}
+.chan-desc{font:400 1.1rem/1.45 var(--ui);color:var(--muted);margin:0 0 1rem;max-width:40rem}
+.chan .buy{min-height:48px;padding:0 1.3rem;font-size:1.05rem}
+.tabs{display:flex;gap:2rem;margin-top:1.5rem;border-bottom:1px solid #cfcfcf}
+.tab{padding:.75rem 0 .65rem;font:500 1.15rem/1 var(--ui);border-bottom:3px solid var(--ink);margin-bottom:-1px}
+.chips{display:flex;flex-wrap:wrap;gap:.6rem;padding:1.1rem 0 0}
+.chip{display:inline-flex;align-items:center;min-height:44px;padding:0 1rem;border-radius:9px;background:var(--chip);color:var(--ink);font:500 1.05rem/1 var(--ui);text-decoration:none}
+.chip:hover{background:#e5e5e5}
+.chip.on{background:var(--ink);color:#fff}
+@media(max-width:640px){
+  .chan-in{flex-direction:column;align-items:flex-start;gap:1rem}
+  .avatar{width:104px;height:104px}
+  .avatar span{font-size:2.4rem}
+}
+
+/* thumbnail look (from the channel's video thumbnails) */
+.thumb{container-type:inline-size;position:relative;aspect-ratio:16/9;border-radius:14px;overflow:hidden;color:#fff}
+.wood{background:
+  linear-gradient(90deg,rgba(43,22,8,.6) 0 2.5%,transparent 2.5% 29%,rgba(43,22,8,.45) 29% 31%,transparent 31% 63%,rgba(43,22,8,.45) 63% 65%,transparent 65% 97.5%,rgba(43,22,8,.6) 97.5%),
+  linear-gradient(180deg,rgba(43,22,8,.55) 0 5%,transparent 5% 82%,rgba(20,10,4,.7) 100%),
+  radial-gradient(120% 95% at 62% 32%,#f6d08e 0%,#d0924b 34%,#8a5023 68%,#3b210d 100%)}
+.dark{background:
+  linear-gradient(90deg,rgba(255,255,255,.04) 0 1%,transparent 1% 33%,rgba(255,255,255,.04) 33% 34%,transparent 34%),
+  radial-gradient(110% 95% at 30% 25%,#4b4541 0%,#242222 55%,#0c0c0c 100%)}
+.badge{position:absolute;right:2.2cqw;bottom:2.4cqw;background:rgba(0,0,0,.82);color:#fff;font:500 max(13px,2.1cqw)/1 var(--ui);padding:.35em .5em;border-radius:5px;letter-spacing:.02em}
+.card .thumb .tt{position:absolute;left:5cqw;top:5cqw;margin:0;font:400 12.5cqw/1.08 var(--thumb);color:#fff;text-transform:uppercase;text-shadow:var(--outline);max-width:58cqw}
+.tt em{font-style:normal;color:var(--red);display:block}
+.ico{position:absolute;right:6cqw;top:12cqw;width:34cqw;height:auto}
+
+/* drawn book cover */
+.cover{container-type:inline-size;width:100%}
+.cv{aspect-ratio:3/4;position:relative;overflow:hidden;display:flex;flex-direction:column;align-items:center;text-align:center;padding:9cqw 7cqw 8cqw;border-radius:1.5cqw 3cqw 3cqw 1.5cqw;color:var(--cream);
+  background:linear-gradient(90deg,rgba(0,0,0,.45) 0 3.5%,rgba(255,255,255,.08) 3.5% 4.5%,transparent 4.5%),radial-gradient(130% 85% at 50% 0%,#2f2d2c 0%,#17181a 60%,#0b0b0c 100%);
+  box-shadow:0 2cqw 5cqw rgba(0,0,0,.5),inset 0 0 0 .8cqw rgba(217,164,65,.55)}
+.cv-pub{font:700 4.2cqw/1 var(--ui);letter-spacing:.24em;text-transform:uppercase;color:var(--gold)}
+.cv-sun{width:26cqw;height:26cqw;border-radius:50%;background:var(--red);margin:8cqw 0 6cqw;box-shadow:0 0 0 1.4cqw rgba(232,35,31,.22)}
+.cv-t1{font:400 15cqw/.95 var(--thumb);text-transform:uppercase;letter-spacing:.01em}
+.cv-t2{font:400 23cqw/.95 var(--thumb);text-transform:uppercase;color:var(--red);letter-spacing:.01em}
+.cv-rule{width:22cqw;height:.9cqw;background:var(--gold);margin:4.5cqw 0 4cqw}
+.cv-sub{font:500 5.3cqw/1.3 var(--ui);color:#e9e2d6;max-width:78cqw}
+.cv-host{margin-top:auto;font:700 5cqw/1 var(--ui);letter-spacing:.22em;text-transform:uppercase;color:var(--gold)}
+
+/* hero */
+.hero{padding:2rem 0 3.5rem}
+.hero-in{display:grid;gap:2rem;align-items:start}
+@media(min-width:960px){.hero-in{grid-template-columns:1.25fr 1fr;gap:3rem}.hero{padding:2.5rem 0 5rem}}
+.th-cover{position:absolute;left:6cqw;top:6.5cqw;width:31cqw;transform:rotate(-3deg)}
+.th-text{position:absolute;left:43cqw;right:3.5cqw;top:6cqw}
+.th-tag{display:inline-block;margin:0 0 2.6cqw;background:#fff;color:#000;font:400 4.4cqw/1 var(--thumb);text-transform:uppercase;padding:.28em .45em .22em;box-shadow:.5cqw .6cqw 0 #000}
+.th-big{margin:0;font:400 10.2cqw/1.1 var(--thumb);text-transform:uppercase;text-shadow:var(--outline)}
+.th-big em{font-style:normal;color:var(--red);display:block}
+.arrow{position:absolute;left:30cqw;top:39cqw;width:24cqw;height:auto}
+.kicker{font:700 1rem/1.3 var(--ui);letter-spacing:.14em;text-transform:uppercase;color:var(--redd);margin:0 0 .6rem}
+.hero h1{font:700 clamp(1.9rem,3.4vw,2.6rem)/1.15 var(--ui);letter-spacing:-.015em;margin:0 0 .6rem}
+.meta{font:500 1.05rem/1.4 var(--ui);color:var(--muted);margin:0 0 1.1rem}
+.lede{font-size:1.25rem}
+.price{display:flex;align-items:baseline;flex-wrap:wrap;gap:.2rem .7rem;margin:0 0 .9rem}
+.price b{font:400 3.2rem/1 var(--thumb);color:var(--ink);letter-spacing:.01em}
+.price span{font:500 1.15rem/1.3 var(--ui);color:var(--muted)}
+.guar{font:500 1.1rem/1.4 var(--ui);margin:.9rem 0 0}
+.guar::before{content:"\2713";color:var(--redd);font-weight:700;margin-right:.45rem}
+.facts{list-style:none;padding:0;margin:.8rem 0 0;display:flex;flex-wrap:wrap;gap:.3rem 1.3rem;font:400 1.05rem/1.5 var(--ui);color:var(--muted)}
+.facts li::before{content:"";display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--red);margin-right:.5rem;vertical-align:middle}
+.note{margin:1.5rem 0 0;background:var(--chip);border-left:5px solid var(--redd);border-radius:0 10px 10px 0;padding:.9rem 1.1rem;font:500 1.1rem/1.45 var(--ui)}
+.under{margin-top:1rem}
+.under p{margin:0;font:500 1.15rem/1.35 var(--ui)}
+.under p+p{font-weight:400;color:var(--muted);font-size:1.05rem;margin-top:.25rem}
+
+/* recognition */
+.why{background:var(--soft)}
+.why-in{display:grid;gap:2rem;align-items:center}
+@media(min-width:900px){.why-in{grid-template-columns:1.2fr .8fr;gap:4rem}}
+.pull{background:var(--char);color:#fff;border-radius:14px;padding:2rem 1.75rem}
+.pull p{font:400 clamp(2rem,4vw,2.7rem)/1.05 var(--thumb);text-transform:uppercase;margin:0;text-shadow:var(--outline)}
+.pull p em{font-style:normal;color:var(--red)}
+.pull small{display:block;margin-top:1rem;font:400 1.05rem/1.45 var(--ui);color:#d6d0c6;text-transform:none;text-shadow:none}
+
+/* video-grid style cards */
+.grid{list-style:none;margin:2rem 0 0;padding:0;display:grid;gap:2.25rem 1.25rem}
+@media(min-width:700px){.grid{grid-template-columns:repeat(2,1fr)}}
+@media(min-width:1000px){.grid{grid-template-columns:repeat(3,1fr)}}
+.card h3{font:500 1.3rem/1.3 var(--ui);margin:.85rem 0 .35rem}
+.card p{font-size:1.15rem;line-height:1.55;color:var(--muted);margin:0}
+.sub-h{margin-top:3.5rem}
+.sub-h h2{font-size:clamp(1.8rem,4vw,2.5rem)}
+
+/* notice band */
+.warn{background:var(--char);color:#f2ede4}
+.warn-in{border-left:6px solid var(--red);padding:.2rem 0 .2rem 1.5rem;max-width:52rem}
+.warn h2{color:#fff}
+.warn .eyebrow{color:#ff6b5e}
+.warn p{font-size:1.25rem;margin:0 0 .9rem}
+.warn p:last-child{margin:0}
+.warn strong{color:#fff}
+
+/* strip */
+.strip{background:var(--ink);color:#fff;padding:2.2rem 0}
+.strip ul{list-style:none;margin:0;padding:0;display:grid;gap:1rem}
+@media(min-width:800px){.strip ul{grid-template-columns:repeat(3,1fr);gap:2rem}}
+.strip li{display:flex;align-items:center;gap:.9rem;font:500 1.2rem/1.35 var(--ui)}
+.strip li::before{content:"\2713";flex:none;width:2.4rem;height:2.4rem;border-radius:50%;background:var(--red);display:grid;place-items:center;font:700 1.15rem/1 var(--ui)}
+
+/* fit */
+.fit{display:grid;gap:2rem;margin-top:2rem}
+@media(min-width:800px){.fit{grid-template-columns:1fr 1fr;gap:3rem}}
+.fit h3{font:700 1.05rem/1.3 var(--ui);letter-spacing:.12em;text-transform:uppercase;margin:0 0 .6rem}
+.fit ul{list-style:none;margin:0;padding:0}
+.fit li{position:relative;padding:.9rem 0 .9rem 2.2rem;border-top:1px solid var(--line);font-size:1.2rem;line-height:1.5}
+.fit li::before{position:absolute;left:0;top:.85rem;font:700 1.3rem/1.4 var(--ui)}
+.yes li::before{content:"\2713";color:var(--ink)}
+.no li::before{content:"\00D7";color:var(--redd);font-size:1.6rem;top:.68rem}
+
+/* offer */
+.offer-sec{background:var(--soft)}
+.offer{background:#fff;border:1px solid #d8d2c8;border-radius:18px;padding:1.75rem;display:grid;gap:2rem;max-width:980px;margin:0 auto;box-shadow:0 14px 40px rgba(15,15,15,.08)}
+@media(min-width:780px){.offer{grid-template-columns:.75fr 1.25fr;padding:2.75rem;gap:3rem;align-items:center}}
+.offer-cover{max-width:300px;width:72%;margin:0 auto}
+@media(min-width:780px){.offer-cover{width:100%}}
+.offer h2{margin:0 0 .3rem}
+.offer-sub{font:500 1.2rem/1.4 var(--ui);color:var(--muted);margin:0 0 .2rem}
+.offer-by{font:400 1.05rem/1.4 var(--ui);color:var(--muted);margin:0 0 1.2rem}
+.ticks{list-style:none;margin:0 0 1.5rem;padding:0}
+.ticks li{position:relative;padding:.35rem 0 .35rem 2rem;font-size:1.15rem;line-height:1.45}
+.ticks li::before{content:"\2713";position:absolute;left:0;top:.35rem;color:var(--redd);font-weight:700}
+.offer .buy{width:100%}
+@media(min-width:600px){.offer .buy{width:auto}}
+.promise{max-width:980px;margin:1.75rem auto 0;background:var(--ink);color:#fff;border-radius:14px;padding:1.3rem 1.5rem;display:grid;gap:.3rem}
+.promise b{font:400 1.5rem/1.1 var(--thumb);text-transform:uppercase;color:var(--red);letter-spacing:.02em}
+.promise p{margin:0;font-size:1.2rem}
+
+/* faq */
+.faq{display:grid;gap:.8rem;max-width:52rem;margin-top:2rem}
+.faq details{background:var(--chip);border-radius:12px}
+.faq summary{cursor:pointer;list-style:none;position:relative;padding:1.05rem 3.6rem 1.05rem 1.25rem;font:500 1.25rem/1.4 var(--ui);min-height:56px}
+.faq summary::-webkit-details-marker{display:none}
+.faq summary::after{content:"+";position:absolute;right:1rem;top:50%;transform:translateY(-50%);width:2rem;height:2rem;border-radius:50%;background:var(--ink);color:#fff;display:grid;place-items:center;font:500 1.3rem/1 var(--ui)}
+.faq details[open] summary::after{content:"\2212"}
+.faq details p{margin:0;padding:0 1.25rem 1.2rem;font-size:1.2rem;line-height:1.55;color:#262626}
+
+/* final */
+.final .wrap{display:grid;gap:2rem;align-items:center;background:
+  linear-gradient(90deg,rgba(43,22,8,.55) 0 1.5%,transparent 1.5% 98.5%,rgba(43,22,8,.55) 98.5%),
+  radial-gradient(90% 130% at 14% 40%,#f2c77f 0%,#b9773a 32%,#6e3f1b 62%,#2e1a0a 100%);border-radius:18px;padding:2rem 1.5rem;color:#fff}
+@media(min-width:820px){.final .wrap{grid-template-columns:240px 1fr;gap:3rem;padding:3rem 3.5rem}}
+.final-cover{max-width:200px;width:58%;margin:0 auto}
+@media(min-width:820px){.final-cover{width:100%;max-width:240px}}
+.final h2{color:#fff;text-shadow:var(--outline);font-size:clamp(2.2rem,5vw,3.4rem)}
+.final h2 em{color:var(--red)}
+.final p{font:500 1.2rem/1.5 var(--ui);margin:0 0 1.1rem;text-shadow:0 1px 2px rgba(0,0,0,.6)}
+.final .price b{color:#fff;text-shadow:var(--outline)}
+.final .price span,.final .guar{color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.7)}
+.final .guar::before{color:#fff}
+.final .buy{background:var(--ink)}
+.final .buy.off{background:#2b2b2b}
+
+/* footer */
+footer{background:var(--ink);color:#e6e6e6;padding:2.5rem 0 3rem;font:400 1.1rem/1.6 var(--ui)}
+footer a{color:#fff}
+footer nav{display:flex;flex-wrap:wrap;gap:.25rem 1.5rem;margin-bottom:1rem}
+footer nav a{min-height:44px;display:inline-flex;align-items:center}
+footer p{margin:0 0 .6rem;max-width:56rem}
+</style>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+
+<div class="top">
+  <div class="wrap">
+    <a class="brand" href="/"><i aria-hidden="true"></i>Home Guide Press</a>
+    <a class="top-link" href="#price">See the price</a>
+  </div>
+</div>
+
+<header class="chan">
+  <div class="wrap">
+    <div class="chan-in">
+      <div class="avatar" aria-hidden="true"><span>KA</span></div>
+      <div>
+        <p class="chan-name">Kenzo Arai <span>|</span> Calm and Ready</p>
+        <p class="chan-meta">Home Guide Press &middot; Everyday safety after 60 &middot; PDF guide</p>
+        <p class="chan-desc">Calm, plain-spoken safety habits for people past 60. General safety information, not self-defense training.</p>
+        <a class="buy off" data-buy="kenzo" aria-disabled="true">Checkout opens soon</a>
+      </div>
+    </div>
+    <div class="tabs"><span class="tab">The guide</span></div>
+    <nav class="chips" aria-label="On this page">
+      <a class="chip on" href="#guide">Overview</a>
+      <a class="chip" href="#topics">Topics</a>
+      <a class="chip" href="#fit">Is it for you</a>
+      <a class="chip" href="#price">Price</a>
+      <a class="chip" href="#faq">Questions</a>
+    </nav>
+  </div>
+</header>
+
+<main id="main">
+
+<!-- HERO -->
+<section class="hero" id="guide">
+  <div class="wrap hero-in">
+    <div>
+      <div class="thumb wood">
+        <div class="th-cover">
+          <div class="cover" role="img" aria-label="Cover of Calm and Ready: Everyday Safety and Self-Defense After 60, by Kenzo Arai, Home Guide Press">
+            <div class="cv" aria-hidden="true">
+              <span class="cv-pub">Home Guide Press</span>
+              <span class="cv-sun"></span>
+              <span class="cv-t1">Calm and</span>
+              <span class="cv-t2">Ready</span>
+              <span class="cv-rule"></span>
+              <span class="cv-sub">Everyday Safety and<br>Self-Defense After 60</span>
+              <span class="cv-host">Kenzo Arai</span>
+            </div>
+          </div>
+        </div>
+        <div class="th-text" aria-hidden="true">
+          <p class="th-tag">Everyday safety after 60</p>
+          <p class="th-big">Stay calm.<em>Be ready.</em></p>
+        </div>
+        <svg class="arrow" viewBox="0 0 160 90" aria-hidden="true"><path d="M150 10 C128 62 82 78 34 60" fill="none" stroke="#000" stroke-width="17" stroke-linecap="round"/><path d="M150 10 C128 62 82 78 34 60" fill="none" stroke="#e8231f" stroke-width="10" stroke-linecap="round"/><polygon points="8,50 44,36 38,80" fill="#e8231f" stroke="#000" stroke-width="5" stroke-linejoin="round"/></svg>
+        <span class="badge">PDF guide</span>
+      </div>
+      <div class="under">
+        <p>Calm and Ready: Everyday Safety and Self-Defense After 60</p>
+        <p>&#9655; Kenzo Arai &middot; Home Guide Press</p>
+      </div>
+    </div>
+    <div>
+      <p class="kicker">Everyday safety after 60</p>
+      <h1>Be ready for the bad moment without living in fear of it.</h1>
+      <p class="meta">A plain-words guide by Kenzo Arai</p>
+      <p class="lede">Simple habits and the everyday things you already carry, to help you notice trouble early, step away from it and keep a clear head if it finds you anyway. Written for people past 60 who want calm, not fear.</p>
+      <div class="buybox">
+        <p class="price"><b>$27</b><span>One payment, instant PDF</span></p>
+        <a class="buy off" data-buy="kenzo" aria-disabled="true">Checkout opens soon</a>
+        <p class="guar">30-day money-back guarantee</p>
+        <ul class="facts"><li>Phone, tablet or computer</li><li>Nothing renews</li></ul>
+      </div>
+      <p class="note">General safety information, not self-defense training. Not medical or legal advice.</p>
+    </div>
+  </div>
+</section>
+
+<!-- RECOGNITION -->
+<section class="why">
+  <div class="wrap why-in">
+    <div class="read">
+      <p class="eyebrow">Sound familiar?</p>
+      <h2>You still want to go out. You just want to feel <em>steady</em>.</h2>
+      <p>Maybe the walk home after dark feels longer than it used to. Maybe a quiet parking lot makes you hold your keys a little tighter. Or you simply move more slowly now, and you notice who is around you.</p>
+      <p>None of that means you should stay home. Calm and Ready is about going out with your eyes up, your hands free and a plan in your head, so worry has less room.</p>
+      <p>It will not turn you into a fighter, and it does not try to. It helps you stay calm, notice early and step away.</p>
+    </div>
+    <div class="pull" aria-hidden="true">
+      <p>The best trouble is the trouble you <em>walk away from</em>.</p>
+      <small>The idea at the heart of the guide.</small>
+    </div>
+  </div>
+</section>
+
+<!-- TOPICS -->
+<section id="topics">
+  <div class="wrap">
+    <div class="read">
+      <p class="eyebrow">What the guide covers</p>
+      <h2>Plain safety for <em>everyday</em> life.</h2>
+      <p>Awareness first, everyday items second and a calm head throughout, explained one step at a time.</p>
+    </div>
+    <ul class="grid">
+      <li class="card">
+        <div class="thumb wood" aria-hidden="true">
+          <p class="tt">See it<em>early</em></p>
+          <svg class="ico" viewBox="0 0 100 64"><path d="M5 32 Q50 -8 95 32 Q50 72 5 32Z" fill="#fff" stroke="#000" stroke-width="6" stroke-linejoin="round"/><circle cx="50" cy="32" r="15" fill="#e8231f" stroke="#000" stroke-width="5"/><circle cx="50" cy="32" r="6" fill="#000"/></svg>
+          <span class="badge">Awareness</span>
+        </div>
+        <h3>Awareness comes first</h3>
+        <p>Noticing what is around you, trusting the feeling that something is off, and leaving early. The calmest answer to trouble is usually to avoid it.</p>
+      </li>
+      <li class="card">
+        <div class="thumb dark" aria-hidden="true">
+          <p class="tt">Stick. Keys.<em>Bag.</em></p>
+          <svg class="ico" viewBox="0 0 100 100"><path d="M34 94 V36 Q34 10 56 10 Q76 10 76 30" fill="none" stroke="#000" stroke-width="17" stroke-linecap="round"/><path d="M34 94 V36 Q34 10 56 10 Q76 10 76 30" fill="none" stroke="#c0803f" stroke-width="10" stroke-linecap="round"/><g fill="none" stroke-linecap="round"><circle cx="64" cy="70" r="11" stroke="#000" stroke-width="12"/><path d="M75 70 H95 M89 70 V79 M95 70 V78" stroke="#000" stroke-width="12"/><circle cx="64" cy="70" r="11" stroke="#d9a441" stroke-width="6"/><path d="M75 70 H95 M89 70 V79 M95 70 V78" stroke="#d9a441" stroke-width="6"/></g></svg>
+          <span class="badge">Everyday items</span>
+        </div>
+        <h3>Everyday items, no special gear</h3>
+        <p>Your walking stick, your keys and your bag, carried with purpose so your footing stays steady and your hands are ready.</p>
+      </li>
+      <li class="card">
+        <div class="thumb wood" aria-hidden="true">
+          <p class="tt">Stay<em>calm</em></p>
+          <svg class="ico" viewBox="0 0 100 100"><path d="M52 12 A38 38 0 1 1 17 34" fill="none" stroke="#000" stroke-width="17" stroke-linecap="round"/><path d="M52 12 A38 38 0 1 1 17 34" fill="none" stroke="#fff" stroke-width="10" stroke-linecap="round"/><circle cx="50" cy="50" r="11" fill="#e8231f" stroke="#000" stroke-width="5"/></svg>
+          <span class="badge">A clear head</span>
+        </div>
+        <h3>Calm, not loud</h3>
+        <p>Short sentences and simple steps, so a clear head comes first. Slow is fine. Steady is the goal, and your own limits always come first.</p>
+      </li>
+    </ul>
+
+    <div class="read sub-h">
+      <p class="eyebrow">What it is not</p>
+      <h2>Clear about <em>its limits</em>.</h2>
+    </div>
+    <ul class="grid">
+      <li class="card">
+        <div class="thumb dark" aria-hidden="true">
+          <p class="tt"><em>Not</em>a class</p>
+          <svg class="ico" viewBox="0 0 100 100"><circle cx="50" cy="50" r="38" fill="none" stroke="#000" stroke-width="20"/><circle cx="50" cy="50" r="38" fill="none" stroke="#e8231f" stroke-width="12"/><path d="M24 24 L76 76" stroke="#000" stroke-width="20"/><path d="M24 24 L76 76" stroke="#e8231f" stroke-width="12"/></svg>
+          <span class="badge">Not included</span>
+        </div>
+        <h3>Not hands-on training</h3>
+        <p>This is general safety information, not self-defense training or a martial arts course. For hands-on practice, look for an in-person class.</p>
+      </li>
+      <li class="card">
+        <div class="thumb dark" aria-hidden="true">
+          <p class="tt"><em>No</em>weapons</p>
+          <svg class="ico" viewBox="0 0 100 100"><circle cx="50" cy="50" r="38" fill="none" stroke="#000" stroke-width="20"/><circle cx="50" cy="50" r="38" fill="none" stroke="#e8231f" stroke-width="12"/><path d="M24 24 L76 76" stroke="#000" stroke-width="20"/><path d="M24 24 L76 76" stroke="#e8231f" stroke-width="12"/></svg>
+          <span class="badge">Not included</span>
+        </div>
+        <h3>No weapon builds</h3>
+        <p>Nothing to build, buy or carry for a fight. Your stick, keys and bag stay what they are: everyday things.</p>
+      </li>
+      <li class="card">
+        <div class="thumb dark" aria-hidden="true">
+          <p class="tt"><em>Not</em>legal advice</p>
+          <svg class="ico" viewBox="0 0 100 100"><circle cx="50" cy="50" r="38" fill="none" stroke="#000" stroke-width="20"/><circle cx="50" cy="50" r="38" fill="none" stroke="#e8231f" stroke-width="12"/><path d="M24 24 L76 76" stroke="#000" stroke-width="20"/><path d="M24 24 L76 76" stroke="#e8231f" stroke-width="12"/></svg>
+          <span class="badge">Not included</span>
+        </div>
+        <h3>Not legal advice</h3>
+        <p>It cannot tell you what the law allows where you live. Check your local rules before you carry anything.</p>
+      </li>
+    </ul>
+  </div>
+</section>
+
+<!-- SAFETY NOTICE -->
+<section class="warn" aria-labelledby="warn-h">
+  <div class="wrap">
+    <div class="warn-in">
+      <p class="eyebrow">Please read this first</p>
+      <h2 id="warn-h">General safety information, not self-defense training.</h2>
+      <p>Calm and Ready does not replace hands-on instruction, your doctor or the law where you live, and no guide can promise your safety.</p>
+      <p>Talk to your doctor before any physical activity. Laws about what you may carry or do differ from place to place. <strong>If you are ever in danger, get to a safe place and call 911.</strong></p>
+    </div>
+  </div>
+</section>
+
+<!-- STRIP -->
+<div class="strip">
+  <div class="wrap">
+    <ul>
+      <li>One payment of $27, no subscription</li>
+      <li>Instant PDF for your phone, tablet or computer</li>
+      <li>30-day money-back guarantee</li>
+    </ul>
+  </div>
+</div>
+
+<!-- FIT -->
+<section id="fit">
+  <div class="wrap">
+    <div class="read">
+      <p class="eyebrow">Is it for you</p>
+      <h2>Made for calm readers past <em>60</em>.</h2>
+    </div>
+    <div class="fit">
+      <div class="yes">
+        <h3>A good fit if</h3>
+        <ul>
+          <li>You are past 60 and want to feel more confident when you go out.</li>
+          <li>You live alone and want calm, simple habits for your day.</li>
+          <li>You want the calm basics, not a fighting class.</li>
+          <li>You are helping a parent or friend feel safer.</li>
+        </ul>
+      </div>
+      <div class="no">
+        <h3>Probably not a fit if</h3>
+        <ul>
+          <li>You want a martial arts course. This is general safety information, not training.</li>
+          <li>You want advice on weapons or what to carry for a fight.</li>
+          <li>You want hands-on training. For that, look for an in-person class.</li>
+          <li>You want legal advice about what you may carry where you live.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- OFFER -->
+<section class="offer-sec" id="price">
+  <div class="wrap">
+    <div class="offer">
+      <div class="offer-cover">
+        <div class="cover" role="img" aria-label="Cover of Calm and Ready by Kenzo Arai">
+          <div class="cv" aria-hidden="true">
+            <span class="cv-pub">Home Guide Press</span>
+            <span class="cv-sun"></span>
+            <span class="cv-t1">Calm and</span>
+            <span class="cv-t2">Ready</span>
+            <span class="cv-rule"></span>
+            <span class="cv-sub">Everyday Safety and<br>Self-Defense After 60</span>
+            <span class="cv-host">Kenzo Arai</span>
+          </div>
+        </div>
+      </div>
+      <div>
+        <p class="eyebrow">Get your copy</p>
+        <h2>Calm and <em>Ready</em></h2>
+        <p class="offer-sub">Everyday safety and self-defense after 60</p>
+        <p class="offer-by">By Kenzo Arai &middot; Home Guide Press</p>
+        <ul class="ticks">
+          <li>Awareness, everyday items and a calm head, in plain words</li>
+          <li>Instant PDF for your phone, tablet or computer</li>
+          <li>One payment, no subscription</li>
+          <li>30-day money-back guarantee</li>
+        </ul>
+        <p class="price"><b>$27</b><span>One payment</span></p>
+        <a class="buy off" data-buy="kenzo" aria-disabled="true">Checkout opens soon</a>
+        <p class="guar">30-day money-back guarantee</p>
+      </div>
+    </div>
+    <div class="promise">
+      <b>The 30-day promise</b>
+      <p>Read it. If it is not what you needed, write to us within 30 days of buying and you get your money back.</p>
+    </div>
+  </div>
+</section>
+
+<!-- FAQ -->
+<section id="faq">
+  <div class="wrap">
+    <div class="read">
+      <p class="eyebrow">Questions</p>
+      <h2>Before you <em>buy</em>.</h2>
+    </div>
+    <div class="faq">
+      <details><summary>Is this a martial arts or fighting course?</summary><p>No. It is general safety information for everyday life, in plain words. It is not self-defense training, and it does not show you how to make a weapon.</p></details>
+      <details><summary>Do I need to be strong or fit?</summary><p>No. The guide favors awareness and gentle, simple habits, and it asks you to stay within your own limits. Talk to your doctor before trying anything physical.</p></details>
+      <details><summary>Does it tell me what I may legally carry?</summary><p>No. Laws about what you may carry or do differ from place to place. Check the rules where you live.</p></details>
+      <details><summary>What exactly do I get?</summary><p>One PDF guide. Right after you pay, we email you a download link.</p></details>
+      <details><summary>Will it work on my phone or tablet?</summary><p>Yes. A PDF opens on any phone, tablet or computer.</p></details>
+      <details><summary>Is this a subscription?</summary><p>No. One payment of $27. No membership and no monthly fee.</p></details>
+      <details><summary>What if it is not for me?</summary><p>Write to us within 30 days of buying and we will refund you. See the <a href="/refunds">refund policy</a>.</p></details>
+    </div>
+  </div>
+</section>
+
+<!-- FINAL -->
+<section class="final">
+  <div class="wrap">
+    <div class="final-cover">
+      <div class="cover" role="img" aria-label="Cover of Calm and Ready by Kenzo Arai">
+        <div class="cv" aria-hidden="true">
+          <span class="cv-pub">Home Guide Press</span>
+          <span class="cv-sun"></span>
+          <span class="cv-t1">Calm and</span>
+          <span class="cv-t2">Ready</span>
+          <span class="cv-rule"></span>
+          <span class="cv-sub">Everyday Safety and<br>Self-Defense After 60</span>
+          <span class="cv-host">Kenzo Arai</span>
+        </div>
+      </div>
+    </div>
+    <div>
+      <h2>Go out steady. <em>Come home calm.</em></h2>
+      <p>Awareness, everyday items and a clear head, in plain words for readers past 60.</p>
+      <p class="price"><b>$27</b><span>One payment</span></p>
+      <a class="buy off" data-buy="kenzo" aria-disabled="true">Checkout opens soon</a>
+      <p class="guar">30-day money-back guarantee</p>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<footer>
+  <div class="wrap">
+    <nav aria-label="Legal and help">
+      <a href="/">Home Guide Press</a>
+      <a href="/privacy">Privacy</a>
+      <a href="/terms">Terms</a>
+      <a href="/refunds">Refunds</a>
+      <a href="mailto:partners@thejonmac.com">Contact</a>
+    </nav>
+    <p>Calm and Ready is written by Kenzo Arai and published by Home Guide Press. General safety information, not self-defense training, and not medical or legal advice. If you are in danger, call 911.</p>
+    <p>Kenzo Arai is an AI-created character. &copy; 2026 Home Guide Press.</p>
+  </div>
+</footer>
+</body>
+</html>

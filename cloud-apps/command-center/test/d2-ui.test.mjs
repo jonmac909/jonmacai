@@ -7,6 +7,7 @@ import { readFileSync } from 'node:fs';
 // by absolute URL, as the browser does; here that maps to public/js/*.
 const pub = new URL('../public/', import.meta.url);
 registerHooks({ resolve: (spec, ctx, next) => next(spec.startsWith('/dashboard/js/') ? new URL(spec.slice('/dashboard/'.length), pub).href : spec, ctx) });
+const { stageOf, STAGES, stageBoard } = await import('../public/d2/js/pages/stages.js');
 const [month, week, today, pipeline, money] = await Promise.all(['month', 'week', 'today', 'pipeline', 'money']
   .map((p) => import(`../public/d2/js/pages/${p}.js`).then((m) => m.render)));
 
@@ -85,8 +86,8 @@ test('Month: a row per goal with target, pace, status and trend; no data says wh
   const html = month(data());
   assert.equal(count(html, /class="d2row"/g), 6);
   assert.match(text(html), /Sponsors Florence On pace \$10K collected \$4,250 of \$10,000 Pace for today: \$1,533/);
-  assert.match(html, /Book sales could not be read: the Home Guide Press database is not connected yet\./);
-  assert.doesNotMatch(text(html), /First sales on the focus channels 0/);
+  assert.match(text(html), /Home Guide Press Elle .*Videos published \(3 a week per focus channel\) 4 of 208/, 'the Home Guide Press goal counts videos published over the 16 focus channels');
+  assert.doesNotMatch(text(html), /First sales on the focus channels/);
   assert.equal(count(html, /<figure class="d2trend">/g), 5, 'a goal with no weekly numbers draws no empty chart');
   assert.match(text(html), /Jon Mac Sydney On pace Videos published 2 of 13 Pace for today: 2 /);
   assert.match(html, /<rect class="now"/, 'this week stands out');
@@ -110,18 +111,13 @@ test('Week: done vs target, Mon to Sun with today outlined, channel rows, parked
   assert.match(week(d), /Jack Mercer <span class="muted">· Elle · 1 of 3 published<\/span> <a href="#pipeline\/hgp\/jack-mercer\/calendar" data-page="pipeline\/hgp\/jack-mercer\/calendar">Open<\/a>/, 'a channel opens its Calendar tab here');
 });
 
-test('daily checks: Today shows tick, cross or not yet with links and facts; Week shows a cell per day', () => {
+test('daily checks: Today shows tick, cross or not yet with links and facts; Week has none', () => {
   const d = data();
   const t = today(d);
   assert.match(text(t), /✓ Complete Histories Daisy Done Episode: The Fall of Constantinople/);
   assert.match(t, /<a class="btn line sm" href="https:\/\/open\.spotify\.com\/episode\/4xYzq" target="_blank" rel="noopener">Spotify episode<\/a><a class="btn line sm" [^>]*>Community post<\/a>/);
   assert.match(text(t), /not yet RBC expenses Elizabeth Not run yet Accounts read: 0 of 7 Bank data through: Nov 2 Receipts matched: no MoneyClaw RBC import · as of Nov 2/);
-  const w = week(d);
-  const checks = w.slice(w.indexOf('Daily checks'), w.indexOf('</section>', w.indexOf('Daily checks')));
-  assert.match(checks, /<li class="miss" title="Tue 3: No episode published"><small>Tue 3<\/small><b>✗<\/b>/);
-  assert.match(checks, /<li class="ok today" title="Thu 5: Episode and post up 7:02 AM"><small>Thu 5<\/small><b>✓<\/b>/);
-  assert.match(checks, /<li class=" today" title="Thu 5: Runs at 6 PM"><small>Thu 5<\/small><b><\/b>/, 'RBC has not run today: blank, outlined');
-  assert.match(checks, /<li class=""><small>Sat 7<\/small><b><\/b><\/li>/, 'the future is blank');
+  assert.doesNotMatch(week(d), /Daily checks/, 'Week no longer has the checks block');
   assert.doesNotMatch(text(t), /Blockers|Complete Histories missed Tuesday/, 'missed days go to Ana with the other blockers');
 });
 
@@ -172,7 +168,7 @@ test('Today: on Friday the Expenses review is one of Jon\'s 3 and folds its char
 test('Pipeline: goal tabs, the Projects board, the deal board with Archived hidden, channel tabs', () => {
   const d = data();
   const s = pipeline(d, 'sponsors');
-  assert.equal(count(s, /class="chip[^"]*" data-page="pipeline\/[a-z]+"/g), 6);
+  assert.equal(count(s, /class="chip[^"]*" data-page="pipeline\/[a-z]+"/g), 7, 'six goals and This week');
   assert.match(s, /<section class="pjcol pjcol-todo">/, 'the /dashboard Projects board');
   assert.match(s, /Pipeline \$12,500 from 4 priced leads \(5 not priced\) · Hidden: 6 receipts, 1 refund, 9 newsletters/);
   const [active, archived] = s.split('<details class="d2arch" data-keep="archived">');
@@ -204,4 +200,79 @@ test('nothing Jon reads looks like a raw task ID or a Windows path', () => {
     assert.doesNotMatch(t, /\bt_[0-9a-f]{6,}/i, id);
     assert.doesNotMatch(t, /\b[A-Za-z]:\\/, id);
   }
+});
+
+test('Today starts with the Daily Summary: every section folded on a phone, with its source line', () => {
+  const server = JSON.parse(readFileSync(new URL('./fixtures/d2-sample.json', import.meta.url), 'utf8'));
+  const html = today(server);
+  assert.ok(html.indexOf('Daily Summary') < html.indexOf('For you'), 'summary sits above everything else');
+  const keys = [...html.matchAll(/<details class="d2sec d2sec-(\w+)"/g)].map((m) => m[1]);
+  assert.deepEqual(keys, ['weather', 'calendar', 'markets', 'expenses', 'sponsors', 'jonmac', 'jonmacai', 'hgp']);
+  assert.equal(count(html, /<details class="d2sec[^>]* open>/g), keys.length, 'no matchMedia here: the desktop layout, all open');
+  const t = text(html);
+  assert.match(t, /Weather · West Kelowna Mila Now 6°C, light rain/);
+  assert.match(t, /VOO \$701\.89 2% below all-time high/);
+  assert.match(t, /Open-Meteo · updated just now/);
+  assert.equal(today({ d2: { today: {} } }).includes('Daily Summary'), false, 'an old answer without a summary still renders');
+  globalThis.matchMedia = () => ({ matches: false });
+  try { assert.equal(count(today(server), /<details class="d2sec[^>]* open>/g), 0, 'phone: folded'); } finally { delete globalThis.matchMedia; }
+});
+
+test('Pipeline (Jon, 2026-11-09): no Morning summary, video stages, week calendar, Factory/Track/Content tabs', () => {
+  const d = data();
+  for (const [id, html] of everyView(d)) if (id.startsWith('pipeline')) assert.doesNotMatch(html, /Morning summary/, id);
+  assert.deepEqual(STAGES, ['Outlier', 'Script', 'HeyGen', 'Edit', 'QC', 'Review', 'Schedule', 'Published']);
+  const cells = (...s) => s.map((x) => ({ s: x }));
+  assert.equal(stageOf({ cells: cells('done', 'done', 'done', 'run') }), 'HeyGen'); // A-roll
+  assert.equal(stageOf({ cells: cells('done', 'done', 'done', 'done', 'done', 'new') }), 'Edit'); // Clips
+  assert.equal(stageOf({ cells: cells('done', 'done', 'done', 'done', 'done', 'done', 'done', 'done', 'run') }), 'QC');
+  assert.equal(stageOf({ cells: cells(...Array(9).fill('done'), 'new') }), 'Review'); // Thumbnail
+  assert.equal(stageOf({ stage: 'scheduled' }), 'Schedule');
+  assert.equal(stageOf({ stage: 'published' }), 'Published');
+  const feed = { factory: { tiles: [
+    { id: 'a', title: 'Pasta Mistakes - Giovanni Moretti', channel: 'Giovanni Moretti', owner: 'Elle', waitMin: 90, cells: cells('done', 'run') },
+    { id: 'b', title: 'Other Show - Some Other Channel', channel: 'Some Other Channel', cells: cells('new') },
+    { id: 'cal-1', title: 'Live One', channel: 'Jack Mercer', stage: 'published', note: 'Live 2026-11-04', link: 'https://youtu.be/abcdefghijk' }] } };
+  const h = pipeline({ ...d, factory: feed }, 'hgp');
+  const t = text(h);
+  assert.match(t, /Videos by stage Every open video/);
+  assert.match(h, /<h3>Script <span class="kn">1<\/span>/);
+  assert.match(h, /<h3>Published <span class="kn">1<\/span>/);
+  assert.doesNotMatch(t, /Some Other Channel/, 'only the goal channels');
+  assert.match(pipeline(d, 'hgp'), /Factory feed on GPU1 has not posted/);
+  // Tabs: HGP Factory table + Track, Jon Mac Content, @JonMacAI neither.
+  assert.match(h, /data-page="pipeline\/hgp\/factory"/);
+  assert.match(h, /data-page="pipeline\/hgp\/track"/);
+  assert.match(pipeline(d, 'hgp/factory'), /class="fyview"/, 'the old Factory table');
+  assert.match(pipeline(d, 'hgp/track'), /Loading Track/);
+  assert.match(pipeline(d, 'jonmac'), /data-page="pipeline\/jonmac\/content"/);
+  assert.match(text(pipeline(d, 'jonmac/content')), /Outliers for Jon Mac/);
+  assert.doesNotMatch(pipeline(d, 'jonmacai'), /pipeline\/jonmacai\/(content|track|factory)"/);
+  // This week: every channel's videos on their day.
+  const w = pipeline(d, 'week');
+  assert.match(w, /class="chip on" data-page="pipeline\/week"/);
+  assert.equal(count(w, /class="d2wkday/g), 7);
+  assert.match(text(w), /This week .*all channels/);
+});
+
+test('Pipeline: one video never shows in two stages, and a missing channel list does not blank the page', () => {
+  const d = data();
+  const channels = [{ slug: 'jack-mercer', label: 'Jack Mercer' }];
+  const feed = { factory: { tiles: [
+    { id: 'card-1', title: 'Live One - Jack Mercer', channel: 'Jack Mercer', cells: [{ s: 'done' }, { s: 'done' }, { s: 'done' }, { s: 'done' }, { s: 'done' }, { s: 'done' }, { s: 'done' }, { s: 'done' }, { s: 'done' }, { s: 'done' }, { s: 'done' }] },
+    { id: 'cal-1', title: 'Live One - Jack Mercer', channel: 'Jack Mercer', stage: 'published', link: 'https://youtu.be/abcdefghijk' },
+    null] } };
+  const html = stageBoard(feed, channels);
+  assert.equal(count(html, /Live One/g), 1, 'the open card and the calendar tile are one video');
+  assert.match(html, /<h3>Published <span class="kn">1<\/span>/);
+  assert.match(html, /<h3>Schedule <span class="kn">0<\/span>/);
+  const none = structuredClone(d);
+  for (const b of none.d2.pipeline.boards) b.channels = [];
+  assert.doesNotThrow(() => pipeline(none, 'jonmac/content'));
+});
+
+test('Sponsors board uses the ten stages Jon set, in order', () => {
+  const s = pipeline(data(), 'sponsors');
+  const names = [...s.matchAll(/<div class="kcol" data-stage="([^"]+)"/g)].map((m) => m[1].replace(/&amp;/g, '&'));
+  assert.deepEqual(names, ['Leads', 'Negotiations', 'Deals', 'Deposit Invoice', 'Deposit Paid', 'Video Production', 'Video Approved', 'Video Live', 'Balance Invoice', 'Paid & Done', 'Archived']);
 });

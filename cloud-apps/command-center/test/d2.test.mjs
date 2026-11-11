@@ -14,6 +14,12 @@ import { allChannels, channelData } from '../src/channels.js';
 import { listFunnel } from '../src/webinar.js';
 import snapshot from '../fixtures/snapshot.json' with { type: 'json' };
 
+// The Daily Summary's weather is the one network call (Open-Meteo); no test reaches the real one.
+globalThis.fetch = async (url) => {
+  if (!/open-meteo/.test(String(url))) throw new Error(`no network in tests: ${url}`);
+  return Response.json({ current: { temperature_2m: 6.4, weather_code: 61 }, daily: { temperature_2m_max: [9.1], temperature_2m_min: [2.2], precipitation_probability_max: [60] } });
+};
+
 const FOCUS = GOALS.goals.find((g) => g.key === 'hgp').focus;
 // The server's own answer, which test/d2-ui.test.mjs reads (in its own process). Regenerate: UPDATE_FIXTURES=1 npm test.
 const SAMPLE = new URL('./fixtures/d2-sample.json', import.meta.url);
@@ -39,6 +45,30 @@ const tick = (db, day, project, item, at = `${day}T16:00:00Z`, link = 'https://e
 const cal = (db, channel, day, status, title = `Video ${channel} ${day}`) => ins(db, 'yt_calendar', { id: id('v'), channel, title, day, status, created_by: 'ana', updated_by: 'ana', created_at: '2026-11-01T10:00:00Z', updated_at: '2026-11-08T18:00:00Z' });
 const snap = (db, source, data, at) => ins(db, 'snapshots', { source, data, collected_at: at, received_at: at });
 
+// MoneyClaw's markets and expenses (with charge lists) for the Daily Summary: a repeated Canva charge, a big Adobe one, a new OpenAI one.
+const charge = (date, description, amount, extra = {}) => ({ date, description, amount, pending: false, ...extra });
+const period = (total, extra = {}) => ({ total, pending: 0, posted: total, totalCents: Math.round(total * 100), pendingCents: 0, ...extra });
+const MONEY_EXTRA = {
+  expenses: {
+    business: {
+      yesterday: period(209.97), week: period(250), month: period(500),
+      lastMonth: period(110, { startDate: '2026-10-01', endDate: '2026-10-31', charges: [
+        charge('2026-10-05', 'ADOBE CREATIVE CLOUD', 20), charge('2026-10-12', 'ADOBE CREATIVE CLOUD', 20), charge('2026-10-19', 'ADOBE CREATIVE CLOUD', 20),
+        charge('2026-10-10', 'CANVA 04123', 14.99), charge('2026-10-26', 'ZOOM.US', 15.99),
+      ] }),
+      month: period(500, { startDate: '2026-11-01', endDate: '2026-11-07', charges: [
+        charge('2026-11-06', 'ADOBE CREATIVE CLOUD', 90), charge('2026-11-07', 'CANVA 98765', 14.99), charge('2026-11-07', 'CANVA 98766', 14.99),
+        charge('2026-11-07', 'OPENAI API', 180.01), charge('2026-11-02', 'ZOOM.US', 15.99, { currency: 'EUR' }),
+      ] }),
+    },
+    personal: { yesterday: period(0), week: period(12), month: period(42), lastMonth: period(80) },
+  },
+  markets: { core: [
+    { symbol: 'VOO', label: 'VOO', price: 701.89, allTimeHigh: 716.39, todayPct: 0.1, pctOffHigh: 2 },
+    { symbol: 'QQQ', label: 'QQQ', price: 721.35, allTimeHigh: 748.65, todayPct: 0.6, pctOffHigh: 3.6 },
+  ] },
+};
+
 // One week of team data: Sunday Nov 8, 2026.
 function seed() {
   const db = sqliteD1();
@@ -63,7 +93,8 @@ function seed() {
   snap(db, 'sponsors_cash', { ok: true, ledgerEditedAt: '2026-11-08T18:00:00Z', rows: [] }, '2026-11-08T21:00:00Z');
   snap(db, 'moneyclaw', { income: { since: '2026-10-01', asOf: '2026-11-07', deposits: [
     { date: '2026-11-01', amount: 1000, description: 'POPPY WIRE' }, { date: '2026-11-03', amount: 2100, description: 'INVIDEO WIRE' },
-  ] } }, '2026-11-08T20:00:00Z');
+  ] }, asOf: '2026-11-07', ...MONEY_EXTRA }, '2026-11-08T20:00:00Z');
+  ins(db, 'bot_feed_entries', { id: id('f'), name: 'calendar_today', bot: 'ana', data: { date: '2026-11-08', events: [{ start: '15:00', end: '15:30', title: 'Call with Poppy', calendar: 'jon@' }] }, created_at: '2026-11-08T15:00:00Z' });
   snap(db, 'bank_scan', { accounts: [
     { id: 'rbc-business', title: 'RBC business accounts', scanned: 0, total: 4, status: 'failed', scannedAt: '2026-11-08T15:10:00Z' },
     { id: 'rbc-personal', title: 'Personal accounts', scanned: 0, total: 3, status: 'failed', scannedAt: '2026-11-08T15:10:00Z' },
@@ -71,19 +102,25 @@ function seed() {
   snap(db, 'webinar_funnel', { month: '2026-11', netCents: 4700, payments: 1, visits: 40, lastEventAt: '2026-11-07T18:00:00Z' }, '2026-11-08T21:00:00Z');
   ins(db, 'bot_feed_entries', { id: id('f'), name: 'ebook_sales', bot: 'home-guide-press', data: { month: '2026-11', usd: 27, orders: 1 }, created_at: '2026-11-08T16:00:00Z' });
 
-  // Calendars: Jon Mac 2 published + 1 scheduled this week; HGP Peter 3, Jack 1; Rosa Cooks and Eleanor have videos (parked).
+  // Calendars: Jon Mac 2 published + 1 scheduled this week; HGP Giovanni 3, Nora 1; Rosa Cooks and Eleanor have videos (parked).
   for (const d of ['2026-11-03', '2026-11-05']) cal(db, 'jon-mac', d, 'published');
   cal(db, 'jon-mac', '2026-11-08', 'scheduled');
   cal(db, 'jon-mac', '2026-11-01', 'published');
   cal(db, 'jonmacai', '2026-11-04', 'published');
-  for (const d of ['2026-11-02', '2026-11-03', '2026-11-04']) cal(db, 'peter-collins', d, 'published');
-  cal(db, 'jack-mercer', '2026-11-06', 'published');
+  for (const d of ['2026-11-02', '2026-11-03', '2026-11-04']) cal(db, 'giovanni-moretti', d, 'published');
+  cal(db, 'nora-fairweather-cats', '2026-11-06', 'published');
   cal(db, 'rosa-cooks', '2026-10-20', 'published');
+  cal(db, 'rosa-cooks', '2026-11-04', 'published', 'Invideo review - Rosa'); // Invideo's video is live on YouTube
+  cal(db, 'rosa-cooks', '2026-10-28', 'published', 'Topview review - Rosa');
+  cal(db, 'rosa-cooks', '2026-11-04', 'published', 'Topview review 2 - Rosa');
   cal(db, 'eleanor-whitfield', '2026-11-12', 'scheduled');
 
   // Sponsor cards: Invideo's deal is old (video 1 delivered this week, video 2 late); Poppy's first card is this week.
   task(db, { title: 'Invideo video 1: dedicated', project: 'sponsors', status: 'done', created_at: '2026-10-20T16:00:00Z', done_at: '2026-11-04T18:00:00Z' });
   task(db, { title: 'Invideo video 2: dedicated', project: 'sponsors', status: 'doing', created_at: '2026-10-20T16:00:00Z', due: '2026-11-07' });
+  task(db, { title: 'Topview video 2: dedicated', project: 'sponsors', status: 'review', created_at: '2026-10-20T16:00:00Z', due: '2026-11-04' }); // live since Nov 4, card still In Review
+  task(db, { title: 'Notion video 1: dedicated', project: 'sponsors', status: 'waiting_on_jon', created_at: '2026-10-20T16:00:00Z', due: '2026-11-07',
+    note: 'What happened:\n- Draft ready\nYour move:\n- Approve the script so editing can start\nNext:\n- Edit' });
   const poppy = task(db, { title: 'Poppy video 1: integration', project: 'sponsors', created_at: '2026-11-03T16:00:00Z' });
   task(db, { title: 'Soro video 1', project: 'sponsors', status: 'cancelled', created_at: '2026-11-05T16:00:00Z' });
   // Shorts done: Nov 1 (last week), 3 on Nov 2, 3 on Nov 3, 2 today.
@@ -94,7 +131,7 @@ function seed() {
     note: 'What happened:\n- Pack made\nYour move:\n- Approve the thumbnail D:\\AgentTeam\\packs\\peter\\thumb.png\nNext:\n- Upload', updated_at: '2026-11-07T20:00:00Z' });
   const jmTask = task(db, { title: 'Jon Mac upload - Jon Mac', owner: 'jon-mac-youtube', project: 'jon-mac', status: 'waiting_on_jon', updated_at: '2026-11-06T20:00:00Z' });
   const edit = task(db, { title: 'Jack Mercer video 2 edit - Jack Mercer', owner: 'video-editor', project: 'home-guide-press', status: 'review' });
-  ins(db, 'bot_proofs', { id: id('p'), task_id: edit, kind: 'url', link: 'https://jonmac.ai/review/jack-2', status: 'passed', created_by: 'video-editor', created_at: '2026-11-08T16:00:00Z', checked_by: 'qc', checked_at: '2026-11-08T17:00:00Z' });
+  ins(db, 'bot_proofs', { id: id('p'), task_id: edit, kind: 'render', link: 'https://jonmac.ai/review/jack-2', status: 'passed', created_by: 'video-editor', created_at: '2026-11-08T16:00:00Z', checked_by: 'qc', checked_at: '2026-11-08T17:00:00Z' });
   const daisy = task(db, { title: 'Complete Histories daily', owner: 'spotify', project: null, status: 'doing' });
 
   // Questions and approvals: 2 bot-health, 3 known charges, and the rest for Jon.
@@ -152,6 +189,22 @@ async function d2At(env, ms) {
   return res.json();
 }
 
+test('Daily Summary: a malformed market feed does not take /d2 down; the other sections still render', async () => {
+  const { db } = seed();
+  const row = db.sqlite.prepare("SELECT data FROM snapshots WHERE source = 'moneyclaw'").get();
+  const mc = JSON.parse(row.data);
+  mc.markets.core = [null, ...mc.markets.core];
+  mc.expenses.business.month.charges = [null, ...mc.expenses.business.month.charges];
+  db.sqlite.prepare("UPDATE snapshots SET data = ? WHERE source = 'moneyclaw'").run(JSON.stringify(mc));
+  const body = await d2At({ DB: db, HGP_DB: hgpDb(), SESSION_SECRET: SECRET, CF_VERSION_METADATA: { id: 'v1' } }, SUNDAY);
+  const by = Object.fromEntries(body.d2.summary.sections.map((s) => [s.key, s]));
+  assert.equal(by.markets.rows[0].value, '$701.89');
+  assert.equal(by.calendar.rows[0].value, 'Call with Poppy');
+  assert.match(by.expenses.rows[0].value, /^Yesterday /);
+  assert.equal(by.sponsors.rows.length, 5);
+  assert.ok(body.d2.today && body.d2.goals.length === 6, 'the rest of d2 is intact');
+});
+
 const goal = (body, key) => body.d2.goals.find((g) => g.key === key);
 
 test('d2 answers the contract for all five sections', async () => {
@@ -161,13 +214,13 @@ test('d2 answers the contract for all five sections', async () => {
   assert.equal(body.build, 'v1');
   assert.equal(body.asOf, new Date(SUNDAY).toISOString());
   assert.deepEqual(Object.keys(body.pages), ['today', 'projects', 'sponsors', 'viral', 'money', 'calendar', 'content']); // only what public/d2 reads
-  assert.deepEqual(Object.keys(body.d2), ['period', 'goals', 'stale', 'checks', 'today', 'pipeline', 'money']);
+  assert.deepEqual(Object.keys(body.d2), ['period', 'goals', 'stale', 'checks', 'today', 'pipeline', 'money', 'summary']);
   assert.deepEqual(body.d2.goals.map((g) => g.key), ['sponsors', 'hgp', 'jonmac', 'jonmacai', 'viral', 'shortform']);
   for (const g of body.d2.goals) {
     for (const k of ['key', 'title', 'owner', 'team', 'project', 'channels', 'month', 'week', 'day', 'trend']) assert.ok(k in g, `${g.key}.${k}`);
     assert.ok(NAMES.includes(g.owner) && g.team.every((x) => NAMES.includes(x)), g.key);
     for (const m of [g.month, ...g.week, ...g.day]) {
-      assert.deepEqual(Object.keys(m), ['key', 'label', 'unit', 'target', 'actual', 'display', 'pace', 'status', 'owner', 'source', 'note', 'behind', 'rows', 'days'], `${g.key}.${m.key}`);
+      assert.deepEqual(Object.keys(m), ['key', 'label', 'unit', 'target', 'actual', 'display', 'pace', 'status', 'owner', 'source', 'note', 'behind', 'rows', 'days', 'facts'], `${g.key}.${m.key}`);
       assert.ok(STATUS.includes(m.status.text), `${g.key}.${m.key}: ${m.status.text}`);
       assert.ok(['ok', 'risk', 'crit', 'idle'].includes(m.status.cls));
       assert.ok(NAMES.includes(m.owner));
@@ -176,6 +229,10 @@ test('d2 answers the contract for all five sections', async () => {
     }
     assert.equal(g.trend.length, 6);
   }
+  // Sponsor deposit days for dash3's Money chart: an object of day -> USD, or null when the ledger can't be read.
+  const cashDays = goal(body, 'sponsors').cashDays;
+  assert.ok(cashDays === null || (typeof cashDays === 'object' && Object.keys(cashDays).every((d) => /^\d{4}-\d{2}-\d{2}$/.test(d))));
+  assert.ok(body.d2.goals.filter((g) => g.key !== 'sponsors').every((g) => !('cashDays' in g)));
   const { today, pipeline, money, period } = body.d2;
   assert.deepEqual(Object.keys(today), ['jon', 'toAna', 'expenses', 'targets']);
   assert.deepEqual(Object.keys(today.toAna), ['count', 'health', 'items', 'blockers']);
@@ -234,20 +291,25 @@ test('d2 counts the month, week and day on a Sunday', async () => {
   assert.equal(signed.actual, 1);
   assert.match(signed.note, /Poppy/);
   assert.equal(delivered.actual, 1);
-  assert.deepEqual(delivered.behind.map((b) => [b.title, b.owner]), [['Invideo video 2', 'Florence'], ['Poppy video 1', 'Florence']]);
+  assert.deepEqual(delivered.behind.map((b) => [b.title, b.owner]), [['Invideo video 2', 'Florence'], ['Notion video 1', 'Florence'], ['Poppy video 1', 'Florence']], 'Topview is live, so it is not behind');
+  assert.equal(delivered.behind.find((b) => b.title === 'Notion video 1').why, 'Waiting on you: Approve the script so editing can start', 'the Your move line, not just the status');
   assert.deepEqual([invoiced.actual, invoiced.display, invoiced.behind[0].title], [1, '1 waiting', 'Invideo']);
+  assert.match(invoiced.note, /confirmed live/);
   assert.deepEqual(sp.day.map((m) => [m.key, m.actual, m.status.text]), [['replies', 1, 'Done'], ['prices', 1, 'Behind']]);
 
   const hgp = goal(body, 'hgp');
   const [videos, checkout] = hgp.week;
-  assert.equal(videos.rows.find((r) => r.label === 'Peter Collins').display, '3 of 3');
-  assert.deepEqual(videos.behind.find((b) => b.title === 'Jack Mercer'), { title: 'Jack Mercer', owner: 'Elle', why: '1 of 3 published', page: 'pipeline/hgp/jack-mercer/calendar' });
+  assert.equal(videos.target, 28); // Jon, 2026-11-10: 4 focus channels, 1 a day each
+  assert.equal(videos.rows.find((r) => r.label === 'Giovanni Moretti').display, '3 of 7');
+  assert.deepEqual(videos.behind.find((b) => b.title === 'Nora Fairweather Cats'), { title: 'Nora Fairweather Cats', owner: 'Elle', why: '1 of 7 published', page: 'pipeline/hgp/nora-fairweather-cats/calendar' });
   assert.equal(jm.week[0].behind[0].page, 'pipeline/jonmac/jon-mac/calendar');
-  assert.ok(!videos.behind.some((b) => b.title === 'Peter Collins'));
+  assert.equal(videos.behind.find((b) => b.title === 'Giovanni Moretti').why, '3 of 7 published'); // 3 of a 6.6 pace on Sunday afternoon
   assert.deepEqual([checkout.actual, checkout.display], [4, '4 of 7 days checked']);
   assert.match(checkout.behind[0].why, /Wed 4, Fri 6/);
-  assert.deepEqual([hgp.month.actual, hgp.month.rows.find((r) => r.label === 'Peter Collins').actual, hgp.month.rows.find((r) => r.label === 'Jack Mercer').actual], [1, 1, 0]);
-  assert.deepEqual([hgp.day[0].actual, hgp.day[0].target], [1, 4]); // floor(14 h / 3)
+  assert.deepEqual(checkout.facts, [{ label: 'Last check', value: 'Nov 7 (Sat 7)' }, { label: 'Missed', value: 'Elle: Wed 4, Fri 6' }]);
+  assert.deepEqual(videos.facts.map((f) => [f.label, f.value]), [['Published today', '0'], ['Waiting for your review', '1']]);
+  assert.deepEqual([hgp.month.actual, hgp.month.rows.find((r) => r.label === 'Giovanni Moretti').actual, hgp.month.rows.find((r) => r.label === 'Nora Fairweather Cats').actual], [4, 3, 1]); // videos published, from the channel calendars
+  assert.deepEqual([hgp.day[0].actual, hgp.day[0].target, hgp.day[0].display], [1, 4, '1 of 4']); // 1 QC-passed a day per focus channel
 
   const viral = goal(body, 'viral');
   assert.deepEqual([viral.month.display, viral.month.status.text], ['Not set', 'Behind']);
@@ -267,14 +329,16 @@ test('d2 focus list is the same as Jon\'s focus-channels.txt', { skip: !existsSy
   assert.deepEqual([...FOCUS].sort(), [...file].sort());
 });
 
-test('d2 focus channels: Jon\'s whole list in its order, even channels the dashboard has no calendar for; the rest are parked', async () => {
+test('d2 focus channels: Jon\'s whole list in its order, even channels the dashboard has no calendar for; the rest are parked', async (t) => {
   const { db } = seed();
+  FOCUS.push('edna-haynes'); // a focus slug with no channel yet (the live list has none, so the test adds one)
+  t.after(() => FOCUS.pop());
   const hgp = goal(await d2At({ DB: db, SESSION_SECRET: SECRET }, SUNDAY), 'hgp');
   assert.deepEqual(hgp.channels.map((c) => c.slug), FOCUS);
   assert.ok(!allChannels([]).some((c) => c.slug === 'edna-haynes'), 'edna-haynes has no channel yet');
   assert.deepEqual(hgp.channels.find((c) => c.slug === 'edna-haynes'), { slug: 'edna-haynes', label: 'Edna Haynes', focus: true });
   const [videos] = hgp.week;
-  assert.equal(videos.target, 3 * FOCUS.length); // 48
+  assert.equal(videos.target, 7 * FOCUS.length); // 1 a day per focus channel
   assert.deepEqual(videos.rows.map((r) => r.label), hgp.channels.map((c) => c.label));
   assert.equal(videos.rows.find((r) => r.label === 'Edna Haynes').note, 'No calendar yet');
   assert.deepEqual(videos.behind.find((b) => b.title === 'Edna Haynes'), { title: 'Edna Haynes', owner: 'Elle', why: 'No calendar yet', page: 'pipeline/hgp/edna-haynes/calendar' });
@@ -396,6 +460,12 @@ test('d2 cleans a copy of the sponsors board and leaves pages.sponsors as /dashb
   assert.deepEqual(all({ board: { columns: clean.board.columns.slice(0, -1) } }).sort(), ['c-arcads', 'c-invideo', 'c-paid', 'c-poppy']);
   assert.deepEqual(clean.value, { usd: 6700, priced: 2, unpriced: 1 }); // Invideo 4,200 + Poppy 2,500; Paid left out
   assert.deepEqual(clean.tiles, page.tiles);
+  // Each card sits in the column of its own feed stage; the Today "Negotiating, to close" tile still finds Poppy.
+  const colOf = (id) => clean.board.columns.find((c) => c.cards.some((k) => k.id === id))?.title;
+  assert.equal(colOf('c-poppy'), 'Negotiations');
+  assert.equal(colOf('c-paid'), 'Paid & Done');
+  const neg = body.d2.today.rows?.find?.((r) => r.label === 'Negotiating, to close');
+  if (neg) assert.match(String(neg.value), /1 deal/);
 });
 
 test('/snapshot answers exactly as before for the same data', async () => {
@@ -471,11 +541,11 @@ test('d2 short-form month target is 3 a day: 90 in November, 93 in December, 84 
   }
 });
 
-test('d2 QC target before 3 AM is none due yet, not Done', async () => {
+test('d2 QC target is 1 a day per focus channel; early in the day nothing is late yet', async () => {
   const body = await d2At({ DB: sqliteD1(), SESSION_SECRET: SECRET }, Date.parse('2026-11-08T09:00:00Z')); // 1:00 AM
   const qc = goal(body, 'hgp').day[0];
-  assert.deepEqual([qc.target, qc.actual, qc.display, qc.status], [0, 0, 'None due yet', { text: 'None due yet', cls: 'idle' }]);
-  assert.equal(body.d2.today.targets.find((t) => t.goal === 'hgp').display, 'None due yet');
+  assert.deepEqual([qc.target, qc.actual, qc.display, qc.status], [FOCUS.length, 0, `0 of ${FOCUS.length}`, { text: 'On pace', cls: 'idle' }]);
+  assert.equal(body.d2.today.targets.find((t) => t.goal === 'hgp').display, `0 of ${FOCUS.length}`);
 });
 
 test('d2 QC count only reads proofs from the last 14 days', async () => {
@@ -506,10 +576,9 @@ test('d2 without HGP_DB, CLONE_DB or any D1 answers with nulls and notes, never 
   const { db } = seed();
   const body = await d2At({ DB: db, SESSION_SECRET: SECRET }, SUNDAY);
   const hgp = goal(body, 'hgp');
-  assert.equal(hgp.month.actual, null);
-  assert.equal(hgp.month.status.text, 'No data');
-  assert.match(hgp.month.note, /not connected/);
-  assert.ok(body.d2.stale.some((s) => s.label === 'Home Guide Press orders'));
+  assert.equal(hgp.month.actual, 4, 'the month goal counts published videos from the calendars, so the sales database being down does not blank it');
+  assert.equal(hgp.month.label, 'Videos published (1 a day per focus channel)');
+  assert.ok(!body.d2.stale.some((s) => s.label === 'Home Guide Press orders'), 'the sales database is no longer behind a goal, so it is not a stale source on Month');
   const none = await d2At({ SESSION_SECRET: SECRET }, SUNDAY);
   assert.equal(goal(none, 'jonmac').week[0].actual, null);
   assert.equal(none.d2.checks[0].today.status.text, 'No data');

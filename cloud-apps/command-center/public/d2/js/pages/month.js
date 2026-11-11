@@ -58,6 +58,7 @@ function row(g) {
       <div class="d2v">${value(x)}${x.actual == null ? '' : target}</div>
       ${bar(x)}
       <div class="d2meta">${pace}${age(x.source)}</div>
+      ${x.rows?.length ? `<details class="d2chrows" data-keep="rows-${esc(g.key)}"><summary>By channel (${x.rows.length})</summary><ul class="d2ch">${x.rows.map((r) => `<li><span>${esc(r.label)}</span><b>${esc(r.display)}</b>${status(r.status)}</li>`).join('')}</ul></details>` : ''}
     </div>
     ${trend(g.trend, x.unit)}
   </li>`;
