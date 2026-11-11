@@ -406,3 +406,28 @@ test('Track opens stop syncing after 100 a day, and the hourly cron still runs',
     globalThis.fetch = prev;
   }
 });
+
+test('Track shows channels with no Google login as Not connected with a Connect link, registered ones too, and connected ones without', async () => {
+  const { db, env } = await setup();
+  await db.prepare("INSERT INTO yt_channels (slug, label, grp, updated_by, updated_at) VALUES ('edna-haynes', 'Edna Haynes', 'Home Guide Press', 'x', 'x')").run();
+  await db.prepare("INSERT INTO yt_api (channel, channel_id, name, token, connected_at) VALUES ('peter-collins', ?, 'Peter', 'x', 'x')").bind(PETER).run();
+  await db.prepare("INSERT INTO yt_api (channel, channel_id, name, token, connected_at, sync_error) VALUES ('jack-mercer', 'UCP4LZ2M-dz3tLaSDohBp5yw', 'Jack', 'x', 'x', 'Google access was removed: connect this channel again')").run();
+  const { trackData, buildTrackPage } = await import('../src/track.js');
+  const out = { pages: { track: {} } };
+  buildTrackPage(out, await trackData(db, 'https://jonmac.ai', Date.now()));
+  const by = Object.fromEntries(out.pages.track.channels.map((c) => [c.slug, c.connect]));
+  assert.equal(by['peter-collins'].state, 'connected');
+  assert.equal(by['jack-mercer'].state, 'reconnect');
+  assert.equal(by['claudine-marchand'].state, 'none');
+  assert.equal(by['edna-haynes'].state, 'none', 'registered channel with no id yet shows too');
+  assert.equal(by['edna-haynes'].url, '/dashboard/api/youtube/connect?channel=edna-haynes');
+  assert.ok(!out.pages.track.channels.some((c) => c.slug === 'complete-histories'));
+  const html = track(out.pages.track, null, 'all');
+  assert.match(html, /data-connect="edna-haynes"[^>]*href="\/dashboard\/api\/youtube\/connect\?channel=edna-haynes"/);
+  assert.doesNotMatch(html, /data-connect="peter-collins"/);
+  assert.match(html, /Login out/);
+  // the connect link itself accepts a registered channel and goes to Google's consent (Jon approves there)
+  const r = await call(env, '/youtube/connect?channel=edna-haynes');
+  assert.equal(r.status, 302);
+  assert.match(r.headers.get('Location'), /^https:\/\/accounts\.google\.com\//);
+});

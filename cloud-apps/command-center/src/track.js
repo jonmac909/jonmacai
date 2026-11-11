@@ -1,6 +1,7 @@
 // Track page (2026-11-02): every Calendar video with its status, YouTube stats and a tracked link.
 // /v/<code> counts the click and forwards to the landing page stored in D1, never to anything in the request.
 import { YOUTUBE_CHANNELS, pacific, stamp, withYoutube } from './channels.js';
+import { trackChannels } from './youtube.js';
 
 // The switch for tracked links: groups whose videos carry none in their descriptions yet. Their link and clicks
 // columns stay blank and the link list skips them; put a group in to switch it off. Home Guide Press is on (2026-11-05).
@@ -48,16 +49,16 @@ export async function trackRedirect(request, env, ctx) {
 
 // Every Calendar video (the Calendar page stops at 60 days back), newest first. A link with no landing page
 // has no url, so nobody pastes a link that can't redirect yet.
-export async function trackVideos(db, origin, channel = null, nowMs = Date.now()) {
+export async function trackVideos(db, origin, channel = null, nowMs = Date.now(), extra = null) {
   const today = pacific(nowMs).day;
   const { results } = await db.prepare(`SELECT v.channel, v.title, v.day, v.time_pt, v.status, v.link, v.youtube_id, l.code, l.clicks, s.impressions, s.ctr, s.views, s.subs, s.avd,
     s.scheduled_at AS yt_scheduled_at, s.scheduled_date AS yt_scheduled_date, s.status AS yt_status, s.updated_at, s.reach_as_of, COALESCE(l.landing, c.landing) AS landing
     FROM yt_calendar v LEFT JOIN yt_links l ON l.video_id = v.id LEFT JOIN yt_stats s ON s.youtube_id = v.youtube_id
     LEFT JOIN yt_channels c ON c.slug = v.channel
     ${channel ? 'WHERE v.channel = ?' : ''} ORDER BY v.day DESC, v.created_at LIMIT 5000`).bind(...(channel ? [channel] : [])).all();
-  return (results || []).filter((r) => ON_YOUTUBE.has(r.channel)).map((row) => {
+  return (results || []).filter((r) => ON_YOUTUBE.has(r.channel) || extra?.has(r.channel)).map((row) => {
     const r = withYoutube(row, today);
-    const linked = LINKED.has(r.channel);
+    const linked = LINKED.has(r.channel) || !!extra?.has(r.channel);
     return {
       linked, code: linked ? r.code ?? null : null, url: linked && r.code && r.landing ? `${origin}/v/${r.code}` : null,
       channel: r.channel, title: r.title, date: r.day, status: stageOf(r.status, r.link, r.youtube_id), calendarStatus: r.status,
@@ -72,10 +73,10 @@ export async function trackVideos(db, origin, channel = null, nowMs = Date.now()
 // Each connected channel's numbers since launch from Analytics (src/youtube.js), null while Analytics lags: Track then
 // adds up its calendar videos' Studio numbers. Subs fall back to the public subscriber count.
 async function channelTotals(db) {
-  const { results } = await db.prepare('SELECT channel, subscribers, views, studio_views, studio_subs, studio_avd, sync_error FROM yt_api').all();
+  const { results } = await db.prepare('SELECT channel, channel_id, subscribers, views, studio_views, studio_subs, studio_avd, sync_error FROM yt_api').all();
   // Views are the larger of Analytics and public (Jon, 2026-11-04), so a lagging Analytics never shows less than YouTube's public count.
   const larger = (a, b) => (a == null && b == null ? null : Math.max(a ?? 0, b ?? 0));
-  return Object.fromEntries((results || []).map((r) => [r.channel, { views: larger(r.studio_views, r.views), avd: r.studio_avd, subs: r.studio_subs ?? r.subscribers, error: r.sync_error || null }]));
+  return Object.fromEntries((results || []).map((r) => [r.channel, { views: larger(r.studio_views, r.views), avd: r.studio_avd, subs: r.studio_subs ?? r.subscribers, error: r.sync_error || null, connected: true }]));
 }
 
 // The book page key each Home Guide Press channel sells (facts/channels.md). Other channels sell no book here.
@@ -108,7 +109,9 @@ async function bookStats(db, hgp) {
 // Null when the tables can't be read (migration 0017 or 0021 not applied), so the page says so instead of failing.
 export async function trackData(db, origin, nowMs, hgp = null) {
   try {
-    return { videos: await trackVideos(db, origin, null, nowMs), totals: await channelTotals(db), books: await bookStats(db, hgp) };
+    const channels = await trackChannels(db);
+    const extra = new Set(channels.map((c) => c.slug).filter((s) => !ON_YOUTUBE.has(s))); // registered by a bot, not in the fixed list
+    return { videos: await trackVideos(db, origin, null, nowMs, extra), totals: await channelTotals(db), books: await bookStats(db, hgp), channels };
   } catch (err) {
     console.error('trackData', err);
     return null;
@@ -125,13 +128,17 @@ function countsOf(videos) {
 export function buildTrackPage(out, data) {
   if (!out.pages?.track || data === undefined) return;
   const list = data?.videos || [];
-  const label = new Map(YOUTUBE_CHANNELS.map((c) => [c.slug, c.label]));
+  const known = data?.channels || YOUTUBE_CHANNELS;
+  const label = new Map(known.map((c) => [c.slug, c.label]));
   out.pages.track = {
     title: 'Track',
     available: !!data,
-    channels: [{ slug: 'all', label: 'All channels', group: 'All', all: true, count: list.length }, ...YOUTUBE_CHANNELS.map((c) => {
+    channels: [{ slug: 'all', label: 'All channels', group: 'All', all: true, count: list.length }, ...known.map((c) => {
       const mine = list.filter((v) => v.channel === c.slug);
-      return { ...c, count: mine.length, counts: countsOf(mine), totals: data?.totals?.[c.slug] || null, book: data?.books?.[c.slug] || null };
+      // Connect (Jon, 2026-11-11): a channel with no Google login yet gets the link that starts it; Jon does the consent himself.
+      const t = data?.totals?.[c.slug];
+      const state = !t ? 'none' : /connect/i.test(t.error || '') ? 'reconnect' : 'connected';
+      return { ...c, connect: { state, url: `/dashboard/api/youtube/connect?channel=${c.slug}` }, count: mine.length, counts: countsOf(mine), totals: data?.totals?.[c.slug] || null, book: data?.books?.[c.slug] || null };
     })],
     videos: list.map((v) => ({ ...v, channelLabel: label.get(v.channel) })),
   };

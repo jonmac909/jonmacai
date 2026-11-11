@@ -142,7 +142,7 @@ test('the page lists every channel with correct counts, one row per video, filte
 });
 
 const labelOf = (slug) => YOUTUBE_CHANNELS.find((c) => c.slug === slug).label;
-const allRow = (html, slug) => html.match(new RegExp(`<tr data-page="track/${slug}">(.*?)</tr>`, 's'))[1].split(/<[^>]+>/).map((s) => s.trim()).filter(Boolean);
+const allRow = (html, slug) => html.match(new RegExp(`<tr data-page="track/${slug}">(.*?)</tr>`, 's'))[1].replace(/<a [^>]*data-connect[^>]*>.*?<\/a>/s, '').replace(/<span class="pill [^"]*">(Not connected|Login out)<\/span>/, '').split(/<[^>]+>/).map((s) => s.trim()).filter(Boolean);
 
 test('All sums Studio impressions, views and net subscribers per channel', async () => {
   const { db, env } = await setup();

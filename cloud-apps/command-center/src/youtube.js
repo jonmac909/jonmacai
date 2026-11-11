@@ -3,7 +3,7 @@
 // - status comes from the Data API; views, AVD and subs from the Analytics API, like Studio (public view counts until it has them), on every Track open or refresh (Jon, 2026-11-05; 15 s floor so a double-open doesn't sync twice) and hourly from the cron;
 // - impressions and CTR come from Reporting API reach reports in the 10-minute cron (at most every 6 hours a channel).
 // Both fill yt_stats, the rows the Track and Calendar pages already read.
-import { YOUTUBE_CHANNELS, pacific } from './channels.js';
+import { YOUTUBE_CHANNELS, allChannels, pacific } from './channels.js';
 
 const SCOPES = ['https://www.googleapis.com/auth/youtube.readonly', 'https://www.googleapis.com/auth/yt-analytics.readonly'];
 const CALLBACK = '/dashboard/api/youtube/callback';
@@ -130,12 +130,24 @@ async function reachJob(fetchFn, token) {
 // The Google account each channel consents from (Jon, 2026-11-04). Every other channel is on partners@.
 const OWNER_LOGIN = { 'jon-mac': 'jon@jonmac.co', jonmacai: 'jon@thejonmac.com', default: 'partners@thejonmac.com' };
 
+// The Track channels: the fixed list plus channels a bot registered with a label (Edna, Kenzo), never Spotify-only ones.
+export async function trackChannels(db) {
+  try {
+    const { results } = await db.prepare('SELECT slug, label, grp FROM yt_channels WHERE label IS NOT NULL').all();
+    const fixed = new Set(YOUTUBE_CHANNELS.map((c) => c.slug));
+    return allChannels(results).filter((c) => fixed.has(c.slug) || !CHANNELS_OFF.includes(c.slug));
+  } catch {
+    return YOUTUBE_CHANNELS;
+  }
+}
+const CHANNELS_OFF = ['complete-histories'];
+
 // GET /youtube/connect?channel=<slug> (Jon's session): off to Google's consent with a one-use state.
 export async function youtubeConnect(request, env, nowMs = Date.now()) {
   const url = new URL(request.url);
   const slug = url.searchParams.get('channel') || '';
   if (!ready(env)) return page(501, NOT_SET_UP);
-  if (!YOUTUBE_CHANNELS.some((c) => c.slug === slug)) return page(400, 'Unknown channel. Use a Track channel, like peter-collins.');
+  if (!(await trackChannels(env.DB)).some((c) => c.slug === slug)) return page(400, 'Unknown channel. Use a Track channel, like peter-collins.');
   const state = [...crypto.getRandomValues(new Uint8Array(24))].map((b) => b.toString(16).padStart(2, '0')).join('');
   await env.DB.batch([
     env.DB.prepare('DELETE FROM yt_oauth_states WHERE expires_at < ?').bind(iso(nowMs)),
@@ -159,7 +171,7 @@ export async function youtubeCallback(request, env, fetchFn = globalThis.fetch, 
   if (!row || row.expires_at < iso(nowMs)) return page(400, 'This link expired or was already used. Start again from the connect link.');
   if (q.get('error') || !q.get('code')) return page(400, 'Google did not give access, so nothing was connected.');
   const slug = row.channel;
-  const label = YOUTUBE_CHANNELS.find((c) => c.slug === slug)?.label || slug;
+  const label = (await trackChannels(env.DB)).find((c) => c.slug === slug)?.label || slug;
   const { status: tokStatus, data: tok } = await tokenCall(env, fetchFn, { grant_type: 'authorization_code', code: q.get('code'), redirect_uri: `${url.origin}${CALLBACK}` });
   if (!tok.access_token || !tok.refresh_token) {
     console.error('youtube callback token', tokStatus, tok.error, tok.error_description);
@@ -461,7 +473,7 @@ export async function youtubeStatus(env) {
   return json({
     ok: true,
     setUp: ready(env) || NOT_SET_UP,
-    channels: YOUTUBE_CHANNELS.map((c) => {
+    channels: (await trackChannels(env.DB)).map((c) => {
       const r = by.get(c.slug);
       return {
         channel: c.slug, label: c.label, connected: !!r, channelId: r?.channel_id || CHANNEL_IDS[c.slug] || null, name: r?.name || null,
