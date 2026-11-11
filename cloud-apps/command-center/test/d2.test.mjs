@@ -229,6 +229,10 @@ test('d2 answers the contract for all five sections', async () => {
     }
     assert.equal(g.trend.length, 6);
   }
+  // Sponsor deposit days for dash3's Money chart: an object of day -> USD, or null when the ledger can't be read.
+  const cashDays = goal(body, 'sponsors').cashDays;
+  assert.ok(cashDays === null || (typeof cashDays === 'object' && Object.keys(cashDays).every((d) => /^\d{4}-\d{2}-\d{2}$/.test(d))));
+  assert.ok(body.d2.goals.filter((g) => g.key !== 'sponsors').every((g) => !('cashDays' in g)));
   const { today, pipeline, money, period } = body.d2;
   assert.deepEqual(Object.keys(today), ['jon', 'needs', 'expenses', 'targets', 'blockers']);
   assert.deepEqual(Object.keys(today.needs), ['count', 'items', 'healthToAna', 'chargesFolded']);
