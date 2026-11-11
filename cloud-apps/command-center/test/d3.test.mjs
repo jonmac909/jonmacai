@@ -1246,7 +1246,7 @@ test('d3.css: Bluesky and System rules from the designs, narrow rules below the 
 });
 
 test('Key results: named rows (name, actual / target, bar, status) worst first, no coloured tiles', async () => {
-  const { keyRows } = await import('../public/d3/js/goals.js');
+  const { keyRows, KR_OPEN } = await import('../public/d3/js/goals.js');
   const d2 = SAMPLE();
   const html = renderGoals(d2, d3Sample(), {});
   const card = html.slice(html.indexOf('aria-label="Key results"'), html.indexOf('aria-label="Sponsor Revenue"'));
@@ -1258,21 +1258,34 @@ test('Key results: named rows (name, actual / target, bar, status) worst first, 
   const e = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
   // Every result shows once, with its name, its status word and a bar only when it has a target.
   for (const k of all) {
-    const m = card.match(new RegExp(`data-kr-row="${k.id}">([\\s\\S]*?)</div>`));
+    const m = card.match(new RegExp(`<div class="ksr"[^>]*data-kr-row="${k.id}"[^>]*>([\\s\\S]*?)</div>`));
     assert.ok(m, k.id);
     assert.ok(m[1].includes(e(k.text)), k.id);
+    // One line: no grey objective subtitle or stacked block inside a row; order is dot, name, bar, value, status.
+    assert.doesNotMatch(m[1], /class="mut ell"|class="[^"]*\bstack\b/, k.id);
+    assert.match(m[1], /^<span class="ksn"><span class="dot[^"]*"><\/span><span class="ell">[^<]*<\/span>(<span class="ksh">[^<]*<\/span>)?<\/span><span class="bar[^"]*"[^>]*>(<i [^>]*><\/i>)?<\/span><span class="ksv[^"]*">[\s\S]*<\/span><span class="kss [rygn]">[^<]*<\/span>$/, k.id);
     if (k.hasBar) assert.match(m[1], /class="bar"[^>]*><i class="[rygn]" style="width: [\d.]+%"/, k.id);
     else assert.match(m[1], /class="bar nb"[^>]*><\/span>/, k.id);
     assert.match(m[1], /class="kss [rygn]">(Off track|At risk|On track|No data|No feed)</);
     // Same numbers as the row in the sections below, escaped exactly as rendered.
     if (!k.nf) assert.ok(m[1].includes(e(k.v1)) && (!k.v2 || m[1].includes(`<span class="dim">${e(k.v2)}</span>`)), k.id);
   }
-  // Rendered order is the worst-first order: off track and at risk in the open list, the rest inside <details>.
+  // Rendered order is the worst-first order: the worst KR_OPEN rows open, the rest inside one collapsed <details>.
   const ids = (s) => [...s.matchAll(/data-kr-row="([^"]+)"/g)].map((x) => x[1]);
   assert.deepEqual(ids(card), rows.map((k) => k.id));
+  assert.equal(KR_OPEN, 9);
+  assert.ok(rows.length > KR_OPEN, 'sample has more results than the open list, so the toggle is tested');
   const det = card.includes('<details') ? card.slice(card.indexOf('<details'), card.indexOf('</details>')) : '';
-  assert.deepEqual(ids(det), rows.filter((k) => k.tone === 'g' || k.tone === 'n').map((k) => k.id));
-  assert.deepEqual(ids(card.replace(det, '')), rows.filter((k) => k.tone === 'r' || k.tone === 'y').map((k) => k.id));  // Worst first: status order, then lowest share of target first.
+  assert.match(det, new RegExp(`^<details class="ksm"><summary class="mut">\\+${rows.length - KR_OPEN} more</summary>`), 'collapsed, says how many');
+  assert.deepEqual(ids(det), rows.slice(KR_OPEN).map((k) => k.id));
+  assert.deepEqual(ids(card.replace(det, '')), rows.slice(0, KR_OPEN).map((k) => k.id));
+  // Planted fault: a name with quotes and markup is escaped in the hover title and in the row.
+  const bad = SAMPLE();
+  bad.d2.goals.find((g) => g.key === 'jonmac').title = '"><img onerror=x>';
+  const badCard = renderGoals(bad, d3Sample(), {});
+  assert.doesNotMatch(badCard, /<img onerror/);
+  assert.match(badCard, /<div class="ksr" title="&quot;&gt;&lt;img onerror=x&gt; · Content Factory" data-kr-row="b1">/);
+  // Worst first: status order, then lowest share of target first.
   const rank = { r: 0, y: 1, g: 2, n: 3 };
   for (let i = 1; i < rows.length; i++) {
     const a = rows[i - 1], b = rows[i];
