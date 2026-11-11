@@ -15,6 +15,10 @@ const hidden = (key) => /^team-guard/.test(key || '') || /^cw:/.test(key || '');
 // A YouTube sync that failed on Google sign-in (src/youtube.js), not on quota or the network.
 const LOGIN_OUT = /connect this channel again|token refresh/i;
 const NO_FEED = { state: 'none', text: 'No feed' };
+const MIN = 60000;
+// The dispatcher's live feed (tools/dash_live_feed.py, every 2 min): grey once it is 10 minutes old.
+const LIVE_STALE = 10 * MIN;
+const QC_DAY_TARGET = 6; // QC-passed videos a day (Jon, 2026-11-11)
 
 const parse = (raw) => {
   if (raw && typeof raw === 'object') return raw;
@@ -37,7 +41,7 @@ export async function d3Data(env, nowMs) {
   };
   const today0 = new Date(midnight(vanYmd(nowMs))).toISOString();
   const [youtube, review, approvals, questions, usage, lastUsage, open, proofs, habits, calendar, charges,
-    tasks, finished, stuck, failsToday, runs, runBots] = await Promise.all([
+    tasks, finished, stuck, failsToday, runs, runBots, live, passedToday] = await Promise.all([
     q('SELECT channel, sync_error FROM yt_api'),
     // Review cards with their newest proof link (a passed one first), as the card modal picks its deliverable.
     q(`SELECT t.id, t.title, t.owner, t.project, t.due, t.note, t.updated_at AS at,
@@ -48,9 +52,10 @@ export async function d3Data(env, nowMs) {
     q("SELECT data, created_at FROM bot_feed_entries WHERE name = 'claude_usage' AND created_at >= ? ORDER BY created_at DESC LIMIT 2000", new Date(win.start - 7 * DAY).toISOString()),
     q("SELECT data, created_at FROM bot_feed_entries WHERE name = 'claude_usage' ORDER BY created_at DESC LIMIT 1"),
     q(`SELECT project, COUNT(*) AS n FROM bot_tasks WHERE status IN ${OPEN} GROUP BY project`),
-    // Every QC verdict on a render, for the cards with a render this month; the first verdict per card decides "first try".
-    q(`SELECT task_id, status, created_at FROM bot_proofs WHERE kind = 'render' AND status IN ('passed', 'failed')
-      AND task_id IN (SELECT task_id FROM bot_proofs WHERE kind = 'render' AND created_at >= ?) ORDER BY created_at, rowid LIMIT 5000`, from),
+    // Every QC verdict on a video (a proof linking a review page), for the cards with one this month; the first verdict
+    // per card decides "first try".
+    q(`SELECT task_id, status, created_at FROM bot_proofs WHERE link LIKE '%/review/%' AND status IN ('passed', 'failed')
+      AND task_id IN (SELECT task_id FROM bot_proofs WHERE link LIKE '%/review/%' AND created_at >= ?) ORDER BY created_at, rowid LIMIT 5000`, from),
     q("SELECT day, kind, done FROM habits WHERE kind IN ('workout', 'date_night') AND day >= ?", ws < first ? ws : first),
     q("SELECT data FROM snapshots WHERE source = 'calendar'"),
     q("SELECT status FROM bot_questions WHERE idem_key LIKE 'cw:%' AND (status = 'open' OR updated_at >= ?)", from),
@@ -66,25 +71,55 @@ export async function d3Data(env, nowMs) {
     q('SELECT bot, status, started_at, tokens FROM bot_runs WHERE started_at >= ? ORDER BY started_at LIMIT 2000', new Date(nowMs - DAY).toISOString()),
     // Bots that post runs: only runs from the last 30 days, newest first, bounded.
     q('SELECT DISTINCT bot FROM (SELECT bot FROM bot_runs WHERE started_at >= ? ORDER BY started_at DESC LIMIT 5000)', new Date(nowMs - 30 * DAY).toISOString()),
+    q("SELECT data, created_at FROM bot_feed_entries WHERE name = 'dispatch_live' ORDER BY created_at DESC LIMIT 1"),
+    // Videos that passed QC today: distinct cards with a passed proof linking a review page.
+    q(`SELECT p.task_id, MAX(t.title) AS title FROM bot_proofs p LEFT JOIN bot_tasks t ON t.id = p.task_id WHERE p.status = 'passed'
+      AND p.link LIKE '%/review/%' AND COALESCE(p.checked_at, p.created_at) >= ? GROUP BY p.task_id LIMIT 500`, today0),
   ]);
   return {
     youtube, review, approvals, questions, usage, lastUsage: lastUsage && (lastUsage[0] || undefined), open, proofs, habits, calendar: calendar && parse(calendar[0]?.data), charges,
-    tasks, finished, stuck, failsToday, runs, runBots, today0, nowMs,
+    tasks, finished, stuck, failsToday, runs, runBots, today0, nowMs, passedToday,
+    live: live && (live[0] ? { d: parse(live[0].data), at: live[0].created_at } : undefined),
   };
 }
 
 // ---- the rail's four lines: { state: 'g' | 'y' | 'r' | 'none', text } ----
-function tokensLine(last, nowMs) {
-  if (!last) return { ...NO_FEED }; // table unreadable (null) or nothing posted yet
-  const d = parse(last.data);
-  const pct = Number(d.weekPct);
-  const src = sourceOf("Ana's Claude usage check", last.created_at, nowMs);
+// The newer of Ana's usage check and the dispatcher's weekly reading (live feed). Older than 6 hours: grey, with its age,
+// and not counted as a limit hit.
+function tokensLine(last, nowMs, live) {
+  const w = live?.d?.week;
+  const wAt = Date.parse(w?.at);
+  const fromLive = Number.isFinite(Number(w?.pct)) && Number.isFinite(wAt) && !(Date.parse(last?.created_at) > wAt);
+  if (!last && !fromLive) return { ...NO_FEED }; // table unreadable (null) or nothing posted yet
+  const d = fromLive ? {} : parse(last.data);
+  const pct = Number(fromLive ? w.pct : d.weekPct);
+  const src = fromLive ? sourceOf('Dispatcher weekly limit check', w.at, nowMs) : sourceOf("Ana's Claude usage check", last.created_at, nowMs);
   if (!Number.isFinite(pct)) return { ...NO_FEED };
   const reset = Date.parse(d.resetsAt);
   if (Number.isFinite(reset) && reset <= nowMs) return { state: 'none', text: 'Tokens: no report this week', pct: null, source: src };
   const p = Math.round(pct);
+  const age = nowMs - Date.parse(src.at);
+  if (age > 6 * 3600000) return { state: 'none', text: `Tokens ${p}%, ${agoLabel(age).replace(/ ago$/, '')} old`, pct: p, stale: true, source: src };
   const state = p >= 90 ? 'r' : p >= 75 ? 'y' : 'g';
   return { state, text: p >= 100 ? 'Token limit hit' : `Tokens ${p}% used`, pct: p, source: src };
+}
+
+// Dispatcher: green while its heartbeat is under 3 minutes old, red after. Bots: runs going now, grey when the feed is stale.
+function dispatcherLine(L, nowMs) {
+  if (!L) return { ...NO_FEED };
+  const beat = Date.parse(L.d.beat);
+  if (!Number.isFinite(beat)) return { state: 'r', text: 'Dispatcher: no heartbeat' };
+  const age = Math.max(0, nowMs - beat);
+  return age < 3 * MIN
+    ? { state: 'g', text: 'Dispatcher running', at: L.d.beat }
+    : { state: 'r', text: `Dispatcher stopped ${agoLabel(age)}`, at: L.d.beat };
+}
+function botsLine(L, nowMs) {
+  if (!L) return { ...NO_FEED };
+  const age = Math.max(0, nowMs - Date.parse(L.at));
+  if (!(age < LIVE_STALE)) return { state: 'none', text: `Bots: no update for ${agoLabel(age).replace(/ ago$/, '')}`, stale: true };
+  const n = Array.isArray(L.d.running) ? L.d.running.length : 0;
+  return { state: 'g', text: `${n} run${n === 1 ? '' : 's'} going`, running: n, at: L.at };
 }
 
 function youtubeLine(rows) {
@@ -190,9 +225,34 @@ function qcFirstTry(rows, from) {
   const firsts = [...firstOf.values()].filter((r) => Date.parse(r.created_at) >= Date.parse(from));
   const passed = firsts.filter((r) => r.status === 'passed').length;
   const total = firsts.length;
-  if (!total) return metric({ note: 'No render was checked by QC this month yet.' });
+  if (!total) return metric({ note: 'No video was checked by QC this month yet.' });
   const pct = Math.round((passed / total) * 100);
-  return metric({ actual: pct, display: `${pct}%`, passed, total, status: { text: 'No target', cls: 'idle' }, note: `${passed} of ${total} renders checked this month passed QC on the first try.` });
+  return metric({ actual: pct, display: `${pct}%`, passed, total, status: { text: 'No target', cls: 'idle' }, note: `${passed} of ${total} videos first checked by QC this month passed on the first try (a video = a card with a review-page proof).` });
+}
+
+// Videos that passed QC today against the daily target, paced through the day.
+function qcPassedToday(rows, nowMs, today) {
+  if (!rows) return metric({ target: QC_DAY_TARGET });
+  const n = rows.length;
+  const pace = QC_DAY_TARGET * clamp((nowMs - midnight(today)) / DAY);
+  const names = rows.map((r) => r.title).filter(Boolean);
+  return metric({
+    actual: n, target: QC_DAY_TARGET, display: String(n), pace, status: statusOf(n, QC_DAY_TARGET, pace, 'count'),
+    note: n ? `Passed QC today: ${names.slice(0, 8).join('; ')}${names.length > 8 ? '; …' : ''}.` : 'No video passed QC today yet.',
+  });
+}
+
+// Videos Jon approved that are not on YouTube yet (pipeline.py through the live feed), longest wait first.
+function approvedOf(L, nowMs) {
+  const a = L?.d?.approved;
+  if (!a || !Number.isFinite(Number(a.count))) return null;
+  const n = Number(a.count);
+  const items = (a.items || []).map((i) => ({ title: i.title, wait: agoLabel(Number(i.waitMin || 0) * MIN).replace(/ ago$/, '') }));
+  return metric({
+    actual: n, target: 0, display: String(n), items, status: n ? { text: 'Behind', cls: 'risk' } : { text: 'Done', cls: 'ok' },
+    note: n ? `Waiting longest: ${items.slice(0, 3).map((i) => `${i.title} (${i.wait})`).join('; ')}.` : 'Every approved video is on YouTube.',
+    source: sourceOf('Dispatcher live feed', L.at, nowMs),
+  });
 }
 
 function lifeOf(D, P) {
@@ -253,19 +313,24 @@ const noteText = (note) => {
   return t.length > 360 ? `${t.slice(0, 357).trimEnd()}…` : t;
 };
 // ---- Video board: open cards with a stage (set by the dispatcher's hand-off), by stage ----
-// Columns as designed, with their proposed limits (hours). A card in QC shows under that stage's QC column when there is
-// one (script -> Script QC, edit -> Render QC). Any other stage gets its own column after these, with no limit.
-const BOARD = [['brief', 'Brief', 4], ['script', 'Script', 4], ['script qc', 'Script QC', 2], ['a-roll', 'A-roll', 4],
-  ['pack', 'Pack', 8], ['edit', 'Edit', 8], ['render qc', 'Render QC', 2], ['publish', 'Publish', 72]];
+// Video stages with Jon's stage budgets in hours (2026-11-11: brief 15 min, script 20, pack 75, edit 70, QC included);
+// a-roll and publish have no budget. A card in QC shows under that stage's QC column (script -> Script QC,
+// edit -> Render QC). Stages that are not video stages (Build, Deploy) stay off the board.
+const BOARD = [['brief', 'Brief', 0.25], ['script', 'Script', 0.33], ['script qc', 'Script QC', 0.33], ['a-roll', 'A-roll', null],
+  ['pack', 'Pack', 1.25], ['edit', 'Edit', 1.17], ['render qc', 'Render QC', 1.17], ['publish', 'Publish', null]];
 const QC_COL = { script: 'script qc', edit: 'render qc' };
-const limitLabel = (h) => (h == null ? '' : h % 24 ? `${h} h` : `${h / 24} d`);
+export const limitLabel = (h) => {
+  if (h == null) return '';
+  const m = Math.round(h * 60);
+  return m < 60 ? `${m} m` : m % 60 ? `${Math.floor(m / 60)} h ${m % 60} m` : `${m / 60} h`;
+};
 function lineOf(tasks, nowMs) {
   const cols = new Map(BOARD.map(([key, name, h]) => [key, { key, name, limit: limitLabel(h), hours: h, cards: [] }]));
   for (const t of tasks) {
     const stage = String(t.stage || '').trim().toLowerCase();
     if (!stage) continue;
     const key = t.status === 'qc' && QC_COL[stage] ? QC_COL[stage] : stage;
-    if (!cols.has(key)) cols.set(key, { key, name: key.charAt(0).toUpperCase() + key.slice(1), limit: '', hours: null, cards: [] });
+    if (!cols.has(key)) continue;
     // Time in the column: since the stage began, or since the card went to QC for a QC column (the move updates the card).
     const from = Date.parse(key !== stage ? t.updated_at : t.stage_since || t.updated_at);
     const ms = Number.isFinite(from) ? Math.max(0, nowMs - from) : 0;
@@ -274,7 +339,7 @@ function lineOf(tasks, nowMs) {
   let late = 0;
   const stages = [...cols.values()].map((c) => {
     const cards = c.cards.sort((a, b) => b.ms - a.ms).map((x) => {
-      const over = c.hours != null && x.ms > c.hours * 3600000;
+      const over = c.hours != null && x.ms > Math.round(c.hours * 60) * MIN;
       if (over) late++;
       return { id: x.id, title: x.title, age: agoLabel(x.ms).replace(/ ago$/, ''), tone: over ? 'r' : 'g' };
     });
@@ -282,6 +347,9 @@ function lineOf(tasks, nowMs) {
   });
   return { stages, late, total: stages.reduce((n, s) => n + s.n, 0) };
 }
+
+// The live feed when under 10 minutes old, else null.
+const liveFresh = (L, nowMs) => (L && nowMs - Date.parse(L.at) < LIVE_STALE ? L : null);
 
 function dueLabel(due, today) {
   const d = String(due || '').slice(0, 10);
@@ -293,6 +361,7 @@ function dueLabel(due, today) {
 function teamOf(D, today) {
   if (!D.tasks) return null;
   const nowMs = D.nowMs;
+  const L = liveFresh(D.live, nowMs);
   const posts = D.runBots ? new Set(D.runBots.map((r) => r.bot)) : new Set();
   const bots = TEAM.bots.map((b) => {
     const mine = D.tasks.filter((t) => t.owner === b.slug);
@@ -301,7 +370,9 @@ function teamOf(D, today) {
     const cur = mine.filter((t) => t.status !== 'review')
       .sort((x, y) => RANK[x.status] - RANK[y.status] || Date.parse(y.updated_at) - Date.parse(x.updated_at))[0] || null;
     const runs = (D.runs || []).filter((r) => r.bot === b.slug);
-    const failedRuns = runs.filter((r) => r.status === 'failed' && r.started_at >= D.today0).length;
+    // Runs, tokens and failed runs from the dispatcher's live feed when it is fresh; else from posted runs (bot_runs).
+    const liveRuns = L ? (L.d.running || []).filter((r) => r.bot === b.slug) : [];
+    const failedRuns = L ? Number(L.d.runs?.[b.slug]?.failed || 0) : runs.filter((r) => r.status === 'failed' && r.started_at >= D.today0).length;
     const qcFails = D.failsToday ? D.failsToday.filter((f) => f.owner === b.slug).length : null;
     const running = runs.filter((r) => r.status === 'running').pop();
     const toks = runs.filter((r) => r.started_at >= D.today0 && r.tokens != null && Number.isFinite(Number(r.tokens)));
@@ -312,11 +383,13 @@ function teamOf(D, today) {
       tone: failed ? 'r' : cur?.status === 'doing' ? 'g' : cur?.status === 'waiting_on_jon' ? 'y' : '',
       failedToday: qcFails == null ? null : failed, qcFailsToday: qcFails, failedRunsToday: failedRuns,
       // Run feed: null = this bot posts no runs (No feed); '' = it posts runs but none is running now.
-      running: !posts.has(b.slug) ? null : running ? shortSince(running.started_at, nowMs) : '',
-      tokens: toks.length ? toks.reduce((n, r) => n + Number(r.tokens), 0) : null, // tokens per run: nothing posts them yet
+      running: L ? (liveRuns.length ? `${liveRuns.length > 1 ? `${liveRuns.length} · ` : ''}${shortSince(liveRuns[0].since, nowMs)}` : '')
+        : !posts.has(b.slug) ? null : running ? shortSince(running.started_at, nowMs) : '',
+      tokens: L ? Number(L.d.tokens?.[b.slug] || 0) : toks.length ? toks.reduce((n, r) => n + Number(r.tokens), 0) : null,
       finishedToday: D.finished ? [...new Map(D.finished.filter((e) => e.owner === b.slug).map((e) => [e.task_id, e.title])).values()] : null,
     };
   });
+  const byTitle = new Map(D.tasks.map((t) => [t.id, t.title]));
   const waiting = D.tasks.filter((t) => t.status === 'waiting_on_jon' && ROSTER.has(t.owner));
   const oldest = Math.min(...waiting.map((t) => Date.parse(t.updated_at)).filter(Number.isFinite));
   return {
@@ -324,6 +397,11 @@ function teamOf(D, today) {
     working: bots.filter((b) => (b.counts.doing || 0) > 0).length,
     waiting: { count: waiting.length, oldest: Number.isFinite(oldest) ? since(new Date(oldest).toISOString(), nowMs) : '' },
     failedToday: D.failsToday ? bots.reduce((n, b) => n + (b.failedToday || 0), 0) : null,
+    // Failed runs and Stuck lines today (live feed), newest first, for the Failed tile's list.
+    fails: L ? (L.d.fails || []).map((f) => ({ card: f.card, title: byTitle.get(f.card) || '', who: ownerName(f.bot), kind: f.kind, why: f.why, age: since(f.at, nowMs) })) : null,
+    running: L ? (L.d.running || []).length : null,
+    tokens: L ? Object.values(L.d.tokens || {}).reduce((n, x) => n + Number(x || 0), 0) : null,
+    liveAge: L ? since(L.at, nowMs) : '',
     cost: null, // no cost feed per bot yet
     line: lineOf(D.tasks, nowMs),
   };
@@ -380,9 +458,9 @@ export function buildD3(D) {
   };
   return {
     rail: {
-      dispatcher: { ...NO_FEED }, // no dispatcher heartbeat reaches the dashboard yet
-      bots: { ...NO_FEED }, // no per-bot heartbeat reaches the dashboard yet
-      tokens: tokensLine(D.lastUsage, nowMs),
+      dispatcher: dispatcherLine(D.live, nowMs),
+      bots: botsLine(D.live, nowMs),
+      tokens: tokensLine(D.lastUsage, nowMs, D.live),
       youtube: youtubeLine(D.youtube),
     },
     review: reviewOf(D),
@@ -393,6 +471,8 @@ export function buildD3(D) {
     goals: {
       tokenWeeks: tokenWeeks(D.usage, first, P.last),
       qcFirstTry: qcFirstTry(D.proofs, new Date(win.start).toISOString()),
+      qcPassedToday: qcPassedToday(D.passedToday, nowMs, P.today),
+      approved: approvedOf(D.live, nowMs),
       ...lifeOf(D, P),
       charges: chargesOf(D.charges),
     },
