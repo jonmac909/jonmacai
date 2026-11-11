@@ -12,8 +12,7 @@ Hard limits: `/dashboard` and `/dashboard-2` do not change. View only, apart fro
 - Routes are hashes: `#goals` (default), `#team`, `#blockers`, `#review`, `#money`.
 - Data loads on open and every 60 s while the tab is visible. Signed out (401), the page opens `/dash/` once (sessionStorage `d3-signin`), then shows a sign-in link; no reload loop.
 - Files: `public/d3/js/app.js` (shell), `goals.js` (pure `renderGoals(d2, d3, ui)`), `team.js` (`renderTeam`), `blockers.js` (`blockerRows`, `renderBlockers`), `rail.js`, `util.js`; `css/d3.css` is the design's style block plus the Team/Blockers design rules plus "Build additions".
-- Team roster: `src/d3-team.json`, a copy of `D:\AgentTeam
-ules\BOTS.md` (slug = the bot's `areas/<slug>.md` and its card owner name). Retired bots (Mila, Ivy, Zendaya, the old Emma/Indy areas) are not in it. `test/d3.test.mjs` fails when it drifts from BOTS.md (on GPU1).
+- Team roster: `src/d3-team.json`, a copy of `D:\AgentTeamules\BOTS.md` (slug = the bot's `areas/<slug>.md` and its card owner name). Retired bots (Mila, Ivy, Zendaya, the old Emma/Indy areas) are not in it. `test/d3.test.mjs` fails when it drifts from BOTS.md (on GPU1).
 
 ## `GET /dashboard/api/d3`
 
