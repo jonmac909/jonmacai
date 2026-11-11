@@ -20,6 +20,14 @@ export function dayShare(iso) {
   return Math.min(1, ((p.hour || 0) * 60 + (p.minute || 0)) / 1440);
 }
 
+// Florence's sponsor reply drafts waiting for Jon's send: the Sponsors board cards d2 marks as drafts (Archived left
+// out). null when d2 has no sponsors board. Shared by the Review page, the rail count and the Goals "To review" tile.
+export function draftsOf(d2resp) {
+  const board = (d2resp?.d2?.pipeline?.boards || []).find((b) => b.goal === 'sponsors')?.sponsors?.board;
+  if (!Array.isArray(board?.columns)) return null;
+  return board.columns.filter((c) => !c.archived).flatMap((c) => (c.cards || []).filter((k) => k.draft && k.payload?.sendKind).map((k) => ({ ...k, column: c.title })));
+}
+
 export const ICON = {
   goals: '<circle cx="12" cy="12" r="9"></circle><circle cx="12" cy="12" r="5"></circle><circle cx="12" cy="12" r="1"></circle>',
   money: '<path d="M12 2v20"></path><path d="M17 6H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>',

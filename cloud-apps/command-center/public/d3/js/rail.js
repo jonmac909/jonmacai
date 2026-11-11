@@ -2,6 +2,7 @@
 // /dashboard/api/d2 and /dashboard/api/d3 answers, so tests run them without a browser.
 import { esc } from './util.js';
 import { blockerRows } from './blockers.js';
+import { reviewItems } from './review.js';
 
 const LINES = [['dispatcher', 'Dispatcher'], ['bots', 'Bots'], ['tokens', 'Tokens'], ['youtube', 'YouTube']];
 
@@ -18,7 +19,8 @@ export function statHtml(d3) { // the /dashboard/api/d3 answer
   }).join('');
 }
 
-// Counts only from real data; null (hidden) when the source could not be read. Blockers = the Blockers page's rows.
+// Counts only from real data; null (hidden) when the source could not be read. Blockers = the Blockers page's rows,
+// Review = the Review page's queue.
 export function railCounts(d2, d3) {
   const blockers = blockerRows(d2, d3);
   const review = d3?.d3?.review;

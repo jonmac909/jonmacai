@@ -1,0 +1,210 @@
+// Dashboard 3 Review page (docs/dashboard-3.md), laid out as the approved design (Review.dc.html): a queue on the left,
+// one item at a time on the right. Items: Florence's sponsor reply drafts (from d2's Sponsors board) and d3.queue
+// (cards in Review, pending approvals, open questions). Every button calls a write the dashboard already has, and only
+// on Jon's click:
+//   card      Approve = PATCH /v1/tasks/:id {status: done}; Send back = PATCH {status: doing, comment}
+//   approval  Approve / Reject = POST /v1/approvals/:id/decide
+//   question  an option, or typed text = POST /v1/questions/:id/answer
+//   email     Send = POST /dashboard/api/actions {kind: the draft's sendKind}; Edit first edits the draft in place
+// Undo has nothing to call yet, so it shows disabled.
+import { esc, icon, draftsOf } from './util.js';
+import { headerOnly } from './goals.js';
+
+const IC = {
+  video: '<path d="M6 5h12a3 3 0 0 1 3 3v8a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3V8a3 3 0 0 1 3-3zM10 9l5 3-5 3z"></path>',
+  email: '<path d="M4 5h16a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1zM3 7l9 6 9-6"></path>',
+  decision: '<path d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .8-1 1.5M12 16.5h.01"></path>',
+};
+const ICON_OF = { video: 'video', card: 'decision', approval: 'decision', question: 'decision', email: 'email' };
+const svg = (k) => `<svg class="ic" aria-hidden="true" viewBox="0 0 24 24">${IC[ICON_OF[k]] || IC.decision}</svg>`;
+const safeHref = (h) => (/^(https?:\/\/|\/(?![/\\]))/i.test(String(h || '')) ? String(h) : '');
+
+// Sponsor drafts first (Jon's priority 1), then the rest oldest first; null when neither source could be read.
+export function reviewItems(d2resp, d3resp) {
+  const live = d3resp?.d3?.queue;
+  const drafts = draftsOf(d2resp);
+  if (!Array.isArray(live) && !drafts) return null;
+  const mail = (drafts || []).map((k) => ({
+    id: `d:${k.id}`, type: 'email', kind: 'Sponsor email', name: k.name || 'Sponsor', head: `Reply to ${k.name || 'sponsor'}`,
+    sub: [k.column, 'your send'].filter(Boolean).join(' · '),
+    facts: [{ l: 'To', v: k.payload.to || '–' }, { l: 'Subject', v: k.payload.subject || '–' }, { l: 'Stage', v: k.column || '–' }],
+    body: k.payload.body || '', act: { type: 'email', payload: k.payload },
+  }));
+  return [...mail, ...(Array.isArray(live) ? live : [])];
+}
+
+// The queue as shown: live items plus the ones Jon finished this visit (kept with their done label until he leaves).
+function shown(items, ui) {
+  const kept = Object.values(ui.rvKept || {}).filter((k) => !items.some((x) => x.id === k.id));
+  return [...items, ...kept];
+}
+
+function buttons(c, ui) {
+  const busy = ui.busy ? ' disabled' : '';
+  const a = c.act || {};
+  if (ui.rvDone?.[c.id]) {
+    return `<span class="pill ok" style="padding: 8px 14px; font-size: 13px">${esc(ui.rvDone[c.id])}</span><button type="button" class="btn lg" disabled title="Nothing to undo with yet">Undo</button>`;
+  }
+  const box = (ph, label) => `<div class="stack" style="flex: 1 1 100%; gap: 8px"><textarea class="rvtext" rows="3" maxlength="4000" placeholder="${esc(ph)}" aria-label="${esc(ph)}">${esc(ui.rvText || '')}</textarea>
+<div class="hd" style="gap: 10px; flex-wrap: wrap"><button type="button" class="btn pri lg" data-rv="${label === 'Send back' ? 'back' : 'answer'}"${busy}>${esc(label)}</button>${label === 'Send back' ? `<button type="button" class="btn lg" data-rv="cancel"${busy}>Cancel</button>` : ''}</div></div>`;
+  if (a.type === 'card') {
+    if (ui.rvBack === c.id) return box('What should change', 'Send back');
+    return `<button type="button" class="btn pri lg" data-rv="approve"${busy}>Approve</button><button type="button" class="btn lg" data-rv="open-back"${busy}>Send back</button>`;
+  }
+  if (a.type === 'approval') return `<button type="button" class="btn pri lg" data-rv="yes"${busy}>Approve</button><button type="button" class="btn lg" data-rv="no"${busy}>Reject</button>`;
+  if (a.type === 'question') {
+    if (a.options?.length) return a.options.map((o, i) => `<button type="button" class="btn${i ? '' : ' pri'} lg" data-rv="opt" data-opt="${esc(o)}"${busy}>${esc(o)}</button>`).join('');
+    return box('Type your answer', 'Send');
+  }
+  if (a.type === 'email') {
+    return `<button type="button" class="btn pri lg" data-rv="send"${busy}>Send</button><button type="button" class="btn lg" data-rv="edit" aria-pressed="${ui.rvEdit === c.id}"${busy}>Edit first</button>`;
+  }
+  return '';
+}
+
+const factsHtml = (facts, w = 80) => `<div class="inner" style="gap: 0">${(facts || []).map((f) => `<div class="hrow"><span class="mut" style="width: ${w}px; flex: none">${esc(f.l)}</span><span class="ell">${esc(f.v)}</span></div>`).join('')}</div>`;
+
+function bodyHtml(c, ui) {
+  if (c.type === 'video') {
+    const href = safeHref(c.link);
+    const player = href
+      ? `<a href="${esc(href)}" target="_blank" rel="noopener" style="flex: 3 1 360px; min-width: 0; aspect-ratio: 16 / 9; border-radius: 16px; background: var(--card2); border: 1px solid var(--line); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; color: var(--ink2); text-decoration: none"><span class="chip" style="width: 56px; height: 56px; border-radius: 50%"><svg class="ic" aria-hidden="true" viewBox="0 0 24 24"><path d="m8 5 11 7-11 7z"></path></svg></span><span>${esc(c.linkLabel || 'Open the video')}</span></a>`
+      : '<div style="flex: 3 1 360px; min-width: 0; aspect-ratio: 16 / 9; border-radius: 16px; background: var(--card2); border: 1px solid var(--line); display: flex; align-items: center; justify-content: center"><span class="nf">No video link on the card</span></div>';
+    return `<div class="row" style="gap: 16px">
+${player}
+<div class="stack" style="flex: 2 1 200px; gap: 12px">
+<div class="inner" style="gap: 8px"><span class="mut">Thumbnail</span><div class="nf" style="aspect-ratio: 16 / 9; border-radius: 10px; background: var(--card2); display: flex; align-items: center; justify-content: center">No feed</div></div>
+<div class="inner" style="gap: 4px"><span class="mut">Title</span><b>${esc(c.head)}</b></div>
+<div class="inner" style="gap: 0">${(c.facts || []).map((f) => `<div class="hrow"><span class="mut">${esc(f.l)}</span><b>${esc(f.v)}</b></div>`).join('')}</div>
+</div>
+</div>${c.body ? `<div class="inner"><span class="mut">Card note</span><p class="sub">${esc(c.body)}</p></div>` : ''}`;
+  }
+  if (c.type === 'email') {
+    if (ui.rvEdit === c.id) {
+      const p = { ...c.act.payload, ...(ui.rvDraft || {}) };
+      const f = (name, label, v) => `<label class="hrow"><span class="mut" style="width: 80px; flex: none">${label}</span><input class="rvin" name="${name}" value="${esc(v)}"></label>`;
+      return `<div class="inner" style="gap: 6px">${f('to', 'To', p.to || '')}${f('subject', 'Subject', p.subject || '')}</div>
+<div class="inner" style="min-height: 240px"><span class="mut">Draft</span><textarea class="rvin" name="body" rows="12">${esc(p.body || '')}</textarea></div>`;
+    }
+    return `${factsHtml(c.facts)}
+<div class="inner" style="min-height: 240px"><span class="mut">Draft</span><p class="sub" style="white-space: pre-wrap">${c.body ? esc(c.body) : '<span class="nf">No draft text</span>'}</p></div>`;
+  }
+  const label = c.type === 'card' ? 'Card note' : c.type === 'approval' ? 'Notes' : 'Context';
+  const links = [...(c.links || []), ...(c.link ? [{ label: c.linkLabel || 'Open', href: c.link }] : [])].filter((l) => safeHref(l.href));
+  return `${factsHtml(c.facts)}
+<div class="inner" style="min-height: 160px"><span class="mut">${label}</span><p class="sub">${c.body ? esc(c.body) : '<span class="nf">None given</span>'}</p>${links.length ? `<div class="hd" style="gap: 8px; flex-wrap: wrap">${links.map((l) => `<a class="btn" href="${esc(safeHref(l.href))}" target="_blank" rel="noopener">${esc(l.label)}</a>`).join('')}</div>` : ''}</div>`;
+}
+
+export function renderReview(d2resp, d3resp, ui = {}) {
+  const items = reviewItems(d2resp, d3resp);
+  const rv = d3resp?.d3?.review;
+  const sub = rv?.count ? `One at a time · oldest has waited ${rv.oldestLabel}` : 'One at a time';
+  const head = headerOnly(d2resp, 'Review', sub, '<span class="pill sp">Nothing is sent without your click</span>');
+  if (!items) return `${head}<section class="card"><p class="mut">No feed: the review queue could not be read.</p></section>`;
+  const q = shown(items, ui);
+  const left = q.filter((x) => !ui.rvDone?.[x.id]).length;
+  const i = Math.max(0, q.findIndex((x) => x.id === ui.rvSel));
+  const c = q[i];
+  const list = q.length
+    ? q.map((x, j) => `<button type="button" class="qrow" aria-current="${j === i}" data-rvq="${esc(x.id)}"><span class="chip">${svg(x.type)}</span><span class="stack" style="flex: 1"><b class="ell">${esc(x.name)}</b><span class="mut ell" style="font-size: 12px">${esc(x.sub)}</span></span>${ui.rvDone?.[x.id] ? `<span class="pill ok">${esc(ui.rvDone[x.id])}</span>` : ''}</button>`).join('\n')
+    : '<p class="mut" style="padding: 8px 10px">Nothing waiting for you.</p>';
+  const nav = (dir, label, d) => `<button type="button" class="btn sm" style="min-width: 36px; min-height: 36px; padding: 0" aria-label="${label}" data-rvnav="${dir}"${q.length > 1 ? '' : ' disabled'}><svg class="ic" aria-hidden="true" viewBox="0 0 24 24">${d}</svg></button>`;
+  const detail = c
+    ? `<div class="hd cardhd"><span class="pill">${esc(c.kind)}</span><span class="mut">${i + 1} of ${q.length}</span>
+<div class="hd sp" style="gap: 6px">${nav('-1', 'Previous', '<path d="M19 12H5"></path><path d="m11 6-6 6 6 6"></path>')}${nav('1', 'Next', '<path d="M5 12h14"></path><path d="m13 6 6 6-6 6"></path>')}</div>
+</div>
+<div class="stack" style="gap: 4px"><h1 style="font-size: 28px; overflow-wrap: anywhere">${esc(c.head)}</h1><span class="mut">${esc(c.sub)}</span></div>
+${bodyHtml(c, ui)}
+${ui.rvErr ? `<p class="mut" role="alert" style="color: var(--bad-ink)">${esc(ui.rvErr)}</p>` : ''}
+<div class="hd" style="margin-top: auto; gap: 10px; flex-wrap: wrap">${buttons(c, ui)}</div>`
+    : `<div class="hd cardhd"><span class="pill">Queue</span></div><p class="mut">Nothing waiting for you.</p>`;
+  return `${head}
+<div class="row" style="align-items: stretch">
+<section class="card" style="flex: 1 1 250px; gap: 4px; padding: 18px 12px">
+<div class="hd" style="margin: 0 10px 10px"><h2>Queue</h2><span class="pill sp">${left} left</span></div>
+${list}
+</section>
+<section class="card" style="flex: 3 1 520px; gap: 18px; min-height: 640px">
+${detail}
+</section>
+</div>`;
+}
+
+// ---- clicks: pick, previous / next, and the actions. Returns true when it handled the click. ----
+async function send(url, method, body) {
+  const res = await fetch(url, { method, credentials: 'same-origin', headers: { 'Content-Type': 'application/json', 'X-CC': '1' }, body: JSON.stringify(body) });
+  const row = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(row.error || `answered ${res.status}`);
+  return row;
+}
+
+export async function reviewClick(e, S, render, reload) {
+  const ui = S.ui;
+  const items = reviewItems(S.d2, S.d3) || [];
+  const q = shown(items, ui);
+  const pick = e.target.closest('[data-rvq]');
+  if (pick) { Object.assign(ui, { rvSel: pick.dataset.rvq, rvBack: null, rvEdit: null, rvDraft: {}, rvText: '', rvErr: '' }); render(); return true; }
+  const nav = e.target.closest('[data-rvnav]');
+  if (nav) {
+    if (!q.length) return true;
+    const i = Math.max(0, q.findIndex((x) => x.id === ui.rvSel));
+    Object.assign(ui, { rvSel: q[(i + Number(nav.dataset.rvnav) + q.length) % q.length].id, rvBack: null, rvEdit: null, rvDraft: {}, rvText: '', rvErr: '' });
+    render();
+    return true;
+  }
+  const b = e.target.closest('[data-rv]');
+  if (!b) return false;
+  if (b.disabled || ui.busy) return true;
+  const c = q[Math.max(0, q.findIndex((x) => x.id === ui.rvSel))];
+  if (!c || ui.rvDone?.[c.id]) return true;
+  const what = b.dataset.rv;
+  const text = () => document.querySelector('#main .rvtext')?.value.trim() || '';
+  if (what === 'open-back') { Object.assign(ui, { rvBack: c.id, rvText: '', rvErr: '' }); render(); return true; }
+  if (what === 'cancel') { Object.assign(ui, { rvBack: null, rvText: '', rvErr: '' }); render(); return true; }
+  if (what === 'edit') { ui.rvEdit = ui.rvEdit === c.id ? null : c.id; ui.rvDraft = {}; ui.rvErr = ''; render(); return true; }
+  let call;
+  let label;
+  const a = c.act;
+  if (what === 'approve') {
+    if (!window.confirm(`Approve "${c.head}"? It moves to Done.`)) return true;
+    call = () => send(a.url, 'PATCH', { status: 'done' }); label = 'Approved';
+  } else if (what === 'back') {
+    const comment = text();
+    if (!comment) { ui.rvErr = 'Type what should change first.'; render(); return true; }
+    call = () => send(a.url, 'PATCH', { status: 'doing', comment }); label = 'Sent back';
+  } else if (what === 'yes') {
+    if (!window.confirm(a.confirm || `Approve "${c.head}"?`)) return true;
+    call = () => send(a.url, 'POST', { decision: 'approve' }); label = 'Approved';
+  } else if (what === 'no') {
+    call = () => send(a.url, 'POST', { decision: 'reject' }); label = 'Rejected';
+  } else if (what === 'opt' || what === 'answer') {
+    const answer = what === 'opt' ? b.dataset.opt : text();
+    if (!answer) { ui.rvErr = 'Type an answer first.'; render(); return true; }
+    call = () => send(a.url, 'POST', { answer }); label = what === 'opt' ? answer : 'Answered';
+  } else if (what === 'send') {
+    const payload = { ...a.payload, ...(ui.rvEdit === c.id ? ui.rvDraft || {} : {}) };
+    if (!String(payload.to || '').trim() || !String(payload.body || '').trim()) { ui.rvErr = 'The draft needs a recipient and text.'; render(); return true; }
+    if (!window.confirm(`Send this email to ${payload.to}?`)) return true;
+    call = async () => {
+      const row = await send('/dashboard/api/actions', 'POST', { kind: payload.sendKind, payload, idemKey: crypto.randomUUID() });
+      return row;
+    };
+    label = 'Send queued';
+  } else return true;
+  ui.busy = true;
+  ui.rvErr = '';
+  render();
+  try {
+    const row = await call();
+    if (what === 'send' && row?.status === 'done' && row.result) label = String(row.result);
+    ui.rvDone = { ...(ui.rvDone || {}), [c.id]: label };
+    ui.rvKept = { ...(ui.rvKept || {}), [c.id]: c };
+    const next = q.find((x) => x.id !== c.id && !ui.rvDone[x.id]);
+    Object.assign(ui, { rvSel: next ? next.id : c.id, rvBack: null, rvEdit: null, rvDraft: {}, rvText: '' });
+  } catch (err) {
+    ui.rvErr = `Could not save: ${err.message}`;
+  }
+  ui.busy = false;
+  await reload();
+  return true;
+}

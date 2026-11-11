@@ -6,7 +6,7 @@ import TEAM from './d3-team.json' with { type: 'json' };
 import { plain, statusOf } from './d2.js';
 import { DATE_NIGHT_TARGET, WORKOUT_TARGET } from './life.js';
 import { vanYmd, weekStart } from './periods.js';
-import { agoLabel, monthWindow, sourceOf, vanMidnight } from './today.js';
+import { agoLabel, monthWindow, plainApproval, sourceOf, vanMidnight } from './today.js';
 
 const DAY = 86400000;
 const OPEN = "('todo', 'doing', 'waiting_on_jon', 'qc', 'review')";
@@ -39,9 +39,12 @@ export async function d3Data(env, nowMs) {
   const [youtube, review, approvals, questions, usage, lastUsage, open, proofs, habits, calendar, charges,
     tasks, finished, stuck, failsToday, runs, runBots] = await Promise.all([
     q('SELECT channel, sync_error FROM yt_api'),
-    q("SELECT updated_at AS at FROM bot_tasks WHERE status = 'review'"),
-    q("SELECT id, title, action, requested_by, task_id, created_at AS at FROM bot_approvals WHERE status = 'pending'"),
-    q("SELECT id, question, asked_by, task_id, created_at AS at, idem_key FROM bot_questions WHERE status = 'open'"),
+    // Review cards with their newest proof link (a passed one first), as the card modal picks its deliverable.
+    q(`SELECT t.id, t.title, t.owner, t.project, t.due, t.note, t.updated_at AS at,
+      (SELECT p.link FROM bot_proofs p WHERE p.task_id = t.id ORDER BY p.status = 'passed' DESC, p.created_at DESC, p.rowid DESC LIMIT 1) AS link
+      FROM bot_tasks t WHERE t.status = 'review' ORDER BY t.updated_at LIMIT 500`),
+    q("SELECT id, title, action, payload, requested_by, task_id, created_at AS at FROM bot_approvals WHERE status = 'pending' ORDER BY created_at LIMIT 500"),
+    q("SELECT id, question, context, options, asked_by, task_id, created_at AS at, idem_key FROM bot_questions WHERE status = 'open' ORDER BY created_at LIMIT 500"),
     q("SELECT data, created_at FROM bot_feed_entries WHERE name = 'claude_usage' AND created_at >= ? ORDER BY created_at DESC LIMIT 2000", new Date(win.start - 7 * DAY).toISOString()),
     q("SELECT data, created_at FROM bot_feed_entries WHERE name = 'claude_usage' ORDER BY created_at DESC LIMIT 1"),
     q(`SELECT project, COUNT(*) AS n FROM bot_tasks WHERE status IN ${OPEN} GROUP BY project`),
@@ -104,6 +107,58 @@ function reviewOf(D) {
     oldestAt: oldest == null ? null : new Date(oldest).toISOString(),
     oldestLabel: oldest == null ? '' : agoLabel(Math.max(0, D.nowMs - oldest)).replace(/ ago$/, ''),
   };
+}
+
+// ---- Review page: one queue item per card in Review, pending approval and open question, oldest first ----
+// Each item carries only the existing write it uses: PATCH /v1/tasks/:id (Approve = done, Send back = doing + comment),
+// POST /v1/approvals/:id/decide, POST /v1/questions/:id/answer. Links: web or same-site paths only, never local files.
+const API = '/dashboard/api/v1';
+const webLink = (h) => (/^(https?:\/\/|\/(?![/\\]))/i.test(String(h || '')) ? String(h) : '');
+const shortDue = (due) => {
+  const d = String(due || '').slice(0, 10);
+  return /^\d{4}-\d{2}-\d{2}$/.test(d) ? new Intl.DateTimeFormat('en-US', { timeZone: 'UTC', month: 'short', day: 'numeric' }).format(new Date(`${d}T12:00:00Z`)) : '';
+};
+function queueOf(D) {
+  if (!D.review || !D.approvals || !D.questions) return null;
+  const nowMs = D.nowMs;
+  const byId = new Map((D.tasks || []).map((t) => [t.id, t]));
+  const waited = (at) => since(at, nowMs);
+  const items = [];
+  for (const t of D.review) {
+    const link = webLink(t.link);
+    const video = /\/dashboard\/review\//i.test(link) || /\b(video|render|edit)\b/i.test(t.title || '');
+    const due = shortDue(t.due);
+    items.push({
+      id: `t:${t.id}`, type: video ? 'video' : 'card', kind: video ? 'Video' : 'Card in Review', name: t.title, head: t.title, at: t.at,
+      sub: [ownerName(t.owner), due && `due ${due}`, `waiting ${waited(t.at)}`].filter(Boolean).join(' · '),
+      facts: [['Owner', ownerName(t.owner) || '–'], ['Project', t.project || '–'], ['Due', due || '–'], ['Waiting', waited(t.at)]].map(([l, v]) => ({ l, v })),
+      body: noteText(t.note), link, linkLabel: /\/dashboard\/review\//i.test(link) ? 'Open the review page' : 'Open the proof',
+      act: { type: 'card', url: `${API}/tasks/${t.id}` },
+    });
+  }
+  for (const a of D.approvals) {
+    const p = plainApproval(a.action, parse(a.payload));
+    const t = a.task_id && byId.get(a.task_id);
+    items.push({
+      id: `a:${a.id}`, type: 'approval', kind: 'Approval', name: a.title, head: a.title, at: a.at,
+      sub: `Asked by ${ownerName(a.requested_by) || 'a bot'} · waiting ${waited(a.at)}`,
+      facts: [{ l: 'From', v: ownerName(a.requested_by) || '–' }, { l: 'Card', v: t ? t.title : 'No card linked' }, { l: 'Does', v: p.does }],
+      body: p.notes.join(' '), links: p.links.filter((l) => webLink(l.href)),
+      act: { type: 'approval', url: `${API}/approvals/${a.id}/decide`, confirm: `Approve "${a.title}"? ${p.does}` },
+    });
+  }
+  for (const x of D.questions) {
+    if (hidden(x.idem_key)) continue;
+    const t = x.task_id && byId.get(x.task_id);
+    const opts = (() => { const o = parse(x.options); return Array.isArray(o) ? o.filter((s) => typeof s === 'string' && s.trim()).slice(0, 10) : []; })();
+    items.push({
+      id: `q:${x.id}`, type: 'question', kind: 'Decision', name: plain(x.question) || 'Question', head: plain(x.question) || 'Question', at: x.at,
+      sub: `Asked by ${ownerName(x.asked_by) || 'a bot'} · waiting ${waited(x.at)}`,
+      facts: [{ l: 'From', v: ownerName(x.asked_by) || '–' }, { l: 'Card', v: t ? t.title : 'No card linked' }],
+      body: noteText(x.context), act: { type: 'question', url: `${API}/questions/${x.id}/answer`, options: opts },
+    });
+  }
+  return items.sort((a, b) => (Date.parse(a.at) || 0) - (Date.parse(b.at) || 0));
 }
 
 // ---- Goals numbers d2 doesn't have ----
@@ -331,6 +386,7 @@ export function buildD3(D) {
       youtube: youtubeLine(D.youtube),
     },
     review: reviewOf(D),
+    queue: queueOf(D),
     team: teamOf(D, P.today),
     blockers: blockersOf(D),
     openCards: D.open ? Object.fromEntries(D.open.map((r) => [r.project || '', Number(r.n) || 0])) : null,

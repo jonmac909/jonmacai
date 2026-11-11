@@ -2,7 +2,7 @@
 // answers to HTML, laid out as the approved design (Home.dc.html). Every number comes from those answers; a number
 // with no source reads "No feed" (nothing reports it yet) or "No data" (the source had nothing), with a grey dot.
 // Targets always come from the data, never from this file.
-import { esc, usd, toneOf, dayShare, icon } from './util.js';
+import { esc, usd, toneOf, dayShare, icon, draftsOf } from './util.js';
 
 const PILL = { r: 'bad', y: 'warn', g: 'ok', n: '' };
 const WEEKDAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
@@ -261,8 +261,9 @@ function tilesHtml(d2resp, d3resp) {
   const blockers = Array.isArray(bl)
     ? { sub: `${bl.filter((b) => b.open).length} need you`, n: `<b class="num sp" style="font-size: 30px">${bl.length}</b>` }
     : { sub: '', n: nfNum };
+  const n = rv ? rv.count + (draftsOf(d2resp) || []).length : 0; // the Review page's queue: d3's items plus sponsor drafts
   const review = rv
-    ? { sub: rv.count ? `oldest ${rv.oldestLabel}` : 'nothing waiting', n: `<b class="num sp" style="font-size: 30px">${esc(rv.count)}</b>` }
+    ? { sub: rv.count ? `oldest ${rv.oldestLabel}` : n ? 'sponsor drafts to send' : 'nothing waiting', n: `<b class="num sp" style="font-size: 30px">${esc(n)}</b>` }
     : { sub: '', n: nfNum };
   const pct = num(tk?.pct) ? tk.pct : null;
   const tSub = pct == null ? '' : `<span class="dot ${esc(tk.state)}" style="width: 7px; height: 7px"></span>${pct >= 100 ? 'limit hit' : 'used this week'}`;

@@ -93,6 +93,8 @@ html[data-theme="dark"] body{background:#0b0b0c}
 .d3 .hrow > b{margin-left:auto;font-weight:500;white-space:nowrap}
 .d3 .blrow{display:grid;grid-template-columns:minmax(0,1fr) 160px 90px 104px;gap:12px;align-items:center;width:100%;text-align:left;border:0;border-top:1px solid var(--line);background:transparent;padding:14px 0}
 .d3 .blrow.first{border-top:0}
+.d3 .qrow{display:flex;align-items:center;gap:10px;width:100%;min-height:56px;text-align:left;border:0;background:transparent;padding:8px 10px;border-radius:12px}
+.d3 .qrow[aria-current="true"]{background:var(--card2)}
 
 /* ---- Build additions (not in the design file) ---- */
 .d3{min-height:100vh}
@@ -104,6 +106,8 @@ html[data-theme="dark"] body{background:#0b0b0c}
 .d3 .btn:disabled{opacity:.5;cursor:default}
 .d3 .btn.primary{background:var(--fill);border-color:var(--fill);color:#ffffff}
 .d3 .stat .nfl{color:var(--muted)}
+.d3 .rvtext,.d3 .rvin{width:100%;min-height:36px;padding:8px 12px;border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--ink);font:inherit;resize:vertical}
+.d3 textarea.rvin{min-height:220px}
 .d3 .login{min-height:calc(100vh - 32px);display:grid;place-items:center}
 .d3 .login .card{width:min(380px,100%)}
 .d3 .login input[type=password]{width:100%;min-height:40px;padding:0 12px;border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--ink);font:inherit}

@@ -10,6 +10,8 @@ import { renderGoals, objectivesOf } from '../public/d3/js/goals.js';
 import { statHtml, railCounts } from '../public/d3/js/rail.js';
 import { renderTeam } from '../public/d3/js/team.js';
 import { blockerRows, renderBlockers } from '../public/d3/js/blockers.js';
+import { reviewItems, renderReview, reviewClick } from '../public/d3/js/review.js';
+import { dealStages, renderMoney } from '../public/d3/js/money.js';
 
 const SECRET = 'test-session-secret-32-bytes-ok!';
 const TUESDAY = Date.parse('2026-11-10T19:00:00Z'); // Tuesday Nov 10, 11:00 AM in Kelowna
@@ -367,7 +369,7 @@ test('Blockers page: filters, rows open to what they block, review items link to
   const ap = renderBlockers(d2, d3, { openBl: 'a:a1' });
   assert.match(ap, /Blocks<\/span><span>Florence · Approval to publish draft<\/span>/);
   assert.match(ap, /Ana<\/span><span class="nf">No feed<\/span>/);
-  assert.match(ap, /<a class="btn pri" href="#review">Open in Review<\/a>/);
+  assert.match(ap, /<a class="btn pri" href="#review" data-rvgo="a:a1">Open in Review<\/a>/);
   assert.doesNotMatch(renderBlockers(d2, d3, { openBl: 't:stuck' }), /Open in Review/);
   // No cards: no rows, tiles say No feed.
   assert.match(renderBlockers(d2, null, {}), /No feed: the dashboard cards could not be read/);
@@ -438,4 +440,152 @@ test('Video board: open cards with a stage, by stage, with count, oldest age, la
   assert.match(html, /data-stage="pack">[\s\S]*?\+1 more/);
   assert.match(html, /data-stage="sponsor review">[\s\S]*?no limit · oldest 2 hr/);
   assert.doesNotMatch(html, /Video v5/);
+});
+
+// ---- Card 3: Review and Money pages ----
+function reviewDb() {
+  const db = teamDb();
+  ins(db, 'bot_tasks', { id: 'vid', title: 'Tiny house tour - Rosa', owner: 'video-editor', project: 'home-guide-press', status: 'review', note: 'Final cut <b>v2</b>', due: '2026-11-12', created_by: 'ana', updated_by: 'qc', created_at: H(8), updated_at: H(8) });
+  ins(db, 'bot_proofs', { id: 'pv', task_id: 'vid', kind: 'render', link: '/dashboard/review/abc', status: 'passed', created_by: 'qc', created_at: H(8) });
+  ins(db, 'bot_tasks', { id: 'loc', title: 'Local only', owner: 'developer', status: 'review', created_by: 'ana', updated_by: 'qc', created_at: H(2), updated_at: H(2) });
+  ins(db, 'bot_proofs', { id: 'pl', task_id: 'loc', kind: 'file', link: 'D:\\work\\out.mp4', status: 'passed', created_by: 'qc', created_at: H(2) });
+  ins(db, 'bot_questions', { id: 'q4', asked_by: 'sponsors', question: 'Which rate?', options: JSON.stringify(['$2,500', 'Other (type your own)']), status: 'open', created_at: H(6), updated_at: H(6) });
+  return db;
+}
+
+test('GET /dashboard/api/d3: Review queue from D1, oldest first, each item with its existing write, no local links', async () => {
+  const q = (await d3Of(reviewDb())).d3.queue;
+  const at = q.map((x) => Date.parse(x.at));
+  assert.deepEqual(at, [...at].sort((a, b) => a - b));
+  assert.equal(q[0].id, 'q:q2');
+  assert.ok(!q.some((x) => x.id === 'q:q3')); // bot health stays with Ana
+  const by = Object.fromEntries(q.map((x) => [x.id, x]));
+  assert.deepEqual(by['t:vid'].act, { type: 'card', url: '/dashboard/api/v1/tasks/vid' });
+  assert.equal(by['t:vid'].type, 'video');
+  assert.equal(by['t:vid'].link, '/dashboard/review/abc');
+  assert.equal(by['t:vid'].linkLabel, 'Open the review page');
+  assert.equal(by['t:rev'].type, 'card');
+  assert.equal(by['t:rev'].link, 'https://x/p5');
+  assert.equal(by['t:loc'].link, ''); // local path dropped
+  assert.equal(by['a:a1'].act.url, '/dashboard/api/v1/approvals/a1/decide');
+  assert.equal(by['q:q4'].act.url, '/dashboard/api/v1/questions/q4/answer');
+  assert.deepEqual(by['q:q4'].act.options, ['$2,500', 'Other (type your own)']);
+});
+
+test('Review page: sponsor drafts first, buttons per type, Undo disabled, text escaped, no design sample text', async () => {
+  const d2 = SAMPLE();
+  const d3 = await d3Of(reviewDb());
+  const items = reviewItems(d2, d3);
+  assert.equal(items[0].id, 'd:c-poppy');
+  assert.equal(items[0].type, 'email');
+  assert.equal(items.length, 1 + d3.d3.queue.length);
+  const html = renderReview(d2, d3, {});
+  assert.match(html, /<h1>Review<\/h1>/);
+  assert.match(html, new RegExp(`${items.length} left`));
+  assert.match(html, /Reply to Poppy/);
+  assert.match(html, /data-rv="send"/);
+  assert.match(html, /data-rv="edit"/);
+  assert.match(html, /ann@poppy\.ai/);
+  const pick = (id, ui = {}) => renderReview(d2, d3, { rvSel: id, ...ui });
+  const vid = pick('t:vid');
+  assert.match(vid, /data-rv="approve"[^>]*>Approve<\/button><button[^>]*data-rv="open-back"/);
+  assert.match(vid, /href="\/dashboard\/review\/abc"/);
+  assert.match(vid, /Final cut &lt;b&gt;v2&lt;\/b&gt;|Final cut v2/);
+  assert.doesNotMatch(vid, /<b>v2<\/b>/);
+  assert.doesNotMatch(pick('t:loc'), /out\.mp4/);
+  assert.match(pick('t:rev', { rvBack: 't:rev' }), /class="rvtext"[\s\S]*data-rv="back"[\s\S]*data-rv="cancel"/);
+  assert.match(pick('a:a1'), /data-rv="yes"[^>]*>Approve<\/button><button[^>]*data-rv="no"[^>]*>Reject/);
+  assert.match(pick('q:q4'), /data-rv="opt" data-opt="\$2,500"/);
+  assert.match(pick('q:q2'), /class="rvtext"[\s\S]*data-rv="answer"/);
+  assert.match(pick('q:q2', { rvDone: { 'q:q2': 'Answered' } }), /Answered<\/span><button type="button" class="btn lg" disabled title="Nothing to undo with yet">Undo/);
+  for (const s of ['Atoms', '$5,500', 'Arcads', 'Dale Whitaker', 'Undo the last']) assert.ok(!html.includes(s), s);
+  assert.match(renderReview(null, null, {}), /No feed: the review queue could not be read/);
+  assert.match(renderReview(null, { d3: { queue: [] } }, {}), /Nothing waiting for you/);
+});
+
+test('Review clicks: each button calls only its write, after a confirm where it changes something', async () => {
+  const d2 = SAMPLE();
+  const d3 = await d3Of(reviewDb());
+  const real = { fetch: globalThis.fetch, window: globalThis.window, document: globalThis.document };
+  const calls = [];
+  let yes = true;
+  let typed = '';
+  globalThis.fetch = async (url, o) => { calls.push([url, o.method, JSON.parse(o.body)]); return new Response('{"ok":true}', { status: 200 }); };
+  globalThis.window = { confirm: () => yes };
+  globalThis.document = { querySelector: () => ({ value: typed }) };
+  const el = (attrs) => ({ dataset: attrs, disabled: false });
+  const ev = (key, attrs) => ({ target: { closest: (sel) => (sel === `[data-${key}]` ? el(attrs) : null) } });
+  const run = async (sel, key, attrs, ui = {}) => {
+    const S = { d2, d3, ui: { rvSel: sel, ...ui } };
+    await reviewClick(ev(key, attrs), S, () => {}, async () => {});
+    return S.ui;
+  };
+  try {
+    let ui = await run('t:vid', 'rv', { rv: 'approve' });
+    assert.deepEqual(calls.pop(), ['/dashboard/api/v1/tasks/vid', 'PATCH', { status: 'done' }]);
+    assert.equal(ui.rvDone['t:vid'], 'Approved');
+    yes = false;
+    await run('t:vid', 'rv', { rv: 'approve' });
+    await run('a:a1', 'rv', { rv: 'yes' });
+    await run('d:c-poppy', 'rv', { rv: 'send' });
+    assert.equal(calls.length, 0); // confirm said no: nothing sent
+    yes = true;
+    ui = await run('t:rev', 'rv', { rv: 'back' }, { rvBack: 't:rev' });
+    assert.equal(calls.length, 0);
+    assert.match(ui.rvErr, /Type what should change/);
+    typed = '  Fix the intro  ';
+    await run('t:rev', 'rv', { rv: 'back' }, { rvBack: 't:rev' });
+    assert.deepEqual(calls.pop(), ['/dashboard/api/v1/tasks/rev', 'PATCH', { status: 'doing', comment: 'Fix the intro' }]);
+    await run('a:a1', 'rv', { rv: 'no' });
+    assert.deepEqual(calls.pop(), ['/dashboard/api/v1/approvals/a1/decide', 'POST', { decision: 'reject' }]);
+    await run('a:a1', 'rv', { rv: 'yes' });
+    assert.deepEqual(calls.pop(), ['/dashboard/api/v1/approvals/a1/decide', 'POST', { decision: 'approve' }]);
+    ui = await run('q:q4', 'rv', { rv: 'opt', opt: '$2,500' });
+    assert.deepEqual(calls.pop(), ['/dashboard/api/v1/questions/q4/answer', 'POST', { answer: '$2,500' }]);
+    assert.equal(ui.rvDone['q:q4'], '$2,500');
+    await run('d:c-poppy', 'rv', { rv: 'send' }, { rvEdit: 'd:c-poppy', rvDraft: { body: 'Edited' } });
+    const [url, method, body] = calls.pop();
+    assert.deepEqual([url, method, body.kind, body.payload.body, body.payload.to], ['/dashboard/api/actions', 'POST', 'sponsor.send_draft', 'Edited', 'ann@poppy.ai']);
+    assert.ok(body.idemKey);
+    // Done items, busy state and a failed write: nothing sent twice, the error shown.
+    await run('t:vid', 'rv', { rv: 'approve' }, { rvDone: { 't:vid': 'Approved' } });
+    await run('t:vid', 'rv', { rv: 'approve' }, { busy: true });
+    assert.equal(calls.length, 0);
+    globalThis.fetch = async () => new Response('{"error":"not allowed"}', { status: 403 });
+    ui = await run('t:vid', 'rv', { rv: 'approve' });
+    assert.equal(ui.rvErr, 'Could not save: not allowed');
+    assert.ok(!ui.rvDone?.['t:vid']);
+    // Picking and paging change only the selection.
+    ui = await run('t:vid', 'rvnav', { rvnav: '1' });
+    assert.notEqual(ui.rvSel, 't:vid');
+  } finally {
+    Object.assign(globalThis, real);
+  }
+});
+
+test('Money page: design sections, six deal stages from the Sponsors board, No feed where nothing reports, no design numbers', async () => {
+  const d2 = SAMPLE();
+  const d3 = await d3Of(reviewDb());
+  const st = dealStages(d2);
+  assert.deepEqual(st.map((s) => s.name), ['Lead', 'Negotiating', 'Agreed', 'In production', 'Invoiced', 'Paid']);
+  assert.deepEqual(st.map((s) => s.deals.length), [0, 1, 0, 2, 0, 1]); // Archived column left out
+  assert.equal(st[1].deals[0].note, 'your send');
+  const html = renderMoney(d2, d3);
+  const order = ['<h1>Money</h1>', 'Collected', 'Not invoiced', 'Viral View', 'Team cost', 'Sponsor Revenue', 'Income and profit', 'Sponsor deals', 'Team cost'];
+  let at = -1;
+  for (const s of order) { const i = html.indexOf(s, at + 1); assert.ok(i > at, `${s} after the one before`); at = i; }
+  assert.match(html, /\$3,100/);
+  assert.match(html, /of \$10,000/);
+  assert.match(html, /grid-template-columns: repeat\(6, minmax\(0, 1fr\)\)/);
+  assert.match(html, /1 needs your send/);
+  assert.match(html, /Forecast<\/span><span class="krv nf">No feed/);
+  assert.match(html, /YouTube ads<\/span><b class="nf">No feed/);
+  assert.match(html, /Profit this month<\/span><span class="num nf"[^>]*>No data/);
+  for (const n of d3.d3.team.bots.map((b) => b.names[0]).slice(0, 3)) assert.match(html, new RegExp(`>${n}</span><span class="bar"`));
+  for (const s of ['$4,194', '$1,859', '$1,711', '$3,211', '$5,500', '$7,000', 'Atoms']) assert.ok(!html.includes(s), s);
+  // Nothing readable: every part says so, the page still draws.
+  const none = renderMoney(null, null);
+  assert.match(none, /No feed: the Sponsors board could not be read/);
+  assert.match(none, /No feed: the team roster could not be read/);
+  assert.doesNotMatch(none, /NaN|undefined/);
 });
