@@ -9,7 +9,7 @@ import worker from '../src/worker.js';
 import { signSession, COOKIE } from '../src/auth.js';
 import { mergeSnapshot } from '../src/snapshot.js';
 import { listSnapshots, listDealStages, listHabits } from '../src/db.js';
-import { todayData } from '../src/bots.js';
+import { sha256Hex, todayData } from '../src/bots.js';
 import { allChannels, channelData } from '../src/channels.js';
 import { listFunnel } from '../src/webinar.js';
 import snapshot from '../fixtures/snapshot.json' with { type: 'json' };
@@ -234,10 +234,10 @@ test('d2 answers the contract for all five sections', async () => {
   assert.ok(cashDays === null || (typeof cashDays === 'object' && Object.keys(cashDays).every((d) => /^\d{4}-\d{2}-\d{2}$/.test(d))));
   assert.ok(body.d2.goals.filter((g) => g.key !== 'sponsors').every((g) => !('cashDays' in g)));
   const { today, pipeline, money, period } = body.d2;
-  assert.deepEqual(Object.keys(today), ['jon', 'needs', 'expenses', 'targets', 'blockers']);
-  assert.deepEqual(Object.keys(today.needs), ['count', 'items', 'healthToAna', 'chargesFolded']);
-  for (const it of [...today.needs.items, ...today.expenses.items]) assert.ok('goal' in it && 'minutes' in it && 'link' in it);
-  for (const b of today.blockers) assert.ok(NAMES.includes(b.owner), b.owner);
+  assert.deepEqual(Object.keys(today), ['jon', 'toAna', 'expenses', 'targets']);
+  assert.deepEqual(Object.keys(today.toAna), ['count', 'health', 'items', 'blockers']);
+  for (const it of [...today.toAna.items, ...today.expenses.items]) assert.ok('goal' in it && 'minutes' in it && 'link' in it);
+  for (const b of today.toAna.blockers) assert.ok(NAMES.includes(b.owner), b.owner);
   assert.deepEqual(pipeline.boards.map((b) => [b.goal, b.project]), [['sponsors', 'sponsors'], ['hgp', 'home-guide-press'], ['jonmac', 'jon-mac'], ['jonmacai', 'jonmacai'], ['viral', 'viral-view'], ['shortform', 'short-form']]);
   assert.deepEqual(pipeline.boards.map((b) => b.channels.length > 0), [false, true, true, true, false, false]);
   assert.ok(pipeline.boards[1].channels.filter((c) => !c.focus).every((c) => !FOCUS.includes(c.slug)));
@@ -247,7 +247,7 @@ test('d2 answers the contract for all five sections', async () => {
   for (const t of money.tiles) assert.deepEqual(Object.keys(t), ['label', 'value', 'sub', 'source']);
   assert.equal(period.tz, 'America/Vancouver');
   // No raw ids or file paths in what Jon reads.
-  const text = (JSON.stringify(body.d2.goals) + JSON.stringify(today.blockers) + JSON.stringify(money)).replace(/"open":"t_\d{16}"/g, ''); // a card id is for the click, not shown
+  const text = (JSON.stringify(body.d2.goals) + JSON.stringify(today.toAna.blockers) + JSON.stringify(money)).replace(/"open":"t_\d{16}"/g, ''); // a card id is for the click, not shown
   assert.doesNotMatch(text, /[A-Z]:\\\\|t_\d{16}|"owner":"(sponsors|home-guide-press|video-editor|spotify)"/);
   if (UPDATE) writeFileSync(SAMPLE, `${JSON.stringify(body, null, 1)}\n`);
   else assert.deepEqual(JSON.parse(readFileSync(SAMPLE, 'utf8')), body, 'test/fixtures/d2-sample.json is out of date: run UPDATE_FIXTURES=1 npm test');
@@ -352,36 +352,55 @@ test('d2 focus channels: Jon\'s whole list in its order, even channels the dashb
   assert.deepEqual(viral.channels, [{ slug: 'viral-view', label: 'Viral View', focus: true }]);
 });
 
-test('d2 Needs you hides bot health, folds known charges, and picks at most 3 for Jon', async () => {
+test('d2 Today: at most 3 for Jon; the rest of Needs you and the blockers go to Ana, bot health counted', async () => {
   const { db, ids } = seed();
   const body = await d2At({ DB: db, SESSION_SECRET: SECRET }, SUNDAY);
-  const { needs, expenses, jon, blockers } = body.d2.today;
+  const { toAna, expenses, jon } = body.d2.today;
   assert.equal(body.pages.today.needs.count, 10); // /dashboard still shows every item
-  assert.equal(needs.healthToAna, 2);
-  assert.equal(needs.chargesFolded, 3);
+  assert.equal(toAna.health, 2);
   assert.equal(expenses.count, 3);
-  // 10 - 2 bot health - 3 charges + the one expenses item = 6: Jon's top 3, and the other 3 in needs.items.
   assert.equal(jon.length, 3);
   assert.deepEqual(jon.map((i) => [i.goal, i.title]), [['sponsors', 'Poppy offers $2,000. Accept?'], ['hgp', 'Which cover?'], ['jonmac', 'Make Jon Mac video public']]);
   assert.ok(!jon.some((i) => i.kind === 'expenses')); // Sunday
-  assert.equal(needs.count, 3);
-  assert.deepEqual(needs.items.map((i) => i.title), ['Post 3 clips', 'Post this clip?', 'Expenses review (Friday)']);
-  const all = [...jon, ...needs.items];
+  // 10 - 2 bot health - 3 charges - Jon's 3 = 2; the expenses review waits for Friday, so it is not Ana's.
+  assert.deepEqual(toAna.items.map((i) => i.title), ['Post 3 clips', 'Post this clip?']);
+  const all = [...jon, ...toAna.items];
   assert.ok(!all.some((i) => /Restart|New charge/.test(i.title)));
-  assert.deepEqual(all.map((i) => i.from), ['Florence', 'Elle', 'Sydney', 'Samantha', 'Samantha', 'Mila']);
-  const exp = needs.items.at(-1);
-  assert.deepEqual([exp.id, exp.kind, exp.minutes], ['expenses', 'expenses', 15]);
+  assert.deepEqual(all.map((i) => i.from), ['Florence', 'Elle', 'Sydney', 'Samantha', 'Samantha']);
   assert.deepEqual(expenses.items.map((i) => i.from), ['Mila', 'Mila', 'Mila']);
   assert.deepEqual(jon[1].link, { label: 'Open link', href: 'https://homeguidepress.com/peter' });
   assert.deepEqual(jon[2].link, { label: 'Watch video', href: 'https://jonmac.ai/review/jm-5' });
-  assert.deepEqual([needs.items[0].minutes, needs.items[1].minutes], [3, 5]);
+  assert.deepEqual([toAna.items[0].minutes, toAna.items[1].minutes], [3, 5]);
   assert.equal(body.pages.today.needs.items.find((i) => i.title === 'Make Jon Mac video public').from, 'jon-mac-youtube'); // pages untouched
-  // Blockers: both waiting tasks, the question on Poppy's card, and the missed check days.
-  const peter = blockers.find((b) => b.open === ids.waiting);
+  // Blockers go to Ana, except the ones about Jon's 3 (Poppy's card, the Jon Mac upload): those he is already on.
+  const peter = toAna.blockers.find((b) => b.open === ids.waiting);
   assert.deepEqual([peter.owner, peter.goal], ['Elle', 'hgp']);
   assert.equal(peter.why, 'Approve the thumbnail thumb.png');
-  assert.ok(blockers.some((b) => b.open === ids.jmTask && b.owner === 'Sydney'));
-  assert.ok(blockers.some((b) => b.open === ids.poppy && b.owner === 'Florence' && /Poppy offers/.test(b.why)));
+  assert.ok(!toAna.blockers.some((b) => b.open === ids.jmTask || b.open === ids.poppy));
+  assert.ok(toAna.blockers.some((b) => b.title === 'RBC expenses missed today'));
+  assert.equal(toAna.count, toAna.items.length + toAna.blockers.length);
+});
+
+test('d2/ana: Ana reads the stale feeds and what went past Jon\'s 3 with her bot token; /d2 still needs Jon\'s session', async () => {
+  const { db } = seed();
+  const token = `ccb_${'a'.repeat(43)}`;
+  await db.prepare('INSERT INTO bot_tokens (token_hash, bot, created_at, revoked_at) VALUES (?, ?, ?, ?)').bind(await sha256Hex(token), 'ana', '2026-10-29T00:00:00.000Z', null).run();
+  const env = { DB: db, SESSION_SECRET: SECRET };
+  const call = (path, headers = {}) => withNow(SUNDAY, () => handleApi(new Request(`https://jonmac.ai/dashboard/api${path}`, { headers }), env));
+  assert.equal((await call('/d2/ana')).status, 401);
+  assert.equal((await call('/d2/ana', { Authorization: `Bearer ccb_${'z'.repeat(43)}` })).status, 401);
+  assert.equal((await call('/d2', { Authorization: `Bearer ${token}` })).status, 401);
+  const res = await call('/d2/ana', { Authorization: `Bearer ${token}` });
+  assert.equal(res.status, 200);
+  const body = await res.json();
+  assert.deepEqual(Object.keys(body), ['ok', 'asOf', 'stale', 'toAna']);
+  const full = await d2At(env, SUNDAY);
+  assert.deepEqual(body.stale, full.d2.stale);
+  assert.deepEqual(body.toAna, full.d2.today.toAna);
+  assert.ok(body.stale.some((s) => s.label === 'Viral View subscriptions feed' && s.ageLabel === 'never reported'));
+  assert.equal(body.toAna.health, 2);
+  const browser = await get(env, '/dashboard/api/d2/ana', SUNDAY); // Jon's session works too
+  assert.equal(browser.status, 200);
 });
 
 test('d2 Expenses review is Jon\'s only on a Friday', async () => {
@@ -394,7 +413,7 @@ test('d2 Expenses review is Jon\'s only on a Friday', async () => {
   const fri = await at(FRIDAY);
   assert.equal(fri.d2.period.today.weekday, 4);
   assert.deepEqual(fri.d2.today.jon.map((i) => i.title), ['Rate?', 'Expenses review (Friday)']);
-  assert.deepEqual(fri.d2.today.needs.items, []);
+  assert.deepEqual(fri.d2.today.toAna.items, []);
   assert.deepEqual((await at(SUNDAY)).d2.today.jon.map((i) => i.title), ['Rate?']);
 });
 
@@ -413,7 +432,7 @@ test('d2 daily checks: a missed past day is red and a blocker; today before its 
   assert.equal(rbc.today.status.text, 'Missed');
   assert.match(rbc.days[6].note, /Receipts not matched, bank scan failed/);
   assert.deepEqual(rbc.today.facts.map((f) => f.value), ['0 of 7', 'Today', 'Nov 7', 'Not yet']);
-  const { blockers } = sun.d2.today;
+  const { blockers } = sun.d2.today.toAna;
   for (const t of ['Complete Histories missed Thu 5', 'RBC expenses missed Wed 4', 'RBC expenses missed today']) assert.ok(blockers.some((b) => b.title === t), t);
   assert.ok(!blockers.some((b) => b.title === 'Complete Histories missed today'));
 
@@ -549,7 +568,7 @@ test('d2 blocker notes drop bullets but keep hyphens inside words and ranges', a
   const db = sqliteD1();
   task(db, { title: 'Book page - Peter Collins', owner: 'home-guide-press', project: 'home-guide-press', status: 'waiting_on_jon',
     note: 'What happened:\n- Page built\nYour move:\n- Pick the 5-7 days shipping for the e-book\n• then reply\nNext:\n- Publish' });
-  const [b] = (await d2At({ DB: db, SESSION_SECRET: SECRET }, SUNDAY)).d2.today.blockers;
+  const [b] = (await d2At({ DB: db, SESSION_SECRET: SECRET }, SUNDAY)).d2.today.toAna.blockers;
   assert.equal(b.why, 'Pick the 5-7 days shipping for the e-book then reply');
 });
 
@@ -563,7 +582,7 @@ test('d2 without HGP_DB, CLONE_DB or any D1 answers with nulls and notes, never 
   const none = await d2At({ SESSION_SECRET: SECRET }, SUNDAY);
   assert.equal(goal(none, 'jonmac').week[0].actual, null);
   assert.equal(none.d2.checks[0].today.status.text, 'No data');
-  assert.equal(none.d2.today.needs.count, 0);
+  assert.equal(none.d2.today.toAna.count, 0);
   // An unreadable table is a null too.
   const broken = sqliteD1();
   broken.sqlite.exec('DROP TABLE yt_calendar; DROP TABLE bot_daily_ticks');

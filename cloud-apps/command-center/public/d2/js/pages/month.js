@@ -2,15 +2,13 @@ import { esc, pill, head } from '/dashboard/js/ui.js';
 
 // Shared by every Dashboard 2 page (docs/dashboard-2.md). Pages return HTML strings; app.js does the DOM.
 
-// Every number names its source and age; a stale one gets a red pill.
-export const age = (s) => (s ? `<span class="d2age">${esc(s.label)} · ${esc(s.ageLabel)}${s.stale ? ` ${pill('Stale', 'crit')}` : ''}</span>` : '');
+// Every number names its source and age. A stale one keeps a small grey "as of <date>" (no banner: the stale feeds
+// go to Ana through /dashboard/api/d2/ana).
+const day = (s) => Date.parse(s.asOf ? `${s.asOf}T12:00:00Z` : s.at);
+const asOf = (s) => new Intl.DateTimeFormat('en-US', { timeZone: s.asOf ? 'UTC' : 'America/Vancouver', month: 'short', day: 'numeric' }).format(new Date(day(s)));
+export const age = (s) => (s ? `<span class="d2age">${esc(s.label)} · ${esc(s.stale && Number.isFinite(day(s)) ? `as of ${asOf(s)}` : s.ageLabel)}</span>` : '');
 
-export function banner(d2) {
-  const list = d2?.stale || [];
-  return list.length ? `<p class="d2stale" role="status"><b>These numbers are old:</b> ${list.map((s) => `${esc(s.label)} (${esc(s.ageLabel)})`).join(' · ')}</p>` : '';
-}
-
-export const top = (title, sub, d2) => head(title, esc(sub)) + banner(d2);
+export const top = (title, sub) => head(title, esc(sub));
 export const status = (s) => (s?.text ? pill(s.text, s.cls === 'idle' ? '' : s.cls) : '');
 
 export function fmt(unit, n) {
@@ -24,7 +22,7 @@ export function fmt(unit, n) {
 export function bar(x) {
   if (!x.target || x.actual == null) return '';
   const pct = Math.min(100, Math.round((x.actual / x.target) * 100));
-  const pace = x.pace == null ? '' : `<span class="pacemark" style="left:${Math.min(100, Math.round((x.pace / x.target) * 100))}%" title="Where it should be by now"></span>`;
+  const pace = x.pace == null || x.unit === 'yesno' ? '' : `<span class="pacemark" style="left:${Math.min(100, Math.round((x.pace / x.target) * 100))}%" title="Where it should be by now"></span>`;
   return `<div class="gbar ${esc(x.status?.cls || '')}"><i style="width:${pct}%"></i>${pace}</div>`;
 }
 
@@ -49,8 +47,10 @@ function trend(list, unit) {
 
 function row(g) {
   const x = g.month || {};
-  const target = x.target == null || / of /.test(x.display) ? '' : ` <span class="muted">of ${esc(fmt(x.unit, x.target))}</span>`;
-  const pace = x.pace == null || x.actual == null ? '' : `<span>Pace for today: ${esc(fmt(x.unit, x.pace))}</span>`;
+  // Yes/no goals (webinar run, funnel live) read as their display alone: "of Yes" and a "Pace for today: Yes" mean nothing.
+  const num = x.unit !== 'yesno';
+  const target = !num || x.target == null || / of /.test(x.display) ? '' : ` <span class="muted">of ${esc(fmt(x.unit, x.target))}</span>`;
+  const pace = !num || x.pace == null || x.actual == null ? '' : `<span>Pace for today: ${esc(fmt(x.unit, x.pace))}</span>`;
   return `<li class="d2row">
     <div class="d2main">
       <div class="d2t"><b>${esc(g.title)}</b><span class="muted">${esc(g.owner)}</span>${status(x.status)}</div>
@@ -68,7 +68,7 @@ export function render(data) {
   const d2 = data?.d2 || {};
   const m = d2.period?.month || {};
   return `<div class="wrap">
-  ${top('Month', `${m.label || ''}${m.daysLeft != null ? ` · ${m.daysLeft} days left` : ''}`, d2)}
+  ${top('Month', `${m.label || ''}${m.daysLeft != null ? ` · ${m.daysLeft} days left` : ''}`)}
   <div class="card pad"><ul class="d2rows">${(d2.goals || []).map(row).join('')}</ul></div>
 </div>`;
 }
