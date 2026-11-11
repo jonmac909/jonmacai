@@ -435,6 +435,55 @@ test('Team page: design sections in order, live rows, No feed where nothing repo
   assert.equal((none.match(/<b class="num sp nf">No feed<\/b>/g) || []).length, 4);
 });
 
+test('Team cards by bot: every open card (past 400) by owner and status, Others for Jon and retired bots, chips, All view, kanban', async () => {
+  const db = teamDb();
+  const STATUSES = ['todo', 'doing', 'qc', 'waiting_on_jon', 'review'];
+  const owners = ['developer', 'sponsors', 'qc', 'jon', 'moneyclaw'];
+  for (let i = 0; i < 450; i++) {
+    ins(db, 'bot_tasks', { id: `n${i}`, title: `Bulk ${i}`, owner: owners[i % 5], status: STATUSES[i % 7 % 5], project: i % 2 ? 'coding' : null, stage: i % 3 ? null : 'edit', created_by: 'ana', updated_by: 'ana', created_at: H(i / 10), updated_at: H(i / 10) });
+  }
+  const T = (await d3Of(db)).d3.team;
+  const count = (sql, ...a) => db.sqlite.prepare(sql).get(...a).n;
+  const open = count("SELECT COUNT(*) n FROM bot_tasks WHERE status IN ('todo','doing','waiting_on_jon','qc','review')");
+  assert.ok(open > 450);
+  assert.equal(T.openTotal, open);
+  assert.equal(T.cut, false);
+  // Counts per bot and column equal D1 (what dash.py tasks --owner --status reads).
+  for (const b of T.bots) for (const s of STATUSES) {
+    assert.equal(b.cards[s].length, count('SELECT COUNT(*) n FROM bot_tasks WHERE owner = ? AND status = ?', b.slug, s), `${b.slug} ${s}`);
+  }
+  const listed = [...T.bots, T.others].flatMap((b) => STATUSES.flatMap((s) => b.cards[s].map((c) => c.id)));
+  assert.equal(new Set(listed).size, open); // every open card once
+  assert.equal(listed.length, open);
+  // Others: Jon's and retired bots' cards, without their owner slug.
+  const roster = TEAM.bots.map((b) => b.slug);
+  assert.equal(STATUSES.reduce((n, s) => n + T.others.cards[s].length, 0), count(`SELECT COUNT(*) n FROM bot_tasks WHERE status IN ('todo','doing','waiting_on_jon','qc','review') AND owner NOT IN (${roster.map(() => '?').join(',')})`, ...roster));
+  assert.ok(!JSON.stringify(T).includes('moneyclaw'));
+  // Newest change first, with project label, stage and age.
+  const dev = T.bots.find((b) => b.slug === 'developer').cards.doing;
+  assert.deepEqual(dev.map((c) => c.id), db.sqlite.prepare("SELECT id FROM bot_tasks WHERE owner = 'developer' AND status = 'doing' ORDER BY updated_at DESC").all().map((r) => r.id));
+  assert.equal(dev[0].id, 'd1');
+  const n0 = T.bots.find((b) => b.slug === 'developer').cards.todo.find((c) => c.id === 'n0');
+  assert.deepEqual([n0.project, n0.stage], ['Unsorted', 'Edit']);
+  // Render: chips (greyed when empty), All view counts, kanban with card links.
+  const d3 = { d3: { team: T } };
+  const all = renderTeam(SAMPLE(), d3, {});
+  assert.match(all, /<h2>Cards by bot<\/h2>/);
+  assert.match(all, /data-tm="all" aria-pressed="true"/);
+  assert.match(all, /class="btn tm" data-tm="developer"/);
+  assert.match(all, /class="btn tm off" data-tm="ana"/);
+  assert.match(all, /data-tm="others"/);
+  const devTodo = T.bots.find((b) => b.slug === 'developer').cards.todo.length;
+  assert.match(all, new RegExp(`data-tmcol="developer\\|todo"[^>]*>${devTodo}</button>`));
+  assert.doesNotMatch(all, /class="tmkan"/);
+  const kan = renderTeam(SAMPLE(), d3, { teamBot: 'developer', teamCol: 'review' });
+  assert.match(kan, /class="tmkan"/);
+  for (const w of ['To do', 'Doing', 'QC', 'Needs you', 'Review']) assert.match(kan, new RegExp(`<b>${w}</b>`));
+  assert.match(kan, /class="stage tmon" data-tmk="review"/);
+  assert.match(kan, /href="\/dashboard\/\?card=d1#projects"/);
+  assert.equal((kan.match(/class="vcard tmcard"/g) || []).length, STATUSES.reduce((n, s) => n + T.bots.find((b) => b.slug === 'developer').cards[s].length, 0));
+});
+
 test('Blockers page: filters, rows open to what they block, review items link to Review, rail count = rows', async () => {
   const d2 = SAMPLE();
   const d3 = await d3Of(teamDb());

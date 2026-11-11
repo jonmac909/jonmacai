@@ -404,4 +404,10 @@ setInterval(() => {
 }, 60000);
 let last = hashPage();
 try { if (!location.hash) last = localStorage.getItem('cc-page') || last; } catch {}
-go(last);
+// ?card=<id> (the Team page's cards on /dash/#team): open that card's view once the page is up, then drop the query.
+const deepCard = new URLSearchParams(location.search).get('card');
+go(last).then(() => {
+  if (!/^t_[0-9a-f]{16}$/.test(deepCard || '')) return;
+  history.replaceState(null, '', `${PREFIX}/${location.hash}`);
+  openCard(deepCard, data.pages.projects);
+});
