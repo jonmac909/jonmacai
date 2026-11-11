@@ -159,8 +159,9 @@ export function expenseSplit(ex, today) {
   const personal = side(ex.personal);
   const business = side(ex.business);
   if (personal?.basis === 'stages' || business?.basis === 'stages') {
-    // The old single figure for stage totals is MoneyClaw's two stage totals added, in cents.
-    const sum = (k) => [ex.personal, ex.business].reduce((a, g) => a + Math.round((stageTotal(g?.[k]) || 0) * 100), 0) / 100;
+    // MoneyClaw sends no combined figure, so with stage totals the old single figure is the two sides added, in cents
+    // (also right when one side has lists and the other stage totals). The sum check is a real test only for lists.
+    const sum = (k) => [personal, business].reduce((a, g) => a + Math.round((Number(g?.[k]) || 0) * 100), 0) / 100;
     return { personal, business, combined: { yesterday: sum('yesterday'), week: sum('week'), month: sum('month') } };
   }
   const froms = [personal?.from, business?.from].filter(Boolean).sort();

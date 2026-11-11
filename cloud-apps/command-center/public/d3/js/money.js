@@ -170,7 +170,7 @@ function expensesHtml(d2resp) {
   const cur = esc(sec.currency || 'CAD');
   const card = (label, key, g) => {
     const head = (extra) => `<div class="hd cardhd"><span class="chip">${icon('money')}</span><h2>${label}</h2><span class="mut">RBC · ${cur}</span>${extra}</div>`;
-    if (!g) return `<section class="card" style="flex: 1 1 300px" aria-label="${label} expenses">${head('')}<p class="mut">No feed: the charge list is not in the MoneyClaw feed.</p></section>`;
+    if (!g) return `<section class="card" style="flex: 1 1 300px" aria-label="${label} expenses">${head('')}<p class="mut">No feed: these figures are not in the MoneyClaw feed.</p></section>`;
     const stat = (l, k) => `<div class="stack"><span class="mut">${l}</span><span class="krv" data-exp="${key}-${k}">${esc(cad(g[k]))}</span></div>`;
     return `<section class="card" style="flex: 1 1 300px" aria-label="${label} expenses">
 ${head(`${g.partial ? '<span class="pill warn sp">30 days partial</span>' : ''}${sec.stale ? '<span class="pill warn sp">feed stale</span>' : ''}`)}
