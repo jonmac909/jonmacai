@@ -17,14 +17,14 @@ function fakeR2() {
       const hit = store.get(key);
       if (!hit) return null;
       const size = hit.bytes.byteLength;
-      const m = opts.range && /^bytes=(\d*)-(\d*)$/.exec(opts.range.get('Range') || '');
-      if (!m) return { body: new Response(hit.bytes).body, size };
-      // Like R2: {offset, length} or {suffix}; a start past the end throws.
-      const range = m[1] === '' ? { suffix: Number(m[2]) } : { offset: Number(m[1]), ...(m[2] ? { length: Number(m[2]) - Number(m[1]) + 1 } : {}) };
+      const range = opts.range;
+      if (!range) return { body: new Response(hit.bytes).body, size };
+      // Like R2: takes {offset, length} or {suffix}; a start past the end throws.
+      // Its object.range echo isn't trusted (live R2 gave NaN), so this fake returns a junk one.
       if (range.offset >= size) throw new Error('InvalidRange');
-      const from = 'suffix' in range ? size - range.suffix : range.offset;
-      const to = 'suffix' in range ? size : range.length ? from + range.length : size;
-      return { body: new Response(hit.bytes.slice(from, to)).body, size, range };
+      const from = 'suffix' in range ? Math.max(0, size - range.suffix) : range.offset;
+      const to = 'suffix' in range ? size : range.length ? Math.min(size, from + range.length) : size;
+      return { body: new Response(hit.bytes.slice(from, to)).body, size, range: { suffix: undefined } };
     },
     async head(key) {
       const hit = store.get(key);
@@ -115,6 +115,9 @@ test('an mp4 answers byte ranges (206) so it plays on iPhone; HEAD gives the siz
   const zero = await get({ Range: 'bytes=-0' });
   assert.equal(zero.status, 416);
   assert.equal(zero.headers.get('Content-Range'), 'bytes */100');
+  const multi = await get({ Range: 'bytes=0-1,5-6' });
+  assert.equal(multi.status, 200); // multi-range and malformed ranges get the whole file
+  assert.equal((await get({ Range: 'bytes=5-2' })).status, 200);
   const whole = await get({});
   assert.equal(whole.status, 200);
   assert.equal(whole.headers.get('Accept-Ranges'), 'bytes');

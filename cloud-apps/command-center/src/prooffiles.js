@@ -49,10 +49,15 @@ export async function serveProofFile(request, env) {
   const file = new URL(request.url).pathname.slice(FILE_PREFIX.length);
   if (!NAME_RE.test(file) || !env.UPLOADS) return new Response('Not found', { status: 404 });
   const key = `proofs/${file}`;
-  const ranged = request.method === 'GET' && request.headers.has('Range');
+  // We parse the Range ourselves: real R2's object.range doesn't always echo usable numbers.
+  // One "bytes=a-b", "bytes=a-" or "bytes=-n" range; anything else is ignored and the whole file is sent.
+  const m = request.method === 'GET' && /^bytes=(\d*)-(\d*)$/.exec((request.headers.get('Range') || '').trim());
+  const want = !m || (m[1] === '' && m[2] === '') || (m[1] !== '' && m[2] !== '' && +m[2] < +m[1]) ? null
+    : m[1] === '' ? { suffix: +m[2] } : { offset: +m[1], ...(m[2] !== '' ? { length: +m[2] - +m[1] + 1 } : {}) };
+  const ranged = !!want;
   let obj;
   try {
-    obj = request.method === 'HEAD' ? await env.UPLOADS.head(key) : await env.UPLOADS.get(key, ranged ? { range: request.headers } : {});
+    obj = request.method === 'HEAD' || want?.suffix === 0 ? await env.UPLOADS.head(key) : await env.UPLOADS.get(key, ranged ? { range: want } : {});
   } catch (err) {
     if (ranged) return new Response('Range not satisfiable', { status: 416 }); // R2 throws on a range past the end
     console.error('proof file read failed', err);
@@ -71,10 +76,9 @@ export async function serveProofFile(request, env) {
   };
   // Text never runs as a page (Chrome's PDF viewer won't open under a sandbox, so only text gets it).
   if (/^(txt|md|json)$/.test(ext)) headers['Content-Security-Policy'] = "sandbox; default-src 'none'";
-  if (ranged && obj.range) {
-    const r = obj.range;
-    const offset = 'suffix' in r ? Math.max(0, obj.size - r.suffix) : r.offset || 0;
-    const length = Math.min('suffix' in r ? obj.size - offset : r.length ?? obj.size - offset, obj.size - offset);
+  if (ranged) {
+    const offset = 'suffix' in want ? Math.max(0, obj.size - want.suffix) : want.offset;
+    const length = Math.min('suffix' in want ? obj.size - offset : want.length ?? obj.size - offset, obj.size - offset);
     if (length <= 0) return new Response('Range not satisfiable', { status: 416, headers: { 'Content-Range': `bytes */${obj.size}` } });
     headers['Content-Length'] = String(length);
     headers['Content-Range'] = `bytes ${offset}-${offset + length - 1}/${obj.size}`;
