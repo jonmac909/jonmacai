@@ -728,3 +728,27 @@ test('Money page: design sections, six deal stages from the Sponsors board, No f
   assert.match(none, /No feed: the team roster could not be read/);
   assert.doesNotMatch(none, /NaN|undefined/);
 });
+
+test('Team page: each bot shows its profile picture from /dash/img/bots, rows with several bots stack them, others keep the letter', async () => {
+  const { avatars, BOT_PICS } = await import('../public/d3/js/team.js');
+  // Every roster name has a small picture file, and every picture in the list exists.
+  for (const n of TEAM.bots.flatMap((b) => b.names)) assert.ok(BOT_PICS.has(n.toLowerCase()), `picture for ${n}`);
+  for (const k of BOT_PICS) {
+    const f = new URL(`../public/d3/img/bots/${k}.webp`, import.meta.url);
+    assert.ok(existsSync(f), `${k}.webp`);
+    assert.ok(readFileSync(f).length < 10000, `${k}.webp is small`);
+  }
+  const html = renderTeam(SAMPLE(), await d3Of(teamDb()), {});
+  assert.match(html, /<img class="av pic" src="img\/bots\/lucy\.webp" alt="Lucy"[^>]* width="32" height="32"/);
+  assert.match(html, /<span class="avs"><img [^>]*olivia\.webp[^>]*><img [^>]*emma\.webp[^>]*><img [^>]*indy\.webp[^>]*><\/span>/);
+  assert.doesNotMatch(html, /<span class="av"[^>]*>[A-Z]<\/span>/); // every roster bot has a picture now
+  // A bot with no picture keeps its letter circle, also inside a stack; nothing from a name reaches the src.
+  assert.equal(avatars(['Zed']), '<span class="av" style="width: 32px; height: 32px; font-size: 13px">Z</span>');
+  assert.match(avatars(['Ana', 'Zed']), /^<span class="avs"><img [^>]*ana\.webp[^>]*><span class="av"[^>]*>Z<\/span><\/span>$/);
+  assert.doesNotMatch(avatars(['../x']), /<img/);
+  // Served behind /dash like the css and js, and nothing else under img/.
+  const env = { SESSION_SECRET: SECRET, ASSETS: assets };
+  const get = async (p) => { const r = await worker.fetch(new Request(`https://jonmac.ai${p}`), env, {}); return r.status === 404 ? 404 : r.text(); };
+  assert.equal(await get('/dash/img/bots/ana.webp'), 'asset:/d3/img/bots/ana.webp');
+  for (const p of ['/dash/img/bots/ana.png', '/dash/img/ana.webp', '/dash/img/bots/../js/app.js', '/dash/img/bots/a-b.webp', '/dash/img/bots/Ana.webp']) assert.equal(await get(p), 404, p);
+});
