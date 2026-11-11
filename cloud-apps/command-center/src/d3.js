@@ -7,10 +7,13 @@ import CONFIG from './d2-goals.json' with { type: 'json' };
 import { plain, statusOf } from './d2.js';
 import { DATE_NIGHT_TARGET, WORKOUT_TARGET } from './life.js';
 import { vanYmd, weekStart } from './periods.js';
+import { PROJECTS } from './projects.js';
 import { agoLabel, monthWindow, plainApproval, sourceOf, vanMidnight } from './today.js';
 
 const DAY = 86400000;
 const OPEN = "('todo', 'doing', 'waiting_on_jon', 'qc', 'review')";
+// Open cards read for Team and Blockers. Past this the Team page says the list is cut (today about 400 are open).
+export const TASK_CAP = 5000;
 // Questions kept out of Jon's queue, as in d2.js: bot health goes to Ana, MoneyClaw's known charges to the expenses review.
 const hidden = (key) => /^team-guard/.test(key || '') || /^cw:/.test(key || '');
 // A YouTube sync that failed on Google sign-in (src/youtube.js), not on quota or the network.
@@ -58,7 +61,7 @@ export async function d3Data(env, nowMs) {
     q("SELECT data FROM snapshots WHERE source = 'calendar'"),
     q("SELECT status FROM bot_questions WHERE idem_key LIKE 'cw:%' AND (status = 'open' OR updated_at >= ?)", from),
     // Team and Blockers: open cards, cards moved to Review or Done today, Stuck cards, QC fails today, runs.
-    q(`SELECT id, title, owner, status, note, due, updated_at, stage, stage_since FROM bot_tasks WHERE status IN ${OPEN} ORDER BY updated_at DESC LIMIT 3000`),
+    q(`SELECT id, title, owner, project, status, note, due, updated_at, stage, stage_since FROM bot_tasks WHERE status IN ${OPEN} ORDER BY updated_at DESC LIMIT ${TASK_CAP}`),
     // Driven from the cards updated today (a status move updates the card), so events are read by (task_id, at) only.
     q(`SELECT e.task_id, e.at, t.owner, t.title FROM bot_tasks t CROSS JOIN bot_task_events e ON e.task_id = t.id AND e.at >= ?
       WHERE t.status IN ('todo','doing','waiting_on_jon','qc','review','done','cancelled') AND t.updated_at >= ? AND e.kind = 'status' AND (e.detail LIKE '%→ review%' OR e.detail LIKE '%→ done%') ORDER BY e.at DESC LIMIT 500`, today0, today0),
@@ -431,6 +434,23 @@ function dueLabel(due, today) {
   return new Intl.DateTimeFormat('en-US', { timeZone: 'UTC', month: 'short', day: 'numeric' }).format(new Date(`${d}T12:00:00Z`));
 }
 
+// ---- Cards by owner: every open card in one of five columns, newest change first (Team page chips, All view, kanban) ----
+// Same cards as the Projects boards, only grouped by owner. Owners not on the roster (Jon, retired bots) share "Others".
+export const CARD_COLS = [['todo', 'To do'], ['doing', 'Doing'], ['qc', 'QC'], ['waiting_on_jon', 'Needs you'], ['review', 'Review']];
+const PROJECT_LABEL = new Map(PROJECTS.map((p) => [p.slug, p.label]));
+function cardsOf(mine, nowMs) {
+  const cols = Object.fromEntries(CARD_COLS.map(([k]) => [k, []]));
+  for (const t of [...mine].sort((a, b) => (Date.parse(b.updated_at) || 0) - (Date.parse(a.updated_at) || 0))) {
+    cols[t.status]?.push({
+      id: t.id, title: t.title,
+      project: PROJECT_LABEL.get(t.project) || (t.project ? String(t.project) : 'Unsorted'),
+      stage: t.stage ? `${t.stage.charAt(0).toUpperCase()}${t.stage.slice(1)}` : '',
+      ago: since(t.updated_at, nowMs),
+    });
+  }
+  return cols;
+}
+
 function teamOf(D, today) {
   if (!D.tasks) return null;
   const nowMs = D.nowMs;
@@ -456,8 +476,10 @@ function teamOf(D, today) {
       running: !posts.has(b.slug) ? null : running ? shortSince(running.started_at, nowMs) : '',
       tokens: toks.length ? toks.reduce((n, r) => n + Number(r.tokens), 0) : null, // tokens per run: nothing posts them yet
       finishedToday: D.finished ? [...new Map(D.finished.filter((e) => e.owner === b.slug).map((e) => [e.task_id, e.title])).values()] : null,
+      cards: cardsOf(mine, nowMs),
     };
   });
+  const others = D.tasks.filter((t) => !ROSTER.has(t.owner));
   const waiting = D.tasks.filter((t) => t.status === 'waiting_on_jon' && ROSTER.has(t.owner));
   const oldest = Math.min(...waiting.map((t) => Date.parse(t.updated_at)).filter(Number.isFinite));
   return {
@@ -467,6 +489,9 @@ function teamOf(D, today) {
     failedToday: D.failsToday ? bots.reduce((n, b) => n + (b.failedToday || 0), 0) : null,
     cost: null, // no cost feed per bot yet
     line: lineOf(D.tasks, nowMs),
+    // Cards by owner: "Others" holds Jon's own and retired bots' open cards, so every open card is on the page.
+    others: others.length ? { slug: 'others', names: ['Others'], role: 'Jon and former bots', cards: cardsOf(others, nowMs) } : null,
+    openTotal: D.tasks.length, cut: D.tasks.length >= TASK_CAP,
   };
 }
 
