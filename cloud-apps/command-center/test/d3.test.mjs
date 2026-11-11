@@ -599,7 +599,8 @@ test('Live feed fresh: dispatcher, bots, tokens, team runs and fails', async () 
   assert.deepEqual([d3.rail.heygen.state, d3.rail.heygen.text], ['y', '3 accepted · 1 refused']);
   assert.equal(heygenLine({ d: { heygen: { accepted: 2, failed: 1 } } }).state, 'r');
   assert.equal(heygenLine({ d: {} }).text, 'No feed');
-  assert.deepEqual([d3.team.running, d3.team.tokens], [2, 1500]);
+  const staleH = heygenLine({ at: '2026-01-01T00:00:00Z', d: { heygen: { accepted: 2 } } }, Date.parse('2026-01-01T03:00:00Z'));
+  assert.deepEqual([staleH.state, staleH.stale], ['none', true]);  assert.deepEqual([d3.team.running, d3.team.tokens], [2, 1500]);
   assert.deepEqual(d3.team.fails.map((f) => [f.card, f.title, f.kind]), [['d2', 'Card d2', 'run']]);
   // Pages: Goals rows, Blockers tile = Blockers page rows, Team fails list and pill, Blockers Dispatcher card.
   const rows = blockerRows(SAMPLE(), body);

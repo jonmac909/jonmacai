@@ -93,7 +93,7 @@ ${tile('bot', 'Tokens', 'all bots today', T && num(T.tokens) ? kTokens(T.tokens)
   // Failed runs and Stuck cards today from the live feed, newest first.
   const fails = T?.fails?.length ? `<section class="card" style="gap: 4px">
 <div class="hd cardhd"><span class="chip">${icon('blockers')}</span><h2>Failed today</h2><span class="mut">runs that failed or got stuck</span></div>
-${T.fails.map((f) => `<div class="hrow"><span class="dot r"></span>${cardHref(f.card) ? `<a class="ell" href="${cardHref(f.card)}" target="_blank" rel="noopener">${esc(f.title || f.card)}</a>` : `<span class="ell">${esc(f.title || f.card)}</span>`}<span class="mut">${esc(f.who)} · ${f.kind === 'stuck' ? 'stuck' : 'run failed'}${f.why ? ` · ${esc(f.why)}` : ''} · ${esc(f.age)} ago</span></div>`).join('\n')}
+${T.fails.map((f) => { const name = f.title || f.card || `${f.who || 'Bot'} run`; return `<div class="hrow"><span class="dot r"></span>${cardHref(f.card) ? `<a class="ell" href="${cardHref(f.card)}" target="_blank" rel="noopener">${esc(name)}</a>` : `<span class="ell">${esc(name)}</span>`}<span class="mut">${esc(f.who)} · ${f.kind === 'stuck' ? 'stuck' : 'run failed'}${f.why ? ` · ${esc(f.why)}` : ''} · ${esc(f.age)} ago</span></div>`; }).join('\n')}
 </section>` : '';
   const rows = T
     ? T.bots.map((b) => botRow(b, ui.openBot === b.slug)).join('\n')

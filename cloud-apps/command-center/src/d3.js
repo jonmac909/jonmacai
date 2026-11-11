@@ -147,9 +147,11 @@ function botsLine(L, nowMs) {
 }
 
 // HeyGen today: submits from the shared submit log, via the live feed. Red when a render failed, amber when refused (daily cap).
-export function heygenLine(L) {
+export function heygenLine(L, nowMs = Date.now()) {
   const h = L?.d?.heygen;
   if (!h || typeof h !== 'object') return { ...NO_FEED };
+  const age = Math.max(0, nowMs - Date.parse(L.at));
+  if (age >= LIVE_STALE) return { state: 'none', text: `HeyGen: no update for ${agoLabel(age).replace(/ ago$/, '')}`, stale: true };
   const n = (k) => Number(h[k]) || 0;
   const parts = [`${n('accepted')} accepted`];
   if (n('refused')) parts.push(`${n('refused')} refused`);
@@ -613,7 +615,7 @@ export function buildD3(D) {
       bots: botsLine(D.live, nowMs),
       tokens: tokensLine(D.lastUsage, nowMs, D.live),
       youtube: youtubeLine(D.youtube),
-      heygen: heygenLine(D.live),
+      heygen: heygenLine(D.live, nowMs),
     },
     review: reviewOf(D),
     queue: queueOf(D),
