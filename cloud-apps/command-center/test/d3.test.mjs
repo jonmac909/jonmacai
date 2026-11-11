@@ -158,6 +158,27 @@ test('Goals: sections in the design order, targets from the data, no design samp
   assert.equal(b1.v2, ' / 5');
 });
 
+test('Goals: every row shows its age, stale rows are grey, sponsor rows explain their counts', () => {
+  const d2 = SAMPLE();
+  const sp = d2.d2.goals.find((g) => g.key === 'sponsors');
+  const hgp = d2.d2.goals.find((g) => g.key === 'hgp').week[0];
+  const coll = Array.isArray(sp.month) ? sp.month[0] : sp.month;
+  coll.source = { label: 'Bank deposits through Nov 9', ageLabel: '2 hr ago', stale: false };
+  hgp.source = { label: 'Calendar', ageLabel: '29 hr ago', stale: true };
+  sp.week[1].behind = ['a', 'b'];
+  sp.week[2].facts = [{ label: 'No live video found', value: 20 }];
+  const krs = objectivesOf(d2, d3Sample()).flatMap((o) => o.krs);
+  const by = (id) => krs.find((k) => k.id === id);
+  assert.equal(by('a1').hint, 'this month, through Nov 9 · 2 hr ago');
+  assert.notEqual(by('a1').tone, 'n');
+  assert.equal(by('b3').hint, 'this week · 29 hr ago, stale');
+  assert.equal(by('b3').tone, 'n'); // stale = grey, whatever the status
+  assert.match(by('a2').hint, /counted from first video card per sponsor/);
+  assert.match(by('a3').hint, /2 more due/);
+  assert.match(by('a4').hint, /20 more not counted \(no live video found\)/);
+  assert.match(renderGoals(d2, d3Sample(), {}), /29 hr ago, stale/);
+});
+
 test('Goals: missing sources read No feed / No data with a grey dot; text is escaped; trends only from real points', () => {
   const d2 = SAMPLE();
   const none = renderGoals(d2, null, {});
@@ -415,7 +436,7 @@ test('Page header escapes its sub line; Team header and Working tile read the sa
   assert.doesNotMatch(headerOnly(null, 'X', '<img src=x>'), /<img/);
   const html = renderTeam(SAMPLE(), await d3Of(teamDb()), {});
   const n = TEAM.bots.length;
-  assert.match(html, new RegExp(`· ${n} roles</span>`));
+  assert.match(html, new RegExp(`· ${n} roles( · <span class="upd">Updated [^<]+</span>)?</span>`));
   assert.match(html, new RegExp(`of ${n} roles</span>`));
 });
 
