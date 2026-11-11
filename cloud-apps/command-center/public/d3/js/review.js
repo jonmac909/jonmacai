@@ -111,7 +111,7 @@ ${player}
   const label = c.type === 'card' ? 'Card note' : c.type === 'approval' ? 'Notes' : 'Context';
   const links = [...(c.links || []), ...(c.link ? [{ label: c.linkLabel || 'Open', href: c.link }] : [])].filter((l) => safeHref(l.href));
   return `${factsHtml(c.facts)}
-<div class="inner" style="min-height: 160px"><span class="mut">${label}</span><p class="sub">${c.body ? esc(c.body) : '<span class="nf">None given</span>'}</p>${links.length ? `<div class="hd" style="gap: 8px; flex-wrap: wrap">${links.map((l) => `<a class="btn" href="${esc(safeHref(l.href))}" target="_blank" rel="noopener">${esc(l.label)}</a>`).join('')}</div>` : ''}</div>`;
+<div class="inner"${c.type === 'question' ? '' : ' style="min-height: 160px"'}><span class="mut">${label}</span><p class="sub">${c.body ? esc(c.body) : '<span class="nf">None given</span>'}</p>${links.length ? `<div class="hd" style="gap: 8px; flex-wrap: wrap">${links.map((l) => `<a class="btn" href="${esc(safeHref(l.href))}" target="_blank" rel="noopener">${esc(l.label)}</a>`).join('')}</div>` : ''}</div>`;
 }
 
 export function renderReview(d2resp, d3resp, ui = {}) {
