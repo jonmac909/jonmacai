@@ -2,7 +2,7 @@
 // answers to HTML, laid out as the approved design (Home.dc.html). Every number comes from those answers; a number
 // with no source reads "No feed" (nothing reports it yet) or "No data" (the source had nothing), with a grey dot.
 // Targets always come from the data, never from this file.
-import { esc, usd, toneOf, dayShare, icon, draftsOf } from './util.js';
+import { esc, usd, toneOf, dayShare, icon } from './util.js';
 
 const PILL = { r: 'bad', y: 'warn', g: 'ok', n: '' };
 const WEEKDAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
@@ -130,7 +130,6 @@ export function objectivesOf(d2resp, d3resp, P = periodOf(d2resp)) {
   const wk = (g, i) => g?.week?.[i] || null;
   const WK = (m) => ({ span: P.wk, series: weekSeries(m, P), hint: 'this week' });
   const collected = one(sp?.month);
-  const tw = g3?.tokenWeeks || null;
   const wo = g3?.workouts || null;
   const dn = g3?.dateNights || null;
   const ch = g3?.charges || null;
@@ -152,13 +151,6 @@ export function objectivesOf(d2resp, d3resp, P = periodOf(d2resp)) {
         : noFeed('b5', 'Passed QC first try', 'QC verdicts on renders could not be read.'),
       g3?.approvedWaiting ? kr('b6', 'Approved, not uploaded', g3.approvedWaiting, { bar: false, hint: g3.approvedWaiting.actual ? `oldest ${g3.approvedWaiting.oldestLabel}` : 'none waiting', span: null, series: null, target: 'Target 0' })
         : noFeed('b6', 'Approved, not uploaded', 'Approvals and the YouTube calendar could not be read.'),
-    ] },
-    { title: 'Operations', owner: 'Ana', icon: 'bot', krs: [
-      tw ? kr('c1', 'Weeks token limit hit', tw, { bar: false, hint: 'target 0', span: P.mo, series: num(tw.actual) ? monthEventSeries(tw.hitDays || [], P, 0) : null })
-        : noFeed('c1', 'Weeks token limit hit', "Ana's Claude usage check could not be read."),
-      noFeed('c2', 'Dashboard 3 pages built', 'No feed counts built pages yet.'),
-      noFeed('c3', 'Cost per video measured', 'Needs tokens saved on every run, per card.'),
-      noFeed('c4', 'Times you typed "continue"', 'Nothing counts this yet.'),
     ] },
     { title: 'Personal', owner: 'You', icon: 'heart', krs: [
       wo ? kr('p1', 'Workouts', wo, { span: P.wk, series: weekSeries(wo, P), hint: 'this week', log: { kind: 'workout', done: !!wo.loggedToday } })
@@ -278,29 +270,69 @@ ${pills ? `<div class="hd" style="flex-wrap: wrap; gap: 6px">${pills}</div>` : '
 </section>`;
 }
 
-function tilesHtml(d2resp, d3resp) {
-  const bl = d2resp?.d2?.today?.blockers;
-  const rv = d3resp?.d3?.review;
-  const tk = d3resp?.d3?.rail?.tokens;
-  const nfNum = '<b class="num sp nf">No feed</b>';
-  const blockers = Array.isArray(bl)
-    ? { sub: `${bl.filter((b) => b.open).length} need you`, n: `<b class="num sp" style="font-size: 30px">${bl.length}</b>` }
-    : { sub: '', n: nfNum };
-  const n = rv ? rv.count + (draftsOf(d2resp) || []).length : 0; // the Review page's queue: d3's items plus sponsor drafts
-  const review = rv
-    ? { sub: rv.count ? `oldest ${rv.oldestLabel}` : n ? 'sponsor drafts to send' : 'nothing waiting', n: `<b class="num sp" style="font-size: 30px">${esc(n)}</b>` }
-    : { sub: '', n: nfNum };
-  const pct = num(tk?.pct) ? tk.pct : null;
-  const tSub = pct == null ? '' : `<span class="dot ${esc(tk.state)}" style="width: 7px; height: 7px"></span>${pct >= 100 ? 'limit hit' : 'used this week'}`;
-  const pips = Array.from({ length: 10 }, (_, i) => `<i class="pip${pct != null && i < Math.round(pct / 10) ? ' f' : ''}"></i>`).join('');
-  return `<div style="flex: 3 1 220px; min-width: 0; display: flex; flex-direction: column; gap: 16px">
-<a class="tile" href="#blockers"><span class="chip">${icon('blockers')}</span><span style="display: flex; flex-direction: column; min-width: 0"><b style="font-weight: 600">Blockers</b><span class="mut">${esc(blockers.sub)}</span></span>${blockers.n}</a>
-<a class="tile" href="#review"><span class="chip" style="background: #2563eb; border-color: #2563eb; color: #ffffff">${icon('review')}</span><span style="display: flex; flex-direction: column; min-width: 0"><b style="font-weight: 600">To review</b><span class="mut">${esc(review.sub)}</span></span>${review.n}</a>
-<div class="tile" style="flex-direction: column; align-items: stretch; gap: 10px">
-<div class="hd" style="gap: 12px"><span class="chip">${icon('bolt')}</span><span style="display: flex; flex-direction: column; min-width: 0"><b style="font-weight: 600">Tokens</b><span class="mut hd" style="gap: 6px">${tSub}</span></span>${pct == null ? nfNum : `<b class="num sp" style="font-size: 30px">${pct}%</b>`}</div>
-<span class="pips" aria-hidden="true">${pips}</span>
-</div>
+// Pipeline revenue (Jon, 2026-11-11): deals still to close and money still to collect, from the Sponsors board and its
+// money-owed list. To collect = every owed row plus agreed and in-work deals not on that list; To close = leads and
+// talks. Paid and archived deals are left out. Each row opens its deal on the Money page.
+const CLOSE_COLS = ['Leads', 'Negotiations'];
+const COLLECT_COLS = ['Deals', 'Deposit Invoice', 'Deposit Paid', 'Video Production', 'Video Approved', 'Video Live', 'Balance Invoice'];
+// One key for a deal across the Goals card and the Money page: its board id, else its name.
+export const dealKey = (id, name) => (id ? String(id) : `n:${String(name || '').trim().toLowerCase()}`);
+const money = (v) => (num(v) ? v : typeof v === 'string' && /\d/.test(v) ? Number(v.replace(/[^0-9.]/g, '')) : NaN);
+export function pipelineOf(d2resp) {
+  const sp = (d2resp?.d2?.pipeline?.boards || []).find((b) => b.goal === 'sponsors')?.sponsors;
+  const cols = sp?.board?.columns;
+  if (!Array.isArray(cols)) return null;
+  const deals = (titles) => cols.filter((c) => !c.archived && titles.includes(c.title)).flatMap((c) => c.cards || []);
+  const live = deals([...CLOSE_COLS, ...COLLECT_COLS]); // the cards the Money page shows
+  const nm = (s) => String(s || '').trim().toLowerCase();
+  const used = new Set(); // board cards already counted, so each deal is counted once
+  // An owed row is the same deal as a board card with its id; a row with no id takes the first unused card of that name.
+  // A second deal with the same sponsor but its own id stays a separate deal.
+  const cardFor = (id, name) => (id
+    ? live.find((k) => k.id != null && String(k.id) === String(id))
+    : nm(name) && live.find((k) => !used.has(k) && nm(k.name) === nm(name))) || null;
+  const row = (k, name, amt) => ({ id: k ? dealKey(k.id, k.name) : null, name: name || 'Sponsor', amt: Number.isFinite(amt) && amt > 0 ? amt : null });
+  const collect = [];
+  const owed = (sp.collect?.rows || []).map((r) => ({ r, amt: money(r.owedUsd ?? r.owed) })).filter((x) => x.amt > 0);
+  const card = new Map();
+  for (const x of [...owed.filter((x) => x.r.payload?.id), ...owed.filter((x) => !x.r.payload?.id)]) { // id matches first
+    const k = cardFor(x.r.payload?.id, x.r.sponsor);
+    if (k) used.add(k);
+    card.set(x, k);
+  }
+  for (const x of owed) collect.push(row(card.get(x), x.r.sponsor, x.amt)); // no live card: listed and counted, nothing to open
+  for (const k of deals(COLLECT_COLS)) {
+    if (used.has(k)) continue;
+    collect.push(row(k, k.name, k.amt));
+    used.add(k);
+  }
+  const close = deals(CLOSE_COLS).filter((k) => !used.has(k)).map((k) => row(k, k.name, k.amt));
+  const sort = (a) => a.sort((x, y) => (y.amt ?? -1) - (x.amt ?? -1));
+  const sum = (a) => a.reduce((n, r) => n + (r.amt || 0), 0);
+  return { close: sort(close), collect: sort(collect), totals: { close: sum(close), collect: sum(collect) } };
+}
+
+function pipelineHtml(d2resp) {
+  const p = pipelineOf(d2resp);
+  const head = `<div class="hd"><span class="chip">${icon('money')}</span><h2>Pipeline revenue</h2><a class="go sp" href="#money" aria-label="Open Money">${icon('open')}</a></div>`;
+  if (!p) return `<section class="card" style="flex: 3 1 220px; min-width: 0" aria-label="Pipeline revenue">${head}<p class="mut">No feed: the Sponsors board could not be read.</p></section>`;
+  const block = (label, rows, total) => {
+    const bare = rows.filter((r) => r.amt == null).length;
+    const list = rows.map((r) => {
+      const inner = `<span class="ell" style="flex: 1; min-width: 0">${esc(r.name)}</span>${r.amt == null ? '<span class="mut" style="font-size: 12px">no amount</span>' : `<b style="font-weight: 600">${esc(usd(r.amt))}</b>`}`;
+      const st = 'gap: 8px; color: inherit; text-decoration: none; padding: 3px 0';
+      return r.id ? `<a class="hd" href="#money" data-deal="${esc(r.id)}" style="${st}">${inner}</a>` : `<div class="hd" style="${st}">${inner}</div>`;
+    }).join('');
+    return `<div class="inner" style="gap: 6px">
+<div class="hd" style="align-items: baseline; gap: 8px"><span class="sub" style="font-weight: 500">${label}</span><b class="num sp" style="font-size: 26px">${esc(usd(total))}</b></div>
+<span class="mut" style="font-size: 12px">${rows.length} deal${rows.length === 1 ? '' : 's'}${bare ? ` · ${bare} no amount` : ''}</span>
+${rows.length ? `<div style="display: flex; flex-direction: column; max-height: 180px; overflow: auto; font-size: 14px">${list}</div>` : '<span class="mut" style="font-size: 13px">None</span>'}
 </div>`;
+  };
+  return `<section class="card" style="flex: 3 1 220px; min-width: 0; gap: 12px" aria-label="Pipeline revenue">${head}
+${block('To close', p.close, p.totals.close)}
+${block('To collect', p.collect, p.totals.collect)}
+</section>`;
 }
 
 function objectiveHtml(o, ui) {
@@ -387,36 +419,6 @@ ${names}
 </section>`;
 }
 
-// Top of Goals (Jon, 2026-11-11): today's videos against the 6-a-day goal, each video's stage and 3-hour clock, and the
-// approved videos not on YouTube yet in red.
-const hm = (m) => (num(m) ? `${Math.floor(m / 60)}:${String(m % 60).padStart(2, '0')}` : '–');
-export function scoreboardHtml(d3resp) {
-  const g3 = d3resp?.d3?.goals || {};
-  const sb = g3.scoreboard;
-  const aw = g3.approvedWaiting;
-  if (!sb) {
-    return `<section class="card" aria-label="Today's videos"><div class="hd"><span class="chip">${icon('video')}</span><h2>Today's videos</h2></div><p class="mut">No feed: QC results could not be read.</p></section>`;
-  }
-  const tone = PILL[toneOf(sb.status)] || '';
-  const red = 'color: var(--bad-ink)';
-  const rows = (sb.rows || []).map((r) => {
-    const late = r.state === 'late';
-    const stage = r.state === 'passed' ? '<span class="pill ok">Passed QC</span>'
-      : `<span${late && r.stageMin > r.budgetMin ? ` style="${red}"` : ''}>${esc(r.stage)} ${esc(r.stageMin ?? '–')} of ${esc(r.budgetMin)} min</span>`;
-    const clock = `<span class="num" style="font-size: 14px${late && r.clockMin > sb.clockBudget ? `; ${red}` : ''}">${esc(hm(r.clockMin))} of ${esc(hm(sb.clockBudget))}</span>`;
-    return `<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px">
-<span class="dot ${r.state === 'passed' ? 'g' : late ? 'r' : 'y'}"></span><span style="flex: 1 1 200px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap${late ? `; ${red}` : ''}" title="${esc(r.title)}">${esc(r.title)}</span>${stage}${clock}</div>`;
-  }).join('\n');
-  const awLine = !aw ? '<p class="mut">Approved, not uploaded: no feed.</p>'
-    : aw.actual ? `<p style="${red}; font-weight: 600">${esc(aw.actual)} approved, not uploaded, oldest ${esc(aw.oldestLabel)}: ${esc(aw.items.slice(0, 5).map((x) => x.title).join('; '))}${aw.items.length > 5 ? ` and ${aw.items.length - 5} more` : ''}</p>`
-      : '<p class="mut">Every approved video is scheduled or live.</p>';
-  return `<section class="card" aria-label="Today's videos">
-<div class="hd"><span class="chip">${icon('video')}</span><h2>Today's videos</h2><span class="pill ${tone}">${esc(sb.actual)} of ${esc(sb.target)} passed today</span>${sb.late ? `<span class="pill bad">${esc(sb.late)} late</span>` : ''}</div>
-${rows ? `<div style="display: flex; flex-direction: column; gap: 8px">${rows}</div>` : '<p class="mut">No video passed QC or is in a timed stage yet today.</p>'}
-${awLine}
-</section>`;
-}
-
 export function headerOnly(d2resp, title, sub, pill) {
   return headerHtml(periodOf(d2resp), title, sub, pill);
 }
@@ -426,11 +428,10 @@ export function renderGoals(d2resp, d3resp, ui = {}) {
   const objs = objectivesOf(d2resp, d3resp, P);
   const U = { openKr: ui.openKr || null, hgpOpen: !!ui.hgpOpen, busy: !!ui.busy };
   return `${headerHtml(P, 'Goals')}
-${scoreboardHtml(d3resp)}
 <div class="row">
 ${summaryHtml(objs)}
 ${revenueHtml(d2resp, P)}
-${tilesHtml(d2resp, d3resp)}
+${pipelineHtml(d2resp)}
 </div>
 <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(380px, 100%), 1fr)); gap: 16px">
 ${objs.map((o) => objectiveHtml(o, U)).join('\n')}

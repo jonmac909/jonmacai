@@ -17,8 +17,8 @@ const PAGES = { goals: 'Goals', team: 'Team', blockers: 'Blockers', review: 'Rev
 const SIGNIN = 'd3-signin';
 const main = document.getElementById('main');
 // Review state that belongs to one item: cleared when the item or the page changes.
-const RV_CLEAR = { rvBack: null, rvEdit: null, rvDraft: {}, rvText: '', rvErr: '' };
-const S = { d2: null, d3: null, error: '', signedOut: false, ui: { openKr: null, hgpOpen: false, busy: false, openBot: null, openBl: null, blFilter: 'all', rvSel: null, rvDone: {}, rvKept: {}, rvBack: null, rvEdit: null, rvDraft: {}, rvText: '', rvErr: '' } };
+const RV_CLEAR = { rvBack: null, rvEdit: null, rvDraft: {}, rvPick: null, rvText: '', rvErr: '' };
+const S = { d2: null, d3: null, error: '', signedOut: false, ui: { openKr: null, hgpOpen: false, busy: false, openBot: null, openBl: null, blFilter: 'all', rvSel: null, rvDone: {}, rvKept: {}, rvBack: null, rvEdit: null, rvDraft: {}, rvPick: null, rvText: '', rvErr: '' } };
 
 // ---- theme (the inline script in index.html applies the saved one before paint) ----
 function setTheme(t) {
@@ -61,9 +61,15 @@ function render() {
   const note = S.signedOut
     ? '<section class="card"><p>You are signed out. <a href="/dash/">Sign in</a></p></section>'
     : S.error ? `<section class="card"><p class="mut">${esc(S.error)}</p></section>` : '';
+  if (p !== 'money' && S.ui.lastPage === 'money') S.ui.dealSel = null; // leaving Money clears the picked deal's outline
+  S.ui.lastPage = p;
   const live = { team: renderTeam, blockers: renderBlockers, review: renderReview, scripts: renderScripts, money: renderMoney }[p];
   if (live) {
     main.innerHTML = S.d3 ? `${note}${live(S.d2, S.d3, S.ui)}` : `${headerOnly(S.d2, PAGES[p])}${note || '<section class="card"><p class="mut">Loading</p></section>'}`;
+    if (p === 'money' && S.d3 && S.ui.dealSel && !S.ui.dealDone) { // a deal opened from Pipeline revenue: bring it into view once
+      document.getElementById(`deal-${S.ui.dealSel}`)?.scrollIntoView({ block: 'center' });
+      S.ui.dealDone = true;
+    }
     return;
   }
   if (p !== 'goals') {
@@ -140,6 +146,18 @@ main.addEventListener('click', async (e) => {
   if (more) { S.ui.dealsAll = { ...(S.ui.dealsAll || {}), [more.dataset.dealmore]: !S.ui.dealsAll?.[more.dataset.dealmore] }; render(); return; }
   const rvgo = e.target.closest('[data-rvgo]'); // Blockers "Open in Review": the link changes the page, this picks the item
   if (rvgo) { Object.assign(S.ui, RV_CLEAR, { rvSel: rvgo.dataset.rvgo }); return; }
+  const deal = e.target.closest('[data-deal]'); // Pipeline revenue row: the link opens Money, this picks the deal
+  if (deal) { Object.assign(S.ui, { dealSel: deal.dataset.deal, dealDone: false }); return; }
+  const tm = e.target.closest('[data-tm]'); // Team: a bot chip (or All)
+  if (tm) { S.ui.teamBot = tm.dataset.tm === 'all' ? null : tm.dataset.tm; S.ui.teamCol = null; render(); return; }
+  const tmc = e.target.closest('[data-tmcol]'); // Team All view: a count opens that bot's column
+  if (tmc) {
+    const [slug, col] = tmc.dataset.tmcol.split('|');
+    Object.assign(S.ui, { teamBot: slug, teamCol: col });
+    render();
+    main.querySelector(`[data-tmk="${col}"]`)?.scrollIntoView({ block: 'nearest', inline: 'start' });
+    return;
+  }
   const bot = e.target.closest('[data-bot]');
   if (bot) { S.ui.openBot = S.ui.openBot === bot.dataset.bot ? null : bot.dataset.bot; render(); return; }
   const bl = e.target.closest('[data-bl]');
@@ -177,7 +195,7 @@ main.addEventListener('input', (e) => {
 });
 
 window.addEventListener('hashchange', () => {
-  Object.assign(S.ui, { openKr: null, openBot: null, openBl: null, ...RV_CLEAR, rvDone: {}, rvKept: {} });
+  Object.assign(S.ui, { openKr: null, openBot: null, openBl: null, teamBot: null, teamCol: null, ...RV_CLEAR, rvDone: {}, rvKept: {} });
   render();
   if (page() === 'review' && !S.ui.rvThreads?.threads) loadThreads().then(() => { if (page() === 'review') render(); });
 });

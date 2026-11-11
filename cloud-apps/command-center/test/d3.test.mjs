@@ -6,11 +6,11 @@ import { sqliteD1 } from './sqlited1.mjs';
 import { handleApi } from '../src/api.js';
 import worker from '../src/worker.js';
 import { signSession, COOKIE } from '../src/auth.js';
-import { renderGoals, objectivesOf, scoreboardHtml } from '../public/d3/js/goals.js';
+import { renderGoals, objectivesOf, pipelineOf } from '../public/d3/js/goals.js';
 import { statHtml, railCounts } from '../public/d3/js/rail.js';
 import { renderTeam } from '../public/d3/js/team.js';
 import { blockerRows, renderBlockers } from '../public/d3/js/blockers.js';
-import { reviewItems, renderReview, reviewClick } from '../public/d3/js/review.js';
+import { reviewItems, renderReview, reviewClick, OTHER_PICK } from '../public/d3/js/review.js';
 import { dealStages, renderMoney } from '../public/d3/js/money.js';
 
 const SECRET = 'test-session-secret-32-bytes-ok!';
@@ -164,18 +164,15 @@ test('Goals scoreboard: today\'s QC-passed videos, stage clocks, and approved vi
   assert.deepEqual(aw.items.map((x) => x.id), ['n1']);
   assert.equal(aw.actual, 1);
   assert.ok(aw.oldestLabel);
-  const html = scoreboardHtml(body);
-  assert.match(html, /1 of 6 passed today/);
-  assert.match(html, /1 late/);
-  assert.match(html, /1 approved, not uploaded, oldest [^:]+: Litter box myths - Nora Fairweather Cats/);
-  assert.match(html, /pack 60 of 75 min/);
-  assert.match(html, /2:00 of 3:00/);
-  // The Goals page puts it right after the header.
+  // Jon, 2026-11-11: no "Today's videos" panel on top of Goals; the numbers stay in the key results.
   const page = renderGoals(SAMPLE(), body, {});
-  assert.ok(page.indexOf("Today's videos") < page.indexOf('Key results'));
+  assert.ok(!page.includes("Today's videos"));
+  assert.doesNotMatch(page, /\d+ of \d+ passed today|approved, not uploaded, oldest/);
+  assert.match(page, /QC-passed today/);
+  assert.match(page, /Approved, not uploaded/);
 });
 
-test('Goals scoreboard: clock from the first stage, own channels waiting, ad / live / old cards skipped, long list capped, no feed', async () => {
+test('Goals scoreboard: clock from the first stage, own channels waiting, ad / live / old cards skipped', async () => {
   const db = sqliteD1();
   const card = (id, title, project, extra = {}) => ins(db, 'bot_tasks', { id, title, owner: 'elle', project, status: 'doing', created_by: 'ana', updated_by: 'ana', created_at: '2026-11-10T15:00:00Z', updated_at: '2026-11-10T15:00:00Z', ...extra });
   const ev = (id, task, at, kind, detail) => db.sqlite.prepare('INSERT INTO bot_task_events (id, task_id, at, "by", kind, detail) VALUES (?, ?, ?, ?, ?, ?)').run(id, task, at, 'jon', kind, detail);
@@ -200,14 +197,6 @@ test('Goals scoreboard: clock from the first stage, own channels waiting, ad / l
   const k1 = body.d3.goals.scoreboard.rows.find((r) => r.id === 'k1');
   assert.deepEqual([k1.clockMin, k1.state], [60, 'on']);
   assert.deepEqual(body.d3.goals.approvedWaiting.items.map((x) => x.id), ['j2', 'j1']);
-  // Seven waiting: the red line names five and counts the rest.
-  const items = Array.from({ length: 7 }, (_, i) => ({ id: `w${i}`, title: `Video ${i} - Jon Mac`, waitMin: 60 }));
-  const many = { d3: { goals: { scoreboard: body.d3.goals.scoreboard, approvedWaiting: { actual: 7, oldestLabel: '1 hr', items } } } };
-  const html = scoreboardHtml(many);
-  assert.match(html, /Video 4 - Jon Mac and 2 more/);
-  assert.ok(!html.includes('Video 5'));
-  // No scoreboard source: the section says No feed instead of breaking the page.
-  assert.match(scoreboardHtml({ d3: { goals: {} } }), /No feed/);
 });
 
 const d3Sample = () => ({ ok: true, d3: {
@@ -225,9 +214,13 @@ const d3Sample = () => ({ ok: true, d3: {
 test('Goals: sections in the design order, targets from the data, no design sample text', () => {
   const d2 = SAMPLE();
   const html = renderGoals(d2, d3Sample(), {});
-  const order = ['<h1>Goals</h1>', 'Key results', 'Sponsor Revenue', 'Blockers', 'To review', 'Tokens', '<h2>Content Factory</h2>', '<h2>Operations</h2>', '<h2>Personal</h2>', 'Videos Scheduled'];
+  const order = ['<h1>Goals</h1>', 'Key results', 'Sponsor Revenue', 'Pipeline revenue', '<h2>Content Factory</h2>', '<h2>Personal</h2>', 'Videos Scheduled'];
   let at = -1;
   for (const s of order) { const i = html.indexOf(s, at + 1); assert.ok(i > at, `${s} after the one before`); at = i; }
+  // Operations card removed (Jon, 2026-11-11): no card and no Key results rows for it; 13 rows left.
+  for (const s of ['Operations', 'Weeks token limit hit', 'Dashboard 3 pages built', 'Cost per video measured', 'typed &quot;continue&quot;']) assert.ok(!html.includes(s), s);
+  assert.equal((html.match(/class="krb"/g) || []).length, 13);
+  assert.match(html, /of 13 /);
   const hgp = d2.d2.goals.find((g) => g.key === 'hgp').week[0];
   assert.match(html, new RegExp(`of ${hgp.target} · ${hgp.rows.length} channels, ${hgp.rows[0].target} each`));
   assert.match(html, /\$3,100/);
@@ -235,7 +228,7 @@ test('Goals: sections in the design order, targets from the data, no design samp
   assert.match(html, /behind pace|ahead of pace/);
   assert.match(html, /8 open cards/);
   assert.match(html, /Tuesday|Sunday/);
-  for (const s of ['Arcads', 'Topview', 'Forecast', 'forecast', 'of 48', '16 channels', 'Atoms', '$1,500', 'Peter Collins']) assert.ok(!html.includes(s), s);
+  for (const s of ['Topview', 'Forecast', 'forecast', 'of 48', '16 channels', 'Atoms', '$1,500', 'Peter Collins']) assert.ok(!html.includes(s), s);
   // A target changed in the data shows on the page; nothing is hard-coded.
   hgp.target = 35;
   for (const r of hgp.rows) r.target = 9;
@@ -251,9 +244,9 @@ test('Goals: missing sources read No feed / No data with a grey dot; text is esc
   const d2 = SAMPLE();
   const none = renderGoals(d2, null, {});
   assert.match(none, /Approved, not uploaded<\/span><span class="krv nf">No feed/);
-  assert.match(none, /Today's videos<\/h2><\/div><p class="mut">No feed/);
+  assert.ok(!none.includes("Today's videos"));
   assert.match(none, /Workouts<\/span><span class="krv nf">No feed/);
-  assert.match(none, /<b class="num sp nf">No feed<\/b>/); // tiles that need /d3
+  assert.match(none, /Pipeline revenue<\/h2>[\s\S]*To close/); // the deal card needs only /d2
   assert.match(none, /Open cards: No feed/);
   const objs = objectivesOf(d2, null);
   for (const k of objs.flatMap((o) => o.krs).filter((k) => k.nf)) assert.equal(k.tone, 'n', k.text);
@@ -268,7 +261,7 @@ test('Goals: missing sources read No feed / No data with a grey dot; text is esc
   // Trends: a week count plots its days; a number with no series says so.
   const open = renderGoals(d2, d3Sample(), { openKr: 'b3' });
   assert.match(open, /<polyline class="act [a-z]*" points="20,125 /);
-  assert.match(renderGoals(d2, d3Sample(), { openKr: 'c2' }), /No trend data yet\./);
+  assert.match(renderGoals(d2, d3Sample(), { openKr: 'b4' }), /No trend data yet\./);
   // + Log: on Workouts and Date nights only; disabled once logged today.
   const page = renderGoals(d2, d3Sample(), {});
   assert.match(page, /data-log="workout" disabled>Logged today/);
@@ -435,6 +428,58 @@ test('Team page: design sections in order, live rows, No feed where nothing repo
   assert.equal((none.match(/<b class="num sp nf">No feed<\/b>/g) || []).length, 4);
 });
 
+test('Team cards by bot: every open card (past 400) by owner and status, Others for Jon and retired bots, chips, All view, kanban', async () => {
+  const db = teamDb();
+  const STATUSES = ['todo', 'doing', 'qc', 'waiting_on_jon', 'review'];
+  const owners = ['developer', 'sponsors', 'qc', 'jon', 'moneyclaw'];
+  for (let i = 0; i < 450; i++) {
+    ins(db, 'bot_tasks', { id: `n${i}`, title: `Bulk ${i}`, owner: owners[i % 5], status: STATUSES[i % 7 % 5], project: i % 2 ? 'coding' : null, stage: i % 3 ? null : 'edit', created_by: 'ana', updated_by: 'ana', created_at: H(i / 10), updated_at: H(i / 10) });
+  }
+  const T = (await d3Of(db)).d3.team;
+  const count = (sql, ...a) => db.sqlite.prepare(sql).get(...a).n;
+  const open = count("SELECT COUNT(*) n FROM bot_tasks WHERE status IN ('todo','doing','waiting_on_jon','qc','review')");
+  assert.ok(open > 450);
+  assert.equal(T.openTotal, open);
+  assert.equal(T.cut, false);
+  // Counts per bot and column equal D1 (what dash.py tasks --owner --status reads).
+  for (const b of T.bots) for (const s of STATUSES) {
+    assert.equal(b.cards[s].length, count('SELECT COUNT(*) n FROM bot_tasks WHERE owner = ? AND status = ?', b.slug, s), `${b.slug} ${s}`);
+  }
+  const listed = [...T.bots, T.others].flatMap((b) => STATUSES.flatMap((s) => b.cards[s].map((c) => c.id)));
+  assert.equal(new Set(listed).size, open); // every open card once
+  assert.equal(listed.length, open);
+  // Others: Jon's and retired bots' cards, without their owner slug.
+  const roster = TEAM.bots.map((b) => b.slug);
+  assert.equal(STATUSES.reduce((n, s) => n + T.others.cards[s].length, 0), count(`SELECT COUNT(*) n FROM bot_tasks WHERE status IN ('todo','doing','waiting_on_jon','qc','review') AND owner NOT IN (${roster.map(() => '?').join(',')})`, ...roster));
+  assert.ok(!JSON.stringify(T).includes('moneyclaw'));
+  // Newest change first, with project label, stage and age.
+  const dev = T.bots.find((b) => b.slug === 'developer').cards.doing;
+  assert.deepEqual(dev.map((c) => c.id), db.sqlite.prepare("SELECT id FROM bot_tasks WHERE owner = 'developer' AND status = 'doing' ORDER BY updated_at DESC").all().map((r) => r.id));
+  assert.equal(dev[0].id, 'd1');
+  const n0 = T.bots.find((b) => b.slug === 'developer').cards.todo.find((c) => c.id === 'n0');
+  assert.deepEqual([n0.project, n0.stage], ['Unsorted', 'Edit']);
+  // Render: chips (greyed when empty), All view counts, kanban with card links.
+  const d3 = { d3: { team: T } };
+  const all = renderTeam(SAMPLE(), d3, {});
+  assert.match(all, /<h2>Cards by bot<\/h2>/);
+  assert.match(all, /data-tm="all" aria-pressed="true"/);
+  assert.match(all, /class="btn tm" data-tm="developer"/);
+  assert.match(all, /class="btn tm off" data-tm="ana"/);
+  assert.match(all, /data-tm="others"/);
+  const devTodo = T.bots.find((b) => b.slug === 'developer').cards.todo.length;
+  assert.match(all, new RegExp(`data-tmcol="developer\\|todo"[^>]*>${devTodo}</button>`));
+  assert.doesNotMatch(all, /class="tmkan"/);
+  const kan = renderTeam(SAMPLE(), d3, { teamBot: 'developer', teamCol: 'review' });
+  assert.match(kan, /class="tmkan"/);
+  for (const w of ['To do', 'Doing', 'QC', 'Needs you', 'Review']) assert.match(kan, new RegExp(`<b>${w}</b>`));
+  assert.match(kan, /class="stage tmon" data-tmk="review"/);
+  assert.match(kan, /href="\/dashboard\/\?card=d1#projects"/);
+  T.bots.find((b) => b.slug === 'developer').cards.doing[0].title = '<img src=x onerror=alert(1)>';
+  const esc1 = renderTeam(SAMPLE(), d3, { teamBot: 'developer' });
+  assert.ok(esc1.includes('&lt;img src=x onerror=alert(1)&gt;') && !esc1.includes('<img src=x'));
+  assert.equal((kan.match(/class="vcard tmcard"/g) || []).length, STATUSES.reduce((n, s) => n + T.bots.find((b) => b.slug === 'developer').cards[s].length, 0));
+});
+
 test('Blockers page: filters, rows open to what they block, review items link to Review, rail count = rows', async () => {
   const d2 = SAMPLE();
   const d3 = await d3Of(teamDb());
@@ -492,7 +537,7 @@ test('Page header escapes its sub line; Team header and Working tile read the sa
 
 test('d3.css: narrow screens stack the Team and Blockers rows, desktop rules unchanged', () => {
   const css = readFileSync(new URL('../public/d3/css/d3.css', import.meta.url), 'utf8');
-  assert.match(css, /\.d3 \.brow\{display:grid;grid-template-columns:170px minmax\(0,1fr\) 116px 60px 60px 56px 84px;/);
+  assert.match(css, /\.d3 \.brow\{display:grid;grid-template-columns:206px minmax\(0,1fr\) 116px 60px 60px 56px 84px;/);
   assert.match(css, /\.d3 \.blrow\{display:grid;grid-template-columns:minmax\(0,1fr\) 160px 90px 104px;/);
   const media = [...css.matchAll(/@media \(max-width:(\d+)px\)\{([\s\S]*?)\n\}/g)].map((m) => [Number(m[1]), m[2]]);
   const narrow = media.filter(([w]) => w < 1024).map(([, body]) => body).join('\n');
@@ -531,6 +576,22 @@ test('Video board: open cards with a stage, by stage, with count, oldest age, la
   assert.match(html, /data-stage="pack">[\s\S]*?\+1 more/);
   assert.match(html, /data-stage="sponsor review">[\s\S]*?no limit · oldest 2 hr/);
   assert.doesNotMatch(html, /Video v5/);
+});
+
+test('Video board: videos only; coding cards in build or deploy are left off, with no Build or Deploy column', async () => {
+  const db = teamDb();
+  const t = (id, stage, owner) => ins(db, 'bot_tasks', { id, title: `Card ${id}`, owner, project: owner === 'developer' ? 'coding' : 'home-guide-press', status: 'doing', stage, stage_since: H(20), created_by: 'ana', updated_by: 'ana', created_at: H(50), updated_at: H(0.5) });
+  t('c1', 'build', 'developer'); // past every limit: would count as late if it were on the board
+  t('c2', 'deploy', 'developer');
+  t('v1', 'edit', 'video-editor');
+  const L = (await d3Of(db)).d3.team.line;
+  assert.deepEqual(L.stages.map((s) => s.key), ['brief', 'script', 'script qc', 'a-roll', 'pack', 'edit', 'render qc', 'publish']);
+  assert.deepEqual([L.total, L.late], [1, 1]);
+  const html = renderTeam(SAMPLE(), (await d3Of(db)), {});
+  const board = html.slice(html.indexOf('<h2>Video board</h2>'));
+  assert.match(board, /Card v1/);
+  assert.doesNotMatch(board, /Card c1|Card c2|data-stage="build"|data-stage="deploy"|>Build<|>Deploy</);
+  assert.match(board, /grid-template-columns: repeat\(8, minmax\(0, 1fr\)\)/);
 });
 
 // ---- Card 3: Review and Money pages ----
@@ -589,12 +650,21 @@ test('Review page: sponsor drafts first, buttons per type, Undo disabled, text e
   assert.match(pick('t:rev'), /data-rv="approve" data-id="t:rev"[^>]*>Approve<\/button><button[^>]*data-rv="open-back" data-id="t:rev"/);
   assert.match(pick('t:rev', { rvBack: 't:rev' }), /class="rvtext"[\s\S]*data-rv="back" data-id="t:rev"[\s\S]*data-rv="cancel"/);
   assert.match(pick('a:a1'), /data-rv="yes" data-id="a:a1"[^>]*>Approve<\/button><button[^>]*data-rv="no"[^>]*>Reject/);
-  // "Other (type your own)" is the typed box, never a button that sends those words.
+  // A Decision: its options as buttons in the bot's order, then "Other (type your own)", then one Submit.
+  // "Other" opens the typed box; its words are never sent as the answer.
   const q4 = pick('q:q4');
-  assert.match(q4, /data-rv="opt" data-id="q:q4" data-opt="\$2,500"/);
+  assert.match(q4, /data-rv="pick" data-id="q:q4" aria-pressed="false" data-opt="\$2,500"[^>]*>\$2,500<\/button><button[^>]*data-rv="other" data-id="q:q4" aria-pressed="false"[^>]*>Other \(type your own\)<\/button><\/div><button[^>]*data-rv="answer" data-id="q:q4"[^>]*>Submit<\/button>/);
   assert.doesNotMatch(q4, /data-opt="Other/);
-  assert.match(q4, /placeholder="Or type your own answer"[\s\S]*data-rv="answer" data-id="q:q4"/);
-  assert.match(pick('q:q2'), /placeholder="Type your answer"[\s\S]*data-rv="answer"/);
+  assert.doesNotMatch(q4, /class="rvtext"/);
+  assert.match(pick('q:q4', { rvPick: { id: 'q:q4', v: '$2,500' } }), /aria-pressed="true" data-opt="\$2,500"/);
+  assert.doesNotMatch(pick('q:q4', { rvPick: { id: 'q:q2', v: '$2,500' } }), /aria-pressed="true"/); // a pick made on another item
+  assert.match(pick('q:q4', { rvPick: { id: 'q:q4', v: OTHER_PICK }, rvText: 'Mine' }), /data-rv="other"[^>]*aria-pressed="true"[\s\S]*<textarea class="rvtext"[^>]*>Mine<\/textarea><button[^>]*data-rv="answer"[^>]*>Submit/);
+  // An old question with no options: the typed box and Submit.
+  assert.match(pick('q:q2'), /<textarea class="rvtext"[^>]*placeholder="Type your answer"[\s\S]*data-rv="answer"[^>]*>Submit/);
+  assert.doesNotMatch(pick('q:q2'), /data-rv="other"/);
+  // The answer row sits right under the question, not pushed to the bottom of a panel as tall as the queue.
+  assert.match(q4, /class="card rvdetail"/);
+  assert.doesNotMatch(q4, /margin-top: auto/);
   // Only the "Other (type ...)" option is the box; a real option starting with "Other" stays a button.
   const q4item = d3.d3.queue.find((x) => x.id === 'q:q4');
   q4item.act.options = ['Other channel first', 'Other (type your own)'];
@@ -640,8 +710,8 @@ test('Review clicks: each button calls only its write, after a confirm where it 
     // Every write confirms first: No sends nothing.
     yes = false;
     typed = 'Fix it';
-    for (const [sel, rv, extra] of [['t:rev', 'approve'], ['t:rev', 'back', { rvBack: 't:rev' }], ['a:a1', 'yes'], ['a:a1', 'no'], ['q:q4', 'opt', { opt: '$2,500' }], ['q:q2', 'answer'], ['d:c-poppy', 'send']]) {
-      await run(sel, 'rv', { rv, ...(extra?.opt ? { opt: extra.opt } : {}) }, extra?.rvBack ? { rvBack: extra.rvBack } : {});
+    for (const [sel, rv, ui0] of [['t:rev', 'approve'], ['t:rev', 'back', { rvBack: 't:rev' }], ['a:a1', 'yes'], ['a:a1', 'no'], ['q:q4', 'answer', { rvPick: { id: 'q:q4', v: '$2,500' } }], ['q:q2', 'answer'], ['d:c-poppy', 'send']]) {
+      await run(sel, 'rv', { rv }, ui0 || {});
     }
     assert.equal(calls.length, 0);
     yes = true;
@@ -656,16 +726,34 @@ test('Review clicks: each button calls only its write, after a confirm where it 
     assert.deepEqual(calls.pop(), ['/dashboard/api/v1/approvals/a1/decide', 'POST', { decision: 'reject' }]);
     await run('a:a1', 'rv', { rv: 'yes' });
     assert.deepEqual(calls.pop(), ['/dashboard/api/v1/approvals/a1/decide', 'POST', { decision: 'approve' }]);
-    ui = await run('q:q4', 'rv', { rv: 'opt', opt: '$2,500' });
+    // Picking an option or Other only marks it; Submit sends the pick, or the typed text after Other.
+    ui = await run('q:q4', 'rv', { rv: 'pick', opt: '$2,500' });
+    assert.deepEqual(ui.rvPick, { id: 'q:q4', v: '$2,500' });
+    assert.equal(calls.length, 0);
+    ui = await run('q:q4', 'rv', { rv: 'answer' });
+    assert.match(ui.rvErr, /Pick an answer/);
+    typed = 'typed without Other';
+    await run('q:q4', 'rv', { rv: 'answer' });
+    typed = '';
+    await run('q:q4', 'rv', { rv: 'answer' }, { rvPick: { id: 'q:q2', v: '$2,500' } }); // a pick made on another item
+    await run('q:q4', 'rv', { rv: 'answer' }, { rvPick: { id: 'q:q4', v: 'Not an option' } });
+    assert.equal(calls.length, 0);
+    ui = await run('q:q4', 'rv', { rv: 'answer' }, { rvPick: { id: 'q:q4', v: '$2,500' } });
     assert.deepEqual(calls.pop(), ['/dashboard/api/v1/questions/q4/answer', 'POST', { answer: '$2,500' }]);
     assert.equal(ui.rvDone['q:q4'], '$2,500');
+    assert.equal(ui.rvPick, null);
+    assert.notEqual(ui.rvSel, 'q:q4'); // moved on to the next item
     await run('d:c-poppy', 'rv', { rv: 'send' }, { rvEdit: 'd:c-poppy', rvDraft: { body: 'Edited' } });
     const [url, method, body] = calls.pop();
     assert.deepEqual([url, method, body.kind, body.payload.body, body.payload.to], ['/dashboard/api/actions', 'POST', 'sponsor.send_draft', 'Edited', 'ann@poppy.ai']);
     assert.ok(body.idemKey);
     typed = 'My own answer';
-    await run('q:q4', 'rv', { rv: 'answer' });
+    ui = await run('q:q4', 'rv', { rv: 'other' });
+    assert.deepEqual(ui.rvPick, { id: 'q:q4', v: OTHER_PICK });
+    await run('q:q4', 'rv', { rv: 'answer' }, { rvPick: ui.rvPick });
     assert.deepEqual(calls.pop(), ['/dashboard/api/v1/questions/q4/answer', 'POST', { answer: 'My own answer' }]);
+    await run('q:q2', 'rv', { rv: 'answer' }); // no options: the box alone
+    assert.deepEqual(calls.pop(), ['/dashboard/api/v1/questions/q2/answer', 'POST', { answer: 'My own answer' }]);
     // Done items, busy state and a failed write: nothing sent twice, the error shown.
     await run('t:rev', 'rv', { rv: 'approve' }, { rvDone: { 't:rev': 'Approved' } });
     await run('t:rev', 'rv', { rv: 'approve' }, { busy: true });
@@ -727,6 +815,88 @@ test('Money page: design sections, six deal stages from the Sponsors board, No f
   assert.match(none, /No feed: the Sponsors board could not be read/);
   assert.match(none, /No feed: the team roster could not be read/);
   assert.doesNotMatch(none, /NaN|undefined/);
+});
+
+test('Goals: Pipeline revenue replaces Blockers, To review and Tokens; totals are the sum of the deal rows', () => {
+  const d2 = SAMPLE();
+  const html = renderGoals(d2, d3Sample(), {});
+  for (const s of ['>Blockers<', '>To review<', '>Tokens<', 'href="#blockers"', 'href="#review"']) assert.ok(!html.includes(s), s);
+  const p = pipelineOf(d2);
+  // Fixture: Poppy negotiating $2,500; Invideo owes $2,100 (its money-owed row wins over the $4,200 deal); Arcads in
+  // production with no amount; Creatify paid and Topview archived are left out.
+  assert.deepEqual(p.close.map((r) => [r.id, r.name, r.amt]), [['c-poppy', 'Poppy', 2500]]);
+  assert.deepEqual(p.collect.map((r) => [r.id, r.name, r.amt]), [['c-invideo', 'Invideo', 2100], ['c-arcads', 'Arcads', null]]);
+  for (const k of ['close', 'collect']) assert.equal(p.totals[k], p[k].reduce((n, r) => n + (r.amt || 0), 0), k);
+  const card = html.slice(html.indexOf('aria-label="Pipeline revenue"'));
+  assert.match(card, /To close<\/span><b class="num sp" style="font-size: 26px">\$2,500</);
+  assert.match(card, /To collect<\/span><b class="num sp" style="font-size: 26px">\$2,100</);
+  assert.match(card, /2 deals · 1 no amount/);
+  for (const id of ['c-poppy', 'c-invideo', 'c-arcads']) assert.match(card, new RegExp(`href="#money" data-deal="${id}"`));
+  assert.ok(!/Creatify|Topview|\$4,200/.test(card.slice(0, card.indexOf('</section>'))));
+  // Every row opens its deal on Money: the same key marks the card there and outlines it.
+  const money = renderMoney(d2, d3Sample(), { dealSel: 'c-arcads' });
+  assert.match(money, /id="deal-c-arcads" style="gap: 4px; outline: 2px solid #2563eb/);
+  assert.match(money, /id="deal-c-poppy" style="gap: 4px">/);
+  // Old boards with no card ids: rows key by name, a deal on the owed list is not counted twice.
+  const old = SAMPLE();
+  const cols = old.d2.pipeline.boards.find((b) => b.goal === 'sponsors').sponsors.board.columns;
+  for (const c of cols) for (const k of c.cards || []) delete k.id;
+  old.d2.pipeline.boards.find((b) => b.goal === 'sponsors').sponsors.collect.rows[0].payload = {};
+  const q = pipelineOf(old);
+  assert.deepEqual(q.collect.map((r) => [r.id, r.amt]), [['n:invideo', 2100], ['n:arcads', null]]);
+  assert.match(renderMoney(old, null, { dealSel: 'n:invideo' }), /id="deal-n:invideo" style="gap: 4px; outline/);
+  // No Sponsors board: the card says No feed, no numbers made up.
+  const bare = renderGoals({ d2: { goals: [], period: {} } }, null, {});
+  assert.match(bare, /Pipeline revenue<\/h2>[\s\S]*No feed: the Sponsors board could not be read/);
+  assert.doesNotMatch(bare, /NaN|undefined/);
+  // Names are escaped.
+  cols.find((c) => c.title === 'Negotiations').cards[0].name = '<img src=x onerror=alert(1)>';
+  assert.ok(!renderGoals(old, null, {}).includes('<img src=x'));
+});
+
+test('Pipeline revenue: a repeat sponsor\'s second deal is its own row; an owed row with no live card has no dead link', () => {
+  const d2 = SAMPLE();
+  const sp = d2.d2.pipeline.boards.find((b) => b.goal === 'sponsors').sponsors;
+  sp.board.columns.find((c) => c.title === 'Leads').cards.push({ id: 'c-invideo-2', name: 'Invideo', amt: 3000 });
+  sp.collect.rows.push({ sponsor: 'Gone Co', owedUsd: 900, payload: { id: 'c-archived' } });
+  const p = pipelineOf(d2);
+  assert.deepEqual(p.close.map((r) => [r.id, r.amt]), [['c-invideo-2', 3000], ['c-poppy', 2500]]);
+  assert.equal(p.totals.close, 5500);
+  assert.deepEqual(p.collect.map((r) => [r.id, r.name, r.amt]), [['c-invideo', 'Invideo', 2100], [null, 'Gone Co', 900], ['c-arcads', 'Arcads', null]]);
+  assert.equal(p.totals.collect, 3000);
+  const card = renderGoals(d2, null, {});
+  assert.match(card, /<div class="hd" style="[^"]*"><span class="ell"[^>]*>Gone Co</);
+  assert.doesNotMatch(card, /data-deal="(null|undefined|)"/);
+  // An owed row with no id listed before the id row cannot take the id row's card; no card is counted twice.
+  sp.collect.rows.unshift({ sponsor: 'Invideo', owedUsd: 500, payload: {} });
+  const q = pipelineOf(d2);
+  assert.equal(q.collect.find((r) => r.amt === 2100).id, 'c-invideo');
+  const ids = [...q.close, ...q.collect].map((r) => r.id).filter(Boolean);
+  assert.equal(new Set(ids).size, ids.length);
+});
+
+test('Team page: each bot shows its profile picture from /dash/img/bots, rows with several bots stack them, others keep the letter', async () => {
+  const { avatars, BOT_PICS } = await import('../public/d3/js/team.js');
+  // Every roster name has a small picture file, and every picture in the list exists.
+  for (const n of TEAM.bots.flatMap((b) => b.names)) assert.ok(BOT_PICS.has(n.toLowerCase()), `picture for ${n}`);
+  for (const k of BOT_PICS) {
+    const f = new URL(`../public/d3/img/bots/${k}.webp`, import.meta.url);
+    assert.ok(existsSync(f), `${k}.webp`);
+    assert.ok(readFileSync(f).length < 10000, `${k}.webp is small`);
+  }
+  const html = renderTeam(SAMPLE(), await d3Of(teamDb()), {});
+  assert.match(html, /<img class="av pic" src="img\/bots\/lucy\.webp" alt="" title="Lucy"[^>]* width="32" height="32"/);
+  assert.match(html, /<span class="avs"><img [^>]*olivia\.webp[^>]*><img [^>]*emma\.webp[^>]*><img [^>]*indy\.webp[^>]*><\/span>/);
+  assert.doesNotMatch(html, /<span class="av"[^>]*>[A-Z]<\/span>/); // every roster bot has a picture now
+  // A bot with no picture keeps its letter circle, also inside a stack; nothing from a name reaches the src.
+  assert.equal(avatars(['Zed']), '<span class="av" style="width: 32px; height: 32px; font-size: 13px">Z</span>');
+  assert.match(avatars(['Ana', 'Zed']), /^<span class="avs"><img [^>]*ana\.webp[^>]*><span class="av"[^>]*>Z<\/span><\/span>$/);
+  assert.doesNotMatch(avatars(['../x']), /<img/);
+  // Served behind /dash like the css and js, and nothing else under img/.
+  const env = { SESSION_SECRET: SECRET, ASSETS: assets };
+  const get = async (p) => { const r = await worker.fetch(new Request(`https://jonmac.ai${p}`), env, {}); return r.status === 404 ? 404 : r.text(); };
+  assert.equal(await get('/dash/img/bots/ana.webp'), 'asset:/d3/img/bots/ana.webp');
+  for (const p of ['/dash/img/bots/ana.png', '/dash/img/ana.webp', '/dash/img/bots/../js/app.js', '/dash/img/bots/a-b.webp', '/dash/img/bots/Ana.webp']) assert.equal(await get(p), 404, p);
 });
 
 test('Key results: named rows (name, actual / target, bar, status) worst first, no coloured tiles', async () => {

@@ -8,7 +8,7 @@
 //                                    (ui.rvThreads, GET /dashboard/api/sponsor-threads; see thread.js)
 // Team cost, expenses, profit, YouTube ads, affiliates and forecast have no feed yet and read "No feed".
 import { esc, usd, toneOf, icon } from './util.js';
-import { headerOnly, periodOf } from './goals.js';
+import { headerOnly, periodOf, dealKey } from './goals.js';
 import { threadHtml } from './thread.js';
 
 const num = (x) => typeof x === 'number' && Number.isFinite(x);
@@ -32,7 +32,7 @@ export function dealStages(d2resp) {
   if (!Array.isArray(cols)) return null;
   return DEAL_STAGES.map(([name, from]) => {
     const deals = cols.filter((c) => !c.archived && from.includes(c.title)).flatMap((c) => (c.cards || []).map((k) => ({
-      id: String(k.id || ''), name: k.name || 'Sponsor', amt: num(k.amt) && k.amt > 0 ? k.amt : null, draft: !!k.draft,
+      id: dealKey(k.id, k.name), name: k.name || 'Sponsor', amt: num(k.amt) && k.amt > 0 ? k.amt : null, draft: !!k.draft,
       note: k.draft ? 'your send' : k.pill || '', tone: k.draft ? 'y' : TONE[k.pillCls] || '',
       stage: name, column: c.title, status: k.status || '', subject: k.detail || '', threadId: k.threadId || '',
       blocker: typeof k.blocker === 'string' ? k.blocker : null, next: typeof k.next === 'string' ? k.next : null,
@@ -168,9 +168,13 @@ function dealsHtml(d2resp, ui = {}) {
   const sends = st.reduce((n, s) => n + s.deals.filter((d) => d.draft).length, 0);
   const cols = st.map((s) => {
     // Each card opens its deal view; "+N more" shows the rest of the column (ui.dealsAll, kept across refreshes).
+    // A deal opened from Goals' Pipeline revenue card is outlined and always shown, even past the first 8.
     const all = !!ui.dealsAll?.[s.name];
-    const cards = s.deals.slice(0, all ? s.deals.length : 8).map((d) => `<a class="vcard dealcard" href="${esc(dealHref(d.id))}" style="gap: 4px"><span style="font-weight: 500; overflow-wrap: anywhere">${esc(d.name)}</span>${d.amt ? `<span class="krv" style="font-size: 15px">${esc(usd(d.amt))}</span>` : ''}${d.note ? `<span class="hd mut" style="gap: 6px; font-size: 12px"><span class="dot ${d.tone}" style="width: 7px; height: 7px"></span>${esc(d.note)}</span>` : ''}</a>`).join('');
-    const more = s.deals.length > 8 ? `<button type="button" class="mut dealmore" data-dealmore="${esc(s.name)}">${all ? 'Show fewer' : `+${s.deals.length - 8} more`}</button>` : '';
+    const shown = s.deals.slice(0, all ? s.deals.length : 8);
+    const pick = s.deals.find((d) => d.id === ui.dealSel);
+    if (pick && !shown.includes(pick)) shown.push(pick);
+    const cards = shown.map((d) => `<a class="vcard dealcard" href="${esc(dealHref(d.id))}" id="deal-${esc(d.id)}" style="gap: 4px${d.id === ui.dealSel ? '; outline: 2px solid #2563eb; outline-offset: 2px' : ''}"><span style="font-weight: 500; overflow-wrap: anywhere">${esc(d.name)}</span>${d.amt ? `<span class="krv" style="font-size: 15px">${esc(usd(d.amt))}</span>` : ''}${d.note ? `<span class="hd mut" style="gap: 6px; font-size: 12px"><span class="dot ${d.tone}" style="width: 7px; height: 7px"></span>${esc(d.note)}</span>` : ''}</a>`).join('');
+    const more = s.deals.length > 8 ? `<button type="button" class="mut dealmore" data-dealmore="${esc(s.name)}">${all ? 'Show fewer' : `+${s.deals.length - shown.length} more`}</button>` : '';
     return `<div class="stage">
 <div class="hd" style="justify-content: space-between; gap: 4px"><b class="ell" style="font-size: 13px">${esc(s.name)}</b><span class="krv">${s.deals.length}</span></div>
 ${cards}${more}${s.deals.length ? '' : '<span class="mut" style="font-size: 12px">None yet</span>'}

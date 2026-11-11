@@ -34,7 +34,7 @@ Jon's session, `Cache-Control: no-store`, read only (`src/d3.js`). Each part is 
 | Number | Source |
 |---|---|
 | Header date, week and month position | d2 `period` |
-| Key results summary | tones of the 17 rows below (d2 status: ok = on track, risk = at risk, crit = off track, else no data) |
+| Key results summary | tones of the 13 rows below (d2 status: ok = on track, risk = at risk, crit = off track, else no data) |
 | Sponsor Revenue card, KR Collected | d2 sponsors `month` (sponsor cash), weekly `trend` added up; pace = d2 `pace` |
 | Deals signed / Sponsor videos delivered / Invoices waiting | d2 sponsors `week[0..2]` |
 | Blockers tile | d2 `today.blockers` (need you = those with a card) |
@@ -43,7 +43,6 @@ Jon's session, `Cache-Control: no-store`, read only (`src/d3.js`). Each part is 
 | Jon Mac, @JonMacAI, Home Guide Press (KR and Videos Scheduled) | d2 `jonmac` / `jonmacai` / `hgp` `week[0]` (channel calendars); HGP columns = its `rows` |
 | QC-passed today | d2 hgp `day[0]` |
 | Passed QC first try | d3 `goals.qcFirstTry` (first render verdict per card this month) |
-| Weeks token limit hit | d3 `goals.tokenWeeks` |
 | Workouts, Date nights (+ Log) | d3 `goals.workouts` / `dateNights` (habits table; date nights also count calendar events named "date night") |
 | Charges confirmed | d3 `goals.charges` (MoneyClaw `cw:` charge questions) |
 | Open cards notes | d3 `openCards` |
@@ -82,9 +81,6 @@ Stuck leaves out cards in Review on purpose: those passed QC on their newest ver
 
 - Rail Dispatcher and Bots lines: no dispatcher or per-bot heartbeat reaches the dashboard.
 - Approved, not published: needs approve and go-live times per video from the review app.
-- Dashboard 3 pages built: no feed.
-- Cost per video measured: needs tokens saved per run, per card.
-- Times you typed "continue": nothing counts it.
 - Sponsor revenue forecast: no source, so the design's forecast line and pill are left out.
 - Team: Running for bots that post no runs (needs every card run to post to `bot_runs` with start and end); Tokens per bot (needs `tokens` on each run); Cost tile and column (needs token cost per run or a billing feed); per-bot "working on" beyond its open cards (needs a dispatcher heartbeat naming the card in the current run).
 - Blockers: what Ana did on each row (needs Ana to log an action per blocker); Dispatcher card (dispatcher, bots, watchdog, GPU2 job: needs heartbeats); HeyGen today (needs the HeyGen submit log as a feed); Sponsor inbox sign-in; Video board feed age.
