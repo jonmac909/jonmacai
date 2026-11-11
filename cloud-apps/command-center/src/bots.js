@@ -898,11 +898,13 @@ export const FEEDS = {
       const week = w && typeof w === 'object' ? { pct: numberOf(w, 'pct', 0, 1000, true), resets: text(w, 'resets', 80), at: isoOf(w.at, 'week.at') } : null;
       const a = b.approved;
       const approved = a && typeof a === 'object' ? { count: whole(a.count), items: list('items', 40, a) } : null;
+      const h = b.heygen; // HeyGen submits today from the shared submit log
+      const heygen = h && typeof h === 'object' && !Array.isArray(h) ? { accepted: whole(h.accepted ?? 0), refused: whole(h.refused ?? 0), failed: whole(h.failed ?? 0), last: h.last == null ? null : String(h.last).slice(0, 40) } : null;
       return {
         at: isoOf(b.at, 'at'), beat: b.beat ? isoOf(b.beat, 'beat') : null, week,
         running: list('running', 60), fails: list('fails', 80),
         tokens: map('tokens', whole), runs: map('runs', (x) => ({ ok: whole(x?.ok ?? 0), failed: whole(x?.failed ?? 0) })),
-        approved,
+        approved, heygen,
       };
     },
   },

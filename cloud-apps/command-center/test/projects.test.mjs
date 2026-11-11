@@ -253,15 +253,17 @@ test('dispatch_live feed: developer or ana, checked shapes, keeps only 2 days', 
     tokens: { qc: 1200 }, runs: { qc: { ok: 3, failed: 1 } },
     fails: [{ at: '2026-10-29T17:00:00Z', bot: 'qc', card: 't_1', why: 'x', kind: 'run' }],
     approved: { count: 2, items: [{ title: 'A', waitMin: 90 }] },
+    heygen: { accepted: 6, refused: 0, failed: 1, last: '10:34' },
   };
   assert.equal((await put('sponsors', good)).status, 403);
-  for (const bad of [{ ...good, running: 'x' }, { ...good, tokens: { qc: -1 } }, { ...good, runs: { qc: { ok: 1.5 } } }, { ...good, week: { pct: 'x' } }, { ...good, beat: 'soon' }, { ...good, fails: [5] }]) {
+  for (const bad of [{ ...good, running: 'x' }, { ...good, tokens: { qc: -1 } }, { ...good, runs: { qc: { ok: 1.5 } } }, { ...good, week: { pct: 'x' } }, { ...good, beat: 'soon' }, { ...good, fails: [5] }, { ...good, heygen: { accepted: -2 } }]) {
     assert.equal((await put('developer', bad)).status, 400, JSON.stringify(bad));
   }
   await db.prepare('INSERT INTO bot_feed_entries (id, name, bot, data, created_at) VALUES (?, ?, ?, ?, ?)').bind('f_old', 'dispatch_live', 'developer', '{}', '2020-01-01T00:00:00Z').run();
   const ok = await put('developer', good);
   assert.equal(ok.status, 201);
   assert.deepEqual(ok.body.feed.data.runs, { qc: { ok: 3, failed: 1 } });
+  assert.deepEqual(ok.body.feed.data.heygen, { accepted: 6, refused: 0, failed: 1, last: '10:34' }); // kept through the parser, so HeyGen today shows live
   assert.equal(ok.body.feed.data.approved.count, 2);
   assert.equal((await db.prepare("SELECT COUNT(*) AS n FROM bot_feed_entries WHERE id = 'f_old'").first()).n, 0, 'old rows dropped');
 });
