@@ -5406,6 +5406,61 @@
       "stale": false
      }
     }
+   ],
+   "blockers": [
+    {
+     "title": "Peter Collins first video - Peter Collins",
+     "owner": "Elle",
+     "goal": "hgp",
+     "ageLabel": "25 hr ago",
+     "why": "Approve the thumbnail thumb.png",
+     "open": "t_0000000000000103"
+    },
+    {
+     "title": "Notion video 1: dedicated",
+     "owner": "Florence",
+     "goal": "sponsors",
+     "ageLabel": "29 hr ago",
+     "why": "Approve the script so editing can start",
+     "open": "t_0000000000000091"
+    },
+    {
+     "title": "Jon Mac upload - Jon Mac",
+     "owner": "Sydney",
+     "goal": "jonmac",
+     "ageLabel": "2 days ago",
+     "why": "Waiting on you",
+     "open": "t_0000000000000104"
+    },
+    {
+     "title": "Poppy video 1: integration",
+     "owner": "Florence",
+     "goal": "sponsors",
+     "ageLabel": "29 hr ago",
+     "why": "Waiting on your answer: Poppy offers $2,000. Accept?",
+     "open": "t_0000000000000092"
+    },
+    {
+     "title": "Complete Histories missed Thu 5",
+     "owner": "Daisy",
+     "goal": null,
+     "ageLabel": "3 days ago",
+     "why": "No episode or community post"
+    },
+    {
+     "title": "RBC expenses missed Wed 4",
+     "owner": "Elizabeth",
+     "goal": null,
+     "ageLabel": "4 days ago",
+     "why": "Receipts not matched"
+    },
+    {
+     "title": "RBC expenses missed today",
+     "owner": "Elizabeth",
+     "goal": null,
+     "ageLabel": "today",
+     "why": "Receipts not matched, bank scan failed"
+    }
    ]
   },
   "pipeline": {
