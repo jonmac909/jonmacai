@@ -96,9 +96,9 @@ test('GET /dashboard/api/d3: values from D1 (review queue, tokens, open cards, w
   ins(db, 'bot_feed_entries', { id: 'f1', name: 'claude_usage', bot: 'ana', data: JSON.stringify({ weekPct: 100, resetsAt: '2026-11-13T00:00:00Z' }), created_at: '2026-11-10T18:00:00Z' });
   ins(db, 'habits', { day: '2026-11-09', kind: 'workout', done: 1 });
   ins(db, 'habits', { day: '2026-11-10', kind: 'workout', done: 1 });
-  ins(db, 'bot_proofs', { id: 'p1', task_id: 't3', kind: 'render', link: 'https://x/1', status: 'failed', created_by: 'qc', created_at: '2026-11-05T10:00:00Z' });
-  ins(db, 'bot_proofs', { id: 'p2', task_id: 't3', kind: 'render', link: 'https://x/2', status: 'passed', created_by: 'qc', created_at: '2026-11-06T10:00:00Z' });
-  ins(db, 'bot_proofs', { id: 'p3', task_id: 't2', kind: 'render', link: 'https://x/3', status: 'passed', created_by: 'qc', created_at: '2026-11-07T10:00:00Z' });
+  ins(db, 'bot_proofs', { id: 'p1', task_id: 't3', kind: 'render', link: '/dashboard/review/1', status: 'failed', created_by: 'qc', created_at: '2026-11-05T10:00:00Z' });
+  ins(db, 'bot_proofs', { id: 'p2', task_id: 't3', kind: 'render', link: '/dashboard/review/2', status: 'passed', created_by: 'qc', created_at: '2026-11-06T10:00:00Z' });
+  ins(db, 'bot_proofs', { id: 'p3', task_id: 't2', kind: 'render', link: '/dashboard/review/3', status: 'passed', created_by: 'qc', created_at: '2026-11-07T10:00:00Z' });
   const env = { DB: db, SESSION_SECRET: SECRET };
   const body = await withNow(TUESDAY, async () => (await handleApi(new Request('https://jonmac.ai/dashboard/api/d3', { headers: { Cookie: await cookieAt(TUESDAY) } }), env)).json());
   const d3 = body.d3;
@@ -414,31 +414,29 @@ test('d3.css: narrow screens stack the Team and Blockers rows, desktop rules unc
 test('Video board: open cards with a stage, by stage, with count, oldest age, late past the limit, QC columns', async () => {
   const db = teamDb();
   const t = (id, stage, status, since, extra = {}) => ins(db, 'bot_tasks', { id, title: `Video ${id}`, owner: 'video-editor', status, stage, stage_since: since, created_by: 'ana', updated_by: 'ana', created_at: H(50), updated_at: H(0.5), ...extra });
-  t('v1', 'edit', 'doing', H(9)); // past the 8 h limit
+  t('v1', 'edit', 'doing', H(9)); // past the 1 h 10 m limit
   t('v2', 'edit', 'doing', H(1));
   t('v3', 'script', 'qc', H(30), { updated_at: H(1) }); // Script QC, timed from the move to QC
-  t('v4', 'sponsor review', 'doing', H(2)); // not a design column: its own column after them, no limit
+  t('v4', 'sponsor review', 'doing', H(2)); // not a video stage: off the board
   t('v5', 'pack', 'done', H(1)); // closed: not on the board
   for (const i of [1, 2, 3, 4]) t(`p${i}`, 'pack', 'doing', H(i));
   const d3 = await d3Of(db);
   const L = d3.d3.team.line;
   const by = Object.fromEntries(L.stages.map((s) => [s.key, s]));
-  assert.deepEqual(L.stages.map((s) => s.key), ['brief', 'script', 'script qc', 'a-roll', 'pack', 'edit', 'render qc', 'publish', 'sponsor review']);
+  assert.deepEqual(L.stages.map((s) => s.key), ['brief', 'script', 'script qc', 'a-roll', 'pack', 'edit', 'render qc', 'publish']);
   assert.deepEqual([by.edit.n, by.edit.oldest, by.edit.cards.map((c) => [c.id, c.tone])], [2, '9 hr', [['v1', 'r'], ['v2', 'g']]]);
-  assert.deepEqual([by['script qc'].n, by['script qc'].cards[0].age, by['script qc'].cards[0].tone], [1, '1 hr', 'g']);
+  assert.deepEqual([by['script qc'].n, by['script qc'].cards[0].age, by['script qc'].cards[0].tone], [1, '1 hr', 'r']); // past the 20 m Script QC limit
   assert.equal(by.script.n, 0);
   assert.deepEqual([by.pack.n, by.pack.cards.map((c) => c.id), by.pack.more], [4, ['p4', 'p3', 'p2'], 1]);
-  assert.deepEqual([by['sponsor review'].name, by['sponsor review'].limit, by['sponsor review'].cards[0].tone], ['Sponsor review', '', 'g']);
-  assert.equal(L.late, 1);
-  assert.equal(L.total, 8);
+  assert.equal(L.late, 5); // v1, v3, p2-p4 (pack 1 h 15 m)
+  assert.equal(L.total, 7);
   const editor = d3.d3.team.bots.find((b) => b.slug === 'video-editor');
   assert.match(editor.card.stage, /^(Edit|Pack|Script|Sponsor review) · /);
   const html = renderTeam(SAMPLE(), d3, {});
-  assert.match(html, /<span class="pill bad sp">1 late<\/span>/);
-  assert.match(html, /grid-template-columns: repeat\(9, minmax\(0, 1fr\)\)/);
-  assert.match(html, /data-stage="edit">[\s\S]*?limit 8 h · oldest 9 hr[\s\S]*?Video v1[\s\S]*?dot r/);
+  assert.match(html, /<span class="pill bad sp">5 late<\/span>/);
+  assert.match(html, /grid-template-columns: repeat\(8, minmax\(0, 1fr\)\)/);
+  assert.match(html, /data-stage="edit">[\s\S]*?limit 1 h 10 m · oldest 9 hr[\s\S]*?Video v1[\s\S]*?dot r/);
   assert.match(html, /data-stage="pack">[\s\S]*?\+1 more/);
-  assert.match(html, /data-stage="sponsor review">[\s\S]*?no limit · oldest 2 hr/);
   assert.doesNotMatch(html, /Video v5/);
 });
 
