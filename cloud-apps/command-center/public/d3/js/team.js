@@ -72,10 +72,12 @@ export function renderTeam(d2resp, d3resp, ui = {}) {
   const P = periodOf(d2resp);
   const span = P.ymd ? `${P.monthShort} 1–${P.day}` : 'this month';
   const costHd = `Cost ${span}`;
-  const sub = T ? `${plural(T.names, 'bot')} · ${plural(T.bots.length, 'role')}` : '&nbsp;';
+  // Header and Working tile read the same counts: bot names and roster roles.
+  const roles = T ? plural(T.bots.length, 'role') : '';
+  const sub = T ? `${plural(T.names, 'bot')} · ${roles}` : '';
   const head = headerOnly(d2resp, 'Team', sub, '<span class="pill sp">Runs, tokens and cost: No feed</span>');
   const tiles = `<div class="row">
-${tile('bolt', 'Working', T ? `of ${T.bots.length} roles` : 'cards in Doing', T ? T.working : null)}
+${tile('bolt', 'Working', T ? `of ${roles}` :'cards in Doing', T ? T.working : null)}
 ${tile('you', 'Waiting on you', T?.waiting?.oldest ? `oldest ${T.waiting.oldest}` : 'cards', T ? T.waiting.count : null)}
 ${tile('blockers', 'Failed', 'today', T && num(T.failedToday) ? T.failedToday : null)}
 ${tile('money', 'Cost', span, null)}

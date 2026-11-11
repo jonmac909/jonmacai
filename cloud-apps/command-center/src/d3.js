@@ -53,14 +53,16 @@ export async function d3Data(env, nowMs) {
     q("SELECT status FROM bot_questions WHERE idem_key LIKE 'cw:%' AND (status = 'open' OR updated_at >= ?)", from),
     // Team and Blockers: open cards, cards moved to Review or Done today, Stuck cards, QC fails today, runs.
     q(`SELECT id, title, owner, status, note, due, updated_at FROM bot_tasks WHERE status IN ${OPEN} ORDER BY updated_at DESC LIMIT 3000`),
-    q(`SELECT e.task_id, e.at, t.owner, t.title FROM bot_task_events e JOIN bot_tasks t ON t.id = e.task_id
-      WHERE e.kind = 'status' AND e.at >= ? AND (e.detail LIKE '%→ review%' OR e.detail LIKE '%→ done%') ORDER BY e.at LIMIT 500`, today0),
+    // Driven from the cards updated today (a status move updates the card), so events are read by (task_id, at) only.
+    q(`SELECT e.task_id, e.at, t.owner, t.title FROM bot_tasks t CROSS JOIN bot_task_events e ON e.task_id = t.id AND e.at >= ?
+      WHERE t.updated_at >= ? AND e.kind = 'status' AND (e.detail LIKE '%→ review%' OR e.detail LIKE '%→ done%') ORDER BY e.at DESC LIMIT 500`, today0, today0),
     q(`SELECT p.task_id, COUNT(*) AS n, MAX(COALESCE(p.checked_at, p.created_at)) AS last FROM bot_proofs p JOIN bot_tasks t ON t.id = p.task_id
       WHERE p.status = 'failed' AND t.status NOT IN ('done', 'cancelled') GROUP BY p.task_id HAVING COUNT(*) >= 2`),
     q(`SELECT p.task_id, t.owner FROM bot_proofs p JOIN bot_tasks t ON t.id = p.task_id
       WHERE p.status = 'failed' AND COALESCE(p.checked_at, p.created_at) >= ? LIMIT 1000`, today0),
     q('SELECT bot, status, started_at, tokens FROM bot_runs WHERE started_at >= ? ORDER BY started_at LIMIT 2000', new Date(nowMs - DAY).toISOString()),
-    q('SELECT DISTINCT bot FROM bot_runs'),
+    // Bots that post runs: only runs from the last 30 days, newest first, bounded.
+    q('SELECT DISTINCT bot FROM (SELECT bot FROM bot_runs WHERE started_at >= ? ORDER BY started_at DESC LIMIT 5000)', new Date(nowMs - 30 * DAY).toISOString()),
   ]);
   return {
     youtube, review, approvals, questions, usage, lastUsage: lastUsage && (lastUsage[0] || undefined), open, proofs, habits, calendar: calendar && parse(calendar[0]?.data), charges,
@@ -182,7 +184,8 @@ function chargesOf(rows) {
 const RANK = { doing: 0, waiting_on_jon: 1, qc: 2, todo: 3, review: 4 };
 const STATUS = { doing: 'Doing', waiting_on_jon: 'Waiting on you', qc: 'In QC', todo: 'To do', review: 'In Review' };
 const ROSTER = new Map(TEAM.bots.map((b) => [b.slug, b]));
-export const ownerName = (slug) => (slug === 'jon' ? 'Jon' : ROSTER.get(slug)?.names.join(', ') || String(slug || ''));
+// A slug not on the roster is a retired bot (Mila, Ivy): never shown by name.
+export const ownerName = (slug) => (slug === 'jon' ? 'Jon' : !slug ? '' : ROSTER.get(slug)?.names.join(', ') || 'Former bot');
 const since = (iso, nowMs) => (Number.isFinite(Date.parse(iso)) ? agoLabel(Math.max(0, nowMs - Date.parse(iso))).replace(/ ago$/, '') : '');
 const shortSince = (iso, nowMs) => {
   const m = Math.floor(Math.max(0, nowMs - Date.parse(iso)) / 60000);

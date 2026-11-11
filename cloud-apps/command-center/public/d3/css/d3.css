@@ -109,3 +109,21 @@ html[data-theme="dark"] body{background:#0b0b0c}
 .d3 .login input[type=password]{width:100%;min-height:40px;padding:0 12px;border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--ink);font:inherit}
 .d3 .login .err{color:var(--bad-ink);min-height:20px;font-size:13px}
 .d3 .login label.rm{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--ink2)}
+/* Narrow screens: no sideways scroll. Wider than 983px the design layout above is unchanged (the Team row needs ~690px
+   of card; the rail sits beside the main column from 808px up). */
+@media (max-width:983px){
+  .d3 .brow{grid-template-columns:170px minmax(0,1fr) 116px}
+  .d3 .brow>:nth-child(n+4){display:none}
+  .d3 .board{grid-template-columns:repeat(4,minmax(0,1fr)) !important}
+}
+@media (max-width:560px){
+  .d3 header.hd{flex-wrap:wrap}
+  .d3 .brow{grid-template-columns:minmax(0,1fr) auto;row-gap:6px}
+  .d3 .brow>:nth-child(1){grid-column:1;grid-row:1}
+  .d3 .brow>:nth-child(2){grid-column:1/-1;grid-row:2}
+  .d3 .brow>:nth-child(3){grid-column:2;grid-row:1}
+  .d3 .brow.thead{display:none}
+  .d3 .blrow{grid-template-columns:minmax(0,1fr) auto}
+  .d3 .blrow>:nth-child(2),.d3 .blrow>:nth-child(3){display:none}
+  .d3 .board{grid-template-columns:repeat(2,minmax(0,1fr)) !important}
+}

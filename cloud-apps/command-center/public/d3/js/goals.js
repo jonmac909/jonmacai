@@ -196,9 +196,9 @@ function krHtml(k, open, busy) {
 ${detail}</div>`;
 }
 
-// sub and pill (HTML) are for the other pages; Goals shows the week line and no pill.
+// sub (plain text) and pill (HTML) are for the other pages; Goals shows the week line and no pill.
 function headerHtml(P, title, sub, pill = '') {
-  const line = sub ?? (P.ymd ? `${esc(P.weekdayName)} · day ${esc(P.day)} of ${esc(P.daysInMonth)}` : '&nbsp;');
+  const line = sub != null ? esc(sub) || '&nbsp;' : P.ymd ? `${esc(P.weekdayName)} · day ${esc(P.day)} of ${esc(P.daysInMonth)}` : '&nbsp;';
   return `<header class="hd" style="padding: 6px 4px 2px; gap: 14px">
 <span class="datechip" aria-hidden="true"><b>${esc(P.day || '')}</b><span>${esc(P.monthShort || '')}</span></span>
 <div style="display: flex; flex-direction: column; gap: 2px"><span class="mut">${line}</span><h1>${esc(title)}</h1></div>${pill}

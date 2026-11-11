@@ -370,3 +370,39 @@ test('Blockers page: filters, rows open to what they block, review items link to
   // No cards: no rows, tiles say No feed.
   assert.match(renderBlockers(d2, null, {}), /No feed: the dashboard cards could not be read/);
 });
+
+// ---- Card 2 review fixes ----
+test('Owners not on the roster (retired bots) read "Former bot", never a slug or a retired name', async () => {
+  const { ownerName } = await import('../src/d3.js');
+  assert.equal(ownerName('moneyclaw'), 'Former bot');
+  assert.equal(ownerName('ivy'), 'Former bot');
+  assert.equal(ownerName('developer'), 'Lucy');
+  assert.equal(ownerName('jon'), 'Jon');
+  const db = teamDb();
+  ins(db, 'bot_questions', { id: 'q9', asked_by: 'moneyclaw', question: 'Old MoneyClaw question', status: 'open', created_at: H(6), updated_at: H(6) });
+  const B = (await d3Of(db)).d3.blockers;
+  assert.equal(B.find((b) => b.id === 'q:q9').owner, 'Former bot');
+  for (const s of ['moneyclaw', 'Mila', 'Ivy']) assert.ok(!JSON.stringify(B).includes(s), s);
+});
+
+test('Page header escapes its sub line; Team header and Working tile read the same role count', async () => {
+  const { headerOnly } = await import('../public/d3/js/goals.js');
+  assert.match(headerOnly(null, 'X', '<img src=x>'), /&lt;img src=x&gt;/);
+  assert.doesNotMatch(headerOnly(null, 'X', '<img src=x>'), /<img/);
+  const html = renderTeam(SAMPLE(), await d3Of(teamDb()), {});
+  const n = TEAM.bots.length;
+  assert.match(html, new RegExp(`· ${n} roles</span>`));
+  assert.match(html, new RegExp(`of ${n} roles</span>`));
+});
+
+test('d3.css: narrow screens stack the Team and Blockers rows, desktop rules unchanged', () => {
+  const css = readFileSync(new URL('../public/d3/css/d3.css', import.meta.url), 'utf8');
+  assert.match(css, /\.d3 \.brow\{display:grid;grid-template-columns:170px minmax\(0,1fr\) 116px 60px 60px 56px 84px;/);
+  assert.match(css, /\.d3 \.blrow\{display:grid;grid-template-columns:minmax\(0,1fr\) 160px 90px 104px;/);
+  const media = [...css.matchAll(/@media \(max-width:(\d+)px\)\{([\s\S]*?)\n\}/g)].map((m) => [Number(m[1]), m[2]]);
+  const narrow = media.filter(([w]) => w < 1024).map(([, body]) => body).join('\n');
+  assert.ok(media.length && media.every(([w]) => w < 1024), 'no narrow rule reaches the 1024 layout');
+  assert.match(narrow, /\.d3 \.brow\{grid-template-columns:[^}]*\}/);
+  assert.match(narrow, /\.d3 \.brow>:nth-child\(n\+4\)\{display:none\}/);
+  assert.match(narrow, /\.d3 \.blrow\{grid-template-columns:minmax\(0,1fr\) auto\}/);
+});
