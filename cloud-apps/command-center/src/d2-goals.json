@@ -17,14 +17,14 @@
     {
       "key": "hgp", "title": "Home Guide Press", "owner": "Elle", "team": ["Elle", "Scarlett", "Olivia"], "project": "home-guide-press",
       "group": "Home Guide Press",
-      "focus": ["giovanni-moretti", "nora-fairweather-cats", "naomi-takeda-japan", "eleanor-whitfield", "claudine-marchand", "peter-collins", "jack-mercer", "diane-kowalski", "dale-whitaker-pitbulls", "rosas-clean-home", "rosas-house-hacks", "takeshi-morimoto", "kenzo-arai", "jiyoung-han", "peggy-donovan", "edna-haynes"],
-      "month": { "key": "videos", "label": "Videos published (3 a week per focus channel)", "metric": "videos", "unit": "count", "perChannel": 3 },
+      "focus": ["naomi-takeda-japan", "giovanni-moretti", "nora-fairweather-cats", "rosas-house-hacks"],
+      "month": { "key": "videos", "label": "Videos published (1 a day per focus channel)", "metric": "videos", "unit": "count", "perChannel": 7 },
       "week": [
-        { "key": "videos", "label": "Videos published (3 per focus channel)", "metric": "videos", "unit": "count", "perChannel": 3 },
+        { "key": "videos", "label": "Videos published (7 per focus channel)", "metric": "videos", "unit": "count", "perChannel": 7 },
         { "key": "checkout", "label": "Every landing page checkout working", "metric": "tickDays", "project": "home-guide-press", "item": "Site and checkouts checked", "unit": "count", "target": 7 }
       ],
       "day": [
-        { "key": "qc", "label": "Videos edited and QC-passed (one every 3 hours)", "metric": "qcPassed", "unit": "count", "everyHours": 3 }
+        { "key": "qc", "label": "Videos edited and QC-passed (1 per focus channel)", "metric": "qcPassed", "unit": "count", "perChannel": 1 }
       ]
     },
     {
