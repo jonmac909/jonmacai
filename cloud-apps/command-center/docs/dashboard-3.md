@@ -87,9 +87,14 @@ Stuck leaves out cards in Review on purpose: those passed QC on their newest ver
 - Times you typed "continue": nothing counts it.
 - Sponsor revenue forecast: no source, so the design's forecast line and pill are left out.
 - Team: Running for bots that post no runs (needs every card run to post to `bot_runs` with start and end); Tokens per bot (needs `tokens` on each run); Cost tile and column (needs token cost per run or a billing feed); per-bot "working on" beyond its open cards (needs a dispatcher heartbeat naming the card in the current run).
-- Team video board: stage counts, video cards, ages and the late count (needs a per-video stage and stage-entered time, e.g. from the render queue or card events by stage). The stage time limits are proposed, not agreed.
 - Blockers: what Ana did on each row (needs Ana to log an action per blocker); Dispatcher card (dispatcher, bots, watchdog, GPU2 job: needs heartbeats); HeyGen today (needs the HeyGen submit log as a feed); Sponsor inbox sign-in; Video board feed age.
 
 ## Tests
 
 `test/d3.test.mjs` (routing, the endpoint, the Goals mapping). Run `node --test test/*.test.mjs`.
+
+## Video board (card stage, 2026-11-10)
+
+- Cards carry `stage` and `stageSince` (migration 0024). The dispatcher sets them on each stage hand-off (`dash.py task-update --stage`); `stageSince` moves only when the stage changes.
+- The Team page's Video board shows every open card with a stage, by stage: count, oldest time in the stage, up to 3 cards (oldest first) and "+N more". A card in QC at script or edit shows under Script QC or Render QC, timed from its last update. A stage not in the design gets its own column with no limit. Late = past the column's proposed limit.
+- Cards staged only in their progress file (no hand-off yet) are not on the board until the dispatcher moves them.
