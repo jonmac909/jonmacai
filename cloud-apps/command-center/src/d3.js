@@ -42,6 +42,7 @@ export async function d3Data(env, nowMs) {
     // Review cards with their newest proof link (a passed one first), as the card modal picks its deliverable.
     q(`SELECT t.id, t.title, t.owner, t.project, t.due, t.note, t.updated_at AS at,
       (SELECT p.link FROM bot_proofs p WHERE p.task_id = t.id ORDER BY p.status = 'passed' DESC, p.created_at DESC, p.rowid DESC LIMIT 1) AS link,
+      -- vproof: any render or review-page proof, whatever its status (a card in Review with one is a video)
       EXISTS (SELECT 1 FROM bot_proofs p WHERE p.task_id = t.id AND (p.kind = 'render' OR p.link LIKE '%/dashboard/review/%')) AS vproof
       FROM bot_tasks t WHERE t.status = 'review' ORDER BY t.updated_at LIMIT 500`),
     q("SELECT id, title, action, payload, requested_by, task_id, created_at AS at FROM bot_approvals WHERE status = 'pending' ORDER BY created_at LIMIT 500"),
@@ -97,9 +98,11 @@ function youtubeLine(rows) {
     : { state: 'g', text: 'YouTube login ok', out: 0, connected: rows.length };
 }
 
-// A video waiting for Jon = a card in Review with a video proof (a render, or a review-page link). Dev card = the
-// developer's other cards in Review, which Jon closes in one click.
-const isVideo = (t) => Number(t.vproof) > 0 || /\/dashboard\/review\//i.test(String(t.link || ''));
+// A video waiting for Jon = a card in Review with a video proof (any render proof, passed or not, or a review-page
+// link) or whose proof link is a video (YouTube, a video file; public/js/ui.js linkLabel). Dev card = the developer's
+// other cards in Review, which Jon closes in one click, so a developer's video never becomes one.
+const VIDEO_LINK = /\/dashboard\/review\/|youtube\.com|youtu\.be|jonmac\.ai\/review|\.(mp4|mov|webm)(\?|#|$)/i;
+const isVideo = (t) => Number(t.vproof) > 0 || VIDEO_LINK.test(String(t.link || ''));
 const isDev = (t) => !isVideo(t) && t.owner === 'developer';
 
 // Jon's review queue: video and other cards in Review, pending approvals and open questions (bot health and known charges left out).

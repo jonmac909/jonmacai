@@ -38,21 +38,23 @@ export function reviewItems(d2resp, d3resp) {
   return [...vids, ...mail, ...rest.filter((x) => x.group !== 'video')];
 }
 
-const GROUPS = [['video', 'Videos for you'], ['other', 'Emails, approvals and questions'], ['dev', 'Dev cards']];
+const GROUPS = [['video', 'Videos for you'], ['other', 'Emails, approvals, questions and cards'], ['dev', 'Dev cards']];
 const groupOf = (x) => (x.group === 'video' || x.group === 'dev' ? x.group : 'other');
+const RANK = { video: 0, other: 1, dev: 2 };
 const isDevCard = (c) => c.group === 'dev' && c.act?.type === 'card';
 
-// The queue as shown: live items plus the ones Jon finished this visit (kept with their done label until he leaves).
+// The queue as shown: live items plus the ones Jon finished this visit (kept with their done label until he leaves),
+// in the left list's group order so previous / next follow it.
 function shown(items, ui) {
   const kept = Object.values(ui.rvKept || {}).filter((k) => !items.some((x) => x.id === k.id));
-  return [...items, ...kept];
+  return [...items, ...kept].sort((a, b) => RANK[groupOf(a)] - RANK[groupOf(b)]);
 }
 
 // A video with a review page is approved or sent back there, so the review app locks that version (VIDEO.md).
 const reviewPage = (c) => c.type === 'video' && /\/dashboard\/review\//i.test(safeHref(c.link));
 const OTHER = /^other\s*\(type/i; // "Other (type your own)": the typed box below the options, never sent as the answer
 // Which buttons each item type takes; a click on any other is ignored.
-const ALLOWED = { card: ['approve', 'open-back', 'cancel', 'back', 'done'],approval: ['yes', 'no'], question: ['opt', 'answer'], email: ['send', 'edit'] };
+const ALLOWED = { card: ['approve', 'open-back', 'cancel', 'back', 'done'], approval: ['yes', 'no'], question: ['opt', 'answer'], email: ['send', 'edit'] };
 
 function buttons(c, ui) {
   const busy = ui.busy ? ' disabled' : '';
@@ -125,10 +127,12 @@ export function renderReview(d2resp, d3resp, ui = {}) {
   const c = q[i];
   const row = (x) => {
     const j = q.indexOf(x);
-    const pick = `<button type="button" class="qrow" aria-current="${j === i}" data-rvq="${esc(x.id)}"><span class="chip">${svg(x.type)}</span><span class="stack" style="flex: 1; min-width: 0"><b class="ell">${esc(x.name)}</b><span class="mut ell" style="font-size: 12px">${esc(x.sub)}</span></span>${ui.rvDone?.[x.id] ? `<span class="pill ok">${esc(ui.rvDone[x.id])}</span>` : ''}</button>`;
+    const dev = isDevCard(x) && !ui.rvDone?.[x.id];
+    // In a dev row the pick button shrinks so a long title never pushes Done out.
+    const pick = `<button type="button" class="qrow"${dev ? ' style="flex: 1; min-width: 0"' : ''} aria-current="${j === i}" data-rvq="${esc(x.id)}"><span class="chip">${svg(x.type)}</span><span class="stack" style="flex: 1; min-width: 0"><b class="ell">${esc(x.name)}</b><span class="mut ell" style="font-size: 12px">${esc(x.sub)}</span></span>${ui.rvDone?.[x.id] ? `<span class="pill ok">${esc(ui.rvDone[x.id])}</span>` : ''}</button>`;
     // A dev card closes from its row in one click (Jon's ask, 2026-11-11).
-    if (!isDevCard(x) || ui.rvDone?.[x.id]) return pick;
-    return `<div class="hd" style="gap: 6px">${pick}<button type="button" class="btn sm" data-rv="done" data-id="${esc(x.id)}"${ui.busy ? ' disabled' : ''} aria-label="Done: ${esc(x.name)}">Done</button></div>`;
+    if (!dev) return pick;
+    return `<div class="hd" style="gap: 6px">${pick}<button type="button" class="btn sm" style="flex: none" data-rv="done" data-id="${esc(x.id)}"${ui.busy ? ' disabled' : ''} aria-label="Done: ${esc(x.name)}">Done</button></div>`;
   };
   const list = q.length
     ? GROUPS.map(([g, label]) => {

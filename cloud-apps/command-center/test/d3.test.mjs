@@ -448,7 +448,10 @@ function reviewDb() {
   ins(db, 'bot_tasks', { id: 'vid', title: 'Tiny house tour - Rosa', owner: 'video-editor', project: 'home-guide-press', status: 'review', note: 'Final cut <b>v2</b>', due: '2026-11-12', created_by: 'ana', updated_by: 'qc', created_at: H(8), updated_at: H(8) });
   ins(db, 'bot_proofs', { id: 'pv', task_id: 'vid', kind: 'render', link: '/dashboard/review/abc', status: 'passed', created_by: 'qc', created_at: H(8) });
   ins(db, 'bot_tasks', { id: 'loc', title: 'Local only', owner: 'developer', status: 'review', created_by: 'ana', updated_by: 'qc', created_at: H(2), updated_at: H(2) });
-  ins(db, 'bot_proofs', { id: 'pl', task_id: 'loc', kind: 'file', link: 'D:\\work\\out.mp4', status: 'passed', created_by: 'qc', created_at: H(2) });
+  ins(db, 'bot_proofs', { id: 'pl', task_id: 'loc', kind: 'file', link: 'D:\\work\\out.txt', status: 'passed', created_by: 'qc', created_at: H(2) });
+  // A developer's card whose proof is a YouTube link is a video, never a one-click dev card.
+  ins(db, 'bot_tasks', { id: 'dvy', title: 'Promo cut', owner: 'developer', status: 'review', created_by: 'ana', updated_by: 'qc', created_at: H(1), updated_at: H(1) });
+  ins(db, 'bot_proofs', { id: 'py', task_id: 'dvy', kind: 'link', link: 'https://youtu.be/abc', status: 'passed', created_by: 'qc', created_at: H(1) });
   ins(db, 'bot_questions', { id: 'q4', asked_by: 'sponsors', question: 'Which rate?', options: JSON.stringify(['$2,500', 'Other (type your own)']), status: 'open', created_at: H(6), updated_at: H(6) });
   return db;
 }
@@ -456,14 +459,15 @@ function reviewDb() {
 test('GET /dashboard/api/d3: Review queue from D1, videos first, dev cards last, oldest first in each, each item with its existing write, no local links', async () => {
   const d3 = (await d3Of(reviewDb())).d3;
   const q = d3.queue;
-  assert.deepEqual(q.map((x) => x.group), ['video', 'video', 'other', 'other', 'other', 'other', 'dev']);
+  assert.deepEqual(q.map((x) => x.group), ['video', 'video', 'video', 'other', 'other', 'other', 'other', 'dev']);
   for (const g of ['video', 'other', 'dev']) {
     const at = q.filter((x) => x.group === g).map((x) => Date.parse(x.at));
     assert.deepEqual(at, [...at].sort((a, b) => a - b), g);
   }
-  assert.deepEqual(q.map((x) => x.id), ['t:vid', 't:rev', 'q:q2', 'q:q4', 'q:q1', 'a:a1', 't:loc']);
-  // The video count on top = the Review cards with a video proof (render or review-page link); dev = the developer's other Review cards.
-  assert.deepEqual([d3.review.videos, d3.review.dev], [2, 1]);
+  assert.deepEqual(q.map((x) => x.id), ['t:vid', 't:rev', 't:dvy', 'q:q2', 'q:q4', 'q:q1', 'a:a1', 't:loc']);
+  // The video count on top = the Review cards with a video proof (render, review page or video link); dev = the developer's other Review cards.
+  assert.deepEqual([d3.review.videos, d3.review.dev], [3, 1]);
+  assert.deepEqual([q[2].type, q[2].kind], ['video', 'Video']);
   assert.ok(!q.some((x) => x.id === 'q:q3')); // bot health stays with Ana
   const by = Object.fromEntries(q.map((x) => [x.id, x]));
   assert.deepEqual(by['t:vid'].act, { type: 'card', url: '/dashboard/api/v1/tasks/vid' });
@@ -483,12 +487,19 @@ test('Review page: videos first, then sponsor drafts, dev cards last with one-cl
   const d2 = SAMPLE();
   const d3 = await d3Of(reviewDb());
   const items = reviewItems(d2, d3);
-  assert.deepEqual(items.map((x) => x.id), ['t:vid', 't:rev', 'd:c-poppy', 'q:q2', 'q:q4', 'q:q1', 'a:a1', 't:loc']);
-  assert.equal(items[2].type, 'email');
+  assert.deepEqual(items.map((x) => x.id), ['t:vid', 't:rev', 't:dvy', 'd:c-poppy', 'q:q2', 'q:q4', 'q:q1', 'a:a1', 't:loc']);
+  assert.equal(items[3].type, 'email');
   assert.equal(items.length, 1 + d3.d3.queue.length);
   const html = renderReview(d2, d3, {});
-  assert.match(html, /2 videos for you · One at a time/);
-  assert.match(html, /Videos for you \(2\)[\s\S]*Emails, approvals and questions \(5\)[\s\S]*Dev cards \(1\)/);
+  assert.match(html, /3 videos for you · One at a time/);
+  assert.match(html, /Videos for you \(3\)[\s\S]*Emails, approvals, questions and cards \(5\)[\s\S]*Dev cards \(1\)/);
+  // The dev row's pick button shrinks, so a long title can't push Done out; Done is off while a write is running.
+  assert.match(html, /class="qrow" style="flex: 1; min-width: 0"[^>]*data-rvq="t:loc"/);
+  assert.match(renderReview(d2, d3, { busy: true }), /data-rv="done" data-id="t:loc"[^>]* disabled[^>]*>Done<\/button>/);
+  // A closed item kept for this visit stays in its group, so previous / next follow the list.
+  const kept = renderReview(d2, { d3: { ...d3.d3, queue: d3.d3.queue.filter((x) => x.id !== 't:vid') } }, { rvSel: 't:vid', rvDone: { 't:vid': 'Approved' }, rvKept: { 't:vid': d3.d3.queue[0] } });
+  assert.match(kept, /Videos for you \(3\)/);
+  assert.match(kept, /<span class="mut">3 of 9<\/span>/);
   // Only the dev card gets a Done on its row; videos and other cards don't.
   assert.match(html, /data-rv="done" data-id="t:loc"[^>]*>Done<\/button>/);
   assert.equal((html.match(/data-rv="done"/g) || []).length, 1);
@@ -620,6 +631,13 @@ test('Review clicks: each button calls only its write, after a confirm where it 
     ui = await run('t:vid', 'rv', { rv: 'done', id: 't:loc' });
     assert.deepEqual(calls.pop(), ['/dashboard/api/v1/tasks/loc', 'PATCH', { status: 'done' }]);
     assert.deepEqual([ui.rvDone['t:loc'], ui.rvSel], ['Done', 't:vid']);
+    // Done in the open dev card's detail moves on to the next item still waiting.
+    ui = await run('t:loc', 'rv', { rv: 'done' }, { rvDone: { 't:vid': 'Approved' } });
+    assert.deepEqual(calls.pop(), ['/dashboard/api/v1/tasks/loc', 'PATCH', { status: 'done' }]);
+    assert.deepEqual([ui.rvDone['t:loc'], ui.rvSel], ['Done', 't:rev']);
+    // Busy: nothing sent.
+    await run('t:loc', 'rv', { rv: 'done' }, { busy: true });
+    assert.equal(calls.length, 0);
     // Done on anything but a dev card sends nothing.
     for (const sel of ['t:rev', 't:vid', 'a:a1', 'q:q4', 'd:c-poppy']) await run(sel, 'rv', { rv: 'done' });
     assert.equal(calls.length, 0);
