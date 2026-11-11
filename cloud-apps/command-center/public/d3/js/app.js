@@ -5,7 +5,7 @@ import { esc } from './util.js';
 import { statHtml, railCounts } from './rail.js';
 import { renderGoals, headerOnly } from './goals.js';
 
-const PAGES = { goals: 'Goals', team: 'Team', blockers: 'Blockers', review: 'Review', money: 'Money' };
+const PAGES = { goals: 'Goals', team: 'Team', blockers: 'Blockers', review: 'Review', money: 'Money', bluesky: 'Bluesky', system: 'System' };
 const SIGNIN = 'd3-signin';
 const main = document.getElementById('main');
 const S = { d2: null, d3: null, error: '', signedOut: false, ui: { openKr: null, hgpOpen: false, busy: false } };
