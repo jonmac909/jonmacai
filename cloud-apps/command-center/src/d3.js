@@ -55,7 +55,7 @@ export async function d3Data(env, nowMs) {
     q(`SELECT id, title, owner, status, note, due, updated_at FROM bot_tasks WHERE status IN ${OPEN} ORDER BY updated_at DESC LIMIT 3000`),
     // Driven from the cards updated today (a status move updates the card), so events are read by (task_id, at) only.
     q(`SELECT e.task_id, e.at, t.owner, t.title FROM bot_tasks t CROSS JOIN bot_task_events e ON e.task_id = t.id AND e.at >= ?
-      WHERE t.updated_at >= ? AND e.kind = 'status' AND (e.detail LIKE '%→ review%' OR e.detail LIKE '%→ done%') ORDER BY e.at DESC LIMIT 500`, today0, today0),
+      WHERE t.status IN ('todo','doing','waiting_on_jon','qc','review','done','cancelled') AND t.updated_at >= ? AND e.kind = 'status' AND (e.detail LIKE '%→ review%' OR e.detail LIKE '%→ done%') ORDER BY e.at DESC LIMIT 500`, today0, today0),
     q(`SELECT p.task_id, COUNT(*) AS n, MAX(COALESCE(p.checked_at, p.created_at)) AS last FROM bot_proofs p JOIN bot_tasks t ON t.id = p.task_id
       WHERE p.status = 'failed' AND t.status NOT IN ('done', 'cancelled') GROUP BY p.task_id HAVING COUNT(*) >= 2`),
     q(`SELECT p.task_id, t.owner FROM bot_proofs p JOIN bot_tasks t ON t.id = p.task_id
