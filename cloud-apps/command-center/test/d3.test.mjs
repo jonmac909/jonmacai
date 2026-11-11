@@ -296,6 +296,56 @@ test('Goals: missing sources read No feed / No data with a grey dot; text is esc
   assert.match(page, /data-log="workout" disabled>Logged today/);
   assert.match(page, /data-log="date_night">\+ Log/);
   assert.equal((page.match(/data-log=/g) || []).length, 2);
+  // Armed (first click): the button reads "Confirm log?"; a logged habit never shows it.
+  const armed = renderGoals(d2, d3Sample(), { confirmLog: 'date_night' });
+  assert.match(armed, /class="btn sm primary" data-log="date_night">Confirm log\?/);
+  assert.doesNotMatch(renderGoals(d2, d3Sample(), { confirmLog: 'workout' }), /Confirm log\?/);
+});
+
+test('Shell: "+ Log" first click shows Confirm log? (kept on reload), a fast double-tap and the 4 s revert do not post, a later second click posts once', async () => {
+  const settle = async () => { for (let i = 0; i < 30; i++) await new Promise((r) => setImmediate(r)); };
+  const nodes = new Map();
+  let onClick = null;
+  const node = () => ({ innerHTML: '', textContent: '', hidden: false, dataset: {}, setAttribute() {}, removeAttribute() {}, getAttribute: () => null, querySelector: () => null, addEventListener(t, f) { if (t === 'click') onClick = f; } });
+  const store = () => { const m = new Map(); return { getItem: (k) => m.get(k) ?? null, setItem: (k, v) => m.set(k, String(v)), removeItem: (k) => m.delete(k) }; };
+  const posts = [];
+  const d2 = SAMPLE();
+  const realInterval = globalThis.setInterval; const realTimeout = globalThis.setTimeout; const realNow = Date.now;
+  let now = 1_000_000; const timers = [];
+  Object.assign(globalThis, {
+    document: { documentElement: node(), title: '', visibilityState: 'visible', querySelectorAll: () => [], getElementById: (k) => nodes.get(k) || nodes.set(k, node()).get(k), addEventListener() {} },
+    window: { addEventListener() {} }, location: { hash: '#goals', replace() {} }, localStorage: store(), sessionStorage: store(),
+    fetch: async (url, o = {}) => {
+      if (o.method === 'POST') { posts.push(JSON.parse(o.body)); return new Response('{}'); }
+      return new Response(JSON.stringify(String(url).endsWith('/d2') ? d2 : d3Sample()));
+    },
+  });
+  let tick = null;
+  globalThis.setInterval = (f) => { tick = f; return 0; };
+  const el = { disabled: false, dataset: { log: 'date_night' } };
+  const click = async () => { await onClick({ target: { closest: (s) => (s === '[data-log]' ? el : null) } }); await settle(); };
+  const main = () => nodes.get('main').innerHTML;
+  try {
+    await import('../public/d3/js/app.js?tab=log');
+    await settle();
+    assert.match(main(), /data-log="date_night">\+ Log/);
+    globalThis.setTimeout = (f) => { timers.push(f); return timers.length; };
+    Date.now = () => now;
+    await click();
+    assert.equal(posts.length, 0);
+    assert.match(main(), /data-log="date_night">Confirm log\?/);
+    tick(); await settle(); // the 60 s reload redraws: still armed
+    assert.match(main(), /data-log="date_night">Confirm log\?/);
+    now += 100; await click(); // double-tap inside 400 ms: no post, still armed
+    assert.equal(posts.length, 0);
+    assert.match(main(), /Confirm log\?/);
+    timers.at(-1)(); // the 4 s revert
+    assert.match(main(), /data-log="date_night">\+ Log/);
+    await click(); now += 1000; await click(); // arm again, confirm 1 s later
+    assert.equal(posts.length, 1);
+    assert.equal(posts[0].kind, 'date_night');
+    assert.doesNotMatch(main(), /Confirm log\?/);
+  } finally { globalThis.setInterval = realInterval; globalThis.setTimeout = realTimeout; Date.now = realNow; }
 });
 
 test('Shell: signed out opens /dash/ once, then shows a sign-in link instead of reloading', async () => {

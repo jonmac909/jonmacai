@@ -417,7 +417,7 @@ export function headerOnly(d2resp, title, sub, pill) {
 export function renderGoals(d2resp, d3resp, ui = {}) {
   const P = periodOf(d2resp);
   const objs = objectivesOf(d2resp, d3resp, P);
-  const U = { openKr: ui.openKr || null, hgpOpen: !!ui.hgpOpen, busy: !!ui.busy };
+  const U = { openKr: ui.openKr || null, hgpOpen: !!ui.hgpOpen, busy: !!ui.busy, confirmLog: ui.confirmLog || null };
   return `${headerHtml(P, 'Goals')}
 ${scoreboardHtml(d3resp)}
 <div class="row">
