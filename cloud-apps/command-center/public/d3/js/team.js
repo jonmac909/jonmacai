@@ -52,7 +52,7 @@ ${row}
 </div>`;
 }
 
-// The video board from d3.team.line: every open card with a stage, by stage, with the count, the oldest card's time in
+// The video board from d3.team.line: every open video card (coding stages are left off), by stage, with the count, the oldest card's time in
 // the stage and up to 3 cards per stage (oldest first). No line (cards could not be read): each stage says No feed.
 function boardHtml(L) {
   const cols = L ? L.stages : STAGES.map(([name, limit]) => ({ name, limit, none: true }));

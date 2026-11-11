@@ -533,6 +533,22 @@ test('Video board: open cards with a stage, by stage, with count, oldest age, la
   assert.doesNotMatch(html, /Video v5/);
 });
 
+test('Video board: videos only; coding cards in build or deploy are left off, with no Build or Deploy column', async () => {
+  const db = teamDb();
+  const t = (id, stage, owner) => ins(db, 'bot_tasks', { id, title: `Card ${id}`, owner, project: owner === 'developer' ? 'coding' : 'home-guide-press', status: 'doing', stage, stage_since: H(20), created_by: 'ana', updated_by: 'ana', created_at: H(50), updated_at: H(0.5) });
+  t('c1', 'build', 'developer'); // past every limit: would count as late if it were on the board
+  t('c2', 'deploy', 'developer');
+  t('v1', 'edit', 'video-editor');
+  const L = (await d3Of(db)).d3.team.line;
+  assert.deepEqual(L.stages.map((s) => s.key), ['brief', 'script', 'script qc', 'a-roll', 'pack', 'edit', 'render qc', 'publish']);
+  assert.deepEqual([L.total, L.late], [1, 1]);
+  const html = renderTeam(SAMPLE(), (await d3Of(db)), {});
+  const board = html.slice(html.indexOf('<h2>Video board</h2>'));
+  assert.match(board, /Card v1/);
+  assert.doesNotMatch(board, /Card c1|Card c2|data-stage="build"|data-stage="deploy"|>Build<|>Deploy</);
+  assert.match(board, /grid-template-columns: repeat\(8, minmax\(0, 1fr\)\)/);
+});
+
 // ---- Card 3: Review and Money pages ----
 function reviewDb() {
   const db = teamDb();
