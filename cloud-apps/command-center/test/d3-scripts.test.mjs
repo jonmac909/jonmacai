@@ -31,11 +31,14 @@ function scriptsDb() {
   t('s2', 'GPT-6 Astra Ads (No Camera) - @JonMacAI', 'waiting_on_jon', H(50), { note: `Script Doc: [Astra](${doc('BBB')}) and https://docs.google.com/document/d/ZZZ/edit` });
   t('s3', 'Rebuild Any Winning Ad - @JonMacAI', 'review', H(40), { note: 'Read Doc ready.' }); // Doc only on a proof
   t('s4', 'No Doc yet - @JonMacAI (record + pack)', 'doing', H(30), { note: 'Writing.' }); // trailing note in the title
-  t('s12', 'Get 3 edit packs ready for the first @JonMacAI videos (Nov 2)', 'doing', H(29)); // not a video card
+  t('s12', 'Get 3 edit packs ready for the first @JonMacAI videos (Nov 2) and hand them to Video Editor', 'doing', H(29)); // not a video card
   t('s5', 'Edited one - @JonMacAI', 'doing', H(20), { stage: 'edit', note: `Script Doc: [x](${doc('CCC')})` }); // past recording
   t('s6', 'A-roll in - @JonMacAI', 'doing', H(10), { note: `Script Doc: [y](${doc('DDD')})` });
   t('s7', 'TEAM (Olivia, QC): Rebuild Any Winning Ad - @JonMacAI', 'waiting_on_jon', H(5)); // QC helper card
-  t('s8', 'AI UGC batch week of Nov 9: 3 scripts', 'waiting_on_jon', H(4)); // not a video card
+  t('s8', 'AI UGC batch week of Nov 9: 3 scripts + packaging', 'waiting_on_jon', H(4)); // not a video card
+  t('s13', 'TEAM: How to Sell AI UGC Ads for $500 (Step by Step Guide) - @JonMacAI', 'review', H(4.5)); // QC helper card
+  t('s14', 'Team: lower case helper – @JonMacAI', 'review', H(4.6)); // QC helper card, en dash
+  t('s15', 'Packed before recording – @JonMacAI', 'doing', H(0.5), { stage: 'pack' }); // en dash; pack is not past recording
   t('s9', 'Finished - @JonMacAI', 'done', H(3)); // closed
   t('s10', 'Other channel - @JonMacAI', 'doing', H(2), { project: 'jonmac' }); // other project
   t('s11', 'Waiting in a-roll - @JonMacAI', 'doing', H(1), { stage: 'a-roll' }); // recording stage itself: To record
@@ -46,6 +49,7 @@ function scriptsDb() {
   proof('p4', 's6', 'render', 'https://x/aroll.mp4', 'passed', 'Jon A-roll received, 24 min');
   proof('p5', 's4', 'url', 'https://evil.example/docs.google.com/x', 'passed', 'not a Doc');
   proof('p6', 's2', 'render', 'https://x/thumb.jpg', 'pending', 'raw footage check'); // not passed yet: not recorded
+  proof('p7', 's2', 'render', 'https://x/draft.mp4', 'passed', "footage 41%, waiting on Jon's 6 studio takes"); // waiting: not recorded
   return db;
 }
 
@@ -55,7 +59,7 @@ test('GET /dashboard/api/d3: 401 without a session', async () => {
 
 test('d3.scripts: open @JonMacAI video cards, newest first, Doc from note then proof, Recorded rule', async () => {
   const S = (await d3Of(scriptsDb())).d3.scripts;
-  assert.deepEqual(S.map((s) => [s.id, s.status]), [['s11', 'To record'], ['s6', 'Recorded'], ['s5', 'Recorded'], ['s4', 'To record'],
+  assert.deepEqual(S.map((s) => [s.id, s.status]), [['s15', 'To record'], ['s11', 'To record'], ['s6', 'Recorded'], ['s5', 'Recorded'], ['s4', 'To record'],
     ['s3', 'To record'], ['s2', 'To record'], ['s1', 'To record']]);
   const by = Object.fromEntries(S.map((s) => [s.id, s]));
   assert.equal(by.s1.doc, 'https://docs.google.com/document/d/AAA/edit');
@@ -74,11 +78,11 @@ test('Scripts page: Doc links open in a new tab, No Doc, status pills, escaped, 
   body.d3.scripts.push({ id: 'x', title: '<b>bad</b>', at: H(1), doc: 'javascript:alert(1)', status: 'To record' });
   const html = renderScripts(null, body);
   assert.match(html, /<h1>Scripts<\/h1>/);
-  assert.match(html, /6 to record/);
-  assert.equal((html.match(/class="scrow/g) || []).length, 8);
+  assert.match(html, /7 to record/);
+  assert.equal((html.match(/class="scrow/g) || []).length, 9);
   assert.equal((html.match(/target="_blank" rel="noopener noreferrer">Open script/g) || []).length, 5);
   assert.match(html, /href="https:\/\/docs\.google\.com\/document\/d\/AAA\/edit"/);
-  assert.equal((html.match(/class="nf">No Doc/g) || []).length, 3);
+  assert.equal((html.match(/class="nf">No Doc/g) || []).length, 4);
   assert.doesNotMatch(html, /javascript:|<b>bad/);
   assert.match(html, /&lt;b&gt;bad/);
   assert.equal((html.match(/pill ok">Recorded/g) || []).length, 2);
