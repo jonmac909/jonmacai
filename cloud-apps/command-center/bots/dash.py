@@ -263,13 +263,13 @@ def qc_fails(proofs, kind='render', link=''):
     return fails
 
 
-LOCAL_PATH_RE = re.compile(r'^(?:[A-Za-z]:[\\/]|\\\\|/(?!/)|~|file:|\.{1,2}[\\/])')
+WEB_LINK_RE = re.compile(r'^https?://', re.I)
 
 
 def warn_local_link(link):
     """QC and Jon can't open a GPU1 path. Warning only for now (no hard refusal)."""
-    if link and LOCAL_PATH_RE.match(link.strip()):
-        print('WARNING: --link is a local path; QC and Jon can only open https links. '
+    if link and not WEB_LINK_RE.match(link.strip()):
+        print('WARNING: --link is not a web link (a local path?); QC and Jon can only open https links. '
               'Use proof_upload.py <card> <file> --kind <kind> --note "..." to post it with an https link.',
               file=sys.stderr)
 

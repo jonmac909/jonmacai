@@ -12,6 +12,7 @@ A missing, empty or unlisted file is refused and no proof is posted. Exit codes 
 import argparse
 import json
 import os
+import re
 import subprocess
 import sys
 import urllib.error
@@ -101,15 +102,15 @@ def main(argv=None):
     ap.add_argument('--note', default='')
     args = ap.parse_args(argv)
     try:
-        if not dash.re.match(r'^t_[0-9a-f]{16}$', args.card):
+        if not re.match(r'^t_[0-9a-f]{16}$', args.card):
             raise dash.Fail(2, 'Refused, no proof posted: %s is not a card id (t_ and 16 hex).' % args.card)
         p, ext, size = check_file(args.file)
         link = publish(args.card, p, extra) if ext == 'mp4' and args.kind == 'render' else upload(p, size)
     except dash.Fail as err:
         print(err, file=sys.stderr)
         return err.code
-    print(link)
-    cmd = [sys.executable, '-I', str(HERE / 'dash.py'), 'proof-add', args.card, '--kind', args.kind, '--link', link]
+    print(link, flush=True)  # before proof-add's own output
+    cmd =[sys.executable, '-I', str(HERE / 'dash.py'), 'proof-add', args.card, '--kind', args.kind, '--link', link]
     if args.note:
         cmd += ['--note', args.note]
     return subprocess.run(cmd).returncode

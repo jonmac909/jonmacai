@@ -109,6 +109,22 @@ class ProofUpload(unittest.TestCase):
         self.assertEqual(publish[2:], ['--file', clip, '--task', CARD, '--slug', 'diane-1-v3'])
         self.assertIn(page, add)
 
+    def test_review_publish_failure_or_no_page_posts_nothing(self):
+        clip = self.file('v3.mp4', b'\x00\x00\x00\x18ftypmp42')
+        for result in [mock.Mock(returncode=1, stdout='', stderr='boom'), mock.Mock(returncode=0, stdout='{"ok": true}', stderr='')]:
+            with mock.patch.object(pu.subprocess, 'run', return_value=result) as run:
+                code = pu.main([CARD, clip, '--kind', 'render', '--', '--slug', 'diane-1-v3'])
+            self.assertEqual(code, 3)
+            self.assertEqual(run.call_count, 1)  # publish only, no proof-add
+
+    def test_proof_add_exit_code_passes_through(self):
+        with mock.patch.object(pu.subprocess, 'run', return_value=mock.Mock(returncode=1)), \
+                mock.patch.object(dash, 'which_bot', return_value='developer'), \
+                mock.patch.object(dash, 'read_token', return_value='ccb_x'), \
+                mock.patch.object(dash.OPENER, 'open', return_value=Res(json.dumps({'ok': True, 'url': URL}).encode())), \
+                mock.patch('sys.stdout', new_callable=io.StringIO):
+            self.assertEqual(pu.main([CARD, self.file('a.png'), '--kind', 'url']), 1)
+
 
 class LocalLinkWarning(unittest.TestCase):
     CTX = {'bot': 'developer', 'token': 'x', 'base': 'https://jonmac.ai/dashboard/api/v1'}
@@ -123,7 +139,7 @@ class LocalLinkWarning(unittest.TestCase):
         return err.getvalue()
 
     def test_local_paths_warn_and_name_proof_upload(self):
-        for link in [r'D:\AgentTeam\qc-work\sheet.png', 'D:/x.png', r'\\gpu2\share\a.png', '/tmp/a.png', 'file:///D:/a.png']:
+        for link in [r'D:\AgentTeam\qc-work\sheet.png', 'D:/x.png', r'\\gpu2\share\a.png', '/tmp/a.png', 'file:///D:/a.png', r'qc-work\sheet.png', 'sheet.png']:
             self.assertIn('proof_upload.py', self.proof_add(link), link)
 
     def test_https_links_do_not_warn(self):

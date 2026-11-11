@@ -31,26 +31,51 @@ export async function uploadProofFile(request, env) {
   const id = [...crypto.getRandomValues(new Uint8Array(16))].map((b) => b.toString(16).padStart(2, '0')).join('');
   const file = `${id}.${ext === 'jpeg' ? 'jpg' : ext}`;
   // A body with a known length streams straight to R2 (no 95 MB copy in memory).
-  await env.UPLOADS.put(`proofs/${file}`, request.body, {
-    httpMetadata: { contentType: TYPES[ext] },
-    customMetadata: { bot, name: name.slice(-200) },
-  });
+  try {
+    await env.UPLOADS.put(`proofs/${file}`, request.body, {
+      httpMetadata: { contentType: TYPES[ext] },
+      customMetadata: { bot, name: name.slice(-200) },
+    });
+  } catch (err) {
+    console.error('proof file put failed', err);
+    return out({ ok: false, error: 'Storage failed; try again' }, 502);
+  }
   return out({ ok: true, url: `${new URL(request.url).origin}${FILE_PREFIX}${file}`, bytes: size });
 }
 
+// GET and HEAD, with byte ranges so an mp4 plays on iPhone and seeks on desktop.
 export async function serveProofFile(request, env) {
   if (request.method !== 'GET' && request.method !== 'HEAD') return new Response('Not found', { status: 404 });
   const file = new URL(request.url).pathname.slice(FILE_PREFIX.length);
-  const obj = NAME_RE.test(file) && env.UPLOADS ? await env.UPLOADS.get(`proofs/${file}`) : null;
+  if (!NAME_RE.test(file) || !env.UPLOADS) return new Response('Not found', { status: 404 });
+  const key = `proofs/${file}`;
+  const ranged = request.method === 'GET' && request.headers.has('Range');
+  let obj;
+  try {
+    obj = request.method === 'HEAD' ? await env.UPLOADS.head(key) : await env.UPLOADS.get(key, ranged ? { range: request.headers } : {});
+  } catch {
+    return new Response('Range not satisfiable', { status: 416 }); // R2 throws on a range past the end
+  }
   if (!obj) return new Response('Not found', { status: 404 });
-  return new Response(request.method === 'HEAD' ? null : obj.body, {
-    headers: {
-      'Content-Type': TYPES[file.split('.').pop()],
-      'Content-Length': String(obj.size),
-      'Cache-Control': 'private, max-age=86400',
-      'X-Content-Type-Options': 'nosniff',
-      'X-Robots-Tag': 'noindex, nofollow',
-      'Referrer-Policy': 'no-referrer',
-    },
-  });
+  const ext = file.split('.').pop();
+  const headers = {
+    'Content-Type': TYPES[ext],
+    'Accept-Ranges': 'bytes',
+    'Content-Length': String(obj.size),
+    'Cache-Control': 'private, max-age=86400',
+    'X-Content-Type-Options': 'nosniff',
+    'X-Robots-Tag': 'noindex, nofollow',
+    'Referrer-Policy': 'no-referrer',
+  };
+  // Text never runs as a page (Chrome's PDF viewer won't open under a sandbox, so only text gets it).
+  if (/^(txt|md|json)$/.test(ext)) headers['Content-Security-Policy'] = "sandbox; default-src 'none'";
+  if (ranged && obj.range) {
+    const r = obj.range;
+    const offset = 'suffix' in r ? Math.max(0, obj.size - r.suffix) : r.offset || 0;
+    const length = 'suffix' in r ? obj.size - offset : r.length ?? obj.size - offset;
+    headers['Content-Length'] = String(length);
+    headers['Content-Range'] = `bytes ${offset}-${offset + length - 1}/${obj.size}`;
+    return new Response(obj.body, { status: 206, headers });
+  }
+  return new Response(request.method === 'HEAD' ? null : obj.body, { headers });
 }
