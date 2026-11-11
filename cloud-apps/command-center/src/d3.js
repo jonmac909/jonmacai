@@ -48,11 +48,15 @@ export async function d3Data(env, nowMs) {
   const [youtube, review, approvals, questions, usage, lastUsage, open, proofs, habits, calendar, charges,
     tasks, finished, stuck, failsToday, runs, runBots, later, scripts, scoreProofs, staged, apCards, apEvents, ytLive, live, feedRows, snapRows] = await Promise.all([
     q('SELECT channel, sync_error FROM yt_api'),
-    // Review cards with their newest proof link (a passed one first), as the card modal picks its deliverable.
+    // Review cards with their deliverable: the newest web proof link (a video proof first, then a passed one), and up to 6
+    // web proof links in all. Local paths (D:\...) are skipped here: they once hid a card's real links and made it an empty "video".
     q(`SELECT t.id, t.title, t.owner, t.project, t.due, t.note, t.updated_at AS at,
-      (SELECT p.link FROM bot_proofs p WHERE p.task_id = t.id ORDER BY p.status = 'passed' DESC, p.created_at DESC, p.rowid DESC LIMIT 1) AS link,
-      -- vproof: any render or review-page proof, whatever its status (a card in Review with one is a video)
-      EXISTS (SELECT 1 FROM bot_proofs p WHERE p.task_id = t.id AND (p.kind = 'render' OR p.link LIKE '%/dashboard/review/%')) AS vproof
+      (SELECT p.link FROM bot_proofs p WHERE p.task_id = t.id AND (p.link LIKE 'http%' OR p.link LIKE '/%')
+        ORDER BY (p.kind = 'render' OR p.link LIKE '%/dashboard/review/%') DESC, p.status = 'passed' DESC, p.created_at DESC, p.rowid DESC LIMIT 1) AS link,
+      (SELECT group_concat(link, char(10)) FROM (SELECT DISTINCT p.link FROM bot_proofs p WHERE p.task_id = t.id AND (p.link LIKE 'http%' OR p.link LIKE '/%')
+        ORDER BY p.status = 'passed' DESC, p.created_at DESC LIMIT 6)) AS links,
+      -- vproof: a render or review-page proof with a web link, whatever its status (a card in Review with one is a video)
+      EXISTS (SELECT 1 FROM bot_proofs p WHERE p.task_id = t.id AND (p.kind = 'render' OR p.link LIKE '%/dashboard/review/%') AND (p.link LIKE 'http%' OR p.link LIKE '/%')) AS vproof
       FROM bot_tasks t WHERE t.status = 'review' ORDER BY t.updated_at LIMIT 500`),
     q("SELECT id, title, action, payload, requested_by, task_id, created_at AS at FROM bot_approvals WHERE status = 'pending' ORDER BY created_at LIMIT 500"),
     q("SELECT id, question, context, options, asked_by, task_id, created_at AS at, idem_key FROM bot_questions WHERE status = 'open' ORDER BY created_at LIMIT 500"),
@@ -205,6 +209,9 @@ function reviewOf(D) {
 // POST /v1/approvals/:id/decide, POST /v1/questions/:id/answer. Links: web or same-site paths only, never local files.
 const API = '/dashboard/api/v1';
 const webLink = (h) => (/^(https?:\/\/|\/(?![/\\]))/i.test(String(h || '')) ? String(h) : '');
+// The card's other web proof links (not the main one), for the detail view.
+const proofLinks = (raw, main) => [...new Set(String(raw || '').split(/\r?\n/).map(webLink).filter(Boolean))].filter((h) => h !== main)
+  .map((href) => ({ label: /\/dashboard\/f\//.test(href) ? 'Proof file' : href.replace(/^https?:\/\//, '').slice(0, 60), href }));
 const shortDue = (due) => {
   const d = String(due || '').slice(0, 10);
   return /^\d{4}-\d{2}-\d{2}$/.test(d) ? new Intl.DateTimeFormat('en-US', { timeZone: 'UTC', month: 'short', day: 'numeric' }).format(new Date(`${d}T12:00:00Z`)) : '';
@@ -225,6 +232,7 @@ function queueOf(D) {
       sub: [ownerName(t.owner), due && `due ${due}`, `waiting ${waited(t.at)}`].filter(Boolean).join(' · '),
       facts: [['Owner', ownerName(t.owner) || '–'], ['Project', t.project || '–'], ['Due', due || '–'], ['Waiting', waited(t.at)]].map(([l, v]) => ({ l, v })),
       body: noteText(t.note), link, linkLabel: /\/dashboard\/review\//i.test(link) ? 'Open the review page' : 'Open the proof',
+      links: proofLinks(t.links, link),
       act: { type: 'card', url: `${API}/tasks/${t.id}` },
     });
   }

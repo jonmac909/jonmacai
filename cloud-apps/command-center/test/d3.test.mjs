@@ -830,6 +830,19 @@ test('GET /dashboard/api/d3: Review queue from D1, videos first, dev cards last,
   assert.deepEqual(by['q:q4'].act.options, ['$2,500', 'Other (type your own)']);
 });
 
+test('Review queue: a local-path proof never hides the card web links or turns it into an empty video', async () => {
+  const db = teamDb();
+  ins(db, 'bot_tasks', { id: 'lp', title: 'Render with local newest', owner: 'video-editor', status: 'review', created_by: 'ana', updated_by: 'qc', created_at: H(3), updated_at: H(3) });
+  ins(db, 'bot_proofs', { id: 'lp1', task_id: 'lp', kind: 'url', link: 'https://homeguidepress.com/page', status: 'passed', created_by: 'qc', created_at: H(3) });
+  ins(db, 'bot_proofs', { id: 'lp2', task_id: 'lp', kind: 'render', link: 'D:\work\shot.jpg', status: 'passed', created_by: 'qc', created_at: H(2) });
+  ins(db, 'bot_tasks', { id: 'lq', title: 'Local render only', owner: 'video-editor', status: 'review', created_by: 'ana', updated_by: 'qc', created_at: H(3), updated_at: H(3) });
+  ins(db, 'bot_proofs', { id: 'lq1', task_id: 'lq', kind: 'render', link: 'D:\work\clip.mp4', status: 'passed', created_by: 'qc', created_at: H(2) });
+  const by = Object.fromEntries((await d3Of(db)).d3.queue.map((x) => [x.id, x]));
+  assert.deepEqual([by['t:lp'].type, by['t:lp'].link], ['card', 'https://homeguidepress.com/page']);
+  assert.equal(by['t:lq'].type, 'card'); // no web link: not a video with an empty player
+  assert.equal(by['t:lq'].link, '');
+});
+
 test('Review page: videos first, then sponsor drafts, dev cards last with one-click Done, buttons per type, Undo disabled, text escaped, no design sample text', async () => {
   const d2 = SAMPLE();
   const d3 = await d3Of(reviewDb());
