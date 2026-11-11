@@ -74,9 +74,9 @@ function revenueHtml(d2resp, P) {
     ? `<b class="num" style="font-size: 52px">${esc(usd(m.actual))}</b>${target ? `<span class="dim" style="font-size: 16px">of ${esc(usd(target))} in ${esc(P.monthName)}</span>` : ''}`
     : `<b class="num nf">${m ? 'No data' : 'No feed'}</b>`;
   const bar = has && target ? `<span class="bar" style="height: 10px; border-radius: 5px"><i style="width: ${Math.min(100, Math.round((m.actual / target) * 100))}%; border-radius: 5px"></i>${num(m.pace) ? `<b style="left: ${Math.min(100, Math.round((m.pace / target) * 100))}%"></b>` : ''}</span>` : '';
-  const series = has ? stepSeries(m.perDay, P, target) : null;
+  const series = has ? stepSeries(sp.cashDays, P, target) : null;
   const tx = px(P.monthT);
-  const deposits = m?.perDay ? Object.values(m.perDay).filter((v) => Number(v) > 0).length : null;
+  const deposits = sp?.cashDays ? Object.values(sp.cashDays).filter((v) => Number(v) > 0).length : null;
   const daysLeft = d2resp?.d2?.period?.month?.daysLeft;
   const stat = (l, v) => `<div class="stack"><span class="mut">${l}</span>${v == null ? '<span class="krv nf">No feed</span>' : `<span class="krv">${esc(v)}</span>`}</div>`;
   return `<section class="card" style="flex: 3 1 440px">
@@ -190,7 +190,7 @@ export function renderMoney(d2resp, d3resp) {
   return `${head}
 <div class="row">
 ${tile('Collected', num(m?.target) ? `of ${usd(m.target)}` : 'this month', num(m?.actual) ? usd(m.actual) : null)}
-${tile('Not invoiced', agreed ? (priced.length ? priced.map((d) => d.name).join(', ') : 'no priced deal agreed') : '', agreed ? usd(priced.reduce((n, d) => n + d.amt, 0)) : null)}
+${tile('Agreed, not invoiced', agreed ? (priced.length ? priced.map((d) => d.name).join(', ') : 'no priced deal agreed') : '', agreed ? usd(priced.reduce((n, d) => n + d.amt, 0)) : null)}
 ${tile('Viral View', hasValue(vv) ? `MRR${vv.sub ? ` · ${vv.sub}` : ''}` : 'MRR', hasValue(vv) ? vv.value : null)}
 ${tile('Team cost', `${P.monthShort} 1–${P.day}`, null)}
 </div>

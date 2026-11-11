@@ -126,7 +126,7 @@ function queueOf(D) {
   const items = [];
   for (const t of D.review) {
     const link = webLink(t.link);
-    const video = /\/dashboard\/review\//i.test(link) || /\b(video|render|edit)\b/i.test(t.title || '');
+    const video = /\/dashboard\/review\//i.test(link) || /\b(video|render)\b/i.test(t.title || '');
     const due = shortDue(t.due);
     items.push({
       id: `t:${t.id}`, type: video ? 'video' : 'card', kind: video ? 'Video' : 'Card in Review', name: t.title, head: t.title, at: t.at,

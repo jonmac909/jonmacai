@@ -436,6 +436,8 @@ function buildGoal(g, C) {
       channels: focus.map((c) => ({ slug: c.slug, label: c.label, focus: true })),
       ...(g.group ? { parked: parked.map((c) => ({ slug: c.slug, label: c.label })) } : {}),
       month: strip(month),
+      // Sponsor deposits per day this month, for the Money page's step chart (d2 metrics drop perDay).
+      ...(g.month.metric === 'sponsorCash' ? { cashDays: month.perDay || null } : {}),
       week: g.week.map((m) => strip(run(m, 'week'))),
       day: g.day.map((m) => strip(run(m, 'day'))),
       trend: trendOf(month, C),

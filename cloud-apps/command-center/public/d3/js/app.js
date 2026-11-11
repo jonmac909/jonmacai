@@ -13,6 +13,8 @@ import { renderMoney } from './money.js';
 const PAGES = { goals: 'Goals', team: 'Team', blockers: 'Blockers', review: 'Review', money: 'Money', bluesky: 'Bluesky', system: 'System' };
 const SIGNIN = 'd3-signin';
 const main = document.getElementById('main');
+// Review state that belongs to one item: cleared when the item or the page changes.
+const RV_CLEAR = { rvBack: null, rvEdit: null, rvDraft: {}, rvText: '', rvErr: '' };
 const S = { d2: null, d3: null, error: '', signedOut: false, ui: { openKr: null, hgpOpen: false, busy: false, openBot: null, openBl: null, blFilter: 'all', rvSel: null, rvDone: {}, rvKept: {}, rvBack: null, rvEdit: null, rvDraft: {}, rvText: '', rvErr: '' } };
 
 // ---- theme (the inline script in index.html applies the saved one before paint) ----
@@ -104,7 +106,7 @@ async function load() {
 main.addEventListener('click', async (e) => {
   if (page() === 'review' && await reviewClick(e, S, render, load)) return;
   const rvgo = e.target.closest('[data-rvgo]'); // Blockers "Open in Review": the link changes the page, this picks the item
-  if (rvgo) { S.ui.rvSel = rvgo.dataset.rvgo; return; }
+  if (rvgo) { Object.assign(S.ui, RV_CLEAR, { rvSel: rvgo.dataset.rvgo }); return; }
   const bot = e.target.closest('[data-bot]');
   if (bot) { S.ui.openBot = S.ui.openBot === bot.dataset.bot ? null : bot.dataset.bot; render(); return; }
   const bl = e.target.closest('[data-bl]');
@@ -141,7 +143,7 @@ main.addEventListener('input', (e) => {
   else if (e.target.matches('.rvin')) S.ui.rvDraft = { ...S.ui.rvDraft, [e.target.name]: e.target.value };
 });
 
-window.addEventListener('hashchange', () => { Object.assign(S.ui, { openKr: null, openBot: null, openBl: null }); render(); });
+window.addEventListener('hashchange', () => { Object.assign(S.ui, { openKr: null, openBot: null, openBl: null, ...RV_CLEAR, rvDone: {}, rvKept: {} }); render(); });
 setInterval(() => { if (document.visibilityState === 'visible') load(); }, 60000);
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') load(); });
 render();

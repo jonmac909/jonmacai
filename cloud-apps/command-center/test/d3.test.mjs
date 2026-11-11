@@ -487,16 +487,23 @@ test('Review page: sponsor drafts first, buttons per type, Undo disabled, text e
   assert.match(html, /data-rv="edit"/);
   assert.match(html, /ann@poppy\.ai/);
   const pick = (id, ui = {}) => renderReview(d2, d3, { rvSel: id, ...ui });
+  // A video with a review page is approved there (that locks the version): only the link, no Approve here.
   const vid = pick('t:vid');
-  assert.match(vid, /data-rv="approve"[^>]*>Approve<\/button><button[^>]*data-rv="open-back"/);
-  assert.match(vid, /href="\/dashboard\/review\/abc"/);
+  assert.match(vid, /<a class="btn pri lg" href="\/dashboard\/review\/abc"[^>]*>Approve or send back on the review page<\/a>/);
+  assert.doesNotMatch(vid, /data-rv="approve"/);
   assert.match(vid, /Final cut &lt;b&gt;v2&lt;\/b&gt;|Final cut v2/);
   assert.doesNotMatch(vid, /<b>v2<\/b>/);
   assert.doesNotMatch(pick('t:loc'), /out\.mp4/);
-  assert.match(pick('t:rev', { rvBack: 't:rev' }), /class="rvtext"[\s\S]*data-rv="back"[\s\S]*data-rv="cancel"/);
-  assert.match(pick('a:a1'), /data-rv="yes"[^>]*>Approve<\/button><button[^>]*data-rv="no"[^>]*>Reject/);
-  assert.match(pick('q:q4'), /data-rv="opt" data-opt="\$2,500"/);
-  assert.match(pick('q:q2'), /class="rvtext"[\s\S]*data-rv="answer"/);
+  // Every action button carries the id of the item it was drawn for.
+  assert.match(pick('t:rev'), /data-rv="approve" data-id="t:rev"[^>]*>Approve<\/button><button[^>]*data-rv="open-back" data-id="t:rev"/);
+  assert.match(pick('t:rev', { rvBack: 't:rev' }), /class="rvtext"[\s\S]*data-rv="back" data-id="t:rev"[\s\S]*data-rv="cancel"/);
+  assert.match(pick('a:a1'), /data-rv="yes" data-id="a:a1"[^>]*>Approve<\/button><button[^>]*data-rv="no"[^>]*>Reject/);
+  // "Other (type your own)" is the typed box, never a button that sends those words.
+  const q4 = pick('q:q4');
+  assert.match(q4, /data-rv="opt" data-id="q:q4" data-opt="\$2,500"/);
+  assert.doesNotMatch(q4, /data-opt="Other/);
+  assert.match(q4, /placeholder="Or type your own answer"[\s\S]*data-rv="answer" data-id="q:q4"/);
+  assert.match(pick('q:q2'), /placeholder="Type your answer"[\s\S]*data-rv="answer"/);
   assert.match(pick('q:q2', { rvDone: { 'q:q2': 'Answered' } }), /Answered<\/span><button type="button" class="btn lg" disabled title="Nothing to undo with yet">Undo/);
   for (const s of ['Atoms', '$5,500', 'Arcads', 'Dale Whitaker', 'Undo the last']) assert.ok(!html.includes(s), s);
   assert.match(renderReview(null, null, {}), /No feed: the review queue could not be read/);
@@ -515,21 +522,34 @@ test('Review clicks: each button calls only its write, after a confirm where it 
   globalThis.document = { querySelector: () => ({ value: typed }) };
   const el = (attrs) => ({ dataset: attrs, disabled: false });
   const ev = (key, attrs) => ({ target: { closest: (sel) => (sel === `[data-${key}]` ? el(attrs) : null) } });
+  let reloads = 0;
   const run = async (sel, key, attrs, ui = {}) => {
     const S = { d2, d3, ui: { rvSel: sel, ...ui } };
-    await reviewClick(ev(key, attrs), S, () => {}, async () => {});
+    await reviewClick(ev(key, key === 'rv' ? { id: sel, ...attrs } : attrs), S, () => {}, async () => { reloads += 1; });
     return S.ui;
   };
   try {
-    let ui = await run('t:vid', 'rv', { rv: 'approve' });
-    assert.deepEqual(calls.pop(), ['/dashboard/api/v1/tasks/vid', 'PATCH', { status: 'done' }]);
-    assert.equal(ui.rvDone['t:vid'], 'Approved');
-    yes = false;
+    let ui = await run('t:rev', 'rv', { rv: 'approve' });
+    assert.deepEqual(calls.pop(), ['/dashboard/api/v1/tasks/rev', 'PATCH', { status: 'done' }]);
+    assert.equal(ui.rvDone['t:rev'], 'Approved');
+    // A video with a review page, a button of the wrong type, or an item gone since it was drawn: nothing sent.
     await run('t:vid', 'rv', { rv: 'approve' });
-    await run('a:a1', 'rv', { rv: 'yes' });
-    await run('d:c-poppy', 'rv', { rv: 'send' });
-    assert.equal(calls.length, 0); // confirm said no: nothing sent
+    await run('a:a1', 'rv', { rv: 'approve' });
+    await run('q:q4', 'rv', { rv: 'yes' });
+    reloads = 0;
+    ui = await run('t:rev', 'rv', { rv: 'approve', id: 'q:gone' });
+    assert.match(ui.rvErr, /This item changed/);
+    assert.equal(reloads, 1);
+    assert.equal(calls.length, 0);
+    // Every write confirms first: No sends nothing.
+    yes = false;
+    typed = 'Fix it';
+    for (const [sel, rv, extra] of [['t:rev', 'approve'], ['t:rev', 'back', { rvBack: 't:rev' }], ['a:a1', 'yes'], ['a:a1', 'no'], ['q:q4', 'opt', { opt: '$2,500' }], ['q:q2', 'answer'], ['d:c-poppy', 'send']]) {
+      await run(sel, 'rv', { rv, ...(extra?.opt ? { opt: extra.opt } : {}) }, extra?.rvBack ? { rvBack: extra.rvBack } : {});
+    }
+    assert.equal(calls.length, 0);
     yes = true;
+    typed = '';
     ui = await run('t:rev', 'rv', { rv: 'back' }, { rvBack: 't:rev' });
     assert.equal(calls.length, 0);
     assert.match(ui.rvErr, /Type what should change/);
@@ -547,14 +567,23 @@ test('Review clicks: each button calls only its write, after a confirm where it 
     const [url, method, body] = calls.pop();
     assert.deepEqual([url, method, body.kind, body.payload.body, body.payload.to], ['/dashboard/api/actions', 'POST', 'sponsor.send_draft', 'Edited', 'ann@poppy.ai']);
     assert.ok(body.idemKey);
+    typed = 'My own answer';
+    await run('q:q4', 'rv', { rv: 'answer' });
+    assert.deepEqual(calls.pop(), ['/dashboard/api/v1/questions/q4/answer', 'POST', { answer: 'My own answer' }]);
     // Done items, busy state and a failed write: nothing sent twice, the error shown.
-    await run('t:vid', 'rv', { rv: 'approve' }, { rvDone: { 't:vid': 'Approved' } });
-    await run('t:vid', 'rv', { rv: 'approve' }, { busy: true });
+    await run('t:rev', 'rv', { rv: 'approve' }, { rvDone: { 't:rev': 'Approved' } });
+    await run('t:rev', 'rv', { rv: 'approve' }, { busy: true });
     assert.equal(calls.length, 0);
-    globalThis.fetch = async () => new Response('{"error":"not allowed"}', { status: 403 });
-    ui = await run('t:vid', 'rv', { rv: 'approve' });
+    globalThis.fetch = async (url, o) => { calls.push(JSON.parse(o.body)); return new Response('{"error":"not allowed"}', { status: 403 }); };
+    ui = await run('t:rev', 'rv', { rv: 'approve' });
     assert.equal(ui.rvErr, 'Could not save: not allowed');
-    assert.ok(!ui.rvDone?.['t:vid']);
+    assert.ok(!ui.rvDone?.['t:rev']);
+    // A failed email send keeps its key, so the retry can't send twice.
+    const S = { d2, d3, ui: { rvSel: 'd:c-poppy' } };
+    await reviewClick(ev('rv', { rv: 'send', id: 'd:c-poppy' }), S, () => {}, async () => {});
+    await reviewClick(ev('rv', { rv: 'send', id: 'd:c-poppy' }), S, () => {}, async () => {});
+    const [k1, k2] = calls.splice(-2).map((x) => x.idemKey);
+    assert.ok(k1 && k1 === k2);
     // Picking and paging change only the selection.
     ui = await run('t:vid', 'rvnav', { rvnav: '1' });
     assert.notEqual(ui.rvSel, 't:vid');
@@ -571,7 +600,7 @@ test('Money page: design sections, six deal stages from the Sponsors board, No f
   assert.deepEqual(st.map((s) => s.deals.length), [0, 1, 0, 2, 0, 1]); // Archived column left out
   assert.equal(st[1].deals[0].note, 'your send');
   const html = renderMoney(d2, d3);
-  const order = ['<h1>Money</h1>', 'Collected', 'Not invoiced', 'Viral View', 'Team cost', 'Sponsor Revenue', 'Income and profit', 'Sponsor deals', 'Team cost'];
+  const order = ['<h1>Money</h1>', 'Collected', 'Agreed, not invoiced', 'Viral View', 'Team cost', 'Sponsor Revenue', 'Income and profit', 'Sponsor deals', 'Team cost'];
   let at = -1;
   for (const s of order) { const i = html.indexOf(s, at + 1); assert.ok(i > at, `${s} after the one before`); at = i; }
   assert.match(html, /\$3,100/);
@@ -583,6 +612,16 @@ test('Money page: design sections, six deal stages from the Sponsors board, No f
   assert.match(html, /Profit this month<\/span><span class="num nf"[^>]*>No data/);
   for (const n of d3.d3.team.bots.map((b) => b.names[0]).slice(0, 3)) assert.match(html, new RegExp(`>${n}</span><span class="bar"`));
   for (const s of ['$4,194', '$1,859', '$1,711', '$3,211', '$5,500', '$7,000', 'Atoms']) assert.ok(!html.includes(s), s);
+  // Deposit days from d2's sponsors cashDays (real d2 output in the sample) draw the collected line and count.
+  assert.deepEqual(d2.d2.goals.find((g) => g.key === 'sponsors').cashDays, { '2026-11-01': 1000, '2026-11-03': 2100 });
+  assert.match(html, /<polyline class="act" points="/);
+  assert.match(html, /Deposit days<\/span><span class="krv">2</);
+  d2.d2.goals.find((g) => g.key === 'sponsors').cashDays = null;
+  const noDays = renderMoney(d2, d3);
+  assert.doesNotMatch(noDays, /class="act"/);
+  assert.match(noDays, /Deposit days<\/span><span class="krv nf">No feed/);
+  // The rail's Review count is the Review page's queue, drafts included.
+  assert.equal(railCounts(d2, d3).review, reviewItems(d2, d3).length);
   // Nothing readable: every part says so, the page still draws.
   const none = renderMoney(null, null);
   assert.match(none, /No feed: the Sponsors board could not be read/);

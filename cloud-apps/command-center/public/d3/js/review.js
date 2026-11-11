@@ -3,8 +3,10 @@
 // (cards in Review, pending approvals, open questions). Every button calls a write the dashboard already has, and only
 // on Jon's click:
 //   card      Approve = PATCH /v1/tasks/:id {status: done}; Send back = PATCH {status: doing, comment}
+//             (a video with a review page only links there: approving it on that page locks the version)
 //   approval  Approve / Reject = POST /v1/approvals/:id/decide
-//   question  an option, or typed text = POST /v1/questions/:id/answer
+//   question  an option, or typed text = POST /v1/questions/:id/answer ("Other ..." options are the typed box)
+// Each write asks Jon to confirm first and goes to the item its button was drawn for.
 //   email     Send = POST /dashboard/api/actions {kind: the draft's sendKind}; Edit first edits the draft in place
 // Undo has nothing to call yet, so it shows disabled.
 import { esc, icon, draftsOf } from './util.js';
@@ -39,26 +41,33 @@ function shown(items, ui) {
   return [...items, ...kept];
 }
 
+// A video with a review page is approved or sent back there, so the review app locks that version (VIDEO.md).
+const reviewPage = (c) => c.type === 'video' && /\/dashboard\/review\//i.test(safeHref(c.link));
+const OTHER = /^other\b/i; // "Other (type your own)": the typed box below the options, never sent as the answer
+// Which buttons each item type takes; a click on any other is ignored.
+const ALLOWED = { card: ['approve', 'open-back', 'cancel', 'back'], approval: ['yes', 'no'], question: ['opt', 'answer'], email: ['send', 'edit'] };
+
 function buttons(c, ui) {
   const busy = ui.busy ? ' disabled' : '';
   const a = c.act || {};
   if (ui.rvDone?.[c.id]) {
     return `<span class="pill ok" style="padding: 8px 14px; font-size: 13px">${esc(ui.rvDone[c.id])}</span><button type="button" class="btn lg" disabled title="Nothing to undo with yet">Undo</button>`;
   }
+  // Every action button names the item it was drawn for, so a refresh in between can never move the click.
+  const btn = (rv, label, pri, extra = '') => `<button type="button" class="btn${pri ? ' pri' : ''} lg" data-rv="${rv}" data-id="${esc(c.id)}"${extra}${busy}>${esc(label)}</button>`;
   const box = (ph, label) => `<div class="stack" style="flex: 1 1 100%; gap: 8px"><textarea class="rvtext" rows="3" maxlength="4000" placeholder="${esc(ph)}" aria-label="${esc(ph)}">${esc(ui.rvText || '')}</textarea>
-<div class="hd" style="gap: 10px; flex-wrap: wrap"><button type="button" class="btn pri lg" data-rv="${label === 'Send back' ? 'back' : 'answer'}"${busy}>${esc(label)}</button>${label === 'Send back' ? `<button type="button" class="btn lg" data-rv="cancel"${busy}>Cancel</button>` : ''}</div></div>`;
+<div class="hd" style="gap: 10px; flex-wrap: wrap">${label === 'Send back' ? `${btn('back', 'Send back', true)}${btn('cancel', 'Cancel')}` : btn('answer', label, true)}</div></div>`;
   if (a.type === 'card') {
+    if (reviewPage(c)) return `<a class="btn pri lg" href="${esc(safeHref(c.link))}" target="_blank" rel="noopener">Approve or send back on the review page</a>`;
     if (ui.rvBack === c.id) return box('What should change', 'Send back');
-    return `<button type="button" class="btn pri lg" data-rv="approve"${busy}>Approve</button><button type="button" class="btn lg" data-rv="open-back"${busy}>Send back</button>`;
+    return `${btn('approve', 'Approve', true)}${btn('open-back', 'Send back')}`;
   }
-  if (a.type === 'approval') return `<button type="button" class="btn pri lg" data-rv="yes"${busy}>Approve</button><button type="button" class="btn lg" data-rv="no"${busy}>Reject</button>`;
+  if (a.type === 'approval') return `${btn('yes', 'Approve', true)}${btn('no', 'Reject')}`;
   if (a.type === 'question') {
-    if (a.options?.length) return a.options.map((o, i) => `<button type="button" class="btn${i ? '' : ' pri'} lg" data-rv="opt" data-opt="${esc(o)}"${busy}>${esc(o)}</button>`).join('');
-    return box('Type your answer', 'Send');
+    const opts = (a.options || []).filter((o) => !OTHER.test(o));
+    return `${opts.map((o, i) => btn('opt', o, !i, ` data-opt="${esc(o)}"`)).join('')}${box(opts.length ? 'Or type your own answer' : 'Type your answer', 'Send')}`;
   }
-  if (a.type === 'email') {
-    return `<button type="button" class="btn pri lg" data-rv="send"${busy}>Send</button><button type="button" class="btn lg" data-rv="edit" aria-pressed="${ui.rvEdit === c.id}"${busy}>Edit first</button>`;
-  }
+  if (a.type === 'email') return `${btn('send', 'Send', true)}${btn('edit', 'Edit first', false, ` aria-pressed="${ui.rvEdit === c.id}"`)}`;
   return '';
 }
 
@@ -155,9 +164,11 @@ export async function reviewClick(e, S, render, reload) {
   const b = e.target.closest('[data-rv]');
   if (!b) return false;
   if (b.disabled || ui.busy) return true;
-  const c = q[Math.max(0, q.findIndex((x) => x.id === ui.rvSel))];
-  if (!c || ui.rvDone?.[c.id]) return true;
+  const c = q.find((x) => x.id === b.dataset.id);
+  if (!c) { ui.rvErr = 'This item changed since it was shown. Check it again.'; render(); await reload(); return true; }
+  if (ui.rvDone?.[c.id]) return true;
   const what = b.dataset.rv;
+  if (!(ALLOWED[c.act?.type] || []).includes(what) || reviewPage(c)) return true;
   const text = () => document.querySelector('#main .rvtext')?.value.trim() || '';
   if (what === 'open-back') { Object.assign(ui, { rvBack: c.id, rvText: '', rvErr: '' }); render(); return true; }
   if (what === 'cancel') { Object.assign(ui, { rvBack: null, rvText: '', rvErr: '' }); render(); return true; }
@@ -171,24 +182,27 @@ export async function reviewClick(e, S, render, reload) {
   } else if (what === 'back') {
     const comment = text();
     if (!comment) { ui.rvErr = 'Type what should change first.'; render(); return true; }
+    if (!window.confirm(`Send "${c.head}" back with your note?`)) return true;
     call = () => send(a.url, 'PATCH', { status: 'doing', comment }); label = 'Sent back';
   } else if (what === 'yes') {
     if (!window.confirm(a.confirm || `Approve "${c.head}"?`)) return true;
     call = () => send(a.url, 'POST', { decision: 'approve' }); label = 'Approved';
   } else if (what === 'no') {
+    if (!window.confirm(`Reject "${c.head}"?`)) return true;
     call = () => send(a.url, 'POST', { decision: 'reject' }); label = 'Rejected';
   } else if (what === 'opt' || what === 'answer') {
     const answer = what === 'opt' ? b.dataset.opt : text();
     if (!answer) { ui.rvErr = 'Type an answer first.'; render(); return true; }
+    if (!window.confirm(`Answer "${c.head}" with "${answer}"?`)) return true;
     call = () => send(a.url, 'POST', { answer }); label = what === 'opt' ? answer : 'Answered';
   } else if (what === 'send') {
     const payload = { ...a.payload, ...(ui.rvEdit === c.id ? ui.rvDraft || {} : {}) };
     if (!String(payload.to || '').trim() || !String(payload.body || '').trim()) { ui.rvErr = 'The draft needs a recipient and text.'; render(); return true; }
     if (!window.confirm(`Send this email to ${payload.to}?`)) return true;
-    call = async () => {
-      const row = await send('/dashboard/api/actions', 'POST', { kind: payload.sendKind, payload, idemKey: crypto.randomUUID() });
-      return row;
-    };
+    // One key per draft until it goes through, so a retry after a lost answer can't send it twice.
+    ui.rvIdem = { ...(ui.rvIdem || {}) };
+    const idemKey = ui.rvIdem[c.id] || (ui.rvIdem[c.id] = crypto.randomUUID());
+    call = () => send('/dashboard/api/actions', 'POST', { kind: payload.sendKind, payload, idemKey });
     label = 'Send queued';
   } else return true;
   ui.busy = true;

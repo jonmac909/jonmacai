@@ -23,6 +23,6 @@ export function statHtml(d3) { // the /dashboard/api/d3 answer
 // Review = the Review page's queue.
 export function railCounts(d2, d3) {
   const blockers = blockerRows(d2, d3);
-  const review = d3?.d3?.review;
-  return { blockers: blockers ? blockers.length : null, review: review ? review.count : null };
+  const review = reviewItems(d2, d3);
+  return { blockers: blockers ? blockers.length : null, review: review ? review.length : null };
 }

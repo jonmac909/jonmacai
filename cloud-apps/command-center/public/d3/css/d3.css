@@ -131,3 +131,4 @@ html[data-theme="dark"] body{background:#0b0b0c}
   .d3 .blrow>:nth-child(2),.d3 .blrow>:nth-child(3){display:none}
   .d3 .board{grid-template-columns:repeat(2,minmax(0,1fr)) !important}
 }
+.d3 [data-rv="opt"]{white-space:normal;text-align:left;height:auto;padding:10px 16px}
