@@ -44,10 +44,10 @@ test('Money deal view: a planted deal shows all 3 thread messages oldest first, 
   assert.match(html, /3 messages, oldest first/);
   const at = ['First: we would love', 'Second: rate is', 'Third: deal'].map((s) => html.indexOf(s));
   assert.ok(at.every((i) => i > 0) && at[0] < at[1] && at[1] < at[2], `in order: ${at}`);
-  // Dates in Kelowna time; the newest two open, the oldest folded.
+  // Dates in Kelowna time; all 3 messages open by default, bodies shown.
   assert.match(html, /Nov 1, 2026, 10:00 AM/);
   const opens = [...html.matchAll(/<details class="rvmsg"( open)?>/g)].map((m) => !!m[1]);
-  assert.deepEqual(opens, [false, true, true]);
+  assert.deepEqual(opens, [true, true, true]);
   assert.equal((html.match(/earlier quoted text hidden/g) || []).length, 2);
   // The board itself isn't drawn under the deal view; the way back is.
   assert.doesNotMatch(html, /Sponsor deals/);

@@ -1,7 +1,7 @@
 // A sponsor's Gmail thread, oldest first: the Money page's deal view, and the Review page's sponsor drafts can import it.
 // Data: ui.rvThreads = GET /dashboard/api/sponsor-threads ({ at, threads: { <threadId>: { subject, messages } } }),
-// filled by bots/sponsor_threads.py on GPU1 (partners@, read only). The newest two messages start open, older ones
-// folded; a click on a summary (data-rvmsg) opens or folds one, kept in ui.rvOpen so the 60 s refresh keeps it.
+// filled by bots/sponsor_threads.py on GPU1 (partners@, read only). Every message starts open;
+// a click on a summary (data-rvmsg) folds or opens one, kept in ui.rvOpen so the 60 s refresh keeps it.
 import { esc } from './util.js';
 
 export const when = (iso) => {
@@ -19,7 +19,7 @@ export function threadHtml(threadId, ui) {
   if (!msgs.length) return box('<span class="mut">Email thread</span><span class="nf">No thread found</span>');
   const rows = msgs.map((m, j) => {
     const key = `${threadId}:${j}`;
-    const open = ui.rvOpen?.[key] ?? j >= msgs.length - 2;
+    const open = ui.rvOpen?.[key] ?? true;
     return `<details class="rvmsg"${open ? ' open' : ''}><summary data-rvmsg="${esc(key)}"><b class="ell">${esc(m.from || 'Unknown sender')}</b><span class="mut" style="flex: none">${esc(when(m.date))}</span></summary>
 <p class="sub" style="white-space: pre-wrap; overflow-wrap: anywhere">${m.body ? esc(m.body) : '<span class="nf">No text</span>'}${m.quoted ? '\n<span class="mut">(earlier quoted text hidden)</span>' : ''}</p></details>`;
   }).join('\n');
