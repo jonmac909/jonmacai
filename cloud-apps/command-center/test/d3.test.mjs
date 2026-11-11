@@ -370,7 +370,7 @@ test('Blockers page: filters, rows open to what they block, review items link to
   assert.match(ap, /Blocks<\/span><span>Florence · Approval to publish draft<\/span>/);
   assert.match(ap, /Ana<\/span><span class="nf">No feed<\/span>/);
   assert.match(ap, /<a class="btn pri" href="#review" data-rvgo="a:a1">Open in Review<\/a>/);
-  assert.doesNotMatch(renderBlockers(d2, d3, { openBl: 't:stuck' }), /Open in Review/);
+  assert.doesNotMatch(renderBlockers(d2, d3, { openBl: 't:stuck' }).split('<h2>Open blockers</h2>')[1], /Open in Review/); // Needs you above has its own
   // No cards: no rows, tiles say No feed.
   assert.match(renderBlockers(d2, null, {}), /No feed: the dashboard cards could not be read/);
 });

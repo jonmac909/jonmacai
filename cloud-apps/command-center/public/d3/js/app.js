@@ -7,6 +7,7 @@ import { statHtml, railCounts } from './rail.js';
 import { renderGoals, headerOnly } from './goals.js';
 import { renderTeam } from './team.js';
 import { renderBlockers } from './blockers.js';
+import { needsClick } from './needs.js';
 import { renderReview, reviewClick } from './review.js';
 import { renderMoney } from './money.js';
 
@@ -105,6 +106,7 @@ async function load() {
 // ---- clicks: open a key result's trend, show channel names, open a bot or blocker row, filter blockers, log a workout or date night ----
 main.addEventListener('click', async (e) => {
   if (page() === 'review' && await reviewClick(e, S, render, load)) return;
+  if (page() === 'blockers' && await needsClick(e, S, render, load)) return;
   const rvgo = e.target.closest('[data-rvgo]'); // Blockers "Open in Review": the link changes the page, this picks the item
   if (rvgo) { Object.assign(S.ui, RV_CLEAR, { rvSel: rvgo.dataset.rvgo }); return; }
   const bot = e.target.closest('[data-bot]');

@@ -347,17 +347,17 @@ function blockersOf(D, putOff = []) {
   for (const t of D.tasks) {
     if (t.status !== 'waiting_on_jon') continue;
     seen.add(t.id);
-    add({ id: `t:${t.id}`, kind: 'p', you: true, title: t.title, at: t.updated_at, owner: ownerName(t.owner), blocks: plain(t.note) || 'Waiting on you' });
+    add({ id: `t:${t.id}`, kind: 'p', you: true, title: t.title, at: t.updated_at, sponsor: t.owner === 'sponsors', owner: ownerName(t.owner), blocks: plain(t.note) || 'Waiting on you' });
   }
   for (const x of D.questions) {
     if (hidden(x.idem_key)) continue;
     const t = x.task_id && byId.get(x.task_id);
     if (t && seen.has(t.id)) continue;
-    add({ id: `q:${x.id}`, kind: 'p', you: true, review: true, title: plain(x.question) || 'Question', at: x.at, owner: ownerName(x.asked_by), blocks: t ? t.title : 'No card linked' });
+    add({ id: `q:${x.id}`, kind: 'p', you: true, review: true, title: plain(x.question) || 'Question', at: x.at, sponsor: x.asked_by === 'sponsors', owner: ownerName(x.asked_by), blocks: t ? t.title : 'No card linked' });
   }
   for (const x of D.approvals) {
     const t = x.task_id && byId.get(x.task_id);
-    add({ id: `a:${x.id}`, kind: 'p', you: true, review: true, title: x.title, at: x.at, owner: ownerName(x.requested_by), blocks: t ? t.title : `Approval to ${String(x.action || '').replace(/_/g, ' ')}` });
+    add({ id: `a:${x.id}`, kind: 'p', you: true, review: true, title: x.title, at: x.at, sponsor: x.requested_by === 'sponsors', owner: ownerName(x.requested_by), blocks: t ? t.title : `Approval to ${String(x.action || '').replace(/_/g, ' ')}` });
   }
   for (const s of D.stuck) {
     const t = byId.get(s.task_id);
