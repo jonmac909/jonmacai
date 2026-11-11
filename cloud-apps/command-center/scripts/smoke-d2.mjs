@@ -14,6 +14,8 @@ r = await get('/dashboard-2/');
 check('/dashboard-2/ without session shows sign-in', r.status === 200 && /password/i.test(await r.text()), r.status);
 r = await get('/dashboard/api/d2');
 check('/dashboard/api/d2 without session is 401', r.status === 401, r.status);
+r = await get('/dashboard/api/d2/ana');
+check('/dashboard/api/d2/ana without a token is 401', r.status === 401, r.status);
 r = await get('/dashboard-2/js/app.js');
 check('page script is served', r.status === 200 && /javascript/.test(r.headers.get('content-type') || ''), r.status);
 
@@ -31,7 +33,13 @@ if (secretFile) {
   check('two daily checks', d2.checks?.length === 2, d2.checks?.length);
   check('pipeline boards', d2.pipeline?.boards?.length === 6, d2.pipeline?.boards?.length);
   check('money tiles', d2.money?.tiles?.length > 0, d2.money?.tiles?.length);
-  if (j) console.log(JSON.stringify({ needs: d2.today.needs.count, jon: d2.today.jon.length, health: d2.today.needs.healthToAna, folded: d2.today.needs.chargesFolded, blockers: d2.today.blockers.length, stale: d2.stale.length }));
+  check('the rest went to Ana', Number.isInteger(d2.today?.toAna?.count), d2.today?.toAna?.count);
+  if (j) console.log(JSON.stringify({ jon: d2.today.jon.length, toAna: d2.today.toAna.count, health: d2.today.toAna.health, blockers: d2.today.toAna.blockers.length, stale: d2.stale.length }));
+  r = await get('/dashboard/api/d2/ana', cookie);
+  const a = r.ok ? await r.json() : null;
+  check('/dashboard/api/d2/ana lists the stale feeds and what went to Ana', Array.isArray(a?.stale) && a?.toAna?.count === d2.today.toAna.count, r.status);
+  r = await get('/dashboard-2/js/pages/month.js', cookie);
+  check('no stale banner in the page code', r.ok && !/These numbers are old/.test(await r.text()), r.status);
   r = await get('/dashboard/', cookie);
   check('/dashboard/ still serves its app', r.status === 200 && /Command Center/.test(await r.text()), r.status);
 }

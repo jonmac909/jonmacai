@@ -225,9 +225,13 @@ const d3Sample = () => ({ ok: true, d3: {
 test('Goals: sections in the design order, targets from the data, no design sample text', () => {
   const d2 = SAMPLE();
   const html = renderGoals(d2, d3Sample(), {});
-  const order = ['<h1>Goals</h1>', 'Key results', 'Sponsor Revenue', 'Pipeline revenue', '<h2>Content Factory</h2>', '<h2>Operations</h2>', '<h2>Personal</h2>', 'Videos Scheduled'];
+  const order = ['<h1>Goals</h1>', 'Key results', 'Sponsor Revenue', 'Pipeline revenue', '<h2>Content Factory</h2>', '<h2>Personal</h2>', 'Videos Scheduled'];
   let at = -1;
   for (const s of order) { const i = html.indexOf(s, at + 1); assert.ok(i > at, `${s} after the one before`); at = i; }
+  // Operations card removed (Jon, 2026-11-11): no card and no Key results rows for it; 13 rows left.
+  for (const s of ['Operations', 'Weeks token limit hit', 'Dashboard 3 pages built', 'Cost per video measured', 'typed &quot;continue&quot;']) assert.ok(!html.includes(s), s);
+  assert.equal((html.match(/class="krb"/g) || []).length, 13);
+  assert.match(html, /of 13 /);
   const hgp = d2.d2.goals.find((g) => g.key === 'hgp').week[0];
   assert.match(html, new RegExp(`of ${hgp.target} · ${hgp.rows.length} channels, ${hgp.rows[0].target} each`));
   assert.match(html, /\$3,100/);
@@ -268,7 +272,7 @@ test('Goals: missing sources read No feed / No data with a grey dot; text is esc
   // Trends: a week count plots its days; a number with no series says so.
   const open = renderGoals(d2, d3Sample(), { openKr: 'b3' });
   assert.match(open, /<polyline class="act [a-z]*" points="20,125 /);
-  assert.match(renderGoals(d2, d3Sample(), { openKr: 'c2' }), /No trend data yet\./);
+  assert.match(renderGoals(d2, d3Sample(), { openKr: 'b4' }), /No trend data yet\./);
   // + Log: on Workouts and Date nights only; disabled once logged today.
   const page = renderGoals(d2, d3Sample(), {});
   assert.match(page, /data-log="workout" disabled>Logged today/);
@@ -492,7 +496,7 @@ test('Page header escapes its sub line; Team header and Working tile read the sa
 
 test('d3.css: narrow screens stack the Team and Blockers rows, desktop rules unchanged', () => {
   const css = readFileSync(new URL('../public/d3/css/d3.css', import.meta.url), 'utf8');
-  assert.match(css, /\.d3 \.brow\{display:grid;grid-template-columns:170px minmax\(0,1fr\) 116px 60px 60px 56px 84px;/);
+  assert.match(css, /\.d3 \.brow\{display:grid;grid-template-columns:206px minmax\(0,1fr\) 116px 60px 60px 56px 84px;/);
   assert.match(css, /\.d3 \.blrow\{display:grid;grid-template-columns:minmax\(0,1fr\) 160px 90px 104px;/);
   const media = [...css.matchAll(/@media \(max-width:(\d+)px\)\{([\s\S]*?)\n\}/g)].map((m) => [Number(m[1]), m[2]]);
   const narrow = media.filter(([w]) => w < 1024).map(([, body]) => body).join('\n');
@@ -531,6 +535,22 @@ test('Video board: open cards with a stage, by stage, with count, oldest age, la
   assert.match(html, /data-stage="pack">[\s\S]*?\+1 more/);
   assert.match(html, /data-stage="sponsor review">[\s\S]*?no limit · oldest 2 hr/);
   assert.doesNotMatch(html, /Video v5/);
+});
+
+test('Video board: videos only; coding cards in build or deploy are left off, with no Build or Deploy column', async () => {
+  const db = teamDb();
+  const t = (id, stage, owner) => ins(db, 'bot_tasks', { id, title: `Card ${id}`, owner, project: owner === 'developer' ? 'coding' : 'home-guide-press', status: 'doing', stage, stage_since: H(20), created_by: 'ana', updated_by: 'ana', created_at: H(50), updated_at: H(0.5) });
+  t('c1', 'build', 'developer'); // past every limit: would count as late if it were on the board
+  t('c2', 'deploy', 'developer');
+  t('v1', 'edit', 'video-editor');
+  const L = (await d3Of(db)).d3.team.line;
+  assert.deepEqual(L.stages.map((s) => s.key), ['brief', 'script', 'script qc', 'a-roll', 'pack', 'edit', 'render qc', 'publish']);
+  assert.deepEqual([L.total, L.late], [1, 1]);
+  const html = renderTeam(SAMPLE(), (await d3Of(db)), {});
+  const board = html.slice(html.indexOf('<h2>Video board</h2>'));
+  assert.match(board, /Card v1/);
+  assert.doesNotMatch(board, /Card c1|Card c2|data-stage="build"|data-stage="deploy"|>Build<|>Deploy</);
+  assert.match(board, /grid-template-columns: repeat\(8, minmax\(0, 1fr\)\)/);
 });
 
 // ---- Card 3: Review and Money pages ----
@@ -785,6 +805,30 @@ test('Pipeline revenue: a repeat sponsor\'s second deal is its own row; an owed 
   assert.equal(q.collect.find((r) => r.amt === 2100).id, 'c-invideo');
   const ids = [...q.close, ...q.collect].map((r) => r.id).filter(Boolean);
   assert.equal(new Set(ids).size, ids.length);
+});
+
+test('Team page: each bot shows its profile picture from /dash/img/bots, rows with several bots stack them, others keep the letter', async () => {
+  const { avatars, BOT_PICS } = await import('../public/d3/js/team.js');
+  // Every roster name has a small picture file, and every picture in the list exists.
+  for (const n of TEAM.bots.flatMap((b) => b.names)) assert.ok(BOT_PICS.has(n.toLowerCase()), `picture for ${n}`);
+  for (const k of BOT_PICS) {
+    const f = new URL(`../public/d3/img/bots/${k}.webp`, import.meta.url);
+    assert.ok(existsSync(f), `${k}.webp`);
+    assert.ok(readFileSync(f).length < 10000, `${k}.webp is small`);
+  }
+  const html = renderTeam(SAMPLE(), await d3Of(teamDb()), {});
+  assert.match(html, /<img class="av pic" src="img\/bots\/lucy\.webp" alt="" title="Lucy"[^>]* width="32" height="32"/);
+  assert.match(html, /<span class="avs"><img [^>]*olivia\.webp[^>]*><img [^>]*emma\.webp[^>]*><img [^>]*indy\.webp[^>]*><\/span>/);
+  assert.doesNotMatch(html, /<span class="av"[^>]*>[A-Z]<\/span>/); // every roster bot has a picture now
+  // A bot with no picture keeps its letter circle, also inside a stack; nothing from a name reaches the src.
+  assert.equal(avatars(['Zed']), '<span class="av" style="width: 32px; height: 32px; font-size: 13px">Z</span>');
+  assert.match(avatars(['Ana', 'Zed']), /^<span class="avs"><img [^>]*ana\.webp[^>]*><span class="av"[^>]*>Z<\/span><\/span>$/);
+  assert.doesNotMatch(avatars(['../x']), /<img/);
+  // Served behind /dash like the css and js, and nothing else under img/.
+  const env = { SESSION_SECRET: SECRET, ASSETS: assets };
+  const get = async (p) => { const r = await worker.fetch(new Request(`https://jonmac.ai${p}`), env, {}); return r.status === 404 ? 404 : r.text(); };
+  assert.equal(await get('/dash/img/bots/ana.webp'), 'asset:/d3/img/bots/ana.webp');
+  for (const p of ['/dash/img/bots/ana.png', '/dash/img/ana.webp', '/dash/img/bots/../js/app.js', '/dash/img/bots/a-b.webp', '/dash/img/bots/Ana.webp']) assert.equal(await get(p), 404, p);
 });
 
 test('Key results: named rows (name, actual / target, bar, status) worst first, no coloured tiles', async () => {

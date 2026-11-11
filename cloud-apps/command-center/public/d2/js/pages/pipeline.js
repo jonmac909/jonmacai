@@ -56,7 +56,7 @@ export function render(data, sub = '') {
   const [goal, a, v] = sub.split('/');
   const wk = goal === 'week';
   const b = wk ? undefined : boards.find((x) => x.goal === goal) || boards[0];
-  if (!b && !wk) return `<div class="wrap">${top('Pipeline', '', d2)}<div class="card pad"><p class="muted">Pipeline has no data yet.</p></div></div>`;
+  if (!b && !wk) return `<div class="wrap">${top('Pipeline', '')}<div class="card pad"><p class="muted">Pipeline has no data yet.</p></div></div>`;
   const extra = b ? GOAL_TABS[b.goal] || {} : {};
   const gv = Object.hasOwn(extra, a) ? a : null;
   const ch = !gv && (b?.channels || []).find((c) => c.slug === a);
@@ -75,7 +75,7 @@ export function render(data, sub = '') {
   else body = `${VIDEO_GOALS.includes(b.goal) ? stageBoard(data.factory, b.channels || []) : ''}${known ? projects(named(data.pages.projects), data, b.project) : '<div class="card pad"><p class="muted">This goal has no work board yet.</p></div>'}${b.sponsors ? deals(b.sponsors) : ''}`;
   const where = wk ? 'This week' : ch ? `${b.title} · ${ch.label}` : gv ? `${b.title} · ${extra[gv]}` : b.title;
   return `<div class="wrap d2pipe">
-  ${top('Pipeline', where, d2)}
+  ${top('Pipeline', where)}
   <div class="d2nav">${tabs}${chans}${views}</div>
   <div class="d2sub">${body}</div>
 </div>`;
