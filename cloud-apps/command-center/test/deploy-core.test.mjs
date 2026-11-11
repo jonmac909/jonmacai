@@ -54,3 +54,17 @@ test('missing version id fails before deploying', () => {
 });
 
 
+// deploy.ps1 dot-sources deploy-core, so a script variable named like an Invoke-WranglerDeploy parameter
+// (PowerShell names are case-insensitive: $check vs -Check) would be shadowed and break the live check.
+function clashes(src) {
+  const params = ['Wrangler', 'Check'];
+  const assigned = [...src.matchAll(/^\s*\$(\w+)\s*=/gm)].map(m => m[1].toLowerCase());
+  return params.filter(p => assigned.includes(p.toLowerCase()));
+}
+test('deploy.ps1 has no variable that clashes with a core parameter name', () => {
+  const src = readFileSync(resolve(import.meta.dirname, '../scripts/deploy.ps1'), 'utf8');
+  assert.deepEqual(clashes(src), []);
+});
+test('clash detector catches a planted $check assignment', () => {
+  assert.deepEqual(clashes("$check = 'x'\n"), ['Check']);
+});
