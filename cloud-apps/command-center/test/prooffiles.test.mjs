@@ -109,6 +109,12 @@ test('an mp4 answers byte ranges (206) so it plays on iPhone; HEAD gives the siz
   assert.equal(tail.headers.get('Content-Range'), 'bytes 95-99/100');
   assert.deepEqual([...new Uint8Array(await tail.arrayBuffer())], [95, 96, 97, 98, 99]);
   assert.equal((await get({ Range: 'bytes=500-' })).status, 416);
+  const over = await get({ Range: 'bytes=0-999' });
+  assert.equal(over.headers.get('Content-Range'), 'bytes 0-99/100');
+  assert.equal(over.headers.get('Content-Length'), '100');
+  const zero = await get({ Range: 'bytes=-0' });
+  assert.equal(zero.status, 416);
+  assert.equal(zero.headers.get('Content-Range'), 'bytes */100');
   const whole = await get({});
   assert.equal(whole.status, 200);
   assert.equal(whole.headers.get('Accept-Ranges'), 'bytes');
@@ -139,6 +145,9 @@ test('a storage failure is a clear 502, not a bare 500', async () => {
     const up = await upload(env, 'a.png', PNG);
     assert.equal(up.status, 502);
     assert.match(up.body.error, /Storage failed/);
+    env.UPLOADS.get = async () => { throw new Error('R2 down'); };
+    const read = await worker.fetch(new Request('https://x.test/dashboard/f/' + 'a'.repeat(32) + '.png'), env, {});
+    assert.equal(read.status, 502);
   } finally { console.error = prev; }
 });
 

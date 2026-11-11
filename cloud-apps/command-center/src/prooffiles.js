@@ -53,8 +53,10 @@ export async function serveProofFile(request, env) {
   let obj;
   try {
     obj = request.method === 'HEAD' ? await env.UPLOADS.head(key) : await env.UPLOADS.get(key, ranged ? { range: request.headers } : {});
-  } catch {
-    return new Response('Range not satisfiable', { status: 416 }); // R2 throws on a range past the end
+  } catch (err) {
+    if (ranged) return new Response('Range not satisfiable', { status: 416 }); // R2 throws on a range past the end
+    console.error('proof file read failed', err);
+    return new Response('Storage failed; try again', { status: 502 });
   }
   if (!obj) return new Response('Not found', { status: 404 });
   const ext = file.split('.').pop();
@@ -72,7 +74,8 @@ export async function serveProofFile(request, env) {
   if (ranged && obj.range) {
     const r = obj.range;
     const offset = 'suffix' in r ? Math.max(0, obj.size - r.suffix) : r.offset || 0;
-    const length = 'suffix' in r ? obj.size - offset : r.length ?? obj.size - offset;
+    const length = Math.min('suffix' in r ? obj.size - offset : r.length ?? obj.size - offset, obj.size - offset);
+    if (length <= 0) return new Response('Range not satisfiable', { status: 416, headers: { 'Content-Range': `bytes */${obj.size}` } });
     headers['Content-Length'] = String(length);
     headers['Content-Range'] = `bytes ${offset}-${offset + length - 1}/${obj.size}`;
     return new Response(obj.body, { status: 206, headers });
