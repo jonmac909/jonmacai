@@ -29,6 +29,16 @@ function setTheme(t) {
 for (const b of document.querySelectorAll('[data-theme-set]')) b.addEventListener('click', () => setTheme(b.dataset.themeSet));
 setTheme(document.documentElement.getAttribute('data-theme'));
 
+// ---- narrow screens: the Menu button opens and closes the rail; picking a page closes it ----
+const railEl = document.getElementById('nav')?.closest?.('.rail') || null;
+const menuBtn = document.getElementById('menuBtn');
+function setMenu(open) {
+  railEl?.classList.toggle('open', open);
+  menuBtn?.setAttribute('aria-expanded', String(open));
+}
+menuBtn?.addEventListener?.('click', () => setMenu(!railEl?.classList.contains('open')));
+document.getElementById('nav')?.addEventListener?.('click', (e) => { if (e.target.closest('a')) setMenu(false); });
+
 // ---- routes ----
 const page = () => {
   const k = (location.hash || '').replace(/^#\/?/, '').toLowerCase();
@@ -123,6 +133,16 @@ main.addEventListener('click', async (e) => {
   if (log && !log.disabled && !S.ui.busy) {
     const day = S.d2?.d2?.period?.today?.ymd;
     if (!day) return;
+    // Two steps: the first click turns the button into "Confirm log?" for 4 s; only a second click posts.
+    if (S.ui.confirmLog !== log.dataset.log) {
+      S.ui.confirmLog = log.dataset.log;
+      clearTimeout(S.confirmTimer);
+      S.confirmTimer = setTimeout(() => { S.ui.confirmLog = null; render(); }, 4000);
+      render();
+      return;
+    }
+    clearTimeout(S.confirmTimer);
+    S.ui.confirmLog = null;
     S.ui.busy = true;
     render();
     try {
@@ -146,7 +166,7 @@ main.addEventListener('input', (e) => {
   else if (e.target.matches('.rvin')) S.ui.rvDraft = { ...S.ui.rvDraft, [e.target.name]: e.target.value };
 });
 
-window.addEventListener('hashchange', () => { Object.assign(S.ui, { openKr: null, openBot: null, openBl: null, ...RV_CLEAR, rvDone: {}, rvKept: {} }); render(); });
+window.addEventListener('hashchange', () => { setMenu(false); Object.assign(S.ui, { openKr: null, openBot: null, openBl: null, ...RV_CLEAR, rvDone: {}, rvKept: {} }); render(); });
 setInterval(() => { if (document.visibilityState === 'visible') load(); }, 60000);
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') load(); });
 render();

@@ -122,6 +122,15 @@ html[data-theme="dark"] body{background:#0b0b0c}
   .d3 .brow>:nth-child(n+4){display:none}
   .d3 .board{grid-template-columns:repeat(4,minmax(0,1fr)) !important}
 }
+/* Phones and narrow windows: the rail is a compact top bar; the Menu button opens the pages, state and theme. */
+.d3 .rail .menu{display:none}
+@media (max-width:760px){
+  .d3{padding:10px}
+  .d3 .shell{gap:10px}
+  .d3 .rail{flex-basis:100%;padding:10px 12px;gap:12px;border-radius:16px}
+  .d3 .rail .menu{display:inline-flex;align-items:center;gap:6px;margin-left:auto}
+  .d3 .rail:not(.open)>:not(.hd){display:none}
+}
 @media (max-width:560px){
   .d3 header.hd{flex-wrap:wrap}
   .d3 .brow{grid-template-columns:minmax(0,1fr) auto;row-gap:6px}

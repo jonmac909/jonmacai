@@ -56,8 +56,8 @@ export async function d3Data(env, nowMs) {
     q(`SELECT project, COUNT(*) AS n FROM bot_tasks WHERE status IN ${OPEN} GROUP BY project`),
     // Every QC verdict on a video (a proof linking a review page), for the cards with one this month; the first verdict
     // per card decides "first try".
-    q(`SELECT task_id, status, created_at FROM bot_proofs WHERE link LIKE '%/review/%' AND status IN ('passed', 'failed')
-      AND task_id IN (SELECT task_id FROM bot_proofs WHERE link LIKE '%/review/%' AND created_at >= ?) ORDER BY created_at, rowid LIMIT 5000`, from),
+    q(`SELECT task_id, status, created_at FROM bot_proofs WHERE (link LIKE '%/review/%' OR kind = 'render') AND status IN ('passed', 'failed')
+      AND task_id IN (SELECT task_id FROM bot_proofs WHERE (link LIKE '%/review/%' OR kind = 'render') AND created_at >= ?) ORDER BY created_at, rowid LIMIT 5000`, from),
     q("SELECT day, kind, done FROM habits WHERE kind IN ('workout', 'date_night') AND day >= ?", ws < first ? ws : first),
     q("SELECT data FROM snapshots WHERE source = 'calendar'"),
     q("SELECT status FROM bot_questions WHERE idem_key LIKE 'cw:%' AND (status = 'open' OR updated_at >= ?)", from),
@@ -68,7 +68,7 @@ export async function d3Data(env, nowMs) {
       WHERE t.status IN ('todo','doing','waiting_on_jon','qc','review','done','cancelled') AND t.updated_at >= ? AND e.kind = 'status' AND (e.detail LIKE '%→ review%' OR e.detail LIKE '%→ done%') ORDER BY e.at DESC LIMIT 500`, today0, today0),
     q(`SELECT p.task_id, COUNT(*) AS n, MAX(COALESCE(p.checked_at, p.created_at)) AS last FROM bot_proofs p JOIN bot_tasks t ON t.id = p.task_id
       WHERE p.status = 'failed' AND t.status NOT IN ('done', 'cancelled') GROUP BY p.task_id HAVING COUNT(*) >= 2`),
-    q(`SELECT p.task_id, t.owner FROM bot_proofs p JOIN bot_tasks t ON t.id = p.task_id
+    q(`SELECT p.task_id, t.owner, t.title, COALESCE(p.checked_at, p.created_at) AS at FROM bot_proofs p JOIN bot_tasks t ON t.id = p.task_id
       WHERE p.status = 'failed' AND COALESCE(p.checked_at, p.created_at) >= ? LIMIT 1000`, today0),
     q('SELECT bot, status, started_at, tokens FROM bot_runs WHERE started_at >= ? ORDER BY started_at LIMIT 2000', new Date(nowMs - DAY).toISOString()),
     // Bots that post runs: only runs from the last 30 days, newest first, bounded.
@@ -270,7 +270,7 @@ function qcFirstTry(rows, from) {
   const total = firsts.length;
   if (!total) return metric({ source, note: 'No video was checked by QC this month yet.' });
   const pct = Math.round((passed / total) * 100);
-  return metric({ actual: pct, display: `${pct}%`, passed, total, source, status: { text: 'No target', cls: 'idle' }, note: `${passed} of ${total} videos first checked by QC this month passed on the first try (a video = a card with a review-page proof).` });
+  return metric({ actual: pct, display: `${pct}%`, passed, total, source, status: { text: 'No target', cls: 'idle' }, note: `${passed} of ${total} videos first checked by QC this month passed on the first try (cards with a render proof or a review-page link).` });
 }
 
 function lifeOf(D, P) {
@@ -522,13 +522,21 @@ function teamOf(D, today) {
   const byTitle = new Map(D.tasks.map((t) => [t.id, t.title]));
   const waiting = D.tasks.filter((t) => t.status === 'waiting_on_jon' && ROSTER.has(t.owner));
   const oldest = Math.min(...waiting.map((t) => Date.parse(t.updated_at)).filter(Number.isFinite));
+  // The Failed tile and its list count the same things: failed runs (live feed) plus QC fails today (team bots only).
+  // Stuck cards are their own list and count.
+  const line1 = (f, kind) => ({ card: f.card, title: f.title || byTitle.get(f.card) || '', who: ownerName(f.bot), kind, why: f.why, at: f.at, age: since(f.at, nowMs) });
+  const newest = (a, b) => (Date.parse(b.at) || 0) - (Date.parse(a.at) || 0);
+  const fails = L ? [
+    ...(L.d.fails || []).filter((f) => (f.kind || 'run') === 'run' && ROSTER.has(f.bot)).map((f) => line1(f, 'run')),
+    ...(D.failsToday || []).filter((f) => ROSTER.has(f.owner)).map((f) => line1({ card: f.task_id, title: f.title, bot: f.owner, at: f.at }, 'qc')),
+  ].sort(newest) : null;
+  const stuck = L ? (L.d.fails || []).filter((f) => f.kind === 'stuck').map((f) => line1(f, 'stuck')).sort(newest) : null;
   return {
     bots, names: TEAM.bots.reduce((n, b) => n + b.names.length, 0),
     working: bots.filter((b) => (b.counts.doing || 0) > 0).length,
     waiting: { count: waiting.length, oldest: Number.isFinite(oldest) ? since(new Date(oldest).toISOString(), nowMs) : '' },
-    failedToday: D.failsToday ? bots.reduce((n, b) => n + (b.failedToday || 0), 0) : null,
-    // Failed runs and Stuck lines today (live feed), newest first, for the Failed tile's list.
-    fails: L ? (L.d.fails || []).map((f) => ({ card: f.card, title: byTitle.get(f.card) || '', who: ownerName(f.bot), kind: f.kind, why: f.why, age: since(f.at, nowMs) })) : null,
+    failedToday: fails ? fails.length : D.failsToday ? bots.reduce((n, b) => n + (b.failedToday || 0), 0) : null,
+    fails, stuck,
     running: L ? (L.d.running || []).length : null,
     tokens: L ? Object.values(L.d.tokens || {}).reduce((n, x) => n + Number(x || 0), 0) : null,
     liveAge: L ? since(L.at, nowMs) : '',

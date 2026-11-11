@@ -601,7 +601,7 @@ test('Live feed fresh: dispatcher, bots, tokens, team runs and fails', async () 
   assert.equal(heygenLine({ d: {} }).text, 'No feed');
   const staleH = heygenLine({ at: '2026-01-01T00:00:00Z', d: { heygen: { accepted: 2 } } }, Date.parse('2026-01-01T03:00:00Z'));
   assert.deepEqual([staleH.state, staleH.stale], ['none', true]);  assert.deepEqual([d3.team.running, d3.team.tokens], [2, 1500]);
-  assert.deepEqual(d3.team.fails.map((f) => [f.card, f.title, f.kind]), [['d2', 'Card d2', 'run']]);
+  assert.deepEqual(d3.team.fails.map((f) => [f.card, f.title, f.kind]), [['d2', 'Card d2', 'run'], ['stuck', 'Card stuck', 'qc']]); // c4: runs + QC fails today
   // Pages: Goals rows, Blockers tile = Blockers page rows, Team fails list and pill, Blockers Dispatcher card.
   const rows = blockerRows(SAMPLE(), body);
   assert.match(renderGoals(SAMPLE(), body, {}), new RegExp(`<b style="font-weight: 600">Blockers</b><span class="mut">${rows.filter((b) => b.you).length} need you</span></span><b class="num sp" style="font-size: 30px">${rows.length}</b>`));
@@ -609,7 +609,9 @@ test('Live feed fresh: dispatcher, bots, tokens, team runs and fails', async () 
   assert.match(th, /<span class="pill sp">Runs live · 1 min ago<\/span>/);
   assert.match(th, /data-bot="developer">[\s\S]*?aria-label="Runs today"><span class="sub">4<\/span>/);
   assert.doesNotMatch(th, /Cost/);
-  assert.match(th, /<h2>Failed today<\/h2>[\s\S]*?Card d2[\s\S]*?run failed · exit 1/);
+  assert.match(th, /<h2>Failed today \(2\)<\/h2>[\s\S]*?Card d2[\s\S]*?run failed · exit 1/);
+  assert.equal(d3.team.failedToday, d3.team.fails.length); // tile = list
+  assert.doesNotMatch(renderBlockers(SAMPLE(), body, {}), /Stopped/); // c5: failed runs don't mark the dispatcher down
   const bh = renderBlockers(SAMPLE(), body, {});
   assert.match(bh, /Heartbeat<\/span><b>Dispatcher running/);
   assert.match(bh, /Bots<\/span><b>2 runs going/);

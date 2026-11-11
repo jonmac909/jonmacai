@@ -84,14 +84,16 @@ function healthOf(d2resp, d3resp) {
   const stale = feeds.filter((r) => r.tone === 'r').length;
   // Dispatcher card: heartbeat and runs going (rail), failed runs and Stuck cards today (live feed via team.fails).
   const ln = (l, x) => (!x || x.text === 'No feed' ? NO(l) : line(l, x.text, x.state === 'none' ? '' : x.state));
-  const fl = d3resp?.d3?.team?.fails;
-  const cnt = (l, kind) => { if (!Array.isArray(fl)) return NO(l); const n = fl.filter((f) => (f.kind || 'run') === kind).length; return line(l, String(n), n ? 'r' : 'g'); };
-  const disp = [ln('Heartbeat', rail.dispatcher), ln('Bots', rail.bots), cnt('Failed runs today', 'run'), cnt('Stuck today', 'stuck')];
-  const dispBad = disp.filter((r) => r.tone === 'r').length;
+  const tm = d3resp?.d3?.team;
+  const cnt = (l, fl, kind) => { if (!Array.isArray(fl)) return NO(l); const n = fl.filter((f) => !kind || (f.kind || 'run') === kind).length; return line(l, String(n), n ? 'r' : 'g'); };
+  const beat = [ln('Heartbeat', rail.dispatcher), ln('Bots', rail.bots)];
+  const disp = [...beat, cnt('Failed runs today', tm?.fails, 'run'), cnt('Stuck today', tm?.stuck)];
+  // The pill says only whether the dispatcher runs (Heartbeat and Bots); failed and stuck counts stay rows.
+  const dispBad = beat.some((r) => r.tone === 'r');
   const pill = (bad, cls, text, okText, any) => (bad ? { pill: cls, state: text } : any ? { pill: 'ok', state: okText } : { pill: '', state: 'No feed' });
   return [
     { title: 'Daily jobs', rows: jobs, ...pill(missed, 'bad', `${missed} missed`, 'On time', jobs.some((r) => r.tone)) },
-    { title: 'Dispatcher', rows: disp, ...pill(dispBad, 'bad', `${dispBad} down`, 'Running', disp.some((r) => r.tone)) },
+    { title: 'Dispatcher', rows: disp, ...pill(dispBad, 'bad', 'Stopped', 'Running', beat.some((r) => r.tone)) },
     { title: 'Logins and limits', rows: logins, ...pill(down, 'bad', `${down} down`, 'All in', logins.some((r) => r.tone)) },
     { title: 'Feed age', rows: feeds, ...pill(stale, 'warn', `${stale} stale`, 'All fresh', feeds.some((r) => r.tone)) },
   ];

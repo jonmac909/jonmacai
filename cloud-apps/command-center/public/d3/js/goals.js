@@ -164,7 +164,7 @@ export function objectivesOf(d2resp, d3resp, P = periodOf(d2resp)) {
       kr('b3', hgp?.title || 'Home Guide Press', wk(hgp, 0), WK(wk(hgp, 0))),
       g3?.scoreboard ? kr('b4', 'QC-passed today', g3.scoreboard, { hint: 'today', span: null, series: null })
         : noFeed('b4', 'QC-passed today', 'QC results on renders could not be read.'),
-      qc ? kr('b5', 'Passed QC first try', qc, { bar: false, hint: num(qc.total) ? `${qc.passed} of ${qc.total}` : 'this month', span: null, series: null, target: '' })
+      qc ? kr('b5', 'Passed QC first try', qc, { bar: false, hint: `this month · cards with a render proof${num(qc.total) ? ` · ${qc.passed} of ${qc.total} passed on first proof` : ''}`, span: null, series: null, target: '' })
         : noFeed('b5', 'Passed QC first try', 'QC verdicts on renders could not be read.'),
       g3?.approvedWaiting ? kr('b6', 'Approved, not uploaded', g3.approvedWaiting, { bar: false, hint: g3.approvedWaiting.actual ? `oldest ${g3.approvedWaiting.oldestLabel}` : 'none waiting', span: null, series: null, target: 'Target 0' })
         : noFeed('b6', 'Approved, not uploaded', 'Approvals and the YouTube calendar could not be read.'),
@@ -189,10 +189,11 @@ const px = (f) => Math.round(20 + f * 570);
 const py = (f) => Math.round(125 - Math.min(f, 1.05) * 105);
 const line = (pts) => pts.map(([x, y]) => `${px(x)},${py(y)}`).join(' ');
 
-function krHtml(k, open, busy) {
+function krHtml(k, open, busy, confirm) {
   const exp = open ? 'true' : 'false';
   const bar = k.hasBar ? `<span class="bar"><i class="${k.tone}" style="width: ${k.pct}%"></i>${k.pace > 0 ? `<b style="left: ${k.pace}%"></b>` : ''}</span>` : '';
   const log = k.log ? `<button type="button" class="btn sm" data-log="${esc(k.log.kind)}"${k.log.done || busy ? ' disabled' : ''}>${k.log.done ? 'Logged today' : '+ Log'}</button>` : '';
+  const log2 = k.log && !k.log.done && !busy && confirm === k.log.kind ? log.replace('class="btn sm"', 'class="btn sm primary"').replace('+ Log', 'Confirm log?') : log;
   let detail = '';
   if (open) {
     const t = k.span === null ? 0 : k.series ? k.series[k.series.length - 1][0] : 0;
@@ -207,7 +208,7 @@ function krHtml(k, open, busy) {
   }
   return `<div class="kr">
 <button type="button" class="krb" aria-expanded="${exp}" data-kr="${esc(k.id)}"><span class="dot ${k.tone === 'n' ? '' : k.tone}" style="align-self: center"></span><span class="krn">${esc(k.text)}</span><span class="krv${k.nf ? ' nf' : ''}">${esc(k.v1)}<span class="dim">${esc(k.v2)}</span></span></button>
-<div class="krl">${bar}<span class="mut" style="font-size: 12px">${esc(k.hint)}</span>${log}</div>
+<div class="krl">${bar}<span class="mut" style="font-size: 12px">${esc(k.hint)}</span>${log2}</div>
 ${detail}</div>`;
 }
 
@@ -301,7 +302,7 @@ function objectiveHtml(o, ui) {
   const pill = r ? 'bad' : y ? 'warn' : g ? 'ok' : '';
   return `<section class="card" style="gap: 18px">
 <div class="hd cardhd"><span class="chip">${icon(o.icon)}</span><h2>${esc(o.title)}</h2><span class="pill ${pill}">${g} of ${o.krs.length} on track</span><span class="hd sp mut" style="gap: 6px"><span class="av">${esc(o.owner.charAt(0))}</span>${esc(o.owner)}</span></div>
-${o.krs.map((k) => krHtml(k, ui.openKr === k.id, ui.busy)).join('\n')}
+${o.krs.map((k) => krHtml(k, ui.openKr === k.id, ui.busy, ui.confirmLog)).join('\n')}
 </section>`;
 }
 

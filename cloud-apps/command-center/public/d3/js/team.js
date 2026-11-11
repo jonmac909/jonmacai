@@ -17,11 +17,14 @@ function tile(ic, label, sub, value) {
   return `<div class="tile" style="flex: 1 1 200px"><span class="chip">${icon(ic)}</span><span class="stack" style="white-space: nowrap"><b>${esc(label)}</b><span class="mut">${esc(sub)}</span></span>${v}</div>`;
 }
 
+// "5 min ago", but "just now" stays "just now".
+const ago = (x) => (x === 'just now' ? 'just now' : `${x} ago`);
+
 function botRow(b, open) {
   const c = b.card;
   const counts = b.counts || {};
   const last = [];
-  if (c?.updated) last.push(`updated ${c.updated} ago`);
+  if (c?.updated) last.push(`updated ${ago(c.updated)}`);
   if (!c && counts.review) last.push(`${counts.review} in Review`);
   if (b.failedToday) last.push(`${b.failedToday} failed today`);
   const working = c
@@ -83,18 +86,21 @@ export function renderTeam(d2resp, d3resp, ui = {}) {
   const roles = T ? plural(T.bots.length, 'role') : '';
   const sub = T ? `${plural(T.names, 'bot')} · ${roles}` : '';
   const live = T && T.running != null; // the dispatcher's live feed is fresh: runs and tokens come from it
-  const head = headerOnly(d2resp, 'Team', sub, `<span class="pill sp">${live ? `Runs live · ${esc(T.liveAge)} ago` : 'Runs and tokens: No feed'}</span>`);
+  const head = headerOnly(d2resp, 'Team', sub, `<span class="pill sp">${live ? `Runs live · ${esc(ago(T.liveAge))}` : 'Runs and tokens: No feed'}</span>`);
   const tiles = `<div class="row">
 ${tile('bolt', 'Working', T ? `of ${roles}` :'cards in Doing', T ? T.working : null)}
 ${tile('you', 'Waiting on you', T?.waiting?.oldest ? `oldest ${T.waiting.oldest}` : 'cards', T ? T.waiting.count : null)}
 ${tile('blockers', 'Failed', 'runs and QC fails today', T && num(T.failedToday) ? T.failedToday : null)}
 ${tile('bot', 'Tokens', 'all bots today', T && num(T.tokens) ? kTokens(T.tokens) : null)}
 </div>`;
-  // Failed runs and Stuck cards today from the live feed, newest first.
-  const fails = T?.fails?.length ? `<section class="card" style="gap: 4px">
-<div class="hd cardhd"><span class="chip">${icon('blockers')}</span><h2>Failed today</h2><span class="mut">runs that failed or got stuck</span></div>
-${T.fails.map((f) => { const name = f.title || f.card || `${f.who || 'Bot'} run`; return `<div class="hrow"><span class="dot r"></span>${cardHref(f.card) ? `<a class="ell" href="${cardHref(f.card)}" target="_blank" rel="noopener">${esc(name)}</a>` : `<span class="ell">${esc(name)}</span>`}<span class="mut">${esc(f.who)} · ${f.kind === 'stuck' ? 'stuck' : 'run failed'}${f.why ? ` · ${esc(f.why)}` : ''} · ${esc(f.age)} ago</span></div>`; }).join('\n')}
-</section>` : '';
+  // Failed today: exactly what the Failed tile counts (failed runs and QC fails today), newest first. Stuck cards
+  // today (live feed) are their own list with their own count.
+  const lines = (list) => list.map((f) => { const name = f.title || f.card || `${f.who || 'Bot'} run`; return `<div class="hrow"><span class="dot r"></span>${cardHref(f.card) ? `<a class="ell" href="${cardHref(f.card)}" target="_blank" rel="noopener">${esc(name)}</a>` : `<span class="ell">${esc(name)}</span>`}<span class="mut">${esc(f.who)} · ${f.kind === 'stuck' ? 'stuck' : f.kind === 'qc' ? 'QC failed' : 'run failed'}${f.why ? ` · ${esc(f.why)}` : ''} · ${esc(ago(f.age))}</span></div>`; }).join('\n');
+  const section = (title, sub, list) => (list?.length ? `<section class="card" style="gap: 4px">
+<div class="hd cardhd"><span class="chip">${icon('blockers')}</span><h2>${title} (${list.length})</h2><span class="mut">${sub}</span></div>
+${lines(list)}
+</section>` : '');
+  const fails = `${section('Failed today', 'failed runs and QC fails', T?.fails)}${section('Stuck today', 'cards the dispatcher marked stuck', T?.stuck)}`;
   const rows = T
     ? T.bots.map((b) => botRow(b, ui.openBot === b.slug)).join('\n')
     : '<p class="mut" style="padding-top: 12px">No feed: the dashboard cards could not be read.</p>';
