@@ -884,9 +884,9 @@ test('Key results: named rows (name, actual / target, bar, status) worst first, 
 const MAIL = { id: 'c-viktor', threadId: '1a100fca30a15755', payload: { id: 'c-viktor', to: 'v@x.com', subject: 'Re: Campaign', body: 'Thanks, my rate is $2,000.' } };
 const threadItem = (over = {}) => ({ id: 'd:c-viktor', type: 'email', kind: 'Sponsor email', name: 'Viktor', head: 'Reply to Viktor', sub: '', facts: [], body: MAIL.payload.body, threadId: MAIL.threadId, act: { type: 'email', payload: MAIL.payload }, ...over });
 const THREAD3 = { at: '2026-11-11T20:00:00Z', threads: { [MAIL.threadId]: { subject: 'Campaign', messages: [
-  { from: 'Viktor <v@x.com>', date: '2026-10-01T17:00:00Z', body: 'FIRST message body', quoted: false },
-  { from: 'Jon <partners@x.com>', date: '2026-10-02T17:00:00Z', body: 'SECOND message body', quoted: true },
-  { from: 'Viktor <v@x.com>', date: '2026-10-03T17:00:00Z', body: 'THIRD message body', quoted: false },
+  { id: 'm1', from: 'Viktor <v@x.com>', date: '2026-10-01T17:00:00Z', body: 'FIRST message body', quoted: false },
+  { id: 'm2', from: 'Jon <partners@x.com>', date: '2026-10-02T17:00:00Z', body: 'SECOND message body', quoted: true },
+  { id: 'm3', from: 'Viktor <v@x.com>', date: '2026-10-03T17:00:00Z', body: 'THIRD message body', quoted: false },
 ] } } };
 const renderThread = (ui, item = threadItem()) => renderReview({ pages: {} }, { d3: { queue: [item] } }, { rvSel: item.id, ...ui });
 const openStates = (html) => (html.match(/<details class="rvmsg"[^>]*>/g) || []).map((d) => d.includes(' open'));
@@ -903,7 +903,7 @@ test('Review: a 3-message thread renders all 3 oldest first above the draft, old
   assert.match(html, /Oct 1, 2026/);
   assert.match(html, /10:00 AM/); // 17:00Z is 10:00 in Kelowna (PDT)
   // Jon's click choice (ui.rvOpen) wins over the default.
-  const toggled = renderThread({ rvThreads: THREAD3, rvOpen: { [`${MAIL.threadId}:0`]: true, [`${MAIL.threadId}:2`]: false } });
+  const toggled = renderThread({ rvThreads: THREAD3, rvOpen: { [`${MAIL.threadId}:m1`]: true, [`${MAIL.threadId}:m3`]: false } });
   assert.deepEqual(openStates(toggled), [true, true, false]);
 });
 
@@ -912,6 +912,10 @@ test('Review: thread states (loading, error, no thread id, thread missing), esca
   assert.match(renderThread({ rvThreads: { error: 'offline' } }), /Could not load the thread \(offline\)/);
   assert.match(renderThread({ rvThreads: THREAD3 }, threadItem({ threadId: '' })), /No thread found/);
   assert.match(renderThread({ rvThreads: { threads: {} } }), /No thread found/);
+  assert.match(renderThread({ rvThreads: { threads: { [MAIL.threadId]: { error: 'Google 500' } } } }), /Could not load the thread/);
+  // A new message arriving keeps the others' fold state (keys are message ids).
+  const grown = { threads: { [MAIL.threadId]: { messages: [...THREAD3.threads[MAIL.threadId].messages, { id: 'm4', from: 'V', date: '2026-10-04T17:00:00Z', body: 'FOURTH', quoted: false }] } } };
+  assert.deepEqual(openStates(renderThread({ rvThreads: grown, rvOpen: { [`${MAIL.threadId}:m1`]: true } })), [true, false, false, true].map((x, i) => (i === 2 ? true : x)).slice(0, 4));
   const evil = { threads: { [MAIL.threadId]: { messages: [{ from: '<img src=x>', date: 'bad', body: '<script>alert(1)</script>', quoted: false }] } } };
   const h = renderThread({ rvThreads: evil });
   assert.doesNotMatch(h, /<script>alert|<img src=x>/);
@@ -920,13 +924,19 @@ test('Review: thread states (loading, error, no thread id, thread missing), esca
   assert.match(edit, /THIRD message body[\s\S]*Your reply \(draft, not sent\)[\s\S]*<textarea class="rvin" name="body"/);
 });
 
+test('CSS: the thread scroll box is dropped on narrow screens', () => {
+  const css = readFileSync(new URL('../public/d3/css/d3.css', import.meta.url), 'utf8');
+  assert.match(css, /\.rvthread\{max-height:55vh;overflow-y:auto\}/);
+  assert.match(css, /@media \(max-width:600px\)\{\.d3 \.rvthread\{max-height:none/);
+});
+
 test('Review: clicking a message summary toggles it in ui.rvOpen and redraws', async () => {
   const S = { ui: { rvThreads: THREAD3 }, d2: { pages: {} }, d3: { d3: { queue: [threadItem()] } } };
   let renders = 0; let prevented = false;
-  const summary = { dataset: { rvmsg: `${MAIL.threadId}:0` }, parentElement: { open: false } };
+  const summary = { dataset: { rvmsg: `${MAIL.threadId}:m1` }, parentElement: { open: false } };
   const e = { preventDefault() { prevented = true; }, target: { closest: (sel) => (sel === '[data-rvmsg]' ? summary : null) } };
   assert.equal(await reviewClick(e, S, () => { renders++; }, async () => {}), true);
-  assert.deepEqual([prevented, renders, S.ui.rvOpen], [true, 1, { [`${MAIL.threadId}:0`]: true }]);
+  assert.deepEqual([prevented, renders, S.ui.rvOpen], [true, 1, { [`${MAIL.threadId}:m1`]: true }]);
 });
 
 const draftCard = (id, threadId, over = {}) => ({ id, threadId, stage: 'needs-reply', draftReply: { status: 'needs-review', body: 'Hello', to: 'a@b.c' }, ...over });

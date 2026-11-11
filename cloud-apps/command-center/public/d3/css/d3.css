@@ -151,6 +151,7 @@ html[data-theme="dark"] body{background:#0b0b0c}
   .d3 .brow>:nth-child(n+4){display:none}
   .d3 .board{grid-template-columns:repeat(4,minmax(0,1fr)) !important}
 }
+@media (max-width:600px){.d3 .rvthread{max-height:none;overflow-y:visible}}
 @media (max-width:560px){
   .d3 header.hd{flex-wrap:wrap}
   .d3 .brow{grid-template-columns:minmax(0,1fr) auto;row-gap:6px}

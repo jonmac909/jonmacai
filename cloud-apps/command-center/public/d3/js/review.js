@@ -94,10 +94,12 @@ function threadHtml(c, ui) {
   const box = (inner) => `<div class="inner rvthread" style="gap: 8px">${inner}</div>`;
   if (!T) return box('<span class="mut">Email thread</span><span class="nf">Loading the thread</span>');
   if (T.error) return box(`<span class="mut">Email thread</span><span class="nf">Could not load the thread (${esc(T.error)})</span>`);
-  const msgs = (c.threadId && T.threads?.[c.threadId]?.messages) || [];
+  const th = c.threadId && T.threads?.[c.threadId];
+  if (th?.error) return box('<span class="mut">Email thread</span><span class="nf">Could not load the thread</span>');
+  const msgs = th?.messages || [];
   if (!msgs.length) return box('<span class="mut">Email thread</span><span class="nf">No thread found</span>');
   const rows = msgs.map((m, j) => {
-    const key = `${c.threadId}:${j}`;
+    const key = `${c.threadId}:${m.id || j}`; // by Gmail message id, so a new message keeps the others' fold state
     const open = ui.rvOpen?.[key] ?? j >= msgs.length - 2;
     return `<details class="rvmsg"${open ? ' open' : ''}><summary data-rvmsg="${esc(key)}"><b class="ell">${esc(m.from || 'Unknown sender')}</b><span class="mut" style="flex: none">${esc(when(m.date))}</span></summary>
 <p class="sub" style="white-space: pre-wrap; overflow-wrap: anywhere">${m.body ? esc(m.body) : '<span class="nf">No text</span>'}${m.quoted ? '\n<span class="mut">(earlier quoted text hidden)</span>' : ''}</p></details>`;

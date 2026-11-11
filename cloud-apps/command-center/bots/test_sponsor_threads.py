@@ -111,6 +111,27 @@ class Quota(unittest.TestCase):
             st._get_thread(g, 'abc', lambda s: None)
         self.assertEqual(g.calls, 1)
 
+    def test_one_5xx_thread_does_not_abort_the_rest(self):
+        class G:
+            def call(self, method, url, body=None, query=None):
+                if url.endswith('/bad'):
+                    raise Fail(1, 'Google 500 backend')
+                return {'messages': [msg(1, 'a', plain='ok')]}
+        out = st.collect(G(), ['good', 'bad'], lambda s: None)
+        self.assertEqual(out['threads']['good']['messages'][0]['body'], 'ok')
+        self.assertIn('500', out['threads']['bad']['error'])
+
+    def test_every_thread_failing_still_raises(self):
+        class G:
+            def call(self, *a, **k):
+                raise Fail(1, 'Google 500 backend')
+        with self.assertRaises(Fail):
+            st.collect(G(), ['a', 'b'], lambda s: None)
+
+    def test_message_ids_carried(self):
+        m = msg(1, 'a', plain='x'); m['id'] = 'abc123'
+        self.assertEqual(st.thread_of({'messages': [m]})['messages'][0]['id'], 'abc123')
+
     def test_missing_thread_listed_not_fatal(self):
         class G404:
             def call(self, *a, **k):
