@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import { existsSync, readFileSync } from 'node:fs';
 import { sqliteD1 } from './sqlited1.mjs';
 import { handleApi } from '../src/api.js';
+import { limitLabel } from '../src/d3.js';
 import worker from '../src/worker.js';
 import { signSession, COOKIE } from '../src/auth.js';
 import { renderGoals, objectivesOf } from '../public/d3/js/goals.js';
@@ -438,6 +439,58 @@ test('Video board: open cards with a stage, by stage, with count, oldest age, la
   assert.match(html, /data-stage="edit">[\s\S]*?limit 1 h 10 m · oldest 9 hr[\s\S]*?Video v1[\s\S]*?dot r/);
   assert.match(html, /data-stage="pack">[\s\S]*?\+1 more/);
   assert.doesNotMatch(html, /Video v5/);
+});
+
+// ---- Dispatcher live feed (dash_live_feed.py -> dispatch_live) ----
+const M = (m) => new Date(TUESDAY - m * 60000).toISOString();
+const liveRow = (db, ageMin, d) => ins(db, 'bot_feed_entries', { id: `l${ageMin}`, name: 'dispatch_live', bot: 'developer', created_at: M(ageMin), data: JSON.stringify({ at: M(ageMin), ...d }) });
+const usage22h = (db) => ins(db, 'bot_feed_entries', { id: 'u1', name: 'claude_usage', bot: 'ana', data: JSON.stringify({ weekPct: 100, resetsAt: '2026-11-13T00:00:00Z' }), created_at: H(22) });
+
+test('Live feed fresh: dispatcher, bots, tokens, team runs and fails, QC-passed today, approved', async () => {
+  const db = teamDb();
+  usage22h(db);
+  liveRow(db, 1, {
+    beat: M(1), week: { pct: 42, resets: '2026-11-13T00:00:00Z', at: M(1) },
+    running: [{ slot: 1, bot: 'developer', card: 'd1', since: M(15) }, { slot: 2, bot: 'developer', card: 'd2', since: M(5) }],
+    tokens: { developer: 1200, sponsors: 300 }, runs: { developer: { ok: 3, failed: 1 } },
+    fails: [{ at: H(2), bot: 'developer', card: 'd2', why: 'exit 1', kind: 'run' }],
+    approved: { count: 2, items: [{ title: 'Video A', waitMin: 90 }, { title: 'Video B', waitMin: 30 }] },
+  });
+  // QC-passed today: distinct cards with a passed review-page proof since Kelowna midnight (08:00Z).
+  const pr = (id, task, link, at) => ins(db, 'bot_proofs', { id, task_id: task, kind: 'render', link, status: 'passed', created_by: 'qc', created_at: at, checked_at: at });
+  pr('q1', 'd1', '/dashboard/review/a', H(1)); pr('q2', 'd1', '/dashboard/review/a2', H(2)); // same card: once
+  pr('q3', 'd2', '/dashboard/review/b', H(20)); // yesterday
+  pr('q4', 'late', 'https://x/q4', H(1)); // not a review page
+  const d3 = (await d3Of(db)).d3;
+  assert.deepEqual([d3.rail.dispatcher.state, d3.rail.dispatcher.text], ['g', 'Dispatcher running']);
+  assert.deepEqual([d3.rail.bots.state, d3.rail.bots.text], ['g', '2 runs going']);
+  assert.deepEqual([d3.rail.tokens.state, d3.rail.tokens.pct, d3.rail.tokens.text], ['g', 42, 'Tokens 42% used']); // feed newer than the 22 h reading
+  const dev = d3.team.bots.find((b) => b.slug === 'developer');
+  assert.match(dev.running, /^2 · /);
+  assert.deepEqual([dev.tokens, dev.failedRunsToday], [1200, 1]);
+  assert.deepEqual([d3.team.running, d3.team.tokens], [2, 1500]);
+  assert.deepEqual(d3.team.fails.map((f) => [f.card, f.title, f.kind]), [['d2', 'Card d2', 'run']]);
+  assert.deepEqual([d3.goals.qcPassedToday.actual, d3.goals.qcPassedToday.target], [1, 6]);
+  assert.deepEqual([d3.goals.approved.actual, d3.goals.approved.items.map((i) => i.title)], [2, ['Video A', 'Video B']]);
+});
+
+test('Live feed stale: dispatcher red, bots and tokens grey, team falls back to posted runs', async () => {
+  const db = teamDb();
+  usage22h(db);
+  liveRow(db, 12, { beat: M(12), week: { pct: 80, at: H(7) }, running: [{ slot: 1, bot: 'developer', card: 'd1', since: M(20) }], tokens: { developer: 9 }, runs: {}, fails: [] });
+  const d3 = (await d3Of(db)).d3;
+  assert.equal(d3.rail.dispatcher.state, 'r');
+  assert.match(d3.rail.dispatcher.text, /^Dispatcher stopped/);
+  assert.deepEqual([d3.rail.bots.state, d3.rail.bots.stale], ['none', true]);
+  assert.deepEqual([d3.rail.tokens.state, d3.rail.tokens.pct, d3.rail.tokens.stale], ['none', 80, true]); // 7 h old: grey, pct kept
+  assert.equal(d3.team.running, null);
+  assert.equal(d3.team.fails, null);
+  assert.equal(d3.team.bots.find((b) => b.slug === 'developer').tokens, null);
+  assert.equal(d3.goals.approved, null);
+});
+
+test('limitLabel: stage budgets in hours and minutes', () => {
+  assert.deepEqual([0.25, 0.33, 1.17, 1.25, 2, null].map(limitLabel), ['15 m', '20 m', '1 h 10 m', '1 h 15 m', '2 h', '']);
 });
 
 // ---- Card 3: Review and Money pages ----
