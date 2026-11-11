@@ -617,6 +617,7 @@ function todayOf(C, goals, checks) {
     toAna: { count: rest.length + toAnaBlockers.length, health, items: rest, blockers: toAnaBlockers },
     expenses: { count: charges.length, items: charges, label: 'Expenses review (Friday)' },
     targets,
+    blockers, // not on Dashboard 2's Today; Dashboard 3's Goals tile counts them
   };
 }
 

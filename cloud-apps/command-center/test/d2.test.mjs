@@ -234,7 +234,7 @@ test('d2 answers the contract for all five sections', async () => {
   assert.ok(cashDays === null || (typeof cashDays === 'object' && Object.keys(cashDays).every((d) => /^\d{4}-\d{2}-\d{2}$/.test(d))));
   assert.ok(body.d2.goals.filter((g) => g.key !== 'sponsors').every((g) => !('cashDays' in g)));
   const { today, pipeline, money, period } = body.d2;
-  assert.deepEqual(Object.keys(today), ['jon', 'toAna', 'expenses', 'targets']);
+  assert.deepEqual(Object.keys(today), ['jon', 'toAna', 'expenses', 'targets', 'blockers']); // blockers: Dashboard 3's Goals tile, not shown on Today
   assert.deepEqual(Object.keys(today.toAna), ['count', 'health', 'items', 'blockers']);
   for (const it of [...today.toAna.items, ...today.expenses.items]) assert.ok('goal' in it && 'minutes' in it && 'link' in it);
   for (const b of today.toAna.blockers) assert.ok(NAMES.includes(b.owner), b.owner);
