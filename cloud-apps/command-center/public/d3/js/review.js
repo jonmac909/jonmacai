@@ -43,7 +43,7 @@ function shown(items, ui) {
 
 // A video with a review page is approved or sent back there, so the review app locks that version (VIDEO.md).
 const reviewPage = (c) => c.type === 'video' && /\/dashboard\/review\//i.test(safeHref(c.link));
-const OTHER = /^other\b/i; // "Other (type your own)": the typed box below the options, never sent as the answer
+const OTHER = /^other\s*\(type/i; // "Other (type your own)": the typed box below the options, never sent as the answer
 // Which buttons each item type takes; a click on any other is ignored.
 const ALLOWED = { card: ['approve', 'open-back', 'cancel', 'back'], approval: ['yes', 'no'], question: ['opt', 'answer'], email: ['send', 'edit'] };
 
@@ -200,8 +200,10 @@ export async function reviewClick(e, S, render, reload) {
     if (!String(payload.to || '').trim() || !String(payload.body || '').trim()) { ui.rvErr = 'The draft needs a recipient and text.'; render(); return true; }
     if (!window.confirm(`Send this email to ${payload.to}?`)) return true;
     // One key per draft until it goes through, so a retry after a lost answer can't send it twice.
+    // Keyed by the draft's content too, so a new or edited draft gets a new key.
     ui.rvIdem = { ...(ui.rvIdem || {}) };
-    const idemKey = ui.rvIdem[c.id] || (ui.rvIdem[c.id] = crypto.randomUUID());
+    const sig = JSON.stringify([c.id, payload.to, payload.subject, payload.body]);
+    const idemKey = ui.rvIdem[sig] || (ui.rvIdem[sig] = crypto.randomUUID());
     call = () => send('/dashboard/api/actions', 'POST', { kind: payload.sendKind, payload, idemKey });
     label = 'Send queued';
   } else return true;
@@ -211,6 +213,7 @@ export async function reviewClick(e, S, render, reload) {
   try {
     const row = await call();
     if (what === 'send' && row?.status === 'done' && row.result) label = String(row.result);
+    if (what === 'send') ui.rvIdem = {};
     ui.rvDone = { ...(ui.rvDone || {}), [c.id]: label };
     ui.rvKept = { ...(ui.rvKept || {}), [c.id]: c };
     const next = q.find((x) => x.id !== c.id && !ui.rvDone[x.id]);

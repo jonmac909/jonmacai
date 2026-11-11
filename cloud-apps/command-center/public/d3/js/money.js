@@ -76,7 +76,8 @@ function revenueHtml(d2resp, P) {
   const bar = has && target ? `<span class="bar" style="height: 10px; border-radius: 5px"><i style="width: ${Math.min(100, Math.round((m.actual / target) * 100))}%; border-radius: 5px"></i>${num(m.pace) ? `<b style="left: ${Math.min(100, Math.round((m.pace / target) * 100))}%"></b>` : ''}</span>` : '';
   const series = has ? stepSeries(sp.cashDays, P, target) : null;
   const tx = px(P.monthT);
-  const deposits = sp?.cashDays ? Object.values(sp.cashDays).filter((v) => Number(v) > 0).length : null;
+  const first = P.ymd ? `${P.ymd.slice(0, 7)}-01` : '';
+  const deposits = sp?.cashDays && P.ymd ? Object.entries(sp.cashDays).filter(([d, v]) => d >= first && d <= P.ymd && Number(v) > 0).length : null;
   const daysLeft = d2resp?.d2?.period?.month?.daysLeft;
   const stat = (l, v) => `<div class="stack"><span class="mut">${l}</span>${v == null ? '<span class="krv nf">No feed</span>' : `<span class="krv">${esc(v)}</span>`}</div>`;
   return `<section class="card" style="flex: 3 1 440px">

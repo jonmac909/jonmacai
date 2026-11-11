@@ -504,6 +504,11 @@ test('Review page: sponsor drafts first, buttons per type, Undo disabled, text e
   assert.doesNotMatch(q4, /data-opt="Other/);
   assert.match(q4, /placeholder="Or type your own answer"[\s\S]*data-rv="answer" data-id="q:q4"/);
   assert.match(pick('q:q2'), /placeholder="Type your answer"[\s\S]*data-rv="answer"/);
+  // Only the "Other (type ...)" option is the box; a real option starting with "Other" stays a button.
+  const q4item = d3.d3.queue.find((x) => x.id === 'q:q4');
+  q4item.act.options = ['Other channel first', 'Other (type your own)'];
+  assert.match(pick('q:q4'), /data-opt="Other channel first"/);
+  assert.doesNotMatch(pick('q:q4'), /data-opt="Other \(type/);
   assert.match(pick('q:q2', { rvDone: { 'q:q2': 'Answered' } }), /Answered<\/span><button type="button" class="btn lg" disabled title="Nothing to undo with yet">Undo/);
   for (const s of ['Atoms', '$5,500', 'Arcads', 'Dale Whitaker', 'Undo the last']) assert.ok(!html.includes(s), s);
   assert.match(renderReview(null, null, {}), /No feed: the review queue could not be read/);
@@ -584,6 +589,10 @@ test('Review clicks: each button calls only its write, after a confirm where it 
     await reviewClick(ev('rv', { rv: 'send', id: 'd:c-poppy' }), S, () => {}, async () => {});
     const [k1, k2] = calls.splice(-2).map((x) => x.idemKey);
     assert.ok(k1 && k1 === k2);
+    // An edited (or new) draft for the same sponsor gets a new key, so it is really sent.
+    Object.assign(S.ui, { rvEdit: 'd:c-poppy', rvDraft: { body: 'New text' } });
+    await reviewClick(ev('rv', { rv: 'send', id: 'd:c-poppy' }), S, () => {}, async () => {});
+    assert.notEqual(calls.pop().idemKey, k1);
     // Picking and paging change only the selection.
     ui = await run('t:vid', 'rvnav', { rvnav: '1' });
     assert.notEqual(ui.rvSel, 't:vid');
