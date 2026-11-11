@@ -9,8 +9,9 @@ import { renderTeam } from './team.js';
 import { renderBlockers } from './blockers.js';
 import { renderReview, reviewClick } from './review.js';
 import { renderMoney } from './money.js';
+import { renderScripts } from './scripts.js';
 
-const PAGES = { goals: 'Goals', team: 'Team', blockers: 'Blockers', review: 'Review', money: 'Money', bluesky: 'Bluesky', system: 'System' };
+const PAGES = { goals: 'Goals', team: 'Team', blockers: 'Blockers', review: 'Review', scripts: 'Scripts', money: 'Money', bluesky: 'Bluesky', system: 'System' };
 const SIGNIN = 'd3-signin';
 const main = document.getElementById('main');
 // Review state that belongs to one item: cleared when the item or the page changes.
@@ -43,7 +44,7 @@ function render() {
   const note = S.signedOut
     ? '<section class="card"><p>You are signed out. <a href="/dash/">Sign in</a></p></section>'
     : S.error ? `<section class="card"><p class="mut">${esc(S.error)}</p></section>` : '';
-  const live = { team: renderTeam, blockers: renderBlockers, review: renderReview, money: renderMoney }[p];
+  const live = { team: renderTeam, blockers: renderBlockers, review: renderReview, scripts: renderScripts, money: renderMoney }[p];
   if (live) {
     main.innerHTML = S.d3 ? `${note}${live(S.d2, S.d3, S.ui)}` : `${headerOnly(S.d2, PAGES[p])}${note || '<section class="card"><p class="mut">Loading</p></section>'}`;
     return;
