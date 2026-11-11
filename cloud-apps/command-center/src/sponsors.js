@@ -86,6 +86,10 @@ function hasDraft(card) {
   const dr = card.draftReply;
   return !!(dr && ['needs-review', 'edited', 'approved'].includes(dr.status) && String(dr.body || '').trim());
 }
+// Gmail thread ids (hex) of the cards with a draft waiting for Jon: what GPU1 reads for the Review page.
+export function draftThreadIds(cards) {
+  return [...new Set((cards || []).filter((c) => c.stage !== 'archived' && hasDraft(c)).map((c) => String(c.threadId || '')).filter((t) => /^[0-9a-f]{6,32}$/i.test(t)))];
+}
 export function keepCard(card, nowMs, items) {
   if (card.stage === 'archived') return false;
   const t = Date.parse(card.latestDate);
@@ -187,6 +191,7 @@ export function buildSponsorsPage(data, nowMs = Date.now(), overrides = {}, cash
     if (draft) {
       k.btn = 'Review';
       k.draft = true;
+      k.threadId = card.threadId || '';
       k.payload = {
         id: card.id,
         to: card.draftReply?.to || card.to || card.contact || '',

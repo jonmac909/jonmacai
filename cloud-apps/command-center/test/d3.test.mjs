@@ -794,3 +794,90 @@ test('Key results: named rows (name, actual / target, bar, status) worst first, 
   const planted = [{ title: 'X', krs: [{ id: 'z1', text: 'Fine', tone: 'g', hasBar: true, pct: 90 }, { id: 'z2', text: 'Bad', tone: 'r', hasBar: true, pct: 10 }, { id: 'z3', text: 'Worse', tone: 'r', hasBar: true, pct: 5 }] }];
   assert.deepEqual(keyRows(planted).map((k) => k.id), ['z3', 'z2', 'z1']);
 });
+
+// ---- Sponsor email draft: the Gmail thread above it (t_d5b72a1d03024731) ----
+const MAIL = { id: 'c-viktor', threadId: '1a100fca30a15755', payload: { id: 'c-viktor', to: 'v@x.com', subject: 'Re: Campaign', body: 'Thanks, my rate is $2,000.' } };
+const threadItem = (over = {}) => ({ id: 'd:c-viktor', type: 'email', kind: 'Sponsor email', name: 'Viktor', head: 'Reply to Viktor', sub: '', facts: [], body: MAIL.payload.body, threadId: MAIL.threadId, act: { type: 'email', payload: MAIL.payload }, ...over });
+const THREAD3 = { at: '2026-11-11T20:00:00Z', threads: { [MAIL.threadId]: { subject: 'Campaign', messages: [
+  { from: 'Viktor <v@x.com>', date: '2026-10-01T17:00:00Z', body: 'FIRST message body', quoted: false },
+  { from: 'Jon <partners@x.com>', date: '2026-10-02T17:00:00Z', body: 'SECOND message body', quoted: true },
+  { from: 'Viktor <v@x.com>', date: '2026-10-03T17:00:00Z', body: 'THIRD message body', quoted: false },
+] } } };
+const renderThread = (ui, item = threadItem()) => renderReview({ pages: {} }, { d3: { queue: [item] } }, { rvSel: item.id, ...ui });
+const openStates = (html) => (html.match(/<details class="rvmsg"[^>]*>/g) || []).map((d) => d.includes(' open'));
+
+test('Review: a 3-message thread renders all 3 oldest first above the draft, older folded, Vancouver dates', () => {
+  const html = renderThread({ rvThreads: THREAD3 });
+  const at = (s) => html.indexOf(s);
+  assert.ok(at('FIRST message body') > -1 && at('FIRST message body') < at('SECOND message body') && at('SECOND message body') < at('THIRD message body'));
+  assert.ok(at('THIRD message body') < at('Your reply (draft, not sent)'));
+  assert.ok(at('Your reply (draft, not sent)') < at('my rate is $2,000'));
+  assert.match(html, /3 messages, oldest first/);
+  assert.deepEqual(openStates(html), [false, true, true]); // newest two open
+  assert.match(html, /\(earlier quoted text hidden\)/);
+  assert.match(html, /Oct 1, 2026/);
+  assert.match(html, /10:00 AM/); // 17:00Z is 10:00 in Kelowna (PDT)
+  // Jon's click choice (ui.rvOpen) wins over the default.
+  const toggled = renderThread({ rvThreads: THREAD3, rvOpen: { [`${MAIL.threadId}:0`]: true, [`${MAIL.threadId}:2`]: false } });
+  assert.deepEqual(openStates(toggled), [true, true, false]);
+});
+
+test('Review: thread states (loading, error, no thread id, thread missing), escaping, and edit mode keeps the thread', () => {
+  assert.match(renderThread({}), /Loading the thread/);
+  assert.match(renderThread({ rvThreads: { error: 'offline' } }), /Could not load the thread \(offline\)/);
+  assert.match(renderThread({ rvThreads: THREAD3 }, threadItem({ threadId: '' })), /No thread found/);
+  assert.match(renderThread({ rvThreads: { threads: {} } }), /No thread found/);
+  const evil = { threads: { [MAIL.threadId]: { messages: [{ from: '<img src=x>', date: 'bad', body: '<script>alert(1)</script>', quoted: false }] } } };
+  const h = renderThread({ rvThreads: evil });
+  assert.doesNotMatch(h, /<script>alert|<img src=x>/);
+  assert.match(h, /1 message, oldest/);
+  const edit = renderThread({ rvThreads: THREAD3, rvEdit: 'd:c-viktor', rvDraft: {} });
+  assert.match(edit, /THIRD message body[\s\S]*Your reply \(draft, not sent\)[\s\S]*<textarea class="rvin" name="body"/);
+});
+
+test('Review: clicking a message summary toggles it in ui.rvOpen and redraws', async () => {
+  const S = { ui: { rvThreads: THREAD3 }, d2: { pages: {} }, d3: { d3: { queue: [threadItem()] } } };
+  let renders = 0; let prevented = false;
+  const summary = { dataset: { rvmsg: `${MAIL.threadId}:0` }, parentElement: { open: false } };
+  const e = { preventDefault() { prevented = true; }, target: { closest: (sel) => (sel === '[data-rvmsg]' ? summary : null) } };
+  assert.equal(await reviewClick(e, S, () => { renders++; }, async () => {}), true);
+  assert.deepEqual([prevented, renders, S.ui.rvOpen], [true, 1, { [`${MAIL.threadId}:0`]: true }]);
+});
+
+const draftCard = (id, threadId, over = {}) => ({ id, threadId, stage: 'needs-reply', draftReply: { status: 'needs-review', body: 'Hello', to: 'a@b.c' }, ...over });
+const post = (env, tok, source, data) => handleApi(new Request('https://jonmac.ai/dashboard/api/ingest', { method: 'POST', headers: { Authorization: `Bearer ${tok}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ source, collectedAt: '2026-11-11T20:00:00Z', data }) }), env);
+
+test('API: GET /dashboard/api/sponsor-threads needs a session and returns the stored threads; the page poll leaves them out', async () => {
+  const db = sqliteD1();
+  const env = { DB: db, SESSION_SECRET: SECRET, MACHINE_TOKEN_GPU1: 'gpu1-tok' };
+  const url = 'https://jonmac.ai/dashboard/api/sponsor-threads';
+  assert.equal((await handleApi(new Request(url), env)).status, 401);
+  const cookie = { headers: { Cookie: await cookieAt(Date.now()) } };
+  assert.deepEqual(await (await handleApi(new Request(url, cookie), env)).json(), { ok: true, at: null, threads: {} });
+  assert.equal((await post(env, 'gpu1-tok', 'sponsor_threads', THREAD3)).status, 200);
+  const got = await (await handleApi(new Request(url, cookie), env)).json();
+  assert.equal(got.at, '2026-11-11T20:00:00Z');
+  assert.equal(got.threads[MAIL.threadId].messages.length, 3);
+  const { listSnapshots } = await import('../src/db.js');
+  assert.ok(!(await listSnapshots(db)).some((r) => r.source === 'sponsor_threads'));
+});
+
+test('API: /sponsor-threads/wanted is gpu1 only and lists draft threads (no archived, no draftless, no bad ids, no repeats)', async () => {
+  const db = sqliteD1();
+  const env = { DB: db, SESSION_SECRET: SECRET, MACHINE_TOKEN_GPU1: 'gpu1-tok', MACHINE_TOKEN_MAC: 'mac-tok' };
+  const cards = [draftCard('a', '1a100fca30a15755'), draftCard('b', '1a100fca30a15755'), draftCard('c', '2b200fca30a15755', { stage: 'archived' }),
+    draftCard('d', '3c300fca30a15755', { draftReply: { status: 'sent', body: 'x' } }), draftCard('e', 'zz;drop'), draftCard('f', '4d400fca30a15755')];
+  await post(env, 'mac-tok', 'sponsors', { cards });
+  const ask = (tok) => handleApi(new Request('https://jonmac.ai/dashboard/api/sponsor-threads/wanted', { headers: tok ? { Authorization: `Bearer ${tok}` } : {} }), env);
+  assert.equal((await ask(null)).status, 401);
+  assert.equal((await ask('mac-tok')).status, 401);
+  assert.equal((await ask('nope')).status, 401);
+  assert.deepEqual(await (await ask('gpu1-tok')).json(), { ok: true, threads: ['1a100fca30a15755', '4d400fca30a15755'] });
+});
+
+test('API: ingest of sponsor_threads is refused from mac and gpu2, allowed from gpu1', async () => {
+  const env = { DB: sqliteD1(), SESSION_SECRET: SECRET, MACHINE_TOKEN_GPU1: 'gpu1-tok', MACHINE_TOKEN_MAC: 'mac-tok', MACHINE_TOKEN_GPU2: 'gpu2-tok' };
+  const codes = [];
+  for (const tok of ['mac-tok', 'gpu2-tok', 'gpu1-tok']) codes.push((await post(env, tok, 'sponsor_threads', THREAD3)).status);
+  assert.deepEqual(codes, [401, 401, 200]);
+});

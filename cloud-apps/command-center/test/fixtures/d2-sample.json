@@ -1289,6 +1289,7 @@
         "pg": "",
         "btn": "Review",
         "draft": true,
+        "threadId": "",
         "payload": {
          "id": "c-receipt",
          "to": "receipts@stripe.com",
@@ -1312,6 +1313,7 @@
         "pg": "",
         "btn": "Review",
         "draft": true,
+        "threadId": "",
         "payload": {
          "id": "c-refund",
          "to": "support@commas.io",
@@ -1335,6 +1337,7 @@
         "pg": "",
         "btn": "Review",
         "draft": true,
+        "threadId": "",
         "payload": {
          "id": "c-news",
          "to": "newsletter@creatorweekly.com",
@@ -1365,6 +1368,7 @@
         "pg": "",
         "btn": "Review",
         "draft": true,
+        "threadId": "",
         "payload": {
          "id": "c-poppy",
          "to": "ann@poppy.ai",
@@ -5565,6 +5569,7 @@
            "pg": "",
            "btn": "Review",
            "draft": true,
+           "threadId": "",
            "payload": {
             "id": "c-poppy",
             "to": "ann@poppy.ai",

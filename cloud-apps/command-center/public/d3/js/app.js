@@ -79,6 +79,16 @@ async function getJson(path) {
   return { body: await res.json() };
 }
 
+// The Gmail threads above the sponsor drafts: only the Review page asks, so other pages skip the extra read.
+async function loadThreads() {
+  try {
+    const t = await getJson('/dashboard/api/sponsor-threads');
+    if (!t.signedOut) S.ui.rvThreads = t.body;
+  } catch (err) {
+    if (!S.ui.rvThreads?.threads) S.ui.rvThreads = { error: err.message };
+  }
+}
+
 async function load() {
   try {
     const [a, b] = await Promise.all([getJson('/dashboard/api/d2'), getJson('/dashboard/api/d3')]);
@@ -98,6 +108,7 @@ async function load() {
   } catch (err) {
     S.error = `Could not load the numbers (${err.message}). Showing the last ones loaded.`;
   }
+  if (page() === 'review' && !S.signedOut) await loadThreads();
   rail();
   // Don't redraw under Jon's typing (a Review answer, send-back note or draft edit); the next load or click redraws.
   if (document.activeElement?.closest?.('#main textarea, #main input')) return;
@@ -146,7 +157,11 @@ main.addEventListener('input', (e) => {
   else if (e.target.matches('.rvin')) S.ui.rvDraft = { ...S.ui.rvDraft, [e.target.name]: e.target.value };
 });
 
-window.addEventListener('hashchange', () => { Object.assign(S.ui, { openKr: null, openBot: null, openBl: null, ...RV_CLEAR, rvDone: {}, rvKept: {} }); render(); });
+window.addEventListener('hashchange', () => {
+  Object.assign(S.ui, { openKr: null, openBot: null, openBl: null, ...RV_CLEAR, rvDone: {}, rvKept: {} });
+  render();
+  if (page() === 'review' && !S.ui.rvThreads?.threads) loadThreads().then(() => { if (page() === 'review') render(); });
+});
 setInterval(() => { if (document.visibilityState === 'visible') load(); }, 60000);
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') load(); });
 render();

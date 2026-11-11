@@ -5,11 +5,11 @@ import {
 } from './auth.js';
 import {
   loginStore, insertAction, actionByIdem, actionById, claimQueued, claimedVideo, completeAction,
-  reportAction, upsertHabit, upsertSnapshot, listSnapshots, upsertDealStage, listDealStages, listIdeas, upsertIdea, listHabits,
+  reportAction, upsertHabit, upsertSnapshot, listSnapshots, getSnapshot, upsertDealStage, listDealStages, listIdeas, upsertIdea, listHabits,
 } from './db.js';
 import { mergeSnapshot } from './snapshot.js';
 import { listFunnel } from './webinar.js';
-import { boardStageFor, mapColumn } from './sponsors.js';
+import { boardStageFor, draftThreadIds, mapColumn } from './sponsors.js';
 import { runMoneyMove } from './money.js';
 import { exchangeGoogleCode, googleAuthUrl, runLife } from './life.js';
 import { REVIEW_SOURCE, draftId, isIsolated, parseReview, plannerDestination, reviewMutate, upsertReview } from './review.js';
@@ -315,6 +315,21 @@ export async function handleApi(request, env, ctx) {
     const now = Date.now();
     return json({ ok: true, build: env.CF_VERSION_METADATA?.id ?? null, asOf: new Date(now).toISOString(), d3: buildD3(await d3Data(env, now)) });
   }
+  // Review page: the Gmail thread above each sponsor draft (bots/sponsor_threads.py on GPU1 reads partners@, read only).
+  if (rest === '/sponsor-threads' && method === 'GET') {
+    const denied = await needSession(request, env);
+    if (denied) return denied;
+    const row = env.DB ? await getSnapshot(env.DB, 'sponsor_threads') : null;
+    const data = row ? JSON.parse(row.data || '{}') : {};
+    return json({ ok: true, at: row?.collected_at || null, threads: data.threads || {} });
+  }
+  // GPU1 asks which threads to read: the Gmail thread of every sponsor card with a draft waiting for Jon.
+  if (rest === '/sponsor-threads/wanted' && method === 'GET') {
+    if (machineOf(request, env) !== 'gpu1') return json({ error: 'Unauthorized' }, 401);
+    const row = env.DB ? await getSnapshot(env.DB, 'sponsors') : null;
+    const cards = row ? JSON.parse(row.data || '{}').cards || [] : [];
+    return json({ ok: true, threads: draftThreadIds(cards) });
+  }
 
   if (rest === '/ingest' && method === 'POST') {
     const who = machineOf(request, env);
@@ -327,6 +342,7 @@ export async function handleApi(request, env, ctx) {
     if (!source || !Date.parse(collectedAt)) return json({ error: 'Bad ingest' }, 400);
     if (source === 'webinar_funnel' // written only by the Worker's own cron
       || source === 'periods' // written only through PUT /v1/periods (writer check + validation)
+      || (source === 'sponsor_threads' && who !== 'gpu1') // partners@ threads, read on GPU1 only
       || (source.startsWith('machine_') && source !== `machine_${who}`)) {
       return json({ error: 'Unauthorized' }, 401);
     }

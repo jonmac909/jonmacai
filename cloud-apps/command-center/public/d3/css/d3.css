@@ -99,6 +99,10 @@ html[data-theme="dark"] body{background:#0b0b0c}
 .d3 .rvwrap{align-items:flex-start}
 .d3 .rvqueue{max-height:calc(100vh - 140px);overflow-y:auto}
 .d3 .rvdetail{position:sticky;top:16px;min-height:0}
+.d3 .rvthread{max-height:55vh;overflow-y:auto}
+.d3 .rvmsg{border-top:1px solid var(--line);padding:8px 0 0}
+.d3 .rvmsg>summary{display:flex;align-items:center;gap:10px;justify-content:space-between;cursor:pointer;min-height:36px;min-width:0}
+.d3 .rvmsg>p{margin:6px 0 4px}
 
 /* ---- Build additions (not in the design file) ---- */
 .d3{min-height:100vh}
