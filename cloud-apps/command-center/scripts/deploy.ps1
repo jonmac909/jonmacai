@@ -11,8 +11,10 @@ if (git status --porcelain) { throw 'Working tree not clean.' }
 npm test; if ($LASTEXITCODE) { throw 'tests failed' }
 $check = 'D:\AgentTeam\tools\dash_version_check.py'
 if (-not (Get-Command python -ErrorAction SilentlyContinue) -or -not (Test-Path $check)) { throw 'python or dash_version_check.py missing; not deploying' }
-$deps = @(npx --yes wrangler@4.160.0 deployments list --json | ConvertFrom-Json)
-if ($LASTEXITCODE -or $deps.Count -eq 0) { throw 'could not read deployments' }
+$raw = npx --yes wrangler@4.160.0 deployments list --json | Out-String
+if ($LASTEXITCODE) { throw 'could not read deployments' }
+$deps = @($raw | ConvertFrom-Json | ForEach-Object { $_ })
+if ($deps.Count -eq 0) { throw 'could not read deployments' }
 $dep = $deps | Sort-Object { [datetime]$_.created_on } | Select-Object -Last 1
 $full = @($dep.versions | Where-Object { $_.percentage -eq 100 })
 if ($full.Count -ne 1) { throw 'no single version has 100% traffic; not deploying' }
