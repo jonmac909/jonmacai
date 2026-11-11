@@ -1,4 +1,4 @@
-/* Dashboard 3 (docs/dashboard-3.md). The rules down to "Build additions" are the approved design's <style> block
+﻿/* Dashboard 3 (docs/dashboard-3.md). The rules down to "Build additions" are the approved design's <style> block
    (D:\AgentTeamriefs\dashboard3\Home.dc.html), unchanged except that the theme sits on <html data-theme>
    so it is applied before the first paint. */
 body{margin:0;background:#eef0f3}
@@ -99,6 +99,10 @@ html[data-theme="dark"] body{background:#0b0b0c}
 .d3 .scrow.first{border-top:0}
 .d3 .qrow{display:flex;align-items:center;gap:10px;width:100%;min-height:56px;text-align:left;border:0;background:transparent;padding:8px 10px;border-radius:12px}
 .d3 .qrow[aria-current="true"]{background:var(--card2)}
+/* Review: the open item stays in view and its answer buttons sit right under it; the long queue scrolls on its own. */
+.d3 .rvwrap{align-items:flex-start}
+.d3 .rvqueue{max-height:calc(100vh - 140px);overflow-y:auto}
+.d3 .rvdetail{position:sticky;top:16px;min-height:0}
 
 /* ---- Build additions (not in the design file) ---- */
 .d3{min-height:100vh}
@@ -137,6 +141,8 @@ html[data-theme="dark"] body{background:#0b0b0c}
 /* Narrow screens: no sideways scroll. Wider than 983px the design layout above is unchanged (the Team row needs ~690px
    of card; the rail sits beside the main column from 808px up). */
 @media (max-width:983px){
+  .d3 .rvdetail{order:-1;position:static}
+  .d3 .rvqueue{max-height:60vh}
   .d3 .brow{grid-template-columns:206px minmax(0,1fr) 116px}
   .d3 .brow>:nth-child(n+4){display:none}
   .d3 .board{grid-template-columns:repeat(4,minmax(0,1fr)) !important}

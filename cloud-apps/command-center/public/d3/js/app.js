@@ -16,8 +16,8 @@ const PAGES = { goals: 'Goals', team: 'Team', blockers: 'Blockers', review: 'Rev
 const SIGNIN = 'd3-signin';
 const main = document.getElementById('main');
 // Review state that belongs to one item: cleared when the item or the page changes.
-const RV_CLEAR = { rvBack: null, rvEdit: null, rvDraft: {}, rvText: '', rvErr: '' };
-const S = { d2: null, d3: null, error: '', signedOut: false, ui: { openKr: null, hgpOpen: false, busy: false, openBot: null, openBl: null, blFilter: 'all', rvSel: null, rvDone: {}, rvKept: {}, rvBack: null, rvEdit: null, rvDraft: {}, rvText: '', rvErr: '' } };
+const RV_CLEAR = { rvBack: null, rvEdit: null, rvDraft: {}, rvPick: null, rvText: '', rvErr: '' };
+const S = { d2: null, d3: null, error: '', signedOut: false, ui: { openKr: null, hgpOpen: false, busy: false, openBot: null, openBl: null, blFilter: 'all', rvSel: null, rvDone: {}, rvKept: {}, rvBack: null, rvEdit: null, rvDraft: {}, rvPick: null, rvText: '', rvErr: '' } };
 
 // ---- theme (the inline script in index.html applies the saved one before paint) ----
 function setTheme(t) {

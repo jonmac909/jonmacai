@@ -10,7 +10,7 @@ import { renderGoals, objectivesOf } from '../public/d3/js/goals.js';
 import { statHtml, railCounts } from '../public/d3/js/rail.js';
 import { renderTeam } from '../public/d3/js/team.js';
 import { blockerRows, renderBlockers } from '../public/d3/js/blockers.js';
-import { reviewItems, renderReview, reviewClick } from '../public/d3/js/review.js';
+import { reviewItems, renderReview, reviewClick, OTHER_PICK } from '../public/d3/js/review.js';
 import { dealStages, renderMoney } from '../public/d3/js/money.js';
 
 const SECRET = 'test-session-secret-32-bytes-ok!';
@@ -650,12 +650,21 @@ test('Review page: sponsor drafts first, buttons per type, Undo disabled, text e
   assert.match(pick('t:rev'), /data-rv="approve" data-id="t:rev"[^>]*>Approve<\/button><button[^>]*data-rv="open-back" data-id="t:rev"/);
   assert.match(pick('t:rev', { rvBack: 't:rev' }), /class="rvtext"[\s\S]*data-rv="back" data-id="t:rev"[\s\S]*data-rv="cancel"/);
   assert.match(pick('a:a1'), /data-rv="yes" data-id="a:a1"[^>]*>Approve<\/button><button[^>]*data-rv="no"[^>]*>Reject/);
-  // "Other (type your own)" is the typed box, never a button that sends those words.
+  // A Decision: its options as buttons in the bot's order, then "Other (type your own)", then one Submit.
+  // "Other" opens the typed box; its words are never sent as the answer.
   const q4 = pick('q:q4');
-  assert.match(q4, /data-rv="opt" data-id="q:q4" data-opt="\$2,500"/);
+  assert.match(q4, /data-rv="pick" data-id="q:q4" aria-pressed="false" data-opt="\$2,500"[^>]*>\$2,500<\/button><button[^>]*data-rv="other" data-id="q:q4" aria-pressed="false"[^>]*>Other \(type your own\)<\/button><\/div><button[^>]*data-rv="answer" data-id="q:q4"[^>]*>Submit<\/button>/);
   assert.doesNotMatch(q4, /data-opt="Other/);
-  assert.match(q4, /placeholder="Or type your own answer"[\s\S]*data-rv="answer" data-id="q:q4"/);
-  assert.match(pick('q:q2'), /placeholder="Type your answer"[\s\S]*data-rv="answer"/);
+  assert.doesNotMatch(q4, /class="rvtext"/);
+  assert.match(pick('q:q4', { rvPick: { id: 'q:q4', v: '$2,500' } }), /aria-pressed="true" data-opt="\$2,500"/);
+  assert.doesNotMatch(pick('q:q4', { rvPick: { id: 'q:q2', v: '$2,500' } }), /aria-pressed="true"/); // a pick made on another item
+  assert.match(pick('q:q4', { rvPick: { id: 'q:q4', v: OTHER_PICK }, rvText: 'Mine' }), /data-rv="other"[^>]*aria-pressed="true"[\s\S]*<textarea class="rvtext"[^>]*>Mine<\/textarea><button[^>]*data-rv="answer"[^>]*>Submit/);
+  // An old question with no options: the typed box and Submit.
+  assert.match(pick('q:q2'), /<textarea class="rvtext"[^>]*placeholder="Type your answer"[\s\S]*data-rv="answer"[^>]*>Submit/);
+  assert.doesNotMatch(pick('q:q2'), /data-rv="other"/);
+  // The answer row sits right under the question, not pushed to the bottom of a panel as tall as the queue.
+  assert.match(q4, /class="card rvdetail"/);
+  assert.doesNotMatch(q4, /margin-top: auto/);
   // Only the "Other (type ...)" option is the box; a real option starting with "Other" stays a button.
   const q4item = d3.d3.queue.find((x) => x.id === 'q:q4');
   q4item.act.options = ['Other channel first', 'Other (type your own)'];
@@ -701,8 +710,8 @@ test('Review clicks: each button calls only its write, after a confirm where it 
     // Every write confirms first: No sends nothing.
     yes = false;
     typed = 'Fix it';
-    for (const [sel, rv, extra] of [['t:rev', 'approve'], ['t:rev', 'back', { rvBack: 't:rev' }], ['a:a1', 'yes'], ['a:a1', 'no'], ['q:q4', 'opt', { opt: '$2,500' }], ['q:q2', 'answer'], ['d:c-poppy', 'send']]) {
-      await run(sel, 'rv', { rv, ...(extra?.opt ? { opt: extra.opt } : {}) }, extra?.rvBack ? { rvBack: extra.rvBack } : {});
+    for (const [sel, rv, ui0] of [['t:rev', 'approve'], ['t:rev', 'back', { rvBack: 't:rev' }], ['a:a1', 'yes'], ['a:a1', 'no'], ['q:q4', 'answer', { rvPick: { id: 'q:q4', v: '$2,500' } }], ['q:q2', 'answer'], ['d:c-poppy', 'send']]) {
+      await run(sel, 'rv', { rv }, ui0 || {});
     }
     assert.equal(calls.length, 0);
     yes = true;
@@ -717,16 +726,34 @@ test('Review clicks: each button calls only its write, after a confirm where it 
     assert.deepEqual(calls.pop(), ['/dashboard/api/v1/approvals/a1/decide', 'POST', { decision: 'reject' }]);
     await run('a:a1', 'rv', { rv: 'yes' });
     assert.deepEqual(calls.pop(), ['/dashboard/api/v1/approvals/a1/decide', 'POST', { decision: 'approve' }]);
-    ui = await run('q:q4', 'rv', { rv: 'opt', opt: '$2,500' });
+    // Picking an option or Other only marks it; Submit sends the pick, or the typed text after Other.
+    ui = await run('q:q4', 'rv', { rv: 'pick', opt: '$2,500' });
+    assert.deepEqual(ui.rvPick, { id: 'q:q4', v: '$2,500' });
+    assert.equal(calls.length, 0);
+    ui = await run('q:q4', 'rv', { rv: 'answer' });
+    assert.match(ui.rvErr, /Pick an answer/);
+    typed = 'typed without Other';
+    await run('q:q4', 'rv', { rv: 'answer' });
+    typed = '';
+    await run('q:q4', 'rv', { rv: 'answer' }, { rvPick: { id: 'q:q2', v: '$2,500' } }); // a pick made on another item
+    await run('q:q4', 'rv', { rv: 'answer' }, { rvPick: { id: 'q:q4', v: 'Not an option' } });
+    assert.equal(calls.length, 0);
+    ui = await run('q:q4', 'rv', { rv: 'answer' }, { rvPick: { id: 'q:q4', v: '$2,500' } });
     assert.deepEqual(calls.pop(), ['/dashboard/api/v1/questions/q4/answer', 'POST', { answer: '$2,500' }]);
     assert.equal(ui.rvDone['q:q4'], '$2,500');
+    assert.equal(ui.rvPick, null);
+    assert.notEqual(ui.rvSel, 'q:q4'); // moved on to the next item
     await run('d:c-poppy', 'rv', { rv: 'send' }, { rvEdit: 'd:c-poppy', rvDraft: { body: 'Edited' } });
     const [url, method, body] = calls.pop();
     assert.deepEqual([url, method, body.kind, body.payload.body, body.payload.to], ['/dashboard/api/actions', 'POST', 'sponsor.send_draft', 'Edited', 'ann@poppy.ai']);
     assert.ok(body.idemKey);
     typed = 'My own answer';
-    await run('q:q4', 'rv', { rv: 'answer' });
+    ui = await run('q:q4', 'rv', { rv: 'other' });
+    assert.deepEqual(ui.rvPick, { id: 'q:q4', v: OTHER_PICK });
+    await run('q:q4', 'rv', { rv: 'answer' }, { rvPick: ui.rvPick });
     assert.deepEqual(calls.pop(), ['/dashboard/api/v1/questions/q4/answer', 'POST', { answer: 'My own answer' }]);
+    await run('q:q2', 'rv', { rv: 'answer' }); // no options: the box alone
+    assert.deepEqual(calls.pop(), ['/dashboard/api/v1/questions/q2/answer', 'POST', { answer: 'My own answer' }]);
     // Done items, busy state and a failed write: nothing sent twice, the error shown.
     await run('t:rev', 'rv', { rv: 'approve' }, { rvDone: { 't:rev': 'Approved' } });
     await run('t:rev', 'rv', { rv: 'approve' }, { busy: true });
