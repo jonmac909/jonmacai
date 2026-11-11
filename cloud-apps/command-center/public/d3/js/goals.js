@@ -130,7 +130,6 @@ export function objectivesOf(d2resp, d3resp, P = periodOf(d2resp)) {
   const wk = (g, i) => g?.week?.[i] || null;
   const WK = (m) => ({ span: P.wk, series: weekSeries(m, P), hint: 'this week' });
   const collected = one(sp?.month);
-  const tw = g3?.tokenWeeks || null;
   const wo = g3?.workouts || null;
   const dn = g3?.dateNights || null;
   const ch = g3?.charges || null;
@@ -152,13 +151,6 @@ export function objectivesOf(d2resp, d3resp, P = periodOf(d2resp)) {
         : noFeed('b5', 'Passed QC first try', 'QC verdicts on renders could not be read.'),
       g3?.approvedWaiting ? kr('b6', 'Approved, not uploaded', g3.approvedWaiting, { bar: false, hint: g3.approvedWaiting.actual ? `oldest ${g3.approvedWaiting.oldestLabel}` : 'none waiting', span: null, series: null, target: 'Target 0' })
         : noFeed('b6', 'Approved, not uploaded', 'Approvals and the YouTube calendar could not be read.'),
-    ] },
-    { title: 'Operations', owner: 'Ana', icon: 'bot', krs: [
-      tw ? kr('c1', 'Weeks token limit hit', tw, { bar: false, hint: 'target 0', span: P.mo, series: num(tw.actual) ? monthEventSeries(tw.hitDays || [], P, 0) : null })
-        : noFeed('c1', 'Weeks token limit hit', "Ana's Claude usage check could not be read."),
-      noFeed('c2', 'Dashboard 3 pages built', 'No feed counts built pages yet.'),
-      noFeed('c3', 'Cost per video measured', 'Needs tokens saved on every run, per card.'),
-      noFeed('c4', 'Times you typed "continue"', 'Nothing counts this yet.'),
     ] },
     { title: 'Personal', owner: 'You', icon: 'heart', krs: [
       wo ? kr('p1', 'Workouts', wo, { span: P.wk, series: weekSeries(wo, P), hint: 'this week', log: { kind: 'workout', done: !!wo.loggedToday } })
@@ -207,17 +199,40 @@ function headerHtml(P, title, sub, pill = '') {
 </header>`;
 }
 
+// Key results: one named row per result (name, actual / target, bar, status), worst first. Off track and at risk
+// rows always show; on track and no-data rows sit behind one click. Same rows and numbers as the sections below.
+const RANK = { r: 0, y: 1, g: 2, n: 3 };
+const WORD = { r: 'Off track', y: 'At risk', g: 'On track', n: 'No data' };
+export function keyRows(objs) {
+  const rows = [];
+  for (const o of objs) for (const k of o.krs) rows.push({ ...k, obj: o.title });
+  // Worst first: by status, then furthest below target (lowest share of target) first; rows with no bar keep order.
+  return rows.map((k, i) => ({ k, i })).sort((a, b) => RANK[a.k.tone] - RANK[b.k.tone]
+    || (a.k.hasBar ? a.k.pct : 101) - (b.k.hasBar ? b.k.pct : 101) || a.i - b.i).map((x) => x.k);
+}
+
+function keyRowHtml(k) {
+  const target = k.v2 ? `<span class="dim">${esc(k.v2)}</span>` : k.target ? `<span class="dim"> · ${esc(k.target.toLowerCase())}</span>` : '';
+  // No target, no bar: an empty grey track would read as 0%.
+  const bar = k.hasBar ? `<span class="bar" aria-hidden="true"><i class="${k.tone}" style="width: ${k.pct}%"></i></span>` : '<span class="bar nb" aria-hidden="true"></span>';
+  const word = k.nf && k.v1 === 'No feed' ? 'No feed' : WORD[k.tone];
+  return `<div class="ksr" data-kr-row="${esc(k.id)}"><span class="ksn"><span class="dot ${k.tone === 'n' ? '' : k.tone}"></span><span class="stack"><span class="ell">${esc(k.text)}</span><span class="mut ell" style="font-size: 12px">${esc(k.obj)}</span></span></span>
+<span class="ksv${k.nf ? ' nf' : ''}">${k.nf ? esc(k.v1) : `${esc(k.v1)}${target}`}</span>${bar}<span class="kss ${k.tone}">${esc(word)}</span></div>`;
+}
+
 function summaryHtml(objs) {
   const c = { r: 0, y: 0, g: 0, n: 0 };
   for (const o of objs) for (const k of o.krs) c[k.tone] += 1;
   const all = c.r + c.y + c.g + c.n;
   const pill = c.r ? '<span class="pill bad sp">Behind</span>' : c.y ? '<span class="pill warn sp">At risk</span>' : c.g ? '<span class="pill ok sp">On track</span>' : '<span class="pill sp">No data</span>';
-  const rows = objs.map((o) => `<div style="display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr); align-items: center; gap: 12px"><span class="sub" style="font-weight: 500">${esc(o.title)}</span><span style="display: flex; gap: 5px">${o.krs.map((k) => `<i class="sq ${k.tone === 'n' ? '' : k.tone}" title="${esc(k.text)}"></i>`).join('')}</span></div>`).join('');
-  return `<section class="card" style="flex: 5 1 340px" aria-label="Key results">
+  const rows = keyRows(objs);
+  const top = rows.filter((k) => k.tone === 'r' || k.tone === 'y');
+  const rest = rows.filter((k) => k.tone === 'g' || k.tone === 'n');
+  const more = rest.length ? `<details class="ksm"${top.length ? '' : ' open'}><summary class="mut">${c.g} on track, ${c.n} no data</summary><div class="ksl">${rest.map(keyRowHtml).join('')}</div></details>` : '';
+  return `<section class="card ks" style="flex: 5 1 340px" aria-label="Key results">
 <div class="hd"><span class="chip">${icon('goals')}</span><h2>Key results</h2>${pill}</div>
-<div class="hd" style="align-items: baseline; gap: 8px"><b class="num">${c.r}</b><span class="dim" style="font-size: 16px">of ${all} off track</span></div>
-<div style="display: flex; flex-direction: column; gap: 10px">${rows}</div>
-<div class="hd mut" style="flex-wrap: wrap; gap: 6px 14px; font-size: 12px"><span class="hd" style="gap: 6px"><span class="dot r"></span>${c.r} off track</span><span class="hd" style="gap: 6px"><span class="dot y"></span>${c.y} at risk</span><span class="hd" style="gap: 6px"><span class="dot g"></span>${c.g} on track</span><span class="hd" style="gap: 6px"><span class="dot"></span>${c.n} no data</span></div>
+<div class="hd" style="align-items: baseline; gap: 8px"><b class="num">${c.r}</b><span class="dim" style="font-size: 16px">of ${all} off track${c.y ? `, ${c.y} at risk` : ''}</span></div>
+${top.length ? `<div class="ksl">${top.map(keyRowHtml).join('')}</div>` : ''}${more}
 </section>`;
 }
 

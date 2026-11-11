@@ -29,6 +29,16 @@ class YtLiveDone(unittest.TestCase):
         with self.assertRaises(SystemExit), mock.patch('sys.stderr'):
             dash.parser().parse_args(['yt-live-done', 't_a4d0bce911a34c42'])
 
+    def test_close_posts_to_the_close_path_with_its_note(self):
+        args = dash.parser().parse_args(['close', 't_a4d0bce911a34c42', '--note', 'Live: PR merged and deployed'])
+        with mock.patch.object(dash, 'call', return_value={'ok': True}) as call:
+            dash.run(args, CTX)
+        call.assert_called_once_with(CTX, 'POST', '/tasks/t_a4d0bce911a34c42/close', {'note': 'Live: PR merged and deployed'})
+        args = dash.parser().parse_args(['close', 't_1/../x'])
+        with mock.patch.object(dash, 'call', return_value={}) as call:
+            dash.run(args, CTX)
+        call.assert_called_once_with(CTX, 'POST', '/tasks/t_1%2F..%2Fx/close', {})
+
     def test_task_update_still_refuses_done(self):
         args = dash.parser().parse_args(['task-update', 't_a4d0bce911a34c42', '--status', 'done'])
         with mock.patch.object(dash, 'call') as call, self.assertRaises(dash.Fail):
