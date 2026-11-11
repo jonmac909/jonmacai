@@ -13,6 +13,7 @@ import { renderTeam } from '../public/d3/js/team.js';
 import { blockerRows, renderBlockers } from '../public/d3/js/blockers.js';
 import { reviewItems, renderReview, reviewClick, OTHER_PICK } from '../public/d3/js/review.js';
 import { dealStages, renderMoney } from '../public/d3/js/money.js';
+import { renderSources } from '../public/d3/js/sources.js';
 
 const SECRET = 'test-session-secret-32-bytes-ok!';
 const TUESDAY = Date.parse('2026-11-10T19:00:00Z'); // Tuesday Nov 10, 11:00 AM in Kelowna
@@ -794,45 +795,73 @@ function reviewDb() {
   ins(db, 'bot_tasks', { id: 'vid', title: 'Tiny house tour - Rosa', owner: 'video-editor', project: 'home-guide-press', status: 'review', note: 'Final cut <b>v2</b>', due: '2026-11-12', created_by: 'ana', updated_by: 'qc', created_at: H(8), updated_at: H(8) });
   ins(db, 'bot_proofs', { id: 'pv', task_id: 'vid', kind: 'render', link: '/dashboard/review/abc', status: 'passed', created_by: 'qc', created_at: H(8) });
   ins(db, 'bot_tasks', { id: 'loc', title: 'Local only', owner: 'developer', status: 'review', created_by: 'ana', updated_by: 'qc', created_at: H(2), updated_at: H(2) });
-  ins(db, 'bot_proofs', { id: 'pl', task_id: 'loc', kind: 'file', link: 'D:\\work\\out.mp4', status: 'passed', created_by: 'qc', created_at: H(2) });
+  ins(db, 'bot_proofs', { id: 'pl', task_id: 'loc', kind: 'file', link: 'D:\\work\\out.txt', status: 'passed', created_by: 'qc', created_at: H(2) });
+  // A developer's card whose proof is a YouTube link is a video, never a one-click dev card.
+  ins(db, 'bot_tasks', { id: 'dvy', title: 'Promo cut', owner: 'developer', status: 'review', created_by: 'ana', updated_by: 'qc', created_at: H(1), updated_at: H(1) });
+  ins(db, 'bot_proofs', { id: 'py', task_id: 'dvy', kind: 'link', link: 'https://youtu.be/abc', status: 'passed', created_by: 'qc', created_at: H(1) });
   ins(db, 'bot_questions', { id: 'q4', asked_by: 'sponsors', question: 'Which rate?', options: JSON.stringify(['$2,500', 'Other (type your own)']), status: 'open', created_at: H(6), updated_at: H(6) });
   return db;
 }
 
-test('GET /dashboard/api/d3: Review queue from D1, oldest first, each item with its existing write, no local links', async () => {
-  const q = (await d3Of(reviewDb())).d3.queue;
-  const at = q.map((x) => Date.parse(x.at));
-  assert.deepEqual(at, [...at].sort((a, b) => a - b));
-  assert.equal(q[0].id, 'q:q2');
+test('GET /dashboard/api/d3: Review queue from D1, videos first, dev cards last, oldest first in each, each item with its existing write, no local links', async () => {
+  const d3 = (await d3Of(reviewDb())).d3;
+  const q = d3.queue;
+  assert.deepEqual(q.map((x) => x.group), ['video', 'video', 'video', 'other', 'other', 'other', 'other', 'dev']);
+  for (const g of ['video', 'other', 'dev']) {
+    const at = q.filter((x) => x.group === g).map((x) => Date.parse(x.at));
+    assert.deepEqual(at, [...at].sort((a, b) => a - b), g);
+  }
+  assert.deepEqual(q.map((x) => x.id), ['t:vid', 't:rev', 't:dvy', 'q:q2', 'q:q4', 'q:q1', 'a:a1', 't:loc']);
+  // The video count on top = the Review cards with a video proof (render, review page or video link); dev = the developer's other Review cards.
+  assert.deepEqual([d3.review.videos, d3.review.dev], [3, 1]);
+  assert.deepEqual([q[2].type, q[2].kind], ['video', 'Video']);
   assert.ok(!q.some((x) => x.id === 'q:q3')); // bot health stays with Ana
   const by = Object.fromEntries(q.map((x) => [x.id, x]));
   assert.deepEqual(by['t:vid'].act, { type: 'card', url: '/dashboard/api/v1/tasks/vid' });
   assert.equal(by['t:vid'].type, 'video');
   assert.equal(by['t:vid'].link, '/dashboard/review/abc');
   assert.equal(by['t:vid'].linkLabel, 'Open the review page');
-  assert.equal(by['t:rev'].type, 'card');
+  assert.equal(by['t:rev'].type, 'video'); // its proof is a render
   assert.equal(by['t:rev'].link, 'https://x/p5');
+  assert.deepEqual([by['t:loc'].type, by['t:loc'].kind], ['card', 'Dev card']);
   assert.equal(by['t:loc'].link, ''); // local path dropped
   assert.equal(by['a:a1'].act.url, '/dashboard/api/v1/approvals/a1/decide');
   assert.equal(by['q:q4'].act.url, '/dashboard/api/v1/questions/q4/answer');
   assert.deepEqual(by['q:q4'].act.options, ['$2,500', 'Other (type your own)']);
 });
 
-test('Review page: sponsor drafts first, buttons per type, Undo disabled, text escaped, no design sample text', async () => {
+test('Review page: videos first, then sponsor drafts, dev cards last with one-click Done, buttons per type, Undo disabled, text escaped, no design sample text', async () => {
   const d2 = SAMPLE();
   const d3 = await d3Of(reviewDb());
   const items = reviewItems(d2, d3);
-  assert.equal(items[0].id, 'd:c-poppy');
-  assert.equal(items[0].type, 'email');
+  assert.deepEqual(items.map((x) => x.id), ['t:vid', 't:rev', 't:dvy', 'd:c-poppy', 'q:q2', 'q:q4', 'q:q1', 'a:a1', 't:loc']);
+  assert.equal(items[3].type, 'email');
   assert.equal(items.length, 1 + d3.d3.queue.length);
   const html = renderReview(d2, d3, {});
+  assert.match(html, /3 videos for you · One at a time/);
+  assert.match(html, /Videos for you \(3\)[\s\S]*Emails, approvals, questions and cards \(5\)[\s\S]*Dev cards \(1\)/);
+  // The dev row's pick button shrinks, so a long title can't push Done out; Done is off while a write is running.
+  assert.match(html, /class="qrow" style="flex: 1; min-width: 0"[^>]*data-rvq="t:loc"/);
+  assert.match(renderReview(d2, d3, { busy: true }), /data-rv="done" data-id="t:loc"[^>]* disabled[^>]*>Done<\/button>/);
+  // A closed item kept for this visit stays in its group, so previous / next follow the list.
+  const kept = renderReview(d2, { d3: { ...d3.d3, queue: d3.d3.queue.filter((x) => x.id !== 't:vid') } }, { rvSel: 't:vid', rvDone: { 't:vid': 'Approved' }, rvKept: { 't:vid': d3.d3.queue[0] } });
+  assert.match(kept, /Videos for you \(3\)/);
+  assert.match(kept, /<span class="mut">3 of 9<\/span>/);
+  // Only the dev card gets a Done on its row; videos and other cards don't.
+  assert.match(html, /data-rv="done" data-id="t:loc"[^>]*>Done<\/button>/);
+  assert.equal((html.match(/data-rv="done"/g) || []).length, 1);
+  assert.match(renderReview(d2, d3, { rvSel: 't:loc' }), /data-rv="done" data-id="t:loc"[^>]*>Done<\/button><button[^>]*data-rv="open-back" data-id="t:loc"/);
+  assert.doesNotMatch(renderReview(d2, d3, { rvSel: 't:rev' }), /data-rv="done" data-id="t:rev"/);
+  assert.doesNotMatch(renderReview(d2, d3, { rvDone: { 't:loc': 'Done' } }), /data-rv="done"/);
   assert.match(html, /<h1>Review<\/h1>/);
   assert.match(html, new RegExp(`${items.length} left`));
-  assert.match(html, /Reply to Poppy/);
-  assert.match(html, /data-rv="send"/);
-  assert.match(html, /data-rv="edit"/);
-  assert.match(html, /ann@poppy\.ai/);
+  assert.match(html, /aria-current="true" data-rvq="t:vid"/); // the oldest video opens first
   const pick = (id, ui = {}) => renderReview(d2, d3, { rvSel: id, ...ui });
+  const mail = pick('d:c-poppy');
+  assert.match(mail, /Reply to Poppy/);
+  assert.match(mail, /data-rv="send"/);
+  assert.match(mail, /data-rv="edit"/);
+  assert.match(mail, /ann@poppy\.ai/);
   // A video with a review page is approved there (that locks the version): only the link, no Approve here.
   const vid = pick('t:vid');
   assert.match(vid, /<a class="btn pri lg" href="\/dashboard\/review\/abc"[^>]*>Approve or send back on the review page<\/a>/);
@@ -969,6 +998,23 @@ test('Review clicks: each button calls only its write, after a confirm where it 
     // Picking and paging change only the selection.
     ui = await run('t:vid', 'rvnav', { rvnav: '1' });
     assert.notEqual(ui.rvSel, 't:vid');
+    // A dev card closes in one click: no confirm (yes = false still sends), and the open item stays open.
+    globalThis.fetch = async (url, o) => { calls.push([url, o.method, JSON.parse(o.body)]); return new Response('{"ok":true}', { status: 200 }); };
+    yes = false;
+    calls.length = 0;
+    ui = await run('t:vid', 'rv', { rv: 'done', id: 't:loc' });
+    assert.deepEqual(calls.pop(), ['/dashboard/api/v1/tasks/loc', 'PATCH', { status: 'done' }]);
+    assert.deepEqual([ui.rvDone['t:loc'], ui.rvSel], ['Done', 't:vid']);
+    // Done in the open dev card's detail moves on to the next item still waiting.
+    ui = await run('t:loc', 'rv', { rv: 'done' }, { rvDone: { 't:vid': 'Approved' } });
+    assert.deepEqual(calls.pop(), ['/dashboard/api/v1/tasks/loc', 'PATCH', { status: 'done' }]);
+    assert.deepEqual([ui.rvDone['t:loc'], ui.rvSel], ['Done', 't:rev']);
+    // Busy: nothing sent.
+    await run('t:loc', 'rv', { rv: 'done' }, { busy: true });
+    assert.equal(calls.length, 0);
+    // Done on anything but a dev card sends nothing.
+    for (const sel of ['t:rev', 't:vid', 'a:a1', 'q:q4', 'd:c-poppy']) await run(sel, 'rv', { rv: 'done' });
+    assert.equal(calls.length, 0);
   } finally {
     Object.assign(globalThis, real);
   }
@@ -1091,6 +1137,91 @@ test('Team page: each bot shows its profile picture from /dash/img/bots, rows wi
   const get = async (p) => { const r = await worker.fetch(new Request(`https://jonmac.ai${p}`), env, {}); return r.status === 404 ? 404 : r.text(); };
   assert.equal(await get('/dash/img/bots/ana.webp'), 'asset:/d3/img/bots/ana.webp');
   for (const p of ['/dash/img/bots/ana.png', '/dash/img/ana.webp', '/dash/img/bots/../js/app.js', '/dash/img/bots/a-b.webp', '/dash/img/bots/Ana.webp']) assert.equal(await get(p), 404, p);
+});
+
+// Card 4: Bluesky and System. All text is from the approved designs (no live numbers), so the tests check the
+// layout, the clicks' state, escaping and that the data files still match the designs.
+import { renderBluesky, TAB_IDS } from '../public/d3/js/bluesky.js';
+import { renderSystem, SY_TABS, PROJ } from '../public/d3/js/system.js';
+import { ROLES, OBJ } from '../public/d3/js/system-data.js';
+import { values } from '../public/d3/js/bluesky-data.js';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { execFileSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
+import { L, P } from '../public/d3/js/system-data.js';
+
+const DESIGN_DIR = 'D:/AgentTeam/briefs/dashboard3';
+const heads = (html) => [...html.matchAll(/<h2[^>]*>([^<]*)</g)].map((m) => m[1]);
+
+test('Bluesky page: every tab draws its design headings, unknown tab falls back to Vision, data escaped', () => {
+  const want = { vision: ['Vision', 'Values', 'Strategic business plans'], quarters: ['Next quarter: Q1 2027 (Jan to Mar)'], depts: ['Bluesky per department'], y2026: ['2026 in one line', 'Highlights', 'By department'], call: ['Your call'] };
+  assert.deepEqual(TAB_IDS, ['vision', 'okrs', 'quarters', 'depts', 'y2026', 'call']);
+  for (const t of TAB_IDS) {
+    const html = renderBluesky(SAMPLE(), { bsTab: t });
+    assert.match(html, /<h1>Bluesky 2027<\/h1>/);
+    assert.match(html, new RegExp(`data-bstab="${t}" aria-pressed="true"`));
+    for (const h of want[t] || []) assert.ok(heads(html).includes(h), `${t}: ${h}`);
+    assert.ok(heads(html).length, `${t} has sections`);
+    assert.doesNotMatch(html, /NaN|undefined|\[object Object\]/);
+  }
+  assert.equal(renderBluesky(null, { bsTab: 'nope' }), renderBluesky(null, {}));
+  const keep = values[0].t;
+  values[0].t = '<img src=x onerror=alert(1)>';
+  try { assert.match(renderBluesky(null, { bsTab: 'vision' }), /&lt;img src=x/); } finally { values[0].t = keep; }
+});
+
+test('System page: tabs, tiles (16 projects, 9 roles), project and kind picks with fallbacks, data escaped', () => {
+  assert.deepEqual(SY_TABS.map((t) => t[0]), ['map', 'moves', 'team', 'goals']);
+  const want = { map: ['The map'], moves: ['How work moves'], team: ['The team: nine roles', 'Your day'], goals: [...OBJ.map((o) => o.o), 'How goals run'] };
+  for (const [t] of SY_TABS) {
+    const html = renderSystem(SAMPLE(), { syTab: t });
+    assert.match(html, /<h1>System<\/h1>/);
+    for (const h of want[t]) assert.ok(heads(html).includes(h), `${t}: ${h}`);
+    assert.doesNotMatch(html, /NaN|undefined|\[object Object\]/);
+  }
+  assert.equal(PROJ.length, 16);
+  assert.equal(ROLES.length, 9);
+  const map = renderSystem(null, {});
+  assert.match(map, /<b>Projects<\/b><b class="num sp"[^>]*>16</);
+  assert.match(map, /<b>Roles<\/b><b class="num sp"[^>]*>9</);
+  // Default pick is the first project, Sponsors, on its cards.
+  assert.match(map, /<h2 style="font-size: 22px">Sponsors<\/h2>/);
+  assert.match(map, /class="sproj" aria-pressed="true" data-sysel="sponsors"/);
+  // A kind the project has none of falls back to its first kind with parts; an unknown project falls back to the first.
+  const sp = PROJ.find((p) => p.id === 'sponsors');
+  const none = ['card', 'sop', 'routine', 'script', 'event'].find((c) => !sp.byCat[c]);
+  if (none) assert.match(renderSystem(null, { sySel: 'sponsors', syCat: none }), /aria-pressed="true" data-sysel="sponsors" data-sycat="card"/);
+  assert.equal(renderSystem(null, { sySel: 'nope' }), renderSystem(null, { sySel: 'sponsors' }));
+  const hgp = renderSystem(null, { sySel: 'hgp', syCat: 'script' });
+  assert.match(hgp, new RegExp(`<h2 style="font-size: 22px">${PROJ.find((p) => p.id === 'hgp').name}</h2>`));
+  assert.match(hgp, /class="schip +sel"[^>]*data-sysel="hgp" data-sycat="script"/);
+  const keep = PROJ[0].name;
+  PROJ[0].name = '<script>x</script>';
+  try { const h = renderSystem(null, {}); assert.doesNotMatch(h, /<script>x/); assert.match(h, /&lt;script&gt;x/); } finally { PROJ[0].name = keep; }
+  // Every part a project names exists (a typo is skipped at load, so catch it here).
+  for (const p of P) for (const id of p.parts) assert.ok(L[id], `${p.id}: no part ${id}`);
+});
+
+test('Bluesky and System text files are still the approved designs, unchanged', { skip: !existsSync(DESIGN_DIR) && 'design files not on this machine' }, () => {
+  const out = mkdtempSync(join(tmpdir(), 'd3text-'));
+  try {
+    execFileSync(process.execPath, [fileURLToPath(new URL('../scripts/d3-text-from-design.mjs', import.meta.url)), DESIGN_DIR, out]);
+    for (const f of ['bluesky-data.js', 'system-data.js']) {
+      assert.equal(readFileSync(join(out, f), 'utf8'), readFileSync(new URL(`../public/d3/js/${f}`, import.meta.url), 'utf8'), f);
+    }
+  } finally { rmSync(out, { recursive: true, force: true }); }
+});
+
+test('d3.css: Bluesky and System rules from the designs, narrow rules below the 1024 layout', () => {
+  const css = readFileSync(new URL('../public/d3/css/d3.css', import.meta.url), 'utf8');
+  for (const sel of ['.srow', '.flow', '.smap', '.schip']) assert.ok(css.includes(sel), sel);
+  const media = [...css.matchAll(/@media \(max-width:(\d+)px\)\{([\s\S]*?)\n\}/g)].map((m) => [Number(m[1]), m[2]]);
+  assert.ok(media.every(([w]) => w < 1024));
+  assert.match(media.map(([, b]) => b).join('\n'), /srow/);
+  // The map stacks for every width below the 1024 layout (the rail sits beside it from 808px).
+  assert.ok(media.some(([w, b]) => w >= 983 && /\.d3 \.smap,\.d3 \.sbranch\{flex-direction:column/.test(b)), 'map stacks below 1024');
 });
 
 test('Key results: named rows (name, actual / target, bar, status) worst first, no coloured tiles', async () => {
@@ -1227,4 +1358,21 @@ test('API: ingest of sponsor_threads is refused from mac and gpu2, allowed from 
   const codes = [];
   for (const tok of ['mac-tok', 'gpu2-tok', 'gpu1-tok']) codes.push((await post(env, tok, 'sponsor_threads', THREAD3)).status);
   assert.deepEqual(codes, [401, 401, 200]);
+});
+
+test('System page Sources: real feeds and snapshots only, stale first, live feed stale after 10 minutes', async () => {
+  const db = teamDb();
+  ins(db, 'bot_feed_entries', { id: 'sa', name: 'claude_usage', bot: 'ana', data: '{}', created_at: H(30) });
+  ins(db, 'bot_feed_entries', { id: 'sb', name: 'dispatch_live', bot: 'developer', data: '{}', created_at: M(20) });
+  ins(db, 'bot_feed_entries', { id: 'sc', name: 'ebook_sales', bot: 'accounting', data: '{}', created_at: H(1) });
+  const body = await d3Of(db);
+  const S = body.d3.sources;
+  assert.deepEqual(S.map((s) => [s.name, s.stale]), [['claude_usage', true], ['dispatch_live', true], ['ebook_sales', false]]);
+  assert.equal(S[2].ageLabel, 'updated 1 hr ago');
+  assert.ok(!S.some((s) => s.name === 'morning_summary')); // nothing posted: no row, no invented one
+  const html = renderSources(SAMPLE(), body);
+  assert.match(html, /2 stale/);
+  assert.match(html, /data-source="ebook_sales"/);
+  assert.match(renderSources(SAMPLE(), { d3: { sources: null } }), /No feed/);
+  assert.match(renderSources(SAMPLE(), { d3: { sources: [] } }), /Nothing has reported yet/);
 });

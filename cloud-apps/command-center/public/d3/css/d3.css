@@ -103,6 +103,41 @@ html[data-theme="dark"] body{background:#0b0b0c}
 .d3 .rvwrap{align-items:flex-start}
 .d3 .rvqueue{max-height:calc(100vh - 140px);overflow-y:auto}
 .d3 .rvdetail{position:sticky;top:16px;min-height:0}
+/* From the Bluesky and System designs' <style> block (Bluesky.dc.html, System.dc.html), unchanged. */
+.d3 .srow{display:grid;gap:12px;align-items:center;padding:10px 0;border-top:1px solid var(--line);min-width:0}
+.d3 .srow.first{border-top:0}
+.d3 .flow{list-style:none;margin:0;padding:0;display:flex;flex-wrap:wrap;gap:8px 24px}
+.d3 .flow li{position:relative;display:flex;flex-direction:column;justify-content:center;gap:1px;border:1px solid var(--line);border-radius:12px;padding:7px 12px;font-size:13px;min-height:46px}
+.d3 .flow li span{font-size:12px;color:var(--muted)}
+.d3 .flow li.nx::after{content:"\2192";position:absolute;right:-19px;top:50%;transform:translateY(-50%);color:var(--muted);font-size:13px}
+.d3 .flow li.you{border-color:var(--fill)}
+.d3 .flow li.you span{color:var(--link);font-weight:500}
+.d3 .flow li.scr{border-style:dashed}
+.d3 .smap{display:flex;align-items:center;min-width:0}
+.d3 .sroot{position:relative;flex:none;width:60px;height:60px;border-radius:50%;background:var(--ink);color:var(--card);display:grid;place-items:center;font-family:var(--disp);font-weight:600;font-size:15px;margin-right:24px}
+.d3 .sroot::after{content:"";position:absolute;left:100%;top:50%;width:24px;height:1px;background:var(--track)}
+.d3 .sbranches{flex:1 1 0;min-width:0;display:flex;flex-direction:column}
+.d3 .sbranch{position:relative;display:flex;align-items:center;padding:8px 0 8px 22px;min-width:0}
+.d3 .sbranch::before,.d3 .sprow::before{content:"";position:absolute;left:0;top:0;bottom:0;width:1px;background:var(--track)}
+.d3 .sbranch::after,.d3 .sprow::after{content:"";position:absolute;left:0;top:50%;width:22px;height:1px;background:var(--track)}
+.d3 .sbranch.first::before,.d3 .sprow.first::before{top:50%}
+.d3 .sbranch.last::before,.d3 .sprow.last::before{bottom:50%}
+.d3 .sarea{position:relative;flex:none;width:168px;border:1px solid var(--line);border-radius:14px;padding:10px 12px;display:flex;flex-direction:column;gap:2px;margin-right:22px}
+.d3 .sarea::after{content:"";position:absolute;left:100%;top:50%;width:22px;height:1px;background:var(--track)}
+.d3 .sprojs{flex:1 1 0;min-width:0;display:flex;flex-direction:column}
+.d3 .sprow{position:relative;display:flex;align-items:center;gap:8px;padding:4px 0 4px 22px;min-width:0}
+.d3 .sproj{flex:1 1 0;min-width:0;display:flex;align-items:center;gap:10px;min-height:44px;border:1px solid var(--line);border-radius:12px;background:var(--card);padding:6px 12px;text-align:left}
+.d3 .sproj > .hd:first-child{flex:1 1 0}
+.d3 .sproj > .hd:last-child{flex:none}
+.d3 .sproj > .hd:first-child > b{flex:0 1 auto}
+.d3 .sproj > .hd:first-child > span{flex:0 6 auto}
+.d3 .sproj[aria-pressed="true"]{border-color:var(--fill);box-shadow:inset 0 0 0 1px var(--fill)}
+.d3 .schips{flex:none;display:flex;gap:4px}
+.d3 .schip{width:48px;min-height:44px;display:flex;flex-direction:column;align-items:center;justify-content:center;border:1px solid var(--line);border-radius:10px;background:transparent;padding:3px 0;font-size:10px;line-height:1.25}
+.d3 .schip b{font-size:13px}
+.d3 .schip span{color:var(--muted)}
+.d3 .schip.zero b{color:var(--muted);font-weight:400}
+.d3 .schip.sel{border-color:var(--fill);box-shadow:inset 0 0 0 1px var(--fill)}
 
 /* ---- Build additions (not in the design file) ---- */
 .d3{min-height:100vh}
@@ -170,6 +205,20 @@ html[data-theme="dark"] body{background:#0b0b0c}
   .d3 .scrow .ell{white-space:normal}
   .d3 .scrow>:nth-child(3){text-align:right}
   .d3 .board{grid-template-columns:repeat(2,minmax(0,1fr)) !important}
+  .d3 .main[data-page="bluesky"] .srow,.d3 .main[data-page="system"] .srow{grid-template-columns:minmax(0,1fr) !important}
+  .d3 .main[data-page="bluesky"] .srow.thead{display:none}
+}
+/* System map below the 1024 layout: the tree stacks (you, then each branch, then its projects) and the connectors go
+   (with the rail beside it, the chips need more room than the card has until ~960px). */
+@media (max-width:983px){
+  .d3 .smap,.d3 .sbranch{flex-direction:column;align-items:stretch}
+  .d3 .sroot{margin:0 0 8px}
+  .d3 .sroot::after,.d3 .sarea::after,.d3 .sbranch::before,.d3 .sbranch::after,.d3 .sprow::before,.d3 .sprow::after{display:none}
+  .d3 .sbranch,.d3 .sprow{padding-left:0}
+  .d3 .sarea{width:auto;margin:0 0 4px}
+  .d3 .sprow{flex-wrap:wrap}
+  .d3 .sproj{flex-basis:100%}
+  .d3 .schips{flex-wrap:wrap}
 }
 .d3 .btn.lg[data-rv="opt"]{white-space:normal;text-align:left;height:auto;padding:10px 16px}
 /* Email thread (thread.js): the Review page's sponsor drafts and the Money deal view. */

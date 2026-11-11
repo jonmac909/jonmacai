@@ -46,11 +46,13 @@ export async function d3Data(env, nowMs) {
   const apSince = new Date(nowMs - 14 * DAY).toISOString();
   const AP_CARDS = `SELECT id FROM bot_tasks WHERE project IN ('home-guide-press', 'jon-mac', 'jonmacai') AND (status IN ${OPEN} OR (status = 'done' AND updated_at >= ?))`;
   const [youtube, review, approvals, questions, usage, lastUsage, open, proofs, habits, calendar, charges,
-    tasks, finished, stuck, failsToday, runs, runBots, later, scripts, scoreProofs, staged, apCards, apEvents, ytLive, live] = await Promise.all([
+    tasks, finished, stuck, failsToday, runs, runBots, later, scripts, scoreProofs, staged, apCards, apEvents, ytLive, live, feedRows, snapRows] = await Promise.all([
     q('SELECT channel, sync_error FROM yt_api'),
     // Review cards with their newest proof link (a passed one first), as the card modal picks its deliverable.
     q(`SELECT t.id, t.title, t.owner, t.project, t.due, t.note, t.updated_at AS at,
-      (SELECT p.link FROM bot_proofs p WHERE p.task_id = t.id ORDER BY p.status = 'passed' DESC, p.created_at DESC, p.rowid DESC LIMIT 1) AS link
+      (SELECT p.link FROM bot_proofs p WHERE p.task_id = t.id ORDER BY p.status = 'passed' DESC, p.created_at DESC, p.rowid DESC LIMIT 1) AS link,
+      -- vproof: any render or review-page proof, whatever its status (a card in Review with one is a video)
+      EXISTS (SELECT 1 FROM bot_proofs p WHERE p.task_id = t.id AND (p.kind = 'render' OR p.link LIKE '%/dashboard/review/%')) AS vproof
       FROM bot_tasks t WHERE t.status = 'review' ORDER BY t.updated_at LIMIT 500`),
     q("SELECT id, title, action, payload, requested_by, task_id, created_at AS at FROM bot_approvals WHERE status = 'pending' ORDER BY created_at LIMIT 500"),
     q("SELECT id, question, context, options, asked_by, task_id, created_at AS at, idem_key FROM bot_questions WHERE status = 'open' ORDER BY created_at LIMIT 500"),
@@ -104,11 +106,15 @@ export async function d3Data(env, nowMs) {
       AND (detail LIKE 'approved %' OR detail LIKE 'changes asked%' OR detail LIKE '%(approved by Jon)' OR detail LIKE '%(sent back by Jon)') ORDER BY at DESC LIMIT 5000`, apSince),
     q("SELECT DISTINCT lower(trim(title)) AS t FROM yt_calendar WHERE lower(status) IN ('published', 'scheduled') LIMIT 20000"),
     q("SELECT data, created_at FROM bot_feed_entries WHERE name = 'dispatch_live' ORDER BY created_at DESC LIMIT 1"),
+    // System page, Sources: when each feed and each collected snapshot last reported.
+    q('SELECT name, MAX(created_at) AS at FROM bot_feed_entries GROUP BY name'),
+    q('SELECT source AS name, collected_at AS at FROM snapshots'),
   ]);
   return {
     youtube, review, approvals, questions, usage, lastUsage: lastUsage && (lastUsage[0] || undefined), open, proofs, habits, calendar: calendar && parse(calendar[0]?.data), charges,
     tasks, finished, stuck, failsToday, runs, runBots, later, scripts, scoreProofs, staged, apCards, apEvents, ytLive, today0, nowMs,
     live: live && (live[0] ? { d: parse(live[0].data), at: live[0].created_at } : undefined),
+    feedRows, snapRows,
   };
 }
 
@@ -173,6 +179,13 @@ function youtubeLine(rows) {
     : { state: 'g', text: 'YouTube login ok', out: 0, connected: rows.length };
 }
 
+// A video waiting for Jon = a card in Review with a video proof (any render proof, passed or not, or a review-page
+// link) or whose proof link is a video (YouTube, a video file; public/js/ui.js linkLabel). Dev card = the developer's
+// other cards in Review, which Jon closes in one click, so a developer's video never becomes one.
+const VIDEO_LINK = /\/dashboard\/review\/|youtube\.com|youtu\.be|jonmac\.ai\/review|\.(mp4|mov|webm)(\?|#|$)/i;
+const isVideoCard = (t) => Number(t.vproof) > 0 || VIDEO_LINK.test(String(t.link || ''));
+const isDev = (t) => !isVideoCard(t) && t.owner === 'developer';
+
 // Jon's review queue: video and other cards in Review, pending approvals and open questions (bot health and known charges left out).
 function reviewOf(D) {
   if (!D.review || !D.approvals || !D.questions) return null;
@@ -181,6 +194,7 @@ function reviewOf(D) {
   const oldest = all.length ? Math.min(...all) : null;
   return {
     count: D.review.length + D.approvals.length + qs.length, cards: D.review.length, approvals: D.approvals.length, questions: qs.length,
+    videos: D.review.filter(isVideoCard).length, dev: D.review.filter(isDev).length,
     oldestAt: oldest == null ? null : new Date(oldest).toISOString(),
     oldestLabel: oldest == null ? '' : agoLabel(Math.max(0, D.nowMs - oldest)).replace(/ ago$/, ''),
   };
@@ -203,10 +217,11 @@ function queueOf(D) {
   const items = [];
   for (const t of D.review) {
     const link = webLink(t.link);
-    const video = /\/dashboard\/review\//i.test(link) || /\b(video|render)\b/i.test(t.title || '');
+    const video = isVideoCard(t);
     const due = shortDue(t.due);
     items.push({
-      id: `t:${t.id}`, type: video ? 'video' : 'card', kind: video ? 'Video' : 'Card in Review', name: t.title, head: t.title, at: t.at,
+      id: `t:${t.id}`, type: video ? 'video' : 'card', group: video ? 'video' : isDev(t) ? 'dev' : 'other',
+      kind: video ? 'Video' : isDev(t) ? 'Dev card' : 'Card in Review', name: t.title, head: t.title, at: t.at,
       sub: [ownerName(t.owner), due && `due ${due}`, `waiting ${waited(t.at)}`].filter(Boolean).join(' · '),
       facts: [['Owner', ownerName(t.owner) || '–'], ['Project', t.project || '–'], ['Due', due || '–'], ['Waiting', waited(t.at)]].map(([l, v]) => ({ l, v })),
       body: noteText(t.note), link, linkLabel: /\/dashboard\/review\//i.test(link) ? 'Open the review page' : 'Open the proof',
@@ -217,7 +232,7 @@ function queueOf(D) {
     const p = plainApproval(a.action, parse(a.payload));
     const t = a.task_id && byId.get(a.task_id);
     items.push({
-      id: `a:${a.id}`, type: 'approval', kind: 'Approval', name: a.title, head: a.title, at: a.at,
+      id: `a:${a.id}`, type: 'approval', group: 'other', kind: 'Approval', name: a.title, head: a.title, at: a.at,
       sub: `Asked by ${ownerName(a.requested_by) || 'a bot'} · waiting ${waited(a.at)}`,
       facts: [{ l: 'From', v: ownerName(a.requested_by) || '–' }, { l: 'Card', v: t ? t.title : 'No card linked' }, { l: 'Does', v: p.does }],
       body: p.notes.join(' '), links: p.links.filter((l) => webLink(l.href)),
@@ -229,13 +244,15 @@ function queueOf(D) {
     const t = x.task_id && byId.get(x.task_id);
     const opts = (() => { const o = parse(x.options); return Array.isArray(o) ? o.filter((s) => typeof s === 'string' && s.trim()).slice(0, 10) : []; })();
     items.push({
-      id: `q:${x.id}`, type: 'question', kind: 'Decision', name: plain(x.question) || 'Question', head: plain(x.question) || 'Question', at: x.at,
+      id: `q:${x.id}`, type: 'question', group: 'other', kind: 'Decision', name: plain(x.question) || 'Question', head: plain(x.question) || 'Question', at: x.at,
       sub: `Asked by ${ownerName(x.asked_by) || 'a bot'} · waiting ${waited(x.at)}`,
       facts: [{ l: 'From', v: ownerName(x.asked_by) || '–' }, { l: 'Card', v: t ? t.title : 'No card linked' }],
       body: noteText(x.context), act: { type: 'question', url: `${API}/questions/${x.id}/answer`, options: opts },
     });
   }
-  return items.sort((a, b) => (Date.parse(a.at) || 0) - (Date.parse(b.at) || 0));
+  // Videos waiting for Jon on top, dev cards last, oldest first inside each group.
+  const rank = { video: 0, other: 1, dev: 2 };
+  return items.sort((a, b) => rank[a.group] - rank[b.group] || (Date.parse(a.at) || 0) - (Date.parse(b.at) || 0));
 }
 
 // ---- Goals numbers d2 doesn't have ----
@@ -640,6 +657,29 @@ function blockersOf(D, putOff = []) {
   return out;
 }
 
+// ---- Sources: every feed and snapshot behind the numbers, with who posts it and when it last reported ----
+// Real rows only: a name appears once something has been posted under it. The dispatcher's live feed turns stale after
+// 10 minutes, everything else after 24 hours (sourceOf). Unknown names are listed as they are, never hidden.
+const SOURCE_NAMES = {
+  dispatch_live: ['Dispatcher live state', 'Dispatcher script'], claude_usage: ["Ana's Claude usage check", 'Ana'],
+  morning_summary: ["Ana's morning summary", 'Ana'], calendar_today: ["Ana's calendar push", 'Ana'],
+  ebook_sales: ['Ebook sales', 'Home Guide Press, Accounting'], daily_checklists: ['Daily checklists', 'Bots'],
+  factory: ['Video factory', 'Factory script'], periods: ['Sponsor periods', 'Sponsors'], calendar: ['Google calendar', 'Ana'],
+};
+function sourcesOf(D) {
+  if (!D.feedRows && !D.snapRows) return null;
+  const rows = [];
+  for (const [kind, list] of [['Feed', D.feedRows], ['Snapshot', D.snapRows]]) {
+    for (const r of list || []) {
+      const [label, owner] = SOURCE_NAMES[r.name] || [String(r.name), ''];
+      const s = sourceOf(label, r.at, D.nowMs);
+      if (r.name === 'dispatch_live' && s.at && D.nowMs - Date.parse(s.at) > 10 * 60000) s.stale = true;
+      rows.push({ name: String(r.name), label, kind, owner, at: s.at, ageLabel: s.ageLabel, stale: s.stale });
+    }
+  }
+  return rows.sort((a, b) => Number(b.stale) - Number(a.stale) || String(a.label).localeCompare(String(b.label)));
+}
+
 // ---- Scripts: every open @JonMacAI video card, newest first, with its script Doc and whether Jon has recorded it ----
 // Video card: title ends "- @JonMacAI" (a trailing "(note)" allowed) or names "@JonMacAI video:"; TEAM (QC helper)
 // cards are left out.
@@ -683,6 +723,7 @@ export function buildD3(D) {
     blockers: blockersOf(D, putOff),
     notNow: D.later ? putOff.length : null, // Needs you items put off with "Not now"; null when needs_later can't be read
     scripts: scriptsOf(D),
+    sources: sourcesOf(D),
     openCards: D.open ? Object.fromEntries(D.open.map((r) => [r.project || '', Number(r.n) || 0])) : null,
     goals: {
       tokenWeeks: tokenWeeks(D.usage, first, P.last, nowMs, D.live, D.lastUsage),

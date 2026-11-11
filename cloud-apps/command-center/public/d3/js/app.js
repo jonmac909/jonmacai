@@ -1,5 +1,5 @@
 // Dashboard 3 shell (docs/dashboard-3.md): theme switch, hash routes, data load every 60 s, and the Goals, Team,
-// Blockers, Review and Money pages.
+// Blockers, Review, Money, Bluesky and System pages (the last two are fixed text and need only the date).
 // Data: GET /dashboard/api/d2 and /dashboard/api/d3 (session cookie). Writes: "+ Log" on Workouts and Date nights
 // (POST /dashboard/api/habits) and the Review page's buttons (existing writes only, see review.js).
 import { esc } from './util.js';
@@ -12,13 +12,16 @@ import { renderReview, reviewClick } from './review.js';
 import { renderMoney } from './money.js';
 import { threadClick } from './thread.js';
 import { renderScripts } from './scripts.js';
+import { renderBluesky } from './bluesky.js';
+import { renderSystem } from './system.js';
+import { sourcesCard } from './sources.js';
 
 const PAGES = { goals: 'Goals', team: 'Team', blockers: 'Blockers', review: 'Review', scripts: 'Scripts', money: 'Money', bluesky: 'Bluesky', system: 'System' };
 const SIGNIN = 'd3-signin';
 const main = document.getElementById('main');
 // Review state that belongs to one item: cleared when the item or the page changes.
 const RV_CLEAR = { rvBack: null, rvEdit: null, rvDraft: {}, rvPick: null, rvText: '', rvErr: '' };
-const S = { d2: null, d3: null, error: '', signedOut: false, ui: { openKr: null, hgpOpen: false, busy: false, openBot: null, openBl: null, blFilter: 'all', rvSel: null, rvDone: {}, rvKept: {}, rvBack: null, rvEdit: null, rvDraft: {}, rvPick: null, rvText: '', rvErr: '' } };
+const S = { d2: null, d3: null, error: '', signedOut: false, ui: { openKr: null, hgpOpen: false, busy: false, openBot: null, openBl: null, blFilter: 'all', rvSel: null, rvDone: {}, rvKept: {}, rvBack: null, rvEdit: null, rvDraft: {}, rvPick: null, rvText: '', rvErr: '', bsTab: 'vision', syTab: 'map', sySel: 'sponsors', syCat: 'card' } };
 
 // ---- theme (the inline script in index.html applies the saved one before paint) ----
 function setTheme(t) {
@@ -85,10 +88,8 @@ function render() {
     }
     return;
   }
-  if (p !== 'goals') {
-    main.innerHTML = `${headerOnly(S.d2, PAGES[p])}${note}<section class="card"><p class="mut">This page is in the next build.</p></section>`;
-    return;
-  }
+  const fixed = { bluesky: renderBluesky, system: renderSystem }[p];
+  if (fixed) { main.innerHTML = `${note}${fixed(S.d2, S.ui)}${p === 'system' && S.d3 ? sourcesCard(S.d3) : ''}`; return; }
   if (!S.d2) {
     main.innerHTML = `${headerOnly(null, 'Goals')}${note || '<section class="card"><p class="mut">Loading</p></section>'}`;
     return;
@@ -157,6 +158,12 @@ main.addEventListener('click', async (e) => {
   if (threadClick(e, S.ui, render)) return; // open or fold one message of a Money deal's email thread
   const more = e.target.closest('[data-dealmore]'); // Money: show every deal in a stage, or the first 8 again
   if (more) { S.ui.dealsAll = { ...(S.ui.dealsAll || {}), [more.dataset.dealmore]: !S.ui.dealsAll?.[more.dataset.dealmore] }; render(); return; }
+  const bst = e.target.closest('[data-bstab]');
+  if (bst) { S.ui.bsTab = bst.dataset.bstab; render(); return; }
+  const syt = e.target.closest('[data-sytab]');
+  if (syt) { S.ui.syTab = syt.dataset.sytab; render(); return; }
+  const sys = e.target.closest('[data-sysel]');
+  if (sys) { S.ui.sySel = sys.dataset.sysel; S.ui.syCat = sys.dataset.sycat || 'card'; render(); return; }
   const rvgo = e.target.closest('[data-rvgo]'); // Blockers "Open in Review": the link changes the page, this picks the item
   if (rvgo) { Object.assign(S.ui, RV_CLEAR, { rvSel: rvgo.dataset.rvgo }); return; }
   const deal = e.target.closest('[data-deal]'); // Pipeline revenue row: the link opens Money, this picks the deal

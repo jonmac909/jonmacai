@@ -76,7 +76,7 @@ function channelRow(c, videos) {
   const on = mine.filter((v) => ['posted', 'scheduled', 'live'].includes(v.status));
   const live = on.filter((v) => v.status === 'live').length;
   const t = c.totals || {};
-  return { slug: c.slug, label: c.label, onAir: live ? 'Yes' : 'No', videos: on.length, scheduled: on.filter((v) => v.status === 'scheduled').length, posted: live,
+  return { slug: c.slug, label: c.label, connect: c.connect, onAir: live ? 'Yes' : 'No', videos: on.length, scheduled: on.filter((v) => v.status === 'scheduled').length, posted: live,
     impressions: total(mine, 'impressions'), ctr: weighted(mine, 'ctr', 'impressions'), avd: t.avd ?? weighted(mine, 'avd', 'views'),
     views: t.views == null && total(mine, 'views') == null ? null : Math.max(t.views ?? 0, total(mine, 'views') ?? 0), subs: t.subs ?? total(mine, 'subs'), error: t.error || '',
     // Book funnel (2026-11-05): only the Home Guide Press channels sell a book, so the rest have none (a dash).
@@ -88,6 +88,13 @@ const dash = (f) => (n) => (n != null ? f(n) : '—');
 const usd = (n) => `$${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const ALL_COLS = [['impressions', 'Impressions', num], ['ctr', 'CTR', (n) => (n != null ? `${n}%` : '')], ['avd', 'AVD', mss], ['views', 'Views', num], ['subs', 'Subs', num],
   ['clicks', 'Clicks', dash(num)], ['conv', 'Conv %', dash((n) => `${n}%`)], ['sales', 'Sales', dash(num)], ['revenue', 'Revenue', dash(usd)]];
+// Connect (Jon, 2026-11-11): rows with no YouTube login say so; the button opens the read-only Google consent that Jon approves himself.
+function connectCell(x) {
+  const c = x.connect;
+  if (!c || c.state === 'connected') return '';
+  const text = c.state === 'reconnect' ? 'Reconnect' : 'Connect';
+  return ` ${pill(c.state === 'reconnect' ? 'Login out' : 'Not connected', c.state === 'reconnect' ? 'crit' : 'idle')} <a class="btn sm line" data-connect="${esc(x.slug)}" href="${esc(c.url)}" target="_blank" rel="noopener">${text}</a>`;
+}
 const BOOK_NOTE = 'Clicks are viewers who used the channel\'s tracked YouTube link, our own checks left out. Sales and Revenue are paid Commas orders, refunds out. Conv % is sales over clicks. A dash means no book or no data.';
 function allTable(d, last) {
   const rows = sorted(d.channels.slice(1).map((c) => channelRow(c, d.videos)), sorts.all);
@@ -97,7 +104,7 @@ function allTable(d, last) {
   return `<div class="card pad">
     <div class="cardhead"><h2>Channels</h2><span class="meta">Videos counts every calendar video on YouTube, private ones too. All numbers are since launch, as in Studio. ${dataNote(d.videos, last)} ${BOOK_NOTE}</span></div>
     <div class="tblwrap"><table><thead><tr>${th('all', 'label', 'Channel')}${th('all', 'onAir', 'Live')}${th('all', 'videos', 'Videos', true)}${th('all', 'scheduled', 'Scheduled', true)}${th('all', 'posted', 'Posted', true)}${ALL_COLS.map(([k, l]) => th('all', k, l, true)).join('')}</tr></thead>
-    <tbody>${rows.map((x) => `<tr data-page="track/${esc(x.slug)}"><td>${esc(x.label)}${x.error ? ` ${pill('YouTube API error', 'crit')}<small class="muted"> ${esc(x.error)}</small>` : ''}</td><td>${pill(x.onAir, x.onAir === 'Yes' ? 'ok' : '')}</td><td class="num">${x.videos}</td><td class="num">${x.scheduled}</td><td class="num">${x.posted}</td>${ALL_COLS.map(([k, , f]) => `<td class="num">${f(x[k])}</td>`).join('')}</tr>`).join('')}</tbody>
+    <tbody>${rows.map((x) => `<tr data-page="track/${esc(x.slug)}"><td>${esc(x.label)}${connectCell(x)}${x.error ? ` ${pill('YouTube API error', 'crit')}<small class="muted"> ${esc(x.error)}</small>` : ''}</td><td>${pill(x.onAir, x.onAir === 'Yes' ? 'ok' : '')}</td><td class="num">${x.videos}</td><td class="num">${x.scheduled}</td><td class="num">${x.posted}</td>${ALL_COLS.map(([k, , f]) => `<td class="num">${f(x[k])}</td>`).join('')}</tr>`).join('')}</tbody>
     <tfoot><tr class="tktotal"><td><b>Total</b></td><td></td><td class="num"><b>${count('videos')}</b></td><td class="num"><b>${count('scheduled')}</b></td><td class="num"><b>${count('posted')}</b></td>${ALL_COLS.map(([k, , f]) => `<td class="num"><b>${k in sum ? f(sum[k]) : ''}</b></td>`).join('')}</tr></tfoot></table></div>
   </div>`;
 }
@@ -111,7 +118,7 @@ export function track(d, _data, sub) {
     return `<div class="card pad">
     <div class="cardhead"><h2>Channels</h2><span class="meta">${COUNTS_NOTE}</span></div>
     <div class="tblwrap"><table><thead><tr>${th('channels', 'label', 'Channel')}${RANK.map((s) => th('channels', s, STAGE[s][0], true)).join('')}</tr></thead>
-    <tbody>${sorted(channels, sorts.channels).map((x) => `<tr data-page="track/${esc(x.slug)}"><td>${esc(x.label)}</td>${RANK.map((s) => `<td class="num">${x[s]}</td>`).join('')}</tr>`).join('')}</tbody></table></div>
+    <tbody>${sorted(channels, sorts.channels).map((x) => `<tr data-page="track/${esc(x.slug)}"><td>${esc(x.label)}${connectCell(x)}</td>${RANK.map((s) => `<td class="num">${x[s]}</td>`).join('')}</tr>`).join('')}</tbody></table></div>
   </div>
   <div class="card pad">
     <div class="cardhead"><h2>Videos</h2><span class="meta">${videos.length} on the calendar. ${dataNote(videos, last)}</span></div>
