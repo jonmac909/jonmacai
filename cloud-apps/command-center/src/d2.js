@@ -18,7 +18,7 @@ const NAMES = {
   'home-guide-press': 'Elle', 'short-form': 'Samantha', accounting: 'Elizabeth', developer: 'Lucy', qc: 'Jessica', inbox: 'Zendaya',
   spotify: 'Daisy', moneyclaw: 'Mila', historient: 'Emma', 'yt-strategy': 'Indy',
 };
-const nameOf = (slug) => NAMES[slug] || String(slug || '');
+export const nameOf = (slug) => NAMES[slug] || String(slug || '');
 const STAGE = { todo: 'Not started', doing: 'In production', waiting_on_jon: 'Waiting on you', qc: 'In QC', review: 'In Review', done: 'Done' };
 const SPONSOR_VIDEO = /\bvideo\s+\d+\b/i; // as tools/weekly_counts.py
 const ST = {
@@ -593,7 +593,7 @@ function todayOf(C, goals, checks) {
   const at = (it) => (Number.isFinite(Date.parse(it.at)) ? Date.parse(it.at) : Infinity);
   const friday = C.P.today.weekday === 4;
   const jon = items.filter((it) => it.kind !== 'expenses' || friday).sort((a, b) => tier(a.goal) - tier(b.goal) || waits(a) - waits(b) || at(a) - at(b)).slice(0, 3);
-  const rest = items.filter((it) => !jon.includes(it)); // needs.items: everything else, without repeating jon's 3
+  const rest = items.filter((it) => !jon.includes(it) && (it.kind !== 'expenses' || friday)); // the expenses review waits for Friday
 
   const age = (iso) => (Number.isFinite(Date.parse(iso)) ? agoLabel(Math.max(0, C.nowMs - Date.parse(iso))) : '');
   const blockers = [];
@@ -609,11 +609,16 @@ function todayOf(C, goals, checks) {
     for (const d of k.days) if (d.ok === false) blockers.push({ title: `${k.title} missed ${d.ymd === C.today ? 'today' : dayName(d.ymd)}`, owner: k.owner, goal: null, ageLabel: daysAgo(d.ymd, C.today), why: d.note });
   }
   const targets = goals.flatMap((g) => g.day.map((m) => ({ goal: g.key, goalTitle: g.title, label: m.label, display: m.display, target: m.target, actual: m.actual, status: m.status, owner: m.owner, source: m.source })));
+  // Jon sees his 3 and one line. The rest of Needs you and every blocker not about one of those go to Ana
+  // (GET /dashboard/api/d2/ana), as bot health already does.
+  const taken = new Set([...jon, ...rest].map((it) => rows.get(it.id)?.taskId).filter(Boolean));
+  const toAnaBlockers = blockers.filter((b) => !taken.has(b.open));
   return {
     jon,
-    needs: { count: rest.length, items: rest, healthToAna: health, chargesFolded: charges.length },
+    toAna: { count: rest.length + toAnaBlockers.length, health, items: rest, blockers: toAnaBlockers },
     expenses: { count: charges.length, items: charges, label: 'Expenses review (Friday)' },
-    targets, blockers,
+    targets,
+    blockers, // not on Dashboard 2's Today; Dashboard 3's Goals tile counts them
   };
 }
 
@@ -673,6 +678,7 @@ function moneyOf(C) {
   const bank = sourceOf('MoneyClaw bank feed', C.by.moneyclaw?.collected_at, C.nowMs);
   const dated = /^\d{4}-\d{2}-\d{2}$/.test(asOf || '');
   if (!dated || Date.parse(`${C.today}T12:00:00Z`) - Date.parse(`${asOf}T12:00:00Z`) > 2 * DAY) bank.stale = true; // FEED_STALE_DAYS in src/cash.js
+  if (dated) bank.asOf = asOf; // its "as of" date is the bank data's, not the collection time
   return {
     tiles: [
       tile(`Sponsor cash · ${C.P.month.label}`, card('sponsors')),

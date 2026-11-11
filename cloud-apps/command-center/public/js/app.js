@@ -404,6 +404,10 @@ setInterval(() => {
 }, 60000);
 let last = hashPage();
 try { if (!location.hash) last = localStorage.getItem('cc-page') || last; } catch {}
-// /dashboard/?card=<id> (links from /dash rows) opens that card over the page.
-const linked = new URLSearchParams(location.search).get('card');
-Promise.resolve(go(last)).then(() => { if (/^t_[0-9a-f]{16}$/.test(linked || '')) openCard(linked, data?.pages?.projects); }).catch(() => {});
+// ?card=<id> (links from /dash rows and the Team page's cards): open that card's view once the page is up, then drop the query.
+const deepCard = new URLSearchParams(location.search).get('card');
+Promise.resolve(go(last)).then(() => {
+  if (deepCard === null) return;
+  history.replaceState(null, '', `${PREFIX}/${location.hash}`);
+  if (/^t_[0-9a-f]{16}$/.test(deepCard)) openCard(deepCard, data?.pages?.projects);
+}).catch(() => {});

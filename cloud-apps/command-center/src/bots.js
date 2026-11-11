@@ -12,7 +12,8 @@ import { MONTH_HABITS, WEEK_HABITS, monthKey, weekStart } from './periods.js';
 import { upsertHabit } from './db.js';
 
 // todo/doing → qc (proof) → review (QC passed it) → done (Jon approved it). Only Jon sets done, except the
-// live-YouTube sync for a card whose video the server itself found public (liveDone).
+// live-YouTube sync for a card whose video the server itself found public (liveDone) and an internal card
+// closing itself once QC passed it (closeTask).
 export const TASK_STATUSES = ['todo', 'doing', 'waiting_on_jon', 'qc', 'review', 'done', 'cancelled'];
 const OPEN_STATUSES = ['todo', 'doing', 'waiting_on_jon'];
 export const PROOF_KINDS = ['render', 'url', 'pdf', 'test'];
@@ -436,6 +437,49 @@ async function liveDone(db, who, id, body, now) {
   return json({ ok: true, task: taskOut(await taskRow(db, id)), proof: proofOut(proof), video });
 }
 
+// ---- internal cards close themselves (Jon, 2026-11-11): "internal tool and dashboard cards close by themselves once
+// QC passes and the change is live". Only video, sponsor and money cards wait for Jon. ----
+
+// Ana, and the dispatcher, which calls as ana (DASH_BOT=ana): its other dash.py calls use developer, the bot whose
+// own cards this would close, so developer stays refused.
+const CLOSE_BOTS = ['ana'];
+const JON_PROJECTS = ['sponsors', 'accounting'];
+const JON_OWNERS = ['jon', 'sponsors', 'accounting', 'video-editor', 'jon-mac-youtube', 'hgp-scripts', 'home-guide-press'];
+// ALLOWLIST: only a card whose project is one of these internal tool/dashboard/code projects may close. Anything else
+// (video, money, an unlisted or empty project) waits for Jon.
+const INTERNAL_PROJECTS = ['coding'];
+// The stages of the video and sponsor-video card types (D:\AgentTeam	ools\card_stages.json); the card's Type itself
+// lives only in its progress file, so the stage is what the server can see.
+const VIDEO_STAGES = ['brief', 'script', 'pack', 'edit', 'publish', 'sponsor review'];
+const IN_LIST = (values) => values.map((v) => `'${v}'`).join(', ');
+const norm = (v) => String(v ?? '').toLowerCase().trim();
+// The card's newest proof is QC-passed, after Jon last sent it back. datetime() drops milliseconds and Z so
+// "10:00:01Z" and "10:00:01.500Z" compare as the same second.
+const NEWEST_PASSED = "EXISTS (SELECT 1 FROM bot_proofs p WHERE p.id = (SELECT n.id FROM bot_proofs n WHERE n.task_id = bot_tasks.id "
+  + "ORDER BY datetime(n.created_at) DESC, n.created_at DESC, n.rowid DESC LIMIT 1) AND p.status = 'passed' AND datetime(p.checked_at) > "
+  + "COALESCE((SELECT MAX(datetime(e.at)) FROM bot_task_events e WHERE e.task_id = bot_tasks.id AND e.detail LIKE '%(sent back by Jon)'), ''))";
+const CLOSABLE = `status = 'review' AND ${NEWEST_PASSED} AND lower(trim(COALESCE(project, ''))) IN (${IN_LIST(INTERNAL_PROJECTS)})`
+  + ` AND lower(trim(COALESCE(project, ''))) NOT IN (${IN_LIST(JON_PROJECTS)})`
+  + ` AND lower(trim(COALESCE(owner, ''))) NOT IN (${IN_LIST(JON_OWNERS)}) AND lower(trim(COALESCE(stage, ''))) NOT IN (${IN_LIST(VIDEO_STAGES)})`;
+
+// POST tasks/:id/close {note?}: review -> done for an internal card whose newest proof QC passed. Everything else is refused.
+async function closeTask(db, who, id, body, now) {
+  if (!CLOSE_BOTS.includes(who.bot)) throw new Bad(403, `Only ${CLOSE_BOTS.join(', ')} can close a card; Jon approves the rest`);
+  const note = text(body, 'note', 500);
+  const task = await taskRow(db, id);
+  if (!task) throw new Bad(404, 'Task not found');
+  if (task.status !== 'review') throw new Bad(409, `Task is ${task.status.replace(/_/g, ' ')}; only a card in review can be closed`);
+  if (!INTERNAL_PROJECTS.includes(norm(task.project)) || JON_PROJECTS.includes(norm(task.project)) || JON_OWNERS.includes(norm(task.owner)) || VIDEO_STAGES.includes(norm(task.stage))) {
+    throw new Bad(403, 'Video, sponsor and money cards wait for Jon to approve them');
+  }
+  // The whole rule again inside the UPDATE, so a QC fail or a change landing in between can't be skipped.
+  const r = await db.prepare(`UPDATE bot_tasks SET status = 'done', done_at = ?, updated_by = ?, updated_at = ? WHERE id = ? AND ${CLOSABLE}`)
+    .bind(now, who.bot, now, id).run();
+  if (!changed(r)) throw new Bad(409, "The card's newest proof has not passed QC; it stays in review");
+  await logEvent(db, id, now, who.bot, 'status', `status review → done (auto-closed: QC passed and live${note ? `. ${note}` : ''})`);
+  return json({ ok: true, task: taskOut(await taskRow(db, id)) });
+}
+
 async function listTasks(db, who, q) {
   const where = [];
   const args = [];
@@ -664,7 +708,8 @@ async function listQuestions(db, who, q) {
 async function closeQuestion(db, who, id, now) {
   const row = await questionRow(db, id);
   if (!row) throw new Bad(404, 'Question not found');
-  if (row.asked_by !== who.bot) throw new Bad(403, 'Only the bot that asked can close this question');
+  // Ana clears stale questions too, e.g. ones a retired bot left open (Jon via Ana, 2026-11-08)
+  if (row.asked_by !== who.bot && who.bot !== 'ana') throw new Bad(403, 'Only the bot that asked, or Ana, can close this question');
   if (row.status !== 'closed') {
     await db.prepare("UPDATE bot_questions SET status = 'closed', closed_by = ?, closed_at = ?, updated_at = ? WHERE id = ? AND status != 'closed'")
       .bind(who.bot, now, now, id).run();
@@ -1697,6 +1742,7 @@ async function route(request, db, who, rest, env, ctx) {
     case 'POST tasks/:id/proofs': needBot(who); return addProof(db, who, id, body, now);
     case 'POST tasks/:id/comments': return addComment(db, env, ctx, who, id, body, now);
     case 'POST tasks/:id/live': needBot(who); return liveDone(db, who, id, body, now);
+    case 'POST tasks/:id/close': needBot(who); return closeTask(db, who, id, body, now);
     case 'GET proofs': return listProofs(db, q);
     case 'POST proofs/:id/check': needBot(who); return checkProof(db, who, id, body, now);
     case 'GET questions': return listQuestions(db, who, q);

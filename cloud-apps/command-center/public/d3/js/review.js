@@ -5,7 +5,7 @@
 //   card      Approve = PATCH /v1/tasks/:id {status: done}; Send back = PATCH {status: doing, comment}
 //             (a video with a review page only links there: approving it on that page locks the version)
 //   approval  Approve / Reject = POST /v1/approvals/:id/decide
-//   question  an option, or typed text = POST /v1/questions/:id/answer ("Other ..." options are the typed box)
+//   question  pick an option, or Other and type, then Submit = POST /v1/questions/:id/answer
 // Each write asks Jon to confirm first and goes to the item its button was drawn for.
 //   email     Send = POST /dashboard/api/actions {kind: the draft's sendKind}; Edit first edits the draft in place
 // Undo has nothing to call yet, so it shows disabled.
@@ -43,9 +43,10 @@ function shown(items, ui) {
 
 // A video with a review page is approved or sent back there, so the review app locks that version (VIDEO.md).
 const reviewPage = (c) => c.type === 'video' && /\/dashboard\/review\//i.test(safeHref(c.link));
-const OTHER = /^other\s*\(type/i; // "Other (type your own)": the typed box below the options, never sent as the answer
+const OTHER = /^other\s*\(type/i; // "Other (type your own)": opens the typed box, never sent as the answer
+export const OTHER_PICK = '\u0000other'; // the pick that means "the typed box", never equal to a real option
 // Which buttons each item type takes; a click on any other is ignored.
-const ALLOWED = { card: ['approve', 'open-back', 'cancel', 'back'], approval: ['yes', 'no'], question: ['opt', 'answer'], email: ['send', 'edit'] };
+const ALLOWED = { card: ['approve', 'open-back', 'cancel', 'back'], approval: ['yes', 'no'], question: ['pick', 'other', 'answer'], email: ['send', 'edit'] };
 
 function buttons(c, ui) {
   const busy = ui.busy ? ' disabled' : '';
@@ -64,8 +65,17 @@ function buttons(c, ui) {
   }
   if (a.type === 'approval') return `${btn('yes', 'Approve', true)}${btn('no', 'Reject')}`;
   if (a.type === 'question') {
+    // Pick one option (the bot's order, recommended first) or "Other (type your own)", then one Submit.
+    // A question with no options shows only the box. The pick belongs to this item, so paging away drops it.
     const opts = (a.options || []).filter((o) => !OTHER.test(o));
-    return `${opts.map((o, i) => btn('opt', o, !i, ` data-opt="${esc(o)}"`)).join('')}${box(opts.length ? 'Or type your own answer' : 'Type your answer', 'Send')}`;
+    const pick = ui.rvPick?.id === c.id ? ui.rvPick.v : null;
+    const other = !opts.length || pick === OTHER_PICK;
+    const choice = (rv, label, on, extra = '') => `<button type="button" class="btn lg" data-rv="${rv}" data-id="${esc(c.id)}" aria-pressed="${on}"${extra}${busy}>${esc(label)}</button>`;
+    const choices = opts.length
+      ? `<div class="hd" role="group" aria-label="Answers" style="gap: 10px; flex-wrap: wrap; flex: 1 1 100%">${opts.map((o) => choice('pick', o, pick === o, ` data-opt="${esc(o)}"`)).join('')}${choice('other', 'Other (type your own)', other)}</div>`
+      : '';
+    const typed = other ? `<textarea class="rvtext" rows="3" maxlength="4000" placeholder="Type your answer" aria-label="Type your answer" style="flex: 1 1 100%">${esc(ui.rvText || '')}</textarea>` : '';
+    return `${choices}${typed}${btn('answer', 'Submit', true)}`;
   }
   if (a.type === 'email') return `${btn('send', 'Send', true)}${btn('edit', 'Edit first', false, ` aria-pressed="${ui.rvEdit === c.id}"`)}`;
   return '';
@@ -101,7 +111,7 @@ ${player}
   const label = c.type === 'card' ? 'Card note' : c.type === 'approval' ? 'Notes' : 'Context';
   const links = [...(c.links || []), ...(c.link ? [{ label: c.linkLabel || 'Open', href: c.link }] : [])].filter((l) => safeHref(l.href));
   return `${factsHtml(c.facts)}
-<div class="inner" style="min-height: 160px"><span class="mut">${label}</span><p class="sub">${c.body ? esc(c.body) : '<span class="nf">None given</span>'}</p>${links.length ? `<div class="hd" style="gap: 8px; flex-wrap: wrap">${links.map((l) => `<a class="btn" href="${esc(safeHref(l.href))}" target="_blank" rel="noopener">${esc(l.label)}</a>`).join('')}</div>` : ''}</div>`;
+<div class="inner"${c.type === 'question' ? '' : ' style="min-height: 160px"'}><span class="mut">${label}</span><p class="sub">${c.body ? esc(c.body) : '<span class="nf">None given</span>'}</p>${links.length ? `<div class="hd" style="gap: 8px; flex-wrap: wrap">${links.map((l) => `<a class="btn" href="${esc(safeHref(l.href))}" target="_blank" rel="noopener">${esc(l.label)}</a>`).join('')}</div>` : ''}</div>`;
 }
 
 export function renderReview(d2resp, d3resp, ui = {}) {
@@ -125,15 +135,15 @@ export function renderReview(d2resp, d3resp, ui = {}) {
 <div class="stack" style="gap: 4px"><h1 style="font-size: 28px; overflow-wrap: anywhere">${esc(c.head)}</h1><span class="mut">${esc(c.sub)}</span></div>
 ${bodyHtml(c, ui)}
 ${ui.rvErr ? `<p class="mut" role="alert" style="color: var(--bad-ink)">${esc(ui.rvErr)}</p>` : ''}
-<div class="hd" style="margin-top: auto; gap: 10px; flex-wrap: wrap">${buttons(c, ui)}</div>`
+<div class="hd" style="gap: 10px; flex-wrap: wrap">${buttons(c, ui)}</div>`
     : `<div class="hd cardhd"><span class="pill">Queue</span></div><p class="mut">Nothing waiting for you.</p>`;
   return `${head}
-<div class="row" style="align-items: stretch">
-<section class="card" style="flex: 1 1 250px; gap: 4px; padding: 18px 12px">
+<div class="row rvwrap">
+<section class="card rvqueue" style="flex: 1 1 250px; gap: 4px; padding: 18px 12px">
 <div class="hd" style="margin: 0 10px 10px"><h2>Queue</h2><span class="pill sp">${left} left</span></div>
 ${list}
 </section>
-<section class="card" style="flex: 3 1 520px; gap: 18px; min-height: 640px">
+<section class="card rvdetail" style="flex: 3 1 520px; gap: 18px">
 ${detail}
 </section>
 </div>`;
@@ -152,12 +162,12 @@ export async function reviewClick(e, S, render, reload) {
   const items = reviewItems(S.d2, S.d3) || [];
   const q = shown(items, ui);
   const pick = e.target.closest('[data-rvq]');
-  if (pick) { Object.assign(ui, { rvSel: pick.dataset.rvq, rvBack: null, rvEdit: null, rvDraft: {}, rvText: '', rvErr: '' }); render(); return true; }
+  if (pick) { Object.assign(ui, { rvSel: pick.dataset.rvq, rvBack: null, rvEdit: null, rvDraft: {}, rvPick: null, rvText: '', rvErr: '' }); render(); return true; }
   const nav = e.target.closest('[data-rvnav]');
   if (nav) {
     if (!q.length) return true;
     const i = Math.max(0, q.findIndex((x) => x.id === ui.rvSel));
-    Object.assign(ui, { rvSel: q[(i + Number(nav.dataset.rvnav) + q.length) % q.length].id, rvBack: null, rvEdit: null, rvDraft: {}, rvText: '', rvErr: '' });
+    Object.assign(ui, { rvSel: q[(i + Number(nav.dataset.rvnav) + q.length) % q.length].id, rvBack: null, rvEdit: null, rvDraft: {}, rvPick: null, rvText: '', rvErr: '' });
     render();
     return true;
   }
@@ -173,6 +183,7 @@ export async function reviewClick(e, S, render, reload) {
   if (what === 'open-back') { Object.assign(ui, { rvBack: c.id, rvText: '', rvErr: '' }); render(); return true; }
   if (what === 'cancel') { Object.assign(ui, { rvBack: null, rvText: '', rvErr: '' }); render(); return true; }
   if (what === 'edit') { ui.rvEdit = ui.rvEdit === c.id ? null : c.id; ui.rvDraft = {}; ui.rvErr = ''; render(); return true; }
+  if (what === 'pick' || what === 'other') { ui.rvPick = { id: c.id, v: what === 'pick' ? b.dataset.opt : OTHER_PICK }; ui.rvErr = ''; render(); return true; }
   let call;
   let label;
   const a = c.act;
@@ -190,11 +201,14 @@ export async function reviewClick(e, S, render, reload) {
   } else if (what === 'no') {
     if (!window.confirm(`Reject "${c.head}"?`)) return true;
     call = () => send(a.url, 'POST', { decision: 'reject' }); label = 'Rejected';
-  } else if (what === 'opt' || what === 'answer') {
-    const answer = what === 'opt' ? b.dataset.opt : text();
-    if (!answer) { ui.rvErr = 'Type an answer first.'; render(); return true; }
+  } else if (what === 'answer') {
+    const opts = (a.options || []).filter((o) => !OTHER.test(o));
+    const pick = ui.rvPick?.id === c.id ? ui.rvPick.v : null;
+    const picked = opts.includes(pick) ? pick : '';
+    const answer = picked || (!opts.length || pick === OTHER_PICK ? text() : '');
+    if (!answer) { ui.rvErr = opts.length ? 'Pick an answer, or Other and type your own.' : 'Type an answer first.'; render(); return true; }
     if (!window.confirm(`Answer "${c.head}" with "${answer}"?`)) return true;
-    call = () => send(a.url, 'POST', { answer }); label = what === 'opt' ? answer : 'Answered';
+    call = () => send(a.url, 'POST', { answer }); label = picked || 'Answered';
   } else if (what === 'send') {
     const payload = { ...a.payload, ...(ui.rvEdit === c.id ? ui.rvDraft || {} : {}) };
     if (!String(payload.to || '').trim() || !String(payload.body || '').trim()) { ui.rvErr = 'The draft needs a recipient and text.'; render(); return true; }
@@ -217,7 +231,7 @@ export async function reviewClick(e, S, render, reload) {
     ui.rvDone = { ...(ui.rvDone || {}), [c.id]: label };
     ui.rvKept = { ...(ui.rvKept || {}), [c.id]: c };
     const next = q.find((x) => x.id !== c.id && !ui.rvDone[x.id]);
-    Object.assign(ui, { rvSel: next ? next.id : c.id, rvBack: null, rvEdit: null, rvDraft: {}, rvText: '' });
+    Object.assign(ui, { rvSel: next ? next.id : c.id, rvBack: null, rvEdit: null, rvDraft: {}, rvPick: null, rvText: '' });
   } catch (err) {
     ui.rvErr = `Could not save: ${err.message}`;
   }

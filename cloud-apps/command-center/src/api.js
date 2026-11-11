@@ -5,11 +5,11 @@ import {
 } from './auth.js';
 import {
   loginStore, insertAction, actionByIdem, actionById, claimQueued, claimedVideo, completeAction,
-  reportAction, upsertHabit, upsertSnapshot, listSnapshots, upsertDealStage, listDealStages, listIdeas, upsertIdea, listHabits,
+  reportAction, upsertHabit, upsertSnapshot, listSnapshots, getSnapshot, upsertDealStage, listDealStages, listIdeas, upsertIdea, listHabits,
 } from './db.js';
 import { mergeSnapshot } from './snapshot.js';
 import { listFunnel } from './webinar.js';
-import { boardStageFor, mapColumn } from './sponsors.js';
+import { boardStageFor, dealThreadIds, draftThreadIds, mapColumn } from './sponsors.js';
 import { runMoneyMove } from './money.js';
 import { exchangeGoogleCode, googleAuthUrl, runLife } from './life.js';
 import { REVIEW_SOURCE, draftId, isIsolated, parseReview, plannerDestination, reviewMutate, upsertReview } from './review.js';
@@ -19,7 +19,9 @@ import { channelData } from './channels.js';
 import { trackData } from './track.js';
 import { monthWindow } from './today.js';
 import { buildD2, d2Data } from './d2.js';
+import { funnelsData } from './funnels.js';
 import { buildD3, d3Data } from './d3.js';
+import { buildPending, pendingData } from './pending.js';
 
 const PREFIX = '/dashboard/api';
 const json = (data, status = 200, headers = {}) =>
@@ -297,16 +299,27 @@ export async function handleApi(request, env, ctx) {
     return json({ ...mergeSnapshot(base, await listSnapshots(env.DB), now, await listDealStages(env.DB), extra), build });
   }
   // Dashboard 2 (docs/dashboard-2.md): the same pages /snapshot builds, plus the `d2` view. Read only.
-  if (rest === '/d2' && method === 'GET') {
-    const denied = await needSession(request, env);
-    if (denied) return denied;
+  // /d2/ana: what Dashboard 2 keeps off Jon's pages (stale feeds, items past his 3), for Ana's hourly check with her bot token.
+  if ((rest === '/d2' || rest === '/d2/ana') && method === 'GET') {
+    const ana = rest === '/d2/ana';
+    const ok = ana && request.headers.get('Authorization') ? await botOf(request, env.DB) : await readSession(request, env);
+    if (!ok) return json({ error: 'Sign in' }, 401);
     const now = Date.now();
     const base = filterSnapshot(D2_PAGES);
     const rows = env.DB ? await listSnapshots(env.DB) : [];
     const extra = env.DB ? await snapshotExtra(env, base, now) : {};
     const out = mergeSnapshot(base, rows, now, env.DB ? await listDealStages(env.DB) : {}, extra);
     const d2 = buildD2(out, rows, extra, await d2Data(env, now), now);
-    return json({ ok: true, build: env.CF_VERSION_METADATA?.id ?? null, asOf: new Date(now).toISOString(), pages: out.pages, d2 });
+    if (ana) return json({ ok: true, asOf: new Date(now).toISOString(), stale: d2.stale, toAna: d2.today.toAna });
+    let pending = null; // the Pending page: Jon's ask cards, view only; a failure here never takes down the rest of /d2
+    try { pending = buildPending(await pendingData(env.DB), now); } catch (err) { console.error('pending', err); }
+    return json({ ok: true, build: env.CF_VERSION_METADATA?.id ?? null, asOf: new Date(now).toISOString(), pages: out.pages, d2, pending });
+  }
+  // Dashboard 2 Funnels: every Home Guide Press book page and Buy link, checked live on each open (src/funnels.js). Read only.
+  if (rest === '/d2/funnels' && method === 'GET') {
+    const denied = await needSession(request, env);
+    if (denied) return denied;
+    return json({ ok: true, funnels: await funnelsData(env) });
   }
   // Dashboard 3 (docs/dashboard-3.md): the rail's status lines and the Goals numbers /d2 doesn't carry. Read only.
   if (rest === '/d3' && method === 'GET') {
@@ -314,6 +327,23 @@ export async function handleApi(request, env, ctx) {
     if (denied) return denied;
     const now = Date.now();
     return json({ ok: true, build: env.CF_VERSION_METADATA?.id ?? null, asOf: new Date(now).toISOString(), d3: buildD3(await d3Data(env, now)) });
+  }
+  // Review page: the Gmail thread above each sponsor draft (bots/sponsor_threads.py on GPU1 reads partners@, read only).
+  if (rest === '/sponsor-threads' && method === 'GET') {
+    const denied = await needSession(request, env);
+    if (denied) return denied;
+    const row = env.DB ? await getSnapshot(env.DB, 'sponsor_threads') : null;
+    const data = row ? JSON.parse(row.data || '{}') : {};
+    return json({ ok: true, at: row?.collected_at || null, threads: data.threads || {} });
+  }
+  // GPU1 asks which threads to read: the Gmail thread of every sponsor card with a draft waiting for Jon.
+  if (rest === '/sponsor-threads/wanted' && method === 'GET') {
+    if (machineOf(request, env) !== 'gpu1') return json({ error: 'Unauthorized' }, 401);
+    const row = env.DB ? await getSnapshot(env.DB, 'sponsors') : null;
+    const data = row ? JSON.parse(row.data || '{}') : {};
+    // ...and every deal on the Money page, for its deal view (same stage overrides as the board).
+    const deals = dealThreadIds(data, Date.now(), env.DB ? await listDealStages(env.DB) : {});
+    return json({ ok: true, threads: [...new Set([...draftThreadIds(data.cards || []), ...deals])] });
   }
 
   if (rest === '/ingest' && method === 'POST') {
@@ -327,6 +357,7 @@ export async function handleApi(request, env, ctx) {
     if (!source || !Date.parse(collectedAt)) return json({ error: 'Bad ingest' }, 400);
     if (source === 'webinar_funnel' // written only by the Worker's own cron
       || source === 'periods' // written only through PUT /v1/periods (writer check + validation)
+      || (source === 'sponsor_threads' && who !== 'gpu1') // partners@ threads, read on GPU1 only
       || (source.startsWith('machine_') && source !== `machine_${who}`)) {
       return json({ error: 'Unauthorized' }, 401);
     }

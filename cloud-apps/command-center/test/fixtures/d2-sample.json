@@ -1287,6 +1287,10 @@
         "detail": "Your receipt from Kie.ai",
         "pct": 12,
         "pg": "",
+        "threadId": "",
+        "status": "",
+        "blocker": null,
+        "next": null,
         "btn": "Review",
         "draft": true,
         "payload": {
@@ -1310,6 +1314,10 @@
         "detail": "Refund processed for order 123",
         "pct": 12,
         "pg": "",
+        "threadId": "",
+        "status": "",
+        "blocker": null,
+        "next": null,
         "btn": "Review",
         "draft": true,
         "payload": {
@@ -1333,6 +1341,10 @@
         "detail": "This week in creators",
         "pct": 12,
         "pg": "",
+        "threadId": "",
+        "status": "",
+        "blocker": null,
+        "next": null,
         "btn": "Review",
         "draft": true,
         "payload": {
@@ -1363,6 +1375,10 @@
         "detail": "Paid collab",
         "pct": 25,
         "pg": "",
+        "threadId": "",
+        "status": "",
+        "blocker": null,
+        "next": null,
         "btn": "Review",
         "draft": true,
         "payload": {
@@ -1399,6 +1415,10 @@
         "detail": "Collab",
         "pct": 50,
         "pg": "",
+        "threadId": "",
+        "status": "",
+        "blocker": null,
+        "next": null,
         "btn": "Nudge",
         "kind": "sponsor.nudge",
         "payload": {
@@ -1424,6 +1444,10 @@
         "detail": "Arcads collab",
         "pct": 62,
         "pg": "",
+        "threadId": "",
+        "status": "",
+        "blocker": null,
+        "next": null,
         "btn": "Nudge",
         "kind": "sponsor.nudge",
         "payload": {
@@ -1455,6 +1479,10 @@
         "detail": "Video 1 is live",
         "pct": 87,
         "pg": "",
+        "threadId": "",
+        "status": "",
+        "blocker": "",
+        "next": "",
         "btn": "Send invoice",
         "kind": "sponsor.send_invoice",
         "payload": {
@@ -1480,7 +1508,11 @@
         "amtLabel": "$1,000",
         "detail": "Paid",
         "pct": 100,
-        "pg": "ok"
+        "pg": "ok",
+        "threadId": "",
+        "status": "",
+        "blocker": null,
+        "next": null
        }
       ]
      }
@@ -5166,8 +5198,9 @@
      }
     }
    ],
-   "needs": {
-    "count": 3,
+   "toAna": {
+    "count": 7,
+    "health": 2,
     "items": [
      {
       "id": "a_0000000000000117",
@@ -5204,26 +5237,47 @@
       "goal": "shortform",
       "minutes": 5,
       "link": null
-     },
-     {
-      "id": "expenses",
-      "kind": "expenses",
-      "rank": 3,
-      "cls": "idle",
-      "title": "Expenses review (Friday)",
-      "detail": "3 known charges from MoneyClaw to look over",
-      "from": "Mila",
-      "at": "2026-11-02T16:00:00Z",
-      "ageLabel": "6 days ago",
-      "page": "money",
-      "btn": "Open expenses",
-      "goal": null,
-      "minutes": 15,
-      "link": null
      }
     ],
-    "healthToAna": 2,
-    "chargesFolded": 3
+    "blockers": [
+     {
+      "title": "Peter Collins first video - Peter Collins",
+      "owner": "Elle",
+      "goal": "hgp",
+      "ageLabel": "25 hr ago",
+      "why": "Approve the thumbnail thumb.png",
+      "open": "t_0000000000000103"
+     },
+     {
+      "title": "Notion video 1: dedicated",
+      "owner": "Florence",
+      "goal": "sponsors",
+      "ageLabel": "29 hr ago",
+      "why": "Approve the script so editing can start",
+      "open": "t_0000000000000091"
+     },
+     {
+      "title": "Complete Histories missed Thu 5",
+      "owner": "Daisy",
+      "goal": null,
+      "ageLabel": "3 days ago",
+      "why": "No episode or community post"
+     },
+     {
+      "title": "RBC expenses missed Wed 4",
+      "owner": "Elizabeth",
+      "goal": null,
+      "ageLabel": "4 days ago",
+      "why": "Receipts not matched"
+     },
+     {
+      "title": "RBC expenses missed today",
+      "owner": "Elizabeth",
+      "goal": null,
+      "ageLabel": "today",
+      "why": "Receipts not matched, bank scan failed"
+     }
+    ]
    },
    "expenses": {
     "count": 3,
@@ -5563,6 +5617,10 @@
            "detail": "Paid collab",
            "pct": 25,
            "pg": "",
+           "threadId": "",
+           "status": "",
+           "blocker": null,
+           "next": null,
            "btn": "Review",
            "draft": true,
            "payload": {
@@ -5615,6 +5673,10 @@
            "detail": "Arcads collab",
            "pct": 62,
            "pg": "",
+           "threadId": "",
+           "status": "",
+           "blocker": null,
+           "next": null,
            "btn": "Nudge",
            "kind": "sponsor.nudge",
            "payload": {
@@ -5648,6 +5710,10 @@
            "detail": "Video 1 is live",
            "pct": 87,
            "pg": "",
+           "threadId": "",
+           "status": "",
+           "blocker": "",
+           "next": "",
            "btn": "Send invoice",
            "kind": "sponsor.send_invoice",
            "payload": {
@@ -5681,7 +5747,11 @@
            "amtLabel": "$1,000",
            "detail": "Paid",
            "pct": 100,
-           "pg": "ok"
+           "pg": "ok",
+           "threadId": "",
+           "status": "",
+           "blocker": null,
+           "next": null
           }
          ]
         },
@@ -5703,6 +5773,10 @@
            "detail": "Collab",
            "pct": 50,
            "pg": "",
+           "threadId": "",
+           "status": "",
+           "blocker": null,
+           "next": null,
            "btn": "Nudge",
            "kind": "sponsor.nudge",
            "payload": {
@@ -6105,7 +6179,8 @@
       "label": "MoneyClaw bank feed",
       "at": "2026-11-08T20:00:00Z",
       "ageLabel": "updated 1 hr ago",
-      "stale": false
+      "stale": false,
+      "asOf": "2026-11-07"
      }
     }
    ]
@@ -6461,5 +6536,11 @@
     }
    ]
   }
+ },
+ "pending": {
+  "asOf": "2026-11-08T21:05:00.000Z",
+  "done": [],
+  "progress": [],
+  "blocked": []
  }
 }

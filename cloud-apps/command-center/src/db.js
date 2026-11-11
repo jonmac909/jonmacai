@@ -78,9 +78,14 @@ export async function upsertSnapshot(db, source, data, collectedAt, receivedAt) 
 }
 
 export async function listSnapshots(db) {
-  // The factory and periods rows have their own endpoints (GET /v1/factory, /v1/periods): not part of every page load and 60 s poll.
-  const { results } = await db.prepare("SELECT source, data, collected_at, received_at FROM snapshots WHERE source NOT IN ('factory', 'periods')").all();
+  // The factory, periods and sponsor_threads rows have their own endpoints (GET /v1/factory, /v1/periods,
+  // /sponsor-threads): not part of every page load and 60 s poll.
+  const { results } = await db.prepare("SELECT source, data, collected_at, received_at FROM snapshots WHERE source NOT IN ('factory', 'periods', 'sponsor_threads')").all();
   return results || [];
+}
+
+export async function getSnapshot(db, source) {
+  return db.prepare('SELECT data, collected_at FROM snapshots WHERE source = ?').bind(source).first();
 }
 
 export async function upsertDealStage(db, dealId, stage, now) {

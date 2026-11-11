@@ -29,7 +29,19 @@ function assetTarget(p) {
   try { return new URL(decodeURIComponent(p).replace(/[\\/]+/g, '/'), 'https://a').pathname; } catch { return p; }
 }
 // Dashboards 2 and 3 serve their two pages and their own css and js, nothing else.
-const D2_FILE = /^\/(login\.html|css\/[\w-]+\.css|js\/(?:[\w-]+\/)*[\w-]+\.js)$/;
+const D2_FILE = /^\/(login\.html|css\/[\w-]+\.css|js\/(?:[\w-]+\/)*[\w-]+\.js|img\/bots\/[a-z]+\.webp)$/;
+
+// {commit, deployedAt} from the version metadata the deploy sets. Nothing else is exposed.
+function versionResponse(env) {
+  const m = env.CF_VERSION_METADATA || {};
+  const commit = /^[0-9a-f]{7,40}$/i.test(m.tag || '') ? m.tag.toLowerCase() : null;
+  const t = m.timestamp ? new Date(m.timestamp) : null;
+  const deployedAt = t && !isNaN(t) ? t.toISOString() : null;
+  return new Response(JSON.stringify({ commit, deployedAt }), {
+    status: commit && deployedAt ? 200 : 503,
+    headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store', 'X-Robots-Tag': 'noindex, nofollow' },
+  });
+}
 
 export default {
   async fetch(request, env, ctx) {
@@ -47,6 +59,8 @@ export default {
       if (path === '/' || path === '/index.html') return asset(request, env, (await readSession(request, env)) ? '/d2/index.html' : '/d2/login.html');
       return D2_FILE.test(path) ? asset(request, env, `/d2${path}`) : notFound();
     }
+    // Public deploy check: exactly this path, answered before any sign-in. Commit = the deploy's version tag (wrangler deploy --tag <sha>).
+    if (url.pathname === `${D3}/version` && (request.method === 'GET' || request.method === 'HEAD')) return versionResponse(env);
     // Dashboard 3 (docs/dashboard-3.md): its own pages under public/d3; data from /dashboard/api/d2 and /dashboard/api/d3.
     // Exact matches only, so /dashboard and /dashboard-2 never land here.
     if (url.pathname === D3) {
