@@ -1,7 +1,7 @@
 // Dashboard 3 Blockers page (docs/dashboard-3.md), laid out as the approved design (Blockers.dc.html). Pure functions
 // over the /dashboard/api/d2 and /dashboard/api/d3 answers. Rows: d3.blockers (cards waiting on Jon, open questions,
 // pending approvals, Stuck cards, late cards) plus the rail's YouTube login and token limit and d2's missed daily jobs.
-// What Ana did about each one has no feed yet, so it reads "No feed". blockerRows() is also the rail's Blockers count.
+// blockerRows() is also the rail's Blockers count.
 import { cardLink, esc, icon } from './util.js';
 import { headerOnly } from './goals.js';
 
@@ -51,7 +51,6 @@ function rowHtml(b, i, open) {
 ${head}
 <div class="inner" style="margin-bottom: 14px; gap: 4px">
 <div class="hrow"><span class="mut" style="width: 64px; flex: none">Blocks</span><span>${esc(blocks)}</span></div>
-<div class="hrow"><span class="mut" style="width: 64px; flex: none">Ana</span><span class="nf">No feed</span></div>
 ${b.review || b.card ? `<div class="hd" style="padding-top: 8px; gap: 8px">${b.review ? `<a class="btn pri" href="#review" data-rvgo="${esc(b.id)}">Open in Review</a>` : ''}${cardLink(b.card)}</div>` : ''}
 </div>
 </div>`;
@@ -72,11 +71,14 @@ function healthOf(d2resp, d3resp) {
   const tkRow = !num(tk?.pct) ? NO('Weekly tokens')
     : tk.stale ? line('Weekly tokens', `${tk.pct}%, ${String(tk.text).replace(/^Tokens \d+%, /, '')}`) // grey, with its age
       : line('Weekly tokens', `${tk.pct}%`, tk.state);
-  const logins = [ytRow, tkRow, NO('HeyGen today'), NO('Sponsor inbox')];
+  const hg = rail.heygen;
+  // Rows with no source are left out rather than shown as "No feed" (Sponsor inbox has none yet).
+  const logins = [ytRow, tkRow, ...(hg && hg.state !== 'none' ? [line('HeyGen today', hg.text, hg.state)] : [])];
   const down = logins.filter((r) => r.tone === 'r').length;
   const age = (label, src) => (src ? line(label, String(src.ageLabel || '').replace(/^updated /, ''), src.stale ? 'r' : 'g') : NO(label));
   const sponsors = one((d2resp?.d2?.goals || []).find((g) => g.key === 'sponsors')?.month);
-  const feeds = [age('Sponsor money', sponsors?.source), NO('Video board'), age('Token use', tk?.source),
+  const board = d3resp?.d3?.team?.line ? [line('Video board', 'live', 'g')] : []; // built from the cards on each load
+  const feeds = [age('Sponsor money', sponsors?.source), ...board, age('Token use', tk?.source),
     ...(Array.isArray(checks) ? checks.filter((c) => c.today?.source).map((c) => age(c.title, c.today.source)) : [])];
   const stale = feeds.filter((r) => r.tone === 'r').length;
   // Dispatcher card: heartbeat and runs going (rail), failed runs and Stuck cards today (live feed via team.fails).
@@ -97,7 +99,7 @@ function healthOf(d2resp, d3resp) {
 export function renderBlockers(d2resp, d3resp, ui = {}) {
   const rows = blockerRows(d2resp, d3resp);
   const f = FILTERS.some(([k]) => k === ui.blFilter) ? ui.blFilter : 'all';
-  const head = headerOnly(d2resp, 'Blockers', 'Ana tries first · you see everything', '<span class="pill sp">No feed = nothing reports it yet</span>');
+  const head = headerOnly(d2resp, 'Blockers', 'Ana tries first · you see everything', '<span class="pill sp">No feed = its source could not be read</span>');
   const you = rows ? rows.filter((b) => b.you).length : null;
   const dated = rows ? rows.filter((b) => Number.isFinite(ts(b.at))) : [];
   const oldest = dated.length ? dated.reduce((a, b) => (ts(b.at) < ts(a.at) ? b : a)) : null;

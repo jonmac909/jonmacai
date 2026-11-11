@@ -171,9 +171,6 @@ export function objectivesOf(d2resp, d3resp, P = periodOf(d2resp)) {
     { title: 'Operations', owner: 'Ana', icon: 'bot', krs: [
       tw ? kr('c1', 'Weeks token limit hit', tw, { bar: false, hint: 'target 0', span: P.mo, series: num(tw.actual) ? monthEventSeries(tw.hitDays || [], P, 0) : null })
         : noFeed('c1', 'Weeks token limit hit', "Ana's Claude usage check could not be read."),
-      noFeed('c2', 'Dashboard 3 pages built', 'No feed counts built pages yet.'),
-      noFeed('c3', 'Cost per video measured', 'Needs tokens saved on every run, per card.'),
-      noFeed('c4', 'Times you typed "continue"', 'Nothing counts this yet.'),
     ] },
     { title: 'Personal', owner: 'You', icon: 'heart', krs: [
       wo ? kr('p1', 'Workouts', wo, { span: P.wk, series: weekSeries(wo, P), hint: 'this week', log: { kind: 'workout', done: !!wo.loggedToday } })

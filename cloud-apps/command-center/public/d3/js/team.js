@@ -1,8 +1,8 @@
 // Dashboard 3 Team page (docs/dashboard-3.md). A pure function from the /dashboard/api/d2 and /dashboard/api/d3 answers
 // to HTML, laid out as the approved design (Team.dc.html). The roster and every number come from d3.team (dashboard
-// cards, proofs and runs; the video board from each card's stage); runs, tokens and cost have no feed yet and say "No feed".
+// cards, proofs and runs; the video board from each card's stage); runs and tokens come from the dispatcher's live feed.
 import { cardHref, cardLink, esc, icon } from './util.js';
-import { headerOnly, periodOf } from './goals.js';
+import { headerOnly } from './goals.js';
 
 // The video line's stages and Jon's stage budgets (2026-11-11), shown only when d3 sends no board.
 const STAGES = [['Brief', '15 m'], ['Script', '20 m'], ['Script QC', '20 m'], ['A-roll', ''], ['Pack', '1 h 15 m'], ['Edit', '1 h 10 m'], ['Render QC', '1 h 10 m'], ['Publish', '']];
@@ -17,7 +17,7 @@ function tile(ic, label, sub, value) {
   return `<div class="tile" style="flex: 1 1 200px"><span class="chip">${icon(ic)}</span><span class="stack" style="white-space: nowrap"><b>${esc(label)}</b><span class="mut">${esc(sub)}</span></span>${v}</div>`;
 }
 
-function botRow(b, open, costHd) {
+function botRow(b, open) {
   const c = b.card;
   const counts = b.counts || {};
   const last = [];
@@ -35,7 +35,7 @@ function botRow(b, open, costHd) {
 ${running}
 <span class="sub">${esc(c?.due || '–')}</span>
 ${num(b.tokens) ? `<span class="sub">${esc(kTokens(b.tokens))}</span>` : NF}
-<span style="text-align: right" aria-label="${esc(costHd)}">${NF}</span>
+<span style="text-align: right" aria-label="Runs today">${num(b.runsToday) ? `<span class="sub">${b.runsToday}</span>` : NF}</span>
 </button>`;
   if (!open) return `<div>\n${row}\n</div>`;
   const done = b.finishedToday == null ? `<span class="nf">No data</span>`
@@ -79,19 +79,16 @@ ${stages}
 
 export function renderTeam(d2resp, d3resp, ui = {}) {
   const T = d3resp?.d3?.team || null;
-  const P = periodOf(d2resp);
-  const span = P.ymd ? `${P.monthShort} 1–${P.day}` : 'this month';
-  const costHd = `Cost ${span}`;
   // Header and Working tile read the same counts: bot names and roster roles.
   const roles = T ? plural(T.bots.length, 'role') : '';
   const sub = T ? `${plural(T.names, 'bot')} · ${roles}` : '';
   const live = T && T.running != null; // the dispatcher's live feed is fresh: runs and tokens come from it
-  const head = headerOnly(d2resp, 'Team', sub, `<span class="pill sp">${live ? `Cost: No feed · live ${esc(T.liveAge)} ago` : 'Runs, tokens and cost: No feed'}</span>`);
+  const head = headerOnly(d2resp, 'Team', sub, `<span class="pill sp">${live ? `Runs live · ${esc(T.liveAge)} ago` : 'Runs and tokens: No feed'}</span>`);
   const tiles = `<div class="row">
 ${tile('bolt', 'Working', T ? `of ${roles}` :'cards in Doing', T ? T.working : null)}
 ${tile('you', 'Waiting on you', T?.waiting?.oldest ? `oldest ${T.waiting.oldest}` : 'cards', T ? T.waiting.count : null)}
 ${tile('blockers', 'Failed', 'runs and QC fails today', T && num(T.failedToday) ? T.failedToday : null)}
-${tile('money', 'Cost', span, null)}
+${tile('bot', 'Tokens', 'all bots today', T && num(T.tokens) ? kTokens(T.tokens) : null)}
 </div>`;
   // Failed runs and Stuck cards today from the live feed, newest first.
   const fails = T?.fails?.length ? `<section class="card" style="gap: 4px">
@@ -99,14 +96,14 @@ ${tile('money', 'Cost', span, null)}
 ${T.fails.map((f) => `<div class="hrow"><span class="dot r"></span>${cardHref(f.card) ? `<a class="ell" href="${cardHref(f.card)}" target="_blank" rel="noopener">${esc(f.title || f.card)}</a>` : `<span class="ell">${esc(f.title || f.card)}</span>`}<span class="mut">${esc(f.who)} · ${f.kind === 'stuck' ? 'stuck' : 'run failed'}${f.why ? ` · ${esc(f.why)}` : ''} · ${esc(f.age)} ago</span></div>`).join('\n')}
 </section>` : '';
   const rows = T
-    ? T.bots.map((b) => botRow(b, ui.openBot === b.slug, costHd)).join('\n')
+    ? T.bots.map((b) => botRow(b, ui.openBot === b.slug)).join('\n')
     : '<p class="mut" style="padding-top: 12px">No feed: the dashboard cards could not be read.</p>';
   return `${head}
 ${tiles}
 ${fails}
 <section class="card" style="gap: 0">
 <div class="hd cardhd" style="margin-bottom: 4px"><span class="chip">${icon('team')}</span><h2>Bots</h2><span class="mut sp">Click a row to see its work</span></div>
-<div class="brow thead"><span>Bot</span><span>Working on</span><span>Stage</span><span>Running</span><span>Due</span><span>Tokens</span><span style="text-align: right">${esc(costHd)}</span></div>
+<div class="brow thead"><span>Bot</span><span>Working on</span><span>Stage</span><span>Running</span><span>Due</span><span>Tokens</span><span style="text-align: right">Runs today</span></div>
 ${rows}
 </section>
 ${boardHtml(T?.line)}`;

@@ -122,6 +122,17 @@ function botsLine(L, nowMs) {
   return { state: 'g', text: `${n} run${n === 1 ? '' : 's'} going`, running: n, at: L.at };
 }
 
+// HeyGen today: submits from the shared submit log, via the live feed. Red when a render failed, amber when refused (daily cap).
+export function heygenLine(L) {
+  const h = L?.d?.heygen;
+  if (!h || typeof h !== 'object') return { ...NO_FEED };
+  const n = (k) => Number(h[k]) || 0;
+  const parts = [`${n('accepted')} accepted`];
+  if (n('refused')) parts.push(`${n('refused')} refused`);
+  if (n('failed')) parts.push(`${n('failed')} failed`);
+  return { state: n('failed') ? 'r' : n('refused') ? 'y' : 'g', text: parts.join(' · '), ...h };
+}
+
 function youtubeLine(rows) {
   if (!rows) return { ...NO_FEED };
   if (!rows.length) return { state: 'none', text: 'YouTube not connected' };
@@ -390,6 +401,7 @@ function teamOf(D, today) {
       running: L ? (liveRuns.length ? `${liveRuns.length > 1 ? `${liveRuns.length} · ` : ''}${shortSince(liveRuns[0].since, nowMs)}` : '')
         : !posts.has(b.slug) ? null : running ? shortSince(running.started_at, nowMs) : '',
       tokens: L ? Number(L.d.tokens?.[b.slug] || 0) : toks.length ? toks.reduce((n, r) => n + Number(r.tokens), 0) : null,
+      runsToday: L ? Number(L.d.runs?.[b.slug]?.ok || 0) + failedRuns : null,
       finishedToday: D.finished ? [...new Map(D.finished.filter((e) => e.owner === b.slug).map((e) => [e.task_id, e.title])).values()] : null,
     };
   });
@@ -406,7 +418,6 @@ function teamOf(D, today) {
     running: L ? (L.d.running || []).length : null,
     tokens: L ? Object.values(L.d.tokens || {}).reduce((n, x) => n + Number(x || 0), 0) : null,
     liveAge: L ? since(L.at, nowMs) : '',
-    cost: null, // no cost feed per bot yet
     line: lineOf(D.tasks, nowMs),
   };
 }
@@ -474,6 +485,7 @@ export function buildD3(D) {
       bots: botsLine(D.live, nowMs),
       tokens: tokensLine(D.lastUsage, nowMs, D.live),
       youtube: youtubeLine(D.youtube),
+      heygen: heygenLine(D.live),
     },
     review: reviewOf(D),
     queue: queueOf(D),
