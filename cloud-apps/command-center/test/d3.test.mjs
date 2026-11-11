@@ -231,6 +231,7 @@ test('Goals: sections in the design order, targets from the data, no design samp
   // Operations card removed (Jon, 2026-11-11): no card and no Key results rows for it; 13 rows left.
   for (const s of ['Operations', 'Weeks token limit hit', 'Dashboard 3 pages built', 'Cost per video measured', 'typed &quot;continue&quot;']) assert.ok(!html.includes(s), s);
   assert.equal((html.match(/class="krb"/g) || []).length, 13);
+  assert.match(html, /of 13 /);
   const hgp = d2.d2.goals.find((g) => g.key === 'hgp').week[0];
   assert.match(html, new RegExp(`of ${hgp.target} · ${hgp.rows.length} channels, ${hgp.rows[0].target} each`));
   assert.match(html, /\$3,100/);
