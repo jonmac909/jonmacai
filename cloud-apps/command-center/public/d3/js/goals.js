@@ -162,11 +162,12 @@ export function objectivesOf(d2resp, d3resp, P = periodOf(d2resp)) {
       kr('b1', jm?.title || 'Jon Mac', wk(jm, 0), WK(wk(jm, 0))),
       kr('b2', ai?.title || '@JonMacAI', wk(ai, 0), WK(wk(ai, 0))),
       kr('b3', hgp?.title || 'Home Guide Press', wk(hgp, 0), WK(wk(hgp, 0))),
-      kr('b4', 'QC-passed today', g3?.qcPassedToday || null, { hint: 'today', span: null, series: null }),
+      g3?.scoreboard ? kr('b4', 'QC-passed today', g3.scoreboard, { hint: 'today', span: null, series: null })
+        : noFeed('b4', 'QC-passed today', 'QC results on renders could not be read.'),
       qc ? kr('b5', 'Passed QC first try', qc, { bar: false, hint: num(qc.total) ? `${qc.passed} of ${qc.total}` : 'this month', span: null, series: null, target: '' })
         : noFeed('b5', 'Passed QC first try', 'QC verdicts on renders could not be read.'),
-      g3?.approved ? kr('b6', 'Approved, not published', g3.approved, { bar: false, hint: 'target 0', span: null, series: null })
-        : noFeed('b6', 'Approved, not published', 'The dispatcher live feed has not reported approved videos yet.'),
+      g3?.approvedWaiting ? kr('b6', 'Approved, not uploaded', g3.approvedWaiting, { bar: false, hint: g3.approvedWaiting.actual ? `oldest ${g3.approvedWaiting.oldestLabel}` : 'none waiting', span: null, series: null, target: 'Target 0' })
+        : noFeed('b6', 'Approved, not uploaded', 'Approvals and the YouTube calendar could not be read.'),
     ] },
     { title: 'Operations', owner: 'Ana', icon: 'bot', krs: [
       tw ? kr('c1', 'Weeks token limit hit', tw, { bar: false, hint: 'target 0', span: P.mo, series: num(tw.actual) ? monthEventSeries(tw.hitDays || [], P, 0) : null })
@@ -378,6 +379,36 @@ ${names}
 </section>`;
 }
 
+// Top of Goals (Jon, 2026-11-11): today's videos against the 6-a-day goal, each video's stage and 3-hour clock, and the
+// approved videos not on YouTube yet in red.
+const hm = (m) => (num(m) ? `${Math.floor(m / 60)}:${String(m % 60).padStart(2, '0')}` : '–');
+export function scoreboardHtml(d3resp) {
+  const g3 = d3resp?.d3?.goals || {};
+  const sb = g3.scoreboard;
+  const aw = g3.approvedWaiting;
+  if (!sb) {
+    return `<section class="card" aria-label="Today's videos"><div class="hd"><span class="chip">${icon('video')}</span><h2>Today's videos</h2></div><p class="mut">No feed: QC results could not be read.</p></section>`;
+  }
+  const tone = PILL[toneOf(sb.status)] || '';
+  const red = 'color: var(--bad-ink)';
+  const rows = (sb.rows || []).map((r) => {
+    const late = r.state === 'late';
+    const stage = r.state === 'passed' ? '<span class="pill ok">Passed QC</span>'
+      : `<span${late && r.stageMin > r.budgetMin ? ` style="${red}"` : ''}>${esc(r.stage)} ${esc(r.stageMin ?? '–')} of ${esc(r.budgetMin)} min</span>`;
+    const clock = `<span class="num" style="font-size: 14px${late && r.clockMin > sb.clockBudget ? `; ${red}` : ''}">${esc(hm(r.clockMin))} of ${esc(hm(sb.clockBudget))}</span>`;
+    return `<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px">
+<span class="dot ${r.state === 'passed' ? 'g' : late ? 'r' : 'y'}"></span><span style="flex: 1 1 200px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap${late ? `; ${red}` : ''}" title="${esc(r.title)}">${esc(r.title)}</span>${stage}${clock}</div>`;
+  }).join('\n');
+  const awLine = !aw ? '<p class="mut">Approved, not uploaded: no feed.</p>'
+    : aw.actual ? `<p style="${red}; font-weight: 600">${esc(aw.actual)} approved, not uploaded, oldest ${esc(aw.oldestLabel)}: ${esc(aw.items.slice(0, 5).map((x) => x.title).join('; '))}${aw.items.length > 5 ? ` and ${aw.items.length - 5} more` : ''}</p>`
+      : '<p class="mut">Every approved video is scheduled or live.</p>';
+  return `<section class="card" aria-label="Today's videos">
+<div class="hd"><span class="chip">${icon('video')}</span><h2>Today's videos</h2><span class="pill ${tone}">${esc(sb.actual)} of ${esc(sb.target)} passed today</span>${sb.late ? `<span class="pill bad">${esc(sb.late)} late</span>` : ''}</div>
+${rows ? `<div style="display: flex; flex-direction: column; gap: 8px">${rows}</div>` : '<p class="mut">No video passed QC or is in a timed stage yet today.</p>'}
+${awLine}
+</section>`;
+}
+
 export function headerOnly(d2resp, title, sub, pill) {
   return headerHtml(periodOf(d2resp), title, sub, pill);
 }
@@ -387,6 +418,7 @@ export function renderGoals(d2resp, d3resp, ui = {}) {
   const objs = objectivesOf(d2resp, d3resp, P);
   const U = { openKr: ui.openKr || null, hgpOpen: !!ui.hgpOpen, busy: !!ui.busy };
   return `${headerHtml(P, 'Goals')}
+${scoreboardHtml(d3resp)}
 <div class="row">
 ${summaryHtml(objs)}
 ${revenueHtml(d2resp, P)}
