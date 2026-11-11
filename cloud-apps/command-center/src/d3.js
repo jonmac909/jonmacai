@@ -51,12 +51,12 @@ export async function d3Data(env, nowMs) {
     // Review cards with their deliverable: the newest web proof link (a video proof first, then a passed one), and up to 6
     // web proof links in all. Local paths (D:\...) are skipped here: they once hid a card's real links and made it an empty "video".
     q(`SELECT t.id, t.title, t.owner, t.project, t.due, t.note, t.updated_at AS at,
-      (SELECT p.link FROM bot_proofs p WHERE p.task_id = t.id AND (p.link LIKE 'http%' OR p.link LIKE '/%')
+      (SELECT p.link FROM bot_proofs p WHERE p.task_id = t.id AND (p.link LIKE 'http://%' OR p.link LIKE 'https://%' OR p.link LIKE '/%')
         ORDER BY (p.kind = 'render' OR p.link LIKE '%/dashboard/review/%') DESC, p.status = 'passed' DESC, p.created_at DESC, p.rowid DESC LIMIT 1) AS link,
-      (SELECT group_concat(link, char(10)) FROM (SELECT DISTINCT p.link FROM bot_proofs p WHERE p.task_id = t.id AND (p.link LIKE 'http%' OR p.link LIKE '/%')
+      (SELECT group_concat(link, char(10)) FROM (SELECT DISTINCT p.link FROM bot_proofs p WHERE p.task_id = t.id AND (p.link LIKE 'http://%' OR p.link LIKE 'https://%' OR p.link LIKE '/%')
         ORDER BY p.status = 'passed' DESC, p.created_at DESC LIMIT 6)) AS links,
       -- vproof: a render or review-page proof with a web link, whatever its status (a card in Review with one is a video)
-      EXISTS (SELECT 1 FROM bot_proofs p WHERE p.task_id = t.id AND (p.kind = 'render' OR p.link LIKE '%/dashboard/review/%') AND (p.link LIKE 'http%' OR p.link LIKE '/%')) AS vproof
+      EXISTS (SELECT 1 FROM bot_proofs p WHERE p.task_id = t.id AND (p.kind = 'render' OR p.link LIKE '%/dashboard/review/%') AND (p.link LIKE 'http://%' OR p.link LIKE 'https://%' OR p.link LIKE '/%')) AS vproof
       FROM bot_tasks t WHERE t.status = 'review' ORDER BY t.updated_at LIMIT 500`),
     q("SELECT id, title, action, payload, requested_by, task_id, created_at AS at FROM bot_approvals WHERE status = 'pending' ORDER BY created_at LIMIT 500"),
     q("SELECT id, question, context, options, asked_by, task_id, created_at AS at, idem_key FROM bot_questions WHERE status = 'open' ORDER BY created_at LIMIT 500"),

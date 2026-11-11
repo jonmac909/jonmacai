@@ -837,8 +837,16 @@ test('Review queue: a local-path proof never hides the card web links or turns i
   ins(db, 'bot_proofs', { id: 'lp2', task_id: 'lp', kind: 'render', link: 'D:\work\shot.jpg', status: 'passed', created_by: 'qc', created_at: H(2) });
   ins(db, 'bot_tasks', { id: 'lq', title: 'Local render only', owner: 'video-editor', status: 'review', created_by: 'ana', updated_by: 'qc', created_at: H(3), updated_at: H(3) });
   ins(db, 'bot_proofs', { id: 'lq1', task_id: 'lq', kind: 'render', link: 'D:\work\clip.mp4', status: 'passed', created_by: 'qc', created_at: H(2) });
+  ins(db, 'bot_proofs', { id: 'lp3', task_id: 'lp', kind: 'file', link: '/dashboard/f/abc.png', status: 'passed', created_by: 'qc', created_at: H(4) });
+  // A video with several web proofs keeps its review page as the main link, the rest listed.
+  ins(db, 'bot_tasks', { id: 'lv', title: 'Video many proofs', owner: 'video-editor', status: 'review', created_by: 'ana', updated_by: 'qc', created_at: H(3), updated_at: H(3) });
+  ins(db, 'bot_proofs', { id: 'lv1', task_id: 'lv', kind: 'render', link: 'https://jonmac.ai/dashboard/review/vid-1', status: 'passed', created_by: 'qc', created_at: H(3) });
+  ins(db, 'bot_proofs', { id: 'lv2', task_id: 'lv', kind: 'url', link: 'https://example.com/newer', status: 'passed', created_by: 'qc', created_at: H(1) });
   const by = Object.fromEntries((await d3Of(db)).d3.queue.map((x) => [x.id, x]));
   assert.deepEqual([by['t:lp'].type, by['t:lp'].link], ['card', 'https://homeguidepress.com/page']);
+  assert.ok(by['t:lp'].links.some((l) => l.href === '/dashboard/f/abc.png'), 'extra /dashboard/f/ proof listed');
+  assert.deepEqual([by['t:lv'].type, by['t:lv'].link], ['video', 'https://jonmac.ai/dashboard/review/vid-1']);
+  assert.deepEqual(by['t:lv'].links.map((l) => l.href), ['https://example.com/newer']);
   assert.equal(by['t:lq'].type, 'card'); // no web link: not a video with an empty player
   assert.equal(by['t:lq'].link, '');
 });
