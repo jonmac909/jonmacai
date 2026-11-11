@@ -98,3 +98,10 @@ Stuck leaves out cards in Review on purpose: those passed QC on their newest ver
 - Cards carry `stage` and `stageSince` (migration 0024). The dispatcher sets them on each stage hand-off (`dash.py task-update --stage`); `stageSince` moves only when the stage changes.
 - The Team page's Video board shows every open card with a stage, by stage: count, oldest time in the stage, up to 3 cards (oldest first) and "+N more". A card in QC at script or edit shows under Script QC or Render QC, timed from its last update. A stage not in the design gets its own column with no limit. Late = past the column's proposed limit.
 - Cards staged only in their progress file (no hand-off yet) are not on the board until the dispatcher moves them.
+
+## Bluesky and System pages (card 4, 2026-11-11)
+
+- Routes `#bluesky` and `#system`. Both draw from the d2 answer only for the header; there are no live numbers, so they add no feed gaps.
+- Text lives in `public/d3/js/bluesky-data.js` and `public/d3/js/system-data.js`, copied unchanged from the approved designs (`D:\AgentTeam\briefs\dashboard3\Bluesky.dc.html`, `System.dc.html`) by `scripts/d3-text-from-design.mjs <designDir> <outDir>`. A test re-runs it and fails if the files drift from the designs.
+- Layout: `bluesky.js` (tabs Vision and plans, OKRs 2027, Quarters, Departments, 2026 reflection, Your call) and `system.js` (Map, How work moves, Team and your day, December goals). Styles are the designs' rules in `d3.css`.
+- Ana keeps the System pills true: in `system-data.js` set a part's `b` to `'ready'` (In place) or `'fix'` (To fix); no `b` reads To build. Pills read as of Nov 10 until then. If the designs change, re-run the script instead of editing by hand.
