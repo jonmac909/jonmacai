@@ -12,6 +12,7 @@ import { renderReview, reviewClick } from './review.js';
 import { renderMoney } from './money.js';
 import { threadClick } from './thread.js';
 import { renderScripts } from './scripts.js';
+import { renderSources } from './sources.js';
 
 const PAGES = { goals: 'Goals', team: 'Team', blockers: 'Blockers', review: 'Review', scripts: 'Scripts', money: 'Money', bluesky: 'Bluesky', system: 'System' };
 const SIGNIN = 'd3-signin';
@@ -76,7 +77,7 @@ function render() {
     : S.error ? `<section class="card"><p class="mut">${esc(S.error)}</p></section>` : '';
   if (p !== 'money' && S.ui.lastPage === 'money') S.ui.dealSel = null; // leaving Money clears the picked deal's outline
   S.ui.lastPage = p;
-  const live = { team: renderTeam, blockers: renderBlockers, review: renderReview, scripts: renderScripts, money: renderMoney }[p];
+  const live = { team: renderTeam, blockers: renderBlockers, review: renderReview, scripts: renderScripts, money: renderMoney, system: renderSources }[p];
   if (live) {
     main.innerHTML = S.d3 ? `${note}${live(S.d2, S.d3, S.ui)}` : `${headerOnly(S.d2, PAGES[p])}${note || '<section class="card"><p class="mut">Loading</p></section>'}`;
     if (p === 'money' && S.d3 && S.ui.dealSel && !S.ui.dealDone) { // a deal opened from Pipeline revenue: bring it into view once

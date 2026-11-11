@@ -13,6 +13,7 @@ import { renderTeam } from '../public/d3/js/team.js';
 import { blockerRows, renderBlockers } from '../public/d3/js/blockers.js';
 import { reviewItems, renderReview, reviewClick, OTHER_PICK } from '../public/d3/js/review.js';
 import { dealStages, renderMoney } from '../public/d3/js/money.js';
+import { renderSources } from '../public/d3/js/sources.js';
 
 const SECRET = 'test-session-secret-32-bytes-ok!';
 const TUESDAY = Date.parse('2026-11-10T19:00:00Z'); // Tuesday Nov 10, 11:00 AM in Kelowna
@@ -1130,4 +1131,21 @@ test('Key results: named rows (name, actual / target, bar, status) worst first, 
   // Planted fault: an off-track row placed last in its objective still comes out on top.
   const planted = [{ title: 'X', krs: [{ id: 'z1', text: 'Fine', tone: 'g', hasBar: true, pct: 90 }, { id: 'z2', text: 'Bad', tone: 'r', hasBar: true, pct: 10 }, { id: 'z3', text: 'Worse', tone: 'r', hasBar: true, pct: 5 }] }];
   assert.deepEqual(keyRows(planted).map((k) => k.id), ['z3', 'z2', 'z1']);
+});
+
+test('System page Sources: real feeds and snapshots only, stale first, live feed stale after 10 minutes', async () => {
+  const db = teamDb();
+  ins(db, 'bot_feed_entries', { id: 'sa', name: 'claude_usage', bot: 'ana', data: '{}', created_at: H(30) });
+  ins(db, 'bot_feed_entries', { id: 'sb', name: 'dispatch_live', bot: 'developer', data: '{}', created_at: M(20) });
+  ins(db, 'bot_feed_entries', { id: 'sc', name: 'ebook_sales', bot: 'accounting', data: '{}', created_at: H(1) });
+  const body = await d3Of(db);
+  const S = body.d3.sources;
+  assert.deepEqual(S.map((s) => [s.name, s.stale]), [['claude_usage', true], ['dispatch_live', true], ['ebook_sales', false]]);
+  assert.equal(S[2].ageLabel, 'updated 1 hr ago');
+  assert.ok(!S.some((s) => s.name === 'morning_summary')); // nothing posted: no row, no invented one
+  const html = renderSources(SAMPLE(), body);
+  assert.match(html, /2 stale/);
+  assert.match(html, /data-source="ebook_sales"/);
+  assert.match(renderSources(SAMPLE(), { d3: { sources: null } }), /No feed/);
+  assert.match(renderSources(SAMPLE(), { d3: { sources: [] } }), /Nothing has reported yet/);
 });
