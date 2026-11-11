@@ -752,3 +752,42 @@ test('Team page: each bot shows its profile picture from /dash/img/bots, rows wi
   assert.equal(await get('/dash/img/bots/ana.webp'), 'asset:/d3/img/bots/ana.webp');
   for (const p of ['/dash/img/bots/ana.png', '/dash/img/ana.webp', '/dash/img/bots/../js/app.js', '/dash/img/bots/a-b.webp', '/dash/img/bots/Ana.webp']) assert.equal(await get(p), 404, p);
 });
+
+test('Key results: named rows (name, actual / target, bar, status) worst first, no coloured tiles', async () => {
+  const { keyRows } = await import('../public/d3/js/goals.js');
+  const d2 = SAMPLE();
+  const html = renderGoals(d2, d3Sample(), {});
+  const card = html.slice(html.indexOf('aria-label="Key results"'), html.indexOf('aria-label="Sponsor Revenue"'));
+  assert.doesNotMatch(card, /class="sq/);
+  const objs = objectivesOf(d2, d3Sample());
+  const all = objs.flatMap((o) => o.krs);
+  const rows = keyRows(objs);
+  assert.equal(rows.length, all.length);
+  const e = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  // Every result shows once, with its name, its status word and a bar only when it has a target.
+  for (const k of all) {
+    const m = card.match(new RegExp(`data-kr-row="${k.id}">([\\s\\S]*?)</div>`));
+    assert.ok(m, k.id);
+    assert.ok(m[1].includes(e(k.text)), k.id);
+    if (k.hasBar) assert.match(m[1], /class="bar"[^>]*><i class="[rygn]" style="width: [\d.]+%"/, k.id);
+    else assert.match(m[1], /class="bar nb"[^>]*><\/span>/, k.id);
+    assert.match(m[1], /class="kss [rygn]">(Off track|At risk|On track|No data|No feed)</);
+    // Same numbers as the row in the sections below, escaped exactly as rendered.
+    if (!k.nf) assert.ok(m[1].includes(e(k.v1)) && (!k.v2 || m[1].includes(`<span class="dim">${e(k.v2)}</span>`)), k.id);
+  }
+  // Rendered order is the worst-first order: off track and at risk in the open list, the rest inside <details>.
+  const ids = (s) => [...s.matchAll(/data-kr-row="([^"]+)"/g)].map((x) => x[1]);
+  assert.deepEqual(ids(card), rows.map((k) => k.id));
+  const det = card.includes('<details') ? card.slice(card.indexOf('<details'), card.indexOf('</details>')) : '';
+  assert.deepEqual(ids(det), rows.filter((k) => k.tone === 'g' || k.tone === 'n').map((k) => k.id));
+  assert.deepEqual(ids(card.replace(det, '')), rows.filter((k) => k.tone === 'r' || k.tone === 'y').map((k) => k.id));  // Worst first: status order, then lowest share of target first.
+  const rank = { r: 0, y: 1, g: 2, n: 3 };
+  for (let i = 1; i < rows.length; i++) {
+    const a = rows[i - 1], b = rows[i];
+    assert.ok(rank[a.tone] <= rank[b.tone], `${a.id} before ${b.id}`);
+    if (a.tone === b.tone && a.hasBar && b.hasBar) assert.ok(a.pct <= b.pct, `${a.id} ${a.pct} before ${b.id} ${b.pct}`);
+  }
+  // Planted fault: an off-track row placed last in its objective still comes out on top.
+  const planted = [{ title: 'X', krs: [{ id: 'z1', text: 'Fine', tone: 'g', hasBar: true, pct: 90 }, { id: 'z2', text: 'Bad', tone: 'r', hasBar: true, pct: 10 }, { id: 'z3', text: 'Worse', tone: 'r', hasBar: true, pct: 5 }] }];
+  assert.deepEqual(keyRows(planted).map((k) => k.id), ['z3', 'z2', 'z1']);
+});
