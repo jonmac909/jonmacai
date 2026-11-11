@@ -620,6 +620,22 @@ test('Live feed fresh: dispatcher, bots, tokens, team runs and fails', async () 
   assert.match(bh, /HeyGen today<\/span><b>3 accepted · 1 refused/);
 });
 
+test('Goals token weeks: stale Ana check -> No data with reason; dispatcher reading at the limit counts', async () => {
+  const oldAna = (db) => ins(db, 'bot_feed_entries', { id: 'u0', name: 'claude_usage', bot: 'ana', data: JSON.stringify({ weekPct: 60, resetsAt: '2026-10-31T00:00:00Z' }), created_at: '2026-10-29T18:00:00Z' });
+  const db1 = teamDb();
+  oldAna(db1);
+  liveRow(db1, 1, { beat: M(1), week: { pct: 78, resets: 'Nov 14', at: M(1) }, running: [], tokens: {}, runs: {}, fails: [] });
+  const tw1 = (await d3Of(db1)).d3.goals.tokenWeeks;
+  assert.deepEqual([tw1.display, tw1.actual, tw1.source.label, tw1.source.stale], ['No data', null, "Ana's Claude usage check", true]);
+  assert.match(tw1.note, /Ana's usage check last posted Oct 29\); past weeks can't be counted/);
+  const db2 = teamDb();
+  oldAna(db2);
+  liveRow(db2, 30, { beat: M(30), week: { pct: 100, resets: 'Nov 14', at: M(30) }, running: [], tokens: {}, runs: {}, fails: [] });
+  const tw2 = (await d3Of(db2)).d3.goals.tokenWeeks;
+  assert.deepEqual([tw2.display, tw2.actual, tw2.hitDays, tw2.source.label, tw2.source.stale], ['1', 1, ['2026-11-10'], 'Dispatcher weekly limit check', false]);
+  assert.match(tw2.note, /weeks of 2026-11-10\. Earlier weeks can't be counted/);
+});
+
 test('Live feed stale: dispatcher red, bots and tokens grey, team falls back to posted runs', async () => {
   const db = teamDb();
   usage22h(db);

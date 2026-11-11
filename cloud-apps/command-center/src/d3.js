@@ -240,23 +240,41 @@ const metric = (f) => ({ actual: null, target: null, display: 'No data', pace: n
 // A number read from the dashboard database each time the page loads.
 const LIVE = (label) => ({ label, at: null, ageLabel: 'live', stale: false });
 
-// Weeks this month in which Ana's usage check reached 100% (one per weekly reset).
-function tokenWeeks(rows, first, last, nowMs) {
+// Weeks this month in which the weekly limit was reached (one per weekly reset): Ana's usage checks plus the
+// dispatcher's weekly reading (live feed). Ana's check over 7 days old and no live hit: 'No data', not a wrong 0.
+const shortDay = (ms) => new Intl.DateTimeFormat('en-US', { timeZone: 'America/Vancouver', month: 'short', day: 'numeric' }).format(new Date(ms));
+function tokenWeeks(rows, first, last, nowMs, live, lastUsage) {
   if (!rows) return metric({ target: 0, source: { label: "Ana's Claude usage check", ageLabel: 'could not be read', stale: true } });
-  const weeks = new Map();
+  const weeks = new Map(); // key -> { day, reset (ms or null) }
   for (const r of rows) {
     const d = parse(r.data);
     const day = dayOf(r.created_at);
     if (!(Number(d.weekPct) >= 100) || !day || day < first || day > last) continue;
+    const reset = Date.parse(d.resetsAt);
     const key = String(d.resetsAt || weekStart(Date.parse(r.created_at)));
-    if (!weeks.has(key) || weeks.get(key) > day) weeks.set(key, day);
+    if (!weeks.has(key) || weeks.get(key).day > day) weeks.set(key, { day, reset: Number.isFinite(reset) ? reset : null });
   }
-  const days = [...weeks.values()].sort();
+  const w = live?.d?.week;
+  const wAt = Date.parse(w?.at);
+  const liveDay = Number.isFinite(wAt) ? dayOf(w.at) : null;
+  const liveHit = Number(w?.pct) >= 100 && liveDay && liveDay >= first && liveDay <= last;
+  if (liveHit) {
+    const same = [...weeks.entries()].some(([k, v]) => (v.reset ? v.reset - 7 * DAY <= wAt && wAt < v.reset : k === String(weekStart(wAt))));
+    if (!same) weeks.set(`live:${w.resets || weekStart(wAt)}`, { day: liveDay, reset: null });
+  }
+  const anaAt = Date.parse(rows[0]?.created_at || lastUsage?.created_at);
+  const anaStale = !(nowMs - anaAt <= 7 * DAY);
+  const anaSrc = Number.isFinite(anaAt) ? sourceOf("Ana's Claude usage check", new Date(anaAt).toISOString(), nowMs) : { label: "Ana's Claude usage check", at: null, ageLabel: 'no reading', stale: true };
+  const gap = `Ana's usage check ${Number.isFinite(anaAt) ? `last posted ${shortDay(anaAt)}` : 'has never posted'}`;
+  if (anaStale && !liveHit) {
+    return metric({ target: 0, source: anaSrc, note: `Only the current week's reading exists (${gap}); past weeks can't be counted.` });
+  }
+  const days = [...weeks.values()].map((v) => v.day).sort();
   const n = days.length;
   return metric({
     actual: n, target: 0, display: String(n), status: n ? { text: 'Behind', cls: 'risk' } : { text: 'Done', cls: 'ok' }, hitDays: days,
-    source: rows[0] ? sourceOf("Ana's Claude usage check", rows[0].created_at, nowMs) : { label: "Ana's Claude usage check", at: null, ageLabel: 'no reading this month', stale: true },
-    note: n ? `Limit reached in the weeks of ${days.join(', ')}.` : 'The weekly limit was not reached this month.',
+    source: liveHit ? sourceOf('Dispatcher weekly limit check', w.at, nowMs) : anaSrc,
+    note: (n ? `Limit reached in the weeks of ${days.join(', ')}.` : 'The weekly limit was not reached this month.') + (anaStale ? ` Earlier weeks can't be counted (${gap}).` : ''),
   });
 }
 
@@ -638,7 +656,7 @@ export function buildD3(D) {
     scripts: scriptsOf(D),
     openCards: D.open ? Object.fromEntries(D.open.map((r) => [r.project || '', Number(r.n) || 0])) : null,
     goals: {
-      tokenWeeks: tokenWeeks(D.usage, first, P.last, nowMs),
+      tokenWeeks: tokenWeeks(D.usage, first, P.last, nowMs, D.live, D.lastUsage),
       qcFirstTry: qcFirstTry(D.proofs, new Date(win.start).toISOString()),
       ...lifeOf(D, P),
       charges: chargesOf(D.charges),
