@@ -97,7 +97,7 @@ function noFeed(id, text, more) {
 
 function kr(id, text, m, { span, series, money = false, hint, bar = true, target, more, log } = {}) {
   if (!m) return noFeed(id, text, 'Nothing reports this yet.');
-  const has = num(m.actual);
+  const has = num(m.actual) && m.display !== 'No data'; // e.g. charges with no questions this month
   const tone = has ? toneOf(m.status) : 'n';
   const fmt = (x) => (money ? usd(x) : String(Math.round(x * 10) / 10));
   const hasTarget = num(m.target) && m.target > 0;
