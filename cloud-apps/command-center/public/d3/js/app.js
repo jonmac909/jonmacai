@@ -14,6 +14,7 @@ import { threadClick } from './thread.js';
 import { renderScripts } from './scripts.js';
 import { renderBluesky } from './bluesky.js';
 import { renderSystem } from './system.js';
+import { sourcesCard } from './sources.js';
 
 const PAGES = { goals: 'Goals', team: 'Team', blockers: 'Blockers', review: 'Review', scripts: 'Scripts', money: 'Money', bluesky: 'Bluesky', system: 'System' };
 const SIGNIN = 'd3-signin';
@@ -88,7 +89,7 @@ function render() {
     return;
   }
   const fixed = { bluesky: renderBluesky, system: renderSystem }[p];
-  if (fixed) { main.innerHTML = `${note}${fixed(S.d2, S.ui)}`; return; }
+  if (fixed) { main.innerHTML = `${note}${fixed(S.d2, S.ui)}${p === 'system' && S.d3 ? sourcesCard(S.d3) : ''}`; return; }
   if (!S.d2) {
     main.innerHTML = `${headerOnly(null, 'Goals')}${note || '<section class="card"><p class="mut">Loading</p></section>'}`;
     return;
