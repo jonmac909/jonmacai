@@ -168,6 +168,32 @@ test('proof: kinds and links, QC-only checks, and qc/done need usable proof', as
   assert.equal((await call(env, 'POST', '/tasks', { bot: 'video-editor', body: { title: 'x', status: 'cancelled' } })).status, 400);
 });
 
+test('proof: Ana rules only on proof QC posted itself', async () => {
+  const { db, env } = await setup();
+  const ana = `ccb_${'a'.repeat(43)}`;
+  await db.prepare('INSERT INTO bot_tokens (token_hash, bot, created_at, revoked_at) VALUES (?, ?, ?, NULL)')
+    .bind(await sha256Hex(ana), 'ana', '2026-10-29T00:00:00.000Z').run();
+  const { task } = (await call(env, 'POST', '/tasks', { bot: 'qc', body: { title: 'QC report' } })).body;
+  const proof = (id, bot) => call(env, 'POST', `/tasks/${id}/proofs`, { bot, body: { kind: 'url', link: 'https://jonmac.ai/qc/report' } });
+  const qcProof = (await proof(task.id, 'qc')).body.proof;
+  const devProof = (await proof(task.id, 'developer')).body.proof;
+  await call(env, 'PATCH', `/tasks/${task.id}`, { bot: 'qc', body: { status: 'qc' } });
+
+  // 3. No bot but QC and Ana may rule on a QC-posted proof; Jon's session neither.
+  for (const bot of ['developer', 'sponsors', 'video-editor']) {
+    assert.equal((await call(env, 'POST', `/proofs/${qcProof.id}/check`, { bot, body: { result: 'passed' } })).status, 403, bot);
+  }
+  assert.equal((await call(env, 'POST', `/proofs/${qcProof.id}/check`, { cookie: await jonCookie(), body: { result: 'passed' } })).status, 403);
+  // 2. Ana is refused on anyone else's proof, and on a missing one.
+  assert.equal((await call(env, 'POST', `/proofs/${devProof.id}/check`, { token: ana, body: { result: 'passed' } })).status, 403);
+  assert.equal((await call(env, 'POST', '/proofs/p_0000000000000000/check', { token: ana, body: { result: 'passed' } })).status, 403);
+  // 1. Ana passes QC's own proof; the record names Ana.
+  const ok = await call(env, 'POST', `/proofs/${qcProof.id}/check`, { token: ana, body: { result: 'passed', note: 'report reads right' } });
+  assert.deepEqual([ok.status, ok.body.proof.status, ok.body.proof.checkedBy, ok.body.task.status], [200, 'passed', 'ana', 'review']);
+  const { history } = (await call(env, 'GET', `/tasks/${task.id}`, { bot: 'qc' })).body.task;
+  assert.ok(history.some((e) => e.kind === 'check' && e.by === 'ana' && e.detail === 'proof passed'), 'history shows Ana as checker');
+});
+
 test('questions: bots ask, only Jon answers (once), the asker reads and closes', async () => {
   const { env } = await setup();
   const { task } = (await call(env, 'POST', '/tasks', { bot: 'sponsors', body: { title: 'Pitch list' } })).body;
