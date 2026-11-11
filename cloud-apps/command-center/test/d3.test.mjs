@@ -453,40 +453,57 @@ function reviewDb() {
   return db;
 }
 
-test('GET /dashboard/api/d3: Review queue from D1, oldest first, each item with its existing write, no local links', async () => {
-  const q = (await d3Of(reviewDb())).d3.queue;
-  const at = q.map((x) => Date.parse(x.at));
-  assert.deepEqual(at, [...at].sort((a, b) => a - b));
-  assert.equal(q[0].id, 'q:q2');
+test('GET /dashboard/api/d3: Review queue from D1, videos first, dev cards last, oldest first in each, each item with its existing write, no local links', async () => {
+  const d3 = (await d3Of(reviewDb())).d3;
+  const q = d3.queue;
+  assert.deepEqual(q.map((x) => x.group), ['video', 'video', 'other', 'other', 'other', 'other', 'dev']);
+  for (const g of ['video', 'other', 'dev']) {
+    const at = q.filter((x) => x.group === g).map((x) => Date.parse(x.at));
+    assert.deepEqual(at, [...at].sort((a, b) => a - b), g);
+  }
+  assert.deepEqual(q.map((x) => x.id), ['t:vid', 't:rev', 'q:q2', 'q:q4', 'q:q1', 'a:a1', 't:loc']);
+  // The video count on top = the Review cards with a video proof (render or review-page link); dev = the developer's other Review cards.
+  assert.deepEqual([d3.review.videos, d3.review.dev], [2, 1]);
   assert.ok(!q.some((x) => x.id === 'q:q3')); // bot health stays with Ana
   const by = Object.fromEntries(q.map((x) => [x.id, x]));
   assert.deepEqual(by['t:vid'].act, { type: 'card', url: '/dashboard/api/v1/tasks/vid' });
   assert.equal(by['t:vid'].type, 'video');
   assert.equal(by['t:vid'].link, '/dashboard/review/abc');
   assert.equal(by['t:vid'].linkLabel, 'Open the review page');
-  assert.equal(by['t:rev'].type, 'card');
+  assert.equal(by['t:rev'].type, 'video'); // its proof is a render
   assert.equal(by['t:rev'].link, 'https://x/p5');
+  assert.deepEqual([by['t:loc'].type, by['t:loc'].kind], ['card', 'Dev card']);
   assert.equal(by['t:loc'].link, ''); // local path dropped
   assert.equal(by['a:a1'].act.url, '/dashboard/api/v1/approvals/a1/decide');
   assert.equal(by['q:q4'].act.url, '/dashboard/api/v1/questions/q4/answer');
   assert.deepEqual(by['q:q4'].act.options, ['$2,500', 'Other (type your own)']);
 });
 
-test('Review page: sponsor drafts first, buttons per type, Undo disabled, text escaped, no design sample text', async () => {
+test('Review page: videos first, then sponsor drafts, dev cards last with one-click Done, buttons per type, Undo disabled, text escaped, no design sample text', async () => {
   const d2 = SAMPLE();
   const d3 = await d3Of(reviewDb());
   const items = reviewItems(d2, d3);
-  assert.equal(items[0].id, 'd:c-poppy');
-  assert.equal(items[0].type, 'email');
+  assert.deepEqual(items.map((x) => x.id), ['t:vid', 't:rev', 'd:c-poppy', 'q:q2', 'q:q4', 'q:q1', 'a:a1', 't:loc']);
+  assert.equal(items[2].type, 'email');
   assert.equal(items.length, 1 + d3.d3.queue.length);
   const html = renderReview(d2, d3, {});
+  assert.match(html, /2 videos for you · One at a time/);
+  assert.match(html, /Videos for you \(2\)[\s\S]*Emails, approvals and questions \(5\)[\s\S]*Dev cards \(1\)/);
+  // Only the dev card gets a Done on its row; videos and other cards don't.
+  assert.match(html, /data-rv="done" data-id="t:loc"[^>]*>Done<\/button>/);
+  assert.equal((html.match(/data-rv="done"/g) || []).length, 1);
+  assert.match(renderReview(d2, d3, { rvSel: 't:loc' }), /data-rv="done" data-id="t:loc"[^>]*>Done<\/button><button[^>]*data-rv="open-back" data-id="t:loc"/);
+  assert.doesNotMatch(renderReview(d2, d3, { rvSel: 't:rev' }), /data-rv="done" data-id="t:rev"/);
+  assert.doesNotMatch(renderReview(d2, d3, { rvDone: { 't:loc': 'Done' } }), /data-rv="done"/);
   assert.match(html, /<h1>Review<\/h1>/);
   assert.match(html, new RegExp(`${items.length} left`));
-  assert.match(html, /Reply to Poppy/);
-  assert.match(html, /data-rv="send"/);
-  assert.match(html, /data-rv="edit"/);
-  assert.match(html, /ann@poppy\.ai/);
+  assert.match(html, /aria-current="true" data-rvq="t:vid"/); // the oldest video opens first
   const pick = (id, ui = {}) => renderReview(d2, d3, { rvSel: id, ...ui });
+  const mail = pick('d:c-poppy');
+  assert.match(mail, /Reply to Poppy/);
+  assert.match(mail, /data-rv="send"/);
+  assert.match(mail, /data-rv="edit"/);
+  assert.match(mail, /ann@poppy\.ai/);
   // A video with a review page is approved there (that locks the version): only the link, no Approve here.
   const vid = pick('t:vid');
   assert.match(vid, /<a class="btn pri lg" href="\/dashboard\/review\/abc"[^>]*>Approve or send back on the review page<\/a>/);
@@ -596,6 +613,16 @@ test('Review clicks: each button calls only its write, after a confirm where it 
     // Picking and paging change only the selection.
     ui = await run('t:vid', 'rvnav', { rvnav: '1' });
     assert.notEqual(ui.rvSel, 't:vid');
+    // A dev card closes in one click: no confirm (yes = false still sends), and the open item stays open.
+    globalThis.fetch = async (url, o) => { calls.push([url, o.method, JSON.parse(o.body)]); return new Response('{"ok":true}', { status: 200 }); };
+    yes = false;
+    calls.length = 0;
+    ui = await run('t:vid', 'rv', { rv: 'done', id: 't:loc' });
+    assert.deepEqual(calls.pop(), ['/dashboard/api/v1/tasks/loc', 'PATCH', { status: 'done' }]);
+    assert.deepEqual([ui.rvDone['t:loc'], ui.rvSel], ['Done', 't:vid']);
+    // Done on anything but a dev card sends nothing.
+    for (const sel of ['t:rev', 't:vid', 'a:a1', 'q:q4', 'd:c-poppy']) await run(sel, 'rv', { rv: 'done' });
+    assert.equal(calls.length, 0);
   } finally {
     Object.assign(globalThis, real);
   }
