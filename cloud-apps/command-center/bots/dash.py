@@ -263,6 +263,17 @@ def qc_fails(proofs, kind='render', link=''):
     return fails
 
 
+WEB_LINK_RE = re.compile(r'^https?://', re.I)
+
+
+def warn_local_link(link):
+    """QC and Jon can't open a GPU1 path. Warning only for now (no hard refusal)."""
+    if link and not WEB_LINK_RE.match(link.strip()):
+        print('WARNING: --link is not a web link (a local path?); QC and Jon can only open https links. '
+              'Use proof_upload.py <card> <file> --kind <kind> --note "..." to post it with an https link.',
+              file=sys.stderr)
+
+
 def look_gate_check(ctx, args):
     """First-try QC (Jon, 2026-11-05; Ana, 2026-11-06): a render post for a review page with an HGP source needs a passing look_gate stamp.
     Warn only until D:/AgentTeam/look_gate/BLOCK exists, then it blocks. Ana and QC are exempt. Errors reading the stamp let the post through."""
@@ -500,9 +511,9 @@ def run(args, ctx):
             raise Fail(2, 'Bots cannot set done. Jon approves a task from review to done on the dashboard; '
                           'QC passing your proof moves a qc task to review.')
         body = only({'title': args.title, 'owner': args.owner, 'status': args.status, 'note': args.note,
-                     'project': project, 'minutes': args.minutes, 'due': args.due})
+                     'project': project, 'minutes': args.minutes, 'due': args.due, 'stage': args.stage})
         if not body:
-            raise Fail(2, 'Nothing to change: pass --status, --owner, --note, --title, --project, --minutes or --due.')
+            raise Fail(2, 'Nothing to change: pass --status, --owner, --note, --title, --project, --minutes, --due or --stage.')
         return call(ctx, 'PATCH', '/tasks/%s' % q(args.id, safe=''), body)
     if c == 'yt-live-done':  # the dashboard checks the video is public itself before it moves the card
         return call(ctx, 'POST', '/tasks/%s/live' % q(args.task_id, safe=''), {'link': args.link})
@@ -521,6 +532,7 @@ def run(args, ctx):
             raise Fail(2, 'The comment is longer than 4000 characters.')
         return call(ctx, 'POST', '/tasks/%s/comments' % q(args.task_id, safe=''), {'body': body})
     if c == 'proof-add':
+        warn_local_link(args.link)
         look_gate_check(ctx, args)
         qc_limit(ctx, args.task_id, args.kind, args.link)
         out = call(ctx, 'POST', '/tasks/%s/proofs' % q(args.task_id, safe=''),
@@ -649,6 +661,7 @@ def parser():
     a.add_argument('--title')
     project_args(a)
     a.add_argument('--due', help='YYYY-MM-DD')
+    a.add_argument('--stage', help="the card's stage, e.g. script or edit; sets stageSince when it changes; '' clears it")
 
     a = s.add_parser('yt-live-done', help='live-YouTube sync only (Developer): move a card to done once the dashboard finds its video public')
     a.add_argument('task_id')

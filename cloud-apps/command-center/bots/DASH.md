@@ -27,7 +27,7 @@ Every task, question and approval sets `--project`. Jon sees each project on its
 ```
 dash.py task-add "Edit ep 4" --project jon-mac [--owner video-editor] [--status todo|doing|waiting_on_jon] [--note ..] [--key ..]
 dash.py task-add "Sign the Acme contract" --project sponsors --owner jon --due 2026-10-30 --minutes 10
-dash.py task-update t_… --status doing|waiting_on_jon|qc|review|cancelled [--owner ..] [--note ..] [--title ..] [--project ..] [--minutes N] [--due YYYY-MM-DD]
+dash.py task-update t_… --status doing|waiting_on_jon|qc|review|cancelled [--owner ..] [--note ..] [--title ..] [--project ..] [--minutes N] [--due YYYY-MM-DD] [--stage <stage>]
 dash.py tasks [--owner me|jon|<slug>] [--status todo,doing] [--project ..]      dash.py task t_…   (shows its proof)
 ```
 - One owner per task. It defaults to you.
@@ -80,11 +80,15 @@ dash.py outliers [--channel ..] [--selected]                                (bes
 
 ## Proof
 ```
-dash.py proof-add t_… --kind render|url|pdf|test --link "https://…" or "D:\path\file.mp4" [--note ..]
+proof_upload.py t_… <file> --kind render|url|pdf|test [--note ..] [-- review_publish args for an mp4 render]
+dash.py proof-add t_… --kind render|url|pdf|test --link "https://…" [--note ..]
 dash.py proofs --status pending                      (QC's queue)
 dash.py proof-check p_… passed|failed [--note ..]     (QC only)
 ```
 `proof-add` also wakes QC (HOOKS.md). If that fails, the proof is still saved and QC finds it in its queue.
+
+### Proof files
+QC and Jon can't open a GPU1 path, so a file proof goes up with `proof_upload.py`: png, jpg, pdf, txt, md, json or an mp4 up to 95 MB is stored at jonmac.ai/dashboard/f/<random name> (no sign-in to open; the name can't be guessed), then posted with `proof-add`. An mp4 with `--kind render` goes to jonmac.ai/review through `review_publish.mjs` and its review page is the link. Missing, empty or other files are refused and nothing posts. `proof-add` with a local path still posts but warns.
 
 ## Comments
 ```

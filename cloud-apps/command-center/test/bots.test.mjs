@@ -91,6 +91,19 @@ test('tasks: create, idempotent key, owner checks, list and update', async () =>
   const upd = await call(env, 'PATCH', `/tasks/${t.id}`, { bot: 'qc', body: { status: 'doing', note: 'started' } });
   assert.deepEqual([upd.status, upd.body.task.status, upd.body.task.note, upd.body.task.updatedBy, upd.body.task.title], [200, 'doing', 'started', 'qc', 'Ship step 1']);
   assert.equal((await call(env, 'PATCH', `/tasks/${t.id}`, { bot: 'qc', body: {} })).status, 400);
+  // Stage: set with its since time, same stage same keeps the time, bad text refused, '' clears both; history logged.
+  const st = await call(env, 'PATCH', `/tasks/${t.id}`, { bot: 'qc', body: { stage: ' Sponsor  Review ' } });
+  assert.equal(st.status, 200);
+  assert.equal(st.body.task.stage, 'sponsor review');
+  assert.ok(Date.now() - Date.parse(st.body.task.stageSince) < 60000);
+  const same = await call(env, 'PATCH', `/tasks/${t.id}`, { bot: 'qc', body: { stage: 'sponsor review' } });
+  assert.deepEqual([same.status, same.body.task.stageSince], [200, st.body.task.stageSince]);
+  assert.equal((await call(env, 'PATCH', `/tasks/${t.id}`, { bot: 'qc', body: { stage: 'edit<b>' } })).status, 400);
+  assert.equal((await call(env, 'PATCH', `/tasks/${t.id}`, { bot: 'qc', body: { stage: 'x'.repeat(41) } })).status, 400);
+  const got = await call(env, 'GET', `/tasks/${t.id}`, { bot: 'qc' });
+  assert.equal(got.body.task.stage, 'sponsor review');
+  const cleared = await call(env, 'PATCH', `/tasks/${t.id}`, { bot: 'qc', body: { stage: '' } });
+  assert.deepEqual([cleared.body.task.stage, cleared.body.task.stageSince], [null, null]);
   assert.equal((await call(env, 'PATCH', `/tasks/${t.id}`, { bot: 'qc', body: { owner: null } })).status, 400);
   assert.equal((await call(env, 'PATCH', '/tasks/t_0000000000000000', { bot: 'qc', body: { status: 'doing' } })).status, 404);
   assert.equal((await call(env, 'PATCH', '/tasks/not-an-id', { bot: 'qc', body: { status: 'doing' } })).status, 404);
@@ -153,6 +166,40 @@ test('proof: kinds and links, QC-only checks, and qc/done need usable proof', as
   const cancelled = await call(env, 'PATCH', `/tasks/${drop.id}`, { bot: 'video-editor', body: { status: 'cancelled', note: 'test row' } });
   assert.deepEqual([cancelled.status, cancelled.body.task.status, cancelled.body.task.note], [200, 'cancelled', 'test row']);
   assert.equal((await call(env, 'POST', '/tasks', { bot: 'video-editor', body: { title: 'x', status: 'cancelled' } })).status, 400);
+});
+
+test('proof: Ana rules only on proof QC posted itself', async () => {
+  const { db, env } = await setup();
+  const ana = `ccb_${'a'.repeat(43)}`;
+  await db.prepare('INSERT INTO bot_tokens (token_hash, bot, created_at, revoked_at) VALUES (?, ?, ?, NULL)')
+    .bind(await sha256Hex(ana), 'ana', '2026-10-29T00:00:00.000Z').run();
+  const { task } = (await call(env, 'POST', '/tasks', { bot: 'qc', body: { title: 'QC report' } })).body;
+  const proof = (id, bot) => call(env, 'POST', `/tasks/${id}/proofs`, { bot, body: { kind: 'url', link: 'https://jonmac.ai/qc/report' } });
+  const qcProof = (await proof(task.id, 'qc')).body.proof;
+  const devProof = (await proof(task.id, 'developer')).body.proof;
+  await call(env, 'PATCH', `/tasks/${task.id}`, { bot: 'qc', body: { status: 'qc' } });
+
+  // 3. No bot but QC and Ana may rule on a QC-posted proof; Jon's session neither.
+  for (const bot of ['developer', 'sponsors', 'video-editor']) {
+    assert.equal((await call(env, 'POST', `/proofs/${qcProof.id}/check`, { bot, body: { result: 'passed' } })).status, 403, bot);
+  }
+  // Jon's session is turned away earlier (bot routes only); kept here as an acceptance check.
+  assert.equal((await call(env, 'POST', `/proofs/${qcProof.id}/check`, { cookie: await jonCookie(), body: { result: 'passed' } })).status, 403);
+  // 2. Ana is refused on anyone else's proof, and on a missing one.
+  assert.equal((await call(env, 'POST', `/proofs/${devProof.id}/check`, { token: ana, body: { result: 'passed' } })).status, 403);
+  assert.equal((await call(env, 'POST', '/proofs/p_0000000000000000/check', { token: ana, body: { result: 'passed' } })).status, 403);
+  // 1. Ana passes QC's own proof; the record names Ana.
+  const ok = await call(env, 'POST', `/proofs/${qcProof.id}/check`, { token: ana, body: { result: 'passed', note: 'report reads right' } });
+  assert.deepEqual([ok.status, ok.body.proof.status, ok.body.proof.checkedBy, ok.body.task.status], [200, 'passed', 'ana', 'review']);
+  const { history } = (await call(env, 'GET', `/tasks/${task.id}`, { bot: 'qc' })).body.task;
+  assert.ok(history.some((e) => e.kind === 'check' && e.by === 'ana' && e.detail === 'proof passed'), 'history shows Ana as checker');
+
+  // Ana can fail one too: with no other usable proof the card goes back to doing.
+  const { task: t2 } = (await call(env, 'POST', '/tasks', { bot: 'qc', body: { title: 'QC report 2' } })).body;
+  const p2 = (await proof(t2.id, 'qc')).body.proof;
+  await call(env, 'PATCH', `/tasks/${t2.id}`, { bot: 'qc', body: { status: 'qc' } });
+  const no = await call(env, 'POST', `/proofs/${p2.id}/check`, { token: ana, body: { result: 'failed', note: 'counts wrong' } });
+  assert.deepEqual([no.status, no.body.proof.status, no.body.proof.checkedBy, no.body.task.status], [200, 'failed', 'ana', 'doing']);
 });
 
 test('questions: bots ask, only Jon answers (once), the asker reads and closes', async () => {

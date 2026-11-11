@@ -2,6 +2,9 @@ import { hmacHex, timingSafeEqualString } from './auth.js';
 import { listSnapshots, upsertHabit, upsertSnapshot } from './db.js';
 
 export const TZ = 'America/Vancouver';
+// Jon's Life targets: workouts a week (Mon, Wed, Fri) and date nights a month. Life and Dashboard 3's Goals read these.
+export const WORKOUT_TARGET = 3;
+export const DATE_NIGHT_TARGET = 4;
 const CAL = 'https://www.googleapis.com/calendar/v3';
 const TOKEN = 'https://oauth2.googleapis.com/token';
 const SCOPE = 'https://www.googleapis.com/auth/calendar';
@@ -119,9 +122,9 @@ export function overlayLife(page, { connected = false, events = [], habits = [],
     + habits.filter((h) => h.kind === 'date_night' && Number(h.done) && String(h.day).startsWith(month)).length;
   const none = (icon, label) => ({ icon, label, value: 'no data', sub: 'Connect your calendar' });
   page.tiles = real ? [
-    { icon: 'heart', label: 'Workouts this week', value: String(weekN), goal: '/ 3', pct: Math.round(weekN / 3 * 100), pg: weekN >= 2 ? 'ok' : 'risk', sub: '' },
+    { icon: 'heart', label: 'Workouts this week', value: String(weekN), goal: `/ ${WORKOUT_TARGET}`, pct: Math.round(weekN / WORKOUT_TARGET * 100), pg: weekN >= 2 ? 'ok' : 'risk', sub: '' },
     { icon: 'chart', label: `Workouts in ${monthName}`, value: String(monthN), goal: `/ ${goal} so far`, pct: Math.round(monthN / goal * 100), sub: '' },
-    { icon: 'check', label: `Date nights in ${monthName}`, value: String(nights), goal: '/ 4', pct: Math.round(nights / 4 * 100), pg: nights >= 4 ? 'ok' : 'risk', sub: '' },
+    { icon: 'check', label: `Date nights in ${monthName}`, value: String(nights), goal: `/ ${DATE_NIGHT_TARGET}`, pct: Math.round(nights / DATE_NIGHT_TARGET * 100), pg: nights >= DATE_NIGHT_TARGET ? 'ok' : 'risk', sub: '' },
   ] : [none('heart', 'Workouts this week'), none('chart', `Workouts in ${monthName}`), none('check', `Date nights in ${monthName}`)];
   page.workouts = {
     title: 'Workouts with your wife',

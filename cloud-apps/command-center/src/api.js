@@ -20,6 +20,7 @@ import { trackData } from './track.js';
 import { monthWindow } from './today.js';
 import { buildD2, d2Data } from './d2.js';
 import { funnelsData } from './funnels.js';
+import { buildD3, d3Data } from './d3.js';
 
 const PREFIX = '/dashboard/api';
 const json = (data, status = 200, headers = {}) =>
@@ -313,6 +314,13 @@ export async function handleApi(request, env, ctx) {
     const denied = await needSession(request, env);
     if (denied) return denied;
     return json({ ok: true, funnels: await funnelsData(env) });
+  }
+  // Dashboard 3 (docs/dashboard-3.md): the rail's status lines and the Goals numbers /d2 doesn't carry. Read only.
+  if (rest === '/d3' && method === 'GET') {
+    const denied = await needSession(request, env);
+    if (denied) return denied;
+    const now = Date.now();
+    return json({ ok: true, build: env.CF_VERSION_METADATA?.id ?? null, asOf: new Date(now).toISOString(), d3: buildD3(await d3Data(env, now)) });
   }
 
   if (rest === '/ingest' && method === 'POST') {

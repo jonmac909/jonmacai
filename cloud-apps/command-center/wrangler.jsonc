@@ -60,12 +60,16 @@
     // Dashboard 2 (docs/dashboard-2.md).
     { "pattern": "jonmac.ai/dashboard-2", "zone_name": "jonmac.ai" },
     { "pattern": "jonmac.ai/dashboard-2/*", "zone_name": "jonmac.ai" },
+    // Dashboard 3 (docs/dashboard-3.md).
+    { "pattern": "jonmac.ai/dash", "zone_name": "jonmac.ai" },
+    { "pattern": "jonmac.ai/dash/*", "zone_name": "jonmac.ai" },
     // Tracked video links (src/track.js).
     { "pattern": "jonmac.ai/v/*", "zone_name": "jonmac.ai" }
   ],
   // Preview: `wrangler deploy --env preview`. Separate Worker on workers.dev with its own D1,
-  // no routes, no cron, no review/funnel D1s, no R2 and no production secrets (only a
+  // no routes, no cron, no review/funnel D1s, no production R2 and no production secrets (only a
   // preview-only SESSION_SECRET for the smoke test). Live data is never touched.
+  // Proof files on preview go to their own bucket, command-center-uploads-preview.
   "env": {
     "preview": {
       "name": "jonmac-command-center-preview",
@@ -84,6 +88,9 @@
           "database_name": "command_center_preview",
           "database_id": "cf929245-7de2-4fc6-85bf-e3f02c187e6a"
         }
+      ],
+      "r2_buckets": [
+        { "binding": "UPLOADS", "bucket_name": "command-center-uploads-preview" }
       ]
     }
   }
