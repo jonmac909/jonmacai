@@ -21,6 +21,7 @@ import { monthWindow } from './today.js';
 import { buildD2, d2Data } from './d2.js';
 import { funnelsData } from './funnels.js';
 import { buildD3, d3Data } from './d3.js';
+import { buildPending, pendingData } from './pending.js';
 
 const PREFIX = '/dashboard/api';
 const json = (data, status = 200, headers = {}) =>
@@ -307,7 +308,9 @@ export async function handleApi(request, env, ctx) {
     const extra = env.DB ? await snapshotExtra(env, base, now) : {};
     const out = mergeSnapshot(base, rows, now, env.DB ? await listDealStages(env.DB) : {}, extra);
     const d2 = buildD2(out, rows, extra, await d2Data(env, now), now);
-    return json({ ok: true, build: env.CF_VERSION_METADATA?.id ?? null, asOf: new Date(now).toISOString(), pages: out.pages, d2 });
+    let pending = null; // the Pending page: Jon's ask cards, view only; a failure here never takes down the rest of /d2
+    try { pending = buildPending(await pendingData(env.DB), now); } catch (err) { console.error('pending', err); }
+    return json({ ok: true, build: env.CF_VERSION_METADATA?.id ?? null, asOf: new Date(now).toISOString(), pages: out.pages, d2, pending });
   }
   // Dashboard 2 Funnels: every Home Guide Press book page and Buy link, checked live on each open (src/funnels.js). Read only.
   if (rest === '/d2/funnels' && method === 'GET') {

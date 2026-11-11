@@ -5,6 +5,7 @@ import { render as pipeline } from './pages/pipeline.js';
 import { render as money } from './pages/money.js';
 import { render as funnels } from './pages/funnels.js';
 import { mount as mountFactory } from '/dashboard/js/pages/factory.js';
+import { render as pending } from './pages/pending.js';
 import { noLoneWords } from '/dashboard/js/ui.js';
 import { setSort } from '/dashboard/js/pages/track.js';
 import { bindModals, openCard, restoreAnswers, typedAnswers } from '/dashboard/js/modals.js';
@@ -13,7 +14,7 @@ import { bindModals, openCard, restoreAnswers, typedAnswers } from '/dashboard/j
 // /dashboard/js/app.js (that one runs on import). Data from GET /dashboard/api/d2; writes go to the URL the
 // server put on each button.
 const API = '/dashboard/api';
-const pages = { month, week, today, pipeline, money, funnels };
+const pages = { month, week, today, pipeline, money, funnels, pending };
 let data = null;
 
 const root = document.documentElement;
