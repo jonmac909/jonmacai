@@ -221,7 +221,8 @@ export function keyRows(objs) {
 
 function keyRowHtml(k) {
   const target = k.v2 ? `<span class="dim">${esc(k.v2)}</span>` : k.target ? `<span class="dim"> · ${esc(k.target.toLowerCase())}</span>` : '';
-  const bar = `<span class="bar" aria-hidden="true">${k.hasBar ? `<i class="${k.tone}" style="width: ${k.pct}%"></i>` : ''}</span>`;
+  // No target, no bar: an empty grey track would read as 0%.
+  const bar = k.hasBar ? `<span class="bar" aria-hidden="true"><i class="${k.tone}" style="width: ${k.pct}%"></i></span>` : '<span class="bar nb" aria-hidden="true"></span>';
   const word = k.nf && k.v1 === 'No feed' ? 'No feed' : WORD[k.tone];
   return `<div class="ksr" data-kr-row="${esc(k.id)}"><span class="ksn"><span class="dot ${k.tone === 'n' ? '' : k.tone}"></span><span class="stack"><span class="ell">${esc(k.text)}</span><span class="mut ell" style="font-size: 12px">${esc(k.obj)}</span></span></span>
 <span class="ksv${k.nf ? ' nf' : ''}">${k.nf ? esc(k.v1) : `${esc(k.v1)}${target}`}</span>${bar}<span class="kss ${k.tone}">${esc(word)}</span></div>`;

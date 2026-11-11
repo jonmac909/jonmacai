@@ -112,7 +112,7 @@ html[data-theme="dark"] body{background:#0b0b0c}
 .d3 .ksv{font-family:var(--disp);font-weight:500;white-space:nowrap;text-align:right}
 .d3 .kss{font-size:12px;font-weight:500;color:var(--muted);text-align:right;white-space:nowrap}
 .d3 .kss.r{color:var(--bad-ink)}.d3 .kss.y{color:var(--warn-ink)}.d3 .kss.g{color:var(--ok-ink)}
-.d3 .ksr .bar{height:6px}
+.d3 .ksr .bar{height:6px}.d3 .ksr .bar.nb{background:none}
 .d3 .ksr .bar i.r{background:var(--bad)}.d3 .ksr .bar i.y{background:var(--warn)}.d3 .ksr .bar i.g{background:var(--ok)}
 .d3 .ksm summary{cursor:pointer;font-size:13px;padding:6px 0}
 @container (max-width:460px){

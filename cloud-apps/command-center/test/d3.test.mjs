@@ -739,17 +739,24 @@ test('Key results: named rows (name, actual / target, bar, status) worst first, 
   const all = objs.flatMap((o) => o.krs);
   const rows = keyRows(objs);
   assert.equal(rows.length, all.length);
-  // Every result shows once, with its name, its status word and a bar.
+  const e = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  // Every result shows once, with its name, its status word and a bar only when it has a target.
   for (const k of all) {
     const m = card.match(new RegExp(`data-kr-row="${k.id}">([\\s\\S]*?)</div>`));
     assert.ok(m, k.id);
-    assert.ok(m[1].includes(k.text.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;')), k.id);
-    assert.match(m[1], /class="bar"/);
+    assert.ok(m[1].includes(e(k.text)), k.id);
+    if (k.hasBar) assert.match(m[1], /class="bar"[^>]*><i class="[rygn]" style="width: [\d.]+%"/, k.id);
+    else assert.match(m[1], /class="bar nb"[^>]*><\/span>/, k.id);
     assert.match(m[1], /class="kss [rygn]">(Off track|At risk|On track|No data|No feed)</);
-    // Same numbers as the row in the sections below.
-    if (!k.nf) assert.ok(m[1].includes(k.v1) && (!k.v2 || m[1].includes(k.v2.trim().slice(2))), k.id);
+    // Same numbers as the row in the sections below, escaped exactly as rendered.
+    if (!k.nf) assert.ok(m[1].includes(e(k.v1)) && (!k.v2 || m[1].includes(`<span class="dim">${e(k.v2)}</span>`)), k.id);
   }
-  // Worst first: status order, then lowest share of target first.
+  // Rendered order is the worst-first order: off track and at risk in the open list, the rest inside <details>.
+  const ids = (s) => [...s.matchAll(/data-kr-row="([^"]+)"/g)].map((x) => x[1]);
+  assert.deepEqual(ids(card), rows.map((k) => k.id));
+  const det = card.includes('<details') ? card.slice(card.indexOf('<details'), card.indexOf('</details>')) : '';
+  assert.deepEqual(ids(det), rows.filter((k) => k.tone === 'g' || k.tone === 'n').map((k) => k.id));
+  assert.deepEqual(ids(card.replace(det, '')), rows.filter((k) => k.tone === 'r' || k.tone === 'y').map((k) => k.id));  // Worst first: status order, then lowest share of target first.
   const rank = { r: 0, y: 1, g: 2, n: 3 };
   for (let i = 1; i < rows.length; i++) {
     const a = rows[i - 1], b = rows[i];
