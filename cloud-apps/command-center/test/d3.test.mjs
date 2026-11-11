@@ -765,3 +765,18 @@ test('Goals: Pipeline revenue replaces Blockers, To review and Tokens; totals ar
   cols.find((c) => c.title === 'Negotiations').cards[0].name = '<img src=x onerror=alert(1)>';
   assert.ok(!renderGoals(old, null, {}).includes('<img src=x'));
 });
+
+test('Pipeline revenue: a repeat sponsor\'s second deal is its own row; an owed row with no live card has no dead link', () => {
+  const d2 = SAMPLE();
+  const sp = d2.d2.pipeline.boards.find((b) => b.goal === 'sponsors').sponsors;
+  sp.board.columns.find((c) => c.title === 'Leads').cards.push({ id: 'c-invideo-2', name: 'Invideo', amt: 3000 });
+  sp.collect.rows.push({ sponsor: 'Gone Co', owedUsd: 900, payload: { id: 'c-archived' } });
+  const p = pipelineOf(d2);
+  assert.deepEqual(p.close.map((r) => [r.id, r.amt]), [['c-invideo-2', 3000], ['c-poppy', 2500]]);
+  assert.equal(p.totals.close, 5500);
+  assert.deepEqual(p.collect.map((r) => [r.id, r.name, r.amt]), [['c-invideo', 'Invideo', 2100], [null, 'Gone Co', 900], ['c-arcads', 'Arcads', null]]);
+  assert.equal(p.totals.collect, 3000);
+  const card = renderGoals(d2, null, {});
+  assert.match(card, /<div class="hd" style="[^"]*"><span class="ell"[^>]*>Gone Co</);
+  assert.doesNotMatch(card, /data-deal="(null|undefined|)"/);
+});

@@ -267,26 +267,30 @@ export function pipelineOf(d2resp) {
   const sp = (d2resp?.d2?.pipeline?.boards || []).find((b) => b.goal === 'sponsors')?.sponsors;
   const cols = sp?.board?.columns;
   if (!Array.isArray(cols)) return null;
-  const seen = new Set();
-  const key = (id, name) => [id ? `i:${id}` : '', `n:${String(name || '').trim().toLowerCase()}`];
-  const ok = (k) => k && k !== 'n:';
-  const mark = (id, name) => key(id, name).filter(ok).forEach((k) => seen.add(k));
-  const isSeen = (id, name) => key(id, name).some((k) => ok(k) && seen.has(k));
-  const row = (id, name, amt) => ({ id: dealKey(id, name), name: name || 'Sponsor', amt: Number.isFinite(amt) && amt > 0 ? amt : null });
+  const deals = (titles) => cols.filter((c) => !c.archived && titles.includes(c.title)).flatMap((c) => c.cards || []);
+  const live = deals([...CLOSE_COLS, ...COLLECT_COLS]); // the cards the Money page shows
+  const nm = (s) => String(s || '').trim().toLowerCase();
+  const used = new Set(); // board cards already counted, so each deal is counted once
+  // An owed row is the same deal as a board card with its id; a row with no id takes the first unused card of that name.
+  // A second deal with the same sponsor but its own id stays a separate deal.
+  const cardFor = (id, name) => (id
+    ? live.find((k) => k.id != null && String(k.id) === String(id))
+    : nm(name) && live.find((k) => !used.has(k) && nm(k.name) === nm(name))) || null;
+  const row = (k, name, amt) => ({ id: k ? dealKey(k.id, k.name) : null, name: name || 'Sponsor', amt: Number.isFinite(amt) && amt > 0 ? amt : null });
   const collect = [];
   for (const r of sp.collect?.rows || []) {
     const amt = money(r.owedUsd ?? r.owed);
     if (!(amt > 0)) continue;
-    collect.push(row(r.payload?.id, r.sponsor, amt));
-    mark(r.payload?.id, r.sponsor);
+    const k = cardFor(r.payload?.id, r.sponsor);
+    if (k) used.add(k);
+    collect.push(row(k, r.sponsor, amt)); // no live card: listed and counted, but nothing to open
   }
-  const deals = (titles) => cols.filter((c) => !c.archived && titles.includes(c.title)).flatMap((c) => c.cards || []);
   for (const k of deals(COLLECT_COLS)) {
-    if (isSeen(k.id, k.name)) continue;
-    collect.push(row(k.id, k.name, k.amt));
-    mark(k.id, k.name);
+    if (used.has(k)) continue;
+    collect.push(row(k, k.name, k.amt));
+    used.add(k);
   }
-  const close = deals(CLOSE_COLS).filter((k) => !isSeen(k.id, k.name)).map((k) => row(k.id, k.name, k.amt));
+  const close = deals(CLOSE_COLS).filter((k) => !used.has(k)).map((k) => row(k, k.name, k.amt));
   const sort = (a) => a.sort((x, y) => (y.amt ?? -1) - (x.amt ?? -1));
   const sum = (a) => a.reduce((n, r) => n + (r.amt || 0), 0);
   return { close: sort(close), collect: sort(collect), totals: { close: sum(close), collect: sum(collect) } };
@@ -298,7 +302,11 @@ function pipelineHtml(d2resp) {
   if (!p) return `<section class="card" style="flex: 3 1 220px; min-width: 0" aria-label="Pipeline revenue">${head}<p class="mut">No feed: the Sponsors board could not be read.</p></section>`;
   const block = (label, rows, total) => {
     const bare = rows.filter((r) => r.amt == null).length;
-    const list = rows.map((r) => `<a class="hd" href="#money" data-deal="${esc(r.id)}" style="gap: 8px; color: inherit; text-decoration: none; padding: 3px 0"><span class="ell" style="flex: 1; min-width: 0">${esc(r.name)}</span>${r.amt == null ? '<span class="mut" style="font-size: 12px">no amount</span>' : `<b style="font-weight: 600">${esc(usd(r.amt))}</b>`}</a>`).join('');
+    const list = rows.map((r) => {
+      const inner = `<span class="ell" style="flex: 1; min-width: 0">${esc(r.name)}</span>${r.amt == null ? '<span class="mut" style="font-size: 12px">no amount</span>' : `<b style="font-weight: 600">${esc(usd(r.amt))}</b>`}`;
+      const st = 'gap: 8px; color: inherit; text-decoration: none; padding: 3px 0';
+      return r.id ? `<a class="hd" href="#money" data-deal="${esc(r.id)}" style="${st}">${inner}</a>` : `<div class="hd" style="${st}">${inner}</div>`;
+    }).join('');
     return `<div class="inner" style="gap: 6px">
 <div class="hd" style="align-items: baseline; gap: 8px"><span class="sub" style="font-weight: 500">${label}</span><b class="num sp" style="font-size: 26px">${esc(usd(total))}</b></div>
 <span class="mut" style="font-size: 12px">${rows.length} deal${rows.length === 1 ? '' : 's'}${bare ? ` · ${bare} no amount` : ''}</span>
