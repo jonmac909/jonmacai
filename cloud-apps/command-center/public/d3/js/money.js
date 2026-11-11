@@ -4,9 +4,12 @@
 //   Viral View MRR                   d2 money tiles
 //   deals by stage                   d2's cleaned Sponsors board (its 10 columns grouped into the design's 6)
 //   weekly tokens                    d3 rail tokens and goals.tokenWeeks
+//   one deal (#money/<deal id>)      that board card's amount, stage, status, blocker, next step and Gmail thread
+//                                    (ui.rvThreads, GET /dashboard/api/sponsor-threads; see thread.js)
 // Team cost, expenses, profit, YouTube ads, affiliates and forecast have no feed yet and read "No feed".
 import { esc, usd, toneOf, icon } from './util.js';
 import { headerOnly, periodOf } from './goals.js';
+import { threadHtml } from './thread.js';
 
 const num = (x) => typeof x === 'number' && Number.isFinite(x);
 const one = (v) => (Array.isArray(v) ? v[0] : v) || null;
@@ -28,12 +31,47 @@ export function dealStages(d2resp) {
   const cols = (d2resp?.d2?.pipeline?.boards || []).find((b) => b.goal === 'sponsors')?.sponsors?.board?.columns;
   if (!Array.isArray(cols)) return null;
   return DEAL_STAGES.map(([name, from]) => {
-    const deals = cols.filter((c) => !c.archived && from.includes(c.title)).flatMap((c) => c.cards || []).map((k) => ({
-      name: k.name || 'Sponsor', amt: num(k.amt) && k.amt > 0 ? k.amt : null, draft: !!k.draft,
+    const deals = cols.filter((c) => !c.archived && from.includes(c.title)).flatMap((c) => (c.cards || []).map((k) => ({
+      id: String(k.id || ''), name: k.name || 'Sponsor', amt: num(k.amt) && k.amt > 0 ? k.amt : null, draft: !!k.draft,
       note: k.draft ? 'your send' : k.pill || '', tone: k.draft ? 'y' : TONE[k.pillCls] || '',
-    }));
+      stage: name, column: c.title, status: k.status || '', subject: k.detail || '', threadId: k.threadId || '',
+      blocker: typeof k.blocker === 'string' ? k.blocker : null, next: typeof k.next === 'string' ? k.next : null,
+    })));
     return { name, deals };
   });
+}
+
+// ---- One deal's own view (#money/<deal id>): the facts, then its Gmail thread, oldest first ----
+export function dealOf(d2resp, id) {
+  if (!id) return null;
+  for (const s of dealStages(d2resp) || []) {
+    const d = s.deals.find((x) => x.id === id);
+    if (d) return d;
+  }
+  return null;
+}
+const dealHref = (id) => `#money/${encodeURIComponent(id)}`;
+
+function dealHtml(d, ui) {
+  const NS = '<span class="nf">not set</span>';
+  const val = (v) => (v ? `<span style="overflow-wrap: anywhere">${esc(v)}</span>` : NS);
+  // Blocked: the collections sheet's blocker for this deal; a deal the sheet has no row for is "not set".
+  const blocked = d.blocker == null ? NS
+    : d.blocker ? `<span class="stack" style="gap: 2px"><b class="dealbad">Yes, blocked</b><span style="overflow-wrap: anywhere">${esc(d.blocker)}</span></span>`
+      : '<span>No</span>';
+  const fact = (l, v) => `<div class="dealfact"><span class="mut">${l}</span>${v}</div>`;
+  return `<section class="card deal" aria-label="Deal">
+<div class="hd cardhd" style="flex-wrap: wrap"><a class="btn sm" href="#money" data-dealback>← All deals</a><h2 style="overflow-wrap: anywhere">${esc(d.name)}</h2>${d.note ? `<span class="pill sp ${PILL[d.tone] || ''}">${esc(d.note)}</span>` : ''}</div>
+<div class="inner" style="gap: 0">
+${fact('Amount', d.amt ? `<b class="krv">${esc(usd(d.amt))}</b>` : NS)}
+${fact('Stage', `<span>${esc(d.stage)}${d.column && d.column !== d.stage ? ` <span class="mut">· ${esc(d.column)}</span>` : ''}</span>`)}
+${fact('Status', val(d.status))}
+${fact('Blocked', blocked)}
+${fact('Next step', val(d.next))}
+${fact('Subject', val(d.subject))}
+</div>
+<div class="dealthread">${threadHtml(d.threadId, ui)}</div>
+</section>`;
 }
 
 function tile(label, sub, value) {
@@ -122,15 +160,17 @@ ${row('', `Team cost · ${P.monthShort} 1–${P.day}`, null)}
 </section>`;
 }
 
-function dealsHtml(d2resp) {
+function dealsHtml(d2resp, ui = {}) {
   const st = dealStages(d2resp);
   if (!st) {
     return `<section class="card"><div class="hd cardhd"><span class="chip">${icon('board')}</span><h2>Sponsor deals</h2><span class="mut">by stage</span></div><p class="mut">No feed: the Sponsors board could not be read.</p></section>`;
   }
   const sends = st.reduce((n, s) => n + s.deals.filter((d) => d.draft).length, 0);
   const cols = st.map((s) => {
-    const cards = s.deals.slice(0, 8).map((d) => `<div class="vcard" style="gap: 4px"><span style="font-weight: 500; overflow-wrap: anywhere">${esc(d.name)}</span>${d.amt ? `<span class="krv" style="font-size: 15px">${esc(usd(d.amt))}</span>` : ''}${d.note ? `<span class="hd mut" style="gap: 6px; font-size: 12px"><span class="dot ${d.tone}" style="width: 7px; height: 7px"></span>${esc(d.note)}</span>` : ''}</div>`).join('');
-    const more = s.deals.length > 8 ? `<span class="mut" style="font-size: 12px">+${s.deals.length - 8} more</span>` : '';
+    // Each card opens its deal view; "+N more" shows the rest of the column (ui.dealsAll, kept across refreshes).
+    const all = !!ui.dealsAll?.[s.name];
+    const cards = s.deals.slice(0, all ? s.deals.length : 8).map((d) => `<a class="vcard dealcard" href="${esc(dealHref(d.id))}" style="gap: 4px"><span style="font-weight: 500; overflow-wrap: anywhere">${esc(d.name)}</span>${d.amt ? `<span class="krv" style="font-size: 15px">${esc(usd(d.amt))}</span>` : ''}${d.note ? `<span class="hd mut" style="gap: 6px; font-size: 12px"><span class="dot ${d.tone}" style="width: 7px; height: 7px"></span>${esc(d.note)}</span>` : ''}</a>`).join('');
+    const more = s.deals.length > 8 ? `<button type="button" class="mut dealmore" data-dealmore="${esc(s.name)}">${all ? 'Show fewer' : `+${s.deals.length - 8} more`}</button>` : '';
     return `<div class="stage">
 <div class="hd" style="justify-content: space-between; gap: 4px"><b class="ell" style="font-size: 13px">${esc(s.name)}</b><span class="krv">${s.deals.length}</span></div>
 ${cards}${more}${s.deals.length ? '' : '<span class="mut" style="font-size: 12px">None yet</span>'}
@@ -175,13 +215,18 @@ ${box('Per project', 'needs tokens saved on every run')}
 </section>`;
 }
 
-export function renderMoney(d2resp, d3resp) {
+export function renderMoney(d2resp, d3resp, ui = {}) {
   const P = periodOf(d2resp);
   const asOf = Date.parse(d2resp?.asOf);
   const read = Number.isFinite(asOf)
     ? new Intl.DateTimeFormat('en-US', { timeZone: 'America/Vancouver', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }).format(new Date(asOf))
     : '';
   const head = headerOnly(d2resp, 'Money', 'Sponsors · other income · team cost', read ? `<span class="pill sp">Numbers as read ${esc(read)}</span>` : '');
+  if (ui.deal) {
+    const d = dealOf(d2resp, ui.deal);
+    return `${head}
+${d ? dealHtml(d, ui) : '<section class="card"><div class="hd cardhd"><a class="btn sm" href="#money" data-dealback>← All deals</a></div><p class="mut">This deal is not on the Sponsors board now.</p></section>'}`;
+  }
   const m = one((d2resp?.d2?.goals || []).find((g) => g.key === 'sponsors')?.month);
   const st = dealStages(d2resp);
   const agreed = st ? st.find((s) => s.name === 'Agreed').deals : null;
@@ -199,6 +244,6 @@ ${tile('Team cost', `${P.monthShort} 1–${P.day}`, null)}
 ${revenueHtml(d2resp, P)}
 ${incomeHtml(d2resp, P, !!bank?.source?.stale)}
 </div>
-${dealsHtml(d2resp)}
+${dealsHtml(d2resp, ui)}
 ${costHtml(d3resp, P)}`;
 }
