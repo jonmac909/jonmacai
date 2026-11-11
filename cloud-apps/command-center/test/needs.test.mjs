@@ -45,9 +45,10 @@ async function setup() {
 }
 const cookie = async () => `${COOKIE}=${await signSession(SECRET, Math.floor(NOW / 1000) + 3600)}`;
 const d3Of = async (env) => withNow(NOW, async () => (await handleApi(new Request('https://jonmac.ai/dashboard/api/d3', { headers: { Cookie: await cookie() } }), env)).json());
-const post = async (env, path, { bot = false } = {}) => withNow(NOW, async () => {
+const post = async (env, path, { bot = false, anon = false, noCC = false } = {}) => withNow(NOW, async () => {
   const headers = new Headers({ 'Content-Type': 'application/json' });
-  if (bot) headers.set('Authorization', `Bearer ${BOT}`); else { headers.set('Cookie', await cookie()); headers.set('X-CC', '1'); }
+  if (bot) headers.set('Authorization', `Bearer ${BOT}`);
+  else if (!anon) { headers.set('Cookie', await cookie()); if (!noCC) headers.set('X-CC', '1'); }
   const r = await handleApi(new Request(`https://jonmac.ai/dashboard/api/v1${path}`, { method: 'POST', headers, body: '{}' }), env);
   return { status: r.status, body: await r.json() };
 });
@@ -128,6 +129,24 @@ test('Drop and Not now are Jon only', async () => {
   const { db, env } = await setup();
   assert.equal((await post(env, `/needs/${T.plain}/drop`, { bot: true })).status, 403);
   assert.equal((await post(env, `/needs/${A.pay}/later`, { bot: true })).status, 403);
+  for (const opt of [{ anon: true }, { noCC: true }]) {
+    for (const v of ['drop', 'later']) {
+      const s = (await post(env, `/needs/${T.plain}/${v}`, opt)).status;
+      assert.ok(s === 401 || s === 403, `${JSON.stringify(opt)} ${v} -> ${s}`);
+    }
+  }
   assert.equal(db.sqlite.prepare('SELECT status FROM bot_tasks WHERE id = ?').get(T.plain).status, 'waiting_on_jon');
   assert.equal(db.sqlite.prepare('SELECT COUNT(*) n FROM needs_later').get().n, 0);
+});
+
+test('Not now: refuses a closed item, clears expired rows, says so when the table is missing', async () => {
+  const { db, env } = await setup();
+  db.sqlite.prepare("INSERT INTO needs_later (item, until, \"by\", at) VALUES ('t_old', ?, 'jon', ?)").run(H(400), H(424)); // the route reads the real clock
+  assert.equal((await post(env, `/needs/${Q.a}/drop`)).status, 200);
+  assert.equal((await post(env, `/needs/${Q.a}/later`)).status, 409);
+  assert.equal((await post(env, `/needs/${Q.b}/later`)).status, 200);
+  assert.deepEqual(db.sqlite.prepare('SELECT item FROM needs_later').all().map((r) => r.item), [Q.b]);
+  db.sqlite.exec('DROP TABLE needs_later');
+  const r = await post(env, `/needs/${A.pay}/later`);
+  assert.equal(r.status, 503);
 });

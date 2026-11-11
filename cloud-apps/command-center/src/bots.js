@@ -799,9 +799,17 @@ async function needsAct(db, env, ctx, id, verb, now) {
   if (!row) throw new Bad(404, 'Not found');
   const card = kind === 't' ? id : row.task_id || null;
   if (verb === 'later') {
+    const open = kind === 't' ? !['done', 'cancelled'].includes(row.status) : row.status === (kind === 'q' ? 'open' : 'pending');
+    if (!open) throw new Bad(409, `Already ${row.status}`);
     const until = new Date(Date.parse(now) + LATER_MS).toISOString();
-    await db.prepare('INSERT INTO needs_later (item, until, "by", at) VALUES (?, ?, \'jon\', ?) ON CONFLICT(item) DO UPDATE SET until = excluded.until, at = excluded.at')
-      .bind(id, until, now).run();
+    try {
+      await db.prepare('DELETE FROM needs_later WHERE until <= ?').bind(now).run(); // expired rows
+      await db.prepare('INSERT INTO needs_later (item, until, "by", at) VALUES (?, ?, \'jon\', ?) ON CONFLICT(item) DO UPDATE SET until = excluded.until, at = excluded.at')
+        .bind(id, until, now).run();
+    } catch (e) {
+      if (/no such table/i.test(String(e?.message))) throw new Bad(503, "Not now isn't set up yet");
+      throw e;
+    }
     if (card) await logEvent(db, card, now, 'jon', 'needs', `not now until ${until} (Needs you)`);
     return json({ ok: true, item: id, until });
   }

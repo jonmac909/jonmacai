@@ -4,7 +4,7 @@ import { esc } from './util.js';
 
 const API = '/dashboard/api/v1';
 export const GROUPS = [['sign', 'Sign in'], ['money', 'Money'], ['approve', 'Approve'], ['answer', 'Answer']];
-const SIGN = /sign ?in|log ?in|login|2fa|verify/i;
+const SIGN = /sign ?in|log ?in|login|2fa|verify it'?s you/i;
 const MONEY = /\$\s?\d|invoice|payment|\bpay\b|refund|\bprice|\bgst\b|\btax|money|budget|checkout|discount|\bterms\b|\bfee\b|billing|subscription/i;
 const APPROVE = /approv|publish|upload|thumbnail|video/i;
 const ts = (iso) => (Number.isFinite(Date.parse(iso)) ? Date.parse(iso) : Infinity);
