@@ -6,11 +6,11 @@ import { sqliteD1 } from './sqlited1.mjs';
 import { handleApi } from '../src/api.js';
 import worker from '../src/worker.js';
 import { signSession, COOKIE } from '../src/auth.js';
-import { renderGoals, objectivesOf, scoreboardHtml, pipelineOf } from '../public/d3/js/goals.js';
+import { renderGoals, objectivesOf, pipelineOf } from '../public/d3/js/goals.js';
 import { statHtml, railCounts } from '../public/d3/js/rail.js';
 import { renderTeam } from '../public/d3/js/team.js';
 import { blockerRows, renderBlockers } from '../public/d3/js/blockers.js';
-import { reviewItems, renderReview, reviewClick } from '../public/d3/js/review.js';
+import { reviewItems, renderReview, reviewClick, OTHER_PICK } from '../public/d3/js/review.js';
 import { dealStages, renderMoney } from '../public/d3/js/money.js';
 
 const SECRET = 'test-session-secret-32-bytes-ok!';
@@ -164,18 +164,15 @@ test('Goals scoreboard: today\'s QC-passed videos, stage clocks, and approved vi
   assert.deepEqual(aw.items.map((x) => x.id), ['n1']);
   assert.equal(aw.actual, 1);
   assert.ok(aw.oldestLabel);
-  const html = scoreboardHtml(body);
-  assert.match(html, /1 of 6 passed today/);
-  assert.match(html, /1 late/);
-  assert.match(html, /1 approved, not uploaded, oldest [^:]+: Litter box myths - Nora Fairweather Cats/);
-  assert.match(html, /pack 60 of 75 min/);
-  assert.match(html, /2:00 of 3:00/);
-  // The Goals page puts it right after the header.
+  // Jon, 2026-11-11: no "Today's videos" panel on top of Goals; the numbers stay in the key results.
   const page = renderGoals(SAMPLE(), body, {});
-  assert.ok(page.indexOf("Today's videos") < page.indexOf('Key results'));
+  assert.ok(!page.includes("Today's videos"));
+  assert.doesNotMatch(page, /\d+ of \d+ passed today|approved, not uploaded, oldest/);
+  assert.match(page, /QC-passed today/);
+  assert.match(page, /Approved, not uploaded/);
 });
 
-test('Goals scoreboard: clock from the first stage, own channels waiting, ad / live / old cards skipped, long list capped, no feed', async () => {
+test('Goals scoreboard: clock from the first stage, own channels waiting, ad / live / old cards skipped', async () => {
   const db = sqliteD1();
   const card = (id, title, project, extra = {}) => ins(db, 'bot_tasks', { id, title, owner: 'elle', project, status: 'doing', created_by: 'ana', updated_by: 'ana', created_at: '2026-11-10T15:00:00Z', updated_at: '2026-11-10T15:00:00Z', ...extra });
   const ev = (id, task, at, kind, detail) => db.sqlite.prepare('INSERT INTO bot_task_events (id, task_id, at, "by", kind, detail) VALUES (?, ?, ?, ?, ?, ?)').run(id, task, at, 'jon', kind, detail);
@@ -200,14 +197,6 @@ test('Goals scoreboard: clock from the first stage, own channels waiting, ad / l
   const k1 = body.d3.goals.scoreboard.rows.find((r) => r.id === 'k1');
   assert.deepEqual([k1.clockMin, k1.state], [60, 'on']);
   assert.deepEqual(body.d3.goals.approvedWaiting.items.map((x) => x.id), ['j2', 'j1']);
-  // Seven waiting: the red line names five and counts the rest.
-  const items = Array.from({ length: 7 }, (_, i) => ({ id: `w${i}`, title: `Video ${i} - Jon Mac`, waitMin: 60 }));
-  const many = { d3: { goals: { scoreboard: body.d3.goals.scoreboard, approvedWaiting: { actual: 7, oldestLabel: '1 hr', items } } } };
-  const html = scoreboardHtml(many);
-  assert.match(html, /Video 4 - Jon Mac and 2 more/);
-  assert.ok(!html.includes('Video 5'));
-  // No scoreboard source: the section says No feed instead of breaking the page.
-  assert.match(scoreboardHtml({ d3: { goals: {} } }), /No feed/);
 });
 
 const d3Sample = () => ({ ok: true, d3: {
@@ -255,7 +244,7 @@ test('Goals: missing sources read No feed / No data with a grey dot; text is esc
   const d2 = SAMPLE();
   const none = renderGoals(d2, null, {});
   assert.match(none, /Approved, not uploaded<\/span><span class="krv nf">No feed/);
-  assert.match(none, /Today's videos<\/h2><\/div><p class="mut">No feed/);
+  assert.ok(!none.includes("Today's videos"));
   assert.match(none, /Workouts<\/span><span class="krv nf">No feed/);
   assert.match(none, /Pipeline revenue<\/h2>[\s\S]*To close/); // the deal card needs only /d2
   assert.match(none, /Open cards: No feed/);
@@ -439,6 +428,58 @@ test('Team page: design sections in order, live rows, No feed where nothing repo
   assert.equal((none.match(/<b class="num sp nf">No feed<\/b>/g) || []).length, 4);
 });
 
+test('Team cards by bot: every open card (past 400) by owner and status, Others for Jon and retired bots, chips, All view, kanban', async () => {
+  const db = teamDb();
+  const STATUSES = ['todo', 'doing', 'qc', 'waiting_on_jon', 'review'];
+  const owners = ['developer', 'sponsors', 'qc', 'jon', 'moneyclaw'];
+  for (let i = 0; i < 450; i++) {
+    ins(db, 'bot_tasks', { id: `n${i}`, title: `Bulk ${i}`, owner: owners[i % 5], status: STATUSES[i % 7 % 5], project: i % 2 ? 'coding' : null, stage: i % 3 ? null : 'edit', created_by: 'ana', updated_by: 'ana', created_at: H(i / 10), updated_at: H(i / 10) });
+  }
+  const T = (await d3Of(db)).d3.team;
+  const count = (sql, ...a) => db.sqlite.prepare(sql).get(...a).n;
+  const open = count("SELECT COUNT(*) n FROM bot_tasks WHERE status IN ('todo','doing','waiting_on_jon','qc','review')");
+  assert.ok(open > 450);
+  assert.equal(T.openTotal, open);
+  assert.equal(T.cut, false);
+  // Counts per bot and column equal D1 (what dash.py tasks --owner --status reads).
+  for (const b of T.bots) for (const s of STATUSES) {
+    assert.equal(b.cards[s].length, count('SELECT COUNT(*) n FROM bot_tasks WHERE owner = ? AND status = ?', b.slug, s), `${b.slug} ${s}`);
+  }
+  const listed = [...T.bots, T.others].flatMap((b) => STATUSES.flatMap((s) => b.cards[s].map((c) => c.id)));
+  assert.equal(new Set(listed).size, open); // every open card once
+  assert.equal(listed.length, open);
+  // Others: Jon's and retired bots' cards, without their owner slug.
+  const roster = TEAM.bots.map((b) => b.slug);
+  assert.equal(STATUSES.reduce((n, s) => n + T.others.cards[s].length, 0), count(`SELECT COUNT(*) n FROM bot_tasks WHERE status IN ('todo','doing','waiting_on_jon','qc','review') AND owner NOT IN (${roster.map(() => '?').join(',')})`, ...roster));
+  assert.ok(!JSON.stringify(T).includes('moneyclaw'));
+  // Newest change first, with project label, stage and age.
+  const dev = T.bots.find((b) => b.slug === 'developer').cards.doing;
+  assert.deepEqual(dev.map((c) => c.id), db.sqlite.prepare("SELECT id FROM bot_tasks WHERE owner = 'developer' AND status = 'doing' ORDER BY updated_at DESC").all().map((r) => r.id));
+  assert.equal(dev[0].id, 'd1');
+  const n0 = T.bots.find((b) => b.slug === 'developer').cards.todo.find((c) => c.id === 'n0');
+  assert.deepEqual([n0.project, n0.stage], ['Unsorted', 'Edit']);
+  // Render: chips (greyed when empty), All view counts, kanban with card links.
+  const d3 = { d3: { team: T } };
+  const all = renderTeam(SAMPLE(), d3, {});
+  assert.match(all, /<h2>Cards by bot<\/h2>/);
+  assert.match(all, /data-tm="all" aria-pressed="true"/);
+  assert.match(all, /class="btn tm" data-tm="developer"/);
+  assert.match(all, /class="btn tm off" data-tm="ana"/);
+  assert.match(all, /data-tm="others"/);
+  const devTodo = T.bots.find((b) => b.slug === 'developer').cards.todo.length;
+  assert.match(all, new RegExp(`data-tmcol="developer\\|todo"[^>]*>${devTodo}</button>`));
+  assert.doesNotMatch(all, /class="tmkan"/);
+  const kan = renderTeam(SAMPLE(), d3, { teamBot: 'developer', teamCol: 'review' });
+  assert.match(kan, /class="tmkan"/);
+  for (const w of ['To do', 'Doing', 'QC', 'Needs you', 'Review']) assert.match(kan, new RegExp(`<b>${w}</b>`));
+  assert.match(kan, /class="stage tmon" data-tmk="review"/);
+  assert.match(kan, /href="\/dashboard\/\?card=d1#projects"/);
+  T.bots.find((b) => b.slug === 'developer').cards.doing[0].title = '<img src=x onerror=alert(1)>';
+  const esc1 = renderTeam(SAMPLE(), d3, { teamBot: 'developer' });
+  assert.ok(esc1.includes('&lt;img src=x onerror=alert(1)&gt;') && !esc1.includes('<img src=x'));
+  assert.equal((kan.match(/class="vcard tmcard"/g) || []).length, STATUSES.reduce((n, s) => n + T.bots.find((b) => b.slug === 'developer').cards[s].length, 0));
+});
+
 test('Blockers page: filters, rows open to what they block, review items link to Review, rail count = rows', async () => {
   const d2 = SAMPLE();
   const d3 = await d3Of(teamDb());
@@ -609,12 +650,21 @@ test('Review page: sponsor drafts first, buttons per type, Undo disabled, text e
   assert.match(pick('t:rev'), /data-rv="approve" data-id="t:rev"[^>]*>Approve<\/button><button[^>]*data-rv="open-back" data-id="t:rev"/);
   assert.match(pick('t:rev', { rvBack: 't:rev' }), /class="rvtext"[\s\S]*data-rv="back" data-id="t:rev"[\s\S]*data-rv="cancel"/);
   assert.match(pick('a:a1'), /data-rv="yes" data-id="a:a1"[^>]*>Approve<\/button><button[^>]*data-rv="no"[^>]*>Reject/);
-  // "Other (type your own)" is the typed box, never a button that sends those words.
+  // A Decision: its options as buttons in the bot's order, then "Other (type your own)", then one Submit.
+  // "Other" opens the typed box; its words are never sent as the answer.
   const q4 = pick('q:q4');
-  assert.match(q4, /data-rv="opt" data-id="q:q4" data-opt="\$2,500"/);
+  assert.match(q4, /data-rv="pick" data-id="q:q4" aria-pressed="false" data-opt="\$2,500"[^>]*>\$2,500<\/button><button[^>]*data-rv="other" data-id="q:q4" aria-pressed="false"[^>]*>Other \(type your own\)<\/button><\/div><button[^>]*data-rv="answer" data-id="q:q4"[^>]*>Submit<\/button>/);
   assert.doesNotMatch(q4, /data-opt="Other/);
-  assert.match(q4, /placeholder="Or type your own answer"[\s\S]*data-rv="answer" data-id="q:q4"/);
-  assert.match(pick('q:q2'), /placeholder="Type your answer"[\s\S]*data-rv="answer"/);
+  assert.doesNotMatch(q4, /class="rvtext"/);
+  assert.match(pick('q:q4', { rvPick: { id: 'q:q4', v: '$2,500' } }), /aria-pressed="true" data-opt="\$2,500"/);
+  assert.doesNotMatch(pick('q:q4', { rvPick: { id: 'q:q2', v: '$2,500' } }), /aria-pressed="true"/); // a pick made on another item
+  assert.match(pick('q:q4', { rvPick: { id: 'q:q4', v: OTHER_PICK }, rvText: 'Mine' }), /data-rv="other"[^>]*aria-pressed="true"[\s\S]*<textarea class="rvtext"[^>]*>Mine<\/textarea><button[^>]*data-rv="answer"[^>]*>Submit/);
+  // An old question with no options: the typed box and Submit.
+  assert.match(pick('q:q2'), /<textarea class="rvtext"[^>]*placeholder="Type your answer"[\s\S]*data-rv="answer"[^>]*>Submit/);
+  assert.doesNotMatch(pick('q:q2'), /data-rv="other"/);
+  // The answer row sits right under the question, not pushed to the bottom of a panel as tall as the queue.
+  assert.match(q4, /class="card rvdetail"/);
+  assert.doesNotMatch(q4, /margin-top: auto/);
   // Only the "Other (type ...)" option is the box; a real option starting with "Other" stays a button.
   const q4item = d3.d3.queue.find((x) => x.id === 'q:q4');
   q4item.act.options = ['Other channel first', 'Other (type your own)'];
@@ -660,8 +710,8 @@ test('Review clicks: each button calls only its write, after a confirm where it 
     // Every write confirms first: No sends nothing.
     yes = false;
     typed = 'Fix it';
-    for (const [sel, rv, extra] of [['t:rev', 'approve'], ['t:rev', 'back', { rvBack: 't:rev' }], ['a:a1', 'yes'], ['a:a1', 'no'], ['q:q4', 'opt', { opt: '$2,500' }], ['q:q2', 'answer'], ['d:c-poppy', 'send']]) {
-      await run(sel, 'rv', { rv, ...(extra?.opt ? { opt: extra.opt } : {}) }, extra?.rvBack ? { rvBack: extra.rvBack } : {});
+    for (const [sel, rv, ui0] of [['t:rev', 'approve'], ['t:rev', 'back', { rvBack: 't:rev' }], ['a:a1', 'yes'], ['a:a1', 'no'], ['q:q4', 'answer', { rvPick: { id: 'q:q4', v: '$2,500' } }], ['q:q2', 'answer'], ['d:c-poppy', 'send']]) {
+      await run(sel, 'rv', { rv }, ui0 || {});
     }
     assert.equal(calls.length, 0);
     yes = true;
@@ -676,16 +726,34 @@ test('Review clicks: each button calls only its write, after a confirm where it 
     assert.deepEqual(calls.pop(), ['/dashboard/api/v1/approvals/a1/decide', 'POST', { decision: 'reject' }]);
     await run('a:a1', 'rv', { rv: 'yes' });
     assert.deepEqual(calls.pop(), ['/dashboard/api/v1/approvals/a1/decide', 'POST', { decision: 'approve' }]);
-    ui = await run('q:q4', 'rv', { rv: 'opt', opt: '$2,500' });
+    // Picking an option or Other only marks it; Submit sends the pick, or the typed text after Other.
+    ui = await run('q:q4', 'rv', { rv: 'pick', opt: '$2,500' });
+    assert.deepEqual(ui.rvPick, { id: 'q:q4', v: '$2,500' });
+    assert.equal(calls.length, 0);
+    ui = await run('q:q4', 'rv', { rv: 'answer' });
+    assert.match(ui.rvErr, /Pick an answer/);
+    typed = 'typed without Other';
+    await run('q:q4', 'rv', { rv: 'answer' });
+    typed = '';
+    await run('q:q4', 'rv', { rv: 'answer' }, { rvPick: { id: 'q:q2', v: '$2,500' } }); // a pick made on another item
+    await run('q:q4', 'rv', { rv: 'answer' }, { rvPick: { id: 'q:q4', v: 'Not an option' } });
+    assert.equal(calls.length, 0);
+    ui = await run('q:q4', 'rv', { rv: 'answer' }, { rvPick: { id: 'q:q4', v: '$2,500' } });
     assert.deepEqual(calls.pop(), ['/dashboard/api/v1/questions/q4/answer', 'POST', { answer: '$2,500' }]);
     assert.equal(ui.rvDone['q:q4'], '$2,500');
+    assert.equal(ui.rvPick, null);
+    assert.notEqual(ui.rvSel, 'q:q4'); // moved on to the next item
     await run('d:c-poppy', 'rv', { rv: 'send' }, { rvEdit: 'd:c-poppy', rvDraft: { body: 'Edited' } });
     const [url, method, body] = calls.pop();
     assert.deepEqual([url, method, body.kind, body.payload.body, body.payload.to], ['/dashboard/api/actions', 'POST', 'sponsor.send_draft', 'Edited', 'ann@poppy.ai']);
     assert.ok(body.idemKey);
     typed = 'My own answer';
-    await run('q:q4', 'rv', { rv: 'answer' });
+    ui = await run('q:q4', 'rv', { rv: 'other' });
+    assert.deepEqual(ui.rvPick, { id: 'q:q4', v: OTHER_PICK });
+    await run('q:q4', 'rv', { rv: 'answer' }, { rvPick: ui.rvPick });
     assert.deepEqual(calls.pop(), ['/dashboard/api/v1/questions/q4/answer', 'POST', { answer: 'My own answer' }]);
+    await run('q:q2', 'rv', { rv: 'answer' }); // no options: the box alone
+    assert.deepEqual(calls.pop(), ['/dashboard/api/v1/questions/q2/answer', 'POST', { answer: 'My own answer' }]);
     // Done items, busy state and a failed write: nothing sent twice, the error shown.
     await run('t:rev', 'rv', { rv: 'approve' }, { rvDone: { 't:rev': 'Approved' } });
     await run('t:rev', 'rv', { rv: 'approve' }, { busy: true });

@@ -16,8 +16,8 @@ const PAGES = { goals: 'Goals', team: 'Team', blockers: 'Blockers', review: 'Rev
 const SIGNIN = 'd3-signin';
 const main = document.getElementById('main');
 // Review state that belongs to one item: cleared when the item or the page changes.
-const RV_CLEAR = { rvBack: null, rvEdit: null, rvDraft: {}, rvText: '', rvErr: '' };
-const S = { d2: null, d3: null, error: '', signedOut: false, ui: { openKr: null, hgpOpen: false, busy: false, openBot: null, openBl: null, blFilter: 'all', rvSel: null, rvDone: {}, rvKept: {}, rvBack: null, rvEdit: null, rvDraft: {}, rvText: '', rvErr: '' } };
+const RV_CLEAR = { rvBack: null, rvEdit: null, rvDraft: {}, rvPick: null, rvText: '', rvErr: '' };
+const S = { d2: null, d3: null, error: '', signedOut: false, ui: { openKr: null, hgpOpen: false, busy: false, openBot: null, openBl: null, blFilter: 'all', rvSel: null, rvDone: {}, rvKept: {}, rvBack: null, rvEdit: null, rvDraft: {}, rvPick: null, rvText: '', rvErr: '' } };
 
 // ---- theme (the inline script in index.html applies the saved one before paint) ----
 function setTheme(t) {
@@ -118,6 +118,16 @@ main.addEventListener('click', async (e) => {
   if (rvgo) { Object.assign(S.ui, RV_CLEAR, { rvSel: rvgo.dataset.rvgo }); return; }
   const deal = e.target.closest('[data-deal]'); // Pipeline revenue row: the link opens Money, this picks the deal
   if (deal) { Object.assign(S.ui, { dealSel: deal.dataset.deal, dealDone: false }); return; }
+  const tm = e.target.closest('[data-tm]'); // Team: a bot chip (or All)
+  if (tm) { S.ui.teamBot = tm.dataset.tm === 'all' ? null : tm.dataset.tm; S.ui.teamCol = null; render(); return; }
+  const tmc = e.target.closest('[data-tmcol]'); // Team All view: a count opens that bot's column
+  if (tmc) {
+    const [slug, col] = tmc.dataset.tmcol.split('|');
+    Object.assign(S.ui, { teamBot: slug, teamCol: col });
+    render();
+    main.querySelector(`[data-tmk="${col}"]`)?.scrollIntoView({ block: 'nearest', inline: 'start' });
+    return;
+  }
   const bot = e.target.closest('[data-bot]');
   if (bot) { S.ui.openBot = S.ui.openBot === bot.dataset.bot ? null : bot.dataset.bot; render(); return; }
   const bl = e.target.closest('[data-bl]');
@@ -154,7 +164,7 @@ main.addEventListener('input', (e) => {
   else if (e.target.matches('.rvin')) S.ui.rvDraft = { ...S.ui.rvDraft, [e.target.name]: e.target.value };
 });
 
-window.addEventListener('hashchange', () => { Object.assign(S.ui, { openKr: null, openBot: null, openBl: null, ...RV_CLEAR, rvDone: {}, rvKept: {} }); render(); });
+window.addEventListener('hashchange', () => { Object.assign(S.ui, { openKr: null, openBot: null, openBl: null, teamBot: null, teamCol: null, ...RV_CLEAR, rvDone: {}, rvKept: {} }); render(); });
 setInterval(() => { if (document.visibilityState === 'visible') load(); }, 60000);
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') load(); });
 render();
