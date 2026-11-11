@@ -119,7 +119,7 @@ const hiddenOf = (key) => (/^team-guard/.test(key || '') ? 'health' : /^cw:/.tes
 const goalOf = (project) => CONFIG.goals.find((g) => g.project === project)?.key ?? null;
 
 // `clear`: a count to bring to zero (open questions, invoices waiting). Early in a period nothing is due yet.
-function statusOf(actual, target, pace, unit, clear = false) {
+export function statusOf(actual, target, pace, unit, clear = false) {
   if (actual == null || target == null) return ST.none;
   if (clear) return actual === 0 ? ST.done : ST.behind;
   if (actual >= target) return ST.done;
@@ -351,13 +351,13 @@ const METRICS = {
     });
   },
   qcPassed(cfg, g, C) {
+    // Jon, 2026-11-10: one QC-passed video a day per focus channel; the pace runs through the day.
     const n = C.data.qcPassed ? C.data.qcPassed.length : null;
-    const target = Math.floor((C.dayShare * 24) / cfg.everyHours);
-    const notDue = n != null && target === 0; // 00:00 to 02:59: nothing to judge yet
+    const target = cfg.perChannel * C.chans.length;
     return metric(cfg, g.owner, {
-      target, actual: n, pace: target, display: n == null ? 'No data' : notDue ? ST.notDue.text : `${n} of ${target} by now`, status: notDue && ST.notDue,
+      target, actual: n, pace: target * C.dayShare,
       source: { ...C.src.cards, label: 'QC checks on Olivia\'s Home Guide Press cards' },
-      note: `One every ${cfg.everyHours} hours since midnight: Olivia's Home Guide Press cards with a proof QC passed today.`,
+      note: `${plural(cfg.perChannel, 'video')} a day per focus channel: Olivia's Home Guide Press cards with a proof QC passed today.`,
     });
   },
   webinarRun(cfg, g, C) {
@@ -418,7 +418,7 @@ function channelsOf(g, C) {
   const all = allChannels(C.data.channels);
   const find = (slug) => all.find((c) => c.slug === slug);
   if (!g.group) return { focus: (g.channels || []).map(find).filter(Boolean), parked: [] };
-  // Focus: Jon's list (2026-11-08) in its order, a copy of D:\AgentTeam\rules\facts\focus-channels.txt. A slug the
+  // Focus: Jon's list (2026-11-10) in its order, a copy of D:\AgentTeam\rules\facts\focus-channels.txt. A slug the
   // dashboard has no channel for yet still counts (noCalendar). Every other channel of the group is parked.
   const focus = g.focus.map((slug) => find(slug) || { slug, label: titleCase(slug), group: g.group, noCalendar: true });
   return { focus, parked: all.filter((c) => c.group === g.group && !g.focus.includes(c.slug)) };

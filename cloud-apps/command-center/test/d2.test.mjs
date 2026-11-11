@@ -102,13 +102,13 @@ function seed() {
   snap(db, 'webinar_funnel', { month: '2026-11', netCents: 4700, payments: 1, visits: 40, lastEventAt: '2026-11-07T18:00:00Z' }, '2026-11-08T21:00:00Z');
   ins(db, 'bot_feed_entries', { id: id('f'), name: 'ebook_sales', bot: 'home-guide-press', data: { month: '2026-11', usd: 27, orders: 1 }, created_at: '2026-11-08T16:00:00Z' });
 
-  // Calendars: Jon Mac 2 published + 1 scheduled this week; HGP Peter 3, Jack 1; Rosa Cooks and Eleanor have videos (parked).
+  // Calendars: Jon Mac 2 published + 1 scheduled this week; HGP Giovanni 3, Nora 1; Rosa Cooks and Eleanor have videos (parked).
   for (const d of ['2026-11-03', '2026-11-05']) cal(db, 'jon-mac', d, 'published');
   cal(db, 'jon-mac', '2026-11-08', 'scheduled');
   cal(db, 'jon-mac', '2026-11-01', 'published');
   cal(db, 'jonmacai', '2026-11-04', 'published');
-  for (const d of ['2026-11-02', '2026-11-03', '2026-11-04']) cal(db, 'peter-collins', d, 'published');
-  cal(db, 'jack-mercer', '2026-11-06', 'published');
+  for (const d of ['2026-11-02', '2026-11-03', '2026-11-04']) cal(db, 'giovanni-moretti', d, 'published');
+  cal(db, 'nora-fairweather-cats', '2026-11-06', 'published');
   cal(db, 'rosa-cooks', '2026-10-20', 'published');
   cal(db, 'rosa-cooks', '2026-11-04', 'published', 'Invideo review - Rosa'); // Invideo's video is live on YouTube
   cal(db, 'rosa-cooks', '2026-10-28', 'published', 'Topview review - Rosa');
@@ -295,16 +295,17 @@ test('d2 counts the month, week and day on a Sunday', async () => {
 
   const hgp = goal(body, 'hgp');
   const [videos, checkout] = hgp.week;
-  assert.equal(videos.rows.find((r) => r.label === 'Peter Collins').display, '3 of 3');
-  assert.deepEqual(videos.behind.find((b) => b.title === 'Jack Mercer'), { title: 'Jack Mercer', owner: 'Elle', why: '1 of 3 published', page: 'pipeline/hgp/jack-mercer/calendar' });
+  assert.equal(videos.target, 28); // Jon, 2026-11-10: 4 focus channels, 1 a day each
+  assert.equal(videos.rows.find((r) => r.label === 'Giovanni Moretti').display, '3 of 7');
+  assert.deepEqual(videos.behind.find((b) => b.title === 'Nora Fairweather Cats'), { title: 'Nora Fairweather Cats', owner: 'Elle', why: '1 of 7 published', page: 'pipeline/hgp/nora-fairweather-cats/calendar' });
   assert.equal(jm.week[0].behind[0].page, 'pipeline/jonmac/jon-mac/calendar');
-  assert.ok(!videos.behind.some((b) => b.title === 'Peter Collins'));
+  assert.equal(videos.behind.find((b) => b.title === 'Giovanni Moretti').why, '3 of 7 published'); // 3 of a 6.6 pace on Sunday afternoon
   assert.deepEqual([checkout.actual, checkout.display], [4, '4 of 7 days checked']);
   assert.match(checkout.behind[0].why, /Wed 4, Fri 6/);
   assert.deepEqual(checkout.facts, [{ label: 'Last check', value: 'Nov 7 (Sat 7)' }, { label: 'Missed', value: 'Elle: Wed 4, Fri 6' }]);
   assert.deepEqual(videos.facts.map((f) => [f.label, f.value]), [['Published today', '0'], ['Waiting for your review', '1']]);
-  assert.deepEqual([hgp.month.actual, hgp.month.rows.find((r) => r.label === 'Peter Collins').actual, hgp.month.rows.find((r) => r.label === 'Jack Mercer').actual], [4, 3, 1]); // videos published, from the channel calendars
-  assert.deepEqual([hgp.day[0].actual, hgp.day[0].target], [1, 4]); // floor(14 h / 3)
+  assert.deepEqual([hgp.month.actual, hgp.month.rows.find((r) => r.label === 'Giovanni Moretti').actual, hgp.month.rows.find((r) => r.label === 'Nora Fairweather Cats').actual], [4, 3, 1]); // videos published, from the channel calendars
+  assert.deepEqual([hgp.day[0].actual, hgp.day[0].target, hgp.day[0].display], [1, 4, '1 of 4']); // 1 QC-passed a day per focus channel
 
   const viral = goal(body, 'viral');
   assert.deepEqual([viral.month.display, viral.month.status.text], ['Not set', 'Behind']);
@@ -324,14 +325,16 @@ test('d2 focus list is the same as Jon\'s focus-channels.txt', { skip: !existsSy
   assert.deepEqual([...FOCUS].sort(), [...file].sort());
 });
 
-test('d2 focus channels: Jon\'s whole list in its order, even channels the dashboard has no calendar for; the rest are parked', async () => {
+test('d2 focus channels: Jon\'s whole list in its order, even channels the dashboard has no calendar for; the rest are parked', async (t) => {
   const { db } = seed();
+  FOCUS.push('edna-haynes'); // a focus slug with no channel yet (the live list has none, so the test adds one)
+  t.after(() => FOCUS.pop());
   const hgp = goal(await d2At({ DB: db, SESSION_SECRET: SECRET }, SUNDAY), 'hgp');
   assert.deepEqual(hgp.channels.map((c) => c.slug), FOCUS);
   assert.ok(!allChannels([]).some((c) => c.slug === 'edna-haynes'), 'edna-haynes has no channel yet');
   assert.deepEqual(hgp.channels.find((c) => c.slug === 'edna-haynes'), { slug: 'edna-haynes', label: 'Edna Haynes', focus: true });
   const [videos] = hgp.week;
-  assert.equal(videos.target, 3 * FOCUS.length); // 48
+  assert.equal(videos.target, 7 * FOCUS.length); // 1 a day per focus channel
   assert.deepEqual(videos.rows.map((r) => r.label), hgp.channels.map((c) => c.label));
   assert.equal(videos.rows.find((r) => r.label === 'Edna Haynes').note, 'No calendar yet');
   assert.deepEqual(videos.behind.find((b) => b.title === 'Edna Haynes'), { title: 'Edna Haynes', owner: 'Elle', why: 'No calendar yet', page: 'pipeline/hgp/edna-haynes/calendar' });
@@ -515,11 +518,11 @@ test('d2 short-form month target is 3 a day: 90 in November, 93 in December, 84 
   }
 });
 
-test('d2 QC target before 3 AM is none due yet, not Done', async () => {
+test('d2 QC target is 1 a day per focus channel; early in the day nothing is late yet', async () => {
   const body = await d2At({ DB: sqliteD1(), SESSION_SECRET: SECRET }, Date.parse('2026-11-08T09:00:00Z')); // 1:00 AM
   const qc = goal(body, 'hgp').day[0];
-  assert.deepEqual([qc.target, qc.actual, qc.display, qc.status], [0, 0, 'None due yet', { text: 'None due yet', cls: 'idle' }]);
-  assert.equal(body.d2.today.targets.find((t) => t.goal === 'hgp').display, 'None due yet');
+  assert.deepEqual([qc.target, qc.actual, qc.display, qc.status], [FOCUS.length, 0, `0 of ${FOCUS.length}`, { text: 'On pace', cls: 'idle' }]);
+  assert.equal(body.d2.today.targets.find((t) => t.goal === 'hgp').display, `0 of ${FOCUS.length}`);
 });
 
 test('d2 QC count only reads proofs from the last 14 days', async () => {
@@ -551,7 +554,7 @@ test('d2 without HGP_DB, CLONE_DB or any D1 answers with nulls and notes, never 
   const body = await d2At({ DB: db, SESSION_SECRET: SECRET }, SUNDAY);
   const hgp = goal(body, 'hgp');
   assert.equal(hgp.month.actual, 4, 'the month goal counts published videos from the calendars, so the sales database being down does not blank it');
-  assert.equal(hgp.month.label, 'Videos published (3 a week per focus channel)');
+  assert.equal(hgp.month.label, 'Videos published (1 a day per focus channel)');
   assert.ok(!body.d2.stale.some((s) => s.label === 'Home Guide Press orders'), 'the sales database is no longer behind a goal, so it is not a stale source on Month');
   const none = await d2At({ SESSION_SECRET: SECRET }, SUNDAY);
   assert.equal(goal(none, 'jonmac').week[0].actual, null);
