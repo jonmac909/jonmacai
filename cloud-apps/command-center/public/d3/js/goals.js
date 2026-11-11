@@ -381,8 +381,8 @@ export function scoreboardHtml(d3resp) {
     const stage = r.state === 'passed' ? '<span class="pill ok">Passed QC</span>'
       : `<span${late && r.stageMin > r.budgetMin ? ` style="${red}"` : ''}>${esc(r.stage)} ${esc(r.stageMin ?? '–')} of ${esc(r.budgetMin)} min</span>`;
     const clock = `<span class="num" style="font-size: 14px${late && r.clockMin > sb.clockBudget ? `; ${red}` : ''}">${esc(hm(r.clockMin))} of ${esc(hm(sb.clockBudget))}</span>`;
-    return `<div style="display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; align-items: center; gap: 12px">
-<span class="dot ${r.state === 'passed' ? 'g' : late ? 'r' : 'y'}"></span><span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap${late ? `; ${red}` : ''}" title="${esc(r.title)}">${esc(r.title)}</span>${stage}${clock}</div>`;
+    return `<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px">
+<span class="dot ${r.state === 'passed' ? 'g' : late ? 'r' : 'y'}"></span><span style="flex: 1 1 200px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap${late ? `; ${red}` : ''}" title="${esc(r.title)}">${esc(r.title)}</span>${stage}${clock}</div>`;
   }).join('\n');
   const awLine = !aw ? '<p class="mut">Approved, not uploaded: no feed.</p>'
     : aw.actual ? `<p style="${red}; font-weight: 600">${esc(aw.actual)} approved, not uploaded, oldest ${esc(aw.oldestLabel)}: ${esc(aw.items.slice(0, 5).map((x) => x.title).join('; '))}${aw.items.length > 5 ? ` and ${aw.items.length - 5} more` : ''}</p>`
