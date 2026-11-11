@@ -43,7 +43,7 @@ export async function d3Data(env, nowMs) {
   const apSince = new Date(nowMs - 14 * DAY).toISOString();
   const AP_CARDS = `SELECT id FROM bot_tasks WHERE project IN ('home-guide-press', 'jon-mac', 'jonmacai') AND (status IN ${OPEN} OR (status = 'done' AND updated_at >= ?))`;
   const [youtube, review, approvals, questions, usage, lastUsage, open, proofs, habits, calendar, charges,
-    tasks, finished, stuck, failsToday, runs, runBots, scripts, scoreProofs, staged, apCards, apEvents, ytLive, live] = await Promise.all([
+    tasks, finished, stuck, failsToday, runs, runBots, later, scripts, scoreProofs, staged, apCards, apEvents, ytLive, live] = await Promise.all([
     q('SELECT channel, sync_error FROM yt_api'),
     // Review cards with their newest proof link (a passed one first), as the card modal picks its deliverable.
     q(`SELECT t.id, t.title, t.owner, t.project, t.due, t.note, t.updated_at AS at,
@@ -73,6 +73,8 @@ export async function d3Data(env, nowMs) {
     q('SELECT bot, status, started_at, tokens FROM bot_runs WHERE started_at >= ? ORDER BY started_at LIMIT 2000', new Date(nowMs - DAY).toISOString()),
     // Bots that post runs: only runs from the last 30 days, newest first, bounded.
     q('SELECT DISTINCT bot FROM (SELECT bot FROM bot_runs WHERE started_at >= ? ORDER BY started_at DESC LIMIT 5000)', new Date(nowMs - 30 * DAY).toISOString()),
+    // Needs you "Not now": items Jon put off, still within their 24 hours.
+    q('SELECT item FROM needs_later WHERE until > ? LIMIT 2000', new Date(nowMs).toISOString()),
     // Scripts page: open @JonMacAI cards, newest first, with the newest Doc link a proof carries (passed first) and
     // whether a QC-passed proof names the a-roll or footage (a note that is still waiting on it, or a draft, doesn't count).
     q(`SELECT t.id, t.title, t.status, t.stage, t.note, t.created_at,
@@ -102,7 +104,7 @@ export async function d3Data(env, nowMs) {
   ]);
   return {
     youtube, review, approvals, questions, usage, lastUsage: lastUsage && (lastUsage[0] || undefined), open, proofs, habits, calendar: calendar && parse(calendar[0]?.data), charges,
-    tasks, finished, stuck, failsToday, runs, runBots, scripts, scoreProofs, staged, apCards, apEvents, ytLive, today0, nowMs,
+    tasks, finished, stuck, failsToday, runs, runBots, later, scripts, scoreProofs, staged, apCards, apEvents, ytLive, today0, nowMs,
     live: live && (live[0] ? { d: parse(live[0].data), at: live[0].created_at } : undefined),
   };
 }
@@ -538,27 +540,29 @@ function teamOf(D, today) {
 // Stuck: the dispatcher's rule (a card whose proof failed QC 2 or more times), read live from bot_proofs, for cards still
 // open and not in Review (a card in Review passed QC on its newest version). Late: in Doing, no card update in 2 hours.
 // kind: p = waiting on a person, f = work that failed, s = slow or idle (a = access and limits, added on the page from the rail).
-function blockersOf(D) {
+// Jon's rows he put off with "Not now" (needs_later) are left out until their time is up, and pushed to `putOff`.
+function blockersOf(D, putOff = []) {
   if (!D.tasks || !D.approvals || !D.questions || !D.stuck) return null;
   const nowMs = D.nowMs;
   const byId = new Map(D.tasks.map((t) => [t.id, t]));
+  const later = new Set((D.later || []).map((r) => r.item));
   const seen = new Set();
   const out = [];
-  const add = (x) => out.push({ age: since(x.at, nowMs), card: x.id.startsWith('t:') ? x.id.slice(2) : x.card || null, ...x });
+  const add = (x) => (x.you && later.has(x.id.slice(2)) ? putOff.push(x.id) : out.push({ age: since(x.at, nowMs), card: x.id.startsWith('t:') ? x.id.slice(2) : x.card || null, ...x }));
   for (const t of D.tasks) {
     if (t.status !== 'waiting_on_jon') continue;
     seen.add(t.id);
-    add({ id: `t:${t.id}`, kind: 'p', you: true, title: t.title, at: t.updated_at, owner: ownerName(t.owner), blocks: plain(t.note) || 'Waiting on you' });
+    add({ id: `t:${t.id}`, kind: 'p', you: true, title: t.title, at: t.updated_at, sponsor: t.owner === 'sponsors', owner: ownerName(t.owner), blocks: plain(t.note) || 'Waiting on you' });
   }
   for (const x of D.questions) {
     if (hidden(x.idem_key)) continue;
     const t = x.task_id && byId.get(x.task_id);
     if (t && seen.has(t.id)) continue;
-    add({ id: `q:${x.id}`, kind: 'p', you: true, review: true, title: plain(x.question) || 'Question', at: x.at, owner: ownerName(x.asked_by), card: t?.id || null, blocks: t ? t.title : 'No card linked' });
+    add({ id: `q:${x.id}`, kind: 'p', you: true, review: true, title: plain(x.question) || 'Question', at: x.at, sponsor: x.asked_by === 'sponsors', owner: ownerName(x.asked_by), card: t?.id || null, blocks: t ? t.title : 'No card linked' });
   }
   for (const x of D.approvals) {
     const t = x.task_id && byId.get(x.task_id);
-    add({ id: `a:${x.id}`, kind: 'p', you: true, review: true, title: x.title, at: x.at, owner: ownerName(x.requested_by), card: t?.id || null, blocks: t ? t.title : `Approval to ${String(x.action || '').replace(/_/g, ' ')}` });
+    add({ id: `a:${x.id}`, kind: 'p', you: true, review: true, title: x.title, at: x.at, sponsor: x.requested_by === 'sponsors', owner: ownerName(x.requested_by), card: t?.id || null, blocks: t ? t.title : `Approval to ${String(x.action || '').replace(/_/g, ' ')}` });
   }
   for (const s of D.stuck) {
     const t = byId.get(s.task_id);
@@ -605,6 +609,7 @@ export function buildD3(D) {
   const first = `${win.key}-01`;
   const daysInMonth = Math.round((win.end - win.start) / DAY);
   const ws = weekStart(nowMs);
+  const putOff = [];
   const P = {
     today: vanYmd(nowMs), ws, first, last: addDays(first, daysInMonth - 1), elapsed: win.elapsed,
     weekShare: clamp((nowMs - midnight(ws)) / (7 * DAY)),
@@ -620,7 +625,8 @@ export function buildD3(D) {
     review: reviewOf(D),
     queue: queueOf(D),
     team: teamOf(D, P.today),
-    blockers: blockersOf(D),
+    blockers: blockersOf(D, putOff),
+    notNow: D.later ? putOff.length : null, // Needs you items put off with "Not now"; null when needs_later can't be read
     scripts: scriptsOf(D),
     openCards: D.open ? Object.fromEntries(D.open.map((r) => [r.project || '', Number(r.n) || 0])) : null,
     goals: {
