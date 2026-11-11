@@ -63,6 +63,35 @@ test('planted faults: video, sponsor and money cards are refused and stay in rev
   }
 });
 
+test('planted faults: allowlist and case/whitespace: unlisted owner plus non-internal project is refused', async () => {
+  const cases = [
+    { owner: 'new-video-bot', project: 'home-guide-press' }, { owner: 'cash-bot', project: 'money' },
+    { owner: 'developer', project: 'viral-view' }, { owner: 'developer', project: null }, { owner: 'developer', project: 'unsorted' },
+    { owner: 'Video-Editor', project: 'coding' }, { owner: ' JON ', project: 'coding' }, { owner: 'developer', project: ' Sponsors ' },
+    { stage: 'EDIT' }, { stage: ' Sponsor Review ' }, { owner: 'developer', project: 'Accounting' },
+  ];
+  for (const c of cases) {
+    const { env } = await setup(c);
+    const r = await close(env);
+    assert.equal(r.status, 403, JSON.stringify(c));
+    assert.equal((await statusOf(env)).status, 'review', JSON.stringify(c));
+  }
+  const { env } = await setup({ project: ' Coding ', owner: 'Developer' });
+  assert.equal((await close(env)).status, 200);
+});
+
+test('ms vs no-ms timestamps in the same second cannot flip the order', async () => {
+  // checked at 10:00:01Z, sent back at 10:00:01.500Z: same second, refused (raw string compare would have closed it)
+  let { env, db } = await setup({ proofs: [['passed', '2026-11-11T10:00:00Z']], sentBack: '2026-11-11T10:00:30.500Z' });
+  assert.equal((await close(env)).status, 409);
+  // checked 10:00:30Z vs sent back 10:00:30.500Z
+  ({ env } = await setup({ proofs: [['passed', '2026-11-11T10:00:00Z']], sentBack: '2026-11-11T10:00:30.000Z' }));
+  assert.equal((await close(env)).status, 409);
+  // genuinely later with ms: closes
+  ({ env } = await setup({ proofs: [['passed', '2026-11-11T10:01:00.250Z']], sentBack: '2026-11-11T10:00:00Z' }));
+  assert.equal((await close(env)).status, 200);
+});
+
 test('planted faults: no passed proof, or a newer proof pending or failed, is refused', async () => {
   const cases = [
     { proofs: [] },

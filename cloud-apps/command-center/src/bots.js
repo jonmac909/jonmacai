@@ -444,17 +444,23 @@ async function liveDone(db, who, id, body, now) {
 // own cards this would close, so developer stays refused.
 const CLOSE_BOTS = ['ana'];
 const JON_PROJECTS = ['sponsors', 'accounting'];
-const JON_OWNERS = ['jon', 'sponsors','accounting', 'video-editor', 'jon-mac-youtube', 'hgp-scripts', 'home-guide-press'];
-// The stages of the video and sponsor-video card types (D:\AgentTeam\tools\card_stages.json); the card's Type itself
+const JON_OWNERS = ['jon', 'sponsors', 'accounting', 'video-editor', 'jon-mac-youtube', 'hgp-scripts', 'home-guide-press'];
+// ALLOWLIST: only a card whose project is one of these internal tool/dashboard/code projects may close. Anything else
+// (video, money, an unlisted or empty project) waits for Jon.
+const INTERNAL_PROJECTS = ['coding', 'jonmacai', 'jonmac', 'dashboard', 'tools'];
+// The stages of the video and sponsor-video card types (D:\AgentTeam	ools\card_stages.json); the card's Type itself
 // lives only in its progress file, so the stage is what the server can see.
 const VIDEO_STAGES = ['brief', 'script', 'pack', 'edit', 'publish', 'sponsor review'];
 const IN_LIST = (values) => values.map((v) => `'${v}'`).join(', ');
-// The card's newest proof is QC-passed, after Jon last sent it back.
+const norm = (v) => String(v ?? '').toLowerCase().trim();
+// The card's newest proof is QC-passed, after Jon last sent it back. datetime() drops milliseconds and Z so
+// "10:00:01Z" and "10:00:01.500Z" compare as the same second.
 const NEWEST_PASSED = "EXISTS (SELECT 1 FROM bot_proofs p WHERE p.id = (SELECT n.id FROM bot_proofs n WHERE n.task_id = bot_tasks.id "
-  + "ORDER BY n.created_at DESC, n.rowid DESC LIMIT 1) AND p.status = 'passed' AND p.checked_at > "
-  + "COALESCE((SELECT MAX(e.at) FROM bot_task_events e WHERE e.task_id = bot_tasks.id AND e.detail LIKE '%(sent back by Jon)'), ''))";
-const CLOSABLE = `status = 'review' AND ${NEWEST_PASSED} AND COALESCE(project, '') NOT IN (${IN_LIST(JON_PROJECTS)})`
-  + ` AND owner NOT IN (${IN_LIST(JON_OWNERS)}) AND COALESCE(stage, '') NOT IN (${IN_LIST(VIDEO_STAGES)})`;
+  + "ORDER BY datetime(n.created_at) DESC, n.created_at DESC, n.rowid DESC LIMIT 1) AND p.status = 'passed' AND datetime(p.checked_at) > "
+  + "COALESCE((SELECT MAX(datetime(e.at)) FROM bot_task_events e WHERE e.task_id = bot_tasks.id AND e.detail LIKE '%(sent back by Jon)'), ''))";
+const CLOSABLE = `status = 'review' AND ${NEWEST_PASSED} AND lower(trim(COALESCE(project, ''))) IN (${IN_LIST(INTERNAL_PROJECTS)})`
+  + ` AND lower(trim(COALESCE(project, ''))) NOT IN (${IN_LIST(JON_PROJECTS)})`
+  + ` AND lower(trim(COALESCE(owner, ''))) NOT IN (${IN_LIST(JON_OWNERS)}) AND lower(trim(COALESCE(stage, ''))) NOT IN (${IN_LIST(VIDEO_STAGES)})`;
 
 // POST tasks/:id/close {note?}: review -> done for an internal card whose newest proof QC passed. Everything else is refused.
 async function closeTask(db, who, id, body, now) {
@@ -463,7 +469,7 @@ async function closeTask(db, who, id, body, now) {
   const task = await taskRow(db, id);
   if (!task) throw new Bad(404, 'Task not found');
   if (task.status !== 'review') throw new Bad(409, `Task is ${task.status.replace(/_/g, ' ')}; only a card in review can be closed`);
-  if (JON_PROJECTS.includes(task.project) || JON_OWNERS.includes(task.owner) || VIDEO_STAGES.includes(task.stage)) {
+  if (!INTERNAL_PROJECTS.includes(norm(task.project)) || JON_PROJECTS.includes(norm(task.project)) || JON_OWNERS.includes(norm(task.owner)) || VIDEO_STAGES.includes(norm(task.stage))) {
     throw new Bad(403, 'Video, sponsor and money cards wait for Jon to approve them');
   }
   // The whole rule again inside the UPDATE, so a QC fail or a change landing in between can't be skipped.
