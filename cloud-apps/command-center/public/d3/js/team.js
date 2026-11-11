@@ -1,6 +1,6 @@
 // Dashboard 3 Team page (docs/dashboard-3.md). A pure function from the /dashboard/api/d2 and /dashboard/api/d3 answers
 // to HTML, laid out as the approved design (Team.dc.html). The roster and every number come from d3.team (dashboard
-// cards, proofs and runs); runs, tokens, cost and the video line have no feed yet and say "No feed".
+// cards, proofs and runs; the video board from each card's stage); runs, tokens and cost have no feed yet and say "No feed".
 import { esc, icon } from './util.js';
 import { headerOnly, periodOf } from './goals.js';
 
@@ -52,15 +52,25 @@ ${row}
 </div>`;
 }
 
-function boardHtml() {
-  const stages = STAGES.map(([name, limit]) => `<div class="stage">
-<div class="hd" style="justify-content: space-between; gap: 4px"><b class="ell" style="font-size: 13px">${esc(name)}</b><span class="krv nf">–</span></div>
-<span class="mut" style="font-size: 11px; margin-top: -6px">limit ${esc(limit)}</span>
-<span class="nf" style="font-size: 12px">No feed</span>
-</div>`).join('\n');
+// The video board from d3.team.line: every open card with a stage, by stage, with the count, the oldest card's time in
+// the stage and up to 3 cards per stage (oldest first). No line (cards could not be read): each stage says No feed.
+function boardHtml(L) {
+  const cols = L ? L.stages : STAGES.map(([name, limit]) => ({ name, limit, none: true }));
+  const stages = cols.map((s) => {
+    const body = s.none ? '<span class="nf" style="font-size: 12px">No feed</span>'
+      : s.n ? `${s.cards.map((c) => `<div class="vcard"><span style="font-weight: 500; font-size: 12px; line-height: 1.3; overflow-wrap: anywhere">${esc(c.title)}</span><span class="hd mut" style="gap: 6px; font-size: 12px"><span class="dot ${esc(c.tone)}" style="width: 7px; height: 7px"></span>${esc(c.age)}</span></div>`).join('')}${s.more ? `<span class="mut" style="font-size: 12px">+${s.more} more</span>` : ''}`
+        : '<span class="mut" style="font-size: 12px">None</span>';
+    const sub = [s.limit ? `limit ${s.limit}` : 'no limit', s.oldest ? `oldest ${s.oldest}` : ''].filter(Boolean).join(' · ');
+    return `<div class="stage" data-stage="${esc(s.key || s.name)}">
+<div class="hd" style="justify-content: space-between; gap: 4px"><b class="ell" style="font-size: 13px">${esc(s.name)}</b><span class="krv${s.none ? ' nf' : ''}">${s.none ? '–' : s.n}</span></div>
+<span class="mut" style="font-size: 11px; margin-top: -6px">${esc(sub)}</span>
+${body}
+</div>`;
+  }).join('\n');
+  const late = !L ? '<span class="pill sp">Late: No feed</span>' : `<span class="pill${L.late ? ' bad' : ''} sp">${L.late} late</span>`;
   return `<section class="card">
-<div class="hd cardhd"><span class="chip">${icon('board')}</span><h2>Video board</h2><span class="mut">every video in the line, by stage</span><span class="pill sp">Late: No feed</span></div>
-<div class="board" style="grid-template-columns: repeat(8, minmax(0, 1fr))">
+<div class="hd cardhd"><span class="chip">${icon('board')}</span><h2>Video board</h2><span class="mut">every video in the line, by stage</span>${late}</div>
+<div class="board" style="grid-template-columns: repeat(${cols.length}, minmax(0, 1fr))">
 ${stages}
 </div>
 <div class="hd mut" style="gap: 6px 14px; flex-wrap: wrap; font-size: 12px"><span class="hd" style="gap: 6px"><span class="dot g"></span>inside the limit</span><span class="hd" style="gap: 6px"><span class="dot r"></span>past the limit</span><span>Limits are proposed, not agreed.</span></div>
@@ -92,5 +102,5 @@ ${tiles}
 <div class="brow thead"><span>Bot</span><span>Working on</span><span>Stage</span><span>Running</span><span>Due</span><span>Tokens</span><span style="text-align: right">${esc(costHd)}</span></div>
 ${rows}
 </section>
-${boardHtml()}`;
+${boardHtml(T?.line)}`;
 }

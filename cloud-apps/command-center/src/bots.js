@@ -190,7 +190,7 @@ async function linkedTask(db, body) {
 
 const taskOut = (r) => ({
   id: r.id, title: r.title, owner: r.owner, status: r.status, note: r.note ?? null,
-  project: r.project ?? null, minutes: r.minutes ?? null, due: r.due ?? null,
+  project: r.project ?? null, minutes: r.minutes ?? null, due: r.due ?? null, stage: r.stage ?? null, stageSince: r.stage_since ?? null,
   createdBy: r.created_by, updatedBy: r.updated_by, createdAt: r.created_at, updatedAt: r.updated_at, doneAt: r.done_at ?? null,
 });
 const proofOut = (r) => ({
@@ -309,6 +309,13 @@ async function updateTask(db, who, id, body, now) {
   if ('project' in body) { sets.push('project = ?'); args.push(next.project = projectOf(body.project)); }
   if ('minutes' in body) { sets.push('minutes = ?'); args.push(minutesOf(body)); }
   if ('due' in body) { sets.push('due = ?'); args.push(next.due = matchOf(body, 'due', DAY_RE, '2026-10-29')); }
+  // Stage of a staged card (lowercase, e.g. "script", "sponsor review"); '' or null clears it. stage_since moves only
+  // when the stage changes, so setting the same stage again keeps how long the card has been in it.
+  if ('stage' in body) {
+    const stage = text(body, 'stage', 40)?.toLowerCase().replace(/\s+/g, ' ') ?? null;
+    if (stage && !/^[a-z0-9][a-z0-9 -]*$/.test(stage)) throw new Bad(400, 'stage: letters, digits, spaces and - only');
+    if (stage !== (row.stage ?? null)) { sets.push('stage = ?', 'stage_since = ?'); args.push(next.stage = stage, stage ? now : null); }
+  }
   if ('status' in body) {
     const status = next.status = oneOf(body.status, TASK_STATUSES, 'status');
     if (status === 'done') throw new Bad(403, 'Bots cannot set done: Jon approves a task from review to done on the dashboard');
@@ -322,7 +329,8 @@ async function updateTask(db, who, id, body, now) {
     sets.push('status = ?', 'done_at = NULL');
     args.push(status);
   }
-  if (!sets.length) throw new Bad(400, 'Nothing to change: send title, owner, status, note, project, minutes or due');
+  if (!sets.length && 'stage' in body) return json({ ok: true, task: taskOut(row) }); // the same stage again: nothing to do
+  if (!sets.length) throw new Bad(400, 'Nothing to change: send title, owner, status, note, project, minutes, due or stage');
   // Re-check the proof inside the UPDATE so a QC fail landing in between can't be skipped.
   const moving = 'status' in body && body.status !== row.status ? String(body.status).trim().toLowerCase() : '';
   const guard = moving === 'review' ? ` AND EXISTS (${PASSED_SINCE_SENT_BACK})`

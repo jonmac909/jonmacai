@@ -325,8 +325,8 @@ test('Team page: design sections in order, live rows, No feed where nothing repo
   assert.equal((html.match(/class="brow"/g) || []).length, TEAM.bots.length);
   assert.match(html, /Card d1/);
   assert.match(html, /Runs, tokens and cost: No feed/);
-  assert.match(html, /Late: No feed/);
-  assert.equal((html.match(/<span class="nf" style="font-size: 12px">No feed<\/span>/g) || []).length, 8); // each stage of the video board
+  assert.match(html, /<span class="pill sp">0 late<\/span>/); // no staged card in teamDb: an empty board, not No feed
+  assert.equal((html.match(/<span class="mut" style="font-size: 12px">None<\/span>/g) || []).length, 8); // each stage of the video board
   for (const s of ['Dale Whitaker', '$746', '$4,194', '90K', 'Peter Collins', 'Mila', 'Ivy', 'Sample activity', 'batches at', 'Munch']) assert.ok(!html.includes(s), s);
   assert.doesNotMatch(html, /Finished today/); // rows closed
   const open = renderTeam(d2, d3, { openBot: 'qc' });
@@ -337,6 +337,8 @@ test('Team page: design sections in order, live rows, No feed where nothing repo
   // No /d3 answer: tiles and rows say No feed, nothing made up.
   const none = renderTeam(d2, null, {});
   assert.match(none, /No feed: the dashboard cards could not be read/);
+  assert.match(none, /Late: No feed/);
+  assert.equal((none.match(/<span class="nf" style="font-size: 12px">No feed<\/span>/g) || []).length, 8);
   assert.equal((none.match(/<b class="num sp nf">No feed<\/b>/g) || []).length, 4);
 });
 
@@ -405,4 +407,35 @@ test('d3.css: narrow screens stack the Team and Blockers rows, desktop rules unc
   assert.match(narrow, /\.d3 \.brow\{grid-template-columns:[^}]*\}/);
   assert.match(narrow, /\.d3 \.brow>:nth-child\(n\+4\)\{display:none\}/);
   assert.match(narrow, /\.d3 \.blrow\{grid-template-columns:minmax\(0,1fr\) auto\}/);
+});
+
+test('Video board: open cards with a stage, by stage, with count, oldest age, late past the limit, QC columns', async () => {
+  const db = teamDb();
+  const t = (id, stage, status, since, extra = {}) => ins(db, 'bot_tasks', { id, title: `Video ${id}`, owner: 'video-editor', status, stage, stage_since: since, created_by: 'ana', updated_by: 'ana', created_at: H(50), updated_at: H(0.5), ...extra });
+  t('v1', 'edit', 'doing', H(9)); // past the 8 h limit
+  t('v2', 'edit', 'doing', H(1));
+  t('v3', 'script', 'qc', H(30), { updated_at: H(1) }); // Script QC, timed from the move to QC
+  t('v4', 'sponsor review', 'doing', H(2)); // not a design column: its own column after them, no limit
+  t('v5', 'pack', 'done', H(1)); // closed: not on the board
+  for (const i of [1, 2, 3, 4]) t(`p${i}`, 'pack', 'doing', H(i));
+  const d3 = await d3Of(db);
+  const L = d3.d3.team.line;
+  const by = Object.fromEntries(L.stages.map((s) => [s.key, s]));
+  assert.deepEqual(L.stages.map((s) => s.key), ['brief', 'script', 'script qc', 'a-roll', 'pack', 'edit', 'render qc', 'publish', 'sponsor review']);
+  assert.deepEqual([by.edit.n, by.edit.oldest, by.edit.cards.map((c) => [c.id, c.tone])], [2, '9 hr', [['v1', 'r'], ['v2', 'g']]]);
+  assert.deepEqual([by['script qc'].n, by['script qc'].cards[0].age, by['script qc'].cards[0].tone], [1, '1 hr', 'g']);
+  assert.equal(by.script.n, 0);
+  assert.deepEqual([by.pack.n, by.pack.cards.map((c) => c.id), by.pack.more], [4, ['p4', 'p3', 'p2'], 1]);
+  assert.deepEqual([by['sponsor review'].name, by['sponsor review'].limit, by['sponsor review'].cards[0].tone], ['Sponsor review', '', 'g']);
+  assert.equal(L.late, 1);
+  assert.equal(L.total, 8);
+  const editor = d3.d3.team.bots.find((b) => b.slug === 'video-editor');
+  assert.match(editor.card.stage, /^(Edit|Pack|Script|Sponsor review) · /);
+  const html = renderTeam(SAMPLE(), d3, {});
+  assert.match(html, /<span class="pill bad sp">1 late<\/span>/);
+  assert.match(html, /grid-template-columns: repeat\(9, minmax\(0, 1fr\)\)/);
+  assert.match(html, /data-stage="edit">[\s\S]*?limit 8 h · oldest 9 hr[\s\S]*?Video v1[\s\S]*?dot r/);
+  assert.match(html, /data-stage="pack">[\s\S]*?\+1 more/);
+  assert.match(html, /data-stage="sponsor review">[\s\S]*?no limit · oldest 2 hr/);
+  assert.doesNotMatch(html, /Video v5/);
 });

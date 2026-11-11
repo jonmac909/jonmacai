@@ -52,7 +52,7 @@ export async function d3Data(env, nowMs) {
     q("SELECT data FROM snapshots WHERE source = 'calendar'"),
     q("SELECT status FROM bot_questions WHERE idem_key LIKE 'cw:%' AND (status = 'open' OR updated_at >= ?)", from),
     // Team and Blockers: open cards, cards moved to Review or Done today, Stuck cards, QC fails today, runs.
-    q(`SELECT id, title, owner, status, note, due, updated_at FROM bot_tasks WHERE status IN ${OPEN} ORDER BY updated_at DESC LIMIT 3000`),
+    q(`SELECT id, title, owner, status, note, due, updated_at, stage, stage_since FROM bot_tasks WHERE status IN ${OPEN} ORDER BY updated_at DESC LIMIT 3000`),
     // Driven from the cards updated today (a status move updates the card), so events are read by (task_id, at) only.
     q(`SELECT e.task_id, e.at, t.owner, t.title FROM bot_tasks t CROSS JOIN bot_task_events e ON e.task_id = t.id AND e.at >= ?
       WHERE t.status IN ('todo','doing','waiting_on_jon','qc','review','done','cancelled') AND t.updated_at >= ? AND e.kind = 'status' AND (e.detail LIKE '%→ review%' OR e.detail LIKE '%→ done%') ORDER BY e.at DESC LIMIT 500`, today0, today0),
@@ -197,6 +197,37 @@ const noteText = (note) => {
     .replace(/^\s*#+\s*/gm, '').replace(/^\s*[-*•]+\s+/gm, '').replace(/[ \t]+/g, ' ').replace(/\n\s*\n+/g, '\n').trim();
   return t.length > 360 ? `${t.slice(0, 357).trimEnd()}…` : t;
 };
+// ---- Video board: open cards with a stage (set by the dispatcher's hand-off), by stage ----
+// Columns as designed, with their proposed limits (hours). A card in QC shows under that stage's QC column when there is
+// one (script -> Script QC, edit -> Render QC). Any other stage gets its own column after these, with no limit.
+const BOARD = [['brief', 'Brief', 4], ['script', 'Script', 4], ['script qc', 'Script QC', 2], ['a-roll', 'A-roll', 4],
+  ['pack', 'Pack', 8], ['edit', 'Edit', 8], ['render qc', 'Render QC', 2], ['publish', 'Publish', 72]];
+const QC_COL = { script: 'script qc', edit: 'render qc' };
+const limitLabel = (h) => (h == null ? '' : h % 24 ? `${h} h` : `${h / 24} d`);
+function lineOf(tasks, nowMs) {
+  const cols = new Map(BOARD.map(([key, name, h]) => [key, { key, name, limit: limitLabel(h), hours: h, cards: [] }]));
+  for (const t of tasks) {
+    const stage = String(t.stage || '').trim().toLowerCase();
+    if (!stage) continue;
+    const key = t.status === 'qc' && QC_COL[stage] ? QC_COL[stage] : stage;
+    if (!cols.has(key)) cols.set(key, { key, name: key.charAt(0).toUpperCase() + key.slice(1), limit: '', hours: null, cards: [] });
+    // Time in the column: since the stage began, or since the card went to QC for a QC column (the move updates the card).
+    const from = Date.parse(key !== stage ? t.updated_at : t.stage_since || t.updated_at);
+    const ms = Number.isFinite(from) ? Math.max(0, nowMs - from) : 0;
+    cols.get(key).cards.push({ id: t.id, title: t.title, ms });
+  }
+  let late = 0;
+  const stages = [...cols.values()].map((c) => {
+    const cards = c.cards.sort((a, b) => b.ms - a.ms).map((x) => {
+      const over = c.hours != null && x.ms > c.hours * 3600000;
+      if (over) late++;
+      return { id: x.id, title: x.title, age: agoLabel(x.ms).replace(/ ago$/, ''), tone: over ? 'r' : 'g' };
+    });
+    return { key: c.key, name: c.name, limit: c.limit, n: cards.length, oldest: cards[0]?.age || '', cards: cards.slice(0, 3), more: Math.max(0, cards.length - 3) };
+  });
+  return { stages, late, total: stages.reduce((n, s) => n + s.n, 0) };
+}
+
 function dueLabel(due, today) {
   const d = String(due || '').slice(0, 10);
   if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) return null;
@@ -222,7 +253,7 @@ function teamOf(D, today) {
     const failed = failedRuns + (qcFails || 0);
     return {
       slug: b.slug, names: b.names, role: b.role, counts,
-      card: cur && { id: cur.id, title: cur.title, status: cur.status, stage: STATUS[cur.status], due: dueLabel(cur.due, today), updated: since(cur.updated_at, nowMs), note: noteText(cur.note) },
+      card: cur && { id: cur.id, title: cur.title, status: cur.status, stage: cur.stage ? `${cur.stage.charAt(0).toUpperCase()}${cur.stage.slice(1)} · ${STATUS[cur.status]}` : STATUS[cur.status], due: dueLabel(cur.due, today), updated: since(cur.updated_at, nowMs), note: noteText(cur.note) },
       tone: failed ? 'r' : cur?.status === 'doing' ? 'g' : cur?.status === 'waiting_on_jon' ? 'y' : '',
       failedToday: qcFails == null ? null : failed, qcFailsToday: qcFails, failedRunsToday: failedRuns,
       // Run feed: null = this bot posts no runs (No feed); '' = it posts runs but none is running now.
@@ -239,6 +270,7 @@ function teamOf(D, today) {
     waiting: { count: waiting.length, oldest: Number.isFinite(oldest) ? since(new Date(oldest).toISOString(), nowMs) : '' },
     failedToday: D.failsToday ? bots.reduce((n, b) => n + (b.failedToday || 0), 0) : null,
     cost: null, // no cost feed per bot yet
+    line: lineOf(D.tasks, nowMs),
   };
 }
 
