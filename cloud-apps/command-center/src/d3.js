@@ -70,7 +70,7 @@ export async function d3Data(env, nowMs) {
       WHERE p.status = 'failed' AND t.status NOT IN ('done', 'cancelled') GROUP BY p.task_id HAVING COUNT(*) >= 2`),
     q(`SELECT p.task_id, t.owner, t.title, COALESCE(p.checked_at, p.created_at) AS at FROM bot_proofs p JOIN bot_tasks t ON t.id = p.task_id
       WHERE p.status = 'failed' AND COALESCE(p.checked_at, p.created_at) >= ? LIMIT 1000`, today0),
-    q('SELECT bot, status, started_at, tokens FROM bot_runs WHERE started_at >= ? ORDER BY started_at LIMIT 2000', new Date(nowMs - DAY).toISOString()),
+    q('SELECT bot, status, started_at, tokens, task_id, error FROM bot_runs WHERE started_at >= ? ORDER BY started_at LIMIT 2000', new Date(nowMs - DAY).toISOString()),
     // Bots that post runs: only runs from the last 30 days, newest first, bounded.
     q('SELECT DISTINCT bot FROM (SELECT bot FROM bot_runs WHERE started_at >= ? ORDER BY started_at DESC LIMIT 5000)', new Date(nowMs - 30 * DAY).toISOString()),
     // Needs you "Not now": items Jon put off, still within their 24 hours.
@@ -438,7 +438,7 @@ function approvedWaitingOf(D) {
   return metric({
     actual: n, target: 0, display: String(n), items, oldestLabel: oldest,
     status: n ? { text: 'Behind', cls: 'crit' } : { text: 'Done', cls: 'ok' },
-    note: n ? `${n} approved video${n === 1 ? '' : 's'} not scheduled or live on YouTube yet, oldest approved ${oldest} ago.` : 'Every video you approved is scheduled or live.',
+    note: n ? `${n} approved video${n === 1 ? '' : 's'} not scheduled or live on YouTube yet, oldest approved ${oldest === 'just now' ? oldest : `${oldest} ago`}.` : 'Every video you approved is scheduled or live.',
   });
 }
 
@@ -540,20 +540,23 @@ function teamOf(D, today) {
   const byTitle = new Map(D.tasks.map((t) => [t.id, t.title]));
   const waiting = D.tasks.filter((t) => t.status === 'waiting_on_jon' && ROSTER.has(t.owner));
   const oldest = Math.min(...waiting.map((t) => Date.parse(t.updated_at)).filter(Number.isFinite));
-  // The Failed tile and its list count the same things: failed runs (live feed) plus QC fails today (team bots only).
-  // Stuck cards are their own list and count.
+  // The Failed tile and its list are the same list: failed runs today (live feed when fresh, else posted runs) plus
+  // QC fails today (team bots only). Stuck cards are their own list and count.
   const line1 = (f, kind) => ({ card: f.card, title: f.title || byTitle.get(f.card) || '', who: ownerName(f.bot), kind, why: f.why, at: f.at, age: since(f.at, nowMs) });
   const newest = (a, b) => (Date.parse(b.at) || 0) - (Date.parse(a.at) || 0);
-  const fails = L ? [
-    ...(L.d.fails || []).filter((f) => (f.kind || 'run') === 'run' && ROSTER.has(f.bot)).map((f) => line1(f, 'run')),
+  const runFails = L ? (L.d.fails || []).filter((f) => (f.kind || 'run') === 'run' && ROSTER.has(f.bot))
+    : (D.runs || []).filter((r) => r.status === 'failed' && r.started_at >= D.today0 && ROSTER.has(r.bot))
+      .map((r) => ({ card: r.task_id || '', bot: r.bot, why: r.error ? String(r.error).slice(0, 80) : '', at: r.started_at }));
+  const fails = L || D.failsToday ? [
+    ...runFails.map((f) => line1(f, 'run')),
     ...(D.failsToday || []).filter((f) => ROSTER.has(f.owner)).map((f) => line1({ card: f.task_id, title: f.title, bot: f.owner, at: f.at }, 'qc')),
   ].sort(newest) : null;
-  const stuck = L ? (L.d.fails || []).filter((f) => f.kind === 'stuck').map((f) => line1(f, 'stuck')).sort(newest) : null;
+  const stuck = L ? (L.d.fails || []).filter((f) => f.kind === 'stuck' && ROSTER.has(f.bot)).map((f) => line1(f, 'stuck')).sort(newest) : null;
   return {
     bots, names: TEAM.bots.reduce((n, b) => n + b.names.length, 0),
     working: bots.filter((b) => (b.counts.doing || 0) > 0).length,
     waiting: { count: waiting.length, oldest: Number.isFinite(oldest) ? since(new Date(oldest).toISOString(), nowMs) : '' },
-    failedToday: fails ? fails.length : D.failsToday ? bots.reduce((n, b) => n + (b.failedToday || 0), 0) : null,
+    failedToday: fails ? fails.length : null,
     fails, stuck,
     running: L ? (L.d.running || []).length : null,
     tokens: L ? Object.values(L.d.tokens || {}).reduce((n, x) => n + Number(x || 0), 0) : null,

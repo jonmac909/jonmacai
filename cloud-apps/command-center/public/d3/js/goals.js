@@ -164,7 +164,7 @@ export function objectivesOf(d2resp, d3resp, P = periodOf(d2resp)) {
       kr('b3', hgp?.title || 'Home Guide Press', wk(hgp, 0), WK(wk(hgp, 0))),
       g3?.scoreboard ? kr('b4', 'QC-passed today', g3.scoreboard, { hint: 'today', span: null, series: null })
         : noFeed('b4', 'QC-passed today', 'QC results on renders could not be read.'),
-      qc ? kr('b5', 'Passed QC first try', qc, { bar: false, hint: `this month · cards with a render proof${num(qc.total) ? ` · ${qc.passed} of ${qc.total} passed on first proof` : ''}`, span: null, series: null, target: '' })
+      qc ? kr('b5', 'Passed QC first try', qc, { bar: false, hint: `this month · cards with a render proof or review link${num(qc.total) ? ` · ${qc.passed} of ${qc.total} passed on first proof` : ''}`, span: null, series: null, target: '' })
         : noFeed('b5', 'Passed QC first try', 'QC verdicts on renders could not be read.'),
       g3?.approvedWaiting ? kr('b6', 'Approved, not uploaded', g3.approvedWaiting, { bar: false, hint: g3.approvedWaiting.actual ? `oldest ${g3.approvedWaiting.oldestLabel}` : 'none waiting', span: null, series: null, target: 'Target 0' })
         : noFeed('b6', 'Approved, not uploaded', 'Approvals and the YouTube calendar could not be read.'),

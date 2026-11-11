@@ -90,7 +90,7 @@ export function renderTeam(d2resp, d3resp, ui = {}) {
   const tiles = `<div class="row">
 ${tile('bolt', 'Working', T ? `of ${roles}` :'cards in Doing', T ? T.working : null)}
 ${tile('you', 'Waiting on you', T?.waiting?.oldest ? `oldest ${T.waiting.oldest}` : 'cards', T ? T.waiting.count : null)}
-${tile('blockers', 'Failed', 'runs and QC fails today', T && num(T.failedToday) ? T.failedToday : null)}
+${tile('blockers', 'Failed', 'runs and QC fails today', T?.fails ? T.fails.length : null)}
 ${tile('bot', 'Tokens', 'all bots today', T && num(T.tokens) ? kTokens(T.tokens) : null)}
 </div>`;
   // Failed today: exactly what the Failed tile counts (failed runs and QC fails today), newest first. Stuck cards

@@ -611,13 +611,33 @@ test('Live feed fresh: dispatcher, bots, tokens, team runs and fails', async () 
   assert.doesNotMatch(th, /Cost/);
   assert.match(th, /<h2>Failed today \(2\)<\/h2>[\s\S]*?Card d2[\s\S]*?run failed · exit 1/);
   assert.equal(d3.team.failedToday, d3.team.fails.length); // tile = list
-  assert.doesNotMatch(renderBlockers(SAMPLE(), body, {}), /Stopped/); // c5: failed runs don't mark the dispatcher down
+  assert.ok(d3.team.fails.some((f) => f.kind === 'run')); // c5: failed runs exist, yet the Dispatcher pill reads Running
+  assert.match(renderBlockers(SAMPLE(), body, {}), /<h2 style="font-size: 15px">Dispatcher<\/h2><span class="pill ok sp">Running<\/span>/);
   const bh = renderBlockers(SAMPLE(), body, {});
   assert.match(bh, /Heartbeat<\/span><b>Dispatcher running/);
   assert.match(bh, /Bots<\/span><b>2 runs going/);
   assert.match(bh, /dot r"><\/span><span class="ell">Failed runs today<\/span><b>1</);
   assert.doesNotMatch(bh, /Watchdog|GPU2 job/);
   assert.match(bh, /HeyGen today<\/span><b>3 accepted · 1 refused/);
+});
+
+test('Live feed stale: Failed tile = Failed list (posted failed runs + QC fails), Stuck stays off', async () => {
+  const db = teamDb();
+  liveRow(db, 30, { beat: M(30), running: [], tokens: {}, runs: { developer: { ok: 1, failed: 5 } },
+    fails: [{ at: M(40), bot: 'developer', card: 'd1', why: 'old feed', kind: 'run' }, { at: M(40), bot: 'developer', card: 'd1', why: 'x', kind: 'stuck' }] });
+  ins(db, 'bot_runs', { id: 'rf1', bot: 'developer', started_at: H(1), status: 'failed', task_id: 'd2', error: 'exit 1', created_at: H(1) });
+  ins(db, 'bot_runs', { id: 'rf2', bot: 'moneyclaw', started_at: H(1), status: 'failed', created_at: H(1) }); // retired bot: not counted
+  ins(db, 'bot_runs', { id: 'rf3', bot: 'developer', started_at: H(30), status: 'failed', created_at: H(30) }); // yesterday
+  const body = await d3Of(db);
+  const T = body.d3.team;
+  assert.equal(T.running, null); // stale feed
+  assert.deepEqual(T.fails.map((f) => [f.card, f.title, f.kind, f.why || '']), [['d2', 'Card d2', 'run', 'exit 1'], ['stuck', 'Card stuck', 'qc', '']]);
+  assert.equal(T.failedToday, T.fails.length);
+  assert.equal(T.stuck, null);
+  const th = renderTeam(SAMPLE(), body, {});
+  assert.match(th, /<b>Failed<\/b>[\s\S]*?font-size: 30px">2<\/b>/);
+  assert.match(th, /<h2>Failed today \(2\)<\/h2>[\s\S]*?Card d2[\s\S]*?run failed · exit 1/);
+  assert.doesNotMatch(th, /Stuck today/);
 });
 
 test('Goals token weeks: stale Ana check -> No data with reason; dispatcher reading at the limit counts', async () => {
@@ -647,7 +667,8 @@ test('Live feed stale: dispatcher red, bots and tokens grey, team falls back to 
   assert.deepEqual([d3.rail.bots.state, d3.rail.bots.stale], ['none', true]);
   assert.deepEqual([d3.rail.tokens.state, d3.rail.tokens.pct, d3.rail.tokens.stale], ['none', 100, true]); // 7 h old: grey, pct kept
   assert.equal(d3.team.running, null);
-  assert.equal(d3.team.fails, null);
+  assert.deepEqual(d3.team.fails.map((f) => [f.card, f.kind]), [['stuck', 'qc']]); // no posted failed runs: QC fails only
+  assert.equal(d3.team.failedToday, d3.team.fails.length);
   assert.equal(d3.team.bots.find((b) => b.slug === 'developer').tokens, null);
   assert.equal(blockerRows(SAMPLE(), body).some((b) => b.id === 'tokens'), false); // an old 100% is not a blocker
   assert.match(renderBlockers(SAMPLE(), body, {}), /dot "><\/span><span class="ell">Weekly tokens<\/span><b>100%, 7 hr old</);
