@@ -29,7 +29,7 @@ function assetTarget(p) {
   try { return new URL(decodeURIComponent(p).replace(/[\\/]+/g, '/'), 'https://a').pathname; } catch { return p; }
 }
 // Dashboards 2 and 3 serve their two pages and their own css and js, nothing else.
-const D2_FILE = /^\/(login\.html|css\/[\w-]+\.css|js\/(?:[\w-]+\/)*[\w-]+\.js)$/;
+const D2_FILE = /^\/(login\.html|css\/[\w-]+\.css|js\/(?:[\w-]+\/)*[\w-]+\.js|img\/bots\/[a-z]+\.webp)$/;
 
 export default {
   async fetch(request, env, ctx) {
