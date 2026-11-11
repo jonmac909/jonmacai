@@ -80,11 +80,15 @@ dash.py outliers [--channel ..] [--selected]                                (bes
 
 ## Proof
 ```
-dash.py proof-add t_… --kind render|url|pdf|test --link "https://…" or "D:\path\file.mp4" [--note ..]
+proof_upload.py t_… <file> --kind render|url|pdf|test [--note ..] [-- review_publish args for an mp4 render]
+dash.py proof-add t_… --kind render|url|pdf|test --link "https://…" [--note ..]
 dash.py proofs --status pending                      (QC's queue)
 dash.py proof-check p_… passed|failed [--note ..]     (QC only)
 ```
 `proof-add` also wakes QC (HOOKS.md). If that fails, the proof is still saved and QC finds it in its queue.
+
+### Proof files
+QC and Jon can't open a GPU1 path, so a file proof goes up with `proof_upload.py`: png, jpg, pdf, txt, md, json or an mp4 up to 95 MB is stored at jonmac.ai/dashboard/f/<random name> (no sign-in to open; the name can't be guessed), then posted with `proof-add`. An mp4 with `--kind render` goes to jonmac.ai/review through `review_publish.mjs` and its review page is the link. Missing, empty or other files are refused and nothing posts. `proof-add` with a local path still posts but warns.
 
 ## Comments
 ```

@@ -5,6 +5,7 @@ import { handleCall } from './call.js';
 import { reviewProxy } from './videoreview.js';
 import { reviewHook } from './reviewhook.js';
 import { trackRedirect } from './track.js';
+import { FILE_PREFIX, serveProofFile, uploadProofFile } from './prooffiles.js';
 
 export { CallRelay } from './call.js';
 
@@ -64,6 +65,8 @@ export default {
     if (url.pathname !== PREFIX && !url.pathname.startsWith(`${PREFIX}/`)) {
       return new Response('Not found', { status: 404 });
     }
+    if (url.pathname.startsWith(FILE_PREFIX)) return serveProofFile(request, env);
+    if (url.pathname === `${PREFIX}/api/v1/files`) return uploadProofFile(request, env);
     if (url.pathname.startsWith(`${PREFIX}/api/call/`)) return handleCall(request, env);
     if (url.pathname.startsWith(`${PREFIX}/api/review-hook/`)) return reviewHook(request, env, ctx);
     if (url.pathname === `${PREFIX}/review` || url.pathname.startsWith(`${PREFIX}/review/`) || url.pathname.startsWith(`${PREFIX}/api/review/`)) {
