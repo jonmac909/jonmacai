@@ -48,6 +48,10 @@ function render() {
   const live = { team: renderTeam, blockers: renderBlockers, review: renderReview, scripts: renderScripts, money: renderMoney }[p];
   if (live) {
     main.innerHTML = S.d3 ? `${note}${live(S.d2, S.d3, S.ui)}` : `${headerOnly(S.d2, PAGES[p])}${note || '<section class="card"><p class="mut">Loading</p></section>'}`;
+    if (p === 'money' && S.d3 && S.ui.dealSel && !S.ui.dealDone) { // a deal opened from Pipeline revenue: bring it into view once
+      document.getElementById(`deal-${S.ui.dealSel}`)?.scrollIntoView({ block: 'center' });
+      S.ui.dealDone = true;
+    }
     return;
   }
   if (p !== 'goals') {
@@ -110,6 +114,8 @@ main.addEventListener('click', async (e) => {
   if (page() === 'blockers' && await needsClick(e, S, render, load)) return;
   const rvgo = e.target.closest('[data-rvgo]'); // Blockers "Open in Review": the link changes the page, this picks the item
   if (rvgo) { Object.assign(S.ui, RV_CLEAR, { rvSel: rvgo.dataset.rvgo }); return; }
+  const deal = e.target.closest('[data-deal]'); // Pipeline revenue row: the link opens Money, this picks the deal
+  if (deal) { Object.assign(S.ui, { dealSel: deal.dataset.deal, dealDone: false }); return; }
   const bot = e.target.closest('[data-bot]');
   if (bot) { S.ui.openBot = S.ui.openBot === bot.dataset.bot ? null : bot.dataset.bot; render(); return; }
   const bl = e.target.closest('[data-bl]');

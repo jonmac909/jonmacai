@@ -6,7 +6,7 @@ import { sqliteD1 } from './sqlited1.mjs';
 import { handleApi } from '../src/api.js';
 import worker from '../src/worker.js';
 import { signSession, COOKIE } from '../src/auth.js';
-import { renderGoals, objectivesOf, scoreboardHtml } from '../public/d3/js/goals.js';
+import { renderGoals, objectivesOf, scoreboardHtml, pipelineOf } from '../public/d3/js/goals.js';
 import { statHtml, railCounts } from '../public/d3/js/rail.js';
 import { renderTeam } from '../public/d3/js/team.js';
 import { blockerRows, renderBlockers } from '../public/d3/js/blockers.js';
@@ -225,7 +225,7 @@ const d3Sample = () => ({ ok: true, d3: {
 test('Goals: sections in the design order, targets from the data, no design sample text', () => {
   const d2 = SAMPLE();
   const html = renderGoals(d2, d3Sample(), {});
-  const order = ['<h1>Goals</h1>', 'Key results', 'Sponsor Revenue', 'Blockers', 'To review', 'Tokens', '<h2>Content Factory</h2>', '<h2>Operations</h2>', '<h2>Personal</h2>', 'Videos Scheduled'];
+  const order = ['<h1>Goals</h1>', 'Key results', 'Sponsor Revenue', 'Pipeline revenue', '<h2>Content Factory</h2>', '<h2>Operations</h2>', '<h2>Personal</h2>', 'Videos Scheduled'];
   let at = -1;
   for (const s of order) { const i = html.indexOf(s, at + 1); assert.ok(i > at, `${s} after the one before`); at = i; }
   const hgp = d2.d2.goals.find((g) => g.key === 'hgp').week[0];
@@ -235,7 +235,7 @@ test('Goals: sections in the design order, targets from the data, no design samp
   assert.match(html, /behind pace|ahead of pace/);
   assert.match(html, /8 open cards/);
   assert.match(html, /Tuesday|Sunday/);
-  for (const s of ['Arcads', 'Topview', 'Forecast', 'forecast', 'of 48', '16 channels', 'Atoms', '$1,500', 'Peter Collins']) assert.ok(!html.includes(s), s);
+  for (const s of ['Topview', 'Forecast', 'forecast', 'of 48', '16 channels', 'Atoms', '$1,500', 'Peter Collins']) assert.ok(!html.includes(s), s);
   // A target changed in the data shows on the page; nothing is hard-coded.
   hgp.target = 35;
   for (const r of hgp.rows) r.target = 9;
@@ -253,7 +253,7 @@ test('Goals: missing sources read No feed / No data with a grey dot; text is esc
   assert.match(none, /Approved, not uploaded<\/span><span class="krv nf">No feed/);
   assert.match(none, /Today's videos<\/h2><\/div><p class="mut">No feed/);
   assert.match(none, /Workouts<\/span><span class="krv nf">No feed/);
-  assert.match(none, /<b class="num sp nf">No feed<\/b>/); // tiles that need /d3
+  assert.match(none, /Pipeline revenue<\/h2>[\s\S]*To close/); // the deal card needs only /d2
   assert.match(none, /Open cards: No feed/);
   const objs = objectivesOf(d2, null);
   for (const k of objs.flatMap((o) => o.krs).filter((k) => k.nf)) assert.equal(k.tone, 'n', k.text);
@@ -727,4 +727,41 @@ test('Money page: design sections, six deal stages from the Sponsors board, No f
   assert.match(none, /No feed: the Sponsors board could not be read/);
   assert.match(none, /No feed: the team roster could not be read/);
   assert.doesNotMatch(none, /NaN|undefined/);
+});
+
+test('Goals: Pipeline revenue replaces Blockers, To review and Tokens; totals are the sum of the deal rows', () => {
+  const d2 = SAMPLE();
+  const html = renderGoals(d2, d3Sample(), {});
+  for (const s of ['>Blockers<', '>To review<', '>Tokens<', 'href="#blockers"', 'href="#review"']) assert.ok(!html.includes(s), s);
+  const p = pipelineOf(d2);
+  // Fixture: Poppy negotiating $2,500; Invideo owes $2,100 (its money-owed row wins over the $4,200 deal); Arcads in
+  // production with no amount; Creatify paid and Topview archived are left out.
+  assert.deepEqual(p.close.map((r) => [r.id, r.name, r.amt]), [['c-poppy', 'Poppy', 2500]]);
+  assert.deepEqual(p.collect.map((r) => [r.id, r.name, r.amt]), [['c-invideo', 'Invideo', 2100], ['c-arcads', 'Arcads', null]]);
+  for (const k of ['close', 'collect']) assert.equal(p.totals[k], p[k].reduce((n, r) => n + (r.amt || 0), 0), k);
+  const card = html.slice(html.indexOf('aria-label="Pipeline revenue"'));
+  assert.match(card, /To close<\/span><b class="num sp" style="font-size: 26px">\$2,500</);
+  assert.match(card, /To collect<\/span><b class="num sp" style="font-size: 26px">\$2,100</);
+  assert.match(card, /2 deals · 1 no amount/);
+  for (const id of ['c-poppy', 'c-invideo', 'c-arcads']) assert.match(card, new RegExp(`href="#money" data-deal="${id}"`));
+  assert.ok(!/Creatify|Topview|\$4,200/.test(card.slice(0, card.indexOf('</section>'))));
+  // Every row opens its deal on Money: the same key marks the card there and outlines it.
+  const money = renderMoney(d2, d3Sample(), { dealSel: 'c-arcads' });
+  assert.match(money, /id="deal-c-arcads" style="gap: 4px; outline: 2px solid #2563eb/);
+  assert.match(money, /id="deal-c-poppy" style="gap: 4px">/);
+  // Old boards with no card ids: rows key by name, a deal on the owed list is not counted twice.
+  const old = SAMPLE();
+  const cols = old.d2.pipeline.boards.find((b) => b.goal === 'sponsors').sponsors.board.columns;
+  for (const c of cols) for (const k of c.cards || []) delete k.id;
+  old.d2.pipeline.boards.find((b) => b.goal === 'sponsors').sponsors.collect.rows[0].payload = {};
+  const q = pipelineOf(old);
+  assert.deepEqual(q.collect.map((r) => [r.id, r.amt]), [['n:invideo', 2100], ['n:arcads', null]]);
+  assert.match(renderMoney(old, null, { dealSel: 'n:invideo' }), /id="deal-n:invideo" style="gap: 4px; outline/);
+  // No Sponsors board: the card says No feed, no numbers made up.
+  const bare = renderGoals({ d2: { goals: [], period: {} } }, null, {});
+  assert.match(bare, /Pipeline revenue<\/h2>[\s\S]*No feed: the Sponsors board could not be read/);
+  assert.doesNotMatch(bare, /NaN|undefined/);
+  // Names are escaped.
+  cols.find((c) => c.title === 'Negotiations').cards[0].name = '<img src=x onerror=alert(1)>';
+  assert.ok(!renderGoals(old, null, {}).includes('<img src=x'));
 });
