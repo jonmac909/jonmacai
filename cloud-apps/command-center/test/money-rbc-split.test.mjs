@@ -49,6 +49,27 @@ test('(c) a planted mismatch (a charge dropped from one side) fails the sum chec
   assert.deepEqual(splitMismatch(null), ['no split']);
 });
 
+// MoneyClaw's live feed (2026-11-11) has stage totals only, no charge lists: the sections use those totals.
+const st = (startDate, totalCents) => ({ startDate, endDate: '2026-11-11', totalCents, total: totalCents / 100 });
+const stagesEx = () => ({
+  personal: { yesterday: st('2026-11-10', 1250), week: st('2026-11-05', 47350), month: st('2026-11-01', 90001), lastMonth: st('2026-10-01', 300000) },
+  business: { yesterday: st('2026-11-10', 0), week: st('2026-11-05', 120099), month: st('2026-11-01', 827301), lastMonth: st('2026-10-01', 500000) },
+});
+
+test('stage totals only: both sections show MoneyClaw totals, labelled This month, and add up', () => {
+  const split = expenseSplit(stagesEx(), '2026-11-11');
+  assert.equal(split.personal.basis, 'stages');
+  const html = renderMoney(d2(split), null);
+  assert.match(html, /data-exp="personal-week">\$473\.50</);
+  assert.match(html, /data-exp="business-month">\$8,273\.01</);
+  assert.match(html, /This month \(from 11\/01\)/);
+  assert.doesNotMatch(html, /Last 30 days/);
+  assert.deepEqual(splitMismatch(split), []);
+  assert.equal(split.combined.month, 9173.02);
+  const dropped = { ...split, personal: { ...split.personal, month: split.personal.month - 12.5 } };
+  assert.deepEqual(splitMismatch(dropped), ['month']);
+});
+
 test('no feed: the page says so and shows no made-up figure', () => {
   assert.equal(expenseSplit({}, TODAY), null);
   const html = renderMoney(d2(null), null);

@@ -6370,8 +6370,15 @@
       }
      ],
      "split": {
-      "personal": null,
+      "personal": {
+       "basis": "stages",
+       "monthFrom": null,
+       "yesterday": 0,
+       "week": 12,
+       "month": 42
+      },
       "business": {
+       "basis": "lists",
        "from": "2026-10-01",
        "partial": false,
        "yesterday": 209.99,
@@ -6379,9 +6386,9 @@
        "month": 386.96
       },
       "combined": {
-       "yesterday": 209.99,
-       "week": 315.98,
-       "month": 386.96
+       "yesterday": 209.97,
+       "week": 262,
+       "month": 542
       }
      },
      "stale": false

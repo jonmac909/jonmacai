@@ -175,7 +175,7 @@ function expensesHtml(d2resp) {
     return `<section class="card" style="flex: 1 1 300px" aria-label="${label} expenses">
 ${head(`${g.partial ? '<span class="pill warn sp">30 days partial</span>' : ''}${sec.stale ? '<span class="pill warn sp">feed stale</span>' : ''}`)}
 <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 12px">
-${stat('Yesterday', 'yesterday')}${stat('Last 7 days', 'week')}${stat('Last 30 days', 'month')}
+${stat('Yesterday', 'yesterday')}${stat('Last 7 days', 'week')}${g.basis === 'stages' ? stat(g.monthFrom ? `This month (from ${esc(g.monthFrom.slice(5).replace('-', '/'))})` : 'This month', 'month') : stat('Last 30 days', 'month')}
 </div>
 </section>`;
   };

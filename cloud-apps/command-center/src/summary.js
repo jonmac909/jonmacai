@@ -143,15 +143,26 @@ function marketsSection(row0, nowMs) {
 const chargesOf = (g) => [...(Array.isArray(g?.lastMonth?.charges) ? g.lastMonth.charges : []), ...(Array.isArray(g?.month?.charges) ? g.month.charges : [])].filter((c) => c && typeof c === 'object');
 export function expenseSplit(ex, today) {
   if (!ex || !(ex.personal || ex.business)) return null;
+  // No charge list (MoneyClaw's feed today): use its own stage totals instead: yesterday, week (7 days), month (month to date).
+  const stageTotal = (s) => (Number.isFinite(Number(s?.totalCents)) ? Number(s.totalCents) / 100 : Number.isFinite(Number(s?.total)) ? Number(s.total) : null);
   const side = (g) => {
     if (!g) return null;
-    if (!Array.isArray(g.month?.charges) && !Array.isArray(g.lastMonth?.charges)) return null;
+    if (!Array.isArray(g.month?.charges) && !Array.isArray(g.lastMonth?.charges)) {
+      const [yesterday, week, month] = [g.yesterday, g.week, g.month].map(stageTotal);
+      if ([yesterday, week, month].some((v) => v == null)) return null;
+      return { basis: 'stages', monthFrom: isDay(g.month?.startDate) ? g.month.startDate : null, yesterday, week, month };
+    }
     const from = Array.isArray(g.lastMonth?.charges) && isDay(g.lastMonth.startDate) ? g.lastMonth.startDate : isDay(g.month?.startDate) ? g.month.startDate : null;
     const t = windowTotals(chargesOf(g), today, from);
-    return { from, partial: t.month.partial, yesterday: t.yesterday.total, week: t.week.total, month: t.month.total };
+    return { basis: 'lists', from, partial: t.month.partial, yesterday: t.yesterday.total, week: t.week.total, month: t.month.total };
   };
   const personal = side(ex.personal);
   const business = side(ex.business);
+  if (personal?.basis === 'stages' || business?.basis === 'stages') {
+    // The old single figure for stage totals is MoneyClaw's two stage totals added, in cents.
+    const sum = (k) => [ex.personal, ex.business].reduce((a, g) => a + Math.round((stageTotal(g?.[k]) || 0) * 100), 0) / 100;
+    return { personal, business, combined: { yesterday: sum('yesterday'), week: sum('week'), month: sum('month') } };
+  }
   const froms = [personal?.from, business?.from].filter(Boolean).sort();
   const all = windowTotals([...chargesOf(ex.personal), ...chargesOf(ex.business)], today, froms[0] || null);
   return { personal, business, combined: { yesterday: all.yesterday.total, week: all.week.total, month: all.month.total } };
