@@ -322,7 +322,7 @@ test('Team page: design sections in order, live rows, No feed where nothing repo
   const d2 = SAMPLE();
   const d3 = await d3Of(teamDb());
   const html = renderTeam(d2, d3, {});
-  const order = ['<h1>Team</h1>', 'Working', 'Waiting on you', 'Failed', 'Cost', '<h2>Bots</h2>', 'Working on', 'Lucy', '<h2>Video board</h2>', 'Limits are proposed, not agreed.'];
+  const order = ['<h1>Team</h1>', 'Working', 'Waiting on you', 'Failed', 'Cost', '<h2>Bots</h2>', 'Working on', 'Lucy', '<h2>Video board</h2>', "Limits: Jon's stage budgets."];
   let at = -1;
   for (const s of order) { const i = html.indexOf(s, at + 1); assert.ok(i > at, `${s} after the one before`); at = i; }
   assert.equal((html.match(/class="brow"/g) || []).length, TEAM.bots.length);
@@ -461,7 +461,8 @@ test('Live feed fresh: dispatcher, bots, tokens, team runs and fails, QC-passed 
   pr('q1', 'd1', '/dashboard/review/a', H(1)); pr('q2', 'd1', '/dashboard/review/a2', H(2)); // same card: once
   pr('q3', 'd2', '/dashboard/review/b', H(20)); // yesterday
   pr('q4', 'late', 'https://x/q4', H(1)); // not a review page
-  const d3 = (await d3Of(db)).d3;
+  const body = await d3Of(db);
+  const { d3 } = body;
   assert.deepEqual([d3.rail.dispatcher.state, d3.rail.dispatcher.text], ['g', 'Dispatcher running']);
   assert.deepEqual([d3.rail.bots.state, d3.rail.bots.text], ['g', '2 runs going']);
   assert.deepEqual([d3.rail.tokens.state, d3.rail.tokens.pct, d3.rail.tokens.text], ['g', 42, 'Tokens 42% used']); // feed newer than the 22 h reading
@@ -472,21 +473,37 @@ test('Live feed fresh: dispatcher, bots, tokens, team runs and fails, QC-passed 
   assert.deepEqual(d3.team.fails.map((f) => [f.card, f.title, f.kind]), [['d2', 'Card d2', 'run']]);
   assert.deepEqual([d3.goals.qcPassedToday.actual, d3.goals.qcPassedToday.target], [1, 6]);
   assert.deepEqual([d3.goals.approved.actual, d3.goals.approved.items.map((i) => i.title)], [2, ['Video A', 'Video B']]);
+  // Pages: Goals rows, Blockers tile = Blockers page rows, Team fails list and pill, Blockers Dispatcher card.
+  const k = Object.fromEntries(objectivesOf(SAMPLE(), body).flatMap((o) => o.krs).map((r) => [r.id, r]));
+  assert.deepEqual([k.b4.v1, k.b4.v2, k.b6.v1, k.b6.nf], ['1', ' / 6', '2', false]);
+  const rows = blockerRows(SAMPLE(), body);
+  assert.match(renderGoals(SAMPLE(), body, {}), new RegExp(`<b style="font-weight: 600">Blockers</b><span class="mut">${rows.filter((b) => b.you).length} need you</span></span><b class="num sp" style="font-size: 30px">${rows.length}</b>`));
+  const th = renderTeam(SAMPLE(), body, {});
+  assert.match(th, /Cost: No feed · live/);
+  assert.match(th, /<h2>Failed today<\/h2>[\s\S]*?Card d2[\s\S]*?run failed · exit 1/);
+  const bh = renderBlockers(SAMPLE(), body, {});
+  assert.match(bh, /Heartbeat<\/span><b>Dispatcher running/);
+  assert.match(bh, /Bots<\/span><b>2 runs going/);
+  assert.match(bh, /dot r"><\/span><span class="ell">Failed runs today<\/span><b>1</);
+  assert.doesNotMatch(bh, /Watchdog|GPU2 job/);
 });
 
 test('Live feed stale: dispatcher red, bots and tokens grey, team falls back to posted runs', async () => {
   const db = teamDb();
   usage22h(db);
-  liveRow(db, 12, { beat: M(12), week: { pct: 80, at: H(7) }, running: [{ slot: 1, bot: 'developer', card: 'd1', since: M(20) }], tokens: { developer: 9 }, runs: {}, fails: [] });
-  const d3 = (await d3Of(db)).d3;
+  liveRow(db, 12, { beat: M(12), week: { pct: 100, at: H(7) }, running: [{ slot: 1, bot: 'developer', card: 'd1', since: M(20) }], tokens: { developer: 9 }, runs: {}, fails: [] });
+  const body = await d3Of(db);
+  const { d3 } = body;
   assert.equal(d3.rail.dispatcher.state, 'r');
   assert.match(d3.rail.dispatcher.text, /^Dispatcher stopped/);
   assert.deepEqual([d3.rail.bots.state, d3.rail.bots.stale], ['none', true]);
-  assert.deepEqual([d3.rail.tokens.state, d3.rail.tokens.pct, d3.rail.tokens.stale], ['none', 80, true]); // 7 h old: grey, pct kept
+  assert.deepEqual([d3.rail.tokens.state, d3.rail.tokens.pct, d3.rail.tokens.stale], ['none', 100, true]); // 7 h old: grey, pct kept
   assert.equal(d3.team.running, null);
   assert.equal(d3.team.fails, null);
   assert.equal(d3.team.bots.find((b) => b.slug === 'developer').tokens, null);
   assert.equal(d3.goals.approved, null);
+  assert.equal(blockerRows(SAMPLE(), body).some((b) => b.id === 'tokens'), false); // an old 100% is not a blocker
+  assert.match(renderBlockers(SAMPLE(), body, {}), /dot "><\/span><span class="ell">Weekly tokens<\/span><b>100%, 7 hr old</);
 });
 
 test('limitLabel: stage budgets in hours and minutes', () => {

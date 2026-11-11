@@ -4,8 +4,8 @@
 import { esc, icon } from './util.js';
 import { headerOnly, periodOf } from './goals.js';
 
-// The video line's stages and their time limits, as designed. The limits are proposed, not agreed (the note says so).
-const STAGES = [['Brief', '4 h'], ['Script', '4 h'], ['Script QC', '2 h'], ['A-roll', '4 h'], ['Pack', '8 h'], ['Edit', '8 h'], ['Render QC', '2 h'], ['Publish', '3 d']];
+// The video line's stages and Jon's stage budgets (2026-11-11), shown only when d3 sends no board.
+const STAGES = [['Brief', '15 m'], ['Script', '20 m'], ['Script QC', '20 m'], ['A-roll', ''], ['Pack', '1 h 15 m'], ['Edit', '1 h 10 m'], ['Render QC', '1 h 10 m'], ['Publish', '']];
 const COUNTS = [['doing', 'doing'], ['waiting_on_jon', 'waiting on you'], ['qc', 'in QC'], ['todo', 'to do'], ['review', 'in Review']];
 const NF = '<span class="mut nf">No feed</span>';
 const num = (x) => typeof x === 'number' && Number.isFinite(x);
@@ -73,7 +73,7 @@ ${body}
 <div class="board" style="grid-template-columns: repeat(${cols.length}, minmax(0, 1fr))">
 ${stages}
 </div>
-<div class="hd mut" style="gap: 6px 14px; flex-wrap: wrap; font-size: 12px"><span class="hd" style="gap: 6px"><span class="dot g"></span>inside the limit</span><span class="hd" style="gap: 6px"><span class="dot r"></span>past the limit</span><span>Limits are proposed, not agreed.</span></div>
+<div class="hd mut" style="gap: 6px 14px; flex-wrap: wrap; font-size: 12px"><span class="hd" style="gap: 6px"><span class="dot g"></span>inside the limit</span><span class="hd" style="gap: 6px"><span class="dot r"></span>past the limit</span><span>Limits: Jon's stage budgets.</span></div>
 </section>`;
 }
 
@@ -85,18 +85,25 @@ export function renderTeam(d2resp, d3resp, ui = {}) {
   // Header and Working tile read the same counts: bot names and roster roles.
   const roles = T ? plural(T.bots.length, 'role') : '';
   const sub = T ? `${plural(T.names, 'bot')} · ${roles}` : '';
-  const head = headerOnly(d2resp, 'Team', sub, '<span class="pill sp">Runs, tokens and cost: No feed</span>');
+  const live = T && T.running != null; // the dispatcher's live feed is fresh: runs and tokens come from it
+  const head = headerOnly(d2resp, 'Team', sub, `<span class="pill sp">${live ? `Cost: No feed · live ${esc(T.liveAge)} ago` : 'Runs, tokens and cost: No feed'}</span>`);
   const tiles = `<div class="row">
 ${tile('bolt', 'Working', T ? `of ${roles}` :'cards in Doing', T ? T.working : null)}
 ${tile('you', 'Waiting on you', T?.waiting?.oldest ? `oldest ${T.waiting.oldest}` : 'cards', T ? T.waiting.count : null)}
-${tile('blockers', 'Failed', 'today', T && num(T.failedToday) ? T.failedToday : null)}
+${tile('blockers', 'Failed', 'runs and QC fails today', T && num(T.failedToday) ? T.failedToday : null)}
 ${tile('money', 'Cost', span, null)}
 </div>`;
+  // Failed runs and Stuck cards today from the live feed, newest first.
+  const fails = T?.fails?.length ? `<section class="card" style="gap: 4px">
+<div class="hd cardhd"><span class="chip">${icon('blockers')}</span><h2>Failed today</h2><span class="mut">runs that failed or got stuck</span></div>
+${T.fails.map((f) => `<div class="hrow"><span class="dot r"></span><span class="ell">${esc(f.title || f.card)}</span><span class="mut">${esc(f.who)} · ${f.kind === 'stuck' ? 'stuck' : 'run failed'}${f.why ? ` · ${esc(f.why)}` : ''} · ${esc(f.age)} ago</span></div>`).join('\n')}
+</section>` : '';
   const rows = T
     ? T.bots.map((b) => botRow(b, ui.openBot === b.slug, costHd)).join('\n')
     : '<p class="mut" style="padding-top: 12px">No feed: the dashboard cards could not be read.</p>';
   return `${head}
 ${tiles}
+${fails}
 <section class="card" style="gap: 0">
 <div class="hd cardhd" style="margin-bottom: 4px"><span class="chip">${icon('team')}</span><h2>Bots</h2><span class="mut sp">Click a row to see its work</span></div>
 <div class="brow thead"><span>Bot</span><span>Working on</span><span>Stage</span><span>Running</span><span>Due</span><span>Tokens</span><span style="text-align: right">${esc(costHd)}</span></div>

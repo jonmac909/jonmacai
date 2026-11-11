@@ -23,7 +23,7 @@ export function blockerRows(d2resp, d3resp) {
   if (yt?.state === 'r') {
     rows.push({ id: 'youtube', kind: 'a', you: true, title: 'YouTube login out', age: '', blocks: `${yt.out} of ${yt.connected} connected channels can't sync until you sign in again.` });
   }
-  if (num(rail.tokens?.pct) && rail.tokens.pct >= 100) {
+  if (num(rail.tokens?.pct) && rail.tokens.pct >= 100 && !rail.tokens.stale) { // an old reading is not a limit hit
     rows.push({ id: 'tokens', kind: 'a', you: false, title: 'Weekly token limit reached', age: '', blocks: 'Bot work until the weekly limit resets.' });
   }
   for (const c of d2resp?.d2?.checks || []) {
@@ -69,7 +69,9 @@ function healthOf(d2resp, d3resp) {
   const ytRow = !yt || yt.state === 'none' ? (yt?.text && yt.text !== 'No feed' ? line('YouTube login', yt.text.replace(/^YouTube /, '')) : NO('YouTube login'))
     : line('YouTube login', yt.state === 'r' ? `Out (${yt.out} of ${yt.connected})` : 'Signed in', yt.state);
   const tk = rail.tokens;
-  const tkRow = num(tk?.pct) ? line('Weekly tokens', `${tk.pct}%`, tk.state) : NO('Weekly tokens');
+  const tkRow = !num(tk?.pct) ? NO('Weekly tokens')
+    : tk.stale ? line('Weekly tokens', `${tk.pct}%, ${String(tk.text).replace(/^Tokens \d+%, /, '')}`) // grey, with its age
+      : line('Weekly tokens', `${tk.pct}%`, tk.state);
   const logins = [ytRow, tkRow, NO('HeyGen today'), NO('Sponsor inbox')];
   const down = logins.filter((r) => r.tone === 'r').length;
   const age = (label, src) => (src ? line(label, String(src.ageLabel || '').replace(/^updated /, ''), src.stale ? 'r' : 'g') : NO(label));
@@ -77,10 +79,16 @@ function healthOf(d2resp, d3resp) {
   const feeds = [age('Sponsor money', sponsors?.source), NO('Video board'), age('Token use', tk?.source),
     ...(Array.isArray(checks) ? checks.filter((c) => c.today?.source).map((c) => age(c.title, c.today.source)) : [])];
   const stale = feeds.filter((r) => r.tone === 'r').length;
+  // Dispatcher card: heartbeat and runs going (rail), failed runs and Stuck cards today (live feed via team.fails).
+  const ln = (l, x) => (!x || x.text === 'No feed' ? NO(l) : line(l, x.text, x.state === 'none' ? '' : x.state));
+  const fl = d3resp?.d3?.team?.fails;
+  const cnt = (l, kind) => { if (!Array.isArray(fl)) return NO(l); const n = fl.filter((f) => (f.kind || 'run') === kind).length; return line(l, String(n), n ? 'r' : 'g'); };
+  const disp = [ln('Heartbeat', rail.dispatcher), ln('Bots', rail.bots), cnt('Failed runs today', 'run'), cnt('Stuck today', 'stuck')];
+  const dispBad = disp.filter((r) => r.tone === 'r').length;
   const pill = (bad, cls, text, okText, any) => (bad ? { pill: cls, state: text } : any ? { pill: 'ok', state: okText } : { pill: '', state: 'No feed' });
   return [
     { title: 'Daily jobs', rows: jobs, ...pill(missed, 'bad', `${missed} missed`, 'On time', jobs.some((r) => r.tone)) },
-    { title: 'Dispatcher', rows: [NO('Dispatcher'), NO('Bots'), NO('Watchdog (Lucy)'), NO('GPU2 job')], pill: '', state: 'No feed' },
+    { title: 'Dispatcher', rows: disp, ...pill(dispBad, 'bad', `${dispBad} down`, 'Running', disp.some((r) => r.tone)) },
     { title: 'Logins and limits', rows: logins, ...pill(down, 'bad', `${down} down`, 'All in', logins.some((r) => r.tone)) },
     { title: 'Feed age', rows: feeds, ...pill(stale, 'warn', `${stale} stale`, 'All fresh', feeds.some((r) => r.tone)) },
   ];

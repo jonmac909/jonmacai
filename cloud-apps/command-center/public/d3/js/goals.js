@@ -3,6 +3,7 @@
 // with no source reads "No feed" (nothing reports it yet) or "No data" (the source had nothing), with a grey dot.
 // Targets always come from the data, never from this file.
 import { esc, usd, toneOf, dayShare, icon, draftsOf } from './util.js';
+import { blockerRows } from './blockers.js'; // circular with blockers.js: used at call time only
 
 const PILL = { r: 'bad', y: 'warn', g: 'ok', n: '' };
 const WEEKDAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
@@ -146,10 +147,11 @@ export function objectivesOf(d2resp, d3resp, P = periodOf(d2resp)) {
       kr('b1', jm?.title || 'Jon Mac', wk(jm, 0), WK(wk(jm, 0))),
       kr('b2', ai?.title || '@JonMacAI', wk(ai, 0), WK(wk(ai, 0))),
       kr('b3', hgp?.title || 'Home Guide Press', wk(hgp, 0), WK(wk(hgp, 0))),
-      kr('b4', 'QC-passed today', hgp?.day?.[0] || null, { hint: 'today', span: null, series: null }),
+      kr('b4', 'QC-passed today', g3?.qcPassedToday || null, { hint: 'today', span: null, series: null }),
       qc ? kr('b5', 'Passed QC first try', qc, { bar: false, hint: num(qc.total) ? `${qc.passed} of ${qc.total}` : 'this month', span: null, series: null, target: '' })
         : noFeed('b5', 'Passed QC first try', 'QC verdicts on renders could not be read.'),
-      noFeed('b6', 'Approved, not published', 'Needs the review app to report when Jon approved each video and when it went live.'),
+      g3?.approved ? kr('b6', 'Approved, not published', g3.approved, { bar: false, hint: 'target 0', span: null, series: null })
+        : noFeed('b6', 'Approved, not published', 'The dispatcher live feed has not reported approved videos yet.'),
     ] },
     { title: 'Operations', owner: 'Ana', icon: 'bot', krs: [
       tw ? kr('c1', 'Weeks token limit hit', tw, { bar: false, hint: 'target 0', span: P.mo, series: num(tw.actual) ? monthEventSeries(tw.hitDays || [], P, 0) : null })
@@ -254,12 +256,12 @@ ${pills ? `<div class="hd" style="flex-wrap: wrap; gap: 6px">${pills}</div>` : '
 }
 
 function tilesHtml(d2resp, d3resp) {
-  const bl = d2resp?.d2?.today?.blockers;
+  const bl = blockerRows(d2resp, d3resp); // the same rows as the Blockers page and the rail
   const rv = d3resp?.d3?.review;
   const tk = d3resp?.d3?.rail?.tokens;
   const nfNum = '<b class="num sp nf">No feed</b>';
   const blockers = Array.isArray(bl)
-    ? { sub: `${bl.filter((b) => b.open).length} need you`, n: `<b class="num sp" style="font-size: 30px">${bl.length}</b>` }
+    ? { sub: `${bl.filter((b) => b.you).length} need you`, n: `<b class="num sp" style="font-size: 30px">${bl.length}</b>` }
     : { sub: '', n: nfNum };
   const n = rv ? rv.count + (draftsOf(d2resp) || []).length : 0; // the Review page's queue: d3's items plus sponsor drafts
   const review = rv
