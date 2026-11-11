@@ -19,6 +19,7 @@ import { channelData } from './channels.js';
 import { trackData } from './track.js';
 import { monthWindow } from './today.js';
 import { buildD2, d2Data } from './d2.js';
+import { funnelsData } from './funnels.js';
 import { buildD3, d3Data } from './d3.js';
 import { buildPending, pendingData } from './pending.js';
 
@@ -310,6 +311,12 @@ export async function handleApi(request, env, ctx) {
     let pending = null; // the Pending page: Jon's ask cards, view only; a failure here never takes down the rest of /d2
     try { pending = buildPending(await pendingData(env.DB), now); } catch (err) { console.error('pending', err); }
     return json({ ok: true, build: env.CF_VERSION_METADATA?.id ?? null, asOf: new Date(now).toISOString(), pages: out.pages, d2, pending });
+  }
+  // Dashboard 2 Funnels: every Home Guide Press book page and Buy link, checked live on each open (src/funnels.js). Read only.
+  if (rest === '/d2/funnels' && method === 'GET') {
+    const denied = await needSession(request, env);
+    if (denied) return denied;
+    return json({ ok: true, funnels: await funnelsData(env) });
   }
   // Dashboard 3 (docs/dashboard-3.md): the rail's status lines and the Goals numbers /d2 doesn't carry. Read only.
   if (rest === '/d3' && method === 'GET') {
