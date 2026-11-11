@@ -13,6 +13,7 @@ const TOKENS = {
   qc: `ccb_${'q'.repeat(43)}`,
   sponsors: `ccb_${'s'.repeat(43)}`,
   'video-editor': `ccb_${'v'.repeat(43)}`,
+  ana: `ccb_${'a'.repeat(43)}`,
 };
 const REVOKED = `ccb_${'x'.repeat(43)}`;
 
@@ -170,9 +171,7 @@ test('proof: kinds and links, QC-only checks, and qc/done need usable proof', as
 
 test('proof: Ana rules only on proof QC posted itself', async () => {
   const { db, env } = await setup();
-  const ana = `ccb_${'a'.repeat(43)}`;
-  await db.prepare('INSERT INTO bot_tokens (token_hash, bot, created_at, revoked_at) VALUES (?, ?, ?, NULL)')
-    .bind(await sha256Hex(ana), 'ana', '2026-10-29T00:00:00.000Z').run();
+  const ana = TOKENS.ana; // seeded by setup()
   const { task } = (await call(env, 'POST', '/tasks', { bot: 'qc', body: { title: 'QC report' } })).body;
   const proof = (id, bot) => call(env, 'POST', `/tasks/${id}/proofs`, { bot, body: { kind: 'url', link: 'https://jonmac.ai/qc/report' } });
   const qcProof = (await proof(task.id, 'qc')).body.proof;
@@ -235,6 +234,10 @@ test('questions: bots ask, only Jon answers (once), the asker reads and closes',
   const closed = await call(env, 'POST', `/questions/${q.id}/close`, { bot: 'sponsors' });
   assert.deepEqual([closed.status, closed.body.question.status, closed.body.question.closedBy, closed.body.question.answer], [200, 'closed', 'sponsors', 'Yes']);
   assert.equal((await call(env, 'POST', `/questions/${q.id}/close`, { bot: 'sponsors' })).status, 200, 'closing twice is harmless');
+
+  const stale = await call(env, 'POST', '/questions', { bot: 'sponsors', body: { question: 'Left open?' } });
+  const byAna = await call(env, 'POST', `/questions/${stale.body.question.id}/close`, { bot: 'ana' });
+  assert.deepEqual([byAna.status, byAna.body.question.status, byAna.body.question.closedBy], [200, 'closed', 'ana'], 'Ana can close any question');
 
   const open = await call(env, 'POST', '/questions', { bot: 'sponsors', body: { question: 'Withdrawn?' } });
   await call(env, 'POST', `/questions/${open.body.question.id}/close`, { bot: 'sponsors' });

@@ -708,7 +708,8 @@ async function listQuestions(db, who, q) {
 async function closeQuestion(db, who, id, now) {
   const row = await questionRow(db, id);
   if (!row) throw new Bad(404, 'Question not found');
-  if (row.asked_by !== who.bot) throw new Bad(403, 'Only the bot that asked can close this question');
+  // Ana clears stale questions too, e.g. ones a retired bot left open (Jon via Ana, 2026-11-08)
+  if (row.asked_by !== who.bot && who.bot !== 'ana') throw new Bad(403, 'Only the bot that asked, or Ana, can close this question');
   if (row.status !== 'closed') {
     await db.prepare("UPDATE bot_questions SET status = 'closed', closed_by = ?, closed_at = ?, updated_at = ? WHERE id = ? AND status != 'closed'")
       .bind(who.bot, now, now, id).run();
