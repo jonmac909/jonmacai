@@ -1,6 +1,7 @@
 // The rail's live parts: the four status lines and the Blockers and Review counts. Plain functions over the
 // /dashboard/api/d2 and /dashboard/api/d3 answers, so tests run them without a browser.
 import { esc } from './util.js';
+import { blockerRows } from './blockers.js';
 
 const LINES = [['dispatcher', 'Dispatcher'], ['bots', 'Bots'], ['tokens', 'Tokens'], ['youtube', 'YouTube']];
 
@@ -17,9 +18,9 @@ export function statHtml(d3) { // the /dashboard/api/d3 answer
   }).join('');
 }
 
-// Counts only from real data; null (hidden) when the source could not be read.
+// Counts only from real data; null (hidden) when the source could not be read. Blockers = the Blockers page's rows.
 export function railCounts(d2, d3) {
-  const blockers = d2?.d2?.today?.blockers;
+  const blockers = blockerRows(d2, d3);
   const review = d3?.d3?.review;
-  return { blockers: Array.isArray(blockers) ? blockers.length : null, review: review ? review.count : null };
+  return { blockers: blockers ? blockers.length : null, review: review ? review.count : null };
 }

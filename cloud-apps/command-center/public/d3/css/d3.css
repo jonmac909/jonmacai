@@ -75,6 +75,24 @@ html[data-theme="dark"] body{background:#0b0b0c}
 .d3 svg .fc{fill:none;stroke:var(--ink2);stroke-width:1.5;stroke-dasharray:1 5;stroke-linecap:round}
 .d3 svg .today{stroke:var(--ink2);stroke-width:1}
 .d3 svg text{font-family:var(--sans);font-size:15px;fill:var(--ink2);text-anchor:middle}
+/* From the Team and Blockers designs' <style> block (Team.dc.html, Blockers.dc.html), unchanged, except that
+   ".d3 b{font-weight:600}" is kept off the Goals page, whose design (Home.dc.html) doesn't have it. */
+.d3 .main:not([data-page="goals"]) b{font-weight:600}
+.d3 .stack{display:flex;flex-direction:column;min-width:0}
+.d3 .ell{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.d3 .btn.pri{background:#2563eb;border-color:#2563eb;color:#ffffff}
+.d3 .btn.lg{min-height:44px;padding:0 22px;font-size:14px;border-radius:12px}
+.d3 .btn[aria-pressed="true"]{background:var(--ink);border-color:var(--ink);color:var(--card)}
+.d3 .thead{font-size:12px;color:var(--muted)}
+.d3 .brow{display:grid;grid-template-columns:170px minmax(0,1fr) 116px 60px 60px 56px 84px;gap:12px;align-items:center;width:100%;text-align:left;border:0;background:transparent;padding:12px 0}
+.d3 button.brow{border-top:1px solid var(--line)}
+.d3 .board{display:grid;gap:8px}
+.d3 .stage{border:1px solid var(--line);border-radius:14px;padding:10px;display:flex;flex-direction:column;gap:8px;min-width:0}
+.d3 .vcard{background:var(--card2);border-radius:10px;padding:8px 10px;display:flex;flex-direction:column;gap:2px;min-width:0;font-size:13px}
+.d3 .hrow{display:flex;align-items:center;gap:8px;min-height:28px;font-size:13px;min-width:0}
+.d3 .hrow > b{margin-left:auto;font-weight:500;white-space:nowrap}
+.d3 .blrow{display:grid;grid-template-columns:minmax(0,1fr) 160px 90px 104px;gap:12px;align-items:center;width:100%;text-align:left;border:0;border-top:1px solid var(--line);background:transparent;padding:14px 0}
+.d3 .blrow.first{border-top:0}
 
 /* ---- Build additions (not in the design file) ---- */
 .d3{min-height:100vh}

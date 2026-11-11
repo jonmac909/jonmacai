@@ -196,10 +196,12 @@ function krHtml(k, open, busy) {
 ${detail}</div>`;
 }
 
-function headerHtml(P, title) {
+// sub and pill (HTML) are for the other pages; Goals shows the week line and no pill.
+function headerHtml(P, title, sub, pill = '') {
+  const line = sub ?? (P.ymd ? `${esc(P.weekdayName)} · day ${esc(P.day)} of ${esc(P.daysInMonth)}` : '&nbsp;');
   return `<header class="hd" style="padding: 6px 4px 2px; gap: 14px">
 <span class="datechip" aria-hidden="true"><b>${esc(P.day || '')}</b><span>${esc(P.monthShort || '')}</span></span>
-<div style="display: flex; flex-direction: column; gap: 2px"><span class="mut">${P.ymd ? `${esc(P.weekdayName)} · day ${esc(P.day)} of ${esc(P.daysInMonth)}` : '&nbsp;'}</span><h1>${esc(title)}</h1></div>
+<div style="display: flex; flex-direction: column; gap: 2px"><span class="mut">${line}</span><h1>${esc(title)}</h1></div>${pill}
 </header>`;
 }
 
@@ -359,8 +361,8 @@ ${names}
 </section>`;
 }
 
-export function headerOnly(d2resp, title) {
-  return headerHtml(periodOf(d2resp), title);
+export function headerOnly(d2resp, title, sub, pill) {
+  return headerHtml(periodOf(d2resp), title, sub, pill);
 }
 
 export function renderGoals(d2resp, d3resp, ui = {}) {

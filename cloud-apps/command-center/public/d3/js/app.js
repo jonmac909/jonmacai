@@ -1,14 +1,17 @@
-// Dashboard 3 shell (docs/dashboard-3.md): theme switch, hash routes, data load every 60 s, and the Goals page.
+// Dashboard 3 shell (docs/dashboard-3.md): theme switch, hash routes, data load every 60 s, and the Goals, Team and
+// Blockers pages.
 // Data: GET /dashboard/api/d2 and /dashboard/api/d3 (session cookie). The only write is "+ Log" on Workouts and
 // Date nights, through the existing POST /dashboard/api/habits.
 import { esc } from './util.js';
 import { statHtml, railCounts } from './rail.js';
 import { renderGoals, headerOnly } from './goals.js';
+import { renderTeam } from './team.js';
+import { renderBlockers } from './blockers.js';
 
 const PAGES = { goals: 'Goals', team: 'Team', blockers: 'Blockers', review: 'Review', money: 'Money', bluesky: 'Bluesky', system: 'System' };
 const SIGNIN = 'd3-signin';
 const main = document.getElementById('main');
-const S = { d2: null, d3: null, error: '', signedOut: false, ui: { openKr: null, hgpOpen: false, busy: false } };
+const S = { d2: null, d3: null, error: '', signedOut: false, ui: { openKr: null, hgpOpen: false, busy: false, openBot: null, openBl: null, blFilter: 'all' } };
 
 // ---- theme (the inline script in index.html applies the saved one before paint) ----
 function setTheme(t) {
@@ -32,9 +35,15 @@ function render() {
     if (a.dataset.nav === p) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');
   }
   document.title = `${PAGES[p]} · Jon Mac`;
+  main.dataset.page = p;
   const note = S.signedOut
     ? '<section class="card"><p>You are signed out. <a href="/dash/">Sign in</a></p></section>'
     : S.error ? `<section class="card"><p class="mut">${esc(S.error)}</p></section>` : '';
+  const live = { team: renderTeam, blockers: renderBlockers }[p];
+  if (live) {
+    main.innerHTML = S.d3 ? `${note}${live(S.d2, S.d3, S.ui)}` : `${headerOnly(S.d2, PAGES[p])}${note || '<section class="card"><p class="mut">Loading</p></section>'}`;
+    return;
+  }
   if (p !== 'goals') {
     main.innerHTML = `${headerOnly(S.d2, PAGES[p])}${note}<section class="card"><p class="mut">This page is in the next build.</p></section>`;
     return;
@@ -87,8 +96,14 @@ async function load() {
   render();
 }
 
-// ---- clicks: open a key result's trend, show channel names, log a workout or date night ----
+// ---- clicks: open a key result's trend, show channel names, open a bot or blocker row, filter blockers, log a workout or date night ----
 main.addEventListener('click', async (e) => {
+  const bot = e.target.closest('[data-bot]');
+  if (bot) { S.ui.openBot = S.ui.openBot === bot.dataset.bot ? null : bot.dataset.bot; render(); return; }
+  const bl = e.target.closest('[data-bl]');
+  if (bl) { S.ui.openBl = S.ui.openBl === bl.dataset.bl ? null : bl.dataset.bl; render(); return; }
+  const blf = e.target.closest('[data-blf]');
+  if (blf) { S.ui.blFilter = blf.dataset.blf; S.ui.openBl = null; render(); return; }
   const kr = e.target.closest('[data-kr]');
   if (kr) { S.ui.openKr = S.ui.openKr === kr.dataset.kr ? null : kr.dataset.kr; render(); return; }
   if (e.target.closest('[data-hgp]')) { S.ui.hgpOpen = !S.ui.hgpOpen; render(); return; }
@@ -113,7 +128,7 @@ main.addEventListener('click', async (e) => {
   }
 });
 
-window.addEventListener('hashchange', () => { S.ui.openKr = null; render(); });
+window.addEventListener('hashchange', () => { Object.assign(S.ui, { openKr: null, openBot: null, openBl: null }); render(); });
 setInterval(() => { if (document.visibilityState === 'visible') load(); }, 60000);
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') load(); });
 render();
