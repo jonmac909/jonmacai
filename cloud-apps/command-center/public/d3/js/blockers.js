@@ -4,6 +4,7 @@
 // What Ana did about each one has no feed yet, so it reads "No feed". blockerRows() is also the rail's Blockers count.
 import { esc, icon } from './util.js';
 import { headerOnly } from './goals.js';
+import { renderNeeds } from './needs.js';
 
 export const KINDS = { p: 'Waiting on a person', f: 'Work that failed', a: 'Access and limits', s: 'Slow or idle' };
 export const FILTERS = [['all', 'All'], ['you', 'Need you'], ['p', 'Person'], ['f', 'Failed'], ['a', 'Access'], ['s', 'Slow']];
@@ -109,6 +110,7 @@ ${h.rows.map((r) => `<div class="hrow"><span class="dot ${r.tone}"></span><span 
 </section>`).join('\n');
   return `${head}
 ${tiles}
+${renderNeeds(rows, d3resp, ui)}
 <section class="card" style="gap: 0">
 <div class="hd cardhd" style="flex-wrap: wrap"><span class="chip">${icon('list')}</span><h2>Open blockers</h2>
 <div class="hd sp" style="gap: 6px; flex-wrap: wrap" role="group" aria-label="Filter">${filters}</div>
