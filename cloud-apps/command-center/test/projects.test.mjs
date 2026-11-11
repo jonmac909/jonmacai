@@ -244,6 +244,28 @@ test('daily_checklists feed: ana or developer, known projects, at most 12 items 
   assert.deepEqual((await call(env, 'GET', '/v1/feeds/daily_checklists', { jon: true })).body.feed.data, { projects: { coding: ['Live sites checked'] } }, 'newest wins');
 });
 
+test('dispatch_live feed: developer or ana, checked shapes, keeps only 2 days', async () => {
+  const { db, env } = await setup();
+  const put = (bot, body) => call(env, 'PUT', '/v1/feeds/dispatch_live', { bot, body });
+  const good = {
+    at: '2026-10-29T18:59:00Z', beat: '2026-10-29T18:58:30Z', week: { pct: 54, resets: 'Nov 14, 8am', at: '2026-10-29T18:00:00Z' },
+    running: [{ slot: 'qc', bot: 'qc', card: 't_1', since: '2026-10-29T18:50:00Z' }],
+    tokens: { qc: 1200 }, runs: { qc: { ok: 3, failed: 1 } },
+    fails: [{ at: '2026-10-29T17:00:00Z', bot: 'qc', card: 't_1', why: 'x', kind: 'run' }],
+    approved: { count: 2, items: [{ title: 'A', waitMin: 90 }] },
+  };
+  assert.equal((await put('sponsors', good)).status, 403);
+  for (const bad of [{ ...good, running: 'x' }, { ...good, tokens: { qc: -1 } }, { ...good, runs: { qc: { ok: 1.5 } } }, { ...good, week: { pct: 'x' } }, { ...good, beat: 'soon' }, { ...good, fails: [5] }]) {
+    assert.equal((await put('developer', bad)).status, 400, JSON.stringify(bad));
+  }
+  await db.prepare('INSERT INTO bot_feed_entries (id, name, bot, data, created_at) VALUES (?, ?, ?, ?, ?)').bind('f_old', 'dispatch_live', 'developer', '{}', '2020-01-01T00:00:00Z').run();
+  const ok = await put('developer', good);
+  assert.equal(ok.status, 201);
+  assert.deepEqual(ok.body.feed.data.runs, { qc: { ok: 3, failed: 1 } });
+  assert.equal(ok.body.feed.data.approved.count, 2);
+  assert.equal((await db.prepare("SELECT COUNT(*) AS n FROM bot_feed_entries WHERE id = 'f_old'").first()).n, 0, 'old rows dropped');
+});
+
 const TICKERS = {
   sponsors: ['sponsors'], 'jon-mac': ['jon-mac-youtube', 'video-editor'], jonmacai: ['jon-mac-youtube', 'video-editor'], 'viral-view': ['viral-view'],
   'home-guide-press': ['home-guide-press'], 'short-form': ['short-form'], accounting: ['accounting'], coding: ['developer'],
