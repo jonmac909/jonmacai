@@ -67,6 +67,7 @@ test('planted faults: allowlist and case/whitespace: unlisted owner plus non-int
   const cases = [
     { owner: 'new-video-bot', project: 'home-guide-press' }, { owner: 'cash-bot', project: 'money' },
     { owner: 'developer', project: 'viral-view' }, { owner: 'developer', project: null }, { owner: 'developer', project: 'unsorted' },
+    { owner: 'scarlett', project: 'jonmacai' }, { owner: 'scarlett', project: 'jon-mac' }, { owner: 'scarlett', project: 'unsorted' },
     { owner: 'Video-Editor', project: 'coding' }, { owner: ' JON ', project: 'coding' }, { owner: 'developer', project: ' Sponsors ' },
     { stage: 'EDIT' }, { stage: ' Sponsor Review ' }, { owner: 'developer', project: 'Accounting' },
   ];

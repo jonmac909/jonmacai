@@ -447,7 +447,7 @@ const JON_PROJECTS = ['sponsors', 'accounting'];
 const JON_OWNERS = ['jon', 'sponsors', 'accounting', 'video-editor', 'jon-mac-youtube', 'hgp-scripts', 'home-guide-press'];
 // ALLOWLIST: only a card whose project is one of these internal tool/dashboard/code projects may close. Anything else
 // (video, money, an unlisted or empty project) waits for Jon.
-const INTERNAL_PROJECTS = ['coding', 'jonmacai', 'jonmac', 'dashboard', 'tools'];
+const INTERNAL_PROJECTS = ['coding'];
 // The stages of the video and sponsor-video card types (D:\AgentTeam	ools\card_stages.json); the card's Type itself
 // lives only in its progress file, so the stage is what the server can see.
 const VIDEO_STAGES = ['brief', 'script', 'pack', 'edit', 'publish', 'sponsor review'];
