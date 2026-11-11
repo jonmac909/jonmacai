@@ -22,7 +22,11 @@ export function periodOf(d2resp) {
   const dim = p.month?.daysInMonth || 30;
   const mShort = MONTHS[(mo || 1) - 1];
   const share = dayShare(d2resp?.asOf);
+  const at = Date.parse(d2resp?.asOf);
+  // When the page's data was read, Vancouver time: the "Updated" stamp in every page header.
+  const updated = Number.isFinite(at) ? new Intl.DateTimeFormat('en-US', { timeZone: 'America/Vancouver', hour: 'numeric', minute: '2-digit' }).format(new Date(at)) : '';
   return {
+    updated,
     ymd, year: y, day: d || 0, monthShort: mShort, monthName: (p.month?.label || '').split(' ')[0], weekdayName: WEEKDAYS[wd], weekday: wd, daysInMonth: dim,
     weekT: clamp01((wd + share) / 7), monthT: clamp01(num(p.month?.elapsed) ? p.month.elapsed : ((d || 1) - 1 + share) / dim), share,
     wk: { x0: 'Mon', x1: 'Sun' }, mo: { x0: `${mShort} 1`, x1: `${mShort} ${dim}` },
@@ -99,7 +103,11 @@ function noFeed(id, text, more) {
 function kr(id, text, m, { span, series, money = false, hint, bar = true, target, more, log } = {}) {
   if (!m) return noFeed(id, text, 'Nothing reports this yet.');
   const has = num(m.actual) && m.display !== 'No data'; // e.g. charges with no questions this month
-  const tone = has ? toneOf(m.status) : 'n';
+  const stale = !!m.source?.stale;
+  const tone = has && !stale ? toneOf(m.status) : 'n'; // a stale number is grey, whatever it says
+  // Every row says how old its number is: the row's own hint, then the source's age ("live", "29 hr ago").
+  const age = m.source?.ageLabel || '';
+  const base = hint ?? '';
   const fmt = (x) => (money ? usd(x) : String(Math.round(x * 10) / 10));
   const hasTarget = num(m.target) && m.target > 0;
   const src = m.source?.label ? ` Source: ${m.source.label}${m.source.ageLabel ? `, ${m.source.ageLabel}` : ''}.` : '';
@@ -111,7 +119,7 @@ function kr(id, text, m, { span, series, money = false, hint, bar = true, target
     hasBar: bar && has && hasTarget,
     pct: has && hasTarget ? Math.min(100, Math.round((m.actual / m.target) * 100)) : 0,
     pace: has && hasTarget && num(m.pace) ? Math.min(100, Math.round((m.pace / m.target) * 100)) : 0,
-    hint: hint ?? (m.source?.stale ? m.source.ageLabel : ''),
+    hint: [base, age && !base.includes(age) ? (stale ? `${age}, stale` : age) : ''].filter(Boolean).join(' · '),
     span, series: has ? series : null,
     target: target ?? (hasTarget ? `Target ${fmt(m.target)}` : num(m.target) ? `Target ${fmt(m.target)}` : ''),
     paceLine: hasTarget,
@@ -131,6 +139,13 @@ export function objectivesOf(d2resp, d3resp, P = periodOf(d2resp)) {
   const wk = (g, i) => g?.week?.[i] || null;
   const WK = (m) => ({ span: P.wk, series: weekSeries(m, P), hint: 'this week' });
   const collected = one(sp?.month);
+  // Collected counts bank deposits only up to the feed's last day: say which day.
+  const thru = /through ([A-Z][a-z]{2} \d{1,2})/.exec(collected?.source?.label || '')?.[1];
+  const deals = wk(sp, 0);
+  const vids = wk(sp, 1);
+  const inv = wk(sp, 2);
+  const due = Array.isArray(vids?.behind) ? vids.behind.length : 0;
+  const unsure = Number((inv?.facts || []).find((f) => f.label === 'No live video found')?.value) || 0;
   const tw = g3?.tokenWeeks || null;
   const wo = g3?.workouts || null;
   const dn = g3?.dateNights || null;
@@ -138,10 +153,10 @@ export function objectivesOf(d2resp, d3resp, P = periodOf(d2resp)) {
   const qc = g3?.qcFirstTry || null;
   return [
     { title: 'Sponsor Revenue', owner: sp?.owner || 'Florence', icon: 'money', krs: [
-      kr('a1', 'Collected', collected, { money: true, span: P.mo, series: monthTrendSeries(sp, collected, P), hint: 'this month' }),
-      kr('a2', 'Deals signed', wk(sp, 0), WK(wk(sp, 0))),
-      kr('a3', 'Sponsor videos delivered', wk(sp, 1), WK(wk(sp, 1))),
-      kr('a4', 'Invoices waiting', wk(sp, 2), { bar: false, hint: 'target 0', span: P.wk, series: null }),
+      kr('a1', 'Collected', collected, { money: true, span: P.mo, series: monthTrendSeries(sp, collected, P), hint: thru ? `this month, through ${thru}` : 'this month' }),
+      kr('a2', 'Deals signed', deals, { ...WK(deals), hint: 'this week · counted from first video card per sponsor' }),
+      kr('a3', 'Sponsor videos delivered', vids, { ...WK(vids), hint: `this week${due ? ` · ${due} more due` : ''}` }),
+      kr('a4', 'Invoices waiting', inv, { bar: false, hint: `target 0${unsure ? ` · ${unsure} more not counted (no live video found)` : ''}`, span: P.wk, series: null }),
     ] },
     { title: 'Content Factory', owner: hgp?.owner || 'Elle', icon: 'video', krs: [
       kr('b1', jm?.title || 'Jon Mac', wk(jm, 0), WK(wk(jm, 0))),
@@ -200,7 +215,9 @@ ${detail}</div>`;
 
 // sub (plain text) and pill (HTML) are for the other pages; Goals shows the week line and no pill.
 function headerHtml(P, title, sub, pill = '') {
-  const line = sub != null ? esc(sub) || '&nbsp;' : P.ymd ? `${esc(P.weekdayName)} · day ${esc(P.day)} of ${esc(P.daysInMonth)}` : '&nbsp;';
+  const base = sub != null ? esc(sub) : P.ymd ? `${esc(P.weekdayName)} · day ${esc(P.day)} of ${esc(P.daysInMonth)}` : '';
+  const stamp = P.updated ? `<span class="upd">Updated ${esc(P.updated)}</span>` : '';
+  const line = [base, stamp].filter(Boolean).join(' · ') || '&nbsp;';
   return `<header class="hd" style="padding: 6px 4px 2px; gap: 14px">
 <span class="datechip" aria-hidden="true"><b>${esc(P.day || '')}</b><span>${esc(P.monthShort || '')}</span></span>
 <div style="display: flex; flex-direction: column; gap: 2px"><span class="mut">${line}</span><h1>${esc(title)}</h1></div>${pill}

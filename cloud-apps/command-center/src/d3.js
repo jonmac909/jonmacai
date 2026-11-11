@@ -198,9 +198,11 @@ function queueOf(D) {
 
 // ---- Goals numbers d2 doesn't have ----
 const metric = (f) => ({ actual: null, target: null, display: 'No data', pace: null, status: { text: 'No data', cls: 'idle' }, note: '', days: [], ...f });
+// A number read from the dashboard database each time the page loads.
+const LIVE = (label) => ({ label, at: null, ageLabel: 'live', stale: false });
 
 // Weeks this month in which Ana's usage check reached 100% (one per weekly reset).
-function tokenWeeks(rows, first, last) {
+function tokenWeeks(rows, first, last, nowMs) {
   if (!rows) return metric({ target: 0, source: { label: "Ana's Claude usage check", ageLabel: 'could not be read', stale: true } });
   const weeks = new Map();
   for (const r of rows) {
@@ -214,20 +216,22 @@ function tokenWeeks(rows, first, last) {
   const n = days.length;
   return metric({
     actual: n, target: 0, display: String(n), status: n ? { text: 'Behind', cls: 'risk' } : { text: 'Done', cls: 'ok' }, hitDays: days,
+    source: rows[0] ? sourceOf("Ana's Claude usage check", rows[0].created_at, nowMs) : { label: "Ana's Claude usage check", at: null, ageLabel: 'no reading this month', stale: true },
     note: n ? `Limit reached in the weeks of ${days.join(', ')}.` : 'The weekly limit was not reached this month.',
   });
 }
 
 function qcFirstTry(rows, from) {
   if (!rows) return metric({});
+  const source = LIVE('QC verdicts on review pages');
   const firstOf = new Map();
   for (const r of rows) if (!firstOf.has(r.task_id)) firstOf.set(r.task_id, r);
   const firsts = [...firstOf.values()].filter((r) => Date.parse(r.created_at) >= Date.parse(from));
   const passed = firsts.filter((r) => r.status === 'passed').length;
   const total = firsts.length;
-  if (!total) return metric({ note: 'No video was checked by QC this month yet.' });
+  if (!total) return metric({ source, note: 'No video was checked by QC this month yet.' });
   const pct = Math.round((passed / total) * 100);
-  return metric({ actual: pct, display: `${pct}%`, passed, total, status: { text: 'No target', cls: 'idle' }, note: `${passed} of ${total} videos first checked by QC this month passed on the first try (a video = a card with a review-page proof).` });
+  return metric({ actual: pct, display: `${pct}%`, passed, total, source, status: { text: 'No target', cls: 'idle' }, note: `${passed} of ${total} videos first checked by QC this month passed on the first try (a video = a card with a review-page proof).` });
 }
 
 // Videos that passed QC today against the daily target, paced through the day.
@@ -237,7 +241,7 @@ function qcPassedToday(rows, nowMs, today) {
   const pace = QC_DAY_TARGET * clamp((nowMs - midnight(today)) / DAY);
   const names = rows.map((r) => r.title).filter(Boolean);
   return metric({
-    actual: n, target: QC_DAY_TARGET, display: String(n), pace, status: statusOf(n, QC_DAY_TARGET, pace, 'count'),
+    actual: n, target: QC_DAY_TARGET, display: String(n), pace, status: statusOf(n, QC_DAY_TARGET, pace, 'count'), source: LIVE('QC passes on review pages'),
     note: n ? `Passed QC today: ${names.slice(0, 8).join('; ')}${names.length > 8 ? '; …' : ''}.` : 'No video passed QC today yet.',
   });
 }
@@ -275,11 +279,11 @@ function lifeOf(D, P) {
   return {
     workouts: metric({
       actual: w, target: WORKOUT_TARGET, display: `${w} of ${WORKOUT_TARGET}`, pace: wPace, status: statusOf(w, WORKOUT_TARGET, wPace, 'count'), days,
-      loggedToday: wDays.has(P.today), note: 'Workouts you logged this week (Monday to Sunday).',
+      loggedToday: wDays.has(P.today), source: LIVE('Your habit log'), note: 'Workouts you logged this week (Monday to Sunday).',
     }),
     dateNights: metric({
       actual: n, target: DATE_NIGHT_TARGET, display: `${n} of ${DATE_NIGHT_TARGET}`, pace: nPace, status: statusOf(n, DATE_NIGHT_TARGET, nPace, 'count'),
-      perDay, loggedToday: done('date_night').some((h) => h.day === P.today), note: 'Date nights you logged this month, plus calendar events named "date night".',
+      perDay, loggedToday: done('date_night').some((h) => h.day === P.today), source: LIVE('Your habit log and calendar'), note: 'Date nights you logged this month, plus calendar events named "date night".',
     }),
   };
 }
@@ -289,7 +293,7 @@ function chargesOf(rows) {
   const open = rows.filter((r) => r.status === 'open').length;
   const confirmed = rows.length - open;
   return metric({
-    actual: confirmed, target: rows.length, display: `${confirmed} of ${rows.length}`, open,
+    actual: confirmed, target: rows.length, display: `${confirmed} of ${rows.length}`, open, source: LIVE('MoneyClaw charge questions'),
     status: !rows.length ? { text: 'No data', cls: 'idle' } : open ? { text: 'Behind', cls: 'risk' } : { text: 'Done', cls: 'ok' },
     note: rows.length ? `${open} MoneyClaw charge question${open === 1 ? '' : 's'} still open for you.` : 'No charge questions this month.',
   });
@@ -477,7 +481,7 @@ export function buildD3(D) {
     blockers: blockersOf(D),
     openCards: D.open ? Object.fromEntries(D.open.map((r) => [r.project || '', Number(r.n) || 0])) : null,
     goals: {
-      tokenWeeks: tokenWeeks(D.usage, first, P.last),
+      tokenWeeks: tokenWeeks(D.usage, first, P.last, nowMs),
       qcFirstTry: qcFirstTry(D.proofs, new Date(win.start).toISOString()),
       qcPassedToday: qcPassedToday(D.passedToday, nowMs, P.today),
       approved: approvedOf(D.live, nowMs),

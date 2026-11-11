@@ -230,6 +230,7 @@ const METRICS = {
       source: sourceOf('Sponsor deal board', C.by.sponsors?.collected_at, C.nowMs),
       note: `Deals in "Live · send invoice" whose video is confirmed live on YouTube.${unsure ? ` ${unsure} more sit in that column with no live video found, so they are not counted.` : ''}`,
       behind: (cards || []).map((k) => ({ title: k.name, owner: g.owner, why: 'Video is live, invoice not sent' })),
+      facts: unsure ? [{ label: 'No live video found', value: unsure }] : [],
     });
   },
   tick(cfg, g, C) { // the owner's daily checklist item, ticked today (bot_daily_ticks)
