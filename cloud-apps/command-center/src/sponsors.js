@@ -207,6 +207,7 @@ export function buildSponsorsPage(data, nowMs = Date.now(), overrides = {}, cash
     if (draft) {
       k.btn = 'Review';
       k.draft = true;
+      k.threadId = card.threadId || '';
       k.payload = {
         id: card.id,
         to: card.draftReply?.to || card.to || card.contact || '',

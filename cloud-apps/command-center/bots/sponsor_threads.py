@@ -91,7 +91,7 @@ def thread_of(t):
         h = {x['name'].lower(): x['value'] for x in (m.get('payload') or {}).get('headers') or []}
         ms = int(m.get('internalDate') or 0)
         body, quoted = fold_quotes(body_of(m.get('payload')))
-        out.append({'from': h.get('from', ''), 'date': datetime.fromtimestamp(ms / 1000, timezone.utc).strftime(
+        out.append({'id': m.get('id', ''), 'from': h.get('from', ''), 'date': datetime.fromtimestamp(ms / 1000, timezone.utc).strftime(
             '%Y-%m-%dT%H:%M:%SZ') if ms else '', 'body': body, 'quoted': quoted, '_ms': ms})
     out.sort(key=lambda x: x.pop('_ms'))
     subject = next((x['value'] for x in ((t.get('messages') or [{}])[0].get('payload') or {}).get('headers') or []
@@ -111,14 +111,18 @@ def _get_thread(g, tid, sleep=time.sleep):
 
 
 def collect(g, ids, sleep=time.sleep):
-    threads, missing = {}, []
+    threads, missing, last = {}, [], None
     for tid in ids:
         try:
             threads[tid] = thread_of(_get_thread(g, tid, sleep))
         except Fail as err:
-            if ' 404' not in str(err) and ' 400' not in str(err):
-                raise
-            missing.append(tid)  # gone from partners@: the page says "No thread found"
+            if ' 404' in str(err) or ' 400' in str(err):
+                missing.append(tid)  # gone from partners@: the page says "No thread found"
+                continue
+            last = err
+            threads[tid] = {'error': str(err)[:200]}  # one bad thread must not lose the rest: the page says "Could not load"
+    if ids and len(threads) == sum(1 for t in threads.values() if 'error' in t) and not missing:
+        raise last
     return {'threads': threads, 'missing': missing}
 
 
@@ -162,7 +166,7 @@ def main(argv=None):
                 'source': 'sponsor_threads', 'collectedAt': datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),
                 'data': data})
         print(json.dumps({'threads': len(data['threads']), 'missing': len(data['missing']),
-                          'messages': sum(len(t['messages']) for t in data['threads'].values())}))
+                          'messages': sum(len(t.get('messages', [])) for t in data['threads'].values())}))
         return 0
     except Fail as err:
         print(json.dumps({'error': str(err)}))
