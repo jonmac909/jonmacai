@@ -119,6 +119,12 @@ function threadHtml(c, ui) {
 
 const factsHtml = (facts, w = 80) => `<div class="inner" style="gap: 0">${(facts || []).map((f) => `<div class="hrow"><span class="mut" style="width: ${w}px; flex: none">${esc(f.l)}</span><span class="ell">${esc(f.v)}</span></div>`).join('')}</div>`;
 
+// The card's other proof links as buttons (video cards; other cards draw theirs inside their own box).
+const proofBtns = (c) => {
+  const ls = (c.links || []).filter((l) => safeHref(l.href));
+  return ls.length ? `<div class="inner"><span class="mut">Proof links</span><div class="hd" style="gap: 8px; flex-wrap: wrap">${ls.map((l) => `<a class="btn" href="${esc(safeHref(l.href))}" target="_blank" rel="noopener">${esc(l.label)}</a>`).join('')}</div></div>` : '';
+};
+
 function bodyHtml(c, ui) {
   if (c.type === 'video') {
     const href = safeHref(c.link);
@@ -132,7 +138,7 @@ ${player}
 <div class="inner" style="gap: 4px"><span class="mut">Title</span><b>${esc(c.head)}</b></div>
 <div class="inner" style="gap: 0">${(c.facts || []).map((f) => `<div class="hrow"><span class="mut">${esc(f.l)}</span><b>${esc(f.v)}</b></div>`).join('')}</div>
 </div>
-</div>${c.body ? `<div class="inner"><span class="mut">Card note</span><p class="sub">${esc(c.body)}</p></div>` : ''}`;
+</div>${c.body ? `<div class="inner"><span class="mut">Card note</span><p class="sub">${esc(c.body)}</p></div>` : ''}${proofBtns(c)}`;
   }
   if (c.type === 'email') {
     if (ui.rvEdit === c.id) {
