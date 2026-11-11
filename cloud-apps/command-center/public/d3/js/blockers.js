@@ -2,7 +2,7 @@
 // over the /dashboard/api/d2 and /dashboard/api/d3 answers. Rows: d3.blockers (cards waiting on Jon, open questions,
 // pending approvals, Stuck cards, late cards) plus the rail's YouTube login and token limit and d2's missed daily jobs.
 // What Ana did about each one has no feed yet, so it reads "No feed". blockerRows() is also the rail's Blockers count.
-import { esc, icon } from './util.js';
+import { cardLink, esc, icon } from './util.js';
 import { headerOnly } from './goals.js';
 
 export const KINDS = { p: 'Waiting on a person', f: 'Work that failed', a: 'Access and limits', s: 'Slow or idle' };
@@ -52,7 +52,7 @@ ${head}
 <div class="inner" style="margin-bottom: 14px; gap: 4px">
 <div class="hrow"><span class="mut" style="width: 64px; flex: none">Blocks</span><span>${esc(blocks)}</span></div>
 <div class="hrow"><span class="mut" style="width: 64px; flex: none">Ana</span><span class="nf">No feed</span></div>
-${b.review ? `<div class="hd" style="padding-top: 8px"><a class="btn pri" href="#review" data-rvgo="${esc(b.id)}">Open in Review</a></div>` : ''}
+${b.review || b.card ? `<div class="hd" style="padding-top: 8px; gap: 8px">${b.review ? `<a class="btn pri" href="#review" data-rvgo="${esc(b.id)}">Open in Review</a>` : ''}${cardLink(b.card)}</div>` : ''}
 </div>
 </div>`;
 }

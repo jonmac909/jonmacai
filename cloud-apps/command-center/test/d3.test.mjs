@@ -318,6 +318,25 @@ test('GET /dashboard/api/d3: Blockers from D1, with Stuck = 2+ failed proofs on 
   assert.equal(railCounts(null, none).blockers, null);
 });
 
+test('Blockers: same-title rows get the owner (and card id when owners match); every card row links to its card', async () => {
+  const db = teamDb();
+  const t = (id, owner) => ins(db, 'bot_tasks', { id, title: 'Same title', owner, status: 'waiting_on_jon', created_by: 'ana', updated_by: owner, created_at: H(6), updated_at: H(6) });
+  t('t_aaaaaaaaaaaaaaaa', 'developer'); t('t_bbbbbbbbbbbbbbbb', 'developer'); t('t_cccccccccccccccc', 'sponsors');
+  const B = (await d3Of(db)).d3.blockers;
+  const same = B.filter((b) => b.title.startsWith('Same title')).map((b) => b.title).sort();
+  assert.equal(new Set(same).size, 3);
+  assert.ok(same.some((s) => /^Same title \(Lucy[^)]*, t_aaaaaaaaaaaaaaaa\)$/.test(s)), same.join(' | '));
+  assert.ok(same.some((s) => /^Same title \([^,)]+\)$/.test(s)), same.join(' | ')); // the sponsors card: owner only
+  const by = Object.fromEntries(B.map((b) => [b.id, b]));
+  assert.equal(by['t:t_aaaaaaaaaaaaaaaa'].card, 't_aaaaaaaaaaaaaaaa');
+  assert.equal(by['a:a1'].card, null); // approval with no card
+  const html = renderBlockers(null, { d3: { blockers: B, rail: {} } }, { openBl: 't:t_aaaaaaaaaaaaaaaa' });
+  assert.match(html, /href="\/dashboard\/\?card=t_aaaaaaaaaaaaaaaa"/);
+  const team = renderTeam(null, { d3: { team: { bots: [{ slug: 'developer', names: ['Lucy'], role: 'Dev', tone: 'g', card: { id: 't_aaaaaaaaaaaaaaaa', title: 'X', stage: 'Doing' }, counts: {} }], fails: [{ card: 't_bbbbbbbbbbbbbbbb', title: 'Y', who: 'Lucy', kind: 'run', age: '1 hr' }], waiting: { count: 0 }, names: 1, line: null } } }, { openBot: 'developer' });
+  assert.match(team, /href="\/dashboard\/\?card=t_aaaaaaaaaaaaaaaa"/);
+  assert.match(team, /href="\/dashboard\/\?card=t_bbbbbbbbbbbbbbbb"/);
+});
+
 test('Team page: design sections in order, live rows, No feed where nothing reports, no design sample text', async () => {
   const d2 = SAMPLE();
   const d3 = await d3Of(teamDb());

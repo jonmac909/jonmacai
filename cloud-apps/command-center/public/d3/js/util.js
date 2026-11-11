@@ -2,6 +2,10 @@
 export const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 export const usd = (n) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(n);
 
+// A dashboard card's own page: the main dashboard opens it from ?card=<id>. '' for anything that is not a card id.
+export const cardHref = (id) => (/^t_[0-9a-f]{16}$/.test(id || '') ? `/dashboard/?card=${id}` : '');
+export const cardLink = (id, label = 'Open card') => (cardHref(id) ? `<a class="btn sm" href="${cardHref(id)}" target="_blank" rel="noopener">${esc(label)}</a>` : '');
+
 // A d2 status ({ text, cls }) as the design's tone letter: g, y, r, or n (grey, no data).
 export function toneOf(status) {
   if (!status) return 'n';

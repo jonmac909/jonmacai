@@ -417,7 +417,7 @@ function blockersOf(D) {
   const byId = new Map(D.tasks.map((t) => [t.id, t]));
   const seen = new Set();
   const out = [];
-  const add = (x) => out.push({ age: since(x.at, nowMs), ...x });
+  const add = (x) => out.push({ age: since(x.at, nowMs), card: x.id.startsWith('t:') ? x.id.slice(2) : x.card || null, ...x });
   for (const t of D.tasks) {
     if (t.status !== 'waiting_on_jon') continue;
     seen.add(t.id);
@@ -427,11 +427,11 @@ function blockersOf(D) {
     if (hidden(x.idem_key)) continue;
     const t = x.task_id && byId.get(x.task_id);
     if (t && seen.has(t.id)) continue;
-    add({ id: `q:${x.id}`, kind: 'p', you: true, review: true, title: plain(x.question) || 'Question', at: x.at, owner: ownerName(x.asked_by), blocks: t ? t.title : 'No card linked' });
+    add({ id: `q:${x.id}`, kind: 'p', you: true, review: true, title: plain(x.question) || 'Question', at: x.at, owner: ownerName(x.asked_by), card: t?.id || null, blocks: t ? t.title : 'No card linked' });
   }
   for (const x of D.approvals) {
     const t = x.task_id && byId.get(x.task_id);
-    add({ id: `a:${x.id}`, kind: 'p', you: true, review: true, title: x.title, at: x.at, owner: ownerName(x.requested_by), blocks: t ? t.title : `Approval to ${String(x.action || '').replace(/_/g, ' ')}` });
+    add({ id: `a:${x.id}`, kind: 'p', you: true, review: true, title: x.title, at: x.at, owner: ownerName(x.requested_by), card: t?.id || null, blocks: t ? t.title : `Approval to ${String(x.action || '').replace(/_/g, ' ')}` });
   }
   for (const s of D.stuck) {
     const t = byId.get(s.task_id);
@@ -443,6 +443,14 @@ function blockersOf(D) {
     if (t.status !== 'doing' || t.owner === 'jon' || seen.has(t.id) || !(nowMs - Date.parse(t.updated_at) >= 2 * 3600000)) continue;
     add({ id: `t:${t.id}`, kind: 's', you: false, title: t.title, at: t.updated_at, owner: ownerName(t.owner), blocks: `Late: no card update for ${since(t.updated_at, nowMs)}` });
   }
+  // Every row names its card; rows sharing a title get the owner, and the card id too when the owners match.
+  const n = (k) => out.filter(k).length;
+  const titles = out.map((b) => {
+    if (n((x) => x.title === b.title) < 2) return b.title;
+    const same = n((x) => x.title === b.title && x.owner === b.owner) > 1;
+    return `${b.title} (${b.owner || 'no owner'}${same ? `, ${b.card || b.id}` : ''})`;
+  });
+  out.forEach((b, i) => { b.title = titles[i]; });
   return out;
 }
 

@@ -1,7 +1,7 @@
 // Dashboard 3 Team page (docs/dashboard-3.md). A pure function from the /dashboard/api/d2 and /dashboard/api/d3 answers
 // to HTML, laid out as the approved design (Team.dc.html). The roster and every number come from d3.team (dashboard
 // cards, proofs and runs; the video board from each card's stage); runs, tokens and cost have no feed yet and say "No feed".
-import { esc, icon } from './util.js';
+import { cardHref, cardLink, esc, icon } from './util.js';
 import { headerOnly, periodOf } from './goals.js';
 
 // The video line's stages and Jon's stage budgets (2026-11-11), shown only when d3 sends no board.
@@ -42,7 +42,7 @@ ${num(b.tokens) ? `<span class="sub">${esc(kTokens(b.tokens))}</span>` : NF}
     : b.finishedToday.length ? b.finishedToday.map((t) => `<div class="hd" style="gap: 8px"><span class="dot g"></span><span>${esc(t)}</span></div>`).join('')
       : '<span class="sub">Nothing yet</span>';
   const tally = COUNTS.filter(([k]) => counts[k]).map(([k, w]) => `${counts[k]} ${w}`);
-  const work = c ? `<p class="sub" style="white-space: pre-line">${esc(c.note || 'No note on this card yet.')}</p>` : '<p class="sub">No open card.</p>';
+  const work = c ? `<p class="sub" style="white-space: pre-line">${esc(c.note || 'No note on this card yet.')}</p><span>${cardLink(c.id)}</span>` : '<p class="sub">No open card.</p>';
   return `<div>
 ${row}
 <div class="row" style="gap: 12px; padding-bottom: 14px">
@@ -96,7 +96,7 @@ ${tile('money', 'Cost', span, null)}
   // Failed runs and Stuck cards today from the live feed, newest first.
   const fails = T?.fails?.length ? `<section class="card" style="gap: 4px">
 <div class="hd cardhd"><span class="chip">${icon('blockers')}</span><h2>Failed today</h2><span class="mut">runs that failed or got stuck</span></div>
-${T.fails.map((f) => `<div class="hrow"><span class="dot r"></span><span class="ell">${esc(f.title || f.card)}</span><span class="mut">${esc(f.who)} · ${f.kind === 'stuck' ? 'stuck' : 'run failed'}${f.why ? ` · ${esc(f.why)}` : ''} · ${esc(f.age)} ago</span></div>`).join('\n')}
+${T.fails.map((f) => `<div class="hrow"><span class="dot r"></span>${cardHref(f.card) ? `<a class="ell" href="${cardHref(f.card)}" target="_blank" rel="noopener">${esc(f.title || f.card)}</a>` : `<span class="ell">${esc(f.title || f.card)}</span>`}<span class="mut">${esc(f.who)} · ${f.kind === 'stuck' ? 'stuck' : 'run failed'}${f.why ? ` · ${esc(f.why)}` : ''} · ${esc(f.age)} ago</span></div>`).join('\n')}
 </section>` : '';
   const rows = T
     ? T.bots.map((b) => botRow(b, ui.openBot === b.slug, costHd)).join('\n')

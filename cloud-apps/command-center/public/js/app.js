@@ -404,4 +404,6 @@ setInterval(() => {
 }, 60000);
 let last = hashPage();
 try { if (!location.hash) last = localStorage.getItem('cc-page') || last; } catch {}
-go(last);
+// /dashboard/?card=<id> (links from /dash rows) opens that card over the page.
+const linked = new URLSearchParams(location.search).get('card');
+Promise.resolve(go(last)).then(() => { if (/^t_[0-9a-f]{16}$/.test(linked || '')) openCard(linked, data?.pages?.projects); }).catch(() => {});
