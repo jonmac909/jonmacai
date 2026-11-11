@@ -183,6 +183,7 @@ test('proof: Ana rules only on proof QC posted itself', async () => {
   for (const bot of ['developer', 'sponsors', 'video-editor']) {
     assert.equal((await call(env, 'POST', `/proofs/${qcProof.id}/check`, { bot, body: { result: 'passed' } })).status, 403, bot);
   }
+  // Jon's session is turned away earlier (bot routes only); kept here as an acceptance check.
   assert.equal((await call(env, 'POST', `/proofs/${qcProof.id}/check`, { cookie: await jonCookie(), body: { result: 'passed' } })).status, 403);
   // 2. Ana is refused on anyone else's proof, and on a missing one.
   assert.equal((await call(env, 'POST', `/proofs/${devProof.id}/check`, { token: ana, body: { result: 'passed' } })).status, 403);
@@ -192,6 +193,13 @@ test('proof: Ana rules only on proof QC posted itself', async () => {
   assert.deepEqual([ok.status, ok.body.proof.status, ok.body.proof.checkedBy, ok.body.task.status], [200, 'passed', 'ana', 'review']);
   const { history } = (await call(env, 'GET', `/tasks/${task.id}`, { bot: 'qc' })).body.task;
   assert.ok(history.some((e) => e.kind === 'check' && e.by === 'ana' && e.detail === 'proof passed'), 'history shows Ana as checker');
+
+  // Ana can fail one too: with no other usable proof the card goes back to doing.
+  const { task: t2 } = (await call(env, 'POST', '/tasks', { bot: 'qc', body: { title: 'QC report 2' } })).body;
+  const p2 = (await proof(t2.id, 'qc')).body.proof;
+  await call(env, 'PATCH', `/tasks/${t2.id}`, { bot: 'qc', body: { status: 'qc' } });
+  const no = await call(env, 'POST', `/proofs/${p2.id}/check`, { token: ana, body: { result: 'failed', note: 'counts wrong' } });
+  assert.deepEqual([no.status, no.body.proof.status, no.body.proof.checkedBy, no.body.task.status], [200, 'failed', 'ana', 'doing']);
 });
 
 test('questions: bots ask, only Jon answers (once), the asker reads and closes', async () => {
