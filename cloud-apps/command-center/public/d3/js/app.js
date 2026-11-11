@@ -45,7 +45,8 @@ function render() {
   const note = S.signedOut
     ? '<section class="card"><p>You are signed out. <a href="/dash/">Sign in</a></p></section>'
     : S.error ? `<section class="card"><p class="mut">${esc(S.error)}</p></section>` : '';
-  if (p !== 'money' && S.ui.dealDone) S.ui.dealSel = null; // leaving Money clears the picked deal's outline
+  if (p !== 'money' && S.ui.lastPage === 'money') S.ui.dealSel = null; // leaving Money clears the picked deal's outline
+  S.ui.lastPage = p;
   const live = { team: renderTeam, blockers: renderBlockers, review: renderReview, scripts: renderScripts, money: renderMoney }[p];
   if (live) {
     main.innerHTML = S.d3 ? `${note}${live(S.d2, S.d3, S.ui)}` : `${headerOnly(S.d2, PAGES[p])}${note || '<section class="card"><p class="mut">Loading</p></section>'}`;

@@ -779,4 +779,10 @@ test('Pipeline revenue: a repeat sponsor\'s second deal is its own row; an owed 
   const card = renderGoals(d2, null, {});
   assert.match(card, /<div class="hd" style="[^"]*"><span class="ell"[^>]*>Gone Co</);
   assert.doesNotMatch(card, /data-deal="(null|undefined|)"/);
+  // An owed row with no id listed before the id row cannot take the id row's card; no card is counted twice.
+  sp.collect.rows.unshift({ sponsor: 'Invideo', owedUsd: 500, payload: {} });
+  const q = pipelineOf(d2);
+  assert.equal(q.collect.find((r) => r.amt === 2100).id, 'c-invideo');
+  const ids = [...q.close, ...q.collect].map((r) => r.id).filter(Boolean);
+  assert.equal(new Set(ids).size, ids.length);
 });

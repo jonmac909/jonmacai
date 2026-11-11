@@ -278,13 +278,14 @@ export function pipelineOf(d2resp) {
     : nm(name) && live.find((k) => !used.has(k) && nm(k.name) === nm(name))) || null;
   const row = (k, name, amt) => ({ id: k ? dealKey(k.id, k.name) : null, name: name || 'Sponsor', amt: Number.isFinite(amt) && amt > 0 ? amt : null });
   const collect = [];
-  for (const r of sp.collect?.rows || []) {
-    const amt = money(r.owedUsd ?? r.owed);
-    if (!(amt > 0)) continue;
-    const k = cardFor(r.payload?.id, r.sponsor);
+  const owed = (sp.collect?.rows || []).map((r) => ({ r, amt: money(r.owedUsd ?? r.owed) })).filter((x) => x.amt > 0);
+  const card = new Map();
+  for (const x of [...owed.filter((x) => x.r.payload?.id), ...owed.filter((x) => !x.r.payload?.id)]) { // id matches first
+    const k = cardFor(x.r.payload?.id, x.r.sponsor);
     if (k) used.add(k);
-    collect.push(row(k, r.sponsor, amt)); // no live card: listed and counted, but nothing to open
+    card.set(x, k);
   }
+  for (const x of owed) collect.push(row(card.get(x), x.r.sponsor, x.amt)); // no live card: listed and counted, nothing to open
   for (const k of deals(COLLECT_COLS)) {
     if (used.has(k)) continue;
     collect.push(row(k, k.name, k.amt));
