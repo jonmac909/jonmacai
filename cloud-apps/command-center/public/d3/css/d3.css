@@ -168,8 +168,9 @@ html[data-theme="dark"] body{background:#0b0b0c}
   .d3 .main[data-page="bluesky"] .srow,.d3 .main[data-page="system"] .srow{grid-template-columns:minmax(0,1fr) !important}
   .d3 .main[data-page="bluesky"] .srow.thead{display:none}
 }
-/* System map on narrow screens: the tree stacks (you, then each branch, then its projects) and the connectors go. */
-@media (max-width:700px){
+/* System map below the 1024 layout: the tree stacks (you, then each branch, then its projects) and the connectors go
+   (with the rail beside it, the chips need more room than the card has until ~960px). */
+@media (max-width:983px){
   .d3 .smap,.d3 .sbranch{flex-direction:column;align-items:stretch}
   .d3 .sroot{margin:0 0 8px}
   .d3 .sroot::after,.d3 .sarea::after,.d3 .sbranch::before,.d3 .sbranch::after,.d3 .sprow::before,.d3 .sprow::after{display:none}

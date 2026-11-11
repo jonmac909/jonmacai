@@ -648,6 +648,8 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { execFileSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
+import { L, P } from '../public/d3/js/system-data.js';
 
 const DESIGN_DIR = 'D:/AgentTeam/briefs/dashboard3';
 const heads = (html) => [...html.matchAll(/<h2[^>]*>([^<]*)</g)].map((m) => m[1]);
@@ -696,13 +698,15 @@ test('System page: tabs, tiles (16 projects, 9 roles), project and kind picks wi
   assert.match(hgp, /class="schip +sel"[^>]*data-sysel="hgp" data-sycat="script"/);
   const keep = PROJ[0].name;
   PROJ[0].name = '<script>x</script>';
-  try { assert.doesNotMatch(renderSystem(null, {}), /<script>x/); } finally { PROJ[0].name = keep; }
+  try { const h = renderSystem(null, {}); assert.doesNotMatch(h, /<script>x/); assert.match(h, /&lt;script&gt;x/); } finally { PROJ[0].name = keep; }
+  // Every part a project names exists (a typo is skipped at load, so catch it here).
+  for (const p of P) for (const id of p.parts) assert.ok(L[id], `${p.id}: no part ${id}`);
 });
 
 test('Bluesky and System text files are still the approved designs, unchanged', { skip: !existsSync(DESIGN_DIR) && 'design files not on this machine' }, () => {
   const out = mkdtempSync(join(tmpdir(), 'd3text-'));
   try {
-    execFileSync(process.execPath, [new URL('../scripts/d3-text-from-design.mjs', import.meta.url).pathname.replace(/^\/([A-Z]:)/, '$1'), DESIGN_DIR, out]);
+    execFileSync(process.execPath, [fileURLToPath(new URL('../scripts/d3-text-from-design.mjs', import.meta.url)), DESIGN_DIR, out]);
     for (const f of ['bluesky-data.js', 'system-data.js']) {
       assert.equal(readFileSync(join(out, f), 'utf8'), readFileSync(new URL(`../public/d3/js/${f}`, import.meta.url), 'utf8'), f);
     }
@@ -715,4 +719,6 @@ test('d3.css: Bluesky and System rules from the designs, narrow rules below the 
   const media = [...css.matchAll(/@media \(max-width:(\d+)px\)\{([\s\S]*?)\n\}/g)].map((m) => [Number(m[1]), m[2]]);
   assert.ok(media.every(([w]) => w < 1024));
   assert.match(media.map(([, b]) => b).join('\n'), /srow/);
+  // The map stacks for every width below the 1024 layout (the rail sits beside it from 808px).
+  assert.ok(media.some(([w, b]) => w >= 983 && /\.d3 \.smap,\.d3 \.sbranch\{flex-direction:column/.test(b)), 'map stacks below 1024');
 });

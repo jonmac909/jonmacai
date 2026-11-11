@@ -13,8 +13,8 @@ const IC_MAP = '<path d="M10 2h4a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1h-4a1 1 0 0 1-1-1V
 // Derived once, as the design does: each project's parts (plus its project file), counts by kind, and its key results.
 const uses = {};
 export const PROJ = P.map((p) => {
-  const items = p.parts.map((id) => {
-    if (!L[id]) throw new Error(`No part ${id}`);
+  // An unknown part id (a typo in system-data.js) is skipped, not thrown: a throw here would stop every page loading.
+  const items = p.parts.filter((id) => L[id] || console.warn(`System: no part ${id}`)).map((id) => {
     uses[id] = (uses[id] || 0) + 1;
     return { id, it: L[id] };
   });
@@ -27,7 +27,7 @@ export const PROJ = P.map((p) => {
 });
 const byId = (id) => PROJ.find((p) => p.id === id);
 const posOf = (i, n) => `${i === 0 ? 'first ' : ''}${i === n - 1 ? 'last' : ''}`;
-const krOf = (k, i, withProj) => ({ n: String(i + 1), first: i === 0 ? 'first' : '', t: k[0], type: k[1] === 'C' ? 'Committed' : 'Aspirational', start: k[2], proj: withProj ? byId(k[3]).name : '' });
+const krOf = (k, i, withProj) => ({ n: String(i + 1), first: i === 0 ? 'first' : '', t: k[0], type: k[1] === 'C' ? 'Committed' : 'Aspirational', start: k[2], proj: withProj ? (byId(k[3]) || {}).name || '' : '' });
 const flowHtml = (list) => `<ol class="flow">${list.map((s, i) => {
   const who = s[1] || '';
   const cls = /^You/.test(who) ? 'you' : ((who === 'Script' || who === 'Bot') ? 'scr' : '');
@@ -158,7 +158,7 @@ ${o.krs.map((k, i) => { const r = krOf(k, i, true); return krRow(r, '20px minmax
 <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(440px, 100%), 1fr)); gap: 16px">${cards}</div>
 <section class="card" style="gap: 0">
 <div class="hd cardhd" style="margin-bottom: 4px">${chipIc('list')}<h2>How goals run</h2></div>
-${rhythm.map((r) => `<div class="srow ${r.first}" style="grid-template-columns: 120px minmax(0, 1fr); align-items: start"><b>${esc(r.t)}</b><span class="sub">${esc(r.d)}</span></div>`).join('')}
+${rhythm.map((r) => `<div class="srow ${esc(r.first)}" style="grid-template-columns: 120px minmax(0, 1fr); align-items: start"><b>${esc(r.t)}</b><span class="sub">${esc(r.d)}</span></div>`).join('')}
 </section>`;
 }
 

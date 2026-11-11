@@ -18,10 +18,10 @@ export const chipIc = (k) => `<span class="chip"><svg class="ic" aria-hidden="tr
 export const TAB_IDS = TABS.map((t) => t[0]);
 export const tabsHtml = (list, on, attr) => `<div class="hd" role="group" aria-label="Sections" style="gap: 6px; flex-wrap: wrap; padding: 0 4px">${list.map(([id, label]) => `<button type="button" class="btn sm" ${attr}="${esc(id)}" aria-pressed="${id === on}">${esc(label)}</button>`).join('')}</div>`;
 // A key result row: number, text, Committed/Aspirational pill and its start (shared with the System page).
-export const krRow = (k, cols, extra = '', tail = '') => `<div class="srow ${k.first}" style="grid-template-columns: ${cols}"><span class="mut">${esc(k.n)}</span><div class="stack" style="gap: 5px; align-items: flex-start"><span style="font-weight: 500">${esc(k.t)}</span><span class="hd mut" style="gap: 8px; flex-wrap: wrap; font-size: 12px"><span class="pill">${esc(k.type)}</span>${extra}<span>Start: ${esc(k.start)}</span></span></div>${tail}</div>`;
+export const krRow = (k, cols, extra = '', tail = '') => `<div class="srow ${esc(k.first)}" style="grid-template-columns: ${cols}"><span class="mut">${esc(k.n)}</span><div class="stack" style="gap: 5px; align-items: flex-start"><span style="font-weight: 500">${esc(k.t)}</span><span class="hd mut" style="gap: 8px; flex-wrap: wrap; font-size: 12px"><span class="pill">${esc(k.type)}</span>${extra}<span>Start: ${esc(k.start)}</span></span></div>${tail}</div>`;
 
 function vision() {
-  const vals = values.map((v) => `<div class="srow ${v.first}" style="grid-template-columns: 24px minmax(0, 1fr)"><span class="krv" style="font-size: 15px; color: var(--muted)">${esc(v.n)}</span><div class="stack" style="gap: 2px"><b>${esc(v.t)}</b><span class="sub" style="font-size: 13px">${esc(v.d)}</span></div></div>`).join('');
+  const vals = values.map((v) => `<div class="srow ${esc(v.first)}" style="grid-template-columns: 24px minmax(0, 1fr)"><span class="krv" style="font-size: 15px; color: var(--muted)">${esc(v.n)}</span><div class="stack" style="gap: 2px"><b>${esc(v.t)}</b><span class="sub" style="font-size: 13px">${esc(v.d)}</span></div></div>`).join('');
   const cols = 'grid-template-columns: 150px repeat(3, minmax(0, 1fr))';
   const rows = horizons.map((h) => `<div class="srow" style="${cols}; align-items: start; padding: 14px 0">
 <div class="stack" style="gap: 2px"><b>${esc(h.alt)}</b><span class="mut" style="font-size: 12px">${esc(h.when)}</span></div>
@@ -86,7 +86,7 @@ function y2026Html() {
 </section>
 <section class="card" style="flex: 3 1 420px; gap: 0">
 <div class="hd cardhd" style="margin-bottom: 4px">${chipIc('check')}<h2>Highlights</h2></div>
-${highlights.map((h) => `<div class="srow ${h.first}" style="grid-template-columns: 14px minmax(0, 1fr); align-items: start"><span class="dot ${esc(h.tone)}" style="margin-top: 7px"></span><span>${esc(h.t)}</span></div>`).join('')}
+${highlights.map((h) => `<div class="srow ${esc(h.first)}" style="grid-template-columns: 14px minmax(0, 1fr); align-items: start"><span class="dot ${esc(h.tone)}" style="margin-top: 7px"></span><span>${esc(h.t)}</span></div>`).join('')}
 </section>
 </div>
 <section class="card" style="gap: 0">
@@ -99,7 +99,7 @@ ${learn.map((l) => `<div class="srow" style="${cols}; align-items: start"><b>${e
 function callHtml() {
   return `<section class="card" style="gap: 0">
 <div class="hd cardhd" style="margin-bottom: 4px">${chipIc('you')}<h2>Your call</h2><span class="mut">these lines are guesses or gaps</span><span class="pill warn sp">${calls.length} open</span></div>
-${calls.map((c) => `<div class="srow ${c.first}" style="grid-template-columns: 24px minmax(0, 1fr)"><span class="krv" style="font-size: 15px; color: var(--muted)">${esc(c.n)}</span><span>${esc(c.t)}</span></div>`).join('')}
+${calls.map((c) => `<div class="srow ${esc(c.first)}" style="grid-template-columns: 24px minmax(0, 1fr)"><span class="krv" style="font-size: 15px; color: var(--muted)">${esc(c.n)}</span><span>${esc(c.t)}</span></div>`).join('')}
 </section>`;
 }
 
