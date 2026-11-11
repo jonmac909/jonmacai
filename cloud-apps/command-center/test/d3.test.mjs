@@ -1091,6 +1091,89 @@ test('Team page: each bot shows its profile picture from /dash/img/bots, rows wi
   const get = async (p) => { const r = await worker.fetch(new Request(`https://jonmac.ai${p}`), env, {}); return r.status === 404 ? 404 : r.text(); };
   assert.equal(await get('/dash/img/bots/ana.webp'), 'asset:/d3/img/bots/ana.webp');
   for (const p of ['/dash/img/bots/ana.png', '/dash/img/ana.webp', '/dash/img/bots/../js/app.js', '/dash/img/bots/a-b.webp', '/dash/img/bots/Ana.webp']) assert.equal(await get(p), 404, p);
+// Card 4: Bluesky and System. All text is from the approved designs (no live numbers), so the tests check the
+// layout, the clicks' state, escaping and that the data files still match the designs.
+import { renderBluesky, TAB_IDS } from '../public/d3/js/bluesky.js';
+import { renderSystem, SY_TABS, PROJ } from '../public/d3/js/system.js';
+import { ROLES, OBJ } from '../public/d3/js/system-data.js';
+import { values } from '../public/d3/js/bluesky-data.js';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { execFileSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
+import { L, P } from '../public/d3/js/system-data.js';
+
+const DESIGN_DIR = 'D:/AgentTeam/briefs/dashboard3';
+const heads = (html) => [...html.matchAll(/<h2[^>]*>([^<]*)</g)].map((m) => m[1]);
+
+test('Bluesky page: every tab draws its design headings, unknown tab falls back to Vision, data escaped', () => {
+  const want = { vision: ['Vision', 'Values', 'Strategic business plans'], quarters: ['Next quarter: Q1 2027 (Jan to Mar)'], depts: ['Bluesky per department'], y2026: ['2026 in one line', 'Highlights', 'By department'], call: ['Your call'] };
+  assert.deepEqual(TAB_IDS, ['vision', 'okrs', 'quarters', 'depts', 'y2026', 'call']);
+  for (const t of TAB_IDS) {
+    const html = renderBluesky(SAMPLE(), { bsTab: t });
+    assert.match(html, /<h1>Bluesky 2027<\/h1>/);
+    assert.match(html, new RegExp(`data-bstab="${t}" aria-pressed="true"`));
+    for (const h of want[t] || []) assert.ok(heads(html).includes(h), `${t}: ${h}`);
+    assert.ok(heads(html).length, `${t} has sections`);
+    assert.doesNotMatch(html, /NaN|undefined|\[object Object\]/);
+  }
+  assert.equal(renderBluesky(null, { bsTab: 'nope' }), renderBluesky(null, {}));
+  const keep = values[0].t;
+  values[0].t = '<img src=x onerror=alert(1)>';
+  try { assert.match(renderBluesky(null, { bsTab: 'vision' }), /&lt;img src=x/); } finally { values[0].t = keep; }
+});
+
+test('System page: tabs, tiles (16 projects, 9 roles), project and kind picks with fallbacks, data escaped', () => {
+  assert.deepEqual(SY_TABS.map((t) => t[0]), ['map', 'moves', 'team', 'goals']);
+  const want = { map: ['The map'], moves: ['How work moves'], team: ['The team: nine roles', 'Your day'], goals: [...OBJ.map((o) => o.o), 'How goals run'] };
+  for (const [t] of SY_TABS) {
+    const html = renderSystem(SAMPLE(), { syTab: t });
+    assert.match(html, /<h1>System<\/h1>/);
+    for (const h of want[t]) assert.ok(heads(html).includes(h), `${t}: ${h}`);
+    assert.doesNotMatch(html, /NaN|undefined|\[object Object\]/);
+  }
+  assert.equal(PROJ.length, 16);
+  assert.equal(ROLES.length, 9);
+  const map = renderSystem(null, {});
+  assert.match(map, /<b>Projects<\/b><b class="num sp"[^>]*>16</);
+  assert.match(map, /<b>Roles<\/b><b class="num sp"[^>]*>9</);
+  // Default pick is the first project, Sponsors, on its cards.
+  assert.match(map, /<h2 style="font-size: 22px">Sponsors<\/h2>/);
+  assert.match(map, /class="sproj" aria-pressed="true" data-sysel="sponsors"/);
+  // A kind the project has none of falls back to its first kind with parts; an unknown project falls back to the first.
+  const sp = PROJ.find((p) => p.id === 'sponsors');
+  const none = ['card', 'sop', 'routine', 'script', 'event'].find((c) => !sp.byCat[c]);
+  if (none) assert.match(renderSystem(null, { sySel: 'sponsors', syCat: none }), /aria-pressed="true" data-sysel="sponsors" data-sycat="card"/);
+  assert.equal(renderSystem(null, { sySel: 'nope' }), renderSystem(null, { sySel: 'sponsors' }));
+  const hgp = renderSystem(null, { sySel: 'hgp', syCat: 'script' });
+  assert.match(hgp, new RegExp(`<h2 style="font-size: 22px">${PROJ.find((p) => p.id === 'hgp').name}</h2>`));
+  assert.match(hgp, /class="schip +sel"[^>]*data-sysel="hgp" data-sycat="script"/);
+  const keep = PROJ[0].name;
+  PROJ[0].name = '<script>x</script>';
+  try { const h = renderSystem(null, {}); assert.doesNotMatch(h, /<script>x/); assert.match(h, /&lt;script&gt;x/); } finally { PROJ[0].name = keep; }
+  // Every part a project names exists (a typo is skipped at load, so catch it here).
+  for (const p of P) for (const id of p.parts) assert.ok(L[id], `${p.id}: no part ${id}`);
+});
+
+test('Bluesky and System text files are still the approved designs, unchanged', { skip: !existsSync(DESIGN_DIR) && 'design files not on this machine' }, () => {
+  const out = mkdtempSync(join(tmpdir(), 'd3text-'));
+  try {
+    execFileSync(process.execPath, [fileURLToPath(new URL('../scripts/d3-text-from-design.mjs', import.meta.url)), DESIGN_DIR, out]);
+    for (const f of ['bluesky-data.js', 'system-data.js']) {
+      assert.equal(readFileSync(join(out, f), 'utf8'), readFileSync(new URL(`../public/d3/js/${f}`, import.meta.url), 'utf8'), f);
+    }
+  } finally { rmSync(out, { recursive: true, force: true }); }
+});
+
+test('d3.css: Bluesky and System rules from the designs, narrow rules below the 1024 layout', () => {
+  const css = readFileSync(new URL('../public/d3/css/d3.css', import.meta.url), 'utf8');
+  for (const sel of ['.srow', '.flow', '.smap', '.schip']) assert.ok(css.includes(sel), sel);
+  const media = [...css.matchAll(/@media \(max-width:(\d+)px\)\{([\s\S]*?)\n\}/g)].map((m) => [Number(m[1]), m[2]]);
+  assert.ok(media.every(([w]) => w < 1024));
+  assert.match(media.map(([, b]) => b).join('\n'), /srow/);
+  // The map stacks for every width below the 1024 layout (the rail sits beside it from 808px).
+  assert.ok(media.some(([w, b]) => w >= 983 && /\.d3 \.smap,\.d3 \.sbranch\{flex-direction:column/.test(b)), 'map stacks below 1024');
 });
 
 test('Key results: named rows (name, actual / target, bar, status) worst first, no coloured tiles', async () => {
