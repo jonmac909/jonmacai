@@ -138,6 +138,10 @@ test('Goals scoreboard: today\'s QC-passed videos, stage clocks, and approved vi
   // Jon Mac passed yesterday (not today); its edit stage is over budget, so it's late.
   card('j1', 'AI agents explained - Jon Mac', 'jon-mac', { stage: 'edit', stage_since: '2026-11-10T16:00:00Z', created_at: '2026-11-10T16:00:00Z' });
   pass('p4', 'j1', 'https://jonmac.ai/review/jonmac-1-v1', '2026-11-09T20:00:00Z');
+  // Rosa passed v1 yesterday and v2 today: a new version of an older video doesn't count again.
+  card('r2', "Fridge coils - Rosa's House Hacks", 'home-guide-press');
+  pass('p5', 'r2', 'https://jonmac.ai/review/rosa-4-v1', '2026-11-09T20:00:00Z');
+  pass('p6', 'r2', 'https://jonmac.ai/review/rosa-4-v2');
   // Approved and waiting; approved then sent back; approved and already published.
   card('n1', 'Litter box myths - Nora Fairweather Cats', 'home-guide-press');
   ev('v1', 'n1', '2026-11-08T19:00:00Z', 'review', 'approved v2 on the review page');

@@ -79,15 +79,15 @@ export async function d3Data(env, nowMs) {
         AND LOWER(COALESCE(p.note, '')) NOT LIKE '%waiting%' AND LOWER(COALESCE(p.note, '')) NOT LIKE '%draft%') AS footage
       FROM bot_tasks t WHERE t.project = 'jonmacai' AND t.status IN ${OPEN} AND t.title LIKE '%@JonMacAI%'
       ORDER BY t.created_at DESC, t.rowid DESC LIMIT 500`),
-    // Goals scoreboard: render proofs QC passed today with their cards, and the video cards in a timed stage now. The
+    // Goals scoreboard: render proofs QC passed in the last week (a card counts only if its first pass is today) with their cards, and the video cards in a timed stage now. The
     // 3-hour clock starts at the card's first stage (a card made ahead of time isn't late), else when it was made.
     q(`SELECT p.task_id, p.link, COALESCE(p.checked_at, p.created_at) AS at, t.title, t.project, t.status, t.created_at, ${STARTED('t')}
       FROM bot_proofs p JOIN bot_tasks t ON t.id = p.task_id
-      WHERE p.kind = 'render' AND p.status = 'passed' AND p.created_at >= ? AND COALESCE(p.checked_at, p.created_at) >= ?
-      ORDER BY p.created_at LIMIT 2000`, new Date(Date.parse(today0) - 7 * DAY).toISOString(), today0),
+      WHERE p.kind = 'render' AND p.status = 'passed' AND p.created_at >= ?
+      ORDER BY p.created_at LIMIT 2000`, new Date(Date.parse(today0) - 7 * DAY).toISOString()),
     q(`SELECT t.id, t.title, t.project, t.status, t.stage, t.stage_since, t.created_at, ${STARTED('t')} FROM bot_tasks t
-      WHERE t.status IN ('todo', 'doing', 'waiting_on_jon', 'qc') AND t.stage IN ('brief', 'script', 'pack', 'edit') LIMIT 500`),
-    // Approved, not uploaded: Home Guide Press cards (open, or done in the last 14 days) with their proof links and Jon's
+      WHERE t.status IN ('todo', 'doing', 'waiting_on_jon', 'qc') AND t.stage IN ('brief', 'script', 'pack', 'edit') ORDER BY t.stage_since LIMIT 500`),
+    // Approved, not uploaded: Home Guide Press, Jon Mac and @JonMacAI cards (open, or done in the last 14 days) with their proof links and Jon's
     // approve / send-back events, and the calendar titles already published or scheduled.
     q(`SELECT t.id, t.title, (SELECT group_concat(p.link, ' ') FROM bot_proofs p WHERE p.task_id = t.id) AS links
       FROM bot_tasks t WHERE t.id IN (${AP_CARDS}) LIMIT 1000`, apSince),
@@ -313,11 +313,12 @@ function scoreboardOf(D) {
   const named = new Map();
   for (const p of D.scoreProofs) {
     const link = p.link || '';
-    if (p.status === 'cancelled' || !FINAL_VIDEO.test(link) || AROLL_AD.test(link)) continue;
+    if (!FINAL_VIDEO.test(link) || AROLL_AD.test(link)) continue;
     named.set(p.task_id, named.get(p.task_id) || VIDEO_NAME.test(link));
     if (!first.has(p.task_id) || Date.parse(p.at) < Date.parse(first.get(p.task_id).at)) first.set(p.task_id, p);
   }
-  const passed = [...first.values()].filter((p) => inScope(p) && (isVideo(p.title) || named.get(p.task_id)))
+  const today0 = Date.parse(D.today0);
+  const passed = [...first.values()].filter((p) => Date.parse(p.at) >= today0 && inScope(p) && (isVideo(p.title) || named.get(p.task_id)))
     .map((p) => ({ id: p.task_id, title: p.title, state: 'passed', stage: 'passed', clockMin: mins(startOf(p), Date.parse(p.at)), at: p.at }))
     .sort((a, b) => Date.parse(a.at) - Date.parse(b.at));
   const done = new Set(passed.map((r) => r.id));
