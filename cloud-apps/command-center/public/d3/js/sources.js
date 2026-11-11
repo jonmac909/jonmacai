@@ -19,7 +19,16 @@ export function renderSources(d2resp, d3resp) {
   const list = !ok ? '<p class="mut" style="padding-top: 14px">No feed: the sources could not be read.</p>'
     : rows.length ? rows.map(rowHtml).join('\n') : '<p class="mut" style="padding-top: 14px">Nothing has reported yet.</p>';
   return `${head}
-<section class="card" style="gap: 0">
+${sourcesCard(d3resp)}`;
+}
+
+// The Sources card alone: shown under the designed System page.
+export function sourcesCard(d3resp) {
+  const rows = d3resp?.d3?.sources;
+  const ok = Array.isArray(rows);
+  const list = !ok ? '<p class="mut" style="padding-top: 14px">No feed: the sources could not be read.</p>'
+    : rows.length ? rows.map(rowHtml).join('\n') : '<p class="mut" style="padding-top: 14px">Nothing has reported yet.</p>';
+  return `<section class="card" style="gap: 0">
 <div class="hd cardhd"><span class="chip">${icon('list')}</span><h2>Sources</h2><span class="mut sp">${ok ? `${rows.length} listed, stale first` : ''}</span></div>
 ${list}
 </section>`;
