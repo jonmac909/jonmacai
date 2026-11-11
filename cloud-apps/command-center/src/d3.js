@@ -41,7 +41,8 @@ export async function d3Data(env, nowMs) {
     q('SELECT channel, sync_error FROM yt_api'),
     // Review cards with their newest proof link (a passed one first), as the card modal picks its deliverable.
     q(`SELECT t.id, t.title, t.owner, t.project, t.due, t.note, t.updated_at AS at,
-      (SELECT p.link FROM bot_proofs p WHERE p.task_id = t.id ORDER BY p.status = 'passed' DESC, p.created_at DESC, p.rowid DESC LIMIT 1) AS link
+      (SELECT p.link FROM bot_proofs p WHERE p.task_id = t.id ORDER BY p.status = 'passed' DESC, p.created_at DESC, p.rowid DESC LIMIT 1) AS link,
+      EXISTS (SELECT 1 FROM bot_proofs p WHERE p.task_id = t.id AND (p.kind = 'render' OR p.link LIKE '%/dashboard/review/%')) AS vproof
       FROM bot_tasks t WHERE t.status = 'review' ORDER BY t.updated_at LIMIT 500`),
     q("SELECT id, title, action, payload, requested_by, task_id, created_at AS at FROM bot_approvals WHERE status = 'pending' ORDER BY created_at LIMIT 500"),
     q("SELECT id, question, context, options, asked_by, task_id, created_at AS at, idem_key FROM bot_questions WHERE status = 'open' ORDER BY created_at LIMIT 500"),
@@ -96,6 +97,11 @@ function youtubeLine(rows) {
     : { state: 'g', text: 'YouTube login ok', out: 0, connected: rows.length };
 }
 
+// A video waiting for Jon = a card in Review with a video proof (a render, or a review-page link). Dev card = the
+// developer's other cards in Review, which Jon closes in one click.
+const isVideo = (t) => Number(t.vproof) > 0 || /\/dashboard\/review\//i.test(String(t.link || ''));
+const isDev = (t) => !isVideo(t) && t.owner === 'developer';
+
 // Jon's review queue: video and other cards in Review, pending approvals and open questions (bot health and known charges left out).
 function reviewOf(D) {
   if (!D.review || !D.approvals || !D.questions) return null;
@@ -104,6 +110,7 @@ function reviewOf(D) {
   const oldest = all.length ? Math.min(...all) : null;
   return {
     count: D.review.length + D.approvals.length + qs.length, cards: D.review.length, approvals: D.approvals.length, questions: qs.length,
+    videos: D.review.filter(isVideo).length, dev: D.review.filter(isDev).length,
     oldestAt: oldest == null ? null : new Date(oldest).toISOString(),
     oldestLabel: oldest == null ? '' : agoLabel(Math.max(0, D.nowMs - oldest)).replace(/ ago$/, ''),
   };
@@ -126,10 +133,11 @@ function queueOf(D) {
   const items = [];
   for (const t of D.review) {
     const link = webLink(t.link);
-    const video = /\/dashboard\/review\//i.test(link) || /\b(video|render)\b/i.test(t.title || '');
+    const video = isVideo(t);
     const due = shortDue(t.due);
     items.push({
-      id: `t:${t.id}`, type: video ? 'video' : 'card', kind: video ? 'Video' : 'Card in Review', name: t.title, head: t.title, at: t.at,
+      id: `t:${t.id}`, type: video ? 'video' : 'card', group: video ? 'video' : isDev(t) ? 'dev' : 'other',
+      kind: video ? 'Video' : isDev(t) ? 'Dev card' : 'Card in Review', name: t.title, head: t.title, at: t.at,
       sub: [ownerName(t.owner), due && `due ${due}`, `waiting ${waited(t.at)}`].filter(Boolean).join(' · '),
       facts: [['Owner', ownerName(t.owner) || '–'], ['Project', t.project || '–'], ['Due', due || '–'], ['Waiting', waited(t.at)]].map(([l, v]) => ({ l, v })),
       body: noteText(t.note), link, linkLabel: /\/dashboard\/review\//i.test(link) ? 'Open the review page' : 'Open the proof',
@@ -140,7 +148,7 @@ function queueOf(D) {
     const p = plainApproval(a.action, parse(a.payload));
     const t = a.task_id && byId.get(a.task_id);
     items.push({
-      id: `a:${a.id}`, type: 'approval', kind: 'Approval', name: a.title, head: a.title, at: a.at,
+      id: `a:${a.id}`, type: 'approval', group: 'other', kind: 'Approval', name: a.title, head: a.title, at: a.at,
       sub: `Asked by ${ownerName(a.requested_by) || 'a bot'} · waiting ${waited(a.at)}`,
       facts: [{ l: 'From', v: ownerName(a.requested_by) || '–' }, { l: 'Card', v: t ? t.title : 'No card linked' }, { l: 'Does', v: p.does }],
       body: p.notes.join(' '), links: p.links.filter((l) => webLink(l.href)),
@@ -152,13 +160,15 @@ function queueOf(D) {
     const t = x.task_id && byId.get(x.task_id);
     const opts = (() => { const o = parse(x.options); return Array.isArray(o) ? o.filter((s) => typeof s === 'string' && s.trim()).slice(0, 10) : []; })();
     items.push({
-      id: `q:${x.id}`, type: 'question', kind: 'Decision', name: plain(x.question) || 'Question', head: plain(x.question) || 'Question', at: x.at,
+      id: `q:${x.id}`, type: 'question', group: 'other', kind: 'Decision', name: plain(x.question) || 'Question', head: plain(x.question) || 'Question', at: x.at,
       sub: `Asked by ${ownerName(x.asked_by) || 'a bot'} · waiting ${waited(x.at)}`,
       facts: [{ l: 'From', v: ownerName(x.asked_by) || '–' }, { l: 'Card', v: t ? t.title : 'No card linked' }],
       body: noteText(x.context), act: { type: 'question', url: `${API}/questions/${x.id}/answer`, options: opts },
     });
   }
-  return items.sort((a, b) => (Date.parse(a.at) || 0) - (Date.parse(b.at) || 0));
+  // Videos waiting for Jon on top, dev cards last, oldest first inside each group.
+  const rank = { video: 0, other: 1, dev: 2 };
+  return items.sort((a, b) => rank[a.group] - rank[b.group] || (Date.parse(a.at) || 0) - (Date.parse(b.at) || 0));
 }
 
 // ---- Goals numbers d2 doesn't have ----

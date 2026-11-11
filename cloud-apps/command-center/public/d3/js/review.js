@@ -21,19 +21,26 @@ const ICON_OF = { video: 'video', card: 'decision', approval: 'decision', questi
 const svg = (k) => `<svg class="ic" aria-hidden="true" viewBox="0 0 24 24">${IC[ICON_OF[k]] || IC.decision}</svg>`;
 const safeHref = (h) => (/^(https?:\/\/|\/(?![/\\]))/i.test(String(h || '')) ? String(h) : '');
 
-// Sponsor drafts first (Jon's priority 1), then the rest oldest first; null when neither source could be read.
+// Videos waiting for Jon first, then sponsor drafts (Jon's priority 1), then the rest; dev cards last (d3.queue's order).
+// null when neither source could be read.
 export function reviewItems(d2resp, d3resp) {
   const live = d3resp?.d3?.queue;
   const drafts = draftsOf(d2resp);
   if (!Array.isArray(live) && !drafts) return null;
   const mail = (drafts || []).map((k) => ({
-    id: `d:${k.id}`, type: 'email', kind: 'Sponsor email', name: k.name || 'Sponsor', head: `Reply to ${k.name || 'sponsor'}`,
+    id: `d:${k.id}`, type: 'email', group: 'other', kind: 'Sponsor email', name: k.name || 'Sponsor', head: `Reply to ${k.name || 'sponsor'}`,
     sub: [k.column, 'your send'].filter(Boolean).join(' · '),
     facts: [{ l: 'To', v: k.payload.to || '–' }, { l: 'Subject', v: k.payload.subject || '–' }, { l: 'Stage', v: k.column || '–' }],
     body: k.payload.body || '', act: { type: 'email', payload: k.payload },
   }));
-  return [...mail, ...(Array.isArray(live) ? live : [])];
+  const rest = Array.isArray(live) ? live : [];
+  const vids = rest.filter((x) => x.group === 'video');
+  return [...vids, ...mail, ...rest.filter((x) => x.group !== 'video')];
 }
+
+const GROUPS = [['video', 'Videos for you'], ['other', 'Emails, approvals and questions'], ['dev', 'Dev cards']];
+const groupOf = (x) => (x.group === 'video' || x.group === 'dev' ? x.group : 'other');
+const isDevCard = (c) => c.group === 'dev' && c.act?.type === 'card';
 
 // The queue as shown: live items plus the ones Jon finished this visit (kept with their done label until he leaves).
 function shown(items, ui) {
@@ -45,7 +52,7 @@ function shown(items, ui) {
 const reviewPage = (c) => c.type === 'video' && /\/dashboard\/review\//i.test(safeHref(c.link));
 const OTHER = /^other\s*\(type/i; // "Other (type your own)": the typed box below the options, never sent as the answer
 // Which buttons each item type takes; a click on any other is ignored.
-const ALLOWED = { card: ['approve', 'open-back', 'cancel', 'back'], approval: ['yes', 'no'], question: ['opt', 'answer'], email: ['send', 'edit'] };
+const ALLOWED = { card: ['approve', 'open-back', 'cancel', 'back', 'done'],approval: ['yes', 'no'], question: ['opt', 'answer'], email: ['send', 'edit'] };
 
 function buttons(c, ui) {
   const busy = ui.busy ? ' disabled' : '';
@@ -60,6 +67,7 @@ function buttons(c, ui) {
   if (a.type === 'card') {
     if (reviewPage(c)) return `<a class="btn pri lg" href="${esc(safeHref(c.link))}" target="_blank" rel="noopener">Approve or send back on the review page</a>`;
     if (ui.rvBack === c.id) return box('What should change', 'Send back');
+    if (isDevCard(c)) return `${btn('done', 'Done', true)}${btn('open-back', 'Send back')}`;
     return `${btn('approve', 'Approve', true)}${btn('open-back', 'Send back')}`;
   }
   if (a.type === 'approval') return `${btn('yes', 'Approve', true)}${btn('no', 'Reject')}`;
@@ -107,15 +115,26 @@ ${player}
 export function renderReview(d2resp, d3resp, ui = {}) {
   const items = reviewItems(d2resp, d3resp);
   const rv = d3resp?.d3?.review;
-  const sub = rv?.count ? `One at a time · oldest has waited ${rv.oldestLabel}` : 'One at a time';
+  const vids = rv && Number.isFinite(rv.videos) ? `${rv.videos} video${rv.videos === 1 ? '' : 's'} for you · ` : '';
+  const sub = rv?.count ? `${vids}One at a time · oldest has waited ${rv.oldestLabel}` : 'One at a time';
   const head = headerOnly(d2resp, 'Review', sub, '<span class="pill sp">Nothing is sent without your click</span>');
   if (!items) return `${head}<section class="card"><p class="mut">No feed: the review queue could not be read.</p></section>`;
   const q = shown(items, ui);
   const left = q.filter((x) => !ui.rvDone?.[x.id]).length;
   const i = Math.max(0, q.findIndex((x) => x.id === ui.rvSel));
   const c = q[i];
+  const row = (x) => {
+    const j = q.indexOf(x);
+    const pick = `<button type="button" class="qrow" aria-current="${j === i}" data-rvq="${esc(x.id)}"><span class="chip">${svg(x.type)}</span><span class="stack" style="flex: 1; min-width: 0"><b class="ell">${esc(x.name)}</b><span class="mut ell" style="font-size: 12px">${esc(x.sub)}</span></span>${ui.rvDone?.[x.id] ? `<span class="pill ok">${esc(ui.rvDone[x.id])}</span>` : ''}</button>`;
+    // A dev card closes from its row in one click (Jon's ask, 2026-11-11).
+    if (!isDevCard(x) || ui.rvDone?.[x.id]) return pick;
+    return `<div class="hd" style="gap: 6px">${pick}<button type="button" class="btn sm" data-rv="done" data-id="${esc(x.id)}"${ui.busy ? ' disabled' : ''} aria-label="Done: ${esc(x.name)}">Done</button></div>`;
+  };
   const list = q.length
-    ? q.map((x, j) => `<button type="button" class="qrow" aria-current="${j === i}" data-rvq="${esc(x.id)}"><span class="chip">${svg(x.type)}</span><span class="stack" style="flex: 1"><b class="ell">${esc(x.name)}</b><span class="mut ell" style="font-size: 12px">${esc(x.sub)}</span></span>${ui.rvDone?.[x.id] ? `<span class="pill ok">${esc(ui.rvDone[x.id])}</span>` : ''}</button>`).join('\n')
+    ? GROUPS.map(([g, label]) => {
+      const rows = q.filter((x) => groupOf(x) === g);
+      return rows.length ? `<h3 class="mut" style="margin: 12px 10px 4px; font-size: 13px">${label} (${rows.length})</h3>\n${rows.map(row).join('\n')}` : '';
+    }).join('\n')
     : '<p class="mut" style="padding: 8px 10px">Nothing waiting for you.</p>';
   const nav = (dir, label, d) => `<button type="button" class="btn sm" style="min-width: 36px; min-height: 36px; padding: 0" aria-label="${label}" data-rvnav="${dir}"${q.length > 1 ? '' : ' disabled'}><svg class="ic" aria-hidden="true" viewBox="0 0 24 24">${d}</svg></button>`;
   const detail = c
@@ -168,7 +187,7 @@ export async function reviewClick(e, S, render, reload) {
   if (!c) { ui.rvErr = 'This item changed since it was shown. Check it again.'; render(); await reload(); return true; }
   if (ui.rvDone?.[c.id]) return true;
   const what = b.dataset.rv;
-  if (!(ALLOWED[c.act?.type] || []).includes(what) || reviewPage(c)) return true;
+  if (!(ALLOWED[c.act?.type] || []).includes(what) || reviewPage(c) || (what === 'done' && !isDevCard(c))) return true;
   const text = () => document.querySelector('#main .rvtext')?.value.trim() || '';
   if (what === 'open-back') { Object.assign(ui, { rvBack: c.id, rvText: '', rvErr: '' }); render(); return true; }
   if (what === 'cancel') { Object.assign(ui, { rvBack: null, rvText: '', rvErr: '' }); render(); return true; }
@@ -176,7 +195,10 @@ export async function reviewClick(e, S, render, reload) {
   let call;
   let label;
   const a = c.act;
-  if (what === 'approve') {
+  if (what === 'done') {
+    // One click, no confirm: a dev card in Review passed QC and Jon only closes it.
+    call = () => send(a.url, 'PATCH', { status: 'done' }); label = 'Done';
+  } else if (what === 'approve') {
     if (!window.confirm(`Approve "${c.head}"? It moves to Done.`)) return true;
     call = () => send(a.url, 'PATCH', { status: 'done' }); label = 'Approved';
   } else if (what === 'back') {
@@ -216,8 +238,13 @@ export async function reviewClick(e, S, render, reload) {
     if (what === 'send') ui.rvIdem = {};
     ui.rvDone = { ...(ui.rvDone || {}), [c.id]: label };
     ui.rvKept = { ...(ui.rvKept || {}), [c.id]: c };
-    const next = q.find((x) => x.id !== c.id && !ui.rvDone[x.id]);
-    Object.assign(ui, { rvSel: next ? next.id : c.id, rvBack: null, rvEdit: null, rvDraft: {}, rvText: '' });
+    // Closing a row other than the open item leaves the open item where it is.
+    const open = q[Math.max(0, q.findIndex((x) => x.id === ui.rvSel))]?.id;
+    if (open && open !== c.id) ui.rvSel = open;
+    else {
+      const next = q.find((x) => x.id !== c.id && !ui.rvDone[x.id]);
+      Object.assign(ui, { rvSel: next ? next.id : c.id, rvBack: null, rvEdit: null, rvDraft: {}, rvText: '' });
+    }
   } catch (err) {
     ui.rvErr = `Could not save: ${err.message}`;
   }
