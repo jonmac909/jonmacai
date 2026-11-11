@@ -138,6 +138,30 @@ function marketsSection(row0, nowMs) {
   return section('markets', title, 'Mila', [src], { rows });
 }
 
+// Personal and Business side by side for the Money page: each side's yesterday, 7 and 30 day net spend plus the combined
+// figure from both charge lists together. splitMismatch() proves Personal + Business = combined for every period.
+const chargesOf = (g) => [...(Array.isArray(g?.lastMonth?.charges) ? g.lastMonth.charges : []), ...(Array.isArray(g?.month?.charges) ? g.month.charges : [])].filter((c) => c && typeof c === 'object');
+export function expenseSplit(ex, today) {
+  if (!ex || !(ex.personal || ex.business)) return null;
+  const side = (g) => {
+    if (!g) return null;
+    if (!Array.isArray(g.month?.charges) && !Array.isArray(g.lastMonth?.charges)) return null;
+    const from = Array.isArray(g.lastMonth?.charges) && isDay(g.lastMonth.startDate) ? g.lastMonth.startDate : isDay(g.month?.startDate) ? g.month.startDate : null;
+    const t = windowTotals(chargesOf(g), today, from);
+    return { from, partial: t.month.partial, yesterday: t.yesterday.total, week: t.week.total, month: t.month.total };
+  };
+  const personal = side(ex.personal);
+  const business = side(ex.business);
+  const froms = [personal?.from, business?.from].filter(Boolean).sort();
+  const all = windowTotals([...chargesOf(ex.personal), ...chargesOf(ex.business)], today, froms[0] || null);
+  return { personal, business, combined: { yesterday: all.yesterday.total, week: all.week.total, month: all.month.total } };
+}
+export function splitMismatch(split) {
+  if (!split) return ['no split'];
+  const cents = (n) => Math.round((Number(n) || 0) * 100);
+  return ['yesterday', 'week', 'month'].filter((k) => cents(split.personal?.[k]) + cents(split.business?.[k]) !== cents(split.combined?.[k]));
+}
+
 function expensesSection(row0, questions, keyOf, today, nowMs) { // questions is null when the open questions or their keys could not be read
   const title = 'RBC expenses';
   const ex = row0 ? parse(row0.data).expenses : null;
@@ -186,7 +210,7 @@ function expensesSection(row0, questions, keyOf, today, nowMs) { // questions is
   if (watch && watch.length > 5) notes.push(`${watch.length - 5} more charge-watch flags are on the Questions page.`);
   if (!watch) notes.push('Charge-watch flags unavailable (bot questions unreadable). Owner: Mila.');
   if (anyList && watch && !flagged.length) notes.push('No strange purchases in the last 7 days.');
-  return section('expenses', title, 'Mila', [src], { rows: [...rows, ...flagged], notes, currency, strange });
+  return section('expenses', title, 'Mila', [src], { rows: [...rows, ...flagged], notes, currency, strange, split: expenseSplit(ex, today), stale: !!src.stale });
 }
 
 // ---- Sponsors ----

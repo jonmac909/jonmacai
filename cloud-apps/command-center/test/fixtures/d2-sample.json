@@ -1293,7 +1293,6 @@
         "next": null,
         "btn": "Review",
         "draft": true,
-        "threadId": "",
         "payload": {
          "id": "c-receipt",
          "to": "receipts@stripe.com",
@@ -1321,7 +1320,6 @@
         "next": null,
         "btn": "Review",
         "draft": true,
-        "threadId": "",
         "payload": {
          "id": "c-refund",
          "to": "support@commas.io",
@@ -1349,7 +1347,6 @@
         "next": null,
         "btn": "Review",
         "draft": true,
-        "threadId": "",
         "payload": {
          "id": "c-news",
          "to": "newsletter@creatorweekly.com",
@@ -1384,7 +1381,6 @@
         "next": null,
         "btn": "Review",
         "draft": true,
-        "threadId": "",
         "payload": {
          "id": "c-poppy",
          "to": "ann@poppy.ai",
@@ -5627,7 +5623,6 @@
            "next": null,
            "btn": "Review",
            "draft": true,
-           "threadId": "",
            "payload": {
             "id": "c-poppy",
             "to": "ann@poppy.ai",
@@ -6373,7 +6368,23 @@
        "detail": "charged in EUR",
        "group": "Business"
       }
-     ]
+     ],
+     "split": {
+      "personal": null,
+      "business": {
+       "from": "2026-10-01",
+       "partial": false,
+       "yesterday": 209.99,
+       "week": 315.98,
+       "month": 386.96
+      },
+      "combined": {
+       "yesterday": 209.99,
+       "week": 315.98,
+       "month": 386.96
+      }
+     },
+     "stale": false
     },
     {
      "key": "sponsors",
