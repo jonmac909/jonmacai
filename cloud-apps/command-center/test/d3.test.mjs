@@ -225,9 +225,13 @@ const d3Sample = () => ({ ok: true, d3: {
 test('Goals: sections in the design order, targets from the data, no design sample text', () => {
   const d2 = SAMPLE();
   const html = renderGoals(d2, d3Sample(), {});
-  const order = ['<h1>Goals</h1>', 'Key results', 'Sponsor Revenue', 'Blockers', 'To review', 'Tokens', '<h2>Content Factory</h2>', '<h2>Operations</h2>', '<h2>Personal</h2>', 'Videos Scheduled'];
+  const order = ['<h1>Goals</h1>', 'Key results', 'Sponsor Revenue', 'Blockers', 'To review', 'Tokens', '<h2>Content Factory</h2>', '<h2>Personal</h2>', 'Videos Scheduled'];
   let at = -1;
   for (const s of order) { const i = html.indexOf(s, at + 1); assert.ok(i > at, `${s} after the one before`); at = i; }
+  // Operations card removed (Jon, 2026-11-11): no card and no Key results rows for it; 13 rows left.
+  for (const s of ['Operations', 'Weeks token limit hit', 'Dashboard 3 pages built', 'Cost per video measured', 'typed &quot;continue&quot;']) assert.ok(!html.includes(s), s);
+  assert.equal((html.match(/class="krb"/g) || []).length, 13);
+  assert.match(html, /of 13 /);
   const hgp = d2.d2.goals.find((g) => g.key === 'hgp').week[0];
   assert.match(html, new RegExp(`of ${hgp.target} · ${hgp.rows.length} channels, ${hgp.rows[0].target} each`));
   assert.match(html, /\$3,100/);
@@ -268,7 +272,7 @@ test('Goals: missing sources read No feed / No data with a grey dot; text is esc
   // Trends: a week count plots its days; a number with no series says so.
   const open = renderGoals(d2, d3Sample(), { openKr: 'b3' });
   assert.match(open, /<polyline class="act [a-z]*" points="20,125 /);
-  assert.match(renderGoals(d2, d3Sample(), { openKr: 'c2' }), /No trend data yet\./);
+  assert.match(renderGoals(d2, d3Sample(), { openKr: 'b4' }), /No trend data yet\./);
   // + Log: on Workouts and Date nights only; disabled once logged today.
   const page = renderGoals(d2, d3Sample(), {});
   assert.match(page, /data-log="workout" disabled>Logged today/);
