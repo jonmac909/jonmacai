@@ -574,7 +574,11 @@ async function addProof(db, who, taskId, body, now) {
 }
 
 async function checkProof(db, who, id, body, now) {
-  if (who.bot !== QC_BOT) throw new Bad(403, 'Only QC can pass or fail proof');
+  // QC rules on proof. Ana may also rule on a proof QC posted itself, which nobody else could check.
+  if (who.bot !== QC_BOT) {
+    const own = who.bot === 'ana' ? await db.prepare('SELECT created_by FROM bot_proofs WHERE id = ?').bind(id).first() : null;
+    if (own?.created_by !== QC_BOT) throw new Bad(403, 'Only QC can pass or fail proof (Ana only for proof QC posted)');
+  }
   const result = oneOf(body.result, ['passed', 'failed'], 'result');
   const note = text(body, 'note', 4000);
   const r = await db.prepare('UPDATE bot_proofs SET status = ?, checked_by = ?, checked_at = ?, check_note = ? WHERE id = ?')
@@ -660,7 +664,8 @@ async function listQuestions(db, who, q) {
 async function closeQuestion(db, who, id, now) {
   const row = await questionRow(db, id);
   if (!row) throw new Bad(404, 'Question not found');
-  if (row.asked_by !== who.bot) throw new Bad(403, 'Only the bot that asked can close this question');
+  // Ana clears stale questions too, e.g. ones a retired bot left open (Jon via Ana, 2026-11-08)
+  if (row.asked_by !== who.bot && who.bot !== 'ana') throw new Bad(403, 'Only the bot that asked, or Ana, can close this question');
   if (row.status !== 'closed') {
     await db.prepare("UPDATE bot_questions SET status = 'closed', closed_by = ?, closed_at = ?, updated_at = ? WHERE id = ? AND status != 'closed'")
       .bind(who.bot, now, now, id).run();
@@ -783,6 +788,44 @@ async function decideApproval(db, id, body, now) {
   return moveApproval(db, id, ['pending'],
     'UPDATE bot_approvals SET status = ?, decided_by = ?, decided_at = ?, decision_note = ?, updated_at = ?',
     [decision === 'approve' ? 'approved' : 'rejected', 'jon', now, note, now], (s) => `Approval is already ${s}`);
+}
+
+// ---- Needs you (Jon, 2026-11-11): Drop or Not now on a row of his work list ----
+// Drop: a card closes as Close card does, a question closes, an approval is rejected. Not now: the item leaves the list
+// (and the rail count and Blockers) for 24 hours. Each one is written on the linked card's history.
+const LATER_MS = 24 * 3600000;
+async function needsAct(db, env, ctx, id, verb, now) {
+  const kind = id[0];
+  const row = kind === 't' ? await taskRow(db, id) : kind === 'q' ? await questionRow(db, id) : kind === 'a' ? await approvalRow(db, id) : null;
+  if (!row) throw new Bad(404, 'Not found');
+  const card = kind === 't' ? id : row.task_id || null;
+  if (verb === 'later') {
+    const open = kind === 't' ? !['done', 'cancelled'].includes(row.status) : row.status === (kind === 'q' ? 'open' : 'pending');
+    if (!open) throw new Bad(409, `Already ${row.status}`);
+    const until = new Date(Date.parse(now) + LATER_MS).toISOString();
+    try {
+      await db.prepare('DELETE FROM needs_later WHERE until <= ?').bind(now).run(); // expired rows
+      await db.prepare('INSERT INTO needs_later (item, until, "by", at) VALUES (?, ?, \'jon\', ?) ON CONFLICT(item) DO UPDATE SET until = excluded.until, at = excluded.at')
+        .bind(id, until, now).run();
+    } catch (e) {
+      if (/no such table/i.test(String(e?.message))) throw new Bad(503, "Not now isn't set up yet");
+      throw e;
+    }
+    if (card) await logEvent(db, card, now, 'jon', 'needs', `not now until ${until} (Needs you)`);
+    return json({ ok: true, item: id, until });
+  }
+  if (kind === 't') return tickTask(db, env, ctx, id, { status: 'cancelled' }, now); // logs "closed by Jon"
+  let res;
+  if (kind === 'q') {
+    const r = await db.prepare("UPDATE bot_questions SET status = 'closed', closed_by = 'jon', closed_at = ?, updated_at = ? WHERE id = ? AND status = 'open'")
+      .bind(now, now, id).run();
+    const after = await questionRow(db, id);
+    res = changed(r) ? json({ ok: true, question: questionOut(after) }) : json({ ok: false, error: `Question is already ${after.status}`, question: questionOut(after) }, 409);
+  } else {
+    res = await decideApproval(db, id, { decision: 'reject', note: 'dropped by Jon' }, now);
+  }
+  if (res.ok && card) await logEvent(db, card, now, 'jon', 'needs', `${kind === 'q' ? 'question' : 'approval'} dropped by Jon (Needs you): ${String(kind === 'q' ? row.question : row.title).slice(0, 120)}`);
+  return res;
 }
 
 // ---- runs ----
@@ -1642,6 +1685,8 @@ async function route(request, db, who, rest, env, ctx) {
     case 'POST approvals/:id/release': needBot(who); return releaseApproval(db, who, id, body, now);
     case 'POST approvals/:id/cancel': needBot(who); return cancelApproval(db, who, id, body, now);
     case 'POST approvals/:id/decide': needJon(who); return decideApproval(db, id, body, now);
+    case 'POST needs/:id/drop': needJon(who); return needsAct(db, env, ctx, id, 'drop', now);
+    case 'POST needs/:id/later': needJon(who); return needsAct(db, env, ctx, id, 'later', now);
     case 'GET runs': return listRuns(db, who, q);
     case 'POST runs': needBot(who); return reportRun(db, who, body, now);
     case 'GET daily': return listDaily(db, q);

@@ -47,8 +47,6 @@ html[data-theme="dark"] body{background:#0b0b0c}
 .d3 .blue{background:#2563eb;color:#ffffff}
 .d3 .dot{display:inline-block;width:8px;height:8px;border-radius:50%;flex:none;background:var(--track)}
 .d3 .dot.g{background:var(--ok)}.d3 .dot.y{background:var(--warn)}.d3 .dot.r{background:var(--bad)}
-.d3 .sq{display:block;width:14px;height:14px;border-radius:4px;flex:none;background:var(--track)}
-.d3 .sq.g{background:var(--ok)}.d3 .sq.y{background:var(--warn)}.d3 .sq.r{background:var(--bad)}
 .d3 .btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:34px;padding:0 14px;border-radius:10px;border:1px solid var(--line);background:transparent;color:var(--ink);font-size:13px;font-weight:500;text-decoration:none;white-space:nowrap}
 .d3 .btn.sm{min-height:28px;padding:0 11px;font-size:12px;border-radius:8px}
 .d3 .pips{display:flex;gap:4px}
@@ -93,6 +91,8 @@ html[data-theme="dark"] body{background:#0b0b0c}
 .d3 .hrow > b{margin-left:auto;font-weight:500;white-space:nowrap}
 .d3 .blrow{display:grid;grid-template-columns:minmax(0,1fr) 160px 90px 104px;gap:12px;align-items:center;width:100%;text-align:left;border:0;border-top:1px solid var(--line);background:transparent;padding:14px 0}
 .d3 .blrow.first{border-top:0}
+.d3 .scrow{display:grid;grid-template-columns:minmax(0,1fr) 110px 120px;gap:12px;align-items:center;border-top:1px solid var(--line);padding:14px 0}
+.d3 .scrow.first{border-top:0}
 .d3 .qrow{display:flex;align-items:center;gap:10px;width:100%;min-height:56px;text-align:left;border:0;background:transparent;padding:8px 10px;border-radius:12px}
 .d3 .qrow[aria-current="true"]{background:var(--card2)}
 /* From the Bluesky and System designs' <style> block (Bluesky.dc.html, System.dc.html), unchanged. */
@@ -138,6 +138,23 @@ html[data-theme="dark"] body{background:#0b0b0c}
 .d3 .nf{color:var(--muted);font-weight:400}
 .d3 .num.nf{font-size:22px;letter-spacing:0}
 .d3 .krb[aria-expanded]{cursor:pointer}
+/* Key results rows (Goals): name, actual / target, bar, status; stacks to two lines when the card is narrow. */
+.d3 .ks{container-type:inline-size}
+.d3 .ksl{display:flex;flex-direction:column}
+.d3 .ksr{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(60px,110px) 68px;gap:6px 12px;align-items:center;padding:9px 0;border-top:1px solid var(--line);font-size:14px}
+.d3 .ksl>.ksr:first-child{border-top:0}
+.d3 .ksn{display:flex;align-items:center;gap:8px;min-width:0;font-weight:500;color:var(--ink)}
+.d3 .ksv{font-family:var(--disp);font-weight:500;white-space:nowrap;text-align:right}
+.d3 .kss{font-size:12px;font-weight:500;color:var(--muted);text-align:right;white-space:nowrap}
+.d3 .kss.r{color:var(--bad-ink)}.d3 .kss.y{color:var(--warn-ink)}.d3 .kss.g{color:var(--ok-ink)}
+.d3 .ksr .bar{height:6px}.d3 .ksr .bar.nb{background:none}
+.d3 .ksr .bar i.r{background:var(--bad)}.d3 .ksr .bar i.y{background:var(--warn)}.d3 .ksr .bar i.g{background:var(--ok)}
+.d3 .ksm summary{cursor:pointer;font-size:13px;padding:6px 0}
+@container (max-width:460px){
+  .d3 .ksr{grid-template-columns:minmax(0,1fr) auto}
+  .d3 .ksr .ksn{grid-column:1;grid-row:1}.d3 .ksr .kss{grid-column:2;grid-row:1}
+  .d3 .ksr .bar{grid-column:1;grid-row:2}.d3 .ksr .ksv{grid-column:2;grid-row:2}
+}
 .d3 .btn:disabled{opacity:.5;cursor:default}
 .d3 .btn.primary{background:var(--fill);border-color:var(--fill);color:#ffffff}
 .d3 .stat .nfl{color:var(--muted)}
@@ -164,6 +181,10 @@ html[data-theme="dark"] body{background:#0b0b0c}
   .d3 .brow.thead{display:none}
   .d3 .blrow{grid-template-columns:minmax(0,1fr) auto}
   .d3 .blrow>:nth-child(2),.d3 .blrow>:nth-child(3){display:none}
+  .d3 .scrow{grid-template-columns:minmax(0,1fr) auto;row-gap:8px}
+  .d3 .scrow>:nth-child(1){grid-column:1/-1}
+  .d3 .scrow .ell{white-space:normal}
+  .d3 .scrow>:nth-child(3){text-align:right}
   .d3 .board{grid-template-columns:repeat(2,minmax(0,1fr)) !important}
   .d3 .main[data-page="bluesky"] .srow,.d3 .main[data-page="system"] .srow{grid-template-columns:minmax(0,1fr) !important}
   .d3 .main[data-page="bluesky"] .srow.thead{display:none}

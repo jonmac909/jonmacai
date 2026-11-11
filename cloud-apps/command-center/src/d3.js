@@ -3,6 +3,7 @@
 // View only: it reads D1 and writes nothing. Every part is null on its own when its table can't be read, and the page
 // shows "No feed" or "No data" for a null, never a made-up number.
 import TEAM from './d3-team.json' with { type: 'json' };
+import CONFIG from './d2-goals.json' with { type: 'json' };
 import { plain, statusOf } from './d2.js';
 import { DATE_NIGHT_TARGET, WORKOUT_TARGET } from './life.js';
 import { vanYmd, weekStart } from './periods.js';
@@ -36,8 +37,10 @@ export async function d3Data(env, nowMs) {
     try { return (await db.prepare(sql).bind(...args).all()).results || []; } catch (err) { console.error('d3', err); return null; }
   };
   const today0 = new Date(midnight(vanYmd(nowMs))).toISOString();
+  const apSince = new Date(nowMs - 14 * DAY).toISOString();
+  const AP_CARDS = `SELECT id FROM bot_tasks WHERE project IN ('home-guide-press', 'jon-mac', 'jonmacai') AND (status IN ${OPEN} OR (status = 'done' AND updated_at >= ?))`;
   const [youtube, review, approvals, questions, usage, lastUsage, open, proofs, habits, calendar, charges,
-    tasks, finished, stuck, failsToday, runs, runBots] = await Promise.all([
+    tasks, finished, stuck, failsToday, runs, runBots, later, scripts, scoreProofs, staged, apCards, apEvents, live] = await Promise.all([
     q('SELECT channel, sync_error FROM yt_api'),
     // Review cards with their newest proof link (a passed one first), as the card modal picks its deliverable.
     q(`SELECT t.id, t.title, t.owner, t.project, t.due, t.note, t.updated_at AS at,
@@ -66,10 +69,37 @@ export async function d3Data(env, nowMs) {
     q('SELECT bot, status, started_at, tokens FROM bot_runs WHERE started_at >= ? ORDER BY started_at LIMIT 2000', new Date(nowMs - DAY).toISOString()),
     // Bots that post runs: only runs from the last 30 days, newest first, bounded.
     q('SELECT DISTINCT bot FROM (SELECT bot FROM bot_runs WHERE started_at >= ? ORDER BY started_at DESC LIMIT 5000)', new Date(nowMs - 30 * DAY).toISOString()),
+    // Needs you "Not now": items Jon put off, still within their 24 hours.
+    q('SELECT item FROM needs_later WHERE until > ? LIMIT 2000', new Date(nowMs).toISOString()),
+    // Scripts page: open @JonMacAI cards, newest first, with the newest Doc link a proof carries (passed first) and
+    // whether a QC-passed proof names the a-roll or footage (a note that is still waiting on it, or a draft, doesn't count).
+    q(`SELECT t.id, t.title, t.status, t.stage, t.note, t.created_at,
+      (SELECT p.link FROM bot_proofs p WHERE p.task_id = t.id AND p.link LIKE 'https://docs.google.com/%'
+        ORDER BY p.status = 'passed' DESC, p.created_at DESC, p.rowid DESC LIMIT 1) AS doc,
+      EXISTS (SELECT 1 FROM bot_proofs p WHERE p.task_id = t.id AND p.status = 'passed'
+        AND (LOWER(COALESCE(p.note, '')) LIKE '%a-roll%' OR LOWER(COALESCE(p.note, '')) LIKE '%aroll%' OR LOWER(COALESCE(p.note, '')) LIKE '%footage%')
+        AND LOWER(COALESCE(p.note, '')) NOT LIKE '%waiting%' AND LOWER(COALESCE(p.note, '')) NOT LIKE '%draft%') AS footage
+      FROM bot_tasks t WHERE t.project = 'jonmacai' AND t.status IN ${OPEN} AND t.title LIKE '%@JonMacAI%'
+      ORDER BY t.created_at DESC, t.rowid DESC LIMIT 500`),
+    // Goals scoreboard: render proofs QC passed in the last week (a card counts only if its first pass is today) with their cards, and the video cards in a timed stage now. The
+    // 3-hour clock starts at the card's first stage (a card made ahead of time isn't late), else when it was made.
+    q(`SELECT p.task_id, p.link, COALESCE(p.checked_at, p.created_at) AS at, t.title, t.project, t.status, t.created_at, ${STARTED('t')}
+      FROM bot_proofs p JOIN bot_tasks t ON t.id = p.task_id
+      WHERE p.kind = 'render' AND p.status = 'passed' AND p.created_at >= ?
+      ORDER BY p.created_at LIMIT 2000`, new Date(Date.parse(today0) - 7 * DAY).toISOString()),
+    q(`SELECT t.id, t.title, t.project, t.status, t.stage, t.stage_since, t.created_at, ${STARTED('t')} FROM bot_tasks t
+      WHERE t.status IN ('todo', 'doing', 'waiting_on_jon', 'qc') AND t.stage IN ('brief', 'script', 'pack', 'edit') ORDER BY t.stage_since LIMIT 500`),
+    // Approved, not uploaded: Home Guide Press, Jon Mac and @JonMacAI cards (open, or done in the last 14 days) with their proof links and Jon's
+    // approve / send-back events, and the calendar titles already published or scheduled.
+    q(`SELECT t.id, t.title, (SELECT group_concat(p.link, ' ') FROM bot_proofs p WHERE p.task_id = t.id) AS links
+      FROM bot_tasks t WHERE t.id IN (${AP_CARDS}) LIMIT 1000`, apSince),
+    q(`SELECT task_id, kind, detail, at FROM bot_task_events WHERE task_id IN (${AP_CARDS}) AND kind IN ('review', 'status')
+      AND (detail LIKE 'approved %' OR detail LIKE 'changes asked%' OR detail LIKE '%(approved by Jon)' OR detail LIKE '%(sent back by Jon)') ORDER BY at DESC LIMIT 5000`, apSince),
+    q("SELECT DISTINCT lower(trim(title)) AS t FROM yt_calendar WHERE lower(status) IN ('published', 'scheduled') LIMIT 20000"),
   ]);
   return {
     youtube, review, approvals, questions, usage, lastUsage: lastUsage && (lastUsage[0] || undefined), open, proofs, habits, calendar: calendar && parse(calendar[0]?.data), charges,
-    tasks, finished, stuck, failsToday, runs, runBots, today0, nowMs,
+    tasks, finished, stuck, failsToday, runs, runBots, later, scripts, scoreProofs, staged, apCards, apEvents, live, today0, nowMs,
   };
 }
 
@@ -235,6 +265,117 @@ function chargesOf(rows) {
   });
 }
 
+// ---- Goals top: today's video scoreboard and "Approved, not uploaded" ----
+// Same rules as D:\AgentTeam\tools\pipeline.py (pace, approved_at, report) and team_audit.py (VIDEO_MIN); keep them in step.
+const VIDEO_MIN = { brief: 15, script: 20, pack: 75, edit: 70 }; // minutes a stage may take, QC included: 3 hours a video
+const CLOCK_MIN = 180;
+const PACE_PROJECTS = ['home-guide-press', 'jon-mac', 'jonmacai', null];
+const OWN = ['jon-mac', 'jonmacai'];
+const FINAL_VIDEO = /jonmac\.ai\/(dashboard\/)?review\//i;
+const AROLL_AD = /[\\/](aroll|ad)[\\/]/i;
+const VIDEO_NAME = /review\/(?:media\/)?[a-z0-9-]+-\d+-v\d+/i;
+const NOT_VIDEO = /\(guide\)|channel \(clone|^clone @/i;
+const NOT_HOST = /channels|affiliate|packs|pages|scripts|permissions|home guide press|,| and | vs /i;
+const LIVE = /youtu\.?be|proof-shots/i;
+// Jon's focus channels: d2-goals.json's copy of D:\AgentTeam\rules\facts\focus-channels.txt.
+const FOCUS = (CONFIG.goals || []).find((g) => Array.isArray(g.focus))?.focus || null;
+const halves = (title) => {
+  const s = String(title || '');
+  const i = s.lastIndexOf(' - ');
+  return i < 0 ? null : [s.slice(0, i), s.slice(i + 3)];
+};
+const slugOf = (s) => String(s || '').toLowerCase().replace(/['\u2019]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+export const isVideo = (title) => { const h = halves(title); return !!h && !NOT_VIDEO.test(title) && !NOT_HOST.test(h[1]); };
+const nameOf = (title) => (halves(title)?.[0] || '').trim().toLowerCase();
+const hostSlug = (title) => { const h = halves(title); return h ? slugOf(h[1]) : ''; };
+const isParked = (title, focus) => {
+  const host = hostSlug(title);
+  if (!focus || !host) return false;
+  return !focus.some((f) => host === f || f.startsWith(`${host}-`) || host.startsWith(`${f}-`));
+};
+export const inFocus = (title, focus = FOCUS) => {
+  if (!focus) return true;
+  if (hostSlug(title)) return !isParked(title, focus);
+  const text = slugOf(title);
+  return focus.some((f) => new RegExp(`(?:^|-)${f.split('-').slice(0, 2).join('-')}(?:-|$)`).test(text));
+};
+const inScope = (t) => PACE_PROJECTS.includes(t.project ?? null) && (OWN.includes(t.project) || inFocus(t.title || ''));
+// SQL: when a card entered its first stage (the stage log), for the 3-hour video clock.
+const STARTED = (t) => `(SELECT MIN(e.at) FROM bot_task_events e WHERE e.task_id = ${t}.id AND e.kind = 'stage') AS started_at`;
+const startOf = (t) => t.started_at || t.created_at;
+const mins = (from, to) => (Number.isFinite(Date.parse(from)) ? Math.max(0, Math.round((to - Date.parse(from)) / 60000)) : null);
+
+// "N of 6 passed today": a card counts once when QC passed a final-video render today (a review page, not an a-roll or ad);
+// Home Guide Press only for a focus channel. Rows: those videos, then every in-scope card in a timed stage, with its stage
+// time against VIDEO_MIN and its clock since the card started against 3 hours.
+function scoreboardOf(D) {
+  if (!D.scoreProofs || !D.staged) return null;
+  const nowMs = D.nowMs;
+  const first = new Map(); // task id -> its first passing proof today
+  const named = new Map();
+  for (const p of D.scoreProofs) {
+    const link = p.link || '';
+    if (!FINAL_VIDEO.test(link) || AROLL_AD.test(link)) continue;
+    named.set(p.task_id, named.get(p.task_id) || VIDEO_NAME.test(link));
+    if (!first.has(p.task_id) || Date.parse(p.at) < Date.parse(first.get(p.task_id).at)) first.set(p.task_id, p);
+  }
+  const today0 = Date.parse(D.today0);
+  const passed = [...first.values()].filter((p) => Date.parse(p.at) >= today0 && inScope(p) && (isVideo(p.title) || named.get(p.task_id)))
+    .map((p) => ({ id: p.task_id, title: p.title, state: 'passed', stage: 'passed', clockMin: mins(startOf(p), Date.parse(p.at)), at: p.at }))
+    .sort((a, b) => Date.parse(a.at) - Date.parse(b.at));
+  const done = new Set(passed.map((r) => r.id));
+  const going = D.staged.filter((t) => !done.has(t.id) && inScope(t)).map((t) => {
+    const stageMin = mins(t.stage_since, nowMs);
+    const clockMin = mins(startOf(t), nowMs);
+    const budgetMin = VIDEO_MIN[t.stage];
+    return { id: t.id, title: t.title, state: (stageMin ?? 0) > budgetMin || (clockMin ?? 0) > CLOCK_MIN ? 'late' : 'on', stage: t.stage, stageMin, budgetMin, clockMin };
+  }).sort((a, b) => (b.clockMin ?? 0) - (a.clockMin ?? 0));
+  const target = (FOCUS ? FOCUS.length : 4) + OWN.length;
+  const n = passed.length;
+  const pace = target * clamp((nowMs - midnight(vanYmd(nowMs))) / DAY);
+  const late = going.filter((r) => r.state === 'late').length;
+  return metric({
+    actual: n, target, display: `${n} of ${target}`, pace, status: statusOf(n, target, pace, 'count'),
+    rows: [...passed, ...going], late, clockBudget: CLOCK_MIN,
+    note: `Videos whose final render QC passed today (one per card; Home Guide Press focus channels, Jon Mac and @JonMacAI). ${going.length} more in progress, ${late} late.`,
+  });
+}
+
+// When Jon approved the card's video, if no change request came after it (pipeline.py approved_at).
+function approvedAt(events) {
+  let yes = 0; let no = 0;
+  for (const e of events) {
+    const d = e.detail || '';
+    const at = Date.parse(e.at) || 0;
+    if ((e.kind === 'review' && d.startsWith('approved ')) || (e.kind === 'status' && d.endsWith('(approved by Jon)'))) yes = Math.max(yes, at);
+    if ((e.kind === 'review' && d.startsWith('changes asked')) || d.includes('(sent back by Jon)')) no = Math.max(no, at);
+  }
+  return yes && yes > no ? yes : null;
+}
+
+// Videos Jon approved that are not on YouTube yet: no published or scheduled calendar row with the name, no live proof link.
+function approvedWaitingOf(D) {
+  if (!D.apCards || !D.apEvents || !D.live) return null;
+  const live = new Set(D.live.map((r) => r.t));
+  const ev = new Map();
+  for (const e of D.apEvents) (ev.get(e.task_id) || ev.set(e.task_id, []).get(e.task_id)).push(e);
+  const items = [];
+  for (const c of D.apCards) {
+    const title = c.title || '';
+    if (!isVideo(title) || live.has(nameOf(title)) || LIVE.test(c.links || '') || /ebook ad/i.test(title)) continue;
+    const at = approvedAt(ev.get(c.id) || []);
+    if (at) items.push({ id: c.id, title, approvedAt: new Date(at).toISOString(), waitMin: Math.round((D.nowMs - at) / 60000) });
+  }
+  items.sort((a, b) => b.waitMin - a.waitMin);
+  const n = items.length;
+  const oldest = n ? agoLabel(items[0].waitMin * 60000).replace(/ ago$/, '') : '';
+  return metric({
+    actual: n, target: 0, display: String(n), items, oldestLabel: oldest,
+    status: n ? { text: 'Behind', cls: 'crit' } : { text: 'Done', cls: 'ok' },
+    note: n ? `${n} approved video${n === 1 ? '' : 's'} not scheduled or live on YouTube yet, oldest approved ${oldest} ago.` : 'Every video you approved is scheduled or live.',
+  });
+}
+
 // ---- Team: one row per roster bot (src/d3-team.json), from its cards, proofs and runs ----
 const RANK = { doing: 0, waiting_on_jon: 1, qc: 2, todo: 3, review: 4 };
 const STATUS = { doing: 'Doing', waiting_on_jon: 'Waiting on you', qc: 'In QC', todo: 'To do', review: 'In Review' };
@@ -333,27 +474,29 @@ function teamOf(D, today) {
 // Stuck: the dispatcher's rule (a card whose proof failed QC 2 or more times), read live from bot_proofs, for cards still
 // open and not in Review (a card in Review passed QC on its newest version). Late: in Doing, no card update in 2 hours.
 // kind: p = waiting on a person, f = work that failed, s = slow or idle (a = access and limits, added on the page from the rail).
-function blockersOf(D) {
+// Jon's rows he put off with "Not now" (needs_later) are left out until their time is up, and pushed to `putOff`.
+function blockersOf(D, putOff = []) {
   if (!D.tasks || !D.approvals || !D.questions || !D.stuck) return null;
   const nowMs = D.nowMs;
   const byId = new Map(D.tasks.map((t) => [t.id, t]));
+  const later = new Set((D.later || []).map((r) => r.item));
   const seen = new Set();
   const out = [];
-  const add = (x) => out.push({ age: since(x.at, nowMs), ...x });
+  const add = (x) => (x.you && later.has(x.id.slice(2)) ? putOff.push(x.id) : out.push({ age: since(x.at, nowMs), ...x }));
   for (const t of D.tasks) {
     if (t.status !== 'waiting_on_jon') continue;
     seen.add(t.id);
-    add({ id: `t:${t.id}`, kind: 'p', you: true, title: t.title, at: t.updated_at, owner: ownerName(t.owner), blocks: plain(t.note) || 'Waiting on you' });
+    add({ id: `t:${t.id}`, kind: 'p', you: true, title: t.title, at: t.updated_at, sponsor: t.owner === 'sponsors', owner: ownerName(t.owner), blocks: plain(t.note) || 'Waiting on you' });
   }
   for (const x of D.questions) {
     if (hidden(x.idem_key)) continue;
     const t = x.task_id && byId.get(x.task_id);
     if (t && seen.has(t.id)) continue;
-    add({ id: `q:${x.id}`, kind: 'p', you: true, review: true, title: plain(x.question) || 'Question', at: x.at, owner: ownerName(x.asked_by), blocks: t ? t.title : 'No card linked' });
+    add({ id: `q:${x.id}`, kind: 'p', you: true, review: true, title: plain(x.question) || 'Question', at: x.at, sponsor: x.asked_by === 'sponsors', owner: ownerName(x.asked_by), blocks: t ? t.title : 'No card linked' });
   }
   for (const x of D.approvals) {
     const t = x.task_id && byId.get(x.task_id);
-    add({ id: `a:${x.id}`, kind: 'p', you: true, review: true, title: x.title, at: x.at, owner: ownerName(x.requested_by), blocks: t ? t.title : `Approval to ${String(x.action || '').replace(/_/g, ' ')}` });
+    add({ id: `a:${x.id}`, kind: 'p', you: true, review: true, title: x.title, at: x.at, sponsor: x.requested_by === 'sponsors', owner: ownerName(x.requested_by), blocks: t ? t.title : `Approval to ${String(x.action || '').replace(/_/g, ' ')}` });
   }
   for (const s of D.stuck) {
     const t = byId.get(s.task_id);
@@ -368,12 +511,31 @@ function blockersOf(D) {
   return out;
 }
 
+// ---- Scripts: every open @JonMacAI video card, newest first, with its script Doc and whether Jon has recorded it ----
+// Video card: title ends "- @JonMacAI" (a trailing "(note)" allowed) or names "@JonMacAI video:"; TEAM (QC helper)
+// cards are left out.
+// Doc: the first docs.google.com link in the note ("Script Doc: [label](url)"), else the newest Doc a proof carries.
+// Recorded: a QC-passed proof names the a-roll or footage (not waiting on it, not a draft), or the card's stage is past
+// recording (edit, render qc, publish; a pack can be built before Jon records). Everything else reads "To record".
+const VIDEO_CARD = /(^|\s)[-–—]\s*@JonMacAI\s*(\([^()]*\)\s*)?$|@JonMacAI video:/i;
+const PAST_RECORDING = new Set(['edit', 'render qc', 'publish']);
+const DOC = /https:\/\/docs\.google\.com\/[^\s)\]>"'<]+/i;
+const docOf = (note, proofDoc) => (String(note || '').match(DOC) || [])[0] || (DOC.test(proofDoc || '') ? String(proofDoc).match(DOC)[0] : null);
+function scriptsOf(D) {
+  if (!D.scripts) return null;
+  return D.scripts.filter((t) => VIDEO_CARD.test(t.title || '') && !/^\s*TEAM\b/i.test(t.title || '')).map((t) => {
+    const recorded = !!Number(t.footage) || PAST_RECORDING.has(String(t.stage || '').trim().toLowerCase());
+    return { id: t.id, title: t.title, at: t.created_at, doc: docOf(t.note, t.doc), status: recorded ? 'Recorded' : 'To record' };
+  });
+}
+
 export function buildD3(D) {
   const nowMs = D.nowMs;
   const win = monthWindow(nowMs);
   const first = `${win.key}-01`;
   const daysInMonth = Math.round((win.end - win.start) / DAY);
   const ws = weekStart(nowMs);
+  const putOff = [];
   const P = {
     today: vanYmd(nowMs), ws, first, last: addDays(first, daysInMonth - 1), elapsed: win.elapsed,
     weekShare: clamp((nowMs - midnight(ws)) / (7 * DAY)),
@@ -388,13 +550,17 @@ export function buildD3(D) {
     review: reviewOf(D),
     queue: queueOf(D),
     team: teamOf(D, P.today),
-    blockers: blockersOf(D),
+    blockers: blockersOf(D, putOff),
+    notNow: D.later ? putOff.length : null, // Needs you items put off with "Not now"; null when needs_later can't be read
+    scripts: scriptsOf(D),
     openCards: D.open ? Object.fromEntries(D.open.map((r) => [r.project || '', Number(r.n) || 0])) : null,
     goals: {
       tokenWeeks: tokenWeeks(D.usage, first, P.last),
       qcFirstTry: qcFirstTry(D.proofs, new Date(win.start).toISOString()),
       ...lifeOf(D, P),
       charges: chargesOf(D.charges),
+      scoreboard: scoreboardOf(D),
+      approvedWaiting: approvedWaitingOf(D),
     },
   };
 }

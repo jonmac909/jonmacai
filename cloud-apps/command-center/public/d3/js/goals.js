@@ -146,10 +146,12 @@ export function objectivesOf(d2resp, d3resp, P = periodOf(d2resp)) {
       kr('b1', jm?.title || 'Jon Mac', wk(jm, 0), WK(wk(jm, 0))),
       kr('b2', ai?.title || '@JonMacAI', wk(ai, 0), WK(wk(ai, 0))),
       kr('b3', hgp?.title || 'Home Guide Press', wk(hgp, 0), WK(wk(hgp, 0))),
-      kr('b4', 'QC-passed today', hgp?.day?.[0] || null, { hint: 'today', span: null, series: null }),
+      g3?.scoreboard ? kr('b4', 'QC-passed today', g3.scoreboard, { hint: 'today', span: null, series: null })
+        : noFeed('b4', 'QC-passed today', 'QC results on renders could not be read.'),
       qc ? kr('b5', 'Passed QC first try', qc, { bar: false, hint: num(qc.total) ? `${qc.passed} of ${qc.total}` : 'this month', span: null, series: null, target: '' })
         : noFeed('b5', 'Passed QC first try', 'QC verdicts on renders could not be read.'),
-      noFeed('b6', 'Approved, not published', 'Needs the review app to report when Jon approved each video and when it went live.'),
+      g3?.approvedWaiting ? kr('b6', 'Approved, not uploaded', g3.approvedWaiting, { bar: false, hint: g3.approvedWaiting.actual ? `oldest ${g3.approvedWaiting.oldestLabel}` : 'none waiting', span: null, series: null, target: 'Target 0' })
+        : noFeed('b6', 'Approved, not uploaded', 'Approvals and the YouTube calendar could not be read.'),
     ] },
     { title: 'Operations', owner: 'Ana', icon: 'bot', krs: [
       tw ? kr('c1', 'Weeks token limit hit', tw, { bar: false, hint: 'target 0', span: P.mo, series: num(tw.actual) ? monthEventSeries(tw.hitDays || [], P, 0) : null })
@@ -205,17 +207,40 @@ function headerHtml(P, title, sub, pill = '') {
 </header>`;
 }
 
+// Key results: one named row per result (name, actual / target, bar, status), worst first. Off track and at risk
+// rows always show; on track and no-data rows sit behind one click. Same rows and numbers as the sections below.
+const RANK = { r: 0, y: 1, g: 2, n: 3 };
+const WORD = { r: 'Off track', y: 'At risk', g: 'On track', n: 'No data' };
+export function keyRows(objs) {
+  const rows = [];
+  for (const o of objs) for (const k of o.krs) rows.push({ ...k, obj: o.title });
+  // Worst first: by status, then furthest below target (lowest share of target) first; rows with no bar keep order.
+  return rows.map((k, i) => ({ k, i })).sort((a, b) => RANK[a.k.tone] - RANK[b.k.tone]
+    || (a.k.hasBar ? a.k.pct : 101) - (b.k.hasBar ? b.k.pct : 101) || a.i - b.i).map((x) => x.k);
+}
+
+function keyRowHtml(k) {
+  const target = k.v2 ? `<span class="dim">${esc(k.v2)}</span>` : k.target ? `<span class="dim"> · ${esc(k.target.toLowerCase())}</span>` : '';
+  // No target, no bar: an empty grey track would read as 0%.
+  const bar = k.hasBar ? `<span class="bar" aria-hidden="true"><i class="${k.tone}" style="width: ${k.pct}%"></i></span>` : '<span class="bar nb" aria-hidden="true"></span>';
+  const word = k.nf && k.v1 === 'No feed' ? 'No feed' : WORD[k.tone];
+  return `<div class="ksr" data-kr-row="${esc(k.id)}"><span class="ksn"><span class="dot ${k.tone === 'n' ? '' : k.tone}"></span><span class="stack"><span class="ell">${esc(k.text)}</span><span class="mut ell" style="font-size: 12px">${esc(k.obj)}</span></span></span>
+<span class="ksv${k.nf ? ' nf' : ''}">${k.nf ? esc(k.v1) : `${esc(k.v1)}${target}`}</span>${bar}<span class="kss ${k.tone}">${esc(word)}</span></div>`;
+}
+
 function summaryHtml(objs) {
   const c = { r: 0, y: 0, g: 0, n: 0 };
   for (const o of objs) for (const k of o.krs) c[k.tone] += 1;
   const all = c.r + c.y + c.g + c.n;
   const pill = c.r ? '<span class="pill bad sp">Behind</span>' : c.y ? '<span class="pill warn sp">At risk</span>' : c.g ? '<span class="pill ok sp">On track</span>' : '<span class="pill sp">No data</span>';
-  const rows = objs.map((o) => `<div style="display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr); align-items: center; gap: 12px"><span class="sub" style="font-weight: 500">${esc(o.title)}</span><span style="display: flex; gap: 5px">${o.krs.map((k) => `<i class="sq ${k.tone === 'n' ? '' : k.tone}" title="${esc(k.text)}"></i>`).join('')}</span></div>`).join('');
-  return `<section class="card" style="flex: 5 1 340px" aria-label="Key results">
+  const rows = keyRows(objs);
+  const top = rows.filter((k) => k.tone === 'r' || k.tone === 'y');
+  const rest = rows.filter((k) => k.tone === 'g' || k.tone === 'n');
+  const more = rest.length ? `<details class="ksm"${top.length ? '' : ' open'}><summary class="mut">${c.g} on track, ${c.n} no data</summary><div class="ksl">${rest.map(keyRowHtml).join('')}</div></details>` : '';
+  return `<section class="card ks" style="flex: 5 1 340px" aria-label="Key results">
 <div class="hd"><span class="chip">${icon('goals')}</span><h2>Key results</h2>${pill}</div>
-<div class="hd" style="align-items: baseline; gap: 8px"><b class="num">${c.r}</b><span class="dim" style="font-size: 16px">of ${all} off track</span></div>
-<div style="display: flex; flex-direction: column; gap: 10px">${rows}</div>
-<div class="hd mut" style="flex-wrap: wrap; gap: 6px 14px; font-size: 12px"><span class="hd" style="gap: 6px"><span class="dot r"></span>${c.r} off track</span><span class="hd" style="gap: 6px"><span class="dot y"></span>${c.y} at risk</span><span class="hd" style="gap: 6px"><span class="dot g"></span>${c.g} on track</span><span class="hd" style="gap: 6px"><span class="dot"></span>${c.n} no data</span></div>
+<div class="hd" style="align-items: baseline; gap: 8px"><b class="num">${c.r}</b><span class="dim" style="font-size: 16px">of ${all} off track${c.y ? `, ${c.y} at risk` : ''}</span></div>
+${top.length ? `<div class="ksl">${top.map(keyRowHtml).join('')}</div>` : ''}${more}
 </section>`;
 }
 
@@ -362,6 +387,36 @@ ${names}
 </section>`;
 }
 
+// Top of Goals (Jon, 2026-11-11): today's videos against the 6-a-day goal, each video's stage and 3-hour clock, and the
+// approved videos not on YouTube yet in red.
+const hm = (m) => (num(m) ? `${Math.floor(m / 60)}:${String(m % 60).padStart(2, '0')}` : '–');
+export function scoreboardHtml(d3resp) {
+  const g3 = d3resp?.d3?.goals || {};
+  const sb = g3.scoreboard;
+  const aw = g3.approvedWaiting;
+  if (!sb) {
+    return `<section class="card" aria-label="Today's videos"><div class="hd"><span class="chip">${icon('video')}</span><h2>Today's videos</h2></div><p class="mut">No feed: QC results could not be read.</p></section>`;
+  }
+  const tone = PILL[toneOf(sb.status)] || '';
+  const red = 'color: var(--bad-ink)';
+  const rows = (sb.rows || []).map((r) => {
+    const late = r.state === 'late';
+    const stage = r.state === 'passed' ? '<span class="pill ok">Passed QC</span>'
+      : `<span${late && r.stageMin > r.budgetMin ? ` style="${red}"` : ''}>${esc(r.stage)} ${esc(r.stageMin ?? '–')} of ${esc(r.budgetMin)} min</span>`;
+    const clock = `<span class="num" style="font-size: 14px${late && r.clockMin > sb.clockBudget ? `; ${red}` : ''}">${esc(hm(r.clockMin))} of ${esc(hm(sb.clockBudget))}</span>`;
+    return `<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px">
+<span class="dot ${r.state === 'passed' ? 'g' : late ? 'r' : 'y'}"></span><span style="flex: 1 1 200px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap${late ? `; ${red}` : ''}" title="${esc(r.title)}">${esc(r.title)}</span>${stage}${clock}</div>`;
+  }).join('\n');
+  const awLine = !aw ? '<p class="mut">Approved, not uploaded: no feed.</p>'
+    : aw.actual ? `<p style="${red}; font-weight: 600">${esc(aw.actual)} approved, not uploaded, oldest ${esc(aw.oldestLabel)}: ${esc(aw.items.slice(0, 5).map((x) => x.title).join('; '))}${aw.items.length > 5 ? ` and ${aw.items.length - 5} more` : ''}</p>`
+      : '<p class="mut">Every approved video is scheduled or live.</p>';
+  return `<section class="card" aria-label="Today's videos">
+<div class="hd"><span class="chip">${icon('video')}</span><h2>Today's videos</h2><span class="pill ${tone}">${esc(sb.actual)} of ${esc(sb.target)} passed today</span>${sb.late ? `<span class="pill bad">${esc(sb.late)} late</span>` : ''}</div>
+${rows ? `<div style="display: flex; flex-direction: column; gap: 8px">${rows}</div>` : '<p class="mut">No video passed QC or is in a timed stage yet today.</p>'}
+${awLine}
+</section>`;
+}
+
 export function headerOnly(d2resp, title, sub, pill) {
   return headerHtml(periodOf(d2resp), title, sub, pill);
 }
@@ -371,6 +426,7 @@ export function renderGoals(d2resp, d3resp, ui = {}) {
   const objs = objectivesOf(d2resp, d3resp, P);
   const U = { openKr: ui.openKr || null, hgpOpen: !!ui.hgpOpen, busy: !!ui.busy };
   return `${headerHtml(P, 'Goals')}
+${scoreboardHtml(d3resp)}
 <div class="row">
 ${summaryHtml(objs)}
 ${revenueHtml(d2resp, P)}
