@@ -143,6 +143,8 @@ test('markets: long decimals show one decimal, and a missing day change shows no
   const m = sec(buildSummary(ctx({ by: money(ago(1), { markets: { core: long } }) }), X()), 'markets');
   assert.deepEqual(m.rows.map((r) => r.sub), ['2% below all-time high · today +2.4%', '3.6% below all-time high · today 0%']);
   const none = sec(buildSummary(ctx({ by: money(ago(1), { markets: { core: [{ symbol: 'VOO', price: 700, pctOffHigh: 1.26 }] } }) }), X()), 'markets');
+  const nul = sec(buildSummary(ctx({ by: money(ago(1), { markets: { core: [{ symbol: 'VOO', price: 700, pctOffHigh: null, todayPct: null }] } }) }), X()), 'markets');
+  assert.equal(nul.rows[0].sub, 'all-time high not in feed');
   assert.equal(none.rows[0].sub, '1.3% below all-time high');
 });
 test('markets: price and % below all-time high, a missing symbol or feed says so, an old feed is stale', () => {

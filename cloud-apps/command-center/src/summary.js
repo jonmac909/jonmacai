@@ -130,7 +130,7 @@ function marketsSection(row0, nowMs) {
     if (!m || !Number.isFinite(Number(m.price))) return row(sym, '', 'Not in the MoneyClaw feed. Owner: Mila.', 'muted');
     const ath = Number(m.allTimeHigh);
     const one = (x) => Math.round(Number(x) * 10) / 10 || 0; // one decimal (QC 2026-11-09: long decimals); || 0 turns -0 into 0
-    const off = Number.isFinite(Number(m.pctOffHigh)) ? one(m.pctOffHigh) : Number.isFinite(ath) && ath > 0 ? one((1 - m.price / ath) * 100) : null;
+    const off = m.pctOffHigh != null && m.pctOffHigh !== '' && Number.isFinite(Number(m.pctOffHigh)) ? one(m.pctOffHigh) : Number.isFinite(ath) && ath > 0 ? one((1 - m.price / ath) * 100) : null;
     const dayPct = m.todayPct == null || m.todayPct === '' ? NaN : Number(m.todayPct);
     const day = Number.isFinite(dayPct) ? ` · today ${one(dayPct) > 0 ? '+' : ''}${one(dayPct)}%` : '';
     return row(sym, money(Number(m.price), true), off == null ? `all-time high not in feed${day}` : `${off === 0 ? 'at its all-time high' : `${off}% below all-time high`}${day}`);
