@@ -218,8 +218,9 @@ function headerHtml(P, title, sub, pill = '') {
 </header>`;
 }
 
-// Key results: one named row per result (name, actual / target, bar, status), worst first. Off track and at risk
-// rows always show; on track and no-data rows sit behind one click. Same rows and numbers as the sections below.
+// Key results: one named row per result (name, actual / target, bar, status), worst first. The worst KR_OPEN rows
+// show; the rest sit behind one click. Same rows and numbers as the sections below.
+export const KR_OPEN = 9;
 const RANK = { r: 0, y: 1, g: 2, n: 3 };
 const WORD = { r: 'Off track', y: 'At risk', g: 'On track', n: 'No data' };
 export function keyRows(objs) {
@@ -245,10 +246,11 @@ function summaryHtml(objs) {
   for (const o of objs) for (const k of o.krs) c[k.tone] += 1;
   const all = c.r + c.y + c.g + c.n;
   const pill = c.r ? '<span class="pill bad sp">Behind</span>' : c.y ? '<span class="pill warn sp">At risk</span>' : c.g ? '<span class="pill ok sp">On track</span>' : '<span class="pill sp">No data</span>';
+  // At most KR_OPEN rows show (worst first) so the card stays short; the rest sit behind one collapsed toggle.
   const rows = keyRows(objs);
-  const top = rows.filter((k) => k.tone === 'r' || k.tone === 'y');
-  const rest = rows.filter((k) => k.tone === 'g' || k.tone === 'n');
-  const more = rest.length ? `<details class="ksm"${top.length ? '' : ' open'}><summary class="mut">${c.g} on track, ${c.n} no data</summary><div class="ksl">${rest.map(keyRowHtml).join('')}</div></details>` : '';
+  const top = rows.slice(0, KR_OPEN);
+  const rest = rows.slice(KR_OPEN);
+  const more = rest.length ? `<details class="ksm"><summary class="mut">+${rest.length} more</summary><div class="ksl">${rest.map(keyRowHtml).join('')}</div></details>` : '';
   return `<section class="card ks" style="flex: 5 1 340px" aria-label="Key results">
 <div class="hd"><span class="chip">${icon('goals')}</span><h2>Key results</h2>${pill}</div>
 <div class="hd" style="align-items: baseline; gap: 8px"><b class="num" style="font-size: 30px">${c.r}</b><span class="dim" style="font-size: 15px">of ${all} off track${c.y ? `, ${c.y} at risk` : ''}</span></div>
