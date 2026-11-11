@@ -6,7 +6,7 @@ import { sqliteD1 } from './sqlited1.mjs';
 import { handleApi } from '../src/api.js';
 import worker from '../src/worker.js';
 import { signSession, COOKIE } from '../src/auth.js';
-import { renderGoals, objectivesOf } from '../public/d3/js/goals.js';
+import { renderGoals, objectivesOf, scoreboardHtml } from '../public/d3/js/goals.js';
 import { statHtml, railCounts } from '../public/d3/js/rail.js';
 import { renderTeam } from '../public/d3/js/team.js';
 import { blockerRows, renderBlockers } from '../public/d3/js/blockers.js';
@@ -120,6 +120,96 @@ test('GET /dashboard/api/d3: values from D1 (review queue, tokens, open cards, w
   assert.equal(again.d3.review.count, 2);
 });
 
+test('Goals scoreboard: today\'s QC-passed videos, stage clocks, and approved videos not uploaded', async () => {
+  const db = sqliteD1();
+  const card = (id, title, project, extra = {}) => ins(db, 'bot_tasks', { id, title, owner: 'elle', project, status: 'doing', created_by: 'ana', updated_by: 'ana', created_at: '2026-11-10T15:00:00Z', updated_at: '2026-11-10T15:00:00Z', ...extra });
+  const pass = (id, task, link, at = '2026-11-10T17:00:00Z') => ins(db, 'bot_proofs', { id, task_id: task, kind: 'render', link, status: 'passed', created_by: 'qc', created_at: at, checked_at: at });
+  const ev = (id, task, at, kind, detail) => db.sqlite.prepare('INSERT INTO bot_task_events (id, task_id, at, "by", kind, detail) VALUES (?, ?, ?, ?, ?, ?)').run(id, task, at, 'jon', kind, detail);
+  // Elle's Rosa video passed today: counts, even though Olivia doesn't own it.
+  card('e1', "Smart thermostat mistakes - Rosa's House Hacks", 'home-guide-press');
+  pass('p1', 'e1', 'https://jonmac.ai/review/rosa-3-v3');
+  pass('p1b', 'e1', 'https://jonmac.ai/review/rosa-3-v4', '2026-11-10T18:00:00Z'); // one card counts once
+  // An a-roll pass doesn't count; the card is in pack, on time.
+  card('a1', 'Kitchen tips - Naomi Takeda Japan', 'home-guide-press', { stage: 'pack', stage_since: '2026-11-10T18:00:00Z', created_at: '2026-11-10T17:00:00Z' });
+  pass('p2', 'a1', 'https://jonmac.ai/review/aroll/naomi-1-v1');
+  // A parked channel doesn't count.
+  card('d1', 'Dog training - Dale Whitaker Pitbulls', 'home-guide-press');
+  pass('p3', 'd1', 'https://jonmac.ai/review/dale-1-v1');
+  // Jon Mac passed yesterday (not today); its edit stage is over budget, so it's late.
+  card('j1', 'AI agents explained - Jon Mac', 'jon-mac', { stage: 'edit', stage_since: '2026-11-10T16:00:00Z', created_at: '2026-11-10T16:00:00Z' });
+  pass('p4', 'j1', 'https://jonmac.ai/review/jonmac-1-v1', '2026-11-09T20:00:00Z');
+  // Rosa passed v1 yesterday and v2 today: a new version of an older video doesn't count again.
+  card('r2', "Fridge coils - Rosa's House Hacks", 'home-guide-press');
+  pass('p5', 'r2', 'https://jonmac.ai/review/rosa-4-v1', '2026-11-09T20:00:00Z');
+  pass('p6', 'r2', 'https://jonmac.ai/review/rosa-4-v2');
+  // Approved and waiting; approved then sent back; approved and already published.
+  card('n1', 'Litter box myths - Nora Fairweather Cats', 'home-guide-press');
+  ev('v1', 'n1', '2026-11-08T19:00:00Z', 'review', 'approved v2 on the review page');
+  card('g1', 'Pasta water - Giovanni Moretti', 'home-guide-press');
+  ev('v2', 'g1', '2026-11-08T19:00:00Z', 'review', 'approved v1 on the review page');
+  ev('v3', 'g1', '2026-11-09T19:00:00Z', 'review', 'changes asked on v1');
+  card('s1', 'Sushi at home - Naomi Takeda Japan', 'home-guide-press');
+  ev('v4', 's1', '2026-11-08T19:00:00Z', 'status', 'status review → qc (approved by Jon)');
+  ins(db, 'yt_calendar', { id: 'c1', channel: 'naomi-takeda-japan', title: 'Sushi at home', day: '2026-11-10', status: 'published', created_by: 'x', updated_by: 'x', created_at: '2026-11-10T00:00:00Z', updated_at: '2026-11-10T00:00:00Z' });
+  const env = { DB: db, SESSION_SECRET: SECRET };
+  const body = await withNow(TUESDAY, async () => (await handleApi(new Request('https://jonmac.ai/dashboard/api/d3', { headers: { Cookie: await cookieAt(TUESDAY) } }), env)).json());
+  const sb = body.d3.goals.scoreboard;
+  assert.equal(sb.actual, 1);
+  assert.equal(sb.target, 6);
+  assert.deepEqual(sb.rows.map((r) => [r.id, r.state]), [['e1', 'passed'], ['j1', 'late'], ['a1', 'on']]);
+  assert.equal(sb.late, 1);
+  const pack = sb.rows.find((r) => r.id === 'a1');
+  assert.deepEqual([pack.stageMin, pack.budgetMin, pack.clockMin], [60, 75, 120]);
+  const aw = body.d3.goals.approvedWaiting;
+  assert.deepEqual(aw.items.map((x) => x.id), ['n1']);
+  assert.equal(aw.actual, 1);
+  assert.ok(aw.oldestLabel);
+  const html = scoreboardHtml(body);
+  assert.match(html, /1 of 6 passed today/);
+  assert.match(html, /1 late/);
+  assert.match(html, /1 approved, not uploaded, oldest [^:]+: Litter box myths - Nora Fairweather Cats/);
+  assert.match(html, /pack 60 of 75 min/);
+  assert.match(html, /2:00 of 3:00/);
+  // The Goals page puts it right after the header.
+  const page = renderGoals(SAMPLE(), body, {});
+  assert.ok(page.indexOf("Today's videos") < page.indexOf('Key results'));
+});
+
+test('Goals scoreboard: clock from the first stage, own channels waiting, ad / live / old cards skipped, long list capped, no feed', async () => {
+  const db = sqliteD1();
+  const card = (id, title, project, extra = {}) => ins(db, 'bot_tasks', { id, title, owner: 'elle', project, status: 'doing', created_by: 'ana', updated_by: 'ana', created_at: '2026-11-10T15:00:00Z', updated_at: '2026-11-10T15:00:00Z', ...extra });
+  const ev = (id, task, at, kind, detail) => db.sqlite.prepare('INSERT INTO bot_task_events (id, task_id, at, "by", kind, detail) VALUES (?, ?, ?, ?, ?, ?)').run(id, task, at, 'jon', kind, detail);
+  // Made two days ahead, brief started an hour ago: the clock reads 1:00, not late.
+  card('k1', 'Rice cooker hacks - Naomi Takeda Japan', 'home-guide-press', { stage: 'brief', stage_since: '2026-11-10T18:50:00Z', created_at: '2026-11-08T15:00:00Z' });
+  ev('s1', 'k1', '2026-11-10T18:00:00Z', 'stage', 'stage none → brief');
+  // Approved and waiting on the Jon Mac and @JonMacAI channels count now.
+  card('j1', 'Claude tips - Jon Mac', 'jon-mac');
+  ev('a1', 'j1', '2026-11-09T19:00:00Z', 'review', 'approved v1 on the review page');
+  card('j2', 'Agents in 10 minutes - JonMacAI', 'jonmacai');
+  ev('a2', 'j2', '2026-11-09T18:00:00Z', 'review', 'approved v1 on the review page');
+  // Not waiting: an ebook ad, a card with a live proof link, a card done more than 14 days ago.
+  card('x1', 'Ebook ad - Rosa\'s House Hacks', 'home-guide-press');
+  ev('a3', 'x1', '2026-11-09T19:00:00Z', 'review', 'approved v1 on the review page');
+  card('x2', 'Gutter cleaning - Rosa\'s House Hacks', 'home-guide-press');
+  ev('a4', 'x2', '2026-11-09T19:00:00Z', 'review', 'approved v1 on the review page');
+  ins(db, 'bot_proofs', { id: 'pl', task_id: 'x2', kind: 'live', link: 'https://youtu.be/abc', status: 'passed', created_by: 'elle', created_at: '2026-11-09T20:00:00Z' });
+  card('x3', 'Old one - Giovanni Moretti', 'home-guide-press', { status: 'done', updated_at: '2026-10-20T00:00:00Z' });
+  ev('a5', 'x3', '2026-10-19T19:00:00Z', 'review', 'approved v1 on the review page');
+  const env = { DB: db, SESSION_SECRET: SECRET };
+  const body = await withNow(TUESDAY, async () => (await handleApi(new Request('https://jonmac.ai/dashboard/api/d3', { headers: { Cookie: await cookieAt(TUESDAY) } }), env)).json());
+  const k1 = body.d3.goals.scoreboard.rows.find((r) => r.id === 'k1');
+  assert.deepEqual([k1.clockMin, k1.state], [60, 'on']);
+  assert.deepEqual(body.d3.goals.approvedWaiting.items.map((x) => x.id), ['j2', 'j1']);
+  // Seven waiting: the red line names five and counts the rest.
+  const items = Array.from({ length: 7 }, (_, i) => ({ id: `w${i}`, title: `Video ${i} - Jon Mac`, waitMin: 60 }));
+  const many = { d3: { goals: { scoreboard: body.d3.goals.scoreboard, approvedWaiting: { actual: 7, oldestLabel: '1 hr', items } } } };
+  const html = scoreboardHtml(many);
+  assert.match(html, /Video 4 - Jon Mac and 2 more/);
+  assert.ok(!html.includes('Video 5'));
+  // No scoreboard source: the section says No feed instead of breaking the page.
+  assert.match(scoreboardHtml({ d3: { goals: {} } }), /No feed/);
+});
+
 const d3Sample = () => ({ ok: true, d3: {
   rail: { dispatcher: { state: 'none', text: 'No feed' }, bots: { state: 'none', text: 'No feed' }, tokens: { state: 'y', text: 'Tokens 80% used', pct: 80 }, youtube: { state: 'g', text: 'YouTube login ok' } },
   review: { count: 3, oldestLabel: '5 hr' }, openCards: { 'jon-mac': 8, jonmacai: 1 },
@@ -160,7 +250,8 @@ test('Goals: sections in the design order, targets from the data, no design samp
 test('Goals: missing sources read No feed / No data with a grey dot; text is escaped; trends only from real points', () => {
   const d2 = SAMPLE();
   const none = renderGoals(d2, null, {});
-  assert.match(none, /Approved, not published<\/span><span class="krv nf">No feed/);
+  assert.match(none, /Approved, not uploaded<\/span><span class="krv nf">No feed/);
+  assert.match(none, /Today's videos<\/h2><\/div><p class="mut">No feed/);
   assert.match(none, /Workouts<\/span><span class="krv nf">No feed/);
   assert.match(none, /<b class="num sp nf">No feed<\/b>/); // tiles that need /d3
   assert.match(none, /Open cards: No feed/);
