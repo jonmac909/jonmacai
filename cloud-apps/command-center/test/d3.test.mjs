@@ -481,6 +481,9 @@ test('Team cards by bot: every open card (past 400) by owner and status, Others 
   for (const w of ['To do', 'Doing', 'QC', 'Needs you', 'Review']) assert.match(kan, new RegExp(`<b>${w}</b>`));
   assert.match(kan, /class="stage tmon" data-tmk="review"/);
   assert.match(kan, /href="\/dashboard\/\?card=d1#projects"/);
+  T.bots.find((b) => b.slug === 'developer').cards.doing[0].title = '<img src=x onerror=alert(1)>';
+  const esc1 = renderTeam(SAMPLE(), d3, { teamBot: 'developer' });
+  assert.ok(esc1.includes('&lt;img src=x onerror=alert(1)&gt;') && !esc1.includes('<img src=x'));
   assert.equal((kan.match(/class="vcard tmcard"/g) || []).length, STATUSES.reduce((n, s) => n + T.bots.find((b) => b.slug === 'developer').cards[s].length, 0));
 });
 

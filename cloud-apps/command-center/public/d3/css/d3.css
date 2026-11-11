@@ -160,7 +160,7 @@ html[data-theme="dark"] body{background:#0b0b0c}
 .d3 .btn.tm[aria-pressed="true"] .mut{color:inherit}
 .d3 .tm.off{opacity:.5}
 .d3 .tmrow{display:grid;grid-template-columns:minmax(0,1fr) repeat(5,minmax(40px,64px));gap:6px;align-items:center;border-top:1px solid var(--line);padding:6px 0}
-.d3 .tmrow.thead{border-top:0}
+.d3 .tmrow.thead{border-top:0;font-size:11px;line-height:1.2}
 .d3 .tmrow>:not(:first-child){text-align:center;justify-self:center}
 .d3 .btn.tmn{min-width:40px;height:30px;padding:0 8px}
 .d3 .tmkan{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(240px,1fr);gap:8px;overflow-x:auto;align-items:start}
