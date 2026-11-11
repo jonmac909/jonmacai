@@ -492,7 +492,7 @@ test('Page header escapes its sub line; Team header and Working tile read the sa
 
 test('d3.css: narrow screens stack the Team and Blockers rows, desktop rules unchanged', () => {
   const css = readFileSync(new URL('../public/d3/css/d3.css', import.meta.url), 'utf8');
-  assert.match(css, /\.d3 \.brow\{display:grid;grid-template-columns:170px minmax\(0,1fr\) 116px 60px 60px 56px 84px;/);
+  assert.match(css, /\.d3 \.brow\{display:grid;grid-template-columns:206px minmax\(0,1fr\) 116px 60px 60px 56px 84px;/);
   assert.match(css, /\.d3 \.blrow\{display:grid;grid-template-columns:minmax\(0,1fr\) 160px 90px 104px;/);
   const media = [...css.matchAll(/@media \(max-width:(\d+)px\)\{([\s\S]*?)\n\}/g)].map((m) => [Number(m[1]), m[2]]);
   const narrow = media.filter(([w]) => w < 1024).map(([, body]) => body).join('\n');
@@ -739,7 +739,7 @@ test('Team page: each bot shows its profile picture from /dash/img/bots, rows wi
     assert.ok(readFileSync(f).length < 10000, `${k}.webp is small`);
   }
   const html = renderTeam(SAMPLE(), await d3Of(teamDb()), {});
-  assert.match(html, /<img class="av pic" src="img\/bots\/lucy\.webp" alt="Lucy"[^>]* width="32" height="32"/);
+  assert.match(html, /<img class="av pic" src="img\/bots\/lucy\.webp" alt="" title="Lucy"[^>]* width="32" height="32"/);
   assert.match(html, /<span class="avs"><img [^>]*olivia\.webp[^>]*><img [^>]*emma\.webp[^>]*><img [^>]*indy\.webp[^>]*><\/span>/);
   assert.doesNotMatch(html, /<span class="av"[^>]*>[A-Z]<\/span>/); // every roster bot has a picture now
   // A bot with no picture keeps its letter circle, also inside a stack; nothing from a name reaches the src.

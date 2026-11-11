@@ -26,7 +26,7 @@ export function avatars(names) {
   const one = (n) => {
     const key = String(n).toLowerCase();
     return BOT_PICS.has(key)
-      ? `<img class="av pic" src="img/bots/${esc(key)}.webp" alt="${esc(n)}" title="${esc(n)}" width="32" height="32" loading="lazy" decoding="async">`
+      ? `<img class="av pic" src="img/bots/${esc(key)}.webp" alt="" title="${esc(n)}" width="32" height="32" loading="lazy" decoding="async">`
       : `<span class="av" style="width: 32px; height: 32px; font-size: 13px">${esc(String(n).charAt(0) || '?')}</span>`;
   };
   if (list.length === 1) return one(list[0]);

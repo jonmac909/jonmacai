@@ -88,7 +88,7 @@ html[data-theme="dark"] body{background:#0b0b0c}
 .d3 .btn.lg{min-height:44px;padding:0 22px;font-size:14px;border-radius:12px}
 .d3 .btn[aria-pressed="true"]{background:var(--ink);border-color:var(--ink);color:var(--card)}
 .d3 .thead{font-size:12px;color:var(--muted)}
-.d3 .brow{display:grid;grid-template-columns:170px minmax(0,1fr) 116px 60px 60px 56px 84px;gap:12px;align-items:center;width:100%;text-align:left;border:0;background:transparent;padding:12px 0}
+.d3 .brow{display:grid;grid-template-columns:206px minmax(0,1fr) 116px 60px 60px 56px 84px;gap:12px;align-items:center;width:100%;text-align:left;border:0;background:transparent;padding:12px 0}
 .d3 button.brow{border-top:1px solid var(--line)}
 .d3 .board{display:grid;gap:8px}
 .d3 .stage{border:1px solid var(--line);border-radius:14px;padding:10px;display:flex;flex-direction:column;gap:8px;min-width:0}
@@ -122,7 +122,7 @@ html[data-theme="dark"] body{background:#0b0b0c}
 /* Narrow screens: no sideways scroll. Wider than 983px the design layout above is unchanged (the Team row needs ~690px
    of card; the rail sits beside the main column from 808px up). */
 @media (max-width:983px){
-  .d3 .brow{grid-template-columns:170px minmax(0,1fr) 116px}
+  .d3 .brow{grid-template-columns:206px minmax(0,1fr) 116px}
   .d3 .brow>:nth-child(n+4){display:none}
   .d3 .board{grid-template-columns:repeat(4,minmax(0,1fr)) !important}
 }
