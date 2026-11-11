@@ -8,6 +8,8 @@
 //   question  pick an option, or Other and type, then Submit = POST /v1/questions/:id/answer
 // Each write asks Jon to confirm first and goes to the item its button was drawn for.
 //   email     Send = POST /dashboard/api/actions {kind: the draft's sendKind}; Edit first edits the draft in place
+//             Above the draft sits the Gmail thread it replies to (GET /dashboard/api/sponsor-threads, read only, found by
+//             the card's Gmail thread id): messages oldest first, the newest two open, older ones folded, then "Your reply".
 // Undo has nothing to call yet, so it shows disabled.
 import { esc, icon, draftsOf } from './util.js';
 import { headerOnly } from './goals.js';
@@ -31,7 +33,7 @@ export function reviewItems(d2resp, d3resp) {
     id: `d:${k.id}`, type: 'email', group: 'other', kind: 'Sponsor email', name: k.name || 'Sponsor', head: `Reply to ${k.name || 'sponsor'}`,
     sub: [k.column, 'your send'].filter(Boolean).join(' · '),
     facts: [{ l: 'To', v: k.payload.to || '–' }, { l: 'Subject', v: k.payload.subject || '–' }, { l: 'Stage', v: k.column || '–' }],
-    body: k.payload.body || '', act: { type: 'email', payload: k.payload },
+    body: k.payload.body || '', threadId: k.threadId || '', act: { type: 'email', payload: k.payload },
   }));
   const rest = Array.isArray(live) ? live : [];
   const vids = rest.filter((x) => x.group === 'video');
@@ -91,6 +93,30 @@ function buttons(c, ui) {
   return '';
 }
 
+// The email thread a sponsor draft replies to, oldest first (ui.rvThreads = GET /dashboard/api/sponsor-threads).
+// The newest two messages start open, older ones folded; a click opens or folds one (kept in ui.rvOpen across refreshes).
+const when = (iso) => {
+  const t = Date.parse(iso);
+  return Number.isFinite(t) ? new Date(t).toLocaleString('en-US', { timeZone: 'America/Vancouver', month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }) : '';
+};
+function threadHtml(c, ui) {
+  const T = ui.rvThreads;
+  const box = (inner) => `<div class="inner rvthread" style="gap: 8px">${inner}</div>`;
+  if (!T) return box('<span class="mut">Email thread</span><span class="nf">Loading the thread</span>');
+  if (T.error) return box(`<span class="mut">Email thread</span><span class="nf">Could not load the thread (${esc(T.error)})</span>`);
+  const th = c.threadId && T.threads?.[c.threadId];
+  if (th?.error) return box('<span class="mut">Email thread</span><span class="nf">Could not load the thread</span>');
+  const msgs = th?.messages || [];
+  if (!msgs.length) return box('<span class="mut">Email thread</span><span class="nf">No thread found</span>');
+  const rows = msgs.map((m, j) => {
+    const key = `${c.threadId}:${m.id || j}`; // by Gmail message id, so a new message keeps the others' fold state
+    const open = ui.rvOpen?.[key] ?? j >= msgs.length - 2;
+    return `<details class="rvmsg"${open ? ' open' : ''}><summary data-rvmsg="${esc(key)}"><b class="ell">${esc(m.from || 'Unknown sender')}</b><span class="mut" style="flex: none">${esc(when(m.date))}</span></summary>
+<p class="sub" style="white-space: pre-wrap; overflow-wrap: anywhere">${m.body ? esc(m.body) : '<span class="nf">No text</span>'}${m.quoted ? '\n<span class="mut">(earlier quoted text hidden)</span>' : ''}</p></details>`;
+  }).join('\n');
+  return box(`<span class="mut">Email thread · ${msgs.length} message${msgs.length === 1 ? '' : 's'}, oldest first</span>\n${rows}`);
+}
+
 const factsHtml = (facts, w = 80) => `<div class="inner" style="gap: 0">${(facts || []).map((f) => `<div class="hrow"><span class="mut" style="width: ${w}px; flex: none">${esc(f.l)}</span><span class="ell">${esc(f.v)}</span></div>`).join('')}</div>`;
 
 function bodyHtml(c, ui) {
@@ -113,10 +139,12 @@ ${player}
       const p = { ...c.act.payload, ...(ui.rvDraft || {}) };
       const f = (name, label, v) => `<label class="hrow"><span class="mut" style="width: 80px; flex: none">${label}</span><input class="rvin" name="${name}" value="${esc(v)}"></label>`;
       return `<div class="inner" style="gap: 6px">${f('to', 'To', p.to || '')}${f('subject', 'Subject', p.subject || '')}</div>
-<div class="inner" style="min-height: 240px"><span class="mut">Draft</span><textarea class="rvin" name="body" rows="12">${esc(p.body || '')}</textarea></div>`;
+${threadHtml(c, ui)}
+<div class="inner rvreply" style="min-height: 240px"><span class="mut">Your reply (draft, not sent)</span><textarea class="rvin" name="body" rows="12">${esc(p.body || '')}</textarea></div>`;
     }
     return `${factsHtml(c.facts)}
-<div class="inner" style="min-height: 240px"><span class="mut">Draft</span><p class="sub" style="white-space: pre-wrap">${c.body ? esc(c.body) : '<span class="nf">No draft text</span>'}</p></div>`;
+${threadHtml(c, ui)}
+<div class="inner rvreply" style="min-height: 240px"><span class="mut">Your reply (draft, not sent)</span><p class="sub" style="white-space: pre-wrap">${c.body ? esc(c.body) : '<span class="nf">No draft text</span>'}</p></div>`;
   }
   const label = c.type === 'card' ? 'Card note' : c.type === 'approval' ? 'Notes' : 'Context';
   const links = [...(c.links || []), ...(c.link ? [{ label: c.linkLabel || 'Open', href: c.link }] : [])].filter((l) => safeHref(l.href));
@@ -186,6 +214,14 @@ export async function reviewClick(e, S, render, reload) {
   const q = shown(items, ui);
   const pick = e.target.closest('[data-rvq]');
   if (pick) { Object.assign(ui, { rvSel: pick.dataset.rvq, rvBack: null, rvEdit: null, rvDraft: {}, rvPick: null, rvText: '', rvErr: '' }); render(); return true; }
+  const msg = e.target.closest('[data-rvmsg]');
+  if (msg) {
+    e.preventDefault(); // the page draws open or folded from ui.rvOpen, so a refresh keeps Jon's choice
+    const k = msg.dataset.rvmsg;
+    ui.rvOpen = { ...(ui.rvOpen || {}), [k]: !msg.parentElement.open };
+    render();
+    return true;
+  }
   const nav = e.target.closest('[data-rvnav]');
   if (nav) {
     if (!q.length) return true;
