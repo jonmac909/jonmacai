@@ -574,7 +574,11 @@ async function addProof(db, who, taskId, body, now) {
 }
 
 async function checkProof(db, who, id, body, now) {
-  if (who.bot !== QC_BOT) throw new Bad(403, 'Only QC can pass or fail proof');
+  // QC rules on proof. Ana may also rule on a proof QC posted itself, which nobody else could check.
+  if (who.bot !== QC_BOT) {
+    const own = who.bot === 'ana' ? await db.prepare('SELECT created_by FROM bot_proofs WHERE id = ?').bind(id).first() : null;
+    if (own?.created_by !== QC_BOT) throw new Bad(403, 'Only QC can pass or fail proof (Ana only for proof QC posted)');
+  }
   const result = oneOf(body.result, ['passed', 'failed'], 'result');
   const note = text(body, 'note', 4000);
   const r = await db.prepare('UPDATE bot_proofs SET status = ?, checked_by = ?, checked_at = ?, check_note = ? WHERE id = ?')
