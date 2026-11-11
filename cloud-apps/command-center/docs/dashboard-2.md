@@ -2,7 +2,7 @@
 
 Jon approved 2026-11-08 (card "Jon's ask: Dashboard 2 at jonmac.ai/dashboard-2"). A top-down view next to `/dashboard`: month goals, then this week's targets, then today. Five pages: Month, Week, Today, Pipeline, Money. Review is in the main nav (it opens `/dashboard/review`). Feed, Life, Journal and the old dashboard are links in a menu (they open the existing `/dashboard` pages).
 
-Hard limits: `/dashboard` (its pages, its API answers, its data) does not change. Views only: nothing is deleted or rewritten. No new feeds, collectors or automations. Every number names its source and age; a stale feed is flagged on the number and in a banner. Plain words for Jon: video titles as "<title> - <channel>", no raw IDs or file paths.
+Hard limits: `/dashboard` (its pages, its API answers, its data) does not change. Views only: nothing is deleted or rewritten. No new feeds, collectors or automations. Every number names its source and age; a stale one shows a small grey "as of <date>" (no banner on Jon's pages: the stale feeds go to Ana through `GET /dashboard/api/d2/ana`). Plain words for Jon: video titles as "<title> - <channel>", no raw IDs or file paths.
 
 ## Serving
 
@@ -34,7 +34,7 @@ Hard limits: `/dashboard` (its pages, its API answers, its data) does not change
                weeks: [{ start, end, label: 'Nov 2 to 8', current }] }   // every Mon-Sun week touching the month
     },
     goals: [Goal],            // config order (src/d2-goals.json)
-    stale: [{ label, ageLabel, goal? }],   // every stale or missing source used by any number, for the banner
+    stale: [{ label, ageLabel, goal? }],   // every stale or missing source used by any number, for Ana (/d2/ana)
     checks: [Check],          // daily checks, a tick per day on Today and Week (Ana, 2026-11-08)
     today: Today,
     pipeline: Pipeline,
@@ -89,18 +89,17 @@ Missing bindings (preview has no HGP_DB, CLONE_DB, REVIEW_DB) or an unreadable t
 {
   jon: [Item] (at most 3),    // the approvals or decisions that unblock the most: goal priority (sponsors, hgp,
                               // jonmac/jonmacai, viral, shortform), then a task waiting on it, then oldest
-  needs: { count, items: [Item], healthToAna: n, chargesFolded: n },
+  toAna: { count, health: n, items: [Item], blockers: [{ title, owner, goal, ageLabel, why, open?: taskId }] },
   expenses: { count, items: [Item], label: 'Expenses review (Friday)' },   // the folded known charges
   targets: [{ goal, goalTitle, label, display, target, actual, status, owner, source }],   // every goal's day metrics
-  blockers: [{ title, owner, goal, ageLabel, why, open?: taskId }]
 }
 ```
 
 `Item` is exactly the shape of `pages.today.needs.items` (`approvalItem` / `questionItem` / alerts in `src/today.js`), plus `goal`, `minutes` (the row's `minutes`, else 2 for an approval and 5 for a question) and `link: { label, href } | null` (its task's deliverable or first web link).
 
-Needs-you cleanup (view only): a question whose idempotency key starts `team-guard` is bot health and is counted in `healthToAna`, not shown. A question whose key starts `cw:` (MoneyClaw charge watch: "New charge", "Big one-off charge") is a known charge: it moves into `expenses` and counts in `chargesFolded`; `needs.items` gets one `Expenses review (Friday)` item for them instead. Everything else stays.
+Needs-you cleanup (view only): a question whose idempotency key starts `team-guard` is bot health and is counted in `toAna.health`, not shown. A question whose key starts `cw:` (MoneyClaw charge watch: "New charge", "Big one-off charge") is a known charge: it moves into `expenses`; Needs you gets one `Expenses review (Friday)` item for them instead, a candidate for `jon` on Fridays only. Everything else stays.
 
-`needs.items` leaves out the items already in `jon`; `needs.count` counts `needs.items`. The Expenses item has `id` and `kind` `'expenses'`. Every `from` and owner in `d2` is a first name.
+Jon sees at most 3 things (`jon`) and one muted line: "N more went to Ana · M team health alerts went to Ana". `toAna.items` is the rest of Needs you (not the Expenses item outside Friday); `toAna.blockers` are the blockers not about a task in `jon` or `toAna.items`; `toAna.count` counts both. Ana reads them, with `stale`, from `GET /dashboard/api/d2/ana` (any bot token; `dash.py d2-ana`). The Expenses item has `id` and `kind` `'expenses'`. Every `from` and owner in `d2` is a first name.
 
 ### Check
 
@@ -114,7 +113,7 @@ Needs-you cleanup (view only): a question whose idempotency key starts `team-gua
 
 - Complete Histories (Daisy): a day is ok when Daisy's ok run reports (`bot_runs`, bot `spotify`) that day say the Spotify episode and the community post are live; links come from those notes. Her notes are free text and the Spotify link is the show page, so this trusts her report; reading the show's episode list is the v2 fallback.
 - RBC expenses (Elizabeth): a day is ok when the Accounting checklist has both "08:00 RBC import run" and "Receipts matched" ticked; today also needs the bank scan not failed. Facts: accounts read (bank scan), last import tick, bank data through (MoneyClaw), receipts matched. Never reads RBC.
-- Deadlines (`checks` in `src/d2-goals.json`): after it, a day not ok is red and joins Today's blockers.
+- Deadlines (`checks` in `src/d2-goals.json`): after it, a day not ok is red and joins the blockers (Ana's).
 
 ### Pipeline
 
