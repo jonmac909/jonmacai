@@ -6,7 +6,7 @@ import { sqliteD1 } from './sqlited1.mjs';
 import { handleApi } from '../src/api.js';
 import worker from '../src/worker.js';
 import { signSession, COOKIE } from '../src/auth.js';
-import { renderGoals, objectivesOf, scoreboardHtml } from '../public/d3/js/goals.js';
+import { renderGoals, objectivesOf } from '../public/d3/js/goals.js';
 import { statHtml, railCounts } from '../public/d3/js/rail.js';
 import { renderTeam } from '../public/d3/js/team.js';
 import { blockerRows, renderBlockers } from '../public/d3/js/blockers.js';
@@ -164,18 +164,15 @@ test('Goals scoreboard: today\'s QC-passed videos, stage clocks, and approved vi
   assert.deepEqual(aw.items.map((x) => x.id), ['n1']);
   assert.equal(aw.actual, 1);
   assert.ok(aw.oldestLabel);
-  const html = scoreboardHtml(body);
-  assert.match(html, /1 of 6 passed today/);
-  assert.match(html, /1 late/);
-  assert.match(html, /1 approved, not uploaded, oldest [^:]+: Litter box myths - Nora Fairweather Cats/);
-  assert.match(html, /pack 60 of 75 min/);
-  assert.match(html, /2:00 of 3:00/);
-  // The Goals page puts it right after the header.
+  // Jon, 2026-11-11: no "Today's videos" panel on top of Goals; the numbers stay in the key results.
   const page = renderGoals(SAMPLE(), body, {});
-  assert.ok(page.indexOf("Today's videos") < page.indexOf('Key results'));
+  assert.ok(!page.includes("Today's videos"));
+  assert.doesNotMatch(page, /\d+ of \d+ passed today|approved, not uploaded, oldest/);
+  assert.match(page, /QC-passed today/);
+  assert.match(page, /Approved, not uploaded/);
 });
 
-test('Goals scoreboard: clock from the first stage, own channels waiting, ad / live / old cards skipped, long list capped, no feed', async () => {
+test('Goals scoreboard: clock from the first stage, own channels waiting, ad / live / old cards skipped', async () => {
   const db = sqliteD1();
   const card = (id, title, project, extra = {}) => ins(db, 'bot_tasks', { id, title, owner: 'elle', project, status: 'doing', created_by: 'ana', updated_by: 'ana', created_at: '2026-11-10T15:00:00Z', updated_at: '2026-11-10T15:00:00Z', ...extra });
   const ev = (id, task, at, kind, detail) => db.sqlite.prepare('INSERT INTO bot_task_events (id, task_id, at, "by", kind, detail) VALUES (?, ?, ?, ?, ?, ?)').run(id, task, at, 'jon', kind, detail);
@@ -200,14 +197,6 @@ test('Goals scoreboard: clock from the first stage, own channels waiting, ad / l
   const k1 = body.d3.goals.scoreboard.rows.find((r) => r.id === 'k1');
   assert.deepEqual([k1.clockMin, k1.state], [60, 'on']);
   assert.deepEqual(body.d3.goals.approvedWaiting.items.map((x) => x.id), ['j2', 'j1']);
-  // Seven waiting: the red line names five and counts the rest.
-  const items = Array.from({ length: 7 }, (_, i) => ({ id: `w${i}`, title: `Video ${i} - Jon Mac`, waitMin: 60 }));
-  const many = { d3: { goals: { scoreboard: body.d3.goals.scoreboard, approvedWaiting: { actual: 7, oldestLabel: '1 hr', items } } } };
-  const html = scoreboardHtml(many);
-  assert.match(html, /Video 4 - Jon Mac and 2 more/);
-  assert.ok(!html.includes('Video 5'));
-  // No scoreboard source: the section says No feed instead of breaking the page.
-  assert.match(scoreboardHtml({ d3: { goals: {} } }), /No feed/);
 });
 
 const d3Sample = () => ({ ok: true, d3: {
@@ -255,7 +244,7 @@ test('Goals: missing sources read No feed / No data with a grey dot; text is esc
   const d2 = SAMPLE();
   const none = renderGoals(d2, null, {});
   assert.match(none, /Approved, not uploaded<\/span><span class="krv nf">No feed/);
-  assert.match(none, /Today's videos<\/h2><\/div><p class="mut">No feed/);
+  assert.ok(!none.includes("Today's videos"));
   assert.match(none, /Workouts<\/span><span class="krv nf">No feed/);
   assert.match(none, /<b class="num sp nf">No feed<\/b>/); // tiles that need /d3
   assert.match(none, /Open cards: No feed/);
