@@ -728,3 +728,35 @@ test('Money page: design sections, six deal stages from the Sponsors board, No f
   assert.match(none, /No feed: the team roster could not be read/);
   assert.doesNotMatch(none, /NaN|undefined/);
 });
+
+test('Key results: named rows (name, actual / target, bar, status) worst first, no coloured tiles', async () => {
+  const { keyRows } = await import('../public/d3/js/goals.js');
+  const d2 = SAMPLE();
+  const html = renderGoals(d2, d3Sample(), {});
+  const card = html.slice(html.indexOf('aria-label="Key results"'), html.indexOf('aria-label="Sponsor Revenue"'));
+  assert.doesNotMatch(card, /class="sq/);
+  const objs = objectivesOf(d2, d3Sample());
+  const all = objs.flatMap((o) => o.krs);
+  const rows = keyRows(objs);
+  assert.equal(rows.length, all.length);
+  // Every result shows once, with its name, its status word and a bar.
+  for (const k of all) {
+    const m = card.match(new RegExp(`data-kr-row="${k.id}">([\\s\\S]*?)</div>`));
+    assert.ok(m, k.id);
+    assert.ok(m[1].includes(k.text.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;')), k.id);
+    assert.match(m[1], /class="bar"/);
+    assert.match(m[1], /class="kss [rygn]">(Off track|At risk|On track|No data|No feed)</);
+    // Same numbers as the row in the sections below.
+    if (!k.nf) assert.ok(m[1].includes(k.v1) && (!k.v2 || m[1].includes(k.v2.trim().slice(2))), k.id);
+  }
+  // Worst first: status order, then lowest share of target first.
+  const rank = { r: 0, y: 1, g: 2, n: 3 };
+  for (let i = 1; i < rows.length; i++) {
+    const a = rows[i - 1], b = rows[i];
+    assert.ok(rank[a.tone] <= rank[b.tone], `${a.id} before ${b.id}`);
+    if (a.tone === b.tone && a.hasBar && b.hasBar) assert.ok(a.pct <= b.pct, `${a.id} ${a.pct} before ${b.id} ${b.pct}`);
+  }
+  // Planted fault: an off-track row placed last in its objective still comes out on top.
+  const planted = [{ title: 'X', krs: [{ id: 'z1', text: 'Fine', tone: 'g', hasBar: true, pct: 90 }, { id: 'z2', text: 'Bad', tone: 'r', hasBar: true, pct: 10 }, { id: 'z3', text: 'Worse', tone: 'r', hasBar: true, pct: 5 }] }];
+  assert.deepEqual(keyRows(planted).map((k) => k.id), ['z3', 'z2', 'z1']);
+});
