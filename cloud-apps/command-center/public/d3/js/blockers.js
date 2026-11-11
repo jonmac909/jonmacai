@@ -1,8 +1,8 @@
 // Dashboard 3 Blockers page (docs/dashboard-3.md), laid out as the approved design (Blockers.dc.html). Pure functions
 // over the /dashboard/api/d2 and /dashboard/api/d3 answers. Rows: d3.blockers (cards waiting on Jon, open questions,
 // pending approvals, Stuck cards, late cards) plus the rail's YouTube login and token limit and d2's missed daily jobs.
-// What Ana did about each one has no feed yet, so it reads "No feed". blockerRows() is also the rail's Blockers count.
-import { esc, icon } from './util.js';
+// blockerRows() is also the rail's Blockers count.
+import { cardLink, esc, icon } from './util.js';
 import { headerOnly } from './goals.js';
 import { renderNeeds } from './needs.js';
 
@@ -24,7 +24,7 @@ export function blockerRows(d2resp, d3resp) {
   if (yt?.state === 'r') {
     rows.push({ id: 'youtube', kind: 'a', you: true, title: 'YouTube login out', age: '', blocks: `${yt.out} of ${yt.connected} connected channels can't sync until you sign in again.` });
   }
-  if (num(rail.tokens?.pct) && rail.tokens.pct >= 100) {
+  if (num(rail.tokens?.pct) && rail.tokens.pct >= 100 && !rail.tokens.stale) { // an old reading is not a limit hit
     rows.push({ id: 'tokens', kind: 'a', you: false, title: 'Weekly token limit reached', age: '', blocks: 'Bot work until the weekly limit resets.' });
   }
   for (const c of d2resp?.d2?.checks || []) {
@@ -52,8 +52,7 @@ function rowHtml(b, i, open) {
 ${head}
 <div class="inner" style="margin-bottom: 14px; gap: 4px">
 <div class="hrow"><span class="mut" style="width: 64px; flex: none">Blocks</span><span>${esc(blocks)}</span></div>
-<div class="hrow"><span class="mut" style="width: 64px; flex: none">Ana</span><span class="nf">No feed</span></div>
-${b.review ? `<div class="hd" style="padding-top: 8px"><a class="btn pri" href="#review" data-rvgo="${esc(b.id)}">Open in Review</a></div>` : ''}
+${b.review || b.card ? `<div class="hd" style="padding-top: 8px; gap: 8px">${b.review ? `<a class="btn pri" href="#review" data-rvgo="${esc(b.id)}">Open in Review</a>` : ''}${cardLink(b.card)}</div>` : ''}
 </div>
 </div>`;
 }
@@ -70,18 +69,31 @@ function healthOf(d2resp, d3resp) {
   const ytRow = !yt || yt.state === 'none' ? (yt?.text && yt.text !== 'No feed' ? line('YouTube login', yt.text.replace(/^YouTube /, '')) : NO('YouTube login'))
     : line('YouTube login', yt.state === 'r' ? `Out (${yt.out} of ${yt.connected})` : 'Signed in', yt.state);
   const tk = rail.tokens;
-  const tkRow = num(tk?.pct) ? line('Weekly tokens', `${tk.pct}%`, tk.state) : NO('Weekly tokens');
-  const logins = [ytRow, tkRow, NO('HeyGen today'), NO('Sponsor inbox')];
+  const tkRow = !num(tk?.pct) ? NO('Weekly tokens')
+    : tk.stale ? line('Weekly tokens', `${tk.pct}%, ${String(tk.text).replace(/^Tokens \d+%, /, '')}`) // grey, with its age
+      : line('Weekly tokens', `${tk.pct}%`, tk.state);
+  const hg = rail.heygen;
+  // Rows with no source are left out rather than shown as "No feed" (Sponsor inbox has none yet).
+  const logins = [ytRow, tkRow, ...(hg && hg.text !== 'No feed' ? [line('HeyGen today', hg.text, hg.state === 'none' ? '' : hg.state)] : [])];
   const down = logins.filter((r) => r.tone === 'r').length;
   const age = (label, src) => (src ? line(label, String(src.ageLabel || '').replace(/^updated /, ''), src.stale ? 'r' : 'g') : NO(label));
   const sponsors = one((d2resp?.d2?.goals || []).find((g) => g.key === 'sponsors')?.month);
-  const feeds = [age('Sponsor money', sponsors?.source), NO('Video board'), age('Token use', tk?.source),
+  const board = d3resp?.d3?.team?.line ? [line('Video board', 'live', 'g')] : []; // built from the cards on each load
+  const feeds = [age('Sponsor money', sponsors?.source), ...board, age('Token use', tk?.source),
     ...(Array.isArray(checks) ? checks.filter((c) => c.today?.source).map((c) => age(c.title, c.today.source)) : [])];
   const stale = feeds.filter((r) => r.tone === 'r').length;
+  // Dispatcher card: heartbeat and runs going (rail), failed runs and Stuck cards today (live feed via team.fails).
+  const ln = (l, x) => (!x || x.text === 'No feed' ? NO(l) : line(l, x.text, x.state === 'none' ? '' : x.state));
+  const tm = d3resp?.d3?.team;
+  const cnt = (l, fl, kind) => { if (!Array.isArray(fl)) return NO(l); const n = fl.filter((f) => !kind || (f.kind || 'run') === kind).length; return line(l, String(n), n ? 'r' : 'g'); };
+  const beat = [ln('Heartbeat', rail.dispatcher), ln('Bots', rail.bots)];
+  const disp = [...beat, cnt('Failed runs today', tm?.fails, 'run'), cnt('Stuck today', tm?.stuck)];
+  // The pill says only whether the dispatcher runs (Heartbeat and Bots); failed and stuck counts stay rows.
+  const dispBad = beat.some((r) => r.tone === 'r');
   const pill = (bad, cls, text, okText, any) => (bad ? { pill: cls, state: text } : any ? { pill: 'ok', state: okText } : { pill: '', state: 'No feed' });
   return [
     { title: 'Daily jobs', rows: jobs, ...pill(missed, 'bad', `${missed} missed`, 'On time', jobs.some((r) => r.tone)) },
-    { title: 'Dispatcher', rows: [NO('Dispatcher'), NO('Bots'), NO('Watchdog (Lucy)'), NO('GPU2 job')], pill: '', state: 'No feed' },
+    { title: 'Dispatcher', rows: disp, ...pill(dispBad, 'bad', 'Stopped', 'Running', beat.some((r) => r.tone)) },
     { title: 'Logins and limits', rows: logins, ...pill(down, 'bad', `${down} down`, 'All in', logins.some((r) => r.tone)) },
     { title: 'Feed age', rows: feeds, ...pill(stale, 'warn', `${stale} stale`, 'All fresh', feeds.some((r) => r.tone)) },
   ];
@@ -90,7 +102,7 @@ function healthOf(d2resp, d3resp) {
 export function renderBlockers(d2resp, d3resp, ui = {}) {
   const rows = blockerRows(d2resp, d3resp);
   const f = FILTERS.some(([k]) => k === ui.blFilter) ? ui.blFilter : 'all';
-  const head = headerOnly(d2resp, 'Blockers', 'Ana tries first · you see everything', '<span class="pill sp">No feed = nothing reports it yet</span>');
+  const head = headerOnly(d2resp, 'Blockers', 'Ana tries first · you see everything', '<span class="pill sp">No feed = its source could not be read</span>');
   const you = rows ? rows.filter((b) => b.you).length : null;
   const dated = rows ? rows.filter((b) => Number.isFinite(ts(b.at))) : [];
   const oldest = dated.length ? dated.reduce((a, b) => (ts(b.at) < ts(a.at) ? b : a)) : null;

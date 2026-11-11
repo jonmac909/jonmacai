@@ -9,7 +9,7 @@ import {
 } from './db.js';
 import { mergeSnapshot } from './snapshot.js';
 import { listFunnel } from './webinar.js';
-import { boardStageFor, draftThreadIds, mapColumn } from './sponsors.js';
+import { boardStageFor, dealThreadIds, draftThreadIds, mapColumn } from './sponsors.js';
 import { runMoneyMove } from './money.js';
 import { exchangeGoogleCode, googleAuthUrl, runLife } from './life.js';
 import { REVIEW_SOURCE, draftId, isIsolated, parseReview, plannerDestination, reviewMutate, upsertReview } from './review.js';
@@ -340,8 +340,10 @@ export async function handleApi(request, env, ctx) {
   if (rest === '/sponsor-threads/wanted' && method === 'GET') {
     if (machineOf(request, env) !== 'gpu1') return json({ error: 'Unauthorized' }, 401);
     const row = env.DB ? await getSnapshot(env.DB, 'sponsors') : null;
-    const cards = row ? JSON.parse(row.data || '{}').cards || [] : [];
-    return json({ ok: true, threads: draftThreadIds(cards) });
+    const data = row ? JSON.parse(row.data || '{}') : {};
+    // ...and every deal on the Money page, for its deal view (same stage overrides as the board).
+    const deals = dealThreadIds(data, Date.now(), env.DB ? await listDealStages(env.DB) : {});
+    return json({ ok: true, threads: [...new Set([...draftThreadIds(data.cards || []), ...deals])] });
   }
 
   if (rest === '/ingest' && method === 'POST') {

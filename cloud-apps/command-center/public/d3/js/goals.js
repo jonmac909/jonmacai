@@ -2,7 +2,7 @@
 // answers to HTML, laid out as the approved design (Home.dc.html). Every number comes from those answers; a number
 // with no source reads "No feed" (nothing reports it yet) or "No data" (the source had nothing), with a grey dot.
 // Targets always come from the data, never from this file.
-import { esc, usd, toneOf, dayShare, icon, draftsOf } from './util.js';
+import { esc, usd, toneOf, dayShare, icon } from './util.js';
 
 const PILL = { r: 'bad', y: 'warn', g: 'ok', n: '' };
 const WEEKDAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
@@ -21,7 +21,11 @@ export function periodOf(d2resp) {
   const dim = p.month?.daysInMonth || 30;
   const mShort = MONTHS[(mo || 1) - 1];
   const share = dayShare(d2resp?.asOf);
+  const at = Date.parse(d2resp?.asOf);
+  // When the page's data was read, Vancouver time: the "Updated" stamp in every page header.
+  const updated = Number.isFinite(at) ? new Intl.DateTimeFormat('en-US', { timeZone: 'America/Vancouver', hour: 'numeric', minute: '2-digit' }).format(new Date(at)) : '';
   return {
+    updated,
     ymd, year: y, day: d || 0, monthShort: mShort, monthName: (p.month?.label || '').split(' ')[0], weekdayName: WEEKDAYS[wd], weekday: wd, daysInMonth: dim,
     weekT: clamp01((wd + share) / 7), monthT: clamp01(num(p.month?.elapsed) ? p.month.elapsed : ((d || 1) - 1 + share) / dim), share,
     wk: { x0: 'Mon', x1: 'Sun' }, mo: { x0: `${mShort} 1`, x1: `${mShort} ${dim}` },
@@ -98,7 +102,11 @@ function noFeed(id, text, more) {
 function kr(id, text, m, { span, series, money = false, hint, bar = true, target, more, log } = {}) {
   if (!m) return noFeed(id, text, 'Nothing reports this yet.');
   const has = num(m.actual) && m.display !== 'No data'; // e.g. charges with no questions this month
-  const tone = has ? toneOf(m.status) : 'n';
+  const stale = !!m.source?.stale;
+  const tone = has && !stale ? toneOf(m.status) : 'n'; // a stale number is grey, whatever it says
+  // Every row says how old its number is: the row's own hint, then the source's age ("live", "29 hr ago").
+  const age = m.source?.ageLabel || '';
+  const base = hint ?? '';
   const fmt = (x) => (money ? usd(x) : String(Math.round(x * 10) / 10));
   const hasTarget = num(m.target) && m.target > 0;
   const src = m.source?.label ? ` Source: ${m.source.label}${m.source.ageLabel ? `, ${m.source.ageLabel}` : ''}.` : '';
@@ -110,7 +118,7 @@ function kr(id, text, m, { span, series, money = false, hint, bar = true, target
     hasBar: bar && has && hasTarget,
     pct: has && hasTarget ? Math.min(100, Math.round((m.actual / m.target) * 100)) : 0,
     pace: has && hasTarget && num(m.pace) ? Math.min(100, Math.round((m.pace / m.target) * 100)) : 0,
-    hint: hint ?? (m.source?.stale ? m.source.ageLabel : ''),
+    hint: [base, age && !base.includes(age) ? (stale ? `${age}, stale` : age) : ''].filter(Boolean).join(' · '),
     span, series: has ? series : null,
     target: target ?? (hasTarget ? `Target ${fmt(m.target)}` : num(m.target) ? `Target ${fmt(m.target)}` : ''),
     paceLine: hasTarget,
@@ -130,16 +138,24 @@ export function objectivesOf(d2resp, d3resp, P = periodOf(d2resp)) {
   const wk = (g, i) => g?.week?.[i] || null;
   const WK = (m) => ({ span: P.wk, series: weekSeries(m, P), hint: 'this week' });
   const collected = one(sp?.month);
+  // Collected counts bank deposits only up to the feed's last day: say which day.
+  const thru = /through ([A-Z][a-z]{2} \d{1,2})/.exec(collected?.source?.label || '')?.[1];
+  const deals = wk(sp, 0);
+  const vids = wk(sp, 1);
+  const inv = wk(sp, 2);
+  const due = Array.isArray(vids?.behind) ? vids.behind.length : 0;
+  const unsure = Number((inv?.facts || []).find((f) => f.label === 'No live video found')?.value) || 0;
+  const tw = g3?.tokenWeeks || null;
   const wo = g3?.workouts || null;
   const dn = g3?.dateNights || null;
   const ch = g3?.charges || null;
   const qc = g3?.qcFirstTry || null;
   return [
     { title: 'Sponsor Revenue', owner: sp?.owner || 'Florence', icon: 'money', krs: [
-      kr('a1', 'Collected', collected, { money: true, span: P.mo, series: monthTrendSeries(sp, collected, P), hint: 'this month' }),
-      kr('a2', 'Deals signed', wk(sp, 0), WK(wk(sp, 0))),
-      kr('a3', 'Sponsor videos delivered', wk(sp, 1), WK(wk(sp, 1))),
-      kr('a4', 'Invoices waiting', wk(sp, 2), { bar: false, hint: 'target 0', span: P.wk, series: null }),
+      kr('a1', 'Collected', collected, { money: true, span: P.mo, series: monthTrendSeries(sp, collected, P), hint: thru ? `this month, through ${thru}` : 'this month' }),
+      kr('a2', 'Deals signed', deals, { ...WK(deals), hint: 'this week · counted from first video card per sponsor' }),
+      kr('a3', 'Sponsor videos delivered', vids, { ...WK(vids), hint: `this week${due ? ` · ${due} more due` : ''}` }),
+      kr('a4', 'Invoices waiting', inv, { bar: false, hint: `target 0${unsure ? ` · ${unsure} more not counted (no live video found)` : ''}`, span: P.wk, series: null }),
     ] },
     { title: 'Content Factory', owner: hgp?.owner || 'Elle', icon: 'video', krs: [
       kr('b1', jm?.title || 'Jon Mac', wk(jm, 0), WK(wk(jm, 0))),
@@ -147,7 +163,7 @@ export function objectivesOf(d2resp, d3resp, P = periodOf(d2resp)) {
       kr('b3', hgp?.title || 'Home Guide Press', wk(hgp, 0), WK(wk(hgp, 0))),
       g3?.scoreboard ? kr('b4', 'QC-passed today', g3.scoreboard, { hint: 'today', span: null, series: null })
         : noFeed('b4', 'QC-passed today', 'QC results on renders could not be read.'),
-      qc ? kr('b5', 'Passed QC first try', qc, { bar: false, hint: num(qc.total) ? `${qc.passed} of ${qc.total}` : 'this month', span: null, series: null, target: '' })
+      qc ? kr('b5', 'Passed QC first try', qc, { bar: false, hint: `this month · cards with a render proof or review link${num(qc.total) ? ` · ${qc.passed} of ${qc.total} passed on first proof` : ''}`, span: null, series: null, target: '' })
         : noFeed('b5', 'Passed QC first try', 'QC verdicts on renders could not be read.'),
       g3?.approvedWaiting ? kr('b6', 'Approved, not uploaded', g3.approvedWaiting, { bar: false, hint: g3.approvedWaiting.actual ? `oldest ${g3.approvedWaiting.oldestLabel}` : 'none waiting', span: null, series: null, target: 'Target 0' })
         : noFeed('b6', 'Approved, not uploaded', 'Approvals and the YouTube calendar could not be read.'),
@@ -168,10 +184,11 @@ const px = (f) => Math.round(20 + f * 570);
 const py = (f) => Math.round(125 - Math.min(f, 1.05) * 105);
 const line = (pts) => pts.map(([x, y]) => `${px(x)},${py(y)}`).join(' ');
 
-function krHtml(k, open, busy) {
+function krHtml(k, open, busy, confirm) {
   const exp = open ? 'true' : 'false';
   const bar = k.hasBar ? `<span class="bar"><i class="${k.tone}" style="width: ${k.pct}%"></i>${k.pace > 0 ? `<b style="left: ${k.pace}%"></b>` : ''}</span>` : '';
   const log = k.log ? `<button type="button" class="btn sm" data-log="${esc(k.log.kind)}"${k.log.done || busy ? ' disabled' : ''}>${k.log.done ? 'Logged today' : '+ Log'}</button>` : '';
+  const log2 = k.log && !k.log.done && !busy && confirm === k.log.kind ? log.replace('class="btn sm"', 'class="btn sm primary"').replace('+ Log', 'Confirm log?') : log;
   let detail = '';
   if (open) {
     const t = k.span === null ? 0 : k.series ? k.series[k.series.length - 1][0] : 0;
@@ -186,13 +203,15 @@ function krHtml(k, open, busy) {
   }
   return `<div class="kr">
 <button type="button" class="krb" aria-expanded="${exp}" data-kr="${esc(k.id)}"><span class="dot ${k.tone === 'n' ? '' : k.tone}" style="align-self: center"></span><span class="krn">${esc(k.text)}</span><span class="krv${k.nf ? ' nf' : ''}">${esc(k.v1)}<span class="dim">${esc(k.v2)}</span></span></button>
-<div class="krl">${bar}<span class="mut" style="font-size: 12px">${esc(k.hint)}</span>${log}</div>
+<div class="krl">${bar}<span class="mut" style="font-size: 12px">${esc(k.hint)}</span>${log2}</div>
 ${detail}</div>`;
 }
 
 // sub (plain text) and pill (HTML) are for the other pages; Goals shows the week line and no pill.
 function headerHtml(P, title, sub, pill = '') {
-  const line = sub != null ? esc(sub) || '&nbsp;' : P.ymd ? `${esc(P.weekdayName)} · day ${esc(P.day)} of ${esc(P.daysInMonth)}` : '&nbsp;';
+  const base = sub != null ? esc(sub) : P.ymd ? `${esc(P.weekdayName)} · day ${esc(P.day)} of ${esc(P.daysInMonth)}` : '';
+  const stamp = P.updated ? `<span class="upd">Updated ${esc(P.updated)}</span>` : '';
+  const line = [base, stamp].filter(Boolean).join(' · ') || '&nbsp;';
   return `<header class="hd" style="padding: 6px 4px 2px; gap: 14px">
 <span class="datechip" aria-hidden="true"><b>${esc(P.day || '')}</b><span>${esc(P.monthShort || '')}</span></span>
 <div style="display: flex; flex-direction: column; gap: 2px"><span class="mut">${line}</span><h1>${esc(title)}</h1></div>${pill}
@@ -270,29 +289,69 @@ ${pills ? `<div class="hd" style="flex-wrap: wrap; gap: 6px">${pills}</div>` : '
 </section>`;
 }
 
-function tilesHtml(d2resp, d3resp) {
-  const bl = d2resp?.d2?.today?.blockers;
-  const rv = d3resp?.d3?.review;
-  const tk = d3resp?.d3?.rail?.tokens;
-  const nfNum = '<b class="num sp nf">No feed</b>';
-  const blockers = Array.isArray(bl)
-    ? { sub: `${bl.filter((b) => b.open).length} need you`, n: `<b class="num sp" style="font-size: 30px">${bl.length}</b>` }
-    : { sub: '', n: nfNum };
-  const n = rv ? rv.count + (draftsOf(d2resp) || []).length : 0; // the Review page's queue: d3's items plus sponsor drafts
-  const review = rv
-    ? { sub: rv.count ? `oldest ${rv.oldestLabel}` : n ? 'sponsor drafts to send' : 'nothing waiting', n: `<b class="num sp" style="font-size: 30px">${esc(n)}</b>` }
-    : { sub: '', n: nfNum };
-  const pct = num(tk?.pct) ? tk.pct : null;
-  const tSub = pct == null ? '' : `<span class="dot ${esc(tk.state)}" style="width: 7px; height: 7px"></span>${pct >= 100 ? 'limit hit' : 'used this week'}`;
-  const pips = Array.from({ length: 10 }, (_, i) => `<i class="pip${pct != null && i < Math.round(pct / 10) ? ' f' : ''}"></i>`).join('');
-  return `<div style="flex: 3 1 220px; min-width: 0; display: flex; flex-direction: column; gap: 16px">
-<a class="tile" href="#blockers"><span class="chip">${icon('blockers')}</span><span style="display: flex; flex-direction: column; min-width: 0"><b style="font-weight: 600">Blockers</b><span class="mut">${esc(blockers.sub)}</span></span>${blockers.n}</a>
-<a class="tile" href="#review"><span class="chip" style="background: #2563eb; border-color: #2563eb; color: #ffffff">${icon('review')}</span><span style="display: flex; flex-direction: column; min-width: 0"><b style="font-weight: 600">To review</b><span class="mut">${esc(review.sub)}</span></span>${review.n}</a>
-<div class="tile" style="flex-direction: column; align-items: stretch; gap: 10px">
-<div class="hd" style="gap: 12px"><span class="chip">${icon('bolt')}</span><span style="display: flex; flex-direction: column; min-width: 0"><b style="font-weight: 600">Tokens</b><span class="mut hd" style="gap: 6px">${tSub}</span></span>${pct == null ? nfNum : `<b class="num sp" style="font-size: 30px">${pct}%</b>`}</div>
-<span class="pips" aria-hidden="true">${pips}</span>
-</div>
+// Pipeline revenue (Jon, 2026-11-11): deals still to close and money still to collect, from the Sponsors board and its
+// money-owed list. To collect = every owed row plus agreed and in-work deals not on that list; To close = leads and
+// talks. Paid and archived deals are left out. Each row opens its deal on the Money page.
+const CLOSE_COLS = ['Leads', 'Negotiations'];
+const COLLECT_COLS = ['Deals', 'Deposit Invoice', 'Deposit Paid', 'Video Production', 'Video Approved', 'Video Live', 'Balance Invoice'];
+// One key for a deal across the Goals card and the Money page: its board id, else its name.
+export const dealKey = (id, name) => (id ? String(id) : `n:${String(name || '').trim().toLowerCase()}`);
+const money = (v) => (num(v) ? v : typeof v === 'string' && /\d/.test(v) ? Number(v.replace(/[^0-9.]/g, '')) : NaN);
+export function pipelineOf(d2resp) {
+  const sp = (d2resp?.d2?.pipeline?.boards || []).find((b) => b.goal === 'sponsors')?.sponsors;
+  const cols = sp?.board?.columns;
+  if (!Array.isArray(cols)) return null;
+  const deals = (titles) => cols.filter((c) => !c.archived && titles.includes(c.title)).flatMap((c) => c.cards || []);
+  const live = deals([...CLOSE_COLS, ...COLLECT_COLS]); // the cards the Money page shows
+  const nm = (s) => String(s || '').trim().toLowerCase();
+  const used = new Set(); // board cards already counted, so each deal is counted once
+  // An owed row is the same deal as a board card with its id; a row with no id takes the first unused card of that name.
+  // A second deal with the same sponsor but its own id stays a separate deal.
+  const cardFor = (id, name) => (id
+    ? live.find((k) => k.id != null && String(k.id) === String(id))
+    : nm(name) && live.find((k) => !used.has(k) && nm(k.name) === nm(name))) || null;
+  const row = (k, name, amt) => ({ id: k ? dealKey(k.id, k.name) : null, name: name || 'Sponsor', amt: Number.isFinite(amt) && amt > 0 ? amt : null });
+  const collect = [];
+  const owed = (sp.collect?.rows || []).map((r) => ({ r, amt: money(r.owedUsd ?? r.owed) })).filter((x) => x.amt > 0);
+  const card = new Map();
+  for (const x of [...owed.filter((x) => x.r.payload?.id), ...owed.filter((x) => !x.r.payload?.id)]) { // id matches first
+    const k = cardFor(x.r.payload?.id, x.r.sponsor);
+    if (k) used.add(k);
+    card.set(x, k);
+  }
+  for (const x of owed) collect.push(row(card.get(x), x.r.sponsor, x.amt)); // no live card: listed and counted, nothing to open
+  for (const k of deals(COLLECT_COLS)) {
+    if (used.has(k)) continue;
+    collect.push(row(k, k.name, k.amt));
+    used.add(k);
+  }
+  const close = deals(CLOSE_COLS).filter((k) => !used.has(k)).map((k) => row(k, k.name, k.amt));
+  const sort = (a) => a.sort((x, y) => (y.amt ?? -1) - (x.amt ?? -1));
+  const sum = (a) => a.reduce((n, r) => n + (r.amt || 0), 0);
+  return { close: sort(close), collect: sort(collect), totals: { close: sum(close), collect: sum(collect) } };
+}
+
+function pipelineHtml(d2resp) {
+  const p = pipelineOf(d2resp);
+  const head = `<div class="hd"><span class="chip">${icon('money')}</span><h2>Pipeline revenue</h2><a class="go sp" href="#money" aria-label="Open Money">${icon('open')}</a></div>`;
+  if (!p) return `<section class="card" style="flex: 3 1 220px; min-width: 0" aria-label="Pipeline revenue">${head}<p class="mut">No feed: the Sponsors board could not be read.</p></section>`;
+  const block = (label, rows, total) => {
+    const bare = rows.filter((r) => r.amt == null).length;
+    const list = rows.map((r) => {
+      const inner = `<span class="ell" style="flex: 1; min-width: 0">${esc(r.name)}</span>${r.amt == null ? '<span class="mut" style="font-size: 12px">no amount</span>' : `<b style="font-weight: 600">${esc(usd(r.amt))}</b>`}`;
+      const st = 'gap: 8px; color: inherit; text-decoration: none; padding: 3px 0';
+      return r.id ? `<a class="hd" href="#money" data-deal="${esc(r.id)}" style="${st}">${inner}</a>` : `<div class="hd" style="${st}">${inner}</div>`;
+    }).join('');
+    return `<div class="inner" style="gap: 6px">
+<div class="hd" style="align-items: baseline; gap: 8px"><span class="sub" style="font-weight: 500">${label}</span><b class="num sp" style="font-size: 26px">${esc(usd(total))}</b></div>
+<span class="mut" style="font-size: 12px">${rows.length} deal${rows.length === 1 ? '' : 's'}${bare ? ` · ${bare} no amount` : ''}</span>
+${rows.length ? `<div style="display: flex; flex-direction: column; max-height: 180px; overflow: auto; font-size: 14px">${list}</div>` : '<span class="mut" style="font-size: 13px">None</span>'}
 </div>`;
+  };
+  return `<section class="card" style="flex: 3 1 220px; min-width: 0; gap: 12px" aria-label="Pipeline revenue">${head}
+${block('To close', p.close, p.totals.close)}
+${block('To collect', p.collect, p.totals.collect)}
+</section>`;
 }
 
 function objectiveHtml(o, ui) {
@@ -301,7 +360,7 @@ function objectiveHtml(o, ui) {
   const pill = r ? 'bad' : y ? 'warn' : g ? 'ok' : '';
   return `<section class="card" style="gap: 18px">
 <div class="hd cardhd"><span class="chip">${icon(o.icon)}</span><h2>${esc(o.title)}</h2><span class="pill ${pill}">${g} of ${o.krs.length} on track</span><span class="hd sp mut" style="gap: 6px"><span class="av">${esc(o.owner.charAt(0))}</span>${esc(o.owner)}</span></div>
-${o.krs.map((k) => krHtml(k, ui.openKr === k.id, ui.busy)).join('\n')}
+${o.krs.map((k) => krHtml(k, ui.openKr === k.id, ui.busy, ui.confirmLog)).join('\n')}
 </section>`;
 }
 
@@ -386,12 +445,12 @@ export function headerOnly(d2resp, title, sub, pill) {
 export function renderGoals(d2resp, d3resp, ui = {}) {
   const P = periodOf(d2resp);
   const objs = objectivesOf(d2resp, d3resp, P);
-  const U = { openKr: ui.openKr || null, hgpOpen: !!ui.hgpOpen, busy: !!ui.busy };
+  const U = { openKr: ui.openKr || null, hgpOpen: !!ui.hgpOpen, busy: !!ui.busy, confirmLog: ui.confirmLog || null };
   return `${headerHtml(P, 'Goals')}
 <div class="row">
 ${summaryHtml(objs)}
 ${revenueHtml(d2resp, P)}
-${tilesHtml(d2resp, d3resp)}
+${pipelineHtml(d2resp)}
 </div>
 <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(380px, 100%), 1fr)); gap: 16px">
 ${objs.map((o) => objectiveHtml(o, U)).join('\n')}

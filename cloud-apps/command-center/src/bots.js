@@ -959,6 +959,38 @@ export const FEEDS = {
       return { month: matchOf(b, 'month', /^\d{4}-(0[1-9]|1[0-2])$/, '2026-10', true), usd: numberOf(b, 'usd', 0, 1e9, true), orders, note: text(b, 'note', 500) };
     },
   },
+  // The dispatcher's live state (tools/dash_live_feed.py, every 2 min): beat, weekly limit, running runs,
+  // tokens, ok/failed runs and fails per bot today, approved videos waiting. Only 2 days are kept.
+  dispatch_live: {
+    writers: ['developer', 'ana'],
+    keepDays: 2,
+    parse: (b) => {
+      const list = (k, max, src = b) => {
+        const v = src[k] ?? [];
+        if (!Array.isArray(v) || v.length > max) throw new Bad(400, `${k} must be a list of at most ${max}`);
+        if (!v.every((x) => x && typeof x === 'object' && !Array.isArray(x))) throw new Bad(400, `each ${k} item must be an object`);
+        return v.map((x) => Object.fromEntries(Object.entries(x).slice(0, 8).map(([key, val]) => [key, typeof val === 'number' ? val : String(val ?? '').slice(0, 200)])));
+      };
+      const map = (k, f) => {
+        const v = b[k] ?? {};
+        if (!v || typeof v !== 'object' || Array.isArray(v) || Object.keys(v).length > 40) throw new Bad(400, `${k} must be {bot: …} with at most 40 bots`);
+        return Object.fromEntries(Object.entries(v).map(([bot, x]) => [bot.slice(0, 40), f(x)]));
+      };
+      const whole = (x) => { const n = Number(x); if (!Number.isInteger(n) || n < 0 || n > 1e12) throw new Bad(400, 'counts must be whole numbers'); return n; };
+      const w = b.week;
+      const week = w && typeof w === 'object' ? { pct: numberOf(w, 'pct', 0, 1000, true), resets: text(w, 'resets', 80), at: isoOf(w.at, 'week.at') } : null;
+      const a = b.approved;
+      const approved = a && typeof a === 'object' ? { count: whole(a.count), items: list('items', 40, a) } : null;
+      const h = b.heygen; // HeyGen submits today from the shared submit log
+      const heygen = h && typeof h === 'object' && !Array.isArray(h) ? { accepted: whole(h.accepted ?? 0), refused: whole(h.refused ?? 0), failed: whole(h.failed ?? 0), last: h.last == null ? null : String(h.last).slice(0, 40) } : null;
+      return {
+        at: isoOf(b.at, 'at'), beat: b.beat ? isoOf(b.beat, 'beat') : null, week,
+        running: list('running', 60), fails: list('fails', 80),
+        tokens: map('tokens', whole), runs: map('runs', (x) => ({ ok: whole(x?.ok ?? 0), failed: whole(x?.failed ?? 0) })),
+        approved, heygen,
+      };
+    },
+  },
   // Each project's daily items, from D:\AgentTeam\rules\facts\daily-checklists.md (dash.py daily-sync).
   daily_checklists: {
     writers: ['ana', 'developer'],
@@ -1000,6 +1032,10 @@ async function putFeed(db, who, name, body, now) {
   const id = newId('f');
   await db.prepare('INSERT INTO bot_feed_entries (id, name, bot, data, created_at) VALUES (?, ?, ?, ?, ?)')
     .bind(id, name, who.bot, JSON.stringify(data), now).run();
+  if (spec.keepDays) {
+    const cut = new Date(Date.parse(now) - spec.keepDays * 86400000).toISOString();
+    await db.prepare('DELETE FROM bot_feed_entries WHERE name = ? AND created_at < ?').bind(name, cut).run();
+  }
   return json({ ok: true, feed: feedOut(await db.prepare('SELECT * FROM bot_feed_entries WHERE id = ?').bind(id).first()) }, 201);
 }
 
