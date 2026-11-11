@@ -6,7 +6,7 @@ import { sqliteD1 } from './sqlited1.mjs';
 import { handleApi } from '../src/api.js';
 import worker from '../src/worker.js';
 import { signSession, COOKIE } from '../src/auth.js';
-import { renderGoals, objectivesOf, scoreboardHtml } from '../public/d3/js/goals.js';
+import { renderGoals, objectivesOf } from '../public/d3/js/goals.js';
 import { statHtml, railCounts } from '../public/d3/js/rail.js';
 import { renderTeam } from '../public/d3/js/team.js';
 import { blockerRows, renderBlockers } from '../public/d3/js/blockers.js';
@@ -164,18 +164,15 @@ test('Goals scoreboard: today\'s QC-passed videos, stage clocks, and approved vi
   assert.deepEqual(aw.items.map((x) => x.id), ['n1']);
   assert.equal(aw.actual, 1);
   assert.ok(aw.oldestLabel);
-  const html = scoreboardHtml(body);
-  assert.match(html, /1 of 6 passed today/);
-  assert.match(html, /1 late/);
-  assert.match(html, /1 approved, not uploaded, oldest [^:]+: Litter box myths - Nora Fairweather Cats/);
-  assert.match(html, /pack 60 of 75 min/);
-  assert.match(html, /2:00 of 3:00/);
-  // The Goals page puts it right after the header.
+  // Jon, 2026-11-11: no "Today's videos" panel on top of Goals; the numbers stay in the key results.
   const page = renderGoals(SAMPLE(), body, {});
-  assert.ok(page.indexOf("Today's videos") < page.indexOf('Key results'));
+  assert.ok(!page.includes("Today's videos"));
+  assert.doesNotMatch(page, /\d+ of \d+ passed today|approved, not uploaded, oldest/);
+  assert.match(page, /QC-passed today/);
+  assert.match(page, /Approved, not uploaded/);
 });
 
-test('Goals scoreboard: clock from the first stage, own channels waiting, ad / live / old cards skipped, long list capped, no feed', async () => {
+test('Goals scoreboard: clock from the first stage, own channels waiting, ad / live / old cards skipped', async () => {
   const db = sqliteD1();
   const card = (id, title, project, extra = {}) => ins(db, 'bot_tasks', { id, title, owner: 'elle', project, status: 'doing', created_by: 'ana', updated_by: 'ana', created_at: '2026-11-10T15:00:00Z', updated_at: '2026-11-10T15:00:00Z', ...extra });
   const ev = (id, task, at, kind, detail) => db.sqlite.prepare('INSERT INTO bot_task_events (id, task_id, at, "by", kind, detail) VALUES (?, ?, ?, ?, ?, ?)').run(id, task, at, 'jon', kind, detail);
@@ -200,14 +197,6 @@ test('Goals scoreboard: clock from the first stage, own channels waiting, ad / l
   const k1 = body.d3.goals.scoreboard.rows.find((r) => r.id === 'k1');
   assert.deepEqual([k1.clockMin, k1.state], [60, 'on']);
   assert.deepEqual(body.d3.goals.approvedWaiting.items.map((x) => x.id), ['j2', 'j1']);
-  // Seven waiting: the red line names five and counts the rest.
-  const items = Array.from({ length: 7 }, (_, i) => ({ id: `w${i}`, title: `Video ${i} - Jon Mac`, waitMin: 60 }));
-  const many = { d3: { goals: { scoreboard: body.d3.goals.scoreboard, approvedWaiting: { actual: 7, oldestLabel: '1 hr', items } } } };
-  const html = scoreboardHtml(many);
-  assert.match(html, /Video 4 - Jon Mac and 2 more/);
-  assert.ok(!html.includes('Video 5'));
-  // No scoreboard source: the section says No feed instead of breaking the page.
-  assert.match(scoreboardHtml({ d3: { goals: {} } }), /No feed/);
 });
 
 const d3Sample = () => ({ ok: true, d3: {
@@ -225,9 +214,13 @@ const d3Sample = () => ({ ok: true, d3: {
 test('Goals: sections in the design order, targets from the data, no design sample text', () => {
   const d2 = SAMPLE();
   const html = renderGoals(d2, d3Sample(), {});
-  const order = ['<h1>Goals</h1>', 'Key results', 'Sponsor Revenue', 'Blockers', 'To review', 'Tokens', '<h2>Content Factory</h2>', '<h2>Operations</h2>', '<h2>Personal</h2>', 'Videos Scheduled'];
+  const order = ['<h1>Goals</h1>', 'Key results', 'Sponsor Revenue', 'Blockers', 'To review', 'Tokens', '<h2>Content Factory</h2>', '<h2>Personal</h2>', 'Videos Scheduled'];
   let at = -1;
   for (const s of order) { const i = html.indexOf(s, at + 1); assert.ok(i > at, `${s} after the one before`); at = i; }
+  // Operations card removed (Jon, 2026-11-11): no card and no Key results rows for it; 13 rows left.
+  for (const s of ['Operations', 'Weeks token limit hit', 'Dashboard 3 pages built', 'Cost per video measured', 'typed &quot;continue&quot;']) assert.ok(!html.includes(s), s);
+  assert.equal((html.match(/class="krb"/g) || []).length, 13);
+  assert.match(html, /of 13 /);
   const hgp = d2.d2.goals.find((g) => g.key === 'hgp').week[0];
   assert.match(html, new RegExp(`of ${hgp.target} · ${hgp.rows.length} channels, ${hgp.rows[0].target} each`));
   assert.match(html, /\$3,100/);
@@ -251,7 +244,7 @@ test('Goals: missing sources read No feed / No data with a grey dot; text is esc
   const d2 = SAMPLE();
   const none = renderGoals(d2, null, {});
   assert.match(none, /Approved, not uploaded<\/span><span class="krv nf">No feed/);
-  assert.match(none, /Today's videos<\/h2><\/div><p class="mut">No feed/);
+  assert.ok(!none.includes("Today's videos"));
   assert.match(none, /Workouts<\/span><span class="krv nf">No feed/);
   assert.match(none, /<b class="num sp nf">No feed<\/b>/); // tiles that need /d3
   assert.match(none, /Open cards: No feed/);
@@ -268,7 +261,7 @@ test('Goals: missing sources read No feed / No data with a grey dot; text is esc
   // Trends: a week count plots its days; a number with no series says so.
   const open = renderGoals(d2, d3Sample(), { openKr: 'b3' });
   assert.match(open, /<polyline class="act [a-z]*" points="20,125 /);
-  assert.match(renderGoals(d2, d3Sample(), { openKr: 'c2' }), /No trend data yet\./);
+  assert.match(renderGoals(d2, d3Sample(), { openKr: 'b4' }), /No trend data yet\./);
   // + Log: on Workouts and Date nights only; disabled once logged today.
   const page = renderGoals(d2, d3Sample(), {});
   assert.match(page, /data-log="workout" disabled>Logged today/);
@@ -435,6 +428,58 @@ test('Team page: design sections in order, live rows, No feed where nothing repo
   assert.equal((none.match(/<b class="num sp nf">No feed<\/b>/g) || []).length, 4);
 });
 
+test('Team cards by bot: every open card (past 400) by owner and status, Others for Jon and retired bots, chips, All view, kanban', async () => {
+  const db = teamDb();
+  const STATUSES = ['todo', 'doing', 'qc', 'waiting_on_jon', 'review'];
+  const owners = ['developer', 'sponsors', 'qc', 'jon', 'moneyclaw'];
+  for (let i = 0; i < 450; i++) {
+    ins(db, 'bot_tasks', { id: `n${i}`, title: `Bulk ${i}`, owner: owners[i % 5], status: STATUSES[i % 7 % 5], project: i % 2 ? 'coding' : null, stage: i % 3 ? null : 'edit', created_by: 'ana', updated_by: 'ana', created_at: H(i / 10), updated_at: H(i / 10) });
+  }
+  const T = (await d3Of(db)).d3.team;
+  const count = (sql, ...a) => db.sqlite.prepare(sql).get(...a).n;
+  const open = count("SELECT COUNT(*) n FROM bot_tasks WHERE status IN ('todo','doing','waiting_on_jon','qc','review')");
+  assert.ok(open > 450);
+  assert.equal(T.openTotal, open);
+  assert.equal(T.cut, false);
+  // Counts per bot and column equal D1 (what dash.py tasks --owner --status reads).
+  for (const b of T.bots) for (const s of STATUSES) {
+    assert.equal(b.cards[s].length, count('SELECT COUNT(*) n FROM bot_tasks WHERE owner = ? AND status = ?', b.slug, s), `${b.slug} ${s}`);
+  }
+  const listed = [...T.bots, T.others].flatMap((b) => STATUSES.flatMap((s) => b.cards[s].map((c) => c.id)));
+  assert.equal(new Set(listed).size, open); // every open card once
+  assert.equal(listed.length, open);
+  // Others: Jon's and retired bots' cards, without their owner slug.
+  const roster = TEAM.bots.map((b) => b.slug);
+  assert.equal(STATUSES.reduce((n, s) => n + T.others.cards[s].length, 0), count(`SELECT COUNT(*) n FROM bot_tasks WHERE status IN ('todo','doing','waiting_on_jon','qc','review') AND owner NOT IN (${roster.map(() => '?').join(',')})`, ...roster));
+  assert.ok(!JSON.stringify(T).includes('moneyclaw'));
+  // Newest change first, with project label, stage and age.
+  const dev = T.bots.find((b) => b.slug === 'developer').cards.doing;
+  assert.deepEqual(dev.map((c) => c.id), db.sqlite.prepare("SELECT id FROM bot_tasks WHERE owner = 'developer' AND status = 'doing' ORDER BY updated_at DESC").all().map((r) => r.id));
+  assert.equal(dev[0].id, 'd1');
+  const n0 = T.bots.find((b) => b.slug === 'developer').cards.todo.find((c) => c.id === 'n0');
+  assert.deepEqual([n0.project, n0.stage], ['Unsorted', 'Edit']);
+  // Render: chips (greyed when empty), All view counts, kanban with card links.
+  const d3 = { d3: { team: T } };
+  const all = renderTeam(SAMPLE(), d3, {});
+  assert.match(all, /<h2>Cards by bot<\/h2>/);
+  assert.match(all, /data-tm="all" aria-pressed="true"/);
+  assert.match(all, /class="btn tm" data-tm="developer"/);
+  assert.match(all, /class="btn tm off" data-tm="ana"/);
+  assert.match(all, /data-tm="others"/);
+  const devTodo = T.bots.find((b) => b.slug === 'developer').cards.todo.length;
+  assert.match(all, new RegExp(`data-tmcol="developer\\|todo"[^>]*>${devTodo}</button>`));
+  assert.doesNotMatch(all, /class="tmkan"/);
+  const kan = renderTeam(SAMPLE(), d3, { teamBot: 'developer', teamCol: 'review' });
+  assert.match(kan, /class="tmkan"/);
+  for (const w of ['To do', 'Doing', 'QC', 'Needs you', 'Review']) assert.match(kan, new RegExp(`<b>${w}</b>`));
+  assert.match(kan, /class="stage tmon" data-tmk="review"/);
+  assert.match(kan, /href="\/dashboard\/\?card=d1#projects"/);
+  T.bots.find((b) => b.slug === 'developer').cards.doing[0].title = '<img src=x onerror=alert(1)>';
+  const esc1 = renderTeam(SAMPLE(), d3, { teamBot: 'developer' });
+  assert.ok(esc1.includes('&lt;img src=x onerror=alert(1)&gt;') && !esc1.includes('<img src=x'));
+  assert.equal((kan.match(/class="vcard tmcard"/g) || []).length, STATUSES.reduce((n, s) => n + T.bots.find((b) => b.slug === 'developer').cards[s].length, 0));
+});
+
 test('Blockers page: filters, rows open to what they block, review items link to Review, rail count = rows', async () => {
   const d2 = SAMPLE();
   const d3 = await d3Of(teamDb());
@@ -492,7 +537,7 @@ test('Page header escapes its sub line; Team header and Working tile read the sa
 
 test('d3.css: narrow screens stack the Team and Blockers rows, desktop rules unchanged', () => {
   const css = readFileSync(new URL('../public/d3/css/d3.css', import.meta.url), 'utf8');
-  assert.match(css, /\.d3 \.brow\{display:grid;grid-template-columns:170px minmax\(0,1fr\) 116px 60px 60px 56px 84px;/);
+  assert.match(css, /\.d3 \.brow\{display:grid;grid-template-columns:206px minmax\(0,1fr\) 116px 60px 60px 56px 84px;/);
   assert.match(css, /\.d3 \.blrow\{display:grid;grid-template-columns:minmax\(0,1fr\) 160px 90px 104px;/);
   const media = [...css.matchAll(/@media \(max-width:(\d+)px\)\{([\s\S]*?)\n\}/g)].map((m) => [Number(m[1]), m[2]]);
   const narrow = media.filter(([w]) => w < 1024).map(([, body]) => body).join('\n');
@@ -531,6 +576,22 @@ test('Video board: open cards with a stage, by stage, with count, oldest age, la
   assert.match(html, /data-stage="pack">[\s\S]*?\+1 more/);
   assert.match(html, /data-stage="sponsor review">[\s\S]*?no limit · oldest 2 hr/);
   assert.doesNotMatch(html, /Video v5/);
+});
+
+test('Video board: videos only; coding cards in build or deploy are left off, with no Build or Deploy column', async () => {
+  const db = teamDb();
+  const t = (id, stage, owner) => ins(db, 'bot_tasks', { id, title: `Card ${id}`, owner, project: owner === 'developer' ? 'coding' : 'home-guide-press', status: 'doing', stage, stage_since: H(20), created_by: 'ana', updated_by: 'ana', created_at: H(50), updated_at: H(0.5) });
+  t('c1', 'build', 'developer'); // past every limit: would count as late if it were on the board
+  t('c2', 'deploy', 'developer');
+  t('v1', 'edit', 'video-editor');
+  const L = (await d3Of(db)).d3.team.line;
+  assert.deepEqual(L.stages.map((s) => s.key), ['brief', 'script', 'script qc', 'a-roll', 'pack', 'edit', 'render qc', 'publish']);
+  assert.deepEqual([L.total, L.late], [1, 1]);
+  const html = renderTeam(SAMPLE(), (await d3Of(db)), {});
+  const board = html.slice(html.indexOf('<h2>Video board</h2>'));
+  assert.match(board, /Card v1/);
+  assert.doesNotMatch(board, /Card c1|Card c2|data-stage="build"|data-stage="deploy"|>Build<|>Deploy</);
+  assert.match(board, /grid-template-columns: repeat\(8, minmax\(0, 1fr\)\)/);
 });
 
 // ---- Card 3: Review and Money pages ----
@@ -754,6 +815,30 @@ test('Money page: design sections, six deal stages from the Sponsors board, No f
   assert.match(none, /No feed: the Sponsors board could not be read/);
   assert.match(none, /No feed: the team roster could not be read/);
   assert.doesNotMatch(none, /NaN|undefined/);
+});
+
+test('Team page: each bot shows its profile picture from /dash/img/bots, rows with several bots stack them, others keep the letter', async () => {
+  const { avatars, BOT_PICS } = await import('../public/d3/js/team.js');
+  // Every roster name has a small picture file, and every picture in the list exists.
+  for (const n of TEAM.bots.flatMap((b) => b.names)) assert.ok(BOT_PICS.has(n.toLowerCase()), `picture for ${n}`);
+  for (const k of BOT_PICS) {
+    const f = new URL(`../public/d3/img/bots/${k}.webp`, import.meta.url);
+    assert.ok(existsSync(f), `${k}.webp`);
+    assert.ok(readFileSync(f).length < 10000, `${k}.webp is small`);
+  }
+  const html = renderTeam(SAMPLE(), await d3Of(teamDb()), {});
+  assert.match(html, /<img class="av pic" src="img\/bots\/lucy\.webp" alt="" title="Lucy"[^>]* width="32" height="32"/);
+  assert.match(html, /<span class="avs"><img [^>]*olivia\.webp[^>]*><img [^>]*emma\.webp[^>]*><img [^>]*indy\.webp[^>]*><\/span>/);
+  assert.doesNotMatch(html, /<span class="av"[^>]*>[A-Z]<\/span>/); // every roster bot has a picture now
+  // A bot with no picture keeps its letter circle, also inside a stack; nothing from a name reaches the src.
+  assert.equal(avatars(['Zed']), '<span class="av" style="width: 32px; height: 32px; font-size: 13px">Z</span>');
+  assert.match(avatars(['Ana', 'Zed']), /^<span class="avs"><img [^>]*ana\.webp[^>]*><span class="av"[^>]*>Z<\/span><\/span>$/);
+  assert.doesNotMatch(avatars(['../x']), /<img/);
+  // Served behind /dash like the css and js, and nothing else under img/.
+  const env = { SESSION_SECRET: SECRET, ASSETS: assets };
+  const get = async (p) => { const r = await worker.fetch(new Request(`https://jonmac.ai${p}`), env, {}); return r.status === 404 ? 404 : r.text(); };
+  assert.equal(await get('/dash/img/bots/ana.webp'), 'asset:/d3/img/bots/ana.webp');
+  for (const p of ['/dash/img/bots/ana.png', '/dash/img/ana.webp', '/dash/img/bots/../js/app.js', '/dash/img/bots/a-b.webp', '/dash/img/bots/Ana.webp']) assert.equal(await get(p), 404, p);
 });
 
 test('Key results: named rows (name, actual / target, bar, status) worst first, no coloured tiles', async () => {

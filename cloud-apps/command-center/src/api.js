@@ -19,7 +19,9 @@ import { channelData } from './channels.js';
 import { trackData } from './track.js';
 import { monthWindow } from './today.js';
 import { buildD2, d2Data } from './d2.js';
+import { funnelsData } from './funnels.js';
 import { buildD3, d3Data } from './d3.js';
+import { buildPending, pendingData } from './pending.js';
 
 const PREFIX = '/dashboard/api';
 const json = (data, status = 200, headers = {}) =>
@@ -297,16 +299,27 @@ export async function handleApi(request, env, ctx) {
     return json({ ...mergeSnapshot(base, await listSnapshots(env.DB), now, await listDealStages(env.DB), extra), build });
   }
   // Dashboard 2 (docs/dashboard-2.md): the same pages /snapshot builds, plus the `d2` view. Read only.
-  if (rest === '/d2' && method === 'GET') {
-    const denied = await needSession(request, env);
-    if (denied) return denied;
+  // /d2/ana: what Dashboard 2 keeps off Jon's pages (stale feeds, items past his 3), for Ana's hourly check with her bot token.
+  if ((rest === '/d2' || rest === '/d2/ana') && method === 'GET') {
+    const ana = rest === '/d2/ana';
+    const ok = ana && request.headers.get('Authorization') ? await botOf(request, env.DB) : await readSession(request, env);
+    if (!ok) return json({ error: 'Sign in' }, 401);
     const now = Date.now();
     const base = filterSnapshot(D2_PAGES);
     const rows = env.DB ? await listSnapshots(env.DB) : [];
     const extra = env.DB ? await snapshotExtra(env, base, now) : {};
     const out = mergeSnapshot(base, rows, now, env.DB ? await listDealStages(env.DB) : {}, extra);
     const d2 = buildD2(out, rows, extra, await d2Data(env, now), now);
-    return json({ ok: true, build: env.CF_VERSION_METADATA?.id ?? null, asOf: new Date(now).toISOString(), pages: out.pages, d2 });
+    if (ana) return json({ ok: true, asOf: new Date(now).toISOString(), stale: d2.stale, toAna: d2.today.toAna });
+    let pending = null; // the Pending page: Jon's ask cards, view only; a failure here never takes down the rest of /d2
+    try { pending = buildPending(await pendingData(env.DB), now); } catch (err) { console.error('pending', err); }
+    return json({ ok: true, build: env.CF_VERSION_METADATA?.id ?? null, asOf: new Date(now).toISOString(), pages: out.pages, d2, pending });
+  }
+  // Dashboard 2 Funnels: every Home Guide Press book page and Buy link, checked live on each open (src/funnels.js). Read only.
+  if (rest === '/d2/funnels' && method === 'GET') {
+    const denied = await needSession(request, env);
+    if (denied) return denied;
+    return json({ ok: true, funnels: await funnelsData(env) });
   }
   // Dashboard 3 (docs/dashboard-3.md): the rail's status lines and the Goals numbers /d2 doesn't carry. Read only.
   if (rest === '/d3' && method === 'GET') {

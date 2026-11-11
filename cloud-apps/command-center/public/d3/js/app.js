@@ -121,6 +121,16 @@ main.addEventListener('click', async (e) => {
   if (page() === 'blockers' && await needsClick(e, S, render, load)) return;
   const rvgo = e.target.closest('[data-rvgo]'); // Blockers "Open in Review": the link changes the page, this picks the item
   if (rvgo) { Object.assign(S.ui, RV_CLEAR, { rvSel: rvgo.dataset.rvgo }); return; }
+  const tm = e.target.closest('[data-tm]'); // Team: a bot chip (or All)
+  if (tm) { S.ui.teamBot = tm.dataset.tm === 'all' ? null : tm.dataset.tm; S.ui.teamCol = null; render(); return; }
+  const tmc = e.target.closest('[data-tmcol]'); // Team All view: a count opens that bot's column
+  if (tmc) {
+    const [slug, col] = tmc.dataset.tmcol.split('|');
+    Object.assign(S.ui, { teamBot: slug, teamCol: col });
+    render();
+    main.querySelector(`[data-tmk="${col}"]`)?.scrollIntoView({ block: 'nearest', inline: 'start' });
+    return;
+  }
   const bot = e.target.closest('[data-bot]');
   if (bot) { S.ui.openBot = S.ui.openBot === bot.dataset.bot ? null : bot.dataset.bot; render(); return; }
   const bl = e.target.closest('[data-bl]');
@@ -158,7 +168,7 @@ main.addEventListener('input', (e) => {
 });
 
 window.addEventListener('hashchange', () => {
-  Object.assign(S.ui, { openKr: null, openBot: null, openBl: null, ...RV_CLEAR, rvDone: {}, rvKept: {} });
+  Object.assign(S.ui, { openKr: null, openBot: null, openBl: null, teamBot: null, teamCol: null, ...RV_CLEAR, rvDone: {}, rvKept: {} });
   render();
   if (page() === 'review' && !S.ui.rvThreads?.threads) loadThreads().then(() => { if (page() === 'review') render(); });
 });
