@@ -9,7 +9,7 @@ $sha = (git rev-parse --short=9 origin/main).Trim()
 if ((git rev-parse HEAD).Trim() -ne (git rev-parse origin/main).Trim()) { throw "HEAD is not origin/main ($sha). Deploy only from current main." }
 if (git status --porcelain) { throw 'Working tree not clean.' }
 npm test; if ($LASTEXITCODE) { throw 'tests failed' }
-$check = 'D:\AgentTeam	ools\dash_version_check.py'
+$check = 'D:\AgentTeam\tools\dash_version_check.py'
 if (-not (Get-Command python -ErrorAction SilentlyContinue) -or -not (Test-Path $check)) { throw 'python or dash_version_check.py missing; not deploying' }
 $deps = @(npx --yes wrangler@4.160.0 deployments list --json | ConvertFrom-Json)
 if ($LASTEXITCODE -or $deps.Count -eq 0) { throw 'could not read deployments' }
