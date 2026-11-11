@@ -1091,6 +1091,8 @@ test('Team page: each bot shows its profile picture from /dash/img/bots, rows wi
   const get = async (p) => { const r = await worker.fetch(new Request(`https://jonmac.ai${p}`), env, {}); return r.status === 404 ? 404 : r.text(); };
   assert.equal(await get('/dash/img/bots/ana.webp'), 'asset:/d3/img/bots/ana.webp');
   for (const p of ['/dash/img/bots/ana.png', '/dash/img/ana.webp', '/dash/img/bots/../js/app.js', '/dash/img/bots/a-b.webp', '/dash/img/bots/Ana.webp']) assert.equal(await get(p), 404, p);
+});
+
 // Card 4: Bluesky and System. All text is from the approved designs (no live numbers), so the tests check the
 // layout, the clicks' state, escaping and that the data files still match the designs.
 import { renderBluesky, TAB_IDS } from '../public/d3/js/bluesky.js';
