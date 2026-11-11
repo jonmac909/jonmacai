@@ -62,7 +62,7 @@ export function render(data) {
   const w = d2.period?.week || {};
   const days = w.days || [];
   return `<div class="wrap">
-  ${top('Week', w.label || '', d2)}
+  ${top('Week', w.label || '')}
   ${(d2.goals || []).map((g) => goalCard(g, days)).join('')}
 </div>`;
 }

@@ -398,16 +398,18 @@ const noteText = (note) => {
 };
 // ---- Video board: open cards with a stage (set by the dispatcher's hand-off), by stage ----
 // Columns as designed, with their proposed limits (hours). A card in QC shows under that stage's QC column when there is
-// one (script -> Script QC, edit -> Render QC). Any other stage gets its own column after these, with no limit.
+// one (script -> Script QC, edit -> Render QC). Videos only (Jon, 2026-11-11): a card with any other stage (coding's
+// build and deploy) is left off. Sponsor review, a sponsor-video stage, gets its own column after these, with no limit.
 const BOARD = [['brief', 'Brief', 4], ['script', 'Script', 4], ['script qc', 'Script QC', 2], ['a-roll', 'A-roll', 4],
   ['pack', 'Pack', 8], ['edit', 'Edit', 8], ['render qc', 'Render QC', 2], ['publish', 'Publish', 72]];
 const QC_COL = { script: 'script qc', edit: 'render qc' };
+const VIDEO_STAGES = new Set([...BOARD.map(([key]) => key), 'sponsor review']);
 const limitLabel = (h) => (h == null ? '' : h % 24 ? `${h} h` : `${h / 24} d`);
 function lineOf(tasks, nowMs) {
   const cols = new Map(BOARD.map(([key, name, h]) => [key, { key, name, limit: limitLabel(h), hours: h, cards: [] }]));
   for (const t of tasks) {
     const stage = String(t.stage || '').trim().toLowerCase();
-    if (!stage) continue;
+    if (!VIDEO_STAGES.has(stage)) continue;
     const key = t.status === 'qc' && QC_COL[stage] ? QC_COL[stage] : stage;
     if (!cols.has(key)) cols.set(key, { key, name: key.charAt(0).toUpperCase() + key.slice(1), limit: '', hours: null, cards: [] });
     // Time in the column: since the stage began, or since the card went to QC for a QC column (the move updates the card).

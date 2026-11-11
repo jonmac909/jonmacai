@@ -3,7 +3,9 @@ import { render as week } from './pages/week.js';
 import { render as today } from './pages/today.js';
 import { render as pipeline } from './pages/pipeline.js';
 import { render as money } from './pages/money.js';
+import { render as funnels } from './pages/funnels.js';
 import { mount as mountFactory } from '/dashboard/js/pages/factory.js';
+import { render as pending } from './pages/pending.js';
 import { noLoneWords } from '/dashboard/js/ui.js';
 import { setSort } from '/dashboard/js/pages/track.js';
 import { bindModals, openCard, restoreAnswers, typedAnswers } from '/dashboard/js/modals.js';
@@ -12,7 +14,7 @@ import { bindModals, openCard, restoreAnswers, typedAnswers } from '/dashboard/j
 // /dashboard/js/app.js (that one runs on import). Data from GET /dashboard/api/d2; writes go to the URL the
 // server put on each button.
 const API = '/dashboard/api';
-const pages = { month, week, today, pipeline, money };
+const pages = { month, week, today, pipeline, money, funnels, pending };
 let data = null;
 
 const root = document.documentElement;
@@ -82,6 +84,7 @@ async function load() {
   build ??= next.build;
   if (next.build && next.build !== build && !document.querySelector('dialog[open]') && !typing()) { location.reload(); return false; }
   if (data?.pages?.track && isTrack(route())) next.pages.track = data.pages.track; // kept only while a Track view stays open
+  if (data?.pages?.funnels && route() === 'funnels') next.pages.funnels = data.pages.funnels; // the 60 s poll doesn't re-check every page
   data = next;
   return true;
 }
@@ -113,6 +116,13 @@ async function go(id, { refetch = false } = {}) {
   if (needsFactory(id)) {
     const r = await fetch(`${API}/v1/factory`, { signal: AbortSignal.timeout(5000) }).catch(() => null);
     data.factory = (r?.ok && (await r.json().catch(() => null))) || data.factory || null; // a failed refetch keeps the last good answer; none shows "no data yet"
+    if (route() !== id) return;
+  }
+  if (name !== 'funnels') delete data.pages.funnels; // each open checks every book page and Buy link again
+  else if (!data.pages.funnels) {
+    document.getElementById('page').innerHTML = funnels(data); // "Checking…" while it runs
+    const r = await fetch(`${API}/d2/funnels`).catch(() => null);
+    data.pages.funnels = (r?.ok && (await r.json().catch(() => null))?.funnels) || { error: true };
     if (route() !== id) return;
   }
   document.querySelectorAll('.nav[data-page]').forEach((n) => {
@@ -222,6 +232,7 @@ document.addEventListener('click', (e) => {
     return;
   }
   if ((b = t.closest('[data-tsort]'))) { setSort(b.dataset.tsort); go(route()); return; }
+  if (t.closest('[data-fcheck]')) { delete data.pages.funnels; go(route()); return; } // Funnels: check every page again
   if ((b = t.closest('[data-copy]'))) { navigator.clipboard.writeText(b.dataset.copy).then(() => say('Link copied'), () => say('Could not copy')); return; }
   if ((b = t.closest('[data-href]'))) { window.open(b.dataset.href, '_blank', 'noopener'); return; }
   if (t.id === 'nwbtn') { // Money: show or hide net worth

@@ -17,6 +17,22 @@ function tile(ic, label, sub, value) {
   return `<div class="tile" style="flex: 1 1 200px"><span class="chip">${icon(ic)}</span><span class="stack" style="white-space: nowrap"><b>${esc(label)}</b><span class="mut">${esc(sub)}</span></span>${v}</div>`;
 }
 
+// Bots with an OpenBot profile picture (public/d3/img/bots/<name>.webp, 96px). Others keep the letter circle.
+export const BOT_PICS = new Set(['ana', 'daisy', 'elizabeth', 'elle', 'emma', 'florence', 'gal', 'indy', 'jessica', 'lucy', 'nina', 'olivia', 'samantha', 'scarlett', 'sydney']);
+
+// One round picture per bot name, same size as the old letter circle; rows with several bots overlap them.
+export function avatars(names) {
+  const list = names.length ? names : ['?'];
+  const one = (n) => {
+    const key = String(n).toLowerCase();
+    return BOT_PICS.has(key)
+      ? `<img class="av pic" src="img/bots/${esc(key)}.webp" alt="" title="${esc(n)}" width="32" height="32" loading="lazy" decoding="async">`
+      : `<span class="av" style="width: 32px; height: 32px; font-size: 13px">${esc(String(n).charAt(0) || '?')}</span>`;
+  };
+  if (list.length === 1) return one(list[0]);
+  return `<span class="avs">${list.map(one).join('')}</span>`;
+}
+
 function botRow(b, open, costHd) {
   const c = b.card;
   const counts = b.counts || {};
@@ -29,7 +45,7 @@ function botRow(b, open, costHd) {
     : '<span class="ell nf" style="font-weight: 500">No open card</span>';
   const running = b.running == null ? NF : `<span class="krv">${esc(b.running || '–')}</span>`;
   const row = `<button type="button" class="brow" aria-expanded="${open}" data-bot="${esc(b.slug)}">
-<span class="hd"><span class="av" style="width: 32px; height: 32px; font-size: 13px">${esc((b.names[0] || '?').charAt(0))}</span><span class="stack"><b class="ell">${esc(b.names.join(', '))}</b><span class="mut ell" style="font-size: 12px">${esc(b.role)}</span></span></span>
+<span class="hd">${avatars(b.names)}<span class="stack"><b class="ell">${esc(b.names.join(', '))}</b><span class="mut ell" style="font-size: 12px">${esc(b.role)}</span></span></span>
 <span class="stack"><span class="hd" style="gap: 8px"><span class="dot ${esc(b.tone)}"></span>${working}</span><span class="mut ell" style="font-size: 12px; padding-left: 16px">${esc(last.join(' · ') || ' ')}</span></span>
 <span><span class="pill">${esc(c ? c.stage : 'Idle')}</span></span>
 ${running}
@@ -52,7 +68,7 @@ ${row}
 </div>`;
 }
 
-// The video board from d3.team.line: every open card with a stage, by stage, with the count, the oldest card's time in
+// The video board from d3.team.line: every open video card (coding stages are left off), by stage, with the count, the oldest card's time in
 // the stage and up to 3 cards per stage (oldest first). No line (cards could not be read): each stage says No feed.
 function boardHtml(L) {
   const cols = L ? L.stages : STAGES.map(([name, limit]) => ({ name, limit, none: true }));

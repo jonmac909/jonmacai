@@ -130,7 +130,6 @@ export function objectivesOf(d2resp, d3resp, P = periodOf(d2resp)) {
   const wk = (g, i) => g?.week?.[i] || null;
   const WK = (m) => ({ span: P.wk, series: weekSeries(m, P), hint: 'this week' });
   const collected = one(sp?.month);
-  const tw = g3?.tokenWeeks || null;
   const wo = g3?.workouts || null;
   const dn = g3?.dateNights || null;
   const ch = g3?.charges || null;
@@ -152,13 +151,6 @@ export function objectivesOf(d2resp, d3resp, P = periodOf(d2resp)) {
         : noFeed('b5', 'Passed QC first try', 'QC verdicts on renders could not be read.'),
       g3?.approvedWaiting ? kr('b6', 'Approved, not uploaded', g3.approvedWaiting, { bar: false, hint: g3.approvedWaiting.actual ? `oldest ${g3.approvedWaiting.oldestLabel}` : 'none waiting', span: null, series: null, target: 'Target 0' })
         : noFeed('b6', 'Approved, not uploaded', 'Approvals and the YouTube calendar could not be read.'),
-    ] },
-    { title: 'Operations', owner: 'Ana', icon: 'bot', krs: [
-      tw ? kr('c1', 'Weeks token limit hit', tw, { bar: false, hint: 'target 0', span: P.mo, series: num(tw.actual) ? monthEventSeries(tw.hitDays || [], P, 0) : null })
-        : noFeed('c1', 'Weeks token limit hit', "Ana's Claude usage check could not be read."),
-      noFeed('c2', 'Dashboard 3 pages built', 'No feed counts built pages yet.'),
-      noFeed('c3', 'Cost per video measured', 'Needs tokens saved on every run, per card.'),
-      noFeed('c4', 'Times you typed "continue"', 'Nothing counts this yet.'),
     ] },
     { title: 'Personal', owner: 'You', icon: 'heart', krs: [
       wo ? kr('p1', 'Workouts', wo, { span: P.wk, series: weekSeries(wo, P), hint: 'this week', log: { kind: 'workout', done: !!wo.loggedToday } })

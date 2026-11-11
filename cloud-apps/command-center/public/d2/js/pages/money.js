@@ -26,7 +26,7 @@ export function render(data) {
   const p = data?.pages || {};
   const own = (d2.money?.tiles || []).map((t) => tile({ icon: 'dollar', label: t.label, value: t.value, subHtml: `${esc(t.sub || '')}${t.source ? `<br>${age(t.source)}` : ''}` })).join('');
   return `<div class="wrap">
-  ${top('Money', d2.period?.month?.label || '', d2)}
+  ${top('Money', d2.period?.month?.label || '')}
   ${own ? `<div class="tiles d2tiles">${own}</div>` : ''}
   <div class="d2sub">${p.money ? safe('Money', () => moneyPage(p.money)) : ''}</div>
   ${p.sponsors ? `<div class="sec"><div class="bar"><h2>Sponsor collections</h2></div>${safe('Sponsor collections', () => collections(p.sponsors))}</div>` : ''}

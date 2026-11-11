@@ -33,6 +33,7 @@ PART = 50 * 1024 * 1024
 HIDDEN_LOW = 0x08000000 | 0x00004000  # no window, below normal priority
 UA = 'review-source/1.0'
 quote = lambda s: urllib.parse.quote(s, safe='')  # noqa: E731
+NO_ORIGINAL = {'topview-2'}  # written from a sponsor's brief, not remade from a video: nothing to put beside it
 
 
 def stem(slug):
@@ -146,7 +147,9 @@ def upload(slug, path):
 
 
 def add(slug):
-    """Adds the stored original to slug's page. Returns 'added', 'has source' or 'not stored'."""
+    """Adds the stored original to slug's page. Returns 'added', 'has source', 'no original' or 'not stored'."""
+    if stem(slug) in NO_ORIGINAL:
+        return 'no original'
     if api('GET', '/' + slug)['video'].get('source_url'):
         return 'has source'
     video = stem(slug)
