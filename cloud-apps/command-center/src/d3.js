@@ -1,7 +1,9 @@
-// Dashboard 3 (docs/dashboard-3.md): the rail's status lines and the Goals numbers /dashboard/api/d2 doesn't carry.
+// Dashboard 3 (docs/dashboard-3.md): the rail's status lines, the Goals numbers /dashboard/api/d2 doesn't carry, and the
+// Team and Blockers pages' card data.
 // View only: it reads D1 and writes nothing. Every part is null on its own when its table can't be read, and the page
 // shows "No feed" or "No data" for a null, never a made-up number.
-import { statusOf } from './d2.js';
+import TEAM from './d3-team.json' with { type: 'json' };
+import { plain, statusOf } from './d2.js';
 import { DATE_NIGHT_TARGET, WORKOUT_TARGET } from './life.js';
 import { vanYmd, weekStart } from './periods.js';
 import { agoLabel, monthWindow, sourceOf, vanMidnight } from './today.js';
@@ -33,11 +35,13 @@ export async function d3Data(env, nowMs) {
     if (!db) return null;
     try { return (await db.prepare(sql).bind(...args).all()).results || []; } catch (err) { console.error('d3', err); return null; }
   };
-  const [youtube, review, approvals, questions, usage, lastUsage, open, proofs, habits, calendar, charges] = await Promise.all([
+  const today0 = new Date(midnight(vanYmd(nowMs))).toISOString();
+  const [youtube, review, approvals, questions, usage, lastUsage, open, proofs, habits, calendar, charges,
+    tasks, finished, stuck, failsToday, runs, runBots] = await Promise.all([
     q('SELECT channel, sync_error FROM yt_api'),
     q("SELECT updated_at AS at FROM bot_tasks WHERE status = 'review'"),
-    q("SELECT created_at AS at FROM bot_approvals WHERE status = 'pending'"),
-    q("SELECT created_at AS at, idem_key FROM bot_questions WHERE status = 'open'"),
+    q("SELECT id, title, action, requested_by, task_id, created_at AS at FROM bot_approvals WHERE status = 'pending'"),
+    q("SELECT id, question, asked_by, task_id, created_at AS at, idem_key FROM bot_questions WHERE status = 'open'"),
     q("SELECT data, created_at FROM bot_feed_entries WHERE name = 'claude_usage' AND created_at >= ? ORDER BY created_at DESC LIMIT 2000", new Date(win.start - 7 * DAY).toISOString()),
     q("SELECT data, created_at FROM bot_feed_entries WHERE name = 'claude_usage' ORDER BY created_at DESC LIMIT 1"),
     q(`SELECT project, COUNT(*) AS n FROM bot_tasks WHERE status IN ${OPEN} GROUP BY project`),
@@ -47,8 +51,23 @@ export async function d3Data(env, nowMs) {
     q("SELECT day, kind, done FROM habits WHERE kind IN ('workout', 'date_night') AND day >= ?", ws < first ? ws : first),
     q("SELECT data FROM snapshots WHERE source = 'calendar'"),
     q("SELECT status FROM bot_questions WHERE idem_key LIKE 'cw:%' AND (status = 'open' OR updated_at >= ?)", from),
+    // Team and Blockers: open cards, cards moved to Review or Done today, Stuck cards, QC fails today, runs.
+    q(`SELECT id, title, owner, status, note, due, updated_at FROM bot_tasks WHERE status IN ${OPEN} ORDER BY updated_at DESC LIMIT 3000`),
+    // Driven from the cards updated today (a status move updates the card), so events are read by (task_id, at) only.
+    q(`SELECT e.task_id, e.at, t.owner, t.title FROM bot_tasks t CROSS JOIN bot_task_events e ON e.task_id = t.id AND e.at >= ?
+      WHERE t.status IN ('todo','doing','waiting_on_jon','qc','review','done','cancelled') AND t.updated_at >= ? AND e.kind = 'status' AND (e.detail LIKE '%→ review%' OR e.detail LIKE '%→ done%') ORDER BY e.at DESC LIMIT 500`, today0, today0),
+    q(`SELECT p.task_id, COUNT(*) AS n, MAX(COALESCE(p.checked_at, p.created_at)) AS last FROM bot_proofs p JOIN bot_tasks t ON t.id = p.task_id
+      WHERE p.status = 'failed' AND t.status NOT IN ('done', 'cancelled') GROUP BY p.task_id HAVING COUNT(*) >= 2`),
+    q(`SELECT p.task_id, t.owner FROM bot_proofs p JOIN bot_tasks t ON t.id = p.task_id
+      WHERE p.status = 'failed' AND COALESCE(p.checked_at, p.created_at) >= ? LIMIT 1000`, today0),
+    q('SELECT bot, status, started_at, tokens FROM bot_runs WHERE started_at >= ? ORDER BY started_at LIMIT 2000', new Date(nowMs - DAY).toISOString()),
+    // Bots that post runs: only runs from the last 30 days, newest first, bounded.
+    q('SELECT DISTINCT bot FROM (SELECT bot FROM bot_runs WHERE started_at >= ? ORDER BY started_at DESC LIMIT 5000)', new Date(nowMs - 30 * DAY).toISOString()),
   ]);
-  return { youtube, review, approvals, questions, usage, lastUsage: lastUsage && (lastUsage[0] || undefined), open, proofs, habits, calendar: calendar && parse(calendar[0]?.data), charges, nowMs };
+  return {
+    youtube, review, approvals, questions, usage, lastUsage: lastUsage && (lastUsage[0] || undefined), open, proofs, habits, calendar: calendar && parse(calendar[0]?.data), charges,
+    tasks, finished, stuck, failsToday, runs, runBots, today0, nowMs,
+  };
 }
 
 // ---- the rail's four lines: { state: 'g' | 'y' | 'r' | 'none', text } ----
@@ -161,6 +180,107 @@ function chargesOf(rows) {
   });
 }
 
+// ---- Team: one row per roster bot (src/d3-team.json), from its cards, proofs and runs ----
+const RANK = { doing: 0, waiting_on_jon: 1, qc: 2, todo: 3, review: 4 };
+const STATUS = { doing: 'Doing', waiting_on_jon: 'Waiting on you', qc: 'In QC', todo: 'To do', review: 'In Review' };
+const ROSTER = new Map(TEAM.bots.map((b) => [b.slug, b]));
+// A slug not on the roster is a retired bot (Mila, Ivy): never shown by name.
+export const ownerName = (slug) => (slug === 'jon' ? 'Jon' : !slug ? '' : ROSTER.get(slug)?.names.join(', ') || 'Former bot');
+const since = (iso, nowMs) => (Number.isFinite(Date.parse(iso)) ? agoLabel(Math.max(0, nowMs - Date.parse(iso))).replace(/ ago$/, '') : '');
+const shortSince = (iso, nowMs) => {
+  const m = Math.floor(Math.max(0, nowMs - Date.parse(iso)) / 60000);
+  return m < 60 ? `${m} m` : m < 2880 ? `${Math.floor(m / 60)} h` : `${Math.floor(m / 1440)} d`;
+};
+// A card's note as plain text for "Work so far": no links, no file paths, no heading marks, at most 360 characters.
+const noteText = (note) => {
+  const t = String(note || '').replace(/https?:\/\/\S+/g, '').replace(/[A-Za-z]:[\\/][^\s,;)]*/g, (p) => p.split(/[\\/]/).filter(Boolean).pop())
+    .replace(/^\s*#+\s*/gm, '').replace(/^\s*[-*•]+\s+/gm, '').replace(/[ \t]+/g, ' ').replace(/\n\s*\n+/g, '\n').trim();
+  return t.length > 360 ? `${t.slice(0, 357).trimEnd()}…` : t;
+};
+function dueLabel(due, today) {
+  const d = String(due || '').slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) return null;
+  if (d === today) return 'today';
+  return new Intl.DateTimeFormat('en-US', { timeZone: 'UTC', month: 'short', day: 'numeric' }).format(new Date(`${d}T12:00:00Z`));
+}
+
+function teamOf(D, today) {
+  if (!D.tasks) return null;
+  const nowMs = D.nowMs;
+  const posts = D.runBots ? new Set(D.runBots.map((r) => r.bot)) : new Set();
+  const bots = TEAM.bots.map((b) => {
+    const mine = D.tasks.filter((t) => t.owner === b.slug);
+    const counts = {};
+    for (const t of mine) counts[t.status] = (counts[t.status] || 0) + 1;
+    const cur = mine.filter((t) => t.status !== 'review')
+      .sort((x, y) => RANK[x.status] - RANK[y.status] || Date.parse(y.updated_at) - Date.parse(x.updated_at))[0] || null;
+    const runs = (D.runs || []).filter((r) => r.bot === b.slug);
+    const failedRuns = runs.filter((r) => r.status === 'failed' && r.started_at >= D.today0).length;
+    const qcFails = D.failsToday ? D.failsToday.filter((f) => f.owner === b.slug).length : null;
+    const running = runs.filter((r) => r.status === 'running').pop();
+    const toks = runs.filter((r) => r.started_at >= D.today0 && r.tokens != null && Number.isFinite(Number(r.tokens)));
+    const failed = failedRuns + (qcFails || 0);
+    return {
+      slug: b.slug, names: b.names, role: b.role, counts,
+      card: cur && { id: cur.id, title: cur.title, status: cur.status, stage: STATUS[cur.status], due: dueLabel(cur.due, today), updated: since(cur.updated_at, nowMs), note: noteText(cur.note) },
+      tone: failed ? 'r' : cur?.status === 'doing' ? 'g' : cur?.status === 'waiting_on_jon' ? 'y' : '',
+      failedToday: qcFails == null ? null : failed, qcFailsToday: qcFails, failedRunsToday: failedRuns,
+      // Run feed: null = this bot posts no runs (No feed); '' = it posts runs but none is running now.
+      running: !posts.has(b.slug) ? null : running ? shortSince(running.started_at, nowMs) : '',
+      tokens: toks.length ? toks.reduce((n, r) => n + Number(r.tokens), 0) : null, // tokens per run: nothing posts them yet
+      finishedToday: D.finished ? [...new Map(D.finished.filter((e) => e.owner === b.slug).map((e) => [e.task_id, e.title])).values()] : null,
+    };
+  });
+  const waiting = D.tasks.filter((t) => t.status === 'waiting_on_jon' && ROSTER.has(t.owner));
+  const oldest = Math.min(...waiting.map((t) => Date.parse(t.updated_at)).filter(Number.isFinite));
+  return {
+    bots, names: TEAM.bots.reduce((n, b) => n + b.names.length, 0),
+    working: bots.filter((b) => (b.counts.doing || 0) > 0).length,
+    waiting: { count: waiting.length, oldest: Number.isFinite(oldest) ? since(new Date(oldest).toISOString(), nowMs) : '' },
+    failedToday: D.failsToday ? bots.reduce((n, b) => n + (b.failedToday || 0), 0) : null,
+    cost: null, // no cost feed per bot yet
+  };
+}
+
+// ---- Blockers from D1: cards waiting on Jon, open questions, pending approvals, Stuck cards, late cards ----
+// Stuck: the dispatcher's rule (a card whose proof failed QC 2 or more times), read live from bot_proofs, for cards still
+// open and not in Review (a card in Review passed QC on its newest version). Late: in Doing, no card update in 2 hours.
+// kind: p = waiting on a person, f = work that failed, s = slow or idle (a = access and limits, added on the page from the rail).
+function blockersOf(D) {
+  if (!D.tasks || !D.approvals || !D.questions || !D.stuck) return null;
+  const nowMs = D.nowMs;
+  const byId = new Map(D.tasks.map((t) => [t.id, t]));
+  const seen = new Set();
+  const out = [];
+  const add = (x) => out.push({ age: since(x.at, nowMs), ...x });
+  for (const t of D.tasks) {
+    if (t.status !== 'waiting_on_jon') continue;
+    seen.add(t.id);
+    add({ id: `t:${t.id}`, kind: 'p', you: true, title: t.title, at: t.updated_at, owner: ownerName(t.owner), blocks: plain(t.note) || 'Waiting on you' });
+  }
+  for (const x of D.questions) {
+    if (hidden(x.idem_key)) continue;
+    const t = x.task_id && byId.get(x.task_id);
+    if (t && seen.has(t.id)) continue;
+    add({ id: `q:${x.id}`, kind: 'p', you: true, review: true, title: plain(x.question) || 'Question', at: x.at, owner: ownerName(x.asked_by), blocks: t ? t.title : 'No card linked' });
+  }
+  for (const x of D.approvals) {
+    const t = x.task_id && byId.get(x.task_id);
+    add({ id: `a:${x.id}`, kind: 'p', you: true, review: true, title: x.title, at: x.at, owner: ownerName(x.requested_by), blocks: t ? t.title : `Approval to ${String(x.action || '').replace(/_/g, ' ')}` });
+  }
+  for (const s of D.stuck) {
+    const t = byId.get(s.task_id);
+    if (!t || t.status === 'review' || seen.has(t.id)) continue;
+    seen.add(t.id);
+    add({ id: `t:${t.id}`, kind: 'f', you: false, title: t.title, at: s.last, owner: ownerName(t.owner), blocks: `Stuck: failed QC ${s.n} times`, fails: Number(s.n) });
+  }
+  for (const t of D.tasks) {
+    if (t.status !== 'doing' || t.owner === 'jon' || seen.has(t.id) || !(nowMs - Date.parse(t.updated_at) >= 2 * 3600000)) continue;
+    add({ id: `t:${t.id}`, kind: 's', you: false, title: t.title, at: t.updated_at, owner: ownerName(t.owner), blocks: `Late: no card update for ${since(t.updated_at, nowMs)}` });
+  }
+  return out;
+}
+
 export function buildD3(D) {
   const nowMs = D.nowMs;
   const win = monthWindow(nowMs);
@@ -179,6 +299,8 @@ export function buildD3(D) {
       youtube: youtubeLine(D.youtube),
     },
     review: reviewOf(D),
+    team: teamOf(D, P.today),
+    blockers: blockersOf(D),
     openCards: D.open ? Object.fromEntries(D.open.map((r) => [r.project || '', Number(r.n) || 0])) : null,
     goals: {
       tokenWeeks: tokenWeeks(D.usage, first, P.last),

@@ -549,7 +549,7 @@ function linkOf(it, row, task) {
 }
 
 // A card note in plain words: its "Your move" part when it has one, no paths or links, at most 140 characters.
-function plain(note) {
+export function plain(note) {
   const s = String(note || '');
   const move = s.match(/your move:?\s*([\s\S]*?)(?:\n\s*next\b|$)/i)?.[1] || s;
   const t = move.replace(/https?:\/\/\S+/g, '').replace(/[A-Za-z]:[\\/][^\s,;)]*/g, (p) => p.split(/[\\/]/).filter(Boolean).pop())
