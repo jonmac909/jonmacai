@@ -74,7 +74,7 @@ function healthOf(d2resp, d3resp) {
       : line('Weekly tokens', `${tk.pct}%`, tk.state);
   const hg = rail.heygen;
   // Rows with no source are left out rather than shown as "No feed" (Sponsor inbox has none yet).
-  const logins = [ytRow, tkRow, ...(hg && hg.state !== 'none' ? [line('HeyGen today', hg.text, hg.state)] : [])];
+  const logins = [ytRow, tkRow, ...(hg && hg.text !== 'No feed' ? [line('HeyGen today', hg.text, hg.state === 'none' ? '' : hg.state)] : [])];
   const down = logins.filter((r) => r.tone === 'r').length;
   const age = (label, src) => (src ? line(label, String(src.ageLabel || '').replace(/^updated /, ''), src.stale ? 'r' : 'g') : NO(label));
   const sponsors = one((d2resp?.d2?.goals || []).find((g) => g.key === 'sponsors')?.month);
