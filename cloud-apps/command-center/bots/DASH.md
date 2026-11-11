@@ -27,7 +27,7 @@ Every task, question and approval sets `--project`. Jon sees each project on its
 ```
 dash.py task-add "Edit ep 4" --project jon-mac [--owner video-editor] [--status todo|doing|waiting_on_jon] [--note ..] [--key ..]
 dash.py task-add "Sign the Acme contract" --project sponsors --owner jon --due 2026-10-30 --minutes 10
-dash.py task-update t_… --status doing|waiting_on_jon|qc|review|cancelled [--owner ..] [--note ..] [--title ..] [--project ..] [--minutes N] [--due YYYY-MM-DD]
+dash.py task-update t_… --status doing|waiting_on_jon|qc|review|cancelled [--owner ..] [--note ..] [--title ..] [--project ..] [--minutes N] [--due YYYY-MM-DD] [--stage <stage>]
 dash.py tasks [--owner me|jon|<slug>] [--status todo,doing] [--project ..]      dash.py task t_…   (shows its proof)
 ```
 - One owner per task. It defaults to you.

@@ -91,6 +91,19 @@ test('tasks: create, idempotent key, owner checks, list and update', async () =>
   const upd = await call(env, 'PATCH', `/tasks/${t.id}`, { bot: 'qc', body: { status: 'doing', note: 'started' } });
   assert.deepEqual([upd.status, upd.body.task.status, upd.body.task.note, upd.body.task.updatedBy, upd.body.task.title], [200, 'doing', 'started', 'qc', 'Ship step 1']);
   assert.equal((await call(env, 'PATCH', `/tasks/${t.id}`, { bot: 'qc', body: {} })).status, 400);
+  // Stage: set with its since time, same stage same keeps the time, bad text refused, '' clears both; history logged.
+  const st = await call(env, 'PATCH', `/tasks/${t.id}`, { bot: 'qc', body: { stage: ' Sponsor  Review ' } });
+  assert.equal(st.status, 200);
+  assert.equal(st.body.task.stage, 'sponsor review');
+  assert.ok(Date.now() - Date.parse(st.body.task.stageSince) < 60000);
+  const same = await call(env, 'PATCH', `/tasks/${t.id}`, { bot: 'qc', body: { stage: 'sponsor review' } });
+  assert.deepEqual([same.status, same.body.task.stageSince], [200, st.body.task.stageSince]);
+  assert.equal((await call(env, 'PATCH', `/tasks/${t.id}`, { bot: 'qc', body: { stage: 'edit<b>' } })).status, 400);
+  assert.equal((await call(env, 'PATCH', `/tasks/${t.id}`, { bot: 'qc', body: { stage: 'x'.repeat(41) } })).status, 400);
+  const got = await call(env, 'GET', `/tasks/${t.id}`, { bot: 'qc' });
+  assert.equal(got.body.task.stage, 'sponsor review');
+  const cleared = await call(env, 'PATCH', `/tasks/${t.id}`, { bot: 'qc', body: { stage: '' } });
+  assert.deepEqual([cleared.body.task.stage, cleared.body.task.stageSince], [null, null]);
   assert.equal((await call(env, 'PATCH', `/tasks/${t.id}`, { bot: 'qc', body: { owner: null } })).status, 400);
   assert.equal((await call(env, 'PATCH', '/tasks/t_0000000000000000', { bot: 'qc', body: { status: 'doing' } })).status, 404);
   assert.equal((await call(env, 'PATCH', '/tasks/not-an-id', { bot: 'qc', body: { status: 'doing' } })).status, 404);

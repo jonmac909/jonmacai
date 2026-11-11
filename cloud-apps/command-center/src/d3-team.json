@@ -1,0 +1,17 @@
+{
+  "_": "Dashboard 3 Team roster: a copy of D:\\AgentTeam\\rules\\BOTS.md (the Worker can't read it). slug = the bot's areas/<slug>.md and its dashboard owner name; names = 'Name in OpenBot'; role = the 'Bot' column. Retired bots are left out. test/d3.test.mjs fails when this drifts from BOTS.md.",
+  "bots": [
+    { "slug": "ana", "names": ["Ana"], "role": "Chief of staff" },
+    { "slug": "sponsors", "names": ["Florence"], "role": "Sponsors" },
+    { "slug": "viral-view", "names": ["Scarlett"], "role": "Viral View" },
+    { "slug": "video-editor", "names": ["Olivia", "Emma", "Indy"], "role": "Video Editor" },
+    { "slug": "jon-mac-youtube", "names": ["Sydney"], "role": "Jon Mac YouTube" },
+    { "slug": "home-guide-press", "names": ["Elle"], "role": "Home Guide Press" },
+    { "slug": "hgp-scripts", "names": ["Gal"], "role": "HGP Scripts" },
+    { "slug": "short-form", "names": ["Samantha"], "role": "Short-form" },
+    { "slug": "developer", "names": ["Lucy"], "role": "Developer" },
+    { "slug": "qc", "names": ["Jessica", "Nina"], "role": "QC" },
+    { "slug": "accounting", "names": ["Elizabeth"], "role": "Accounting" },
+    { "slug": "spotify", "names": ["Daisy"], "role": "Spotify" }
+  ]
+}
