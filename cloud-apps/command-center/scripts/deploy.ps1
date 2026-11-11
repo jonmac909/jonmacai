@@ -9,8 +9,8 @@ if ((git rev-parse HEAD).Trim() -ne (git rev-parse origin/main).Trim()) { throw 
 if (git status --porcelain) { throw 'Working tree not clean.' }
 npm test; if ($LASTEXITCODE) { throw 'tests failed' }
 $prev = (npx --yes wrangler@4.160.0 deployments list --json | ConvertFrom-Json | Select-Object -Last 1).versions[0].version_id
+if (-not $prev) { throw 'no previous version to roll back to' }
 npx --yes wrangler@4.160.0 deploy --tag $sha --message "main $sha"; if ($LASTEXITCODE) { throw 'deploy failed' }
-Start-Sleep -Seconds 5
 python -I D:\AgentTeam\tools\dash_version_check.py $Base $sha
 if ($LASTEXITCODE) {
   npx --yes wrangler@4.160.0 rollback $prev --message "auto rollback: /dash/version did not show $sha" -y
