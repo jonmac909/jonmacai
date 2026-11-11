@@ -163,6 +163,24 @@ html[data-theme="dark"] body{background:#0b0b0c}
   .d3 .board{grid-template-columns:repeat(2,minmax(0,1fr)) !important}
 }
 .d3 .btn.lg[data-rv="opt"]{white-space:normal;text-align:left;height:auto;padding:10px 16px}
+/* Email thread (thread.js): the Review page's sponsor drafts and the Money deal view. */
+.d3 .rvthread{max-height:55vh;overflow-y:auto}
+.d3 .rvmsg{border-top:1px solid var(--line);padding:8px 0 0}
+.d3 .rvmsg>summary{display:flex;align-items:center;gap:10px;justify-content:space-between;cursor:pointer;min-height:36px;min-width:0}
+.d3 .rvmsg>p{margin:6px 0 4px}
+/* Money deal cards open their deal view (#money/<deal id>); the view's thread grows with the page instead of a scroll box. */
+.d3 a.vcard{color:inherit;text-decoration:none;cursor:pointer}
+.d3 a.vcard:hover{box-shadow:inset 0 0 0 1px var(--line)}
+.d3 a.vcard:focus-visible{outline:2px solid var(--fill);outline-offset:2px}
+.d3 .dealmore{border:0;background:transparent;padding:4px 0;font:inherit;font-size:12px;text-align:left;cursor:pointer}
+.d3 .dealfact{display:grid;grid-template-columns:96px minmax(0,1fr);gap:4px 12px;align-items:baseline;padding:8px 0;border-top:1px solid var(--line);font-size:14px;min-width:0}
+.d3 .dealfact:first-child{border-top:0}
+.d3 .dealbad{color:var(--bad-ink);font-weight:600}
+.d3 .dealthread .rvthread{max-height:none;overflow:visible}
+@media (max-width:560px){
+  .d3 .dealfact{grid-template-columns:1fr}
+  .d3 .rvmsg>summary{flex-wrap:wrap;gap:2px 10px}
+}
 /* Team: cards by bot. Chips wrap; the kanban scrolls sideways on a phone; the All view keeps five narrow count columns. */
 .d3 .tmchips{display:flex;flex-wrap:wrap;gap:8px}
 .d3 .btn.tm{height:auto;min-height:36px;padding:6px 12px;flex-direction:column;align-items:flex-start;gap:0;text-align:left;font-size:13px}

@@ -10,6 +10,7 @@ import { renderBlockers } from './blockers.js';
 import { needsClick } from './needs.js';
 import { renderReview, reviewClick } from './review.js';
 import { renderMoney } from './money.js';
+import { threadClick } from './thread.js';
 import { renderScripts } from './scripts.js';
 
 const PAGES = { goals: 'Goals', team: 'Team', blockers: 'Blockers', review: 'Review', scripts: 'Scripts', money: 'Money', bluesky: 'Bluesky', system: 'System' };
@@ -30,13 +31,28 @@ for (const b of document.querySelectorAll('[data-theme-set]')) b.addEventListene
 setTheme(document.documentElement.getAttribute('data-theme'));
 
 // ---- routes ----
+const route = () => (location.hash || '').replace(/^#\/?/, '').split('/');
 const page = () => {
-  const k = (location.hash || '').replace(/^#\/?/, '').toLowerCase();
+  const k = route()[0].toLowerCase();
   return PAGES[k] ? k : 'goals';
+};
+// One Money deal's own view: #money/<deal id> (the browser's Back closes it).
+const dealRoute = () => {
+  if (page() !== 'money') return '';
+  try { return decodeURIComponent(route().slice(1).join('/')); } catch { return ''; }
 };
 
 function render() {
   const p = page();
+  const deal = dealRoute();
+  if (deal !== (S.ui.deal || '')) {
+    S.ui.deal = deal;
+    if (deal) {
+      window.scrollTo(0, 0);
+      // Fresh threads each time a deal opens (GPU1 refreshes the snapshot; the 60 s poll doesn't re-read them).
+      if (!S.signedOut) loadThreads().then(() => { if (S.ui.deal === deal) render(); });
+    }
+  }
   for (const a of document.querySelectorAll('[data-nav]')) {
     if (a.dataset.nav === p) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');
   }
@@ -85,6 +101,16 @@ async function getJson(path) {
   return { body: await res.json() };
 }
 
+// The Gmail threads above the sponsor drafts: only the Review page asks, so other pages skip the extra read.
+async function loadThreads() {
+  try {
+    const t = await getJson('/dashboard/api/sponsor-threads');
+    if (!t.signedOut) S.ui.rvThreads = t.body;
+  } catch (err) {
+    if (!S.ui.rvThreads?.threads) S.ui.rvThreads = { error: err.message };
+  }
+}
+
 async function load() {
   try {
     const [a, b] = await Promise.all([getJson('/dashboard/api/d2'), getJson('/dashboard/api/d3')]);
@@ -104,6 +130,7 @@ async function load() {
   } catch (err) {
     S.error = `Could not load the numbers (${err.message}). Showing the last ones loaded.`;
   }
+  if (page() === 'review' && !S.signedOut) await loadThreads();
   rail();
   // Don't redraw under Jon's typing (a Review answer, send-back note or draft edit); the next load or click redraws.
   if (document.activeElement?.closest?.('#main textarea, #main input')) return;
@@ -114,6 +141,9 @@ async function load() {
 main.addEventListener('click', async (e) => {
   if (page() === 'review' && await reviewClick(e, S, render, load)) return;
   if (page() === 'blockers' && await needsClick(e, S, render, load)) return;
+  if (threadClick(e, S.ui, render)) return; // open or fold one message of a Money deal's email thread
+  const more = e.target.closest('[data-dealmore]'); // Money: show every deal in a stage, or the first 8 again
+  if (more) { S.ui.dealsAll = { ...(S.ui.dealsAll || {}), [more.dataset.dealmore]: !S.ui.dealsAll?.[more.dataset.dealmore] }; render(); return; }
   const rvgo = e.target.closest('[data-rvgo]'); // Blockers "Open in Review": the link changes the page, this picks the item
   if (rvgo) { Object.assign(S.ui, RV_CLEAR, { rvSel: rvgo.dataset.rvgo }); return; }
   const deal = e.target.closest('[data-deal]'); // Pipeline revenue row: the link opens Money, this picks the deal
@@ -164,7 +194,11 @@ main.addEventListener('input', (e) => {
   else if (e.target.matches('.rvin')) S.ui.rvDraft = { ...S.ui.rvDraft, [e.target.name]: e.target.value };
 });
 
-window.addEventListener('hashchange', () => { Object.assign(S.ui, { openKr: null, openBot: null, openBl: null, teamBot: null, teamCol: null, ...RV_CLEAR, rvDone: {}, rvKept: {} }); render(); });
+window.addEventListener('hashchange', () => {
+  Object.assign(S.ui, { openKr: null, openBot: null, openBl: null, teamBot: null, teamCol: null, ...RV_CLEAR, rvDone: {}, rvKept: {} });
+  render();
+  if (page() === 'review' && !S.ui.rvThreads?.threads) loadThreads().then(() => { if (page() === 'review') render(); });
+});
 setInterval(() => { if (document.visibilityState === 'visible') load(); }, 60000);
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') load(); });
 render();

@@ -86,11 +86,25 @@ function hasDraft(card) {
   const dr = card.draftReply;
   return !!(dr && ['needs-review', 'edited', 'approved'].includes(dr.status) && String(dr.body || '').trim());
 }
+// Gmail thread ids (hex) of the cards with a draft waiting for Jon: what GPU1 reads for the Review page.
+export function draftThreadIds(cards) {
+  return [...new Set((cards || []).filter((c) => c.stage !== 'archived' && hasDraft(c)).map((c) => String(c.threadId || '')).filter((t) => /^[0-9a-f]{6,32}$/i.test(t)))];
+}
 export function keepCard(card, nowMs, items) {
   if (card.stage === 'archived') return false;
   const t = Date.parse(card.latestDate);
   if (card.stage === 'done' && Number.isFinite(t) && ymd(t).slice(0, 7) !== ymd(nowMs).slice(0, 7)) return false;
   return !!(matchItem(card, items) || hasDraft(card) || ACTIVE.has(card.stage));
+}
+// Gmail thread ids (hex) of the deals the Money page shows: board cards (keepCard, stage overrides applied) not yet
+// archived for 60 quiet days, the same cut as the d2 Sponsors board. GPU1 reads these for each deal's own view.
+export function dealThreadIds(data, nowMs = Date.now(), overrides = {}) {
+  const items = data?.collections?.items || [];
+  return [...new Set((data?.cards || []).map((c) => (overrides[c.id] ? { ...c, stage: overrides[c.id] } : c)).filter((c) => {
+    if (!keepCard(c, nowMs, items)) return false;
+    const last = Date.parse(c.latestDate);
+    return !(Number.isFinite(last) && nowMs - last >= 60 * 86400000);
+  }).map((c) => String(c.threadId || '')).filter((t) => /^[0-9a-f]{6,32}$/i.test(t)))];
 }
 function pillFor(card, item, nowMs) {
   if (card.stage === 'paid' || card.stage === 'done') return { pill: 'Paid', pillCls: 'ok' };
@@ -183,6 +197,12 @@ export function buildSponsorsPage(data, nowMs = Date.now(), overrides = {}, cash
       detail: card.subject || card.status || '',
       pct: COL_PCT[stage] || 12,
       pg: pillCls === 'crit' ? 'crit' : (pillCls === 'ok' ? 'ok' : ''),
+      // The Money page's deal view: its Gmail thread, the inbox scan's status and the collections sheet's
+      // blocker and next step (null when the sheet has no row for this deal: the page says "not set").
+      threadId: card.threadId || '',
+      status: card.status || '',
+      blocker: item ? String(item.blocker || '') : null,
+      next: item ? String(item.action || '') : null,
     };
     if (draft) {
       k.btn = 'Review';
