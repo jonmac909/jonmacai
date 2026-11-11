@@ -151,6 +151,7 @@ html[data-theme="dark"] body{background:#0b0b0c}
 .d3 .ks{container-type:inline-size;padding:18px 22px;gap:10px}
 .d3 .ksl{display:flex;flex-direction:column}
 .d3 .ksr{display:grid;grid-template-columns:minmax(0,1fr) 56px minmax(0,max-content) 58px;gap:10px;align-items:center;padding:4px 0;border-top:1px solid var(--line);font-size:14px;line-height:20px}
+.d3 .ksh{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 .d3 .ksl>.ksr:first-child{border-top:0}
 .d3 .ksn{display:flex;align-items:center;gap:8px;min-width:0;font-weight:500;color:var(--ink)}
 .d3 .ksv{font-family:var(--disp);font-weight:500;white-space:nowrap;text-align:right;min-width:0;max-width:45cqi;overflow:hidden;text-overflow:ellipsis}

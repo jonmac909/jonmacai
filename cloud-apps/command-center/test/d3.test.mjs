@@ -1242,7 +1242,7 @@ test('Key results: named rows (name, actual / target, bar, status) worst first, 
     assert.ok(m[1].includes(e(k.text)), k.id);
     // One line: no grey objective subtitle or stacked block inside a row; order is dot, name, bar, value, status.
     assert.doesNotMatch(m[1], /class="mut ell"|class="[^"]*\bstack\b/, k.id);
-    assert.match(m[1], /^<span class="ksn"><span class="dot[^"]*"><\/span><span class="ell">[^<]*<\/span><\/span><span class="bar[^"]*"[^>]*>(<i [^>]*><\/i>)?<\/span><span class="ksv[^"]*">[\s\S]*<\/span><span class="kss [rygn]">[^<]*<\/span>$/, k.id);
+    assert.match(m[1], /^<span class="ksn"><span class="dot[^"]*"><\/span><span class="ell">[^<]*<\/span>(<span class="ksh">[^<]*<\/span>)?<\/span><span class="bar[^"]*"[^>]*>(<i [^>]*><\/i>)?<\/span><span class="ksv[^"]*">[\s\S]*<\/span><span class="kss [rygn]">[^<]*<\/span>$/, k.id);
     if (k.hasBar) assert.match(m[1], /class="bar"[^>]*><i class="[rygn]" style="width: [\d.]+%"/, k.id);
     else assert.match(m[1], /class="bar nb"[^>]*><\/span>/, k.id);
     assert.match(m[1], /class="kss [rygn]">(Off track|At risk|On track|No data|No feed)</);

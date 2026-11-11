@@ -238,7 +238,7 @@ function keyRowHtml(k) {
   // No target, no bar: an empty grey track would read as 0%.
   const bar = k.hasBar ? `<span class="bar" aria-hidden="true"><i class="${k.tone}" style="width: ${k.pct}%"></i></span>` : '<span class="bar nb" aria-hidden="true"></span>';
   const word = k.nf && k.v1 === 'No feed' ? 'No feed' : WORD[k.tone];
-  return `<div class="ksr" title="${esc(`${k.text} · ${k.obj}`)}" data-kr-row="${esc(k.id)}"><span class="ksn"><span class="dot ${k.tone === 'n' ? '' : k.tone}"></span><span class="ell">${esc(k.text)}</span></span>${bar}<span class="ksv${k.nf ? ' nf' : ''}">${k.nf ? esc(k.v1) : `${esc(k.v1)}${target}`}</span><span class="kss ${k.tone}">${esc(word)}</span></div>`;
+  return `<div class="ksr" title="${esc(`${k.text} · ${k.obj}`)}" data-kr-row="${esc(k.id)}"><span class="ksn"><span class="dot ${k.tone === 'n' ? '' : k.tone}"></span><span class="ell">${esc(k.text)}</span><span class="ksh">, ${esc(k.obj)}</span></span>${bar}<span class="ksv${k.nf ? ' nf' : ''}">${k.nf ? esc(k.v1) : `${esc(k.v1)}${target}`}</span><span class="kss ${k.tone}">${esc(word)}</span></div>`;
 }
 
 function summaryHtml(objs) {
