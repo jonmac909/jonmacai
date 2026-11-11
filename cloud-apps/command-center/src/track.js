@@ -1,4 +1,4 @@
-// Track page (2026-11-02): every Calendar video with its status, YouTube stats and a tracked link.
+﻿// Track page (2026-11-02): every Calendar video with its status, YouTube stats and a tracked link.
 // /v/<code> counts the click and forwards to the landing page stored in D1, never to anything in the request.
 import { YOUTUBE_CHANNELS, pacific, stamp, withYoutube } from './channels.js';
 import { trackChannels } from './youtube.js';
@@ -137,7 +137,7 @@ export function buildTrackPage(out, data) {
       const mine = list.filter((v) => v.channel === c.slug);
       // Connect (Jon, 2026-11-11): a channel with no Google login yet gets the link that starts it; Jon does the consent himself.
       const t = data?.totals?.[c.slug];
-      const state = !t ? 'none' : /connect/i.test(t.error || '') ? 'reconnect' : 'connected';
+      const state = !t ? 'none' : /connect (this channel|it) again/i.test(t.error || '') ? 'reconnect' : 'connected';
       return { ...c, connect: { state, url: `/dashboard/api/youtube/connect?channel=${c.slug}` }, count: mine.length, counts: countsOf(mine), totals: data?.totals?.[c.slug] || null, book: data?.books?.[c.slug] || null };
     })],
     videos: list.map((v) => ({ ...v, channelLabel: label.get(v.channel) })),
