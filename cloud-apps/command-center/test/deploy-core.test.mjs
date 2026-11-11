@@ -54,3 +54,34 @@ test('missing version id fails before deploying', () => {
 });
 
 
+
+// Plants the clash (2026-11-11): deploy.ps1 named its check path $check, and deploy-core's -Check param
+// shadowed it, so python got the scriptblock text, every live check failed and deploys rolled back.
+// Runs deploy.ps1's own path line and Invoke-WranglerDeploy line against a fake wrangler and a fake python.
+test('deploy.ps1 live check gets the check script path, not a scriptblock', () => {
+  const src = readFileSync(resolve(import.meta.dirname, '../scripts/deploy.ps1'), 'utf8');
+  const assign = src.match(/^\$\w+ = '[^']*dash_version_check\.py'\s*$/m)?.[0];
+  const call = src.match(/^Invoke-WranglerDeploy .*$/m)?.[0];
+  assert.ok(assign && call, 'deploy.ps1 path line and Invoke-WranglerDeploy line');
+  const dir = mkdtempSync(join(tmpdir(), 'dep-'));
+  const log = join(dir, 'log.txt');
+  const fake = join(dir, 'fake.ps1');
+  writeFileSync(fake, `Add-Content '${log}' ($args -join ' ')
+if ($args[0] -eq 'deployments') { Write-Output '[{"created_on":"2026-11-11T00:00:00Z","versions":[{"version_id":"prev-123","percentage":100}]}]' }
+exit 0
+`);
+  const pyPath = join(dir, 'dash_version_check.py');
+  const drv = join(dir, 'drv.ps1');
+  writeFileSync(drv, `$ErrorActionPreference='Stop'
+function python { Add-Content '${log}' ('PY ' + ($args -join '|')); $global:LASTEXITCODE = [int]($args[1] -ne '${pyPath}') }
+$Base = 'http://x'; $sha = 'abc1234'
+${assign.trim().replace(/'[^']*'/, `'${pyPath}'`)}
+. '${core}'
+${call.replace(/-Wrangler @\([^)]*\)/, `-Wrangler @('powershell','-NoProfile','-File','${fake}')`)}
+`);
+  const r = spawnSync('powershell', ['-NoProfile', '-File', drv], { encoding: 'utf8' });
+  const out = existsSync(log) ? readFileSync(log, 'utf8') : '';
+  assert.ok(out.includes(`PY -I|${pyPath}|http://x|abc1234`), out + r.stdout + r.stderr);
+  assert.doesNotMatch(out, /rollback/);
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+});

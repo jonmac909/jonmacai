@@ -1208,8 +1208,9 @@ test('Bluesky and System text files are still the approved designs, unchanged', 
   const out = mkdtempSync(join(tmpdir(), 'd3text-'));
   try {
     execFileSync(process.execPath, [fileURLToPath(new URL('../scripts/d3-text-from-design.mjs', import.meta.url)), DESIGN_DIR, out]);
+    const lf = (s) => s.replace(/\r\n/g, '\n'); // core.autocrlf checkouts have \r\n
     for (const f of ['bluesky-data.js', 'system-data.js']) {
-      assert.equal(readFileSync(join(out, f), 'utf8'), readFileSync(new URL(`../public/d3/js/${f}`, import.meta.url), 'utf8'), f);
+      assert.equal(lf(readFileSync(join(out, f), 'utf8')), lf(readFileSync(new URL(`../public/d3/js/${f}`, import.meta.url), 'utf8')), f);
     }
   } finally { rmSync(out, { recursive: true, force: true }); }
 });
