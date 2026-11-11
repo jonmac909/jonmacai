@@ -19,6 +19,9 @@ const hidden = (key) => /^team-guard/.test(key || '') || /^cw:/.test(key || '');
 // A YouTube sync that failed on Google sign-in (src/youtube.js), not on quota or the network.
 const LOGIN_OUT = /connect this channel again|token refresh/i;
 const NO_FEED = { state: 'none', text: 'No feed' };
+const MIN = 60000;
+// The dispatcher's live feed (tools/dash_live_feed.py, every 2 min): grey once it is 10 minutes old.
+const LIVE_STALE = 10 * MIN;
 
 const parse = (raw) => {
   if (raw && typeof raw === 'object') return raw;
@@ -43,7 +46,7 @@ export async function d3Data(env, nowMs) {
   const apSince = new Date(nowMs - 14 * DAY).toISOString();
   const AP_CARDS = `SELECT id FROM bot_tasks WHERE project IN ('home-guide-press', 'jon-mac', 'jonmacai') AND (status IN ${OPEN} OR (status = 'done' AND updated_at >= ?))`;
   const [youtube, review, approvals, questions, usage, lastUsage, open, proofs, habits, calendar, charges,
-    tasks, finished, stuck, failsToday, runs, runBots, later, scripts, scoreProofs, staged, apCards, apEvents, live] = await Promise.all([
+    tasks, finished, stuck, failsToday, runs, runBots, later, scripts, scoreProofs, staged, apCards, apEvents, ytLive, live] = await Promise.all([
     q('SELECT channel, sync_error FROM yt_api'),
     // Review cards with their newest proof link (a passed one first), as the card modal picks its deliverable.
     q(`SELECT t.id, t.title, t.owner, t.project, t.due, t.note, t.updated_at AS at,
@@ -54,9 +57,10 @@ export async function d3Data(env, nowMs) {
     q("SELECT data, created_at FROM bot_feed_entries WHERE name = 'claude_usage' AND created_at >= ? ORDER BY created_at DESC LIMIT 2000", new Date(win.start - 7 * DAY).toISOString()),
     q("SELECT data, created_at FROM bot_feed_entries WHERE name = 'claude_usage' ORDER BY created_at DESC LIMIT 1"),
     q(`SELECT project, COUNT(*) AS n FROM bot_tasks WHERE status IN ${OPEN} GROUP BY project`),
-    // Every QC verdict on a render, for the cards with a render this month; the first verdict per card decides "first try".
-    q(`SELECT task_id, status, created_at FROM bot_proofs WHERE kind = 'render' AND status IN ('passed', 'failed')
-      AND task_id IN (SELECT task_id FROM bot_proofs WHERE kind = 'render' AND created_at >= ?) ORDER BY created_at, rowid LIMIT 5000`, from),
+    // Every QC verdict on a video (a proof linking a review page), for the cards with one this month; the first verdict
+    // per card decides "first try".
+    q(`SELECT task_id, status, created_at FROM bot_proofs WHERE (link LIKE '%/review/%' OR kind = 'render') AND status IN ('passed', 'failed')
+      AND task_id IN (SELECT task_id FROM bot_proofs WHERE (link LIKE '%/review/%' OR kind = 'render') AND created_at >= ?) ORDER BY created_at, rowid LIMIT 5000`, from),
     q("SELECT day, kind, done FROM habits WHERE kind IN ('workout', 'date_night') AND day >= ?", ws < first ? ws : first),
     q("SELECT data FROM snapshots WHERE source = 'calendar'"),
     q("SELECT status FROM bot_questions WHERE idem_key LIKE 'cw:%' AND (status = 'open' OR updated_at >= ?)", from),
@@ -67,9 +71,9 @@ export async function d3Data(env, nowMs) {
       WHERE t.status IN ('todo','doing','waiting_on_jon','qc','review','done','cancelled') AND t.updated_at >= ? AND e.kind = 'status' AND (e.detail LIKE '%→ review%' OR e.detail LIKE '%→ done%') ORDER BY e.at DESC LIMIT 500`, today0, today0),
     q(`SELECT p.task_id, COUNT(*) AS n, MAX(COALESCE(p.checked_at, p.created_at)) AS last FROM bot_proofs p JOIN bot_tasks t ON t.id = p.task_id
       WHERE p.status = 'failed' AND t.status NOT IN ('done', 'cancelled') GROUP BY p.task_id HAVING COUNT(*) >= 2`),
-    q(`SELECT p.task_id, t.owner FROM bot_proofs p JOIN bot_tasks t ON t.id = p.task_id
+    q(`SELECT p.task_id, t.owner, t.title, COALESCE(p.checked_at, p.created_at) AS at FROM bot_proofs p JOIN bot_tasks t ON t.id = p.task_id
       WHERE p.status = 'failed' AND COALESCE(p.checked_at, p.created_at) >= ? LIMIT 1000`, today0),
-    q('SELECT bot, status, started_at, tokens FROM bot_runs WHERE started_at >= ? ORDER BY started_at LIMIT 2000', new Date(nowMs - DAY).toISOString()),
+    q('SELECT bot, status, started_at, tokens, task_id, error FROM bot_runs WHERE started_at >= ? ORDER BY started_at LIMIT 2000', new Date(nowMs - DAY).toISOString()),
     // Bots that post runs: only runs from the last 30 days, newest first, bounded.
     q('SELECT DISTINCT bot FROM (SELECT bot FROM bot_runs WHERE started_at >= ? ORDER BY started_at DESC LIMIT 5000)', new Date(nowMs - 30 * DAY).toISOString()),
     // Needs you "Not now": items Jon put off, still within their 24 hours.
@@ -99,25 +103,65 @@ export async function d3Data(env, nowMs) {
     q(`SELECT task_id, kind, detail, at FROM bot_task_events WHERE task_id IN (${AP_CARDS}) AND kind IN ('review', 'status')
       AND (detail LIKE 'approved %' OR detail LIKE 'changes asked%' OR detail LIKE '%(approved by Jon)' OR detail LIKE '%(sent back by Jon)') ORDER BY at DESC LIMIT 5000`, apSince),
     q("SELECT DISTINCT lower(trim(title)) AS t FROM yt_calendar WHERE lower(status) IN ('published', 'scheduled') LIMIT 20000"),
+    q("SELECT data, created_at FROM bot_feed_entries WHERE name = 'dispatch_live' ORDER BY created_at DESC LIMIT 1"),
   ]);
   return {
     youtube, review, approvals, questions, usage, lastUsage: lastUsage && (lastUsage[0] || undefined), open, proofs, habits, calendar: calendar && parse(calendar[0]?.data), charges,
-    tasks, finished, stuck, failsToday, runs, runBots, later, scripts, scoreProofs, staged, apCards, apEvents, live, today0, nowMs,
+    tasks, finished, stuck, failsToday, runs, runBots, later, scripts, scoreProofs, staged, apCards, apEvents, ytLive, today0, nowMs,
+    live: live && (live[0] ? { d: parse(live[0].data), at: live[0].created_at } : undefined),
   };
 }
 
 // ---- the rail's four lines: { state: 'g' | 'y' | 'r' | 'none', text } ----
-function tokensLine(last, nowMs) {
-  if (!last) return { ...NO_FEED }; // table unreadable (null) or nothing posted yet
-  const d = parse(last.data);
-  const pct = Number(d.weekPct);
-  const src = sourceOf("Ana's Claude usage check", last.created_at, nowMs);
+// The newer of Ana's usage check and the dispatcher's weekly reading (live feed). Older than 6 hours: grey, with its age,
+// and not counted as a limit hit.
+function tokensLine(last, nowMs, live) {
+  const w = live?.d?.week;
+  const wAt = Date.parse(w?.at);
+  const fromLive = Number.isFinite(Number(w?.pct)) && Number.isFinite(wAt) && !(Date.parse(last?.created_at) > wAt);
+  if (!last && !fromLive) return { ...NO_FEED }; // table unreadable (null) or nothing posted yet
+  const d = fromLive ? {} : parse(last.data);
+  const pct = Number(fromLive ? w.pct : d.weekPct);
+  const src = fromLive ? sourceOf('Dispatcher weekly limit check', w.at, nowMs) : sourceOf("Ana's Claude usage check", last.created_at, nowMs);
   if (!Number.isFinite(pct)) return { ...NO_FEED };
   const reset = Date.parse(d.resetsAt);
   if (Number.isFinite(reset) && reset <= nowMs) return { state: 'none', text: 'Tokens: no report this week', pct: null, source: src };
   const p = Math.round(pct);
+  const age = nowMs - Date.parse(src.at);
+  if (age > 6 * 3600000) return { state: 'none', text: `Tokens ${p}%, ${agoLabel(age).replace(/ ago$/, '')} old`, pct: p, stale: true, source: src };
   const state = p >= 90 ? 'r' : p >= 75 ? 'y' : 'g';
   return { state, text: p >= 100 ? 'Token limit hit' : `Tokens ${p}% used`, pct: p, source: src };
+}
+
+// Dispatcher: green while its heartbeat is under 3 minutes old, red after. Bots: runs going now, grey when the feed is stale.
+function dispatcherLine(L, nowMs) {
+  if (!L) return { ...NO_FEED };
+  const beat = Date.parse(L.d.beat);
+  if (!Number.isFinite(beat)) return { state: 'r', text: 'Dispatcher: no heartbeat' };
+  const age = Math.max(0, nowMs - beat);
+  return age < 3 * MIN
+    ? { state: 'g', text: 'Dispatcher running', at: L.d.beat }
+    : { state: 'r', text: `Dispatcher stopped ${agoLabel(age)}`, at: L.d.beat };
+}
+function botsLine(L, nowMs) {
+  if (!L) return { ...NO_FEED };
+  const age = Math.max(0, nowMs - Date.parse(L.at));
+  if (!(age < LIVE_STALE)) return { state: 'none', text: `Bots: no update for ${agoLabel(age).replace(/ ago$/, '')}`, stale: true };
+  const n = Array.isArray(L.d.running) ? L.d.running.length : 0;
+  return { state: 'g', text: `${n} run${n === 1 ? '' : 's'} going`, running: n, at: L.at };
+}
+
+// HeyGen today: submits from the shared submit log, via the live feed. Red when a render failed, amber when refused (daily cap).
+export function heygenLine(L, nowMs = Date.now()) {
+  const h = L?.d?.heygen;
+  if (!h || typeof h !== 'object') return { ...NO_FEED };
+  const age = Math.max(0, nowMs - Date.parse(L.at));
+  if (age >= LIVE_STALE) return { state: 'none', text: `HeyGen: no update for ${agoLabel(age).replace(/ ago$/, '')}`, stale: true };
+  const n = (k) => Number(h[k]) || 0;
+  const parts = [`${n('accepted')} accepted`];
+  if (n('refused')) parts.push(`${n('refused')} refused`);
+  if (n('failed')) parts.push(`${n('failed')} failed`);
+  return { state: n('failed') ? 'r' : n('refused') ? 'y' : 'g', text: parts.join(' · '), ...h };
 }
 
 function youtubeLine(rows) {
@@ -196,36 +240,58 @@ function queueOf(D) {
 
 // ---- Goals numbers d2 doesn't have ----
 const metric = (f) => ({ actual: null, target: null, display: 'No data', pace: null, status: { text: 'No data', cls: 'idle' }, note: '', days: [], ...f });
+// A number read from the dashboard database each time the page loads.
+const LIVE = (label) => ({ label, at: null, ageLabel: 'live', stale: false });
 
-// Weeks this month in which Ana's usage check reached 100% (one per weekly reset).
-function tokenWeeks(rows, first, last) {
+// Weeks this month in which the weekly limit was reached (one per weekly reset): Ana's usage checks plus the
+// dispatcher's weekly reading (live feed). Ana's check over 7 days old and no live hit: 'No data', not a wrong 0.
+const shortDay = (ms) => new Intl.DateTimeFormat('en-US', { timeZone: 'America/Vancouver', month: 'short', day: 'numeric' }).format(new Date(ms));
+function tokenWeeks(rows, first, last, nowMs, live, lastUsage) {
   if (!rows) return metric({ target: 0, source: { label: "Ana's Claude usage check", ageLabel: 'could not be read', stale: true } });
-  const weeks = new Map();
+  const weeks = new Map(); // key -> { day, reset (ms or null) }
   for (const r of rows) {
     const d = parse(r.data);
     const day = dayOf(r.created_at);
     if (!(Number(d.weekPct) >= 100) || !day || day < first || day > last) continue;
+    const reset = Date.parse(d.resetsAt);
     const key = String(d.resetsAt || weekStart(Date.parse(r.created_at)));
-    if (!weeks.has(key) || weeks.get(key) > day) weeks.set(key, day);
+    if (!weeks.has(key) || weeks.get(key).day > day) weeks.set(key, { day, reset: Number.isFinite(reset) ? reset : null });
   }
-  const days = [...weeks.values()].sort();
+  const w = live?.d?.week;
+  const wAt = Date.parse(w?.at);
+  const liveDay = Number.isFinite(wAt) ? dayOf(w.at) : null;
+  const liveHit = Number(w?.pct) >= 100 && liveDay && liveDay >= first && liveDay <= last;
+  if (liveHit) {
+    const same = [...weeks.entries()].some(([k, v]) => (v.reset ? v.reset - 7 * DAY <= wAt && wAt < v.reset : k === String(weekStart(wAt))));
+    if (!same) weeks.set(`live:${w.resets || weekStart(wAt)}`, { day: liveDay, reset: null });
+  }
+  const anaAt = Date.parse(rows[0]?.created_at || lastUsage?.created_at);
+  const anaStale = !(nowMs - anaAt <= 7 * DAY);
+  const anaSrc = Number.isFinite(anaAt) ? sourceOf("Ana's Claude usage check", new Date(anaAt).toISOString(), nowMs) : { label: "Ana's Claude usage check", at: null, ageLabel: 'no reading', stale: true };
+  const gap = `Ana's usage check ${Number.isFinite(anaAt) ? `last posted ${shortDay(anaAt)}` : 'has never posted'}`;
+  if (anaStale && !liveHit) {
+    return metric({ target: 0, source: anaSrc, note: `Only the current week's reading exists (${gap}); past weeks can't be counted.` });
+  }
+  const days = [...weeks.values()].map((v) => v.day).sort();
   const n = days.length;
   return metric({
     actual: n, target: 0, display: String(n), status: n ? { text: 'Behind', cls: 'risk' } : { text: 'Done', cls: 'ok' }, hitDays: days,
-    note: n ? `Limit reached in the weeks of ${days.join(', ')}.` : 'The weekly limit was not reached this month.',
+    source: liveHit ? sourceOf('Dispatcher weekly limit check', w.at, nowMs) : anaSrc,
+    note: (n ? `Limit reached in the weeks of ${days.join(', ')}.` : 'The weekly limit was not reached this month.') + (anaStale ? ` Earlier weeks can't be counted (${gap}).` : ''),
   });
 }
 
 function qcFirstTry(rows, from) {
   if (!rows) return metric({});
+  const source = LIVE('QC verdicts on review pages');
   const firstOf = new Map();
   for (const r of rows) if (!firstOf.has(r.task_id)) firstOf.set(r.task_id, r);
   const firsts = [...firstOf.values()].filter((r) => Date.parse(r.created_at) >= Date.parse(from));
   const passed = firsts.filter((r) => r.status === 'passed').length;
   const total = firsts.length;
-  if (!total) return metric({ note: 'No render was checked by QC this month yet.' });
+  if (!total) return metric({ source, note: 'No video was checked by QC this month yet.' });
   const pct = Math.round((passed / total) * 100);
-  return metric({ actual: pct, display: `${pct}%`, passed, total, status: { text: 'No target', cls: 'idle' }, note: `${passed} of ${total} renders checked this month passed QC on the first try.` });
+  return metric({ actual: pct, display: `${pct}%`, passed, total, source, status: { text: 'No target', cls: 'idle' }, note: `${passed} of ${total} videos first checked by QC this month passed on the first try (cards with a render proof or a review-page link).` });
 }
 
 function lifeOf(D, P) {
@@ -248,11 +314,11 @@ function lifeOf(D, P) {
   return {
     workouts: metric({
       actual: w, target: WORKOUT_TARGET, display: `${w} of ${WORKOUT_TARGET}`, pace: wPace, status: statusOf(w, WORKOUT_TARGET, wPace, 'count'), days,
-      loggedToday: wDays.has(P.today), note: 'Workouts you logged this week (Monday to Sunday).',
+      loggedToday: wDays.has(P.today), source: LIVE('Your habit log'), note: 'Workouts you logged this week (Monday to Sunday).',
     }),
     dateNights: metric({
       actual: n, target: DATE_NIGHT_TARGET, display: `${n} of ${DATE_NIGHT_TARGET}`, pace: nPace, status: statusOf(n, DATE_NIGHT_TARGET, nPace, 'count'),
-      perDay, loggedToday: done('date_night').some((h) => h.day === P.today), note: 'Date nights you logged this month, plus calendar events named "date night".',
+      perDay, loggedToday: done('date_night').some((h) => h.day === P.today), source: LIVE('Your habit log and calendar'), note: 'Date nights you logged this month, plus calendar events named "date night".',
     }),
   };
 }
@@ -262,7 +328,7 @@ function chargesOf(rows) {
   const open = rows.filter((r) => r.status === 'open').length;
   const confirmed = rows.length - open;
   return metric({
-    actual: confirmed, target: rows.length, display: `${confirmed} of ${rows.length}`, open,
+    actual: confirmed, target: rows.length, display: `${confirmed} of ${rows.length}`, open, source: LIVE('MoneyClaw charge questions'),
     status: !rows.length ? { text: 'No data', cls: 'idle' } : open ? { text: 'Behind', cls: 'risk' } : { text: 'Done', cls: 'ok' },
     note: rows.length ? `${open} MoneyClaw charge question${open === 1 ? '' : 's'} still open for you.` : 'No charge questions this month.',
   });
@@ -279,7 +345,7 @@ const AROLL_AD = /[\\/](aroll|ad)[\\/]/i;
 const VIDEO_NAME = /review\/(?:media\/)?[a-z0-9-]+-\d+-v\d+/i;
 const NOT_VIDEO = /\(guide\)|channel \(clone|^clone @/i;
 const NOT_HOST = /channels|affiliate|packs|pages|scripts|permissions|home guide press|,| and | vs /i;
-const LIVE = /youtu\.?be|proof-shots/i;
+const LIVE_LINK = /youtu\.?be|proof-shots/i;
 // Jon's focus channels: d2-goals.json's copy of D:\AgentTeam\rules\facts\focus-channels.txt.
 const FOCUS = (CONFIG.goals || []).find((g) => Array.isArray(g.focus))?.focus || null;
 const halves = (title) => {
@@ -358,14 +424,14 @@ function approvedAt(events) {
 
 // Videos Jon approved that are not on YouTube yet: no published or scheduled calendar row with the name, no live proof link.
 function approvedWaitingOf(D) {
-  if (!D.apCards || !D.apEvents || !D.live) return null;
-  const live = new Set(D.live.map((r) => r.t));
+  if (!D.apCards || !D.apEvents || !D.ytLive) return null;
+  const live = new Set(D.ytLive.map((r) => r.t));
   const ev = new Map();
   for (const e of D.apEvents) (ev.get(e.task_id) || ev.set(e.task_id, []).get(e.task_id)).push(e);
   const items = [];
   for (const c of D.apCards) {
     const title = c.title || '';
-    if (!isVideo(title) || live.has(nameOf(title)) || LIVE.test(c.links || '') || /ebook ad/i.test(title)) continue;
+    if (!isVideo(title) || live.has(nameOf(title)) || LIVE_LINK.test(c.links || '') || /ebook ad/i.test(title)) continue;
     const at = approvedAt(ev.get(c.id) || []);
     if (at) items.push({ id: c.id, title, approvedAt: new Date(at).toISOString(), waitMin: Math.round((D.nowMs - at) / 60000) });
   }
@@ -375,7 +441,7 @@ function approvedWaitingOf(D) {
   return metric({
     actual: n, target: 0, display: String(n), items, oldestLabel: oldest,
     status: n ? { text: 'Behind', cls: 'crit' } : { text: 'Done', cls: 'ok' },
-    note: n ? `${n} approved video${n === 1 ? '' : 's'} not scheduled or live on YouTube yet, oldest approved ${oldest} ago.` : 'Every video you approved is scheduled or live.',
+    note: n ? `${n} approved video${n === 1 ? '' : 's'} not scheduled or live on YouTube yet, oldest approved ${oldest === 'just now' ? oldest : `${oldest} ago`}.` : 'Every video you approved is scheduled or live.',
   });
 }
 
@@ -397,14 +463,18 @@ const noteText = (note) => {
   return t.length > 360 ? `${t.slice(0, 357).trimEnd()}…` : t;
 };
 // ---- Video board: open cards with a stage (set by the dispatcher's hand-off), by stage ----
-// Columns as designed, with their proposed limits (hours). A card in QC shows under that stage's QC column when there is
-// one (script -> Script QC, edit -> Render QC). Videos only (Jon, 2026-11-11): a card with any other stage (coding's
-// build and deploy) is left off. Sponsor review, a sponsor-video stage, gets its own column after these, with no limit.
-const BOARD = [['brief', 'Brief', 4], ['script', 'Script', 4], ['script qc', 'Script QC', 2], ['a-roll', 'A-roll', 4],
-  ['pack', 'Pack', 8], ['edit', 'Edit', 8], ['render qc', 'Render QC', 2], ['publish', 'Publish', 72]];
+// Video stages with Jon's stage budgets in hours (2026-11-11: brief 15 min, script 20, pack 75, edit 70, QC included);
+// a-roll and publish have no budget. A card in QC shows under that stage's QC column (script -> Script QC,
+// edit -> Render QC). Stages that are not video stages (Build, Deploy) stay off the board.
+const BOARD = [['brief', 'Brief', 0.25], ['script', 'Script', 0.33], ['script qc', 'Script QC', 0.33], ['a-roll', 'A-roll', null],
+  ['pack', 'Pack', 1.25], ['edit', 'Edit', 1.17], ['render qc', 'Render QC', 1.17], ['publish', 'Publish', null]];
 const QC_COL = { script: 'script qc', edit: 'render qc' };
-const VIDEO_STAGES = new Set([...BOARD.map(([key]) => key), 'sponsor review']);
-const limitLabel = (h) => (h == null ? '' : h % 24 ? `${h} h` : `${h / 24} d`);
+export const limitLabel = (h) => {
+  if (h == null) return '';
+  const m = Math.round(h * 60);
+  return m < 60 ? `${m} m` : m % 60 ? `${Math.floor(m / 60)} h ${m % 60} m` : `${m / 60} h`;
+};
+const VIDEO_STAGES = new Set([...BOARD.map(([key]) => key), 'sponsor review']); // sponsor review: its own column, no limit
 function lineOf(tasks, nowMs) {
   const cols = new Map(BOARD.map(([key, name, h]) => [key, { key, name, limit: limitLabel(h), hours: h, cards: [] }]));
   for (const t of tasks) {
@@ -420,7 +490,7 @@ function lineOf(tasks, nowMs) {
   let late = 0;
   const stages = [...cols.values()].map((c) => {
     const cards = c.cards.sort((a, b) => b.ms - a.ms).map((x) => {
-      const over = c.hours != null && x.ms > c.hours * 3600000;
+      const over = c.hours != null && x.ms > Math.round(c.hours * 60) * MIN;
       if (over) late++;
       return { id: x.id, title: x.title, age: agoLabel(x.ms).replace(/ ago$/, ''), tone: over ? 'r' : 'g' };
     });
@@ -428,6 +498,9 @@ function lineOf(tasks, nowMs) {
   });
   return { stages, late, total: stages.reduce((n, s) => n + s.n, 0) };
 }
+
+// The live feed when under 10 minutes old, else null.
+const liveFresh = (L, nowMs) => (L && nowMs - Date.parse(L.at) < LIVE_STALE ? L : null);
 
 function dueLabel(due, today) {
   const d = String(due || '').slice(0, 10);
@@ -456,6 +529,7 @@ function cardsOf(mine, nowMs) {
 function teamOf(D, today) {
   if (!D.tasks) return null;
   const nowMs = D.nowMs;
+  const L = liveFresh(D.live, nowMs);
   const posts = D.runBots ? new Set(D.runBots.map((r) => r.bot)) : new Set();
   const bots = TEAM.bots.map((b) => {
     const mine = D.tasks.filter((t) => t.owner === b.slug);
@@ -464,7 +538,9 @@ function teamOf(D, today) {
     const cur = mine.filter((t) => t.status !== 'review')
       .sort((x, y) => RANK[x.status] - RANK[y.status] || Date.parse(y.updated_at) - Date.parse(x.updated_at))[0] || null;
     const runs = (D.runs || []).filter((r) => r.bot === b.slug);
-    const failedRuns = runs.filter((r) => r.status === 'failed' && r.started_at >= D.today0).length;
+    // Runs, tokens and failed runs from the dispatcher's live feed when it is fresh; else from posted runs (bot_runs).
+    const liveRuns = L ? (L.d.running || []).filter((r) => r.bot === b.slug) : [];
+    const failedRuns = L ? Number(L.d.runs?.[b.slug]?.failed || 0) : runs.filter((r) => r.status === 'failed' && r.started_at >= D.today0).length;
     const qcFails = D.failsToday ? D.failsToday.filter((f) => f.owner === b.slug).length : null;
     const running = runs.filter((r) => r.status === 'running').pop();
     const toks = runs.filter((r) => r.started_at >= D.today0 && r.tokens != null && Number.isFinite(Number(r.tokens)));
@@ -475,21 +551,39 @@ function teamOf(D, today) {
       tone: failed ? 'r' : cur?.status === 'doing' ? 'g' : cur?.status === 'waiting_on_jon' ? 'y' : '',
       failedToday: qcFails == null ? null : failed, qcFailsToday: qcFails, failedRunsToday: failedRuns,
       // Run feed: null = this bot posts no runs (No feed); '' = it posts runs but none is running now.
-      running: !posts.has(b.slug) ? null : running ? shortSince(running.started_at, nowMs) : '',
-      tokens: toks.length ? toks.reduce((n, r) => n + Number(r.tokens), 0) : null, // tokens per run: nothing posts them yet
+      running: L ? (liveRuns.length ? `${liveRuns.length > 1 ? `${liveRuns.length} · ` : ''}${shortSince(liveRuns[0].since, nowMs)}` : '')
+        : !posts.has(b.slug) ? null : running ? shortSince(running.started_at, nowMs) : '',
+      tokens: L ? Number(L.d.tokens?.[b.slug] || 0) : toks.length ? toks.reduce((n, r) => n + Number(r.tokens), 0) : null,
+      runsToday: L ? Number(L.d.runs?.[b.slug]?.ok || 0) + failedRuns : null,
       finishedToday: D.finished ? [...new Map(D.finished.filter((e) => e.owner === b.slug).map((e) => [e.task_id, e.title])).values()] : null,
       cards: cardsOf(mine, nowMs),
     };
   });
+  const byTitle = new Map(D.tasks.map((t) => [t.id, t.title]));
   const others = D.tasks.filter((t) => !ROSTER.has(t.owner));
   const waiting = D.tasks.filter((t) => t.status === 'waiting_on_jon' && ROSTER.has(t.owner));
   const oldest = Math.min(...waiting.map((t) => Date.parse(t.updated_at)).filter(Number.isFinite));
+  // The Failed tile and its list are the same list: failed runs today (live feed when fresh, else posted runs) plus
+  // QC fails today (team bots only). Stuck cards are their own list and count.
+  const line1 = (f, kind) => ({ card: f.card, title: f.title || byTitle.get(f.card) || '', who: ownerName(f.bot), kind, why: f.why, at: f.at, age: since(f.at, nowMs) });
+  const newest = (a, b) => (Date.parse(b.at) || 0) - (Date.parse(a.at) || 0);
+  const runFails = L ? (L.d.fails || []).filter((f) => (f.kind || 'run') === 'run' && ROSTER.has(f.bot))
+    : (D.runs || []).filter((r) => r.status === 'failed' && r.started_at >= D.today0 && ROSTER.has(r.bot))
+      .map((r) => ({ card: r.task_id || '', bot: r.bot, why: r.error ? String(r.error).slice(0, 80) : '', at: r.started_at }));
+  const fails = L || D.failsToday ? [
+    ...runFails.map((f) => line1(f, 'run')),
+    ...(D.failsToday || []).filter((f) => ROSTER.has(f.owner)).map((f) => line1({ card: f.task_id, title: f.title, bot: f.owner, at: f.at }, 'qc')),
+  ].sort(newest) : null;
+  const stuck = L ? (L.d.fails || []).filter((f) => f.kind === 'stuck' && ROSTER.has(f.bot)).map((f) => line1(f, 'stuck')).sort(newest) : null;
   return {
     bots, names: TEAM.bots.reduce((n, b) => n + b.names.length, 0),
     working: bots.filter((b) => (b.counts.doing || 0) > 0).length,
     waiting: { count: waiting.length, oldest: Number.isFinite(oldest) ? since(new Date(oldest).toISOString(), nowMs) : '' },
-    failedToday: D.failsToday ? bots.reduce((n, b) => n + (b.failedToday || 0), 0) : null,
-    cost: null, // no cost feed per bot yet
+    failedToday: fails ? fails.length : null,
+    fails, stuck,
+    running: L ? (L.d.running || []).length : null,
+    tokens: L ? Object.values(L.d.tokens || {}).reduce((n, x) => n + Number(x || 0), 0) : null,
+    liveAge: L ? since(L.at, nowMs) : '',
     line: lineOf(D.tasks, nowMs),
     // Cards by owner: "Others" holds Jon's own and retired bots' open cards, so every open card is on the page.
     others: others.length ? { slug: 'others', names: ['Others'], role: 'Jon and former bots', cards: cardsOf(others, nowMs) } : null,
@@ -509,7 +603,7 @@ function blockersOf(D, putOff = []) {
   const later = new Set((D.later || []).map((r) => r.item));
   const seen = new Set();
   const out = [];
-  const add = (x) => (x.you && later.has(x.id.slice(2)) ? putOff.push(x.id) : out.push({ age: since(x.at, nowMs), ...x }));
+  const add = (x) => (x.you && later.has(x.id.slice(2)) ? putOff.push(x.id) : out.push({ age: since(x.at, nowMs), card: x.id.startsWith('t:') ? x.id.slice(2) : x.card || null, ...x }));
   for (const t of D.tasks) {
     if (t.status !== 'waiting_on_jon') continue;
     seen.add(t.id);
@@ -519,11 +613,11 @@ function blockersOf(D, putOff = []) {
     if (hidden(x.idem_key)) continue;
     const t = x.task_id && byId.get(x.task_id);
     if (t && seen.has(t.id)) continue;
-    add({ id: `q:${x.id}`, kind: 'p', you: true, review: true, title: plain(x.question) || 'Question', at: x.at, sponsor: x.asked_by === 'sponsors', owner: ownerName(x.asked_by), blocks: t ? t.title : 'No card linked' });
+    add({ id: `q:${x.id}`, kind: 'p', you: true, review: true, title: plain(x.question) || 'Question', at: x.at, sponsor: x.asked_by === 'sponsors', owner: ownerName(x.asked_by), card: t?.id || null, blocks: t ? t.title : 'No card linked' });
   }
   for (const x of D.approvals) {
     const t = x.task_id && byId.get(x.task_id);
-    add({ id: `a:${x.id}`, kind: 'p', you: true, review: true, title: x.title, at: x.at, sponsor: x.requested_by === 'sponsors', owner: ownerName(x.requested_by), blocks: t ? t.title : `Approval to ${String(x.action || '').replace(/_/g, ' ')}` });
+    add({ id: `a:${x.id}`, kind: 'p', you: true, review: true, title: x.title, at: x.at, sponsor: x.requested_by === 'sponsors', owner: ownerName(x.requested_by), card: t?.id || null, blocks: t ? t.title : `Approval to ${String(x.action || '').replace(/_/g, ' ')}` });
   }
   for (const s of D.stuck) {
     const t = byId.get(s.task_id);
@@ -535,6 +629,14 @@ function blockersOf(D, putOff = []) {
     if (t.status !== 'doing' || t.owner === 'jon' || seen.has(t.id) || !(nowMs - Date.parse(t.updated_at) >= 2 * 3600000)) continue;
     add({ id: `t:${t.id}`, kind: 's', you: false, title: t.title, at: t.updated_at, owner: ownerName(t.owner), blocks: `Late: no card update for ${since(t.updated_at, nowMs)}` });
   }
+  // Every row names its card; rows sharing a title get the owner, and the card id too when the owners match.
+  const n = (k) => out.filter(k).length;
+  const titles = out.map((b) => {
+    if (n((x) => x.title === b.title) < 2) return b.title;
+    const same = n((x) => x.title === b.title && x.owner === b.owner) > 1;
+    return `${b.title} (${b.owner || 'no owner'}${same ? `, ${b.card || b.id}` : ''})`;
+  });
+  out.forEach((b, i) => { b.title = titles[i]; });
   return out;
 }
 
@@ -569,10 +671,11 @@ export function buildD3(D) {
   };
   return {
     rail: {
-      dispatcher: { ...NO_FEED }, // no dispatcher heartbeat reaches the dashboard yet
-      bots: { ...NO_FEED }, // no per-bot heartbeat reaches the dashboard yet
-      tokens: tokensLine(D.lastUsage, nowMs),
+      dispatcher: dispatcherLine(D.live, nowMs),
+      bots: botsLine(D.live, nowMs),
+      tokens: tokensLine(D.lastUsage, nowMs, D.live),
       youtube: youtubeLine(D.youtube),
+      heygen: heygenLine(D.live, nowMs),
     },
     review: reviewOf(D),
     queue: queueOf(D),
@@ -582,7 +685,7 @@ export function buildD3(D) {
     scripts: scriptsOf(D),
     openCards: D.open ? Object.fromEntries(D.open.map((r) => [r.project || '', Number(r.n) || 0])) : null,
     goals: {
-      tokenWeeks: tokenWeeks(D.usage, first, P.last),
+      tokenWeeks: tokenWeeks(D.usage, first, P.last, nowMs, D.live, D.lastUsage),
       qcFirstTry: qcFirstTry(D.proofs, new Date(win.start).toISOString()),
       ...lifeOf(D, P),
       charges: chargesOf(D.charges),

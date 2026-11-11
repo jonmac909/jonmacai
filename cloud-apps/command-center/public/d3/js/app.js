@@ -30,6 +30,19 @@ function setTheme(t) {
 for (const b of document.querySelectorAll('[data-theme-set]')) b.addEventListener('click', () => setTheme(b.dataset.themeSet));
 setTheme(document.documentElement.getAttribute('data-theme'));
 
+// ---- narrow screens: the Menu button opens and closes the rail; picking a page closes it ----
+const railEl = document.getElementById('nav')?.closest?.('.rail') || null;
+const menuBtn = document.getElementById('menuBtn');
+function setMenu(open) {
+  railEl?.classList.toggle('open', open);
+  menuBtn?.setAttribute('aria-expanded', String(open));
+}
+menuBtn?.addEventListener?.('click', () => setMenu(!railEl?.classList.contains('open')));
+document.getElementById('nav')?.addEventListener?.('click', (e) => { if (e.target.closest('a')) setMenu(false); });
+// Escape closes the open menu; widening past the narrow layout (760 px, d3.css) resets it.
+document.addEventListener?.('keydown', (e) => { if (e.key === 'Escape' && railEl?.classList.contains('open')) { setMenu(false); menuBtn?.focus?.(); } });
+window.addEventListener?.('resize', () => { if (window.innerWidth > 760 && railEl?.classList.contains('open')) setMenu(false); });
+
 // ---- routes ----
 const route = () => (location.hash || '').replace(/^#\/?/, '').split('/');
 const page = () => {
@@ -171,6 +184,20 @@ main.addEventListener('click', async (e) => {
   if (log && !log.disabled && !S.ui.busy) {
     const day = S.d2?.d2?.period?.today?.ymd;
     if (!day) return;
+    // Two steps: the first click turns the button into "Confirm log?" for 4 s; only a second click posts.
+    const kind = log.dataset.log;
+    if (S.ui.confirmLog !== kind) {
+      S.ui.confirmLog = kind;
+      S.armedAt = Date.now();
+      clearTimeout(S.confirmTimer);
+      S.confirmTimer = setTimeout(() => { S.ui.confirmLog = null; render(); }, 4000);
+      render();
+      main.querySelector(`[data-log="${kind}"]`)?.focus?.(); // render() replaced the button: keep keyboard focus on it
+      return;
+    }
+    if (Date.now() - (S.armedAt || 0) < 400) return; // a double-tap is not a confirm
+    clearTimeout(S.confirmTimer);
+    S.ui.confirmLog = null;
     S.ui.busy = true;
     render();
     try {
