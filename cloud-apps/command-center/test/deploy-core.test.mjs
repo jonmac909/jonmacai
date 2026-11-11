@@ -7,7 +7,7 @@ import { mkdtempSync, writeFileSync, readFileSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 
-const core = resolve('scripts/deploy-core.ps1');
+const core = resolve(import.meta.dirname, '../scripts/deploy-core.ps1');
 function run({ deployExit = 0, checkExit = 0, ver = true }) {
   const dir = mkdtempSync(join(tmpdir(), 'dep-'));
   const log = join(dir, 'log.txt');
@@ -24,7 +24,7 @@ exit 0
   const drv = join(dir, 'drv.ps1');
   writeFileSync(drv, `$ErrorActionPreference='Stop'
 . '${core}'
-Invoke-WranglerDeploy -Wrangler @('powershell','-NoProfile','-File','${fake}') -Base 'http://x' -Sha 'abc1234' -Check { param($b,$s) Add-Content '${log}' 'CHECK'; ${checkExit} }
+Invoke-WranglerDeploy -Wrangler @('powershell','-NoProfile','-File','${fake}') -Base 'http://x' -Sha 'abc1234' -Check { param($b,$s) Add-Content '${log}' 'CHECK'; Write-Output 'ok: live commit abc1234'; ${checkExit} }
 `);
   const r = spawnSync('powershell', ['-NoProfile', '-File', drv], { encoding: 'utf8' });
   return { r, log: existsSync(log) ? readFileSync(log, 'utf8') : '' };
@@ -45,10 +45,12 @@ test('real deploy failure (exit 1) fails, no live check', () => {
   const { r, log } = run({ deployExit: 1 });
   assert.notEqual(r.status, 0);
   assert.doesNotMatch(log, /CHECK/);
+  assert.doesNotMatch(log, /rollback/);
 });
 test('missing version id fails before deploying', () => {
   const { r, log } = run({ ver: false });
   assert.notEqual(r.status, 0);
   assert.doesNotMatch(log, /^deploy --tag/m);
 });
+
 

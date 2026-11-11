@@ -6,12 +6,13 @@ function Invoke-Native {
   $old = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
   $errFile = [IO.Path]::GetTempFileName()
   try {
+    $global:LASTEXITCODE = $null
     $fixed = if ($Cmd.Count -gt 1) { $Cmd[1..($Cmd.Count - 1)] } else { @() }
     if ($Capture) { $out = (& $Cmd[0] @fixed @Rest 2>$errFile | Out-String) }
     else { & $Cmd[0] @fixed @Rest 2>$errFile | Out-Host; $out = '' }
-    $code = $LASTEXITCODE
+    $code = $LASTEXITCODE; if ($null -eq $code) { $code = 127 }
     $warn = (Get-Content $errFile -Raw -ErrorAction SilentlyContinue)
-    if ($warn) { Write-Host "wrangler stderr (non-fatal): $($warn.Trim())" }
+    if ($warn) { Write-Host "stderr (exit $code): $($warn.Trim())" }
     return [pscustomobject]@{ Code = $code; Out = $out }
   } finally { $ErrorActionPreference = $old; Remove-Item $errFile -ErrorAction SilentlyContinue }
 }
@@ -30,7 +31,7 @@ function Invoke-WranglerDeploy {
   $d = Invoke-Native $Wrangler @('deploy', '--tag', $Sha, '--message', "main $Sha")
   if ($d.Code) { throw "deploy failed (exit $($d.Code))" }
   $bad = $null
-  try { $c = & $Check $Base $Sha; if ($c) { $bad = "exit $c" } } catch { $bad = "$_" }
+  try { $c = @(& $Check $Base $Sha)[-1]; if ($null -eq $c -or [int]$c -ne 0) { $bad = "exit $c" } } catch { $bad = "$_" }
   if ($bad) {
     $rb = Invoke-Native $Wrangler @('rollback', $prev, '--message', "auto rollback: /dash/version did not show $Sha", '-y')
     if ($rb.Code) { throw "ROLLBACK FAILED, $Sha may be live (wanted $prev)" }
@@ -38,3 +39,4 @@ function Invoke-WranglerDeploy {
   }
   Write-Host "live check passed: $Sha is live"
 }
+

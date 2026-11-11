@@ -12,4 +12,5 @@ npm test; if ($LASTEXITCODE) { throw 'tests failed' }
 $check = 'D:\AgentTeam\tools\dash_version_check.py'
 if (-not (Get-Command python -ErrorAction SilentlyContinue) -or -not (Test-Path $check)) { throw 'python or dash_version_check.py missing; not deploying' }
 . (Join-Path $PSScriptRoot 'deploy-core.ps1')
-Invoke-WranglerDeploy -Wrangler @('npx', '--yes', 'wrangler@4.160.0') -Base $Base -Sha $sha -Check { param($b, $s) python -I $check $b $s; $LASTEXITCODE }
+Invoke-WranglerDeploy -Wrangler @('npx', '--yes', 'wrangler@4.160.0') -Base $Base -Sha $sha -Check { param($b, $s) (Invoke-Native @('python', '-I', $check) @($b, $s)).Code }
+
