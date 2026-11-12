@@ -122,7 +122,7 @@ const factsHtml = (facts, w = 80) => `<div class="inner" style="gap: 0">${(facts
 // The card's other proof links as buttons (video cards; other cards draw theirs inside their own box).
 const proofBtns = (c) => {
   const ls = (c.links || []).filter((l) => safeHref(l.href));
-  return ls.length ? `<div class="inner"><span class="mut">Proof links</span><div class="hd" style="gap: 8px; flex-wrap: wrap">${ls.map((l) => `<a class="btn" href="${esc(safeHref(l.href))}" target="_blank" rel="noopener">${esc(l.label)}</a>`).join('')}</div></div>` : '';
+  return ls.length ? `<div class="inner"><span class="mut">Proof links</span><div class="hd" style="gap: 8px; flex-wrap: wrap">${ls.map((l) => `<a class="btn" style="max-width: 100%; white-space: normal; overflow-wrap: anywhere; text-align: center" href="${esc(safeHref(l.href))}" target="_blank" rel="noopener">${esc(l.label)}</a>`).join('')}</div></div>` : '';
 };
 
 function bodyHtml(c, ui) {
