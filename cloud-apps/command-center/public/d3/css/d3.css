@@ -323,44 +323,64 @@ html[data-theme="dark"] body{background:#0b0b0c}
 .d3 .fytable td small.fylx{font-size:.74rem;overflow-wrap:anywhere}
 .d3 .fytable td.fylv small.fylx{color:var(--ok-ink)}
 /* A board with parts (.fyw): a narrow column per part under its step's heading. Each video is two rows that read as
-   one: the step's own line (time, running bar, Live) over its part cells. Video stays put on the left, the state on the right. */
-.d3 .fytable.fyw{--fyc1:9.5rem;--fyp:0;width:calc(var(--fyc1) + var(--fyn) * 9rem + var(--fyp) * 4.7rem + 7.5rem)}
-.d3 .fytable col.fycp{width:4.7rem}
+   one: each step's short summary (parts done, minutes) over its part cells, and every part cell is a progress bar.
+   Only the Video column stays put on the left and the state on the right; nothing else is sticky. */
+.d3 .fytable.fyw{--fyc1:9.5rem;--fyp:0;width:calc(var(--fyc1) + var(--fyn) * 9rem + var(--fyp) * 5.2rem + 7.5rem)}
+.d3 .fytable col.fycp{width:5.2rem}
 .d3 .fytable.fyw th{padding:.4rem .5rem;border-radius:0}
 .d3 .fytable.fyw th.fyh1{border-radius:.5rem 0 0 .5rem}
 .d3 .fytable.fyw th.fyhw{border-radius:0 .5rem .5rem 0}
 .d3 .fytable.fyw th.fygrp{color:var(--ink);font-weight:600;font-size:.84rem;padding-bottom:.1rem}
-/* A step's heading and its own line stay in view while the table scrolls sideways, as long as any of its parts shows. */
-.d3 .fytable.fyw th.fygrp span,.d3 .fysl{position:sticky;left:calc(var(--fyc1) + .6rem)}
-.d3 .fytable.fyw th.fygrp span{display:inline-block}
 .d3 .fytable.fyw th.fypt{font-size:.7rem;line-height:1.15;white-space:normal;text-align:center;vertical-align:top;padding:.15rem .2rem .45rem;overflow-wrap:anywhere}
 .d3 .fytable.fyw .fyg1{border-left:1px solid var(--line)}
 .d3 .fytable.fyw th.fyh1,.d3 .fytable.fyw td.fyvid{position:sticky;left:0;z-index:2}
 .d3 .fytable.fyw th.fyhw,.d3 .fytable.fyw td.fywait{position:sticky;right:0;z-index:2;border-left:1px solid var(--line)}
 .d3 .fytable.fyw td{padding:.45rem .5rem}
 .d3 .fytable.fyw td.fyvid{padding:.6rem .7rem;box-shadow:1px 0 0 var(--line)}
-.d3 .fytable.fyw tr.fytop td.fystg{border-bottom:0;padding:.5rem .5rem .1rem;height:1.5rem}
 .d3 .fytable.fyw tr.fytop:nth-last-child(2) td[rowspan]{border-bottom:0}
-.d3 .fysl{display:inline-flex;vertical-align:top;max-width:min(100%,38rem);align-items:center;gap:.4rem;min-width:0;font-size:.76rem;color:var(--ink2);white-space:nowrap}
-.d3 .fytable td .fysl b{display:inline;flex:none;font-weight:600;color:var(--ink2);overflow-wrap:normal}
-.d3 .fysl>span{flex:none}
-.d3 .fysl .fyok svg,.d3 .fysl .fybad svg{margin:0}
-.d3 .fysl .fypg{flex:0 1 6rem;min-width:1.6rem}
-.d3 .fysl .fylt{display:inline-flex;align-items:center;margin:0}
-.d3 .fytable td .fysl small{display:block;flex:1 1 0;min-width:0;overflow:hidden;text-overflow:ellipsis;font-size:.74rem}
-.d3 .fytable td.fysbad .fysl b,.d3 .fytable td.fysbad .fysl small{color:var(--bad-ink)}
-.d3 .fytable td.fyp{text-align:center;vertical-align:top;padding:.3rem .2rem .6rem}
-.d3 .fytable td.fyp .fyok svg,.d3 .fytable td.fyp .fybad svg,.d3 .fywt svg{display:block;margin:0 auto}
-.d3 .fytable td.fyp small{font-size:.66rem;line-height:1.2;margin-top:.15rem;overflow-wrap:anywhere;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:4;overflow:hidden}
+/* A step's summary for one video: a thin bar of parts done, the count, the minutes. Plain text on the card, no fill. */
+.d3 .fytable.fyw tr.fytop td.fyst{border-bottom:0;padding:.55rem .45rem 0;vertical-align:top}
+.d3 .fyss{display:flex;flex-wrap:wrap;align-items:center;gap:.05rem .4rem;min-width:0;font-size:.72rem;line-height:1.35;color:var(--muted)}
+.d3 .fysb{flex:none;width:2.6rem;height:.2rem;border-radius:1rem;background:var(--track);overflow:hidden}
+.d3 .fysb i{display:block;height:100%;background:var(--ink2);transition:width .6s ease}
+.d3 .fysb.ok i{background:var(--ok)}
+.d3 .fysb.bad i{background:var(--bad)}
+.d3 .fytable td .fyss b{display:inline;flex:none;font-weight:600;color:var(--ink2);overflow-wrap:normal}
+.d3 .fyss>span{flex:none}
+.d3 .fyss em{flex:none;font-style:normal;font-weight:600}
+.d3 .fyss .fysf{color:var(--bad-ink)}
+.d3 .fyss .fysw{color:var(--warn-ink)}
+.d3 .fytable td .fyss small{display:block;flex:1 1 5rem;min-width:0;font-size:.72rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* A part's cell: its progress bar, then one short line (count, time or reason). */
+.d3 .fytable td.fyp{text-align:center;vertical-align:top;padding:.45rem .4rem .6rem}
+.d3 .fypb{height:.45rem;border-radius:1rem;background:var(--track);overflow:hidden}
+.d3 .fypb i{display:block;width:0;height:100%;border-radius:1rem;background-color:var(--fill);transition:width .6s ease}
+.d3 .fypb.ok i{width:100%;background-color:var(--ok)}
+.d3 .fypb.bad i{width:100%;background-color:var(--bad)}
+.d3 .fypb.wait i{width:100%;background-color:var(--warn)}
+/* Running with no total: a full striped track that moves. It says "working", never a percentage. */
+.d3 .fypb.ind i,.d3 .fypb.off i{width:100%;background-image:linear-gradient(45deg,transparent 25%,color-mix(in srgb,var(--card) 60%,transparent) 25%,color-mix(in srgb,var(--card) 60%,transparent) 50%,transparent 50%,transparent 75%,color-mix(in srgb,var(--card) 60%,transparent) 75%);background-size:.8rem .8rem}
+.d3 .fypb.ind i{animation:fystripe .7s linear infinite}
+@keyframes fystripe{from{background-position:0 0}to{background-position:.8rem 0}}
+.d3 .fypl{display:flex;align-items:center;justify-content:center;gap:.2rem;margin-top:.3rem;font-size:.7rem;line-height:1.2;color:var(--ink2);white-space:nowrap}
+.d3 .fytable td .fypl b{display:inline;font-weight:600;overflow-wrap:normal}
+.d3 .fypl svg{display:block}
+.d3 .fyt{display:block;margin-top:.2rem;font-size:.7rem;line-height:1.2;color:var(--ink2)}
+.d3 .fytable td.fyp small{font-size:.66rem;line-height:1.2;margin-top:.15rem;overflow-wrap:anywhere;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:3;overflow:hidden}
 .d3 .fytable td.fypbad small{color:var(--bad-ink)}
 .d3 .fywt{color:var(--warn)}
-.d3 .fytable td.fyprun{background:color-mix(in srgb,var(--fill) 9%,var(--card))}
-.d3 .fytable td.fyprun .fypg{width:2.2rem;margin:.3rem auto 0}
-.d3 .fypg.off i{width:40%}
+.d3 .fytable td.fyprun{background:color-mix(in srgb,var(--fill) 7%,var(--card))}
+/* Channels: a heading row per channel, then its videos; a channel with no video has one quiet row. In the wide table
+   the words sit in the Video column's cell and run on over the empty cell beside it. */
+.d3 .fytable tr.fych td{background:var(--card2);padding:.4rem .7rem;border-bottom:0}
+.d3 .fytable td.fychn{white-space:nowrap;font-size:.86rem}
+.d3 .fytable td.fychn small{display:inline;margin-left:.6rem;font-size:.76rem}
+.d3 .fytable td.fychq{font-weight:400;color:var(--muted);font-size:.84rem}
+.d3 .fytable.fyw td.fychn,.d3 .fytable.fyw td.fychq{box-shadow:none;white-space:nowrap}
+.d3 .fytable.fyw td.fychq{padding:.6rem .7rem}
 @media (max-width:700px){
 .d3 .fytable.fyw{--fyc1:6.2rem}
 .d3 .fytable.fyw td.fyvid{padding:.5rem .45rem;font-size:.84rem}
-.d3 .fysl{max-width:min(100%,15rem)}
 .d3 .fytable.fyw th.fyhw,.d3 .fytable.fyw td.fywait{position:static}
 }
 .d3 .fylc{display:inline-flex;align-items:center;font-weight:600;color:var(--muted)}
@@ -372,6 +392,8 @@ html[data-theme="dark"] body{background:#0b0b0c}
 @media (prefers-reduced-motion:reduce){
   .d3 .fydot{animation:none}
   .d3 .fypg.ind i{animation:none;width:100%;opacity:.5}
+  .d3 .fypb.ind i{animation:none}
+  .d3 .fypb i,.d3 .fysb i{transition:none}
 }
 .d3 .fylist{gap:0;padding:14px 18px}
 .d3 .fylist h2{font-size:15px;margin-bottom:6px}

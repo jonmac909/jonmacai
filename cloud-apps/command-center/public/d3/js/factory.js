@@ -1,17 +1,32 @@
 // Dashboard 3 Factory page (docs/dashboard-3.md): live progress of the new video program, laid out as the old Factory
 // page (/dashboard/#factory, public/js/pages/factory.js): one table, a row per video, a column per step (and, when the
-// board sends a step's own sub-steps as `parts`, a column per part under the step's heading). renderFactory is
+// board sends a step's own sub-steps as `parts`, a column per part under the step's heading, each with its own
+// progress bar). When the board lists `channels`, the videos sit under a heading per channel. renderFactory is
 // a pure function over the /dashboard/api/d3 answer (d3.factory = the newest video_line feed entry, built in src/d3.js).
 // Everything from the feed is data: every string is escaped, none is ever HTML.
 import { esc } from './util.js';
 
-const STALE_S = 180; // the pusher posts every 30 s; src/d3.js marks the entry stale after 3 minutes
+const STALE_S = 180; // the pusher posts every few seconds; src/d3.js marks the entry stale after 3 minutes
 const EVENTS = 12;
 const num = (x) => typeof x === 'number' && Number.isFinite(x);
 const list = (v) => (Array.isArray(v) ? v : []);
 const cap = (s) => String(s || '').replace(/^./, (c) => c.toUpperCase());
 // The old page's time format: "45m", "2h 5m".
 const wait = (min) => (!num(min) || min < 0 ? '' : min >= 60 ? `${Math.floor(min / 60)}h ${Math.round(min % 60)}m` : `${Math.round(min)}m`);
+// How long a finished part took: "54s", "10m 14s", "1h 2m".
+export function took(sec) {
+  if (!num(sec) || sec < 0) return '';
+  const t = Math.round(sec);
+  return t < 60 ? `${t}s` : t < 3600 ? `${Math.floor(t / 60)}m ${t % 60}s` : `${Math.floor(t / 3600)}h ${Math.floor((t % 3600) / 60)}m`;
+}
+// A running part's clock, counted from when it started: "0:07", "2:07", "1:02:07". '' when either time is missing.
+export function clock(startIso, nowMs) {
+  const from = typeof startIso === 'string' ? Date.parse(startIso) : NaN;
+  if (!Number.isFinite(from) || !num(nowMs)) return '';
+  const t = Math.max(0, Math.floor((nowMs - from) / 1000));
+  const two = (n) => String(n).padStart(2, '0');
+  return t >= 3600 ? `${Math.floor(t / 3600)}:${two(Math.floor((t % 3600) / 60))}:${two(t % 60)}` : `${Math.floor(t / 60)}:${two(t % 60)}`;
+}
 const short = (s, n = 46) => { const t = String(s || '').trim(); return t.length > n ? `${t.slice(0, n - 1).trimEnd()}…` : t; };
 const pill = (text, cls = '', title = '') => `<span class="fypill${cls ? ` ${cls}` : ''}"${title ? ` title="${esc(title)}"` : ''}>${esc(text)}</span>`;
 const svg = (cls, label, d, px = 20) => `<span class="${cls}" role="img" aria-label="${label}"><svg viewBox="0 0 24 24" width="${px}" height="${px}" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="${d}"/></svg></span>`;
@@ -81,44 +96,55 @@ export function factoryParts(jobs, cols) {
   });
 }
 
-// One part's cell: narrow, icon first. done: green check. failed: red X and the reason. running: the blue bar and what
-// is happening. waiting: an amber clock and the reason. todo: grey circle. The note is always the tooltip.
-function partCell(p, first, live) {
+// One part's cell: a progress bar, then one short line. Never a made-up percentage.
+//   todo: an empty grey track.            done: a full green track, a check and the time it took (`seconds`).
+//   running with a total: a blue fill at done/total, "61 / 198" and the clock since `started`.
+//   running without one: a moving striped track (working, not a percentage) and the clock; no `started`, no clock.
+//   failed: a red track, an X and the reason.   waiting: an amber track, a clock icon and the reason.
+// The note is always the tooltip. A stale board is not live: the stripe stands still and no clock counts.
+function partCell(p, first, live, now) {
   const g = first ? ' fyg1' : '';
   if (!p) return `<td class="fyp${g}"></td>`;
   const note = String(p.note || '').trim();
   const tip = note ? ` title="${esc(note)}"` : '';
   const text = note ? `<small>${esc(short(note, 44))}</small>` : '';
   const s = String(p.status || '').toLowerCase();
-  if (s === 'done') return `<td class="fyp${g}"${tip}>${svg('fyok', 'Done', 'M5 13l4 4L19 7', 16)}</td>`;
-  if (s === 'failed') return `<td class="fyp fypbad${g}"${tip}>${svg('fybad', 'Failed', 'M6 18L18 6M6 6l12 12', 16)}${text}</td>`;
-  if (s === 'running') return `<td class="fyp fyprun${g}"${tip}><div class="fypg${live ? ' ind' : ' off'}" role="progressbar" aria-label="Running"><i></i></div>${text}</td>`;
-  if (s === 'waiting') return `<td class="fyp fypwait${g}"${tip}>${svg('fywt', 'Waiting', 'M12 7v5l3 2M12 3a9 9 0 100 18 9 9 0 000-18z', 16)}${text}</td>`;
-  return `<td class="fyp${g}"${tip}><span class="fyidle" role="img" aria-label="Not started"></span></td>`;
+  const bar = (cls, label) => `<div class="fypb ${cls}" role="img" aria-label="${label}"><i></i></div>`;
+  if (s === 'done') return `<td class="fyp${g}"${tip}>${bar('ok', 'Done')}<span class="fypl">${svg('fyok', 'Done', 'M5 13l4 4L19 7', 12)}${took(p.seconds) ? `<span>${took(p.seconds)}</span>` : ''}</span></td>`;
+  if (s === 'failed') return `<td class="fyp fypbad${g}"${tip}>${bar('bad', 'Failed')}<span class="fypl">${svg('fybad', 'Failed', 'M6 18L18 6M6 6l12 12', 12)}</span>${text}</td>`;
+  if (s === 'waiting') return `<td class="fyp fypwait${g}"${tip}>${bar('wait', 'Waiting')}<span class="fypl">${svg('fywt', 'Waiting', 'M12 7v5l3 2M12 3a9 9 0 100 18 9 9 0 000-18z', 12)}</span>${text}</td>`;
+  if (s === 'running') {
+    const total = num(p.total) && p.total > 0 ? p.total : 0;
+    const done = Math.min(num(p.done) && p.done > 0 ? p.done : 0, total);
+    const since = live ? clock(p.started, now) : '';
+    const time = since ? `<span class="fyt" data-since="${esc(p.started)}">${since}</span>` : '';
+    const track = total
+      ? `<div class="fypb run" role="progressbar" aria-label="Running" aria-valuemin="0" aria-valuemax="${total}" aria-valuenow="${done}"><i style="width:${Math.round((done / total) * 1000) / 10}%"></i></div><span class="fypl"><b>${done} / ${total}</b></span>`
+      : `<div class="fypb run ${live ? 'ind' : 'off'}" role="progressbar" aria-label="Running"><i></i></div>`;
+    return `<td class="fyp fyprun${g}"${tip}>${track}${time}</td>`;
+  }
+  return `<td class="fyp${g}"${tip}><div class="fypb" role="img" aria-label="Not started"></div></td>`;
 }
 
-// A step's own line above its part cells: how long it took, or its running bar (done/total), the Live dot and what it
-// is doing, or that it failed, or why it waits. Spans the step's part columns.
-function stageLine(job, st, live, firstTodo, span) {
+// A step's own short summary above its part cells: a thin bar of parts done out of parts, the count ("8/12") and the
+// step's minutes; a failed step says "Failed, try N", a step that waits says "Waiting" and why. Spans the step's part
+// columns. Plain: no fill behind it, nothing sticky.
+function stepSum(job, st, firstTodo, span, mine) {
   const k = stepKind(st);
-  const td = (cls, tip, inner) => `<td class="fystg fyg1${cls}" colspan="${span}"${tip ? ` title="${esc(tip)}"` : ''}><div class="fysl">${inner}</div></td>`;
-  if (k === 'done') return td('', '', `${svg('fyok', 'Done', 'M5 13l4 4L19 7', 14)}<b>${esc(wait(st.minutes))}</b>`);
-  if (k === 'run') {
-    const total = num(st.total) && st.total > 0 ? st.total : 0;
-    const done = Math.min(num(st.done) ? st.done : 0, total);
-    const pct = total ? Math.round((done / total) * 100) : 0;
-    const bar = total
-      ? `<div class="fypg" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pct}"><i style="width:${pct}%"></i></div><b>${done}/${total}</b>`
-      : `<div class="fypg${live ? ' ind' : ' off'}" role="progressbar" aria-label="In progress"><i></i></div><b>In progress</b>`;
-    const doing = st.doing || st.note;
-    return td(live ? ' fylv' : '', doing, `${bar}${wait(st.minutes) ? `<span>${esc(wait(st.minutes))}</span>` : ''}${live ? '<span class="fylt"><i class="fydot"></i>Live</span>' : ''}${doing ? `<small class="fylx">${esc(doing)}</small>` : ''}`);
-  }
+  const n = mine.length;
+  const d = mine.filter((p) => String(p.status || '').toLowerCase() === 'done').length;
+  const min = wait(st.minutes) ? `<span>${esc(wait(st.minutes))}</span>` : '';
+  const base = `<div class="fysb${k === 'done' ? ' ok' : k === 'fail' ? ' bad' : ''}" role="img" aria-label="${d} of ${n} done"><i style="width:${Math.round((d / n) * 1000) / 10}%"></i></div><b>${d}/${n}</b>${min}`;
+  let tip = k === 'run' ? st.doing || st.note : '';
+  let more = '';
   if (k === 'fail') {
-    const full = [st.note, st.fix ? `Fix: ${st.fix}` : ''].filter(Boolean).join(' · ');
-    return td(' fysbad', full, `${svg('fybad', 'Failed', 'M6 18L18 6M6 6l12 12', 14)}<b>${num(st.tries) && st.tries > 1 ? `Failed, try ${st.tries}` : 'Failed'}</b>${wait(st.minutes) ? `<span>${esc(wait(st.minutes))}</span>` : ''}${st.note ? `<small>${esc(st.note)}</small>` : ''}`);
+    tip = [st.note, st.fix ? `Fix: ${st.fix}` : ''].filter(Boolean).join(' · ');
+    more = `<em class="fysf">${num(st.tries) && st.tries > 1 ? `Failed, try ${st.tries}` : 'Failed'}</em>`;
+  } else if (k === 'todo') {
+    const why = st === firstTodo ? st.note || (kindOf(job) === 'wait' ? job.note : '') : '';
+    if (why) { tip = why; more = `<em class="fysw">Waiting</em><small>${esc(why)}</small>`; }
   }
-  const why = st === firstTodo ? st.note || (kindOf(job) === 'wait' ? job.note : '') : '';
-  return td('', why, why ? `<span class="fynew">Waiting</span><small class="fywhy">${esc(why)}</small>` : '');
+  return `<td class="fyst fyg1" colspan="${span}"${tip ? ` title="${esc(tip)}"` : ''}><div class="fyss">${base}${more}</div></td>`;
 }
 
 // One step's cell, in the old page's language. done: green check, minutes under it. run: blue bar with done/total (or
@@ -148,10 +174,10 @@ function cell(job, st, live, firstTodo) {
   return '<td class="fycell"><span class="fyidle" role="img" aria-label="Later step"></span></td>';
 }
 
-// A video on a board with parts: two table rows that read as one. The first holds the video, each step's own line and
+// A video on a board with parts: two table rows that read as one. The first holds the video, each step's summary and
 // the state; the second holds the part cells. A step that sends no parts (an older board) keeps its one cell, spanning
-// both rows and all of that step's part columns.
-function wideRows(job, cols, groups, live, key) {
+// both rows and all of that step's part columns (plain there: no green Live cell in this table).
+function wideRows(job, cols, groups, live, key, now, grouped) {
   const kind = kindOf(job);
   const steps = list(job.steps).filter((s) => s && typeof s === 'object');
   const firstTodo = steps.find((s) => stepKind(s) === 'todo');
@@ -164,23 +190,23 @@ function wideRows(job, cols, groups, live, key) {
     const span = Math.max(1, groups[i].length);
     const mine = partsOf(st);
     if (st && mine.length && groups[i].length) {
-      top += stageLine(job, st, live, firstTodo, span);
-      low += groups[i].map((name, n) => partCell(mine.find((p) => p.name === name), n === 0, live)).join('');
+      top += stepSum(job, st, firstTodo, span, mine);
+      low += groups[i].map((name, n) => partCell(mine.find((p) => p.name === name), n === 0, live, now)).join('');
     } else {
-      top += cell(job, st, live, firstTodo).replace('<td class="fycell', `<td colspan="${span}" rowspan="2" class="fycell fyg1`);
+      top += cell(job, st, false, firstTodo).replace('<td class="fycell', `<td colspan="${span}" rowspan="2" class="fycell fyg1`);
     }
   });
-  return `<tr class="fyrow fytop" data-id="${esc(key)}" data-kind="${kind}"><td class="fyvid" rowspan="2"><b>${esc(job.id)}</b><small>${esc(job.channel)}</small></td>${top}<td class="fywait" rowspan="2">${state}<small>${esc(min)}</small></td></tr>
+  return `<tr class="fyrow fytop" data-id="${esc(key)}" data-kind="${kind}"><td class="fyvid" rowspan="2"><b>${esc(job.id)}</b>${grouped ? '' : `<small>${esc(job.channel)}</small>`}</td>${top}<td class="fywait" rowspan="2">${state}<small>${esc(min)}</small></td></tr>
 <tr class="fyrow fylow" data-id="${esc(key)}~parts" data-kind="${kind}">${low}</tr>`;
 }
 
-function rowHtml(job, cols, live, key) {
+function rowHtml(job, cols, live, key, grouped) {
   const kind = kindOf(job);
   const steps = list(job.steps).filter((s) => s && typeof s === 'object');
   const firstTodo = steps.find((s) => stepKind(s) === 'todo');
   const min = /^\d+(\.\d+)?$/.test(String(job.minutes_in_state ?? '')) ? wait(Number(job.minutes_in_state)) : '';
   const state = kind === 'need' ? pill('Needs you', 'crit') : kind === 'done' ? pill('Done', 'ok', job.final) : '';
-  return `<tr class="fyrow" data-id="${esc(key)}" data-kind="${kind}"><td><b>${esc(job.id)}</b><small>${esc(job.channel)}</small></td>${cols.map((c) => cell(job, steps.find((s) => s.name === c), live, firstTodo)).join('')}<td class="fywait">${state}<small>${esc(min)}</small></td></tr>`;
+  return `<tr class="fyrow" data-id="${esc(key)}" data-kind="${kind}"><td><b>${esc(job.id)}</b>${grouped ? '' : `<small>${esc(job.channel)}</small>`}</td>${cols.map((c) => cell(job, steps.find((s) => s.name === c), live, firstTodo)).join('')}<td class="fywait">${state}<small>${esc(min)}</small></td></tr>`;
 }
 
 // One line: how many are live now, how many videos sit at each step (the first step not done), how many are done, how many need you.
@@ -206,6 +232,34 @@ function eventHtml(e) {
   return `<p class="fyev"><span>${esc(at)}</span>${esc(rest)}</p>`;
 }
 
+// The board's channels, in its order, each with its videos (already in page order); then, last, the videos whose
+// channel the board does not list, under a heading of their own channel id. [] when the board sends no channels.
+export function factoryChannels(F, jobs) {
+  const chans = list(F?.channels).filter((c) => c && typeof c === 'object' && c.id != null && String(c.id) !== '');
+  if (!chans.length) return [];
+  const of = (j) => String(j.channel ?? '');
+  const out = chans.map((c) => ({ id: String(c.id), label: String(c.label || c.id), note: String(c.note || '').trim(), jobs: jobs.filter((j) => of(j) === String(c.id)) }));
+  const known = new Set(out.map((c) => c.id));
+  for (const j of jobs) {
+    if (known.has(of(j))) continue;
+    let g = out.find((c) => c.extra && c.id === of(j));
+    if (!g) out.push(g = { id: of(j), label: of(j) || 'No channel', note: '', jobs: [], extra: true });
+    g.jobs.push(j);
+  }
+  return out;
+}
+
+// A channel's heading row, and the one quiet row of a channel with no video. In the wide table the text sits in the
+// Video column's cell (the one column that stays put) and runs on over an empty cell, so it stays in view.
+function channelRows(c, span, wide, body) {
+  const n = c.jobs.length;
+  const key = esc(`~ch:${c.extra ? '~' : ''}${c.id}`);
+  const two = (cls, inner, tip = '') => (wide ? `<td class="fyvid ${cls}"${tip}>${inner}</td><td colspan="${span - 1}"></td>` : `<td class="${cls}" colspan="${span}"${tip}>${inner}</td>`);
+  const headRow = `<tr class="fych" data-id="${key}">${two('fychn', `<span>${esc(c.label)}</span>${n ? `<small>${n === 1 ? '1 video' : `${n} videos`}</small>` : ''}`)}</tr>`;
+  const none = c.note || 'No video in the program yet';
+  return n ? `${headRow}\n${body}` : `${headRow}\n<tr class="fyrow fynone" data-id="${key}~none">${two('fychq', `<span>${esc(none)}</span>`, ` title="${esc(none)}"`)}</tr>`;
+}
+
 const HEAD = (status) => `<header class="hd fyhead"><div><h1>Factory</h1><p class="mut">Every video in the new video program, step by step. Updates on its own.</p></div><div class="fystatus sp" data-fy="status">${status}</div></header>`;
 
 export function renderFactory(d3resp, ui = {}) {
@@ -226,12 +280,16 @@ export function renderFactory(d3resp, ui = {}) {
   const wide = groups.some((g) => g.length); // the board sends parts: a column per part, grouped under its step
   const partN = groups.reduce((n, g) => n + g.length, 0);
   const soloN = groups.filter((g) => !g.length).length;
-  const rows = jobs.map((j) => { const id = String(j.id ?? ''); const n = seen.get(id) || 0; seen.set(id, n + 1); const key = n ? `${id}#${n}` : id; return wide ? wideRows(j, cols, groups, live, key) : rowHtml(j, cols, live, key); });
+  const chans = factoryChannels(F, jobs);
+  const grouped = chans.length > 0;
+  const span = wide ? partN + soloN + 2 : cols.length + 2;
+  const html = new Map(jobs.map((j) => { const id = String(j.id ?? ''); const n = seen.get(id) || 0; seen.set(id, n + 1); const key = n ? `${id}#${n}` : id; return [j, wide ? wideRows(j, cols, groups, live, key, nowMs, grouped) : rowHtml(j, cols, live, key, grouped)]; }));
+  const rows = grouped ? chans.map((c) => channelRows(c, span, wide, c.jobs.map((j) => html.get(j)).join('\n'))) : jobs.map((j) => html.get(j));
   if (!rows.length) rows.push(`<tr class="fyrow" data-id="_empty"><td colspan="${cols.length + 2}" class="mut">No videos in the program right now.</td></tr>`);
   const table = wide
     ? `<table class="fytable fyw" style="--fyn: ${soloN}; --fyp: ${partN}">
 <colgroup><col class="fyc1">${groups.map((g) => (g.length ? g.map(() => '<col class="fycp">').join('') : '<col class="fycs">')).join('')}<col class="fycw"></colgroup>
-<thead data-fy="cols"><tr><th class="fyh1" rowspan="2">Video</th>${cols.map((c, i) => (groups[i].length ? `<th class="fygrp fyg1" colspan="${groups[i].length}"><span>${esc(head(c))}</span></th>` : `<th class="fycell fyg1" rowspan="2">${esc(head(c))}</th>`)).join('')}<th class="fyhw" rowspan="2">Waiting</th></tr>
+<thead data-fy="cols"><tr><th class="fyh1" rowspan="2">Video</th>${cols.map((c, i) => (groups[i].length ? `<th class="fygrp fyg1" colspan="${groups[i].length}">${esc(head(c))}</th>` : `<th class="fycell fyg1" rowspan="2">${esc(head(c))}</th>`)).join('')}<th class="fyhw" rowspan="2">Waiting</th></tr>
 <tr>${groups.map((g) => g.map((name, n) => `<th class="fypt${n ? '' : ' fyg1'}">${esc(head(name))}</th>`).join('')).join('')}</tr></thead>`
     : `<table class="fytable" style="--fyn: ${cols.length}">
 <colgroup><col class="fyc1">${cols.map(() => '<col class="fycs">').join('')}<col class="fycw"></colgroup>
@@ -254,9 +312,24 @@ ${rows.join('\n')}
 </div>`;
 }
 
-// Refresh without a jump (the old page's idea): when the Factory table is already on screen, only the parts whose HTML
-// changed are rewritten and the rows are matched by video id, so the table's scroll box and unchanged rows stay as they
-// are (a video on a board with parts is two rows, matched as "id" and "id~parts"). Returns false when the page has to be drawn whole (first draw, or the table's columns changed).
+// Make the node on screen equal to the freshly drawn one, touching only what differs: a changed text, a changed
+// attribute (a bar's width), or a subtree whose shape changed. Unchanged nodes stay, so running bars keep moving.
+function morph(a, b) {
+  if (a.nodeType !== b.nodeType || a.nodeName !== b.nodeName) { a.replaceWith(b); return; }
+  if (a.nodeType !== 1) { if (a.data !== b.data) a.data = b.data; return; }
+  if (a.isEqualNode(b)) return;
+  for (const { name } of [...a.attributes]) if (!b.hasAttribute(name)) a.removeAttribute(name);
+  for (const { name, value } of [...b.attributes]) if (a.getAttribute(name) !== value) a.setAttribute(name, value);
+  const [now, next] = [[...a.childNodes], [...b.childNodes]];
+  if (now.length !== next.length) { a.replaceChildren(...next); return; }
+  now.forEach((n, i) => morph(n, next[i]));
+}
+
+// Refresh without a jump (the old page's idea): when the Factory table is already on screen, only what changed is
+// rewritten. Rows are matched by id (a video on a board with parts is two rows, "id" and "id~parts"; a channel's
+// heading is "~ch:id") and inside a row only the cells, texts and bar widths that differ are touched, so the table's
+// scroll box, the unchanged rows and the moving bars stay as they are. Called on every read (3 s) and every second for
+// the clocks. Returns false when the page has to be drawn whole (first draw, or the table's columns changed).
 export function syncFactory(main, html) {
   const body = main.querySelector?.('.fy .fytbody');
   if (!body) return false;
@@ -268,7 +341,7 @@ export function syncFactory(main, html) {
   for (const k of ['status', 'sum', 'notes', 'needs', 'events']) {
     const [now, next] = [part(main, k), part(t.content, k)];
     if (!now || !next) return false;
-    if (now.innerHTML !== next.innerHTML) now.innerHTML = next.innerHTML;
+    morph(now, next);
   }
   const have = new Map([...body.children].map((tr) => [tr.dataset.id, tr]));
   const want = [...nextBody.children];
@@ -277,12 +350,8 @@ export function syncFactory(main, html) {
   let at = body.firstElementChild;
   for (const n of want) {
     const tr = have.get(n.dataset.id);
-    if (tr && tr.outerHTML === n.outerHTML) {
-      if (tr === at) at = at.nextElementSibling; else body.insertBefore(tr, at);
-      continue;
-    }
-    if (tr) { if (tr === at) at = tr.nextElementSibling; tr.remove(); }
-    body.insertBefore(n, at);
+    if (tr) morph(tr, n);
+    if (tr && tr === at) at = at.nextElementSibling; else body.insertBefore(tr || n, at);
   }
   return true;
 }
