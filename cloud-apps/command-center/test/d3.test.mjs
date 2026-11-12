@@ -1225,14 +1225,24 @@ test('System page: tabs, tiles (16 projects, 9 roles), project and kind picks wi
   for (const p of P) for (const id of p.parts) assert.ok(L[id], `${p.id}: no part ${id}`);
 });
 
+const lf = (s) => s.replace(/\r\n/g, '\n'); // core.autocrlf checkouts have \r\n
+
 test('Bluesky and System text files are still the approved designs, unchanged', { skip: !existsSync(DESIGN_DIR) && 'design files not on this machine' }, () => {
   const out = mkdtempSync(join(tmpdir(), 'd3text-'));
   try {
     execFileSync(process.execPath, [fileURLToPath(new URL('../scripts/d3-text-from-design.mjs', import.meta.url)), DESIGN_DIR, out]);
     for (const f of ['bluesky-data.js', 'system-data.js']) {
-      assert.equal(readFileSync(join(out, f), 'utf8'), readFileSync(new URL(`../public/d3/js/${f}`, import.meta.url), 'utf8'), f);
+      assert.equal(lf(readFileSync(join(out, f), 'utf8')), lf(readFileSync(new URL(`../public/d3/js/${f}`, import.meta.url), 'utf8')), f);
     }
   } finally { rmSync(out, { recursive: true, force: true }); }
+});
+
+test('design text compare ignores CRLF line endings but still catches a real change', () => {
+  const text = lf(readFileSync(new URL('../public/d3/js/system-data.js', import.meta.url), 'utf8'));
+  const crlf = text.replace(/\n/g, '\r\n');
+  assert.notEqual(crlf, text);
+  assert.equal(lf(crlf), lf(text));
+  assert.notEqual(lf(crlf.replace(/[A-Za-z]/, '#')), lf(text));
 });
 
 test('d3.css: Bluesky and System rules from the designs, narrow rules below the 1024 layout', () => {
