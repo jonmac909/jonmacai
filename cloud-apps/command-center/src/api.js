@@ -195,7 +195,7 @@ async function postAction(request, env) {
       };
       await upsertDealStage(env.DB, dealId, stage, now);
     } else {
-      deals[dealId] = { ...prev, id: dealId, amountSet: Number(payload.amount) || 0, updatedAt: now };
+      deals[dealId] = { ...prev, id: dealId, amountSet: Number(payload.amount) || 0, ...(payload.brand ? { brand: String(payload.brand) } : {}), updatedAt: now };
     }
     await putSponsorDeals(env.DB, deals, now);
     result = kind === 'sponsor.add_deal' ? `Added ${deals[dealId].sponsor}` : 'Amount set';

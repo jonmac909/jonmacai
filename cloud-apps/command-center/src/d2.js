@@ -627,6 +627,7 @@ function todayOf(C, goals, checks) {
 const JUNK = [
   ['refunds', /\brefund/i, null],
   ['receipts', /\breceipt|payment (received|confirmation)|order confirmation|your (order|payment)\b|billing statement/i, /\b(receipts?|billing|payments?|orders?)@|stripe\.com|paypal\.com/i],
+  ['invites', /has invited you|invited you to (join|a new|the|their)/i, null],
   ['newsletters', /newsletter|digest|unsubscribe/i, /\b(newsletters?|news|digest|updates|marketing)@|substack\.com|beehiiv|mailchimp|convertkit|mailerlite/i],
 ];
 const junkOf = (r) => r && JUNK.find(([, subject, sender]) => subject.test(`${r.subject || ''} ${r.reason || ''}`) || sender?.test(`${r.to || ''} ${r.contact || ''}`))?.[0];
@@ -646,7 +647,7 @@ function cleanSponsors(C) {
   const copy = JSON.parse(JSON.stringify(page));
   if (!copy.board?.columns) return copy;
   const raw = new Map((parse(C.by.sponsors?.data).cards || []).map((c) => [c.id, c]));
-  const hidden = { receipts: 0, refunds: 0, newsletters: 0 };
+  const hidden = { receipts: 0, refunds: 0, newsletters: 0, invites: 0 };
   const value = { usd: 0, priced: 0, unpriced: 0 }; // open deals: every column but Paid
   const archived = [];
   for (const col of copy.board.columns) {

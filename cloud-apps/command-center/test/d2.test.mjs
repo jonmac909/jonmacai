@@ -454,7 +454,7 @@ test('d2 cleans a copy of the sponsors board and leaves pages.sponsors as /dashb
   assert.deepEqual(all(page).sort(), ['c-arcads', 'c-invideo', 'c-news', 'c-paid', 'c-poppy', 'c-quiet', 'c-receipt', 'c-refund']);
   assert.ok(!page.hidden && !page.value);
   const clean = body.d2.pipeline.boards[0].sponsors;
-  assert.deepEqual(clean.hidden, { receipts: 1, refunds: 1, newsletters: 1 });
+  assert.deepEqual(clean.hidden, { receipts: 1, refunds: 1, newsletters: 1, invites: 0 });
   const archived = clean.board.columns.at(-1);
   assert.deepEqual([archived.title, archived.archived, archived.cards.map((k) => k.id)], ['Archived', true, ['c-quiet']]);
   assert.deepEqual(all({ board: { columns: clean.board.columns.slice(0, -1) } }).sort(), ['c-arcads', 'c-invideo', 'c-paid', 'c-poppy']);

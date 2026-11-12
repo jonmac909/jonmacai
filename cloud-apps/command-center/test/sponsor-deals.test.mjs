@@ -141,3 +141,19 @@ test('old new-lead overrides on junk threads stay hidden; a prior-month done ove
   assert.equal(t.where(r, 'Oldie'), null);
   assert.equal(t.where(r, 'gmail-thread-1a082b1c04b4fcfb'), 'Leads');
 }));
+
+test('tool/workspace invite emails are junk, but an added deal with that subject stays; set_amount brand fixes a mangled name', () => withNow(async () => {
+  const t = await setup();
+  const row = JSON.parse(t.db.sqlite.prepare("SELECT data FROM snapshots WHERE source='sponsors'").get().data);
+  row.cards.push(card('Envato', 'new-lead', { subject: 'Envato has invited you to a new workspace' }), card('Relume', 'new-lead', { subject: 'Relume has invited you to join their team' }), card('gmail-thread-1a0aa308142f5466', 'contract-brief', { sponsor: 'Luminarysm', subject: 'Enter Paid YouTube Cooperation' }));
+  t.db.sqlite.prepare("UPDATE snapshots SET data=? WHERE source='sponsors'").run(JSON.stringify(row));
+  await t.act('sponsor.add_deal', { id: 'gmail-thread-1a082b1c04b4fcfb', brand: 'Real', stage: 'drafts', subject: 'Acme has invited you to a sponsorship' });
+  await t.act('sponsor.move_stage', { id: 'gmail-thread-1a0aa308142f5466', stage: 'contract-brief' });
+  await t.act('sponsor.set_amount', { id: 'gmail-thread-1a0aa308142f5466', amount: 3000, brand: 'Enter' });
+  const r = await t.d2();
+  assert.equal(t.where(r, 'Envato'), null);
+  assert.equal(t.where(r, 'Relume'), null);
+  assert.equal(t.where(r, 'gmail-thread-1a082b1c04b4fcfb'), 'Leads');
+  const cards = r.d2.pipeline.boards.find((b) => b.goal === 'sponsors').sponsors.board.columns.flatMap((c) => c.cards);
+  assert.equal(cards.find((k) => k.id === 'gmail-thread-1a0aa308142f5466').name, 'Enter');
+}));

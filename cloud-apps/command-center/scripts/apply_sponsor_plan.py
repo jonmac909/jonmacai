@@ -28,6 +28,8 @@ ADDS = [
 # Amounts in USD (build/amounts-found.md): Topview/Arcads = to collect; agreed deals; leads = Jon's quoted dedicated-video rate. Unlisted = blank.
 AMOUNTS = {"1a1213c3e19344a7": 2000, "1a1213c47e88d97d": 1500, "1a1150ee352149da": 4200, "1a0aa308142f5466": 3000, "1a11a047792ddd0b": 3000, "1a1c0d26b71240b5": 1000}
 AMOUNTS.update({t: 2500 for t in "1a1c859c4aaa74e2 1a1c6d0462e5a453 1a1c6b0ea2a3aaa7 1a1c49e73ec86448 1a1c44b75dee9b1c 1a1ac653ed5404bf 1a1abb9d08139d35 1a1a58287c79a090 1a1a558959518917 1a19a73e3881e2df 1a1920de7f3179e2 1a1a6ebaa592a632 1a1bf7c324bf6f33 1a1a72fab5d263e1 1a1c21bd78a3f390 1a1b13679cd7909b 19cf57fa54dfe839 1a123971d83a0e89 1a1b1ce17022c48b".split()})
+# The source snapshot mangled these names (Luminarysm, ve AI); the subjects say Enter and Naive AI.
+BRANDS = {"1a0aa308142f5466": "Enter", "1a11a047792ddd0b": "Naive AI"}
 OUT = r"D:\AgentTeam\qc-work\money-deals-rebuild\deals-final.json"
 gid = lambda t: "gmail-thread-" + t
 
@@ -36,7 +38,7 @@ def plan():
     for t, b, s, a, n in ADDS:
         acts.append(("sponsor.add_deal", {"id": gid(t), "threadId": t, "brand": b, "stage": s, "next": n, **({"amount": AMOUNTS[t]} if t in AMOUNTS else {})}))
     for t, a in AMOUNTS.items():
-        acts.append(("sponsor.set_amount", {"id": gid(t), "amount": a}))
+        acts.append(("sponsor.set_amount", {"id": gid(t), "amount": a, **({"brand": BRANDS[t]} if t in BRANDS else {})}))
     return acts
 
 def main():

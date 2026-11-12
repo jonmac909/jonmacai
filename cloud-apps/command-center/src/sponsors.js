@@ -108,6 +108,8 @@ export function withDeals(data, overrides = {}, deals = {}) {
     if (overrides[c.id]) out = { ...out, stage: overrides[c.id], moved: !LOW_STAGES.has(overrides[c.id]) };
     const set = Number(deals?.[c.id]?.amountSet);
     if (set > 0) out = { ...out, amountSet: set };
+    const brand = deals?.[c.id]?.brand; // set_amount's optional brand fixes a mangled name in the source snapshot
+    if (brand && !c.added) out = { ...out, sponsor: brand };
     return c.added ? { ...out, moved: true } : out;
   });
 }
