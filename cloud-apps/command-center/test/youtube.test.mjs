@@ -431,3 +431,15 @@ test('Track shows channels with no Google login as Not connected with a Connect 
   assert.equal(r.status, 302);
   assert.match(r.headers.get('Location'), /^https:\/\/accounts\.google\.com\//);
 });
+
+test('calendar connect reuses the YouTube Google client and sends Jon to Google', async () => {
+  const bare = await setup(false);
+  assert.equal((await call(bare.env, '/google/start')).status, 501);
+  const { env } = await setup();
+  const r = await call(env, '/google/start');
+  assert.equal(r.status, 302);
+  const to = new URL(r.headers.get('Location'));
+  assert.equal(to.origin + to.pathname, 'https://accounts.google.com/o/oauth2/v2/auth');
+  assert.equal(to.searchParams.get('client_id'), 'cid');
+  assert.equal(to.searchParams.get('redirect_uri'), 'https://jonmac.ai/dashboard/api/google/callback');
+});
