@@ -611,6 +611,13 @@ test('video_line feed: a video may carry stages (with a label), started, ended, 
   await put(env, 'developer', job({ stages, started: '2026-11-11T20:00:00Z', review_url: 'https://jonmac.ai/review/done-1' }));
   const f = (await d3Of(env.DB)).d3.factory.jobs[0];
   assert.deepEqual([f.stages.length, f.stages[1].label, f.started, f.review_url], [5, 'QC', '2026-11-11T20:00:00.000Z', 'https://jonmac.ai/review/done-1']);
+  // A stage may carry what it made: a text (the title) and a link under the review pages (the thumbnail). Any other link is dropped.
+  const made = [G('title', 0, 'done', { label: 'Title', text: 'Why Your Eggplant Casserole Turns Soggy' }), G('thumbnail', 0, 'done', { label: 'Thumbnail', url: 'https://jonmac.ai/review/done-1/thumb.jpg' }),
+    G('schedule', 0, 'todo', { url: 'https://evil.example/x.jpg', text: '' })];
+  await put(env, 'developer', job({ stages: made }));
+  const m = (await d3Of(env.DB)).d3.factory.jobs[0].stages;
+  assert.deepEqual([m[0].text, m[0].url, m[1].url, m[2].url, m[2].text], ['Why Your Eggplant Casserole Turns Soggy', undefined, 'https://jonmac.ai/review/done-1/thumb.jpg', undefined, undefined]);
+  assert.equal((await put(env, 'developer', job({ stages: [G('thumbnail', 0, 'done', { url: 7 })] }))).status, 400);
 });
 
 // Three videos: one being made, one finished (with its review page), one that sends no stages yet. The steps carry

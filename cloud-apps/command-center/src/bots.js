@@ -1055,6 +1055,12 @@ export const FEEDS = {
         if (arr(v, k).length > 30) throw new Bad(400, `${k} must have at most 30 entries`);
         return v.map((p, n) => part(p, `${k}[${n}]`));
       };
+      // A link a stage may carry: only a page or a file under jonmac.ai's own review pages. '' for anything else.
+      const lookUrl = (v, k) => {
+        if (v == null || v === '') return '';
+        if (typeof v !== 'string') throw new Bad(400, `${k} must be text`);
+        return /^https:\/\/jonmac\.ai\/review\/[a-z0-9][a-z0-9-]{0,79}(\/[a-zA-Z0-9][a-zA-Z0-9._-]{0,79})?$/.test(v) ? v : '';
+      };
       const step = (s, k) => {
         obj(s, k);
         if (s.minutes != null && (typeof s.minutes !== 'number' || !Number.isFinite(s.minutes) || s.minutes < 0 || s.minutes > 1e6)) throw new Bad(400, `${k}.minutes must be a number or null`);
@@ -1067,6 +1073,9 @@ export const FEEDS = {
           // Optional progress inside a running step ("8 of 11 checks"): kept only when the step sends it.
           ...(s.done != null ? { done: whole(s.done, `${k}.done`) } : {}), ...(s.total != null ? { total: whole(s.total, `${k}.total`) } : {}),
           ...(s.parts != null ? { parts: parts(s.parts, `${k}.parts`) } : {}),
+          // What a stage made, for the page to show: its text (a video's title) and a link (its thumbnail), kept only when sent.
+          ...(s.text != null && str(s.text, `${k}.text`) ? { text: str(s.text).slice(0, 160) } : {}),
+          ...(lookUrl(s.url, `${k}.url`) ? { url: lookUrl(s.url, `${k}.url`) } : {}),
         };
       };
       const totalMin = (v, k) => {
