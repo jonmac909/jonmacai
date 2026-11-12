@@ -376,11 +376,18 @@ export function homeGoals(d2resp, d3resp, P = periodOf(d2resp), now = nowOf(), h
     ],
   };
   // Money owed and deals to close, in dollars, under every period (Jon, 2026-11-12)
+  // A deal with no amount on the board is counted but not priced; all unpriced reads "Not priced", never a bare $0.
+  const money$ = (list, total) => (total > 0 ? usd(total) : list.some((r) => r.amt == null) ? 'Not priced' : usd(0));
+  const dealsInfo = (list, none, what) => {
+    if (!list.length) return none;
+    const np = list.filter((r) => r.amt == null).length;
+    return `${plural(list.length, 'deal')}${what}${np ? ` · ${np === list.length ? 'no amounts on the Sponsors board' : `${np} not priced`}` : ''}`;
+  };
   const owed = !pipe ? noFeed('owed', 'Money owed', 'The Sponsors board could not be read.', PG.money)
-    : row('owed', 'Money owed', usd(pipe.totals.collect), 'none', pipe.collect.length ? `${plural(pipe.collect.length, 'deal')} still to pay you` : 'Nothing owed',
+    : row('owed', 'Money owed', money$(pipe.collect, pipe.totals.collect), 'none', dealsInfo(pipe.collect, 'Nothing owed', ' still to pay you'),
       { h: 'To collect', items: pipe.collect.map(amt), page: PG.money }, { word: 'To collect' });
   const toClose = !pipe ? noFeed('close', 'Deals to close', 'The Sponsors board could not be read.', PG.money)
-    : row('close', 'Deals to close', usd(pipe.totals.close), 'none', pipe.close.length ? `${plural(pipe.close.length, 'deal')}${pipe.close.some((r) => r.amt == null) ? ` · ${pipe.close.filter((r) => r.amt == null).length} not priced` : ''}` : 'None open',
+    : row('close', 'Deals to close', money$(pipe.close, pipe.totals.close), 'none', dealsInfo(pipe.close, 'None open', ''),
       { h: 'To close', items: pipe.close.map(amt), page: PG.money }, { word: 'Pipeline' });
   for (const per of ['today', 'week', 'month']) sponsors[per].push(owed, toClose);
 
