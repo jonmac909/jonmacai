@@ -329,7 +329,14 @@ html[data-theme="dark"] body{background:#0b0b0c}
 .d3 .fyok svg,.d3 .fybad svg{display:block;margin:0 auto}
 .d3 .fyidle{display:inline-block;width:.8rem;height:.8rem;border-radius:50%;border:2px solid var(--track);box-sizing:border-box}
 .d3 .fyfail{display:flex;flex-direction:column;align-items:center;gap:.15rem}
-.d3 .fytable td .fyfail small{font-size:.74rem;color:var(--bad-ink);overflow-wrap:anywhere}
+.d3 .fytable td .fyfail small{font-size:.74rem;color:var(--bad-ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.d3 .fytable td .fyfail .fyfl{font-size:.78rem;font-weight:600;color:var(--bad-ink)}
+.d3 .fywhyd{position:relative}
+.d3 .fywhyd summary{list-style:none;cursor:pointer;font-size:.74rem;color:var(--bad-ink);text-decoration:underline}
+.d3 .fywhyd summary::-webkit-details-marker{display:none}
+.d3 .fywhyd .fypop{position:absolute;z-index:6;top:1.4rem;left:50%;transform:translateX(-50%);width:min(22rem,80vw);padding:10px 12px;border-radius:10px;background:var(--card);color:var(--ink);border:1px solid var(--line);box-shadow:0 8px 24px rgba(0,0,0,.18);text-align:left;font-size:.82rem;line-height:1.45;white-space:normal;overflow-wrap:anywhere}
+.d3 .fywhyd .fypop p{margin:0 0 .4rem}
+.d3 .fywhyd .fypop p:last-child{margin:0}
 .d3 .fyrun{display:flex;flex-direction:column;gap:.2rem;font-size:.76rem;color:var(--ink2)}
 .d3 .fypg{height:.45rem;background:var(--track);border-radius:1rem;overflow:hidden}
 .d3 .fypg i{display:block;height:100%;border-radius:1rem;background:var(--fill)}
