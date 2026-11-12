@@ -285,8 +285,9 @@ async function sponsorsForBot(request, env, rest) {
   if (rest === '/v1/sponsors' && request.method === 'GET') {
     const now = Date.now();
     const { out, d2 } = await d2Build(env, now);
-    const board = (d2.pipeline?.boards || []).find((b) => b.goal === 'sponsors')?.sponsors || null;
-    return json({ ok: true, asOf: new Date(now).toISOString(), sponsors: out.pages.sponsors || null, board, pipeline: pipelineOf({ d2 }) });
+    // d2's sponsors view is the whole cleaned page; its .board holds Jon's stage columns.
+    const view = (d2.pipeline?.boards || []).find((b) => b.goal === 'sponsors')?.sponsors || null;
+    return json({ ok: true, asOf: new Date(now).toISOString(), sponsors: out.pages.sponsors || null, board: view?.board || null, hidden: view?.hidden || null, value: view?.value || null, pipeline: pipelineOf({ d2 }) });
   }
   return json({ ok: false, error: 'Not found' }, 404);
 }

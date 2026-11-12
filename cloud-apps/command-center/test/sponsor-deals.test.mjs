@@ -158,7 +158,7 @@ test('tool/workspace invite emails are junk, but an added deal with that subject
   assert.equal(cards.find((k) => k.id === 'gmail-thread-1a0aa308142f5466').name, 'Enter');
 }));
 
-test('bot v1 sponsor routes: token required, developer/ana only, whitelisted kinds, add_deal works, GET returns columns', () => withNow(async () => {
+test('bot v1 sponsor routes: 401 no/bad token, 403 other bots, 400 other kinds, move/add/set_amount work, GET returns columns', () => withNow(async () => {
   const t = await setup();
   const { sha256Hex } = await import('../src/bots.js');
   const tok = (b) => `ccb_${b.padEnd(40, 'x')}`;
@@ -174,9 +174,21 @@ test('bot v1 sponsor routes: token required, developer/ana only, whitelisted kin
   const ok = await call('sponsors/actions', tok('developer'), add);
   assert.equal(ok.status, 200);
   assert.equal((await ok.json()).status, 'done');
+  const id = 'gmail-thread-1a1213c3e19344a7';
+  const setAmt = await call('sponsors/actions', tok('developer'), { kind: 'sponsor.set_amount', payload: { id, amount: 2500 } });
+  assert.equal(setAmt.status, 200);
+  assert.equal((await setAmt.json()).status, 'done');
+  const move = await call('sponsors/actions', tok('developer'), { kind: 'sponsor.move_stage', payload: { id: 'gmail-thread-bbb222bbb222', stage: 'negotiating' } });
+  assert.equal(move.status, 200);
+  assert.equal(t.db.sqlite.prepare("SELECT stage FROM deal_stage_overrides WHERE deal_id = 'gmail-thread-bbb222bbb222'").get().stage, 'negotiating');
   const g = await (await call('sponsors', tok('developer'))).json();
   assert.ok(g.ok && Array.isArray(g.board.columns) && g.board.columns.length > 5);
-  assert.ok(g.board.columns.find((c) => c.title === 'Balance Invoice').cards.some((k) => k.name === 'Topview'));
-  assert.equal(g.pipeline.totals.collect, 2000);
+  const col = (id2) => g.board.columns.find((c) => c.cards.some((k) => k.id === id2))?.title;
+  assert.equal(col(id), 'Balance Invoice');
+  assert.equal(g.board.columns.find((c) => c.title === 'Balance Invoice').cards.find((k) => k.id === id).name, 'Topview');
+  assert.equal(col('gmail-thread-bbb222bbb222'), 'Negotiations');
+  assert.equal(g.pipeline.totals.collect, 2500);
   assert.ok(g.sponsors);
+  // The bot route never takes Jon-only kinds even for an allowed bot, and nothing reached the Mac queue.
+  assert.equal(t.db.sqlite.prepare("SELECT COUNT(*) n FROM actions WHERE kind NOT LIKE 'sponsor.%'").get().n, 0);
 }));
