@@ -9,8 +9,8 @@ Hard limits: `/dashboard` and `/dashboard-2` do not change. View only, apart fro
 - Routes `jonmac.ai/dash` (308 to `/dash/`) and `jonmac.ai/dash/*`, same Worker (`src/worker.js`).
 - `/dash/` and `/dash/index.html` serve `public/d3/index.html` with Jon's session, else `public/d3/login.html` (posts `/dashboard/api/login`, reloads `/dash/`). Otherwise only `/dash/login.html`, `/dash/css/*.css` and `/dash/js/**/*.js` (from `public/d3`); anything else is a 404, and so is `/dashboard/d3/...`.
 - Theme: `localStorage['d3-theme']` (`light` default, `dark`), applied on `<html data-theme>` by an inline script before paint.
-- Routes are hashes: `#goals` (default), `#team`, `#blockers`, `#review`, `#money`.
-- Data loads on open and every 60 s while the tab is visible. Signed out (401), the page opens `/dash/` once (sessionStorage `d3-signin`), then shows a sign-in link; no reload loop.
+- Routes are hashes: `#goals` (default), `#team`, `#factory`, `#blockers`, `#review`, `#money`.
+- Data loads on open and every 60 s while the tab is visible (the Factory page also re-reads `/dashboard/api/d3` every 15 s while it is open). Signed out (401), the page opens `/dash/` once (sessionStorage `d3-signin`), then shows a sign-in link; no reload loop.
 - Files: `public/d3/js/app.js` (shell), `goals.js` (pure `renderGoals(d2, d3, ui)`), `team.js` (`renderTeam`), `blockers.js` (`blockerRows`, `renderBlockers`), `rail.js`, `util.js`; `css/d3.css` is the design's style block plus the Team/Blockers design rules plus "Build additions".
 - Team roster: `src/d3-team.json`, a copy of `D:\AgentTeamules\BOTS.md` (slug = the bot's `areas/<slug>.md` and its card owner name). Retired bots (Mila, Ivy, Zendaya, the old Emma/Indy areas) are not in it. `test/d3.test.mjs` fails when it drifts from BOTS.md (on GPU1).
 
@@ -25,6 +25,7 @@ Jon's session, `Cache-Control: no-store`, read only (`src/d3.js`). Each part is 
   team: { bots: [{ slug, names, role, counts, card, tone, failedToday, running, tokens, finishedToday }], names, working, waiting, failedToday, cost } | null,
   blockers: [{ id, kind: 'p'|'f'|'s', you, review?, title, at, age, owner, blocks }] | null,
   openCards: { <project>: n } | null,
+  factory: { ...newest video_line entry, at, stale } | null,   // Factory page; stale = posted more than 3 minutes ago
   goals: { tokenWeeks, qcFirstTry, workouts, dateNights, charges }   // same metric shape as d2
 } }
 ```
@@ -101,3 +102,12 @@ Stuck leaves out cards in Review on purpose: those passed QC on their newest ver
 - Text lives in `public/d3/js/bluesky-data.js` and `public/d3/js/system-data.js`, copied unchanged from the approved designs (`D:\AgentTeam\briefs\dashboard3\Bluesky.dc.html`, `System.dc.html`) by `scripts/d3-text-from-design.mjs <designDir> <outDir>`. A test re-runs it and fails if the files drift from the designs.
 - Layout: `bluesky.js` (tabs Vision and plans, OKRs 2027, Quarters, Departments, 2026 reflection, Your call) and `system.js` (Map, How work moves, Team and your day, December goals). Styles are the designs' rules in `d3.css`.
 - Ana keeps the System pills true: in `system-data.js` set a part's `b` to `'ready'` (In place) or `'fix'` (To fix); no `b` reads To build. Pills read as of Nov 10 until then. If the designs change, re-run the script instead of editing by hand.
+
+## Factory page (2026-11-11)
+
+- Route `#factory`, rail item "Factory", `public/d3/js/factory.js` (pure `renderFactory(d3, ui, d2)`; `d2` only fills the header date). Live progress of the video program, one card per video.
+- Source: the feed `video_line` (`src/bots.js` `FEEDS`; writers developer and ana; 1 day kept). A pusher on GPU1 posts the program's board every 30 s: `dash.py feed-put video_line --data-file board.json`. The body is `{updated, scheduler_running, counts: {jobs, done, running, needs_person}, jobs: [{id, channel, pipeline, created, state, step, minutes_in_state, note, steps_done, steps_total, needs_person: {step, why, look_at, since} | null, final, steps: [{name, status, tries, minutes, started, ended, note, fix, doing}]}], events: [text, newest last], unreadable_jobs}`. A wrong shape is a 400. Long input is cut, not refused: 60 videos, 12 steps a video, the newest 20 events, 300 characters a string.
+- `d3.factory` is the newest entry plus `at` (when it was posted) and `stale` (true once it is more than 3 minutes old); `null` when nothing was posted or the table can't be read, and the page then reads "No feed".
+- The page: a summary line (videos, running, done, need you, "updated N s ago" from the board's own `updated`); a red notice when the feed is stale ("The video program is not reporting") or `scheduler_running` is false ("The scheduler is not running"), a grey one when it is null; one card per video in the order needs you, failed, running, waiting, done; a step chip per step (waiting grey, running accent with minutes, done green with minutes, failed red with its try); one line for what is happening now (the running step's `doing`, else its `note`, else the video's `note`); a failed step's `note` and `fix`; a "Needs you" block from `needs_person`; the finished file from `final`; "Latest events", newest first, in Kelowna time.
+- The name: this is Dashboard 3's Factory page. The older Factory page on `/dashboard` (one overwritten row, `tools/factory_publish.py`) is a different source and is unchanged.
+- The System page's Sources list shows the feed as "Video program board", stale after 3 minutes.

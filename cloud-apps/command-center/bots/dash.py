@@ -30,7 +30,7 @@ WAKE_EXPIRES_S = 1800  # QC's video turnaround: a bot that never read its wake g
 NINA_WORKSPACE = 'agent-2661cbff-8f2f-4c2a-a493-4d0cb59a201f'  # both QC bots are the slug qc; the folder tells them apart
 TASK_STATUSES = ['todo', 'doing', 'waiting_on_jon', 'qc', 'review', 'done', 'cancelled']
 PROOF_KINDS = ['render', 'url', 'pdf', 'test']
-FEEDS = ['morning_summary', 'calendar_today', 'claude_usage', 'ebook_sales', 'daily_checklists']
+FEEDS = ['morning_summary', 'calendar_today', 'claude_usage', 'ebook_sales', 'daily_checklists', 'video_line']
 # Same labels, slugs and order as PROJECTS in src/projects.js. "unsorted" means no project.
 LABELS = {'Sponsors': 'sponsors', 'YT-JM': 'jon-mac', 'YT-AI UGC': 'jonmacai', 'Viral View': 'viral-view',
           'Home Guide Press': 'home-guide-press', 'Short-form': 'short-form', 'Accounting': 'accounting', 'Coding': 'coding'}
@@ -772,7 +772,7 @@ def parser():
     a.add_argument('--since', help='ISO time')
     a.add_argument('--limit', type=int)
 
-    a = s.add_parser('feed-put', help='post a feed: morning_summary, calendar_today, claude_usage, ebook_sales')
+    a = s.add_parser('feed-put', help='post a feed: morning_summary, calendar_today, claude_usage, ebook_sales, video_line (the video program board: --data-file board.json)')
     a.add_argument('name', choices=FEEDS)
     a.add_argument('--data', help='JSON object, e.g. \'{"weekPct": 62}\'')
     a.add_argument('--data-file', help='file holding that JSON object')

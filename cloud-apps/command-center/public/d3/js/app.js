@@ -1,5 +1,5 @@
 // Dashboard 3 shell (docs/dashboard-3.md): theme switch, hash routes, data load every 60 s, and the Goals, Team,
-// Blockers, Review, Money, Bluesky and System pages (the last two are fixed text and need only the date).
+// Factory, Blockers, Review, Money, Bluesky and System pages (the last two are fixed text and need only the date).
 // Data: GET /dashboard/api/d2 and /dashboard/api/d3 (session cookie). Writes: "+ Log" on Workouts and Date nights
 // (POST /dashboard/api/habits) and the Review page's buttons (existing writes only, see review.js).
 import { esc } from './util.js';
@@ -15,8 +15,9 @@ import { renderScripts } from './scripts.js';
 import { renderBluesky } from './bluesky.js';
 import { renderSystem } from './system.js';
 import { sourcesCard } from './sources.js';
+import { renderFactory } from './factory.js';
 
-const PAGES = { goals: 'Goals', team: 'Team', blockers: 'Blockers', review: 'Review', scripts: 'Scripts', money: 'Money', bluesky: 'Bluesky', system: 'System' };
+const PAGES = { goals: 'Goals', team: 'Team', factory: 'Factory', blockers: 'Blockers', review: 'Review', scripts: 'Scripts', money: 'Money', bluesky: 'Bluesky', system: 'System' };
 const SIGNIN = 'd3-signin';
 const main = document.getElementById('main');
 // Review state that belongs to one item: cleared when the item or the page changes.
@@ -79,7 +80,9 @@ function render() {
     : S.error ? `<section class="card"><p class="mut">${esc(S.error)}</p></section>` : '';
   if (p !== 'money' && S.ui.lastPage === 'money') S.ui.dealSel = null; // leaving Money clears the picked deal's outline
   S.ui.lastPage = p;
-  const live = { team: renderTeam, blockers: renderBlockers, review: renderReview, scripts: renderScripts, money: renderMoney }[p];
+  // The Factory page counts "updated N s ago" on the server's clock: its time at the last load plus the time since.
+  S.ui.now = S.d3 ? Date.parse(S.d3.asOf) + (Date.now() - (S.d3Got || Date.now())) : null;
+  const live = { factory: (d2, d3, ui) => renderFactory(d3, ui, d2), team: renderTeam, blockers: renderBlockers, review: renderReview, scripts: renderScripts, money: renderMoney }[p];
   if (live) {
     main.innerHTML = S.d3 ? `${note}${live(S.d2, S.d3, S.ui)}` : `${headerOnly(S.d2, PAGES[p])}${note || '<section class="card"><p class="mut">Loading</p></section>'}`;
     if (p === 'money' && S.d3 && S.ui.dealSel && !S.ui.dealDone) { // a deal opened from Pipeline revenue: bring it into view once
@@ -139,6 +142,7 @@ async function load() {
       S.signedOut = false;
       S.d2 = a.body;
       S.d3 = b.body;
+      S.d3Got = Date.now();
       S.error = '';
     }
   } catch (err) {
@@ -233,6 +237,21 @@ window.addEventListener('hashchange', () => {
   render();
   if (page() === 'review' && !S.ui.rvThreads?.threads) loadThreads().then(() => { if (page() === 'review') render(); });
 });
+// The Factory page alone re-reads /dashboard/api/d3 every 15 s while it is open and the tab is visible.
+let fastBusy = false;
+async function loadFactory() {
+  if (fastBusy || S.signedOut || page() !== 'factory' || document.visibilityState !== 'visible') return;
+  fastBusy = true;
+  try {
+    const b = await getJson('/dashboard/api/d3');
+    if (b.signedOut) { await load(); return; } // the full load handles signing in again
+    S.d3 = b.body;
+    S.d3Got = Date.now();
+    rail();
+    if (page() === 'factory') render();
+  } catch { /* keep what is shown; the 60 s load reports errors */ } finally { fastBusy = false; }
+}
+setInterval(loadFactory, 15000);
 setInterval(() => { if (document.visibilityState === 'visible') load(); }, 60000);
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') load(); });
 render();
