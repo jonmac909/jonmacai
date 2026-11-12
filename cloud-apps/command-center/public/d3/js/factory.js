@@ -1,7 +1,9 @@
 // Dashboard 3 Factory page (docs/dashboard-3.md): live progress of the new video program, laid out as the old Factory
 // page (/dashboard/#factory, public/js/pages/factory.js): one table, a row per video, a column per step (and, when the
 // board sends a step's own sub-steps as `parts`, a column per part under the step's heading, each with its own
-// progress bar). When the board lists `channels`, the videos sit under a heading per channel. renderFactory is
+// progress bar). When a video carries `stages` (the steps folded into a few columns, each with its own `label`), the
+// page draws the stages and not the steps: a column per stage, no part columns, and a last column "Total time" when
+// the board sends each video's `started`. When the board lists `channels`, the videos sit under a heading per channel. renderFactory is
 // a pure function over the /dashboard/api/d3 answer (d3.factory = the newest video_line feed entry, built in src/d3.js).
 // Everything from the feed is data: every string is escaped, none is ever HTML.
 import { esc } from './util.js';
@@ -49,7 +51,30 @@ function kindOf(job) {
 }
 function stepKind(st) {
   const s = String(st?.status || '').toLowerCase();
-  return s === 'running' ? 'run' : s === 'done' ? 'done' : s === 'failed' ? 'fail' : 'todo';
+  return s === 'running' ? 'run' : s === 'done' ? 'done' : s === 'failed' ? 'fail' : s === 'skip' ? 'skip' : s === 'waiting' ? 'hold' : 'todo';
+}
+// A review page address the page may link to: only jonmac.ai's own review pages. '' for anything else.
+const reviewHref = (u) => (typeof u === 'string' && /^https:\/\/jonmac\.ai\/review\/[a-z0-9][a-z0-9-]{0,79}$/.test(u) ? u : '');
+// The Done pill: a link to the video's review page when the board sends one, else the pill with the file as its tooltip.
+const donePill = (job) => (reviewHref(job.review_url)
+  ? `<a class="fypill ok fylink" href="${esc(reviewHref(job.review_url))}" target="_blank" rel="noopener" title="Open the review page">Done</a>`
+  : pill('Done', 'ok', job.final));
+// The whole time a video took, in minutes: from `started` to `ended`, or to now while it is still being made (a live
+// board only). null when the board does not send the times (an older board).
+export function totalMinutes(job, nowMs, live) {
+  const from = typeof job?.started === 'string' ? Date.parse(job.started) : NaN;
+  const to = typeof job?.ended === 'string' ? Date.parse(job.ended) : NaN;
+  if (Number.isFinite(from) && Number.isFinite(to)) return Math.max(0, Math.floor((to - from) / 60000));
+  if (Number.isFinite(from) && !job.ended && live && num(nowMs)) return Math.max(0, Math.floor((nowMs - from) / 60000));
+  return num(job?.total_minutes) ? job.total_minutes : null;
+}
+// The last column: the state pill and under it the whole time the video took; on an older board, the minutes in its state.
+function lastCell(job, kind, nowMs, live, attrs = '') {
+  const state = kind === 'need' ? pill('Needs you', 'crit') : kind === 'done' ? donePill(job) : '';
+  const total = totalMinutes(job, nowMs, live);
+  const min = total != null ? wait(total) : /^\d+(\.\d+)?$/.test(String(job.minutes_in_state ?? '')) ? wait(Number(job.minutes_in_state)) : '';
+  const tip = total != null ? ` title="${job.ended ? 'From the start of the video until its render was finished and checked' : 'Since the video was started; still counting'}"` : '';
+  return `<td class="fywait"${attrs}>${state}<small${tip}>${esc(min)}</small></td>`;
 }
 
 // Videos in page order; inside a group the oldest first (by `created`, else the feed's order).
@@ -153,6 +178,16 @@ function stepSum(job, st, firstTodo, span, mine) {
 function cell(job, st, live, firstTodo) {
   if (!st) return '<td class="fycell"></td>';
   const k = stepKind(st);
+  if (k === 'skip') return '<td class="fycell" title="Not a part of this video"><span class="fyskip" role="img" aria-label="Not a part of this video">–</span></td>';
+  if (k === 'hold') {
+    const why = st.doing || st.note;
+    return `<td class="fycell"${why ? ` title="${esc(why)}"` : ''}><span class="fynew">Waiting</span>${why ? `<small class="fywhy">${esc(short(why))}</small>` : ''}</td>`;
+  }
+  if (k === 'todo' && num(st.total) && st.total > 0 && num(st.done) && st.done > 0) { // begun, nothing of it running now
+    const done = Math.min(st.done, st.total);
+    const pct = Math.round((done / st.total) * 100);
+    return `<td class="fycell"><div class="fyrun"><div class="fypg" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pct}"><i style="width:${pct}%"></i></div><span>${done}/${st.total}</span></div></td>`;
+  }
   if (k === 'done') return `<td class="fycell">${svg('fyok', 'Done', 'M5 13l4 4L19 7')}${wait(st.minutes) ? `<small>${esc(wait(st.minutes))}</small>` : ''}</td>`;
   if (k === 'run') {
     const total = num(st.total) && st.total > 0 ? st.total : 0;
@@ -181,8 +216,6 @@ function wideRows(job, cols, groups, live, key, now, grouped) {
   const kind = kindOf(job);
   const steps = list(job.steps).filter((s) => s && typeof s === 'object');
   const firstTodo = steps.find((s) => stepKind(s) === 'todo');
-  const min = /^\d+(\.\d+)?$/.test(String(job.minutes_in_state ?? '')) ? wait(Number(job.minutes_in_state)) : '';
-  const state = kind === 'need' ? pill('Needs you', 'crit') : kind === 'done' ? pill('Done', 'ok', job.final) : '';
   let top = '';
   let low = '';
   cols.forEach((c, i) => {
@@ -196,21 +229,26 @@ function wideRows(job, cols, groups, live, key, now, grouped) {
       top += cell(job, st, false, firstTodo).replace('<td class="fycell', `<td colspan="${span}" rowspan="2" class="fycell fyg1`);
     }
   });
-  return `<tr class="fyrow fytop" data-id="${esc(key)}" data-kind="${kind}"><td class="fyvid" rowspan="2"><b>${esc(job.id)}</b>${grouped ? '' : `<small>${esc(job.channel)}</small>`}</td>${top}<td class="fywait" rowspan="2">${state}<small>${esc(min)}</small></td></tr>
+  return `<tr class="fyrow fytop" data-id="${esc(key)}" data-kind="${kind}"><td class="fyvid" rowspan="2"><b>${esc(job.id)}</b>${grouped ? '' : `<small>${esc(job.channel)}</small>`}</td>${top}${lastCell(job, kind, now, live, ' rowspan="2"')}</tr>
 <tr class="fyrow fylow" data-id="${esc(key)}~parts" data-kind="${kind}">${low}</tr>`;
 }
 
-function rowHtml(job, cols, live, key, grouped) {
+function rowHtml(job, cols, live, key, grouped, now) {
   const kind = kindOf(job);
   const steps = list(job.steps).filter((s) => s && typeof s === 'object');
   const firstTodo = steps.find((s) => stepKind(s) === 'todo');
-  const min = /^\d+(\.\d+)?$/.test(String(job.minutes_in_state ?? '')) ? wait(Number(job.minutes_in_state)) : '';
-  const state = kind === 'need' ? pill('Needs you', 'crit') : kind === 'done' ? pill('Done', 'ok', job.final) : '';
-  return `<tr class="fyrow" data-id="${esc(key)}" data-kind="${kind}"><td><b>${esc(job.id)}</b>${grouped ? '' : `<small>${esc(job.channel)}</small>`}</td>${cols.map((c) => cell(job, steps.find((s) => s.name === c), live, firstTodo)).join('')}<td class="fywait">${state}<small>${esc(min)}</small></td></tr>`;
+  return `<tr class="fyrow" data-id="${esc(key)}" data-kind="${kind}"><td><b>${esc(job.id)}</b>${grouped ? '' : `<small>${esc(job.channel)}</small>`}</td>${cols.map((c) => cell(job, steps.find((s) => s.name === c), live, firstTodo)).join('')}${lastCell(job, kind, now, live)}</tr>`;
 }
 
 // One line: how many are live now, how many videos sit at each step (the first step not done), how many are done, how many need you.
-function summary(jobs, cols, live) {
+function summary(jobs, cols, live, staged) {
+  if (staged) { // stages: several are called QC, so no count per column; how many are being made, done, need you
+    const liveN = live ? jobs.filter((j) => list(j.steps).some((s) => stepKind(s) === 'run')).length : 0;
+    const done = jobs.filter((j) => kindOf(j) === 'done').length;
+    const need = jobs.filter((j) => kindOf(j) === 'need').length;
+    const making = jobs.length - done - need;
+    return `<p class="fysum"><span class="fylc${liveN ? ' on' : ''}"><i class="fydot"></i><b>${liveN}</b> live now</span><span${making ? '' : ' class="z"'}><b>${making}</b> In progress</span><span${done ? '' : ' class="z"'}><b>${done}</b> Done</span>${pill(need === 1 ? '1 needs you' : `${need} need you`, need ? 'crit' : 'ok')}</p>`;
+  }
   const n = cols.map(() => 0);
   let done = 0;
   for (const j of jobs) {
@@ -260,10 +298,14 @@ function channelRows(c, span, wide, body) {
   return n ? `${headRow}\n${body}` : `${headRow}\n<tr class="fyrow fynone" data-id="${key}~none">${two('fychq', `<span>${esc(none)}</span>`, ` title="${esc(none)}"`)}</tr>`;
 }
 
-const HEAD = (status) => `<header class="hd fyhead"><div><h1>Factory</h1><p class="mut">Every video in the new video program, step by step. Updates on its own.</p></div><div class="fystatus sp" data-fy="status">${status}</div></header>`;
+const HEAD = (status) => `<header class="hd fyhead"><div><h1>Factory</h1><p class="mut">Every video in the new video program, stage by stage. Updates on its own.</p></div><div class="fystatus sp" data-fy="status">${status}</div></header>`;
 
 export function renderFactory(d3resp, ui = {}) {
-  const F = d3resp?.d3?.factory;
+  const F0 = d3resp?.d3?.factory;
+  // A board that sends `stages` (the steps folded into a few columns: Outlier, Script, QC, ...) is drawn by its stages:
+  // one column a stage, no column a part. A video without stages on such a board shows its steps, without their parts.
+  const staged = list(F0?.jobs).some((j) => list(j?.stages).length);
+  const F = staged ? { ...F0, jobs: list(F0.jobs).map((j) => (j && typeof j === 'object' ? { ...j, steps: (list(j.stages).length ? j.stages : list(j.steps)).filter((s) => s && typeof s === 'object').map(({ parts, ...st }) => st) } : j)) } : F0;
   if (!F || typeof F !== 'object') {
     return `<div class="fy">${HEAD(pill('Not publishing yet', 'crit'))}
 <section class="card"><p class="mut">No feed: the video program has not posted its board yet.</p></section></div>`;
@@ -275,6 +317,10 @@ export function renderFactory(d3resp, ui = {}) {
   const live = !stale; // a stale board shows nothing as live
   const jobs = factoryJobs(F);
   const cols = factoryCols(jobs);
+  const labels = new Map(); // a stage's heading: its label ("QC" for script_qc), else its name
+  for (const j of jobs) for (const st of list(j.steps)) if (st?.name && typeof st.label === 'string' && st.label && !labels.has(st.name)) labels.set(st.name, st.label);
+  const timed = jobs.some((j) => typeof j.started === 'string' && j.started); // the board sends each video's whole time
+  const lastHead = timed ? 'Total time' : 'Waiting';
   const seen = new Map(); // two videos with one id still get their own row
   const groups = factoryParts(jobs, cols);
   const wide = groups.some((g) => g.length); // the board sends parts: a column per part, grouped under its step
@@ -283,17 +329,17 @@ export function renderFactory(d3resp, ui = {}) {
   const chans = factoryChannels(F, jobs);
   const grouped = chans.length > 0;
   const span = wide ? partN + soloN + 2 : cols.length + 2;
-  const html = new Map(jobs.map((j) => { const id = String(j.id ?? ''); const n = seen.get(id) || 0; seen.set(id, n + 1); const key = n ? `${id}#${n}` : id; return [j, wide ? wideRows(j, cols, groups, live, key, nowMs, grouped) : rowHtml(j, cols, live, key, grouped)]; }));
+  const html = new Map(jobs.map((j) => { const id = String(j.id ?? ''); const n = seen.get(id) || 0; seen.set(id, n + 1); const key = n ? `${id}#${n}` : id; return [j, wide ? wideRows(j, cols, groups, live, key, nowMs, grouped) : rowHtml(j, cols, live, key, grouped, nowMs)]; }));
   const rows = grouped ? chans.map((c) => channelRows(c, span, wide, c.jobs.map((j) => html.get(j)).join('\n'))) : jobs.map((j) => html.get(j));
   if (!rows.length) rows.push(`<tr class="fyrow" data-id="_empty"><td colspan="${cols.length + 2}" class="mut">No videos in the program right now.</td></tr>`);
   const table = wide
     ? `<table class="fytable fyw" style="--fyn: ${soloN}; --fyp: ${partN}">
 <colgroup><col class="fyc1">${groups.map((g) => (g.length ? g.map(() => '<col class="fycp">').join('') : '<col class="fycs">')).join('')}<col class="fycw"></colgroup>
-<thead data-fy="cols"><tr><th class="fyh1" rowspan="2">Video</th>${cols.map((c, i) => (groups[i].length ? `<th class="fygrp fyg1" colspan="${groups[i].length}">${esc(head(c))}</th>` : `<th class="fycell fyg1" rowspan="2">${esc(head(c))}</th>`)).join('')}<th class="fyhw" rowspan="2">Waiting</th></tr>
+<thead data-fy="cols"><tr><th class="fyh1" rowspan="2">Video</th>${cols.map((c, i) => (groups[i].length ? `<th class="fygrp fyg1" colspan="${groups[i].length}">${esc(head(c))}</th>` : `<th class="fycell fyg1" rowspan="2">${esc(head(c))}</th>`)).join('')}<th class="fyhw" rowspan="2">${lastHead}</th></tr>
 <tr>${groups.map((g) => g.map((name, n) => `<th class="fypt${n ? '' : ' fyg1'}">${esc(head(name))}</th>`).join('')).join('')}</tr></thead>`
     : `<table class="fytable" style="--fyn: ${cols.length}">
 <colgroup><col class="fyc1">${cols.map(() => '<col class="fycs">').join('')}<col class="fycw"></colgroup>
-<thead data-fy="cols"><tr><th>Video</th>${cols.map((c) => `<th class="fycell">${esc(cap(c))}</th>`).join('')}<th>Waiting</th></tr></thead>`;
+<thead data-fy="cols"><tr><th>Video</th>${cols.map((c) => `<th class="fycell">${esc(labels.get(c) || cap(c))}</th>`).join('')}<th>${lastHead}</th></tr></thead>`;
   const needs = jobs.filter((j) => kindOf(j) === 'need').map((j) => {
     const np = j.needs_person && typeof j.needs_person === 'object' ? j.needs_person : {};
     return `<p class="fyneed"><b>${esc(j.id)}</b><span>${esc(cap(np.step || j.step))}</span><span>${esc(np.why || j.note || 'The video program is waiting for a person.')}</span><span class="fylook">${np.look_at ? `Look at ${esc(np.look_at)}` : ''}</span></p>`;
@@ -301,7 +347,7 @@ export function renderFactory(d3resp, ui = {}) {
   const events = list(F.events).filter((e) => typeof e === 'string').slice(-EVENTS).reverse();
   const unread = list(F.unreadable_jobs);
   return `<div class="fy">${HEAD(status)}
-<div data-fy="sum">${summary(jobs, cols, live)}</div>
+<div data-fy="sum">${summary(jobs, cols, live, staged)}</div>
 <section class="card fybox"><div class="fytblwrap">${table}
 <tbody class="fytbody">
 ${rows.join('\n')}

@@ -993,7 +993,7 @@ export const FEEDS = {
   },
   // The video program's board (a pusher on GPU1, as often as every 5 s: dash.py feed-put video_line --data-file
   // board.json), shown on Dashboard 3's Factory page. Shapes are checked (400 when wrong); long text and long lists are
-  // cut, never refused: 60 jobs, 12 steps a job, the newest 20 events, 300 characters a string. Only the newest entry is
+  // cut, never refused: 60 jobs, 20 steps and 20 stages a job, the newest 20 events, 300 characters a string. Only the newest entry is
   // ever read, so only the last 30 minutes are kept.
   video_line: {
     writers: ['developer', 'ana'],
@@ -1060,13 +1060,24 @@ export const FEEDS = {
         if (s.minutes != null && (typeof s.minutes !== 'number' || !Number.isFinite(s.minutes) || s.minutes < 0 || s.minutes > 1e6)) throw new Bad(400, `${k}.minutes must be a number or null`);
         if (!str(s.name, `${k}.name`)) throw new Bad(400, `${k}.name is required`);
         return {
-          name: str(s.name), status: str(s.status, `${k}.status`), tries: whole(s.tries, `${k}.tries`), minutes: s.minutes ?? null,
+          name: str(s.name), ...(s.label != null ? { label: str(s.label, `${k}.label`).slice(0, 40) } : {}),
+          status: str(s.status, `${k}.status`), tries: whole(s.tries, `${k}.tries`), minutes: s.minutes ?? null,
           started: when(s.started, `${k}.started`), ended: when(s.ended, `${k}.ended`),
           note: str(s.note, `${k}.note`), fix: str(s.fix, `${k}.fix`), doing: str(s.doing, `${k}.doing`),
           // Optional progress inside a running step ("8 of 11 checks"): kept only when the step sends it.
           ...(s.done != null ? { done: whole(s.done, `${k}.done`) } : {}), ...(s.total != null ? { total: whole(s.total, `${k}.total`) } : {}),
           ...(s.parts != null ? { parts: parts(s.parts, `${k}.parts`) } : {}),
         };
+      };
+      const totalMin = (v, k) => {
+        if (v == null) return null;
+        if (typeof v !== 'number' || !Number.isFinite(v) || v < 0 || v > 1e7) throw new Bad(400, `${k} must be a number or null`);
+        return v;
+      };
+      const reviewUrl = (v, k) => {
+        if (v == null || v === '') return '';
+        if (typeof v !== 'string') throw new Bad(400, `${k} must be text`);
+        return /^https:\/\/jonmac\.ai\/review\/[a-z0-9][a-z0-9-]{0,79}$/.test(v) ? v : '';
       };
       const job = (j, i) => {
         const k = `jobs[${i}]`;
@@ -1080,7 +1091,15 @@ export const FEEDS = {
           steps_done: whole(j.steps_done, `${k}.steps_done`), steps_total: whole(j.steps_total, `${k}.steps_total`),
           needs_person: np && { step: str(np.step, `${k}.needs_person.step`), why: str(np.why, `${k}.needs_person.why`), look_at: str(np.look_at, `${k}.needs_person.look_at`), since: str(np.since, `${k}.needs_person.since`) },
           final: str(j.final, `${k}.final`),
-          steps: arr(j.steps ?? [], `${k}.steps`).slice(0, 12).map((s, n) => step(s, `${k}.steps[${n}]`)),
+          steps: arr(j.steps ?? [], `${k}.steps`).slice(0, 20).map((s, n) => step(s, `${k}.steps[${n}]`)),
+          // The page's own columns: the steps folded into a few stages (Outlier, Script, QC, ...), each shaped as a step
+          // with a `label`. Kept only when sent; the page then draws the stages and not the steps.
+          ...(j.stages != null ? { stages: arr(j.stages, `${k}.stages`).slice(0, 20).map((s, n) => step(s, `${k}.stages[${n}]`)) } : {}),
+          // The whole time the video took: `started` to `ended` (null while it is still being made) and those minutes.
+          started: when(j.started, `${k}.started`), ended: when(j.ended, `${k}.ended`),
+          total_minutes: totalMin(j.total_minutes, `${k}.total_minutes`),
+          // The video's review page. Only a jonmac.ai review address is kept: the page makes a link of it.
+          ...(reviewUrl(j.review_url, `${k}.review_url`) ? { review_url: reviewUrl(j.review_url, `${k}.review_url`) } : {}),
         };
       };
       if (b.scheduler_running != null && typeof b.scheduler_running !== 'boolean') throw new Bad(400, 'scheduler_running must be true, false or null');

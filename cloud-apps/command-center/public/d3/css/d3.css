@@ -304,6 +304,9 @@ html[data-theme="dark"] body{background:#0b0b0c}
 .d3 .fytable td b{display:block;font-weight:600;overflow-wrap:anywhere}
 .d3 .fywait .fypill{margin-bottom:.2rem}
 .d3 .fynew{font-size:.78rem;color:var(--muted)}
+.d3 .fyskip{color:var(--muted)}
+.d3 a.fypill.fylink{text-decoration:none;cursor:pointer}
+.d3 a.fypill.fylink:hover{text-decoration:underline}
 .d3 .fytable td small.fywhy{font-size:.74rem;overflow-wrap:anywhere}
 .d3 .fyok{color:var(--ok)}
 .d3 .fybad{color:var(--bad)}
