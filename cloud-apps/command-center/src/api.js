@@ -5,11 +5,11 @@ import {
 } from './auth.js';
 import {
   loginStore, insertAction, actionByIdem, actionById, claimQueued, claimedVideo, completeAction,
-  reportAction, upsertHabit, upsertSnapshot, listSnapshots, getSnapshot, upsertDealStage, listDealStages, listIdeas, upsertIdea, listHabits,
+  reportAction, upsertHabit, upsertSnapshot, listSnapshots, getSnapshot, getSponsorDeals, putSponsorDeals, upsertDealStage, listDealStages, listIdeas, upsertIdea, listHabits,
 } from './db.js';
 import { mergeSnapshot } from './snapshot.js';
 import { listFunnel } from './webinar.js';
-import { boardStageFor, dealThreadIds, draftThreadIds, mapColumn } from './sponsors.js';
+import { boardStageFor, dealThreadIds, draftThreadIds } from './sponsors.js';
 import { runMoneyMove } from './money.js';
 import { exchangeGoogleCode, googleAuthUrl, runLife } from './life.js';
 import { REVIEW_SOURCE, draftId, isIsolated, parseReview, plannerDestination, reviewMutate, upsertReview } from './review.js';
@@ -40,6 +40,7 @@ function ownedOutputKey(payload) {
   return id && !String(id).includes('/') && !String(id).includes('..') ? `uploads/${id}/out.mp4` : null;
 }
 function targetFor(kind) {
+  if (kind === 'sponsor.add_deal' || kind === 'sponsor.set_amount') return 'worker'; // kept on the Worker, never queued to the Mac
   if (kind.startsWith('sponsor.') || kind.startsWith('bank.')) return 'mac';
   if (kind === 'mastermind.send_to_planner') return 'gpu2'; // Viral View's "Send to Planner"
   return 'worker';
@@ -110,7 +111,7 @@ function filterSnapshot(pages) {
 
 // The bot-table and calendar rows the live pages need, shared by /snapshot and /d2.
 async function snapshotExtra(env, base, now) {
-  const extra = { habits: await listHabits(env.DB), funnel: await listFunnel(env.CLONE_DB) };
+  const extra = { habits: await listHabits(env.DB), funnel: await listFunnel(env.CLONE_DB), deals: await getSponsorDeals(env.DB) };
   if (base.pages.today || base.pages.projects || base.pages.todo) extra.today = await todayData(env.DB, now, monthWindow(now).key);
   if (base.pages.calendar || base.pages.content) extra.channels = await channelData(env.DB, now);
   return extra;
@@ -171,6 +172,27 @@ async function postAction(request, env) {
   if (kind === 'sponsor.move_stage' && env.DB && payload.id && payload.stage) {
     await upsertDealStage(env.DB, String(payload.id), asBoardStage(payload.stage), now);
   }
+  if ((kind === 'sponsor.add_deal' || kind === 'sponsor.set_amount') && env.DB) {
+    const deals = await getSponsorDeals(env.DB);
+    const tid = String(payload.threadId || '');
+    const dealId = String(payload.id || (tid ? `gmail-thread-${tid}` : ''));
+    if (!dealId) return json({ id, status: 'failed', result: 'id required' }, 400);
+    const prev = deals[dealId] || {};
+    if (kind === 'sponsor.add_deal') {
+      const stage = asBoardStage(payload.stage || 'new-lead');
+      deals[dealId] = {
+        ...prev, id: dealId, sponsor: String(payload.brand || payload.sponsor || prev.sponsor || dealId), contact: String(payload.contact || prev.contact || ''),
+        stage, ...(Number(payload.amount) > 0 ? { amountSet: Number(payload.amount) } : {}), next: String(payload.next ?? prev.next ?? ''),
+        blocker: String(payload.blocker ?? prev.blocker ?? ''), status: String(payload.status ?? prev.status ?? ''), subject: String(payload.subject ?? prev.subject ?? ''),
+        threadId: tid || prev.threadId || dealId.replace(/^gmail-thread-/, ''), added: prev.added || now, updatedAt: now,
+      };
+      await upsertDealStage(env.DB, dealId, stage, now);
+    } else {
+      deals[dealId] = { ...prev, id: dealId, amountSet: Number(payload.amount) || 0, updatedAt: now };
+    }
+    await putSponsorDeals(env.DB, deals, now);
+    result = kind === 'sponsor.add_deal' ? `Added ${deals[dealId].sponsor}` : 'Amount set';
+  }
   if (kind === 'mastermind.send_to_planner' && env.DB && payload.id) {
     const ideas = await listIdeas(env.DB);
     const existing = ideas.find((i) => i.id === payload.id);
@@ -230,9 +252,10 @@ async function postAction(request, env) {
   return json({ id, status, result: status === 'queued' ? null : result });
 }
 
+const KNOWN_STAGES = new Set(['drafts', 'new-lead', 'negotiating', 'contract-brief', 'invoice-sent', 'deposit-paid', 'script-approval', 'production', 'video-approval', 'publishing', 'balance-invoice', 'paid', 'done', 'archived']);
 function asBoardStage(stage) {
   const s = String(stage || '');
-  return mapColumn(s) !== 'New inquiry' || s === 'drafts' || s === 'new-lead' ? s : boardStageFor(s);
+  return KNOWN_STAGES.has(s) ? s : boardStageFor(s);
 }
 
 function resultText(value) {
@@ -342,7 +365,7 @@ export async function handleApi(request, env, ctx) {
     const row = env.DB ? await getSnapshot(env.DB, 'sponsors') : null;
     const data = row ? JSON.parse(row.data || '{}') : {};
     // ...and every deal on the Money page, for its deal view (same stage overrides as the board).
-    const deals = dealThreadIds(data, Date.now(), env.DB ? await listDealStages(env.DB) : {});
+    const deals = dealThreadIds(data, Date.now(), env.DB ? await listDealStages(env.DB) : {}, await getSponsorDeals(env.DB));
     return json({ ok: true, threads: [...new Set([...draftThreadIds(data.cards || []), ...deals])] });
   }
 

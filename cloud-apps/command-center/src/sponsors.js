@@ -11,7 +11,7 @@ const STAGE_TO_COLUMN = {
   'deposit-paid': COLUMNS[3], 'script-approval': COLUMNS[3],
   production: COLUMNS[4],
   'video-approval': COLUMNS[5],
-  publishing: COLUMNS[6],
+  publishing: COLUMNS[6], 'balance-invoice': COLUMNS[6],
   paid: COLUMNS[7], done: COLUMNS[7],
 };
 const COLUMN_TO_BOARD = {
@@ -28,7 +28,7 @@ const COL_PCT = {
   'New inquiry': 12, Negotiating: 25, 'Waiting on deposit': 37, 'Script approval': 50,
   'With editor': 62, 'Video approval': 75, 'Live · send invoice': 87, Paid: 100,
 };
-const ACTIVE = new Set(['deposit-paid', 'script-approval', 'production', 'video-approval', 'publishing', 'paid']);
+const ACTIVE = new Set(['deposit-paid', 'script-approval', 'production', 'video-approval', 'publishing', 'balance-invoice', 'paid']);
 
 export function mapColumn(stage) {
   return STAGE_TO_COLUMN[stage] || 'New inquiry';
@@ -90,18 +90,39 @@ function hasDraft(card) {
 export function draftThreadIds(cards) {
   return [...new Set((cards || []).filter((c) => c.stage !== 'archived' && hasDraft(c)).map((c) => String(c.threadId || '')).filter((t) => /^[0-9a-f]{6,32}$/i.test(t)))];
 }
+// Cards placed by hand: a stage override applied, or a deal added through sponsor.add_deal. They are curated:
+// kept on the board unless archived, and exempt from the d2 junk filter and the 60-day quiet archive.
+export function withDeals(data, overrides = {}, deals = {}) {
+  const added = Object.values(deals || {}).filter((d) => d && d.added && d.id);
+  const ids = new Set(added.map((d) => d.id));
+  const base = (data?.cards || []).filter((c) => !ids.has(c.id));
+  const cards = [...base, ...added.map((d) => ({
+    id: d.id, sponsor: d.sponsor || d.id, contact: d.contact || '', stage: d.stage || 'new-lead', amount: d.amount ?? null,
+    status: d.status || '', latestDate: d.updatedAt || d.added || '', to: '', threadId: d.threadId || '', subject: d.subject || '',
+    reason: '', needsDraft: false, next: d.next || '', blocker: d.blocker || '', added: true,
+  }))];
+  return cards.map((c) => {
+    let out = c;
+    if (overrides[c.id]) out = { ...out, stage: overrides[c.id], moved: true };
+    const set = Number(deals?.[c.id]?.amountSet);
+    if (set > 0) out = { ...out, amountSet: set };
+    return c.added ? { ...out, moved: true } : out;
+  });
+}
 export function keepCard(card, nowMs, items) {
   if (card.stage === 'archived') return false;
+  if (card.moved) return true;
   const t = Date.parse(card.latestDate);
   if (card.stage === 'done' && Number.isFinite(t) && ymd(t).slice(0, 7) !== ymd(nowMs).slice(0, 7)) return false;
   return !!(matchItem(card, items) || hasDraft(card) || ACTIVE.has(card.stage));
 }
 // Gmail thread ids (hex) of the deals the Money page shows: board cards (keepCard, stage overrides applied) not yet
 // archived for 60 quiet days, the same cut as the d2 Sponsors board. GPU1 reads these for each deal's own view.
-export function dealThreadIds(data, nowMs = Date.now(), overrides = {}) {
+export function dealThreadIds(data, nowMs = Date.now(), overrides = {}, deals = {}) {
   const items = data?.collections?.items || [];
-  return [...new Set((data?.cards || []).map((c) => (overrides[c.id] ? { ...c, stage: overrides[c.id] } : c)).filter((c) => {
+  return [...new Set(withDeals(data, overrides, deals).filter((c) => {
     if (!keepCard(c, nowMs, items)) return false;
+    if (c.moved) return true;
     const last = Date.parse(c.latestDate);
     return !(Number.isFinite(last) && nowMs - last >= 60 * 86400000);
   }).map((c) => String(c.threadId || '')).filter((t) => /^[0-9a-f]{6,32}$/i.test(t)))];
@@ -144,10 +165,10 @@ export function sourceEditedAt(data) {
 
 // `cash` (buildCash) carries every deposit for the calendar month. When it has data, "collected" is that
 // total; otherwise it falls back to the hand-recorded collections.json month total.
-export function buildSponsorsPage(data, nowMs = Date.now(), overrides = {}, cash = null) {
+export function buildSponsorsPage(data, nowMs = Date.now(), overrides = {}, cash = null, deals = {}) {
   const col = data.collections || {};
   const items = col.items || [];
-  const cards = (data.cards || []).map((c) => (overrides[c.id] ? { ...c, stage: overrides[c.id] } : c));
+  const cards = withDeals(data, overrides, deals);
   const cal = parts(nowMs);
   const deposits = cash?.available ? cash : null;
   const monthName = deposits ? deposits.month.label : col.currentIncomeMonth;
@@ -183,13 +204,14 @@ export function buildSponsorsPage(data, nowMs = Date.now(), overrides = {}, cash
     if (!keepCard(card, nowMs, items)) continue;
     const stage = mapColumn(card.stage);
     const item = matchItem(card, items);
-    const amt = item ? Number(item.total) : Number(card.amount) || 0;
+    const amt = card.amountSet > 0 ? card.amountSet : item ? Number(item.total) : Number(card.amount) || 0;
     const { pill, pillCls } = pillFor(card, item, nowMs);
     const draft = hasDraft(card);
     const k = {
       id: card.id,
       name: card.sponsor,
       boardStage: card.stage,
+      ...(card.moved ? { curated: true } : {}),
       pill,
       pillCls,
       amt,
@@ -201,8 +223,8 @@ export function buildSponsorsPage(data, nowMs = Date.now(), overrides = {}, cash
       // blocker and next step (null when the sheet has no row for this deal: the page says "not set").
       threadId: card.threadId || '',
       status: card.status || '',
-      blocker: item ? String(item.blocker || '') : null,
-      next: item ? String(item.action || '') : null,
+      blocker: item ? String(item.blocker || '') : card.added ? String(card.blocker || '') : null,
+      next: item ? String(item.action || '') : card.added ? String(card.next || '') : null,
     };
     if (draft) {
       k.btn = 'Review';

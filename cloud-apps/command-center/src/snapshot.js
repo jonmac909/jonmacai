@@ -70,7 +70,7 @@ export function mergeSnapshot(fixture, rows, nowMs = Date.now(), overrides = {},
   if (sponsors && out.pages.sponsors) {
     const data = parseData(sponsors.data);
     if (data.collections) {
-      const page = buildSponsorsPage(data, nowMs, overrides, cash);
+      const page = buildSponsorsPage(data, nowMs, overrides, cash, extra.deals || {});
       const copiedMs = Date.parse(sponsors.collected_at);
       const copied = Number.isFinite(copiedMs) ? ageLabel(Math.max(0, nowMs - copiedMs)).replace(/^updated /, '') : 'unknown';
       page.sub = `Source edited ${sourceEditedAt(data) || 'unknown'} · copied ${copied} · ${cash.available ? `money from deposits (${cash.source.label})` : 'not reconciled cash'}`;

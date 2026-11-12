@@ -652,10 +652,10 @@ function cleanSponsors(C) {
   for (const col of copy.board.columns) {
     col.cards = col.cards.filter((k) => {
       const r = raw.get(k.id);
-      const kind = !(k.amt > 0) && junkOf(r);
+      const kind = !k.curated && !(k.amt > 0) && junkOf(r);
       if (kind) { hidden[kind]++; return false; }
       const last = Date.parse(r?.latestDate);
-      if (Number.isFinite(last) && C.nowMs - last >= 60 * DAY) { archived.push(k); return false; }
+      if (!k.curated && Number.isFinite(last) && C.nowMs - last >= 60 * DAY) { archived.push(k); return false; }
       if (col.boardStage !== 'paid') {
         if (k.amt > 0) { value.usd += k.amt; value.priced++; } else value.unpriced++;
       }
