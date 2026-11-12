@@ -5945,7 +5945,8 @@
       "hidden": {
        "receipts": 1,
        "refunds": 1,
-       "newsletters": 1
+       "newsletters": 1,
+       "invites": 0
       },
       "value": {
        "usd": 6700,
