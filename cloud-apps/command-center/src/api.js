@@ -275,15 +275,28 @@ async function d2Build(env, now) {
 // Bots with a v1 token (2026-11-11): the sponsor plan loader posts the same actions Jon's board does (same handler and
 // checks as /actions, these kinds only), and a bot reads the Sponsors page plus the Goals pipeline totals Jon sees.
 const SPONSOR_BOTS = ['developer', 'ana'];
-const SPONSOR_BOT_KINDS = ['sponsor.move_stage', 'sponsor.add_deal', 'sponsor.set_amount'];
+const SPONSOR_BOT_FIELDS = {
+  'sponsor.move_stage': ['id', 'stage'],
+  'sponsor.add_deal': ['id', 'threadId', 'brand', 'sponsor', 'contact', 'stage', 'amount', 'next', 'blocker', 'status', 'subject'],
+  'sponsor.set_amount': ['id', 'amount', 'brand'],
+};
+const SPONSOR_BOT_KINDS = Object.keys(SPONSOR_BOT_FIELDS);
 async function sponsorsForBot(request, env, rest) {
   const bot = await botOf(request, env.DB);
   if (!bot) return json({ ok: false, error: 'Unauthorized' }, 401);
   if (!SPONSOR_BOTS.includes(bot)) return json({ ok: false, error: `Only ${SPONSOR_BOTS.join(', ')} can use this` }, 403);
   if (rest === '/v1/sponsors/actions' && request.method === 'POST') {
     const body = await request.json().catch(() => null);
-    if (!body || typeof body !== 'object' || !SPONSOR_BOT_KINDS.includes(body.kind)) return json({ ok: false, error: `kind must be one of: ${SPONSOR_BOT_KINDS.join(', ')}` }, 400);
-    return postAction(request, env, body);
+    if (!body || typeof body !== 'object' || Array.isArray(body) || !SPONSOR_BOT_KINDS.includes(body.kind)) return json({ ok: false, error: `kind must be one of: ${SPONSOR_BOT_KINDS.join(', ')}` }, 400);
+    const p = body.payload && typeof body.payload === 'object' ? body.payload : {};
+    // Only this kind's own fields reach postAction (no msg, isolated or other extras).
+    const payload = Object.fromEntries(SPONSOR_BOT_FIELDS[body.kind].filter((k) => p[k] != null).map((k) => [k, p[k]]));
+    if (body.kind === 'sponsor.move_stage' && (!/^gmail-thread-[0-9a-f]{6,32}$/i.test(String(payload.id || '')) || !KNOWN_STAGES.has(String(payload.stage || '')))) {
+      return json({ ok: false, error: 'move_stage needs a gmail-thread-<hex> id and a known stage' }, 400);
+    }
+    // Bot keys live in their own namespace: no reading Jon's actions by key, and the row records the bot.
+    const idemKey = `bot:${bot}:${body.idemKey != null ? String(body.idemKey).slice(0, 400) : crypto.randomUUID()}`;
+    return postAction(request, env, { kind: body.kind, payload, idemKey });
   }
   if (rest === '/v1/sponsors' && request.method === 'GET') {
     const now = Date.now();
