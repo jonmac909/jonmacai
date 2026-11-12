@@ -1,6 +1,6 @@
 // Dashboard 3 Home: Jon's saved schedule (migration 0026_home_tasks.sql) and his Google Calendar week.
 // GET /dashboard/api/home reads it; the writes below are Jon's only (session + X-CC, checked by the caller).
-import { TZ, ymd } from './life.js';
+import { TZ, ymd, gClientId, gClientSecret } from './life.js';
 import { upsertHabit } from './db.js';
 
 const CATS = ['factory', 'sponsors', 'personal', 'pnl'];
@@ -63,7 +63,7 @@ export async function homeData(env, nowMs = Date.now()) {
     calendar: {
       connected: !!snap?.connected,
       // Connecting needs the Google sign-in key on the Worker; without it the link would only answer 501.
-      canConnect: !!(env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET && env.SESSION_SECRET),
+      canConnect: !!(gClientId(env) && gClientSecret(env) && env.SESSION_SECRET),
       at: cal[0]?.received_at || null,
       events: (snap?.events || []).filter(timed).map((e) => ({ title: String(e.title || 'Busy').slice(0, 200), start: e.start, end: e.end || e.start })),
     },

@@ -497,7 +497,7 @@ export async function handleApi(request, env, ctx) {
     if (cc) return cc;
   }
   if (rest === '/google/start' && method === 'GET') {
-    if (!env.GOOGLE_CLIENT_ID || !env.SESSION_SECRET) return json({ error: 'Google Calendar is not connected yet' }, 501);
+    if (!gClientId(env) || !env.SESSION_SECRET) return json({ error: 'Google Calendar is not connected yet' }, 501);
     return Response.redirect(await googleAuthUrl(env, url.origin), 302);
   }
   if (rest === '/youtube/connect' && method === 'GET') return youtubeConnect(request, env);
