@@ -30,6 +30,14 @@ export function clock(startIso, nowMs) {
   return t >= 3600 ? `${Math.floor(t / 3600)}:${two(Math.floor((t % 3600) / 60))}:${two(t % 60)}` : `${Math.floor(t / 60)}:${two(t % 60)}`;
 }
 const short = (s, n = 46) => { const t = String(s || '').trim(); return t.length > n ? `${t.slice(0, n - 1).trimEnd()}…` : t; };
+// A tool's own name ("preflight_render:") means nothing to Jon: drop snake_case names that lead a clause.
+const plain = (s) => String(s || '').replace(/\b[a-z0-9]+(?:_[a-z0-9]+)+:\s*/g, '').replace(/\s+/g, ' ').trim();
+// A failed note's part name ("Render check: ...") and the rest, both in plain words.
+function failText(raw) {
+  const t = plain(raw);
+  const m = /^([A-Z][A-Za-z ]{1,28}):\s+(.+)$/.exec(t);
+  return m ? { part: m[1], note: m[2] } : { part: '', note: t };
+}
 const pill = (text, cls = '', title = '') => `<span class="fypill${cls ? ` ${cls}` : ''}"${title ? ` title="${esc(title)}"` : ''}>${esc(text)}</span>`;
 const svg = (cls, label, d, px = 20) => `<span class="${cls}" role="img" aria-label="${label}"><svg viewBox="0 0 24 24" width="${px}" height="${px}" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="${d}"/></svg></span>`;
 
@@ -218,10 +226,14 @@ function cell(job, st, live, firstTodo) {
     const doing = st.doing || st.note;
     return `<td class="fycell${live ? ' fylv' : ''}"${doing ? ` title="${esc(doing)}"` : ''}>${bar}${live ? '<span class="fylt"><i class="fydot"></i>Live</span>' : ''}${doing ? `<small class="fylx">${esc(short(doing, 70))}</small>` : ''}</td>`;
   }
-  if (k === 'fail') {
-    const full = [st.note, st.fix ? `Fix: ${st.fix}` : ''].filter(Boolean).join(' · ');
-    const why = st.note ? short(st.note) : num(st.tries) && st.tries > 1 ? `Failed, try ${st.tries}` : 'Failed';
-    return `<td class="fycell"><div class="fyfail" title="${esc(full)}">${svg('fybad', 'Failed', 'M6 18L18 6M6 6l12 12')}<small>${esc(why)}</small></div></td>`;
+  if (k === 'fail') { // a short plain label in the cell; the whole note and the fix open from "Why?" (Jon, 2026-11-12)
+    const { part, note } = failText(st.note);
+    const fix = plain(st.fix);
+    const full = [note, fix && fix !== note ? `Fix: ${fix}` : ''].filter(Boolean).join(' · ');
+    const tries = num(st.tries) && st.tries > 1 ? `try ${st.tries}` : '';
+    const sub = [part, tries].filter(Boolean).join(' · ');
+    const why = full ? `<details class="fywhyd"><summary>Why?</summary><div class="fypop">${note ? `<p>${esc(note)}</p>` : ''}${fix && fix !== note ? `<p><b>Fix:</b> ${esc(fix)}</p>` : ''}</div></details>` : '';
+    return `<td class="fycell"><div class="fyfail" title="${esc(full)}">${svg('fybad', 'Failed', 'M6 18L18 6M6 6l12 12')}<b class="fyfl">Failed</b>${sub ? `<small>${esc(sub)}</small>` : ''}${why}</div></td>`;
   }
   const why = st === firstTodo ? st.note || (kindOf(job) === 'wait' ? job.note : '') : '';
   if (why) return `<td class="fycell" title="${esc(why)}"><span class="fynew">Waiting</span><small class="fywhy">${esc(short(why))}</small></td>`;
@@ -388,7 +400,7 @@ function morph(a, b) {
   if (a.nodeType !== b.nodeType || a.nodeName !== b.nodeName) { a.replaceWith(b); return; }
   if (a.nodeType !== 1) { if (a.data !== b.data) a.data = b.data; return; }
   if (a.isEqualNode(b)) return;
-  for (const { name } of [...a.attributes]) if (!b.hasAttribute(name)) a.removeAttribute(name);
+  for (const { name } of [...a.attributes]) if (!b.hasAttribute(name) && !(name === 'open' && a.nodeName === 'DETAILS')) a.removeAttribute(name); // an open Why? stays open
   for (const { name, value } of [...b.attributes]) if (a.getAttribute(name) !== value) a.setAttribute(name, value);
   const [now, next] = [[...a.childNodes], [...b.childNodes]];
   if (now.length !== next.length) { a.replaceChildren(...next); return; }

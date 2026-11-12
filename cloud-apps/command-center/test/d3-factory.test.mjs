@@ -181,7 +181,7 @@ test('Factory page: the old Factory table, a row per video and a column per step
   // Failed: the red X with the short reason; the full note and the fix sit in the tooltip.
   const fail = row(html, 'fail-1');
   assert.match(fail, new RegExp(`<td class="fycell">${CHECK}<small>30m</small></td><td class="fycell"><div class="fyfail" title="The plan had 3 scenes with no picture · Fix: Add pictures for scenes 4, 9 and 12, then run it again"><span class="fybad" role="img" aria-label="Failed">`));
-  assert.match(fail, /<small>The plan had 3 scenes with no picture<\/small><\/div><\/td>/);
+  assert.match(fail, /<b class="fyfl">Failed<\/b><small>try 2<\/small><details class="fywhyd"><summary>Why\?<\/summary><div class="fypop"><p>The plan had 3 scenes with no picture<\/p><p><b>Fix:<\/b> Add pictures for scenes 4, 9 and 12, then run it again<\/p><\/div><\/details><\/div><\/td>/);
   assert.ok(fail.endsWith(`${IDLE}<td class="fywait"><small>3m</small></td>`));
   // Needs you: the red pill in the last column.
   assert.match(row(html, 'need-1'), /<td class="fywait"><span class="fypill crit">Needs you<\/span><small>15m<\/small><\/td>$/);
@@ -216,7 +216,7 @@ test('Factory page: measured progress, a reason to wait, long times, oldest firs
   assert.match(row(html, 'a-old'), /<td class="fycell" title="Starts when the pack is checked"><span class="fynew">Waiting<\/span><small class="fywhy">Starts when the pack is checked<\/small><\/td><td class="fywait"><small><\/small><\/td>$/);
   // The first step of a waiting video carries the video's own reason: full in the tooltip, one short line under "Waiting".
   assert.match(row(html, 'c-wait'), /<td class="fycell" title="Waiting for b-new to finish its pack: one pack is built at a time, and this is a long reason"><span class="fynew">Waiting<\/span><small class="fywhy">Waiting for b-new to finish its pack: one pac…<\/small><\/td><td class="fycell"><span class="fyidle"/);
-  assert.match(row(html, 'd-fail'), /<div class="fyfail" title=""><span class="fybad"[\s\S]*<small>Failed, try 3<\/small>/);
+  assert.match(row(html, 'd-fail'), /<div class="fyfail" title=""><span class="fybad"[\s\S]*<b class="fyfl">Failed<\/b><small>try 3<\/small><\/div>/);
   assert.match(row(html, 'e-done'), /<small>2h 5m<\/small><\/td><td class="fycell"><span class="fyok"[^>]*><svg[^>]*><path[^>]*><\/svg><\/span><\/td><td class="fywait"><span class="fypill ok">Done<\/span><small>59m<\/small>/);
   assert.match(html, /<span class="fylc on"><i class="fydot"><\/i><b>2<\/b> live now<\/span><span><b>4<\/b> Pack<\/span><span class="z"><b>0<\/b> Plan<\/span><span><b>1<\/b> Done<\/span><span class="fypill ok">0 need you<\/span>/);
   assert.match(html, /<div data-fy="needs"><\/div>/, 'no Needs you list when nobody is needed');
@@ -820,4 +820,13 @@ test('final QC in "changes": an amber Changes with Jon\'s comment, and the video
   assert.match(bare, /<span class="fypill chg">Changes<\/span><\/td>/);
   const css = readFileSync(new URL('../public/d3/css/d3.css', import.meta.url), 'utf8');
   assert.match(css, /\.d3 \.fypill\.chg\{background:color-mix\(in srgb,var\(--warn\)/);
+});
+
+test('Factory page: a failed cell says Failed and the part in plain words; the note opens from Why?', () => {
+  const b = fresh();
+  const plan = b.jobs.find((j) => j.id === 'fail-1').steps[1];
+  Object.assign(plan, { tries: 1, fix: '', note: 'Render check: preflight_render: 1 stretches over 12 s where nothing cuts and almost nothing moves: 103-116 s. Cut to a new picture or a moving clip.' });
+  const html = row(page(b), 'fail-1');
+  assert.match(html, /<b class="fyfl">Failed<\/b><small>Render check<\/small><details class="fywhyd"><summary>Why\?<\/summary><div class="fypop"><p>1 stretches over 12 s where nothing cuts/);
+  assert.ok(!html.includes('preflight_render'), 'no tool names');
 });
