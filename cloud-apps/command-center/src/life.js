@@ -5,6 +5,9 @@ export const TZ = 'America/Vancouver';
 // Jon's Life targets: workouts a week (Mon, Wed, Fri) and date nights a month. Life and Dashboard 3's Goals read these.
 export const WORKOUT_TARGET = 3;
 export const DATE_NIGHT_TARGET = 4;
+// Google sign-in for the calendar: its own client when GOOGLE_CLIENT_ID is set, else the YouTube one (same Google project).
+export const gClientId = (env) => env.GOOGLE_CLIENT_ID || env.YT_CLIENT_ID || '';
+export const gClientSecret = (env) => (env.GOOGLE_CLIENT_ID ? env.GOOGLE_CLIENT_SECRET : env.YT_CLIENT_SECRET) || '';
 const CAL = 'https://www.googleapis.com/calendar/v3';
 const TOKEN = 'https://oauth2.googleapis.com/token';
 const SCOPE = 'https://www.googleapis.com/auth/calendar';
@@ -186,10 +189,10 @@ async function refreshToken(env) {
 }
 
 async function accessToken(env, fetchFn, refresh) {
-  if (!env.GOOGLE_CLIENT_ID || !env.GOOGLE_CLIENT_SECRET || !refresh) return '';
+  if (!gClientId(env) || !gClientSecret(env) || !refresh) return '';
   const body = new URLSearchParams({
-    client_id: env.GOOGLE_CLIENT_ID,
-    client_secret: env.GOOGLE_CLIENT_SECRET,
+    client_id: gClientId(env),
+    client_secret: gClientSecret(env),
     refresh_token: refresh,
     grant_type: 'refresh_token',
   });
@@ -234,7 +237,7 @@ export async function googleAuthUrl(env, origin) {
   const exp = Math.floor(Date.now() / 1000) + 600;
   const state = `${exp}.${await hmacHex(env.SESSION_SECRET, `gcal.${exp}`)}`;
   const params = new URLSearchParams({
-    client_id: env.GOOGLE_CLIENT_ID,
+    client_id: gClientId(env),
     redirect_uri: `${origin}/dashboard/api/google/callback`,
     response_type: 'code',
     scope: SCOPE,
@@ -251,8 +254,8 @@ export async function exchangeGoogleCode(env, origin, code, state, fetchFn = glo
   if (!exp || Number(exp) * 1000 < Date.now() || !timingSafeEqualString(sig, want) || !code) return false;
   const body = new URLSearchParams({
     code,
-    client_id: env.GOOGLE_CLIENT_ID,
-    client_secret: env.GOOGLE_CLIENT_SECRET,
+    client_id: gClientId(env),
+    client_secret: gClientSecret(env),
     redirect_uri: `${origin}/dashboard/api/google/callback`,
     grant_type: 'authorization_code',
   });
