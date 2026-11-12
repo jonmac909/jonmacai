@@ -92,6 +92,7 @@ export default {
     if (/^\/d[23](\/|$)/i.test(assetTarget(assetPath))) return notFound(); // Dashboard 2's and 3's files only behind /dashboard-2 and /dash
     if (assetPath === '/') assetPath = '/index.html';
     if (assetPath === '/call') assetPath = '/call.html';
+    if (assetPath === '/privacy') assetPath = '/privacy.html'; // public: Google's consent screen links here
     const html = assetPath === '/index.html' || assetPath === '/login.html' || assetPath === '/call.html';
     if (html && assetPath !== '/login.html') {
       const session = await readSession(request, env);

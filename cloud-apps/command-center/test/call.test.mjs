@@ -61,6 +61,7 @@ test('the call page and a phone call need a signed-in dashboard session', async 
   assert.equal(await (await worker.fetch(req('/dashboard/call'), e)).text(), '/login.html');
   assert.equal(await (await worker.fetch(req('/dashboard/call', { Cookie: await cookie() }), e)).text(), '/call.html');
   assert.equal(await (await worker.fetch(req('/dashboard/call.html'), e)).text(), '/login.html');
+  assert.equal(await (await worker.fetch(req('/dashboard/privacy'), e)).text(), '/privacy.html', 'the privacy page needs no sign-in');
 
   assert.equal((await worker.fetch(req('/dashboard/api/call/phone', ws), e)).status, 401);
   assert.equal((await worker.fetch(req('/dashboard/api/call/phone', { ...ws, Cookie: `${COOKIE}=123.abc` }), e)).status, 401);
