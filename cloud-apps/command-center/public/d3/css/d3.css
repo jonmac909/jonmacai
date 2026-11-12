@@ -545,7 +545,7 @@ html[data-theme="dark"] body{background:#0b0b0c}
 .d3 .hmnow::before{content:"";position:absolute;left:-5px;top:-4px;width:10px;height:10px;border-radius:50%;background:var(--bad)}
 .d3 .hmper{display:flex;align-items:center;gap:12px;margin-top:4px;padding:0 4px;min-width:0}
 .d3 .hmsecs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
-.d3 .card.hmpc{padding:16px 20px 0;height:280px;overflow-x:hidden;overflow-y:auto;scrollbar-width:thin;overscroll-behavior:contain;gap:0}
+.d3 .card.hmpc{padding:16px 20px 0;height:400px;overflow-x:hidden;overflow-y:auto;scrollbar-width:thin;overscroll-behavior:contain;gap:0}
 .d3 .hmpch{display:flex;align-items:center;gap:10px;position:sticky;top:-16px;z-index:2;margin-top:-16px;padding:16px 0 8px;background:var(--card);min-width:0}
 .d3 .hmpch h2{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .d3 .hmpch .pill{flex:none}
