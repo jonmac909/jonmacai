@@ -8,7 +8,7 @@ The app has no sign-in of its own and it can run an agent on GPU1, so the rules 
 - Nothing is passed to the app without this host's cookie, `__Host-hyper` (12 hours, HttpOnly, Secure, SameSite=Strict, signed with the secret `GATE_SECRET`).
 - The cookie is set only at `/__enter?t=<ticket>`, and only when the dashboard Worker confirms the ticket (`GET /dashboard/api/hyper/check`, over the service binding `DASH`). The dashboard gives tickets only to Jon's signed-in session and they last 60 seconds (`cloud-apps/command-center/src/hyper.js`).
 - A write (anything but GET or HEAD) or a WebSocket must carry `Origin: https://hyper.jonmac.ai`, so no other site and no other jonmac.ai app can drive the app through Jon's browser.
-- Answers may be framed only by `https://jonmac.ai` (`Content-Security-Policy: frame-ancestors`).
+- Answers may be framed only by `https://jonmac.ai` and by the app itself, which frames pages of its own (`Content-Security-Policy: frame-ancestors`).
 - The app is sent a plain local request (`http://localhost:5191/...`): the gate cookie, the visitor headers and `Origin` are removed, which is what the app's own same-site checks expect.
 
 Without the cookie a page request gets a short page with a link to the dashboard (401). When GPU1 is off, or the app or the tunnel is not running, it gets "Hyper is not reachable" (502).

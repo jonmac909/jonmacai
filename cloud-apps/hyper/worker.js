@@ -13,7 +13,8 @@ const SESSION_HOURS = 12;
 const LOCAL = 'http://localhost:5191'; // the address the app believes it is served from
 const DASH_ORIGIN = 'https://jonmac.ai';
 const DASH_PAGE = `${DASH_ORIGIN}/dash/#hyper`;
-const FRAME_RULE = `frame-ancestors ${DASH_ORIGIN}`;
+// The app frames pages of its own (reference banners, storyboards), so it may frame itself too.
+const FRAME_RULE = `frame-ancestors ${DASH_ORIGIN} 'self'`;
 
 const enc = new TextEncoder();
 
@@ -140,7 +141,7 @@ async function pass(request, env, url) {
   const out = new Response(res.body, res);
   const to = out.headers.get('Location');
   if (to && to.startsWith(LOCAL)) out.headers.set('Location', `${url.origin}${to.slice(LOCAL.length)}`);
-  out.headers.append('Content-Security-Policy', FRAME_RULE); // only the dashboard may frame the app
+  out.headers.append('Content-Security-Policy', FRAME_RULE); // only the dashboard, and the app itself, may frame the app
   out.headers.set('X-Robots-Tag', 'noindex, nofollow');
   return out;
 }
