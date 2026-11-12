@@ -1,4 +1,4 @@
-// Dashboard 3 shell (docs/dashboard-3.md): theme switch, hash routes, data load every 60 s (the Factory page reads its board every 3 s), and the Goals, Team,
+// Dashboard 3 shell (docs/dashboard-3.md): theme switch, hash routes, data load every 60 s (the Factory page reads its board every 3 s), and the Home (the default page, home.js), Goals, Team,
 // Factory, Track, Blockers, Review, Money, Bluesky and System pages (the last two are fixed text and need only the date),
 // and the Hyper page, which frames the HyperFrames app (hyper.js).
 // Data: GET /dashboard/api/d2 and /dashboard/api/d3 (session cookie). Writes: "+ Log" on Workouts and Date nights
@@ -19,16 +19,17 @@ import { renderSystem } from './system.js';
 import { sourcesCard } from './sources.js';
 import { renderFactory, syncFactory } from './factory.js';
 import { renderTrack, trackSub } from './track.js';
+import { renderHome, homeClick, homeKeep, homeAfter, homeHints, setColour, savedColours } from './home.js';
 // The old Track page's own renderer and sort state, loaded from /dashboard (as Dashboard 2 does) the first time Track opens.
 const OLD_TRACK = '/dashboard/js/pages/track.js';
 let oldTrack = null;
 
-const PAGES = { goals: 'Goals', team: 'Team', factory: 'Factory', track: 'Track', blockers: 'Blockers', review: 'Review', scripts: 'Scripts', hyper: 'Hyper', money: 'Money', bluesky: 'Bluesky', system: 'System' };
+const PAGES = { home: 'Home', goals: 'Goals', team: 'Team', factory: 'Factory', track: 'Track', blockers: 'Blockers', review: 'Review', scripts: 'Scripts', hyper: 'Hyper', money: 'Money', bluesky: 'Bluesky', system: 'System' };
 const SIGNIN = 'd3-signin';
 const main = document.getElementById('main');
 // Review state that belongs to one item: cleared when the item or the page changes.
 const RV_CLEAR = { rvBack: null, rvEdit: null, rvDraft: {}, rvPick: null, rvText: '', rvErr: '' };
-const S = { d2: null, d3: null, track: null, error: '', signedOut: false, ui: { openKr: null, hgpOpen: false, busy: false, openBot: null, openBl: null, blFilter: 'all', rvSel: null, rvDone: {}, rvKept: {}, rvBack: null, rvEdit: null, rvDraft: {}, rvPick: null, rvText: '', rvErr: '', bsTab: 'vision', syTab: 'map', sySel: 'sponsors', syCat: 'card' } };
+const S = { d2: null, d3: null, track: null, error: '', signedOut: false, ui: { openKr: null, hgpOpen: false, busy: false, openBot: null, openBl: null, blFilter: 'all', rvSel: null, rvDone: {}, rvKept: {}, rvBack: null, rvEdit: null, rvDraft: {}, rvPick: null, rvText: '', rvErr: '', bsTab: 'vision', syTab: 'map', sySel: 'sponsors', syCat: 'card', hmView: 'list', hmPer: 'today', hmOpen: null, hmMore: false, hmCols: savedColours() } };
 
 // ---- theme (the inline script in index.html applies the saved one before paint) ----
 function setTheme(t) {
@@ -57,7 +58,7 @@ window.addEventListener?.('resize', () => { if (window.innerWidth > 760 && railE
 const route = () => (location.hash || '').replace(/^#\/?/, '').split('/');
 const page = () => {
   const k = route()[0].toLowerCase();
-  return PAGES[k] ? k : 'goals';
+  return PAGES[k] ? k : 'home'; // Home is the page /dash/ opens on
 };
 // One Money deal's own view: #money/<deal id> (the browser's Back closes it).
 const dealRoute = () => {
@@ -120,7 +121,13 @@ function render() {
   const fixed = { bluesky: renderBluesky, system: renderSystem }[p];
   if (fixed) { main.innerHTML = `${note}${fixed(S.d2, S.ui)}${p === 'system' && S.d3 ? sourcesCard(S.d3) : ''}`; return; }
   if (!S.d2) {
-    main.innerHTML = `${headerOnly(null, 'Goals')}${note || '<section class="card"><p class="mut">Loading</p></section>'}`;
+    main.innerHTML = `${headerOnly(null, PAGES[p])}${note || '<section class="card"><p class="mut">Loading</p></section>'}`;
+    return;
+  }
+  if (p === 'home') { // a redraw keeps the scroll boxes where they were; a fresh one opens at the current time
+    const keep = homeKeep(main);
+    main.innerHTML = `${note}${renderHome(S.d2, S.d3, S.ui, S.ui.now ?? Date.now())}`;
+    homeAfter(main, keep);
     return;
   }
   main.innerHTML = `${note}${renderGoals(S.d2, S.d3, S.ui)}`;
@@ -207,6 +214,7 @@ main.addEventListener('click', async (e) => {
     if (go && /^track(\/|$)/.test(go.dataset.page)) { location.hash = go.dataset.page; return; }
     return;
   }
+  if (page() === 'home' && homeClick(e, S.ui, render)) return; // Home's switches and rows; its "+ Log" falls through to the log below
   if (page() === 'review' && await reviewClick(e, S, render, load)) return;
   if (page() === 'blockers' && await needsClick(e, S, render, load)) return;
   if (threadClick(e, S.ui, render)) return; // open or fold one message of a Money deal's email thread
@@ -280,10 +288,13 @@ main.addEventListener('click', async (e) => {
 main.addEventListener('input', (e) => {
   if (e.target.matches('.rvtext')) S.ui.rvText = e.target.value;
   else if (e.target.matches('.rvin')) S.ui.rvDraft = { ...S.ui.rvDraft, [e.target.name]: e.target.value };
+  else if (e.target.matches('[data-hmcol]')) setColour(e.target, S.ui); // Home: a category's colour
 });
+// Home: the "N more" hint under a category card follows its scroll.
+main.addEventListener('scroll', (e) => { if (e.target.classList?.contains('hmpc')) homeHints(main); }, true);
 
 window.addEventListener('hashchange', () => {
-  Object.assign(S.ui, { openKr: null, openBot: null, openBl: null, teamBot: null, teamCol: null, ...RV_CLEAR, rvDone: {}, rvKept: {} });
+  Object.assign(S.ui, { hmOpen: null, openKr: null, openBot: null, openBl: null, teamBot: null, teamCol: null, ...RV_CLEAR, rvDone: {}, rvKept: {} });
   render();
   if (page() === 'review' && !S.ui.rvThreads?.threads) loadThreads().then(() => { if (page() === 'review') render(); });
 });
@@ -302,6 +313,8 @@ async function loadFactory() {
     if (page() === 'factory') render();
   } catch { /* keep what is shown; the 60 s load reports errors */ } finally { fastBusy = false; }
 }
+// Home's clock, "now" line and current task: a redraw every 15 s while it is open (not under an open colour picker).
+setInterval(() => { if (S.d2 && !S.signedOut && page() === 'home' && document.visibilityState === 'visible' && !document.activeElement?.closest?.('#main input')) render(); }, 15000);
 setInterval(loadFactory, 3000);
 setInterval(() => { if (S.d3 && !S.signedOut && page() === 'factory' && document.visibilityState === 'visible') render(); }, 1000);
 setInterval(() => { if (document.visibilityState === 'visible') load(); }, 60000);
