@@ -55,6 +55,8 @@ function stepKind(st) {
 }
 // A review page address the page may link to: only jonmac.ai's own review pages. '' for anything else.
 const reviewHref = (u) => (typeof u === 'string' && /^https:\/\/jonmac\.ai\/review\/[a-z0-9][a-z0-9-]{0,79}$/.test(u) ? u : '');
+// A link a stage carries (a thumbnail, a page): only under jonmac.ai's own review pages. '' for anything else.
+const lookHref = (u) => (typeof u === 'string' && /^https:\/\/jonmac\.ai\/review\/[a-z0-9][a-z0-9-]{0,79}(\/[a-zA-Z0-9][a-zA-Z0-9._-]{0,79})?$/.test(u) ? u : '');
 // The Done pill: a link to the video's review page when the board sends one, else the pill with the file as its tooltip.
 const donePill = (job) => (reviewHref(job.review_url)
   ? `<a class="fypill ok fylink" href="${esc(reviewHref(job.review_url))}" target="_blank" rel="noopener" title="Open the review page">Done</a>`
@@ -188,7 +190,12 @@ function cell(job, st, live, firstTodo) {
     const pct = Math.round((done / st.total) * 100);
     return `<td class="fycell"><div class="fyrun"><div class="fypg" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pct}"><i style="width:${pct}%"></i></div><span>${done}/${st.total}</span></div></td>`;
   }
-  if (k === 'done') return `<td class="fycell">${svg('fyok', 'Done', 'M5 13l4 4L19 7')}${wait(st.minutes) ? `<small>${esc(wait(st.minutes))}</small>` : ''}</td>`;
+  if (k === 'done') {
+    // A stage that made something to look at: its text under the check (the video's title), its link as "Open" (the thumbnail).
+    const text = String(st.text || '').trim();
+    const look = lookHref(st.url) ? `<a class="fylook2" href="${esc(lookHref(st.url))}" target="_blank" rel="noopener">Open</a>` : '';
+    return `<td class="fycell${text ? ' fytx' : ''}"${text ? ` title="${esc(text)}"` : ''}>${svg('fyok', 'Done', 'M5 13l4 4L19 7')}${wait(st.minutes) ? `<small>${esc(wait(st.minutes))}</small>` : ''}${text ? `<small class="fytitle">${esc(text)}</small>` : ''}${look}</td>`;
+  }
   if (k === 'run') {
     const total = num(st.total) && st.total > 0 ? st.total : 0;
     const done = Math.min(num(st.done) ? st.done : 0, total);
