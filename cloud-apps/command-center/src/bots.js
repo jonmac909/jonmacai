@@ -1059,7 +1059,7 @@ export const FEEDS = {
       const lookUrl = (v, k) => {
         if (v == null || v === '') return '';
         if (typeof v !== 'string') throw new Bad(400, `${k} must be text`);
-        return /^https:\/\/jonmac\.ai\/review\/[a-z0-9][a-z0-9-]{0,79}(\/[a-zA-Z0-9][a-zA-Z0-9._-]{0,79})?$/.test(v) ? v : '';
+        return /^https:\/\/jonmac\.ai\/(review\/[a-z0-9][a-z0-9-]{0,79}(\/[a-zA-Z0-9][a-zA-Z0-9._-]{0,79})?|dashboard\/f\/[0-9a-f]{32}\.(png|jpg))$/.test(v) ? v : '';
       };
       const step = (s, k) => {
         obj(s, k);

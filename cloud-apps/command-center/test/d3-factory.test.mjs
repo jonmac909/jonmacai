@@ -618,6 +618,11 @@ test('video_line feed: a video may carry stages (with a label), started, ended, 
   const m = (await d3Of(env.DB)).d3.factory.jobs[0].stages;
   assert.deepEqual([m[0].text, m[0].url, m[1].url, m[2].url, m[2].text], ['Why Your Eggplant Casserole Turns Soggy', undefined, 'https://jonmac.ai/review/done-1/thumb.jpg', undefined, undefined]);
   assert.equal((await put(env, 'developer', job({ stages: [G('thumbnail', 0, 'done', { url: 7 })] }))).status, 400);
+  // A proof picture link (bots/proof_upload.py, /dashboard/f/) is kept too; other /dashboard links are not (Jon, 2026-11-12).
+  const pic = 'https://jonmac.ai/dashboard/f/0123456789abcdef0123456789abcdef.jpg';
+  await put(env, 'developer', job({ stages: [G('thumbnail', 0, 'done', { url: pic }), G('post', 0, 'done', { url: 'https://jonmac.ai/dashboard/f/../api/x.jpg' })] }));
+  const p2 = (await d3Of(env.DB)).d3.factory.jobs[0].stages;
+  assert.deepEqual([p2[0].url, p2[1].url], [pic, undefined]);
 });
 
 // Three videos: one being made, one finished (with its review page), one that sends no stages yet. The steps carry
@@ -792,4 +797,13 @@ test('Factory with many stages: narrow stage columns, a wide one for the title, 
   for (const rule of ['.d3 .fytable.fyt col.fycs{width:4.6rem}', '.d3 .fytable.fyt col.fyct{width:11rem}', '.d3 .fytable:not(.fyw) th:first-child,.d3 .fytable:not(.fyw) td:first-child{position:sticky;left:0;']) assert.ok(css.includes(rule), rule);
   // 15 stages with one title column: 10 + 14 x 4.6 + 11 + 7 = 92.4rem, about 1480 px, down from 2488
   assert.ok((10 + 14 * 4.6 + 11 + 7) * 16 < 1500);
+});
+
+test('a done stage with a picture link: the check itself opens it (Jon, 2026-11-12)', () => {
+  const pic = 'https://jonmac.ai/dashboard/f/0123456789abcdef0123456789abcdef.jpg';
+  const stages = [...STAGES(), G('thumbnail', 'Thumbnail', 'done', { url: pic }), G('post', 'Post', 'done')];
+  const html = page(STAGE_BOARD({ jobs: [{ ...STAGE_BOARD().jobs[0], stages }] }));
+  assert.match(html, new RegExp(`<a class="fyopen" href="${pic.replace(/[.]/g, '\.')}" target="_blank" rel="noopener" title="Open Thumbnail"><span class="fyok" role="img" aria-label="Done, open Thumbnail"><svg`));
+  assert.equal((html.match(/class="fyopen"/g) || []).length, 1, 'a check with no link stays a plain check');
+  assert.doesNotMatch(page(STAGE_BOARD({ jobs: [{ ...STAGE_BOARD().jobs[0], stages: [G('thumbnail', 'Thumbnail', 'done', { url: 'https://evil.example/x.jpg' })] }] })), /fyopen|evil/);
 });
