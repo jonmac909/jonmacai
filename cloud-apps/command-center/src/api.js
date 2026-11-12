@@ -22,6 +22,7 @@ import { buildD2, d2Data } from './d2.js';
 import { funnelsData } from './funnels.js';
 import { buildD3, d3Data } from './d3.js';
 import { buildPending, pendingData } from './pending.js';
+import { hyperEntry, hyperTicketOk } from './hyper.js';
 
 const PREFIX = '/dashboard/api';
 const json = (data, status = 200, headers = {}) =>
@@ -276,6 +277,16 @@ export async function handleApi(request, env, ctx) {
   }
   if (rest === '/youtube/analytics-check' && method === 'GET') {
     return (await botOf(request, env.DB)) ? youtubeAnalyticsCheck(env, new URL(request.url).searchParams.get('channel')) : json({ error: 'Bot token only' }, 401);
+  }
+  // Dashboard 3 Hyper page (src/hyper.js): Jon's session gets a 60-second ticket for the app at hyper.jonmac.ai;
+  // that host's Worker asks /hyper/check (no session: the ticket is the proof) before it lets a browser in.
+  if (rest === '/hyper/ticket' && method === 'GET') {
+    const denied = await needSession(request, env);
+    return denied || json(await hyperEntry(env));
+  }
+  if (rest === '/hyper/check' && method === 'GET') {
+    const ok = await hyperTicketOk(env, url.searchParams.get('t'));
+    return json({ ok }, ok ? 200 : 401);
   }
   // The deploy's version alone, so a page that doesn't refresh its data still notices a deploy (app.js).
   if (rest === '/build' && method === 'GET') {

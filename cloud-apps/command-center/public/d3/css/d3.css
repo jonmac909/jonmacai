@@ -441,3 +441,9 @@ html[data-theme="dark"] body{background:#0b0b0c}
   .d3 .tkpage .ccgrp>b{width:100%}
   .d3 .tkpage td,.d3 .tkpage th{padding:.6rem .5rem}
 }
+/* Hyper page: the app fills the window below the header; the page is as wide as the window lets it be. */
+.d3 .shell:has(.main[data-page="hyper"]){max-width:none}
+.d3 .card.hy{padding:0;overflow:hidden;gap:0;height:calc(100vh - 118px);min-height:520px}
+.d3 .card.hy p{padding:22px}
+.d3 .card.hy iframe{flex:1;width:100%;min-height:0;border:0;background:var(--card)}
+.d3 .card.hy iframe[hidden]{display:none}
