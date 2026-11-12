@@ -242,6 +242,49 @@ test('Goals: sections in the design order, targets from the data, no design samp
   assert.equal(b1.v2, ' / 5');
 });
 
+test('Goals: cards in a row are the same size; a long deal list scrolls inside Pipeline revenue (Jon, 2026-11-11)', () => {
+  // Plant a long Pipeline list: 33 leads and 17 deals in production.
+  const d2 = SAMPLE();
+  const cols = d2.d2.pipeline.boards.find((b) => b.goal === 'sponsors').sponsors.board.columns;
+  const lead = cols.find((c) => c.title === 'Leads');
+  const prod = cols.find((c) => c.title === 'Video Production');
+  for (let i = 1; i <= 33; i++) lead.cards.push({ id: `qc-lead-${i}`, name: `QC long list lead ${i} with a long sponsor name`, amt: null });
+  for (let i = 1; i <= 17; i++) prod.cards.push({ id: `qc-prod-${i}`, name: `QC production deal ${i}`, amt: null });
+  const html = renderGoals(d2, d3Sample(), {});
+  // Top row and objectives sit in their own equal-column grids, in order.
+  const top = html.indexOf('<div class="gtop">');
+  const objs = html.indexOf('<div class="gobjs">');
+  assert.ok(top >= 0 && objs > top, '.gtop then .gobjs wrappers');
+  const topRow = html.slice(top, objs);
+  for (const s of ['aria-label="Key results"', 'aria-label="Sponsor Revenue"', 'aria-label="Pipeline revenue"']) assert.ok(topRow.includes(s), `${s} in .gtop`);
+  assert.match(topRow, /<section class="card gpipe"/);
+  for (const s of ['<h2>Content Factory</h2>', '<h2>Personal</h2>']) assert.ok(html.indexOf(s) > objs, `${s} in .gobjs`);
+  // No card sizes itself: no inline flex sizing or max-height on any card section.
+  for (const [tag] of html.matchAll(/<section class="card[^>]*>/g)) assert.doesNotMatch(tag, /flex:|max-height|min-width/, tag);
+  assert.doesNotMatch(html, /max-height/);
+  // Every deal row (planted ones included) sits inside a .plist, which scrolls.
+  const deals = (html.match(/data-deal="/g) || []).length;
+  assert.ok((html.match(/data-deal="qc-/g) || []).length === 50, 'all 50 planted deals rendered');
+  const inLists = [...html.matchAll(/<div class="plist">([^\n]*)/g)].reduce((n, m) => n + (m[1].match(/data-deal="/g) || []).length, 0);
+  assert.equal(inLists, deals, 'every deal row inside a .plist');
+  // d3.css: equal 1fr grid columns that stretch, Pipeline sized by its row, lists scroll, titles on one line.
+  const css = readFileSync(new URL('../public/d3/css/d3.css', import.meta.url), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+  const rule = (sel) => [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)].filter((m) => m[1].split(',').map((s) => s.trim()).includes(sel)).map((m) => m[2]).join(';');
+  for (const sel of ['.d3 .gtop', '.d3 .gobjs']) {
+    const r = rule(sel);
+    assert.match(r, /display:grid/, sel);
+    assert.match(r, /align-items:stretch/, sel);
+    const cols = [...r.matchAll(/grid-template-columns:([^;}]+)/g)].map((m) => m[1]);
+    assert.ok(cols.length && cols.every((c) => /^repeat\(auto-fit,minmax\([^;]+,1fr\)\)$/.test(c.trim())), `${sel} equal 1fr columns: ${cols}`);
+  }
+  assert.match(rule('.d3 .gpipe'), /contain:size/);
+  assert.match(rule('.d3 .plist'), /overflow:auto/);
+  for (const sel of ['.d3 .gtop h2', '.d3 .gobjs h2', '.d3 .gsch>.hd>h2']) assert.match(rule(sel), /white-space:nowrap/, sel);
+  // Videos Scheduled: its title keeps one line on a phone; the day pill wraps below it instead.
+  assert.match(html, /<section class="card gsch">\s*<div class="hd">[^\n]*<h2>Videos Scheduled<\/h2>/);
+  assert.match(rule('.d3 .gsch>.hd'), /flex-wrap:wrap/);
+});
+
 test('Goals: every row shows its age, stale rows are grey, sponsor rows explain their counts', () => {
   const d2 = SAMPLE();
   const sp = d2.d2.goals.find((g) => g.key === 'sponsors');
