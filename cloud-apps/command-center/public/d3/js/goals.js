@@ -218,8 +218,9 @@ function headerHtml(P, title, sub, pill = '') {
 </header>`;
 }
 
-// Key results: one named row per result (name, actual / target, bar, status), worst first. Off track and at risk
-// rows always show; on track and no-data rows sit behind one click. Same rows and numbers as the sections below.
+// Key results: one named row per result (name, actual / target, bar, status), worst first. The worst KR_OPEN rows
+// show; the rest sit behind one click. Same rows and numbers as the sections below.
+export const KR_OPEN = 9;
 const RANK = { r: 0, y: 1, g: 2, n: 3 };
 const WORD = { r: 'Off track', y: 'At risk', g: 'On track', n: 'No data' };
 export function keyRows(objs) {
@@ -230,13 +231,14 @@ export function keyRows(objs) {
     || (a.k.hasBar ? a.k.pct : 101) - (b.k.hasBar ? b.k.pct : 101) || a.i - b.i).map((x) => x.k);
 }
 
+// One line per result (Jon, 2026-11-11: "way too tall"): dot, name, short bar, value, status. The objective name
+// (Content Factory, Personal) shows only on hover.
 function keyRowHtml(k) {
   const target = k.v2 ? `<span class="dim">${esc(k.v2)}</span>` : k.target ? `<span class="dim"> · ${esc(k.target.toLowerCase())}</span>` : '';
   // No target, no bar: an empty grey track would read as 0%.
   const bar = k.hasBar ? `<span class="bar" aria-hidden="true"><i class="${k.tone}" style="width: ${k.pct}%"></i></span>` : '<span class="bar nb" aria-hidden="true"></span>';
   const word = k.nf && k.v1 === 'No feed' ? 'No feed' : WORD[k.tone];
-  return `<div class="ksr" data-kr-row="${esc(k.id)}"><span class="ksn"><span class="dot ${k.tone === 'n' ? '' : k.tone}"></span><span class="stack"><span class="ell">${esc(k.text)}</span><span class="mut ell" style="font-size: 12px">${esc(k.obj)}</span></span></span>
-<span class="ksv${k.nf ? ' nf' : ''}">${k.nf ? esc(k.v1) : `${esc(k.v1)}${target}`}</span>${bar}<span class="kss ${k.tone}">${esc(word)}</span></div>`;
+  return `<div class="ksr" title="${esc(`${k.text} · ${k.obj}`)}" data-kr-row="${esc(k.id)}"><span class="ksn"><span class="dot ${k.tone === 'n' ? '' : k.tone}"></span><span class="ell">${esc(k.text)}</span><span class="ksh">, ${esc(k.obj)}</span></span>${bar}<span class="ksv${k.nf ? ' nf' : ''}">${k.nf ? esc(k.v1) : `${esc(k.v1)}${target}`}</span><span class="kss ${k.tone}">${esc(word)}</span></div>`;
 }
 
 function summaryHtml(objs) {
@@ -244,13 +246,14 @@ function summaryHtml(objs) {
   for (const o of objs) for (const k of o.krs) c[k.tone] += 1;
   const all = c.r + c.y + c.g + c.n;
   const pill = c.r ? '<span class="pill bad sp">Behind</span>' : c.y ? '<span class="pill warn sp">At risk</span>' : c.g ? '<span class="pill ok sp">On track</span>' : '<span class="pill sp">No data</span>';
+  // At most KR_OPEN rows show (worst first) so the card stays short; the rest sit behind one collapsed toggle.
   const rows = keyRows(objs);
-  const top = rows.filter((k) => k.tone === 'r' || k.tone === 'y');
-  const rest = rows.filter((k) => k.tone === 'g' || k.tone === 'n');
-  const more = rest.length ? `<details class="ksm"${top.length ? '' : ' open'}><summary class="mut">${c.g} on track, ${c.n} no data</summary><div class="ksl">${rest.map(keyRowHtml).join('')}</div></details>` : '';
+  const top = rows.slice(0, KR_OPEN);
+  const rest = rows.slice(KR_OPEN);
+  const more = rest.length ? `<details class="ksm"><summary class="mut">+${rest.length} more</summary><div class="ksl">${rest.map(keyRowHtml).join('')}</div></details>` : '';
   return `<section class="card ks" style="flex: 5 1 340px" aria-label="Key results">
 <div class="hd"><span class="chip">${icon('goals')}</span><h2>Key results</h2>${pill}</div>
-<div class="hd" style="align-items: baseline; gap: 8px"><b class="num">${c.r}</b><span class="dim" style="font-size: 16px">of ${all} off track${c.y ? `, ${c.y} at risk` : ''}</span></div>
+<div class="hd" style="align-items: baseline; gap: 8px"><b class="num" style="font-size: 30px">${c.r}</b><span class="dim" style="font-size: 15px">of ${all} off track${c.y ? `, ${c.y} at risk` : ''}</span></div>
 ${top.length ? `<div class="ksl">${top.map(keyRowHtml).join('')}</div>` : ''}${more}
 </section>`;
 }
@@ -276,8 +279,8 @@ function revenueHtml(d2resp, P) {
   return `<section class="card" style="flex: 4 1 300px" aria-label="Sponsor Revenue">
 <div class="hd"><span class="chip">${icon('money')}</span><h2>Sponsor Revenue</h2><a class="go sp" href="#money" aria-label="Open Money">${icon('open')}</a></div>
 <div style="display: flex; flex-direction: column; gap: 4px"><div class="hd mut" style="gap: 12px"><span>Collected in ${esc(P.monthName)}</span><span class="hd sp" style="gap: 6px; font-size: 12px"><svg width="18" height="4" aria-hidden="true"><line class="pace" x1="0" y1="2" x2="18" y2="2"></line></svg>pace</span></div><div class="hd" style="align-items: baseline; gap: 8px">${big}</div></div>
-<div style="flex: 1 1 0; min-height: 100px; display: flex; flex-direction: column; gap: 6px">
-<svg viewBox="0 0 300 100" preserveAspectRatio="none" role="img" aria-label="Collected so far against the pace line" style="display: block; width: 100%; flex: 1 1 0; min-height: 0; overflow: visible">
+<div style="display: flex; flex-direction: column; gap: 6px">
+<svg viewBox="0 0 300 100" preserveAspectRatio="none" role="img" aria-label="Collected so far against the pace line" style="display: block; width: 100%; height: 220px; overflow: visible">
 <line class="ax" x1="0" y1="100" x2="300" y2="100" vector-effect="non-scaling-stroke"></line>
 ${num(m?.target) && m.target > 0 ? '<line class="pace" x1="0" y1="100" x2="300" y2="0" vector-effect="non-scaling-stroke"></line>' : ''}
 ${series ? `<polyline class="act" points="${series.map(([x, y]) => `${sx(x)},${sy(y)}`).join(' ')}" vector-effect="non-scaling-stroke"></polyline>` : ''}
@@ -446,8 +449,9 @@ export function renderGoals(d2resp, d3resp, ui = {}) {
   const P = periodOf(d2resp);
   const objs = objectivesOf(d2resp, d3resp, P);
   const U = { openKr: ui.openKr || null, hgpOpen: !!ui.hgpOpen, busy: !!ui.busy, confirmLog: ui.confirmLog || null };
+  // align-items: start: each top card is as tall as its own content, not stretched to the tallest one.
   return `${headerHtml(P, 'Goals')}
-<div class="row">
+<div class="row" style="align-items: flex-start">
 ${summaryHtml(objs)}
 ${revenueHtml(d2resp, P)}
 ${pipelineHtml(d2resp)}
