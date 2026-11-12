@@ -157,3 +157,26 @@ test('tool/workspace invite emails are junk, but an added deal with that subject
   const cards = r.d2.pipeline.boards.find((b) => b.goal === 'sponsors').sponsors.board.columns.flatMap((c) => c.cards);
   assert.equal(cards.find((k) => k.id === 'gmail-thread-1a0aa308142f5466').name, 'Enter');
 }));
+
+test('bot v1 sponsor routes: token required, developer/ana only, whitelisted kinds, add_deal works, GET returns columns', () => withNow(async () => {
+  const t = await setup();
+  const { sha256Hex } = await import('../src/bots.js');
+  const tok = (b) => `ccb_${b.padEnd(40, 'x')}`;
+  for (const b of ['developer', 'sponsors']) t.db.sqlite.prepare('INSERT INTO bot_tokens (token_hash, bot, created_at) VALUES (?, ?, ?)').run(await sha256Hex(tok(b)), b, 'x');
+  const call = (path, auth, body) => handleApi(new Request(`https://jonmac.ai/dashboard/api/v1/${path}`, { method: body ? 'POST' : 'GET', headers: { 'Content-Type': 'application/json', ...(auth ? { Authorization: `Bearer ${auth}` } : {}) }, ...(body ? { body: JSON.stringify(body) } : {}) }), t.env);
+  const add = { kind: 'sponsor.add_deal', payload: { brand: 'Topview', stage: 'balance-invoice', amount: 2000, threadId: '1a1213c3e19344a7' } };
+  assert.equal((await call('sponsors/actions', null, add)).status, 401);
+  assert.equal((await call('sponsors/actions', tok('nobody'), add)).status, 401);
+  assert.equal((await call('sponsors/actions', tok('sponsors'), add)).status, 403);
+  assert.equal((await call('sponsors', null)).status, 401);
+  for (const kind of ['money.move_and_remember', 'life.x', 'sponsor.send_reply', undefined]) assert.equal((await call('sponsors/actions', tok('developer'), { ...add, kind })).status, 400, String(kind));
+  assert.equal((await call('sponsors/actions', tok('developer'), { kind: 'sponsor.add_deal', payload: { id: 'x' } })).status, 400);
+  const ok = await call('sponsors/actions', tok('developer'), add);
+  assert.equal(ok.status, 200);
+  assert.equal((await ok.json()).status, 'done');
+  const g = await (await call('sponsors', tok('developer'))).json();
+  assert.ok(g.ok && Array.isArray(g.board.columns) && g.board.columns.length > 5);
+  assert.ok(g.board.columns.find((c) => c.title === 'Balance Invoice').cards.some((k) => k.name === 'Topview'));
+  assert.equal(g.pipeline.totals.collect, 2000);
+  assert.ok(g.sponsors);
+}));

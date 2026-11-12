@@ -16,6 +16,7 @@ import { homeData, homeWrite } from './home.js';
 import { personalData, personalWrite } from './personal.js';
 import { REVIEW_SOURCE, draftId, isIsolated, parseReview, plannerDestination, reviewMutate, upsertReview } from './review.js';
 import { botOf, handleV1, todayData } from './bots.js';
+import { pipelineOf } from '../public/d3/js/goals.js';
 import { freshen, youtubeAnalyticsCheck, youtubeCallback, youtubeConnect, youtubeStatus } from './youtube.js';
 import { channelData } from './channels.js';
 import { trackData } from './track.js';
@@ -157,9 +158,9 @@ export function liveNav(orig) {
   };
 }
 
-async function postAction(request, env) {
-  let body = {};
-  try { body = await request.json(); } catch { body = {}; }
+async function postAction(request, env, parsed = null) {
+  let body = parsed || {};
+  if (!parsed) try { body = await request.json(); } catch { body = {}; }
   const kind = String(body.kind || 'ui.toast');
   const payload = body.payload && typeof body.payload === 'object' ? body.payload : {};
   const idem = String(body.idemKey || crypto.randomUUID());
@@ -262,6 +263,37 @@ async function postAction(request, env) {
   return json({ id, status, result: status === 'queued' ? null : result });
 }
 
+// The /d2 pages and d2 view, shared by /d2 and the bots' GET /v1/sponsors.
+async function d2Build(env, now) {
+  const base = filterSnapshot(D2_PAGES);
+  const rows = env.DB ? await listSnapshots(env.DB) : [];
+  const extra = env.DB ? await snapshotExtra(env, base, now) : {};
+  const out = mergeSnapshot(base, rows, now, env.DB ? await listDealStages(env.DB) : {}, extra);
+  return { out, d2: buildD2(out, rows, extra, await d2Data(env, now), now) };
+}
+
+// Bots with a v1 token (2026-11-11): the sponsor plan loader posts the same actions Jon's board does (same handler and
+// checks as /actions, these kinds only), and a bot reads the Sponsors page plus the Goals pipeline totals Jon sees.
+const SPONSOR_BOTS = ['developer', 'ana'];
+const SPONSOR_BOT_KINDS = ['sponsor.move_stage', 'sponsor.add_deal', 'sponsor.set_amount'];
+async function sponsorsForBot(request, env, rest) {
+  const bot = await botOf(request, env.DB);
+  if (!bot) return json({ ok: false, error: 'Unauthorized' }, 401);
+  if (!SPONSOR_BOTS.includes(bot)) return json({ ok: false, error: `Only ${SPONSOR_BOTS.join(', ')} can use this` }, 403);
+  if (rest === '/v1/sponsors/actions' && request.method === 'POST') {
+    const body = await request.json().catch(() => null);
+    if (!body || typeof body !== 'object' || !SPONSOR_BOT_KINDS.includes(body.kind)) return json({ ok: false, error: `kind must be one of: ${SPONSOR_BOT_KINDS.join(', ')}` }, 400);
+    return postAction(request, env, body);
+  }
+  if (rest === '/v1/sponsors' && request.method === 'GET') {
+    const now = Date.now();
+    const { out, d2 } = await d2Build(env, now);
+    const board = (d2.pipeline?.boards || []).find((b) => b.goal === 'sponsors')?.sponsors || null;
+    return json({ ok: true, asOf: new Date(now).toISOString(), sponsors: out.pages.sponsors || null, board, pipeline: pipelineOf({ d2 }) });
+  }
+  return json({ ok: false, error: 'Not found' }, 404);
+}
+
 const KNOWN_STAGES = new Set(['drafts', 'new-lead', 'negotiating', 'contract-brief', 'invoice-sent', 'deposit-paid', 'script-approval', 'production', 'video-approval', 'publishing', 'balance-invoice', 'paid', 'done', 'archived']);
 function asBoardStage(stage) {
   const s = String(stage || '');
@@ -283,6 +315,7 @@ export async function handleApi(request, env, ctx) {
   const rest = path.slice(PREFIX.length) || '/';
   const method = request.method;
 
+  if (rest === '/v1/sponsors' || rest === '/v1/sponsors/actions') return sponsorsForBot(request, env, rest);
   // Per-bot API (bot tokens or Jon's session); see src/bots.js.
   if (rest === '/v1' || rest.startsWith('/v1/')) return handleV1(request, env, rest.slice(3), ctx);
 
@@ -350,11 +383,7 @@ export async function handleApi(request, env, ctx) {
     const ok = ana && request.headers.get('Authorization') ? await botOf(request, env.DB) : await readSession(request, env);
     if (!ok) return json({ error: 'Sign in' }, 401);
     const now = Date.now();
-    const base = filterSnapshot(D2_PAGES);
-    const rows = env.DB ? await listSnapshots(env.DB) : [];
-    const extra = env.DB ? await snapshotExtra(env, base, now) : {};
-    const out = mergeSnapshot(base, rows, now, env.DB ? await listDealStages(env.DB) : {}, extra);
-    const d2 = buildD2(out, rows, extra, await d2Data(env, now), now);
+    const { out, d2 } = await d2Build(env, now);
     if (ana) return json({ ok: true, asOf: new Date(now).toISOString(), stale: d2.stale, toAna: d2.today.toAna });
     let pending = null; // the Pending page: Jon's ask cards, view only; a failure here never takes down the rest of /d2
     try { pending = buildPending(await pendingData(env.DB), now); } catch (err) { console.error('pending', err); }
