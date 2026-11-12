@@ -22,7 +22,7 @@ const NO_FEED = { state: 'none', text: 'No feed' };
 const MIN = 60000;
 // The dispatcher's live feed (tools/dash_live_feed.py, every 2 min): grey once it is 10 minutes old.
 const LIVE_STALE = 10 * MIN;
-// The video program's board (feed video_line, every 30 s): stale once the newest entry is 3 minutes old.
+// The video program's board (feed video_line, as often as every 5 s): stale once the newest entry is 3 minutes old.
 const VIDEO_STALE = 3 * MIN;
 
 const parse = (raw) => {
@@ -719,6 +719,13 @@ function factoryOf(D) {
   if (!D.video) return null;
   const age = D.nowMs - Date.parse(D.video.at);
   return { ...D.video.d, at: D.video.at, stale: !(age <= VIDEO_STALE) };
+}
+
+// The Factory page's own light read (GET /dashboard/api/d3/factory, every 3 s while the page is open): one query, the
+// same shape as d3.factory (null when nothing was posted). It throws when the table can't be read.
+export async function factoryData(env, nowMs) {
+  const row = await env.DB.prepare("SELECT data, created_at FROM bot_feed_entries WHERE name = 'video_line' ORDER BY created_at DESC LIMIT 1").first();
+  return factoryOf({ nowMs, video: row ? { d: parse(row.data), at: row.created_at } : null });
 }
 
 export function buildD3(D) {

@@ -991,12 +991,13 @@ export const FEEDS = {
       };
     },
   },
-  // The video program's board (a pusher on GPU1, every 30 s: dash.py feed-put video_line --data-file board.json), shown
-  // on Dashboard 3's Factory page. Shapes are checked (400 when wrong); long text and long lists are cut, never refused:
-  // 60 jobs, 12 steps a job, the newest 20 events, 300 characters a string. Only 1 day is kept.
+  // The video program's board (a pusher on GPU1, as often as every 5 s: dash.py feed-put video_line --data-file
+  // board.json), shown on Dashboard 3's Factory page. Shapes are checked (400 when wrong); long text and long lists are
+  // cut, never refused: 60 jobs, 12 steps a job, the newest 20 events, 300 characters a string. Only the newest entry is
+  // ever read, so only the last 30 minutes are kept.
   video_line: {
     writers: ['developer', 'ana'],
-    keepDays: 1,
+    keepMinutes: 30,
     parse: (b) => {
       const obj = (v, k) => { if (!v || typeof v !== 'object' || Array.isArray(v)) throw new Bad(400, `${k} must be an object`); return v; };
       const arr = (v, k) => { if (!Array.isArray(v)) throw new Bad(400, `${k} must be a list`); return v; };
@@ -1019,7 +1020,36 @@ export const FEEDS = {
         if (typeof p.name !== 'string' || !p.name.trim() || p.name.length > 40) throw new Bad(400, `${k}.name must be text of 1 to 40 characters`);
         if (!PART_STATUS.includes(p.status)) throw new Bad(400, `${k}.status must be one of ${PART_STATUS.join(', ')}`);
         if (p.note != null && (typeof p.note !== 'string' || p.note.length > 300)) throw new Bad(400, `${k}.note must be text of at most 300 characters`);
-        return { name: p.name.trim(), status: p.status, note: p.note ?? '' };
+        // Optional live progress of the part: done of total (whole numbers), when it started, and how many seconds it
+        // took once it ended. Kept only when sent; a wrong type is a 400 like the rest of the part.
+        const count = (key) => {
+          if (p[key] == null) return {};
+          if (typeof p[key] !== 'number' || !Number.isInteger(p[key]) || p[key] < 0 || p[key] > 1e9) throw new Bad(400, `${k}.${key} must be a whole number, 0 or more`);
+          return { [key]: p[key] };
+        };
+        if (p.started != null && typeof p.started !== 'string') throw new Bad(400, `${k}.started must be an ISO date and time or null`);
+        const started = when(p.started, `${k}.started`);
+        if (p.seconds != null && (typeof p.seconds !== 'number' || !Number.isFinite(p.seconds) || p.seconds < 0 || p.seconds > 1e9)) throw new Bad(400, `${k}.seconds must be a number, 0 or more, or null`);
+        return { name: p.name.trim(), status: p.status, note: p.note ?? '', ...count('done'), ...count('total'), ...(started ? { started } : {}), ...(p.seconds != null ? { seconds: p.seconds } : {}) };
+      };
+      // The channels the Factory page groups the videos under, in this order (a channel with no video still shows).
+      // Strict like parts: a channel that is not right is a 400.
+      const channels = (v) => {
+        if (arr(v, 'channels').length > 20) throw new Bad(400, 'channels must have at most 20 entries');
+        const seen = new Set();
+        return v.map((c, n) => {
+          const k = `channels[${n}]`;
+          obj(c, k);
+          const one = (key, max) => {
+            if (typeof c[key] !== 'string' || !c[key].trim() || c[key].length > max) throw new Bad(400, `${k}.${key} must be text of 1 to ${max} characters`);
+            return c[key].trim();
+          };
+          const id = one('id', 40);
+          if (seen.has(id)) throw new Bad(400, `${k}.id is listed twice`);
+          seen.add(id);
+          if (c.note != null && (typeof c.note !== 'string' || c.note.length > 200)) throw new Bad(400, `${k}.note must be text of at most 200 characters`);
+          return { id, label: one('label', 60), ...(c.note?.trim() ? { note: c.note.trim() } : {}) };
+        });
       };
       const parts = (v, k) => {
         if (arr(v, k).length > 30) throw new Bad(400, `${k} must have at most 30 entries`);
@@ -1058,6 +1088,7 @@ export const FEEDS = {
       return {
         updated: isoOf(b.updated, 'updated', true),
         scheduler_running: b.scheduler_running ?? null,
+        channels: b.channels == null ? null : channels(b.channels),
         counts: Object.fromEntries(['jobs', 'done', 'running', 'needs_person'].map((k) => [k, whole(c[k], `counts.${k}`)])),
         jobs: arr(b.jobs, 'jobs').slice(0, 60).map(job),
         events: arr(b.events ?? [], 'events').slice(-20).map((e) => { if (typeof e !== 'string') throw new Bad(400, 'each event must be text'); return e.slice(0, 300); }),
@@ -1093,6 +1124,9 @@ function feedSpec(name) {
   return spec;
 }
 
+// How long a feed's entries are kept, in milliseconds: its keepMinutes, else its keepDays; 0 keeps everything.
+export const feedKeepMs = (spec) => (spec?.keepMinutes ? spec.keepMinutes * 60000 : spec?.keepDays ? spec.keepDays * 86400000 : 0);
+
 const feedOut = (r) => ({ id: r.id, name: r.name, bot: r.bot, data: parseJson(r.data, {}), createdAt: r.created_at });
 
 async function latestFeed(db, name) {
@@ -1106,8 +1140,9 @@ async function putFeed(db, who, name, body, now) {
   const id = newId('f');
   await db.prepare('INSERT INTO bot_feed_entries (id, name, bot, data, created_at) VALUES (?, ?, ?, ?, ?)')
     .bind(id, name, who.bot, JSON.stringify(data), now).run();
-  if (spec.keepDays) {
-    const cut = new Date(Date.parse(now) - spec.keepDays * 86400000).toISOString();
+  const keep = feedKeepMs(spec);
+  if (keep) {
+    const cut = new Date(Date.parse(now) - keep).toISOString();
     await db.prepare('DELETE FROM bot_feed_entries WHERE name = ? AND created_at < ?').bind(name, cut).run();
   }
   return json({ ok: true, feed: feedOut(await db.prepare('SELECT * FROM bot_feed_entries WHERE id = ?').bind(id).first()) }, 201);

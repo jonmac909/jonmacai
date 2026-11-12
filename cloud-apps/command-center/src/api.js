@@ -20,7 +20,7 @@ import { trackData } from './track.js';
 import { monthWindow } from './today.js';
 import { buildD2, d2Data } from './d2.js';
 import { funnelsData } from './funnels.js';
-import { buildD3, d3Data } from './d3.js';
+import { buildD3, d3Data, factoryData } from './d3.js';
 import { buildPending, pendingData } from './pending.js';
 
 const PREFIX = '/dashboard/api';
@@ -357,6 +357,14 @@ export async function handleApi(request, env, ctx) {
     if (denied) return denied;
     const now = Date.now();
     return json({ ok: true, build: env.CF_VERSION_METADATA?.id ?? null, asOf: new Date(now).toISOString(), d3: buildD3(await d3Data(env, now)) });
+  }
+  // Dashboard 3 Factory page: only the video program's newest board, read every 3 s while that page is open.
+  if (rest === '/d3/factory' && method === 'GET') {
+    const denied = await needSession(request, env);
+    if (denied) return denied;
+    const now = Date.now();
+    // A board that can't be read is a 503, not "nothing posted": the page then keeps what it shows.
+    try { return json({ ok: true, asOf: new Date(now).toISOString(), factory: await factoryData(env, now) }); } catch (err) { console.error('d3 factory', err); return json({ ok: false, error: 'Could not read the board' }, 503); }
   }
   // Review page: the Gmail thread above each sponsor draft (bots/sponsor_threads.py on GPU1 reads partners@, read only).
   if (rest === '/sponsor-threads' && method === 'GET') {
