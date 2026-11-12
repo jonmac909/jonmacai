@@ -189,6 +189,37 @@ test('bot v1 sponsor routes: 401 no/bad token, 403 other bots, 400 other kinds, 
   assert.equal(col('gmail-thread-bbb222bbb222'), 'Negotiations');
   assert.equal(g.pipeline.totals.collect, 2500);
   assert.ok(g.sponsors);
-  // The bot route never takes Jon-only kinds even for an allowed bot, and nothing reached the Mac queue.
+  // The rejected Jon-only kinds stored no action row (only the sponsor.* calls above did).
   assert.equal(t.db.sqlite.prepare("SELECT COUNT(*) n FROM actions WHERE kind NOT LIKE 'sponsor.%'").get().n, 0);
+}));
+
+test('bot v1 sponsor routes: ana allowed, revoked/cookie/bad body rejected, extra fields stripped, move_stage checked, keys namespaced', () => withNow(async () => {
+  const t = await setup();
+  const { sha256Hex } = await import('../src/bots.js');
+  const tok = (b) => `ccb_${b.padEnd(40, 'y')}`;
+  for (const b of ['ana', 'developer', 'gone']) t.db.sqlite.prepare('INSERT INTO bot_tokens (token_hash, bot, created_at) VALUES (?, ?, ?)').run(await sha256Hex(tok(b)), b === 'gone' ? 'developer' : b, 'x');
+  t.db.sqlite.prepare('UPDATE bot_tokens SET revoked_at = ? WHERE token_hash = ?').run('y', await sha256Hex(tok('gone')));
+  const Cookie = `${COOKIE}=${await signSession(SECRET, Math.floor(NOW / 1000) + 3600)}`;
+  const req = (path, headers, body) => handleApi(new Request(`https://jonmac.ai/dashboard/api/${path}`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...headers }, body: typeof body === 'string' ? body : JSON.stringify(body) }), t.env);
+  const bearer = (b) => ({ Authorization: `Bearer ${tok(b)}` });
+  const id = 'gmail-thread-1a1213c3e19344a7';
+  const add = { kind: 'sponsor.add_deal', payload: { id, brand: 'Topview', stage: 'negotiating', msg: 'injected', isolated: true, extra: 'x' }, idemKey: 'k1' };
+  assert.equal((await req('v1/sponsors/actions', bearer('ana'), add)).status, 200);
+  assert.equal((await req('v1/sponsors/actions', bearer('gone'), add)).status, 401);
+  assert.equal((await req('v1/sponsors/actions', { Cookie, 'X-CC': '1' }, add)).status, 401);
+  assert.equal((await req('actions', bearer('developer'), add)).status, 401);
+  for (const b of ['[1,2]', '"str"', '42', 'null', 'not json']) assert.equal((await req('v1/sponsors/actions', bearer('developer'), b)).status, 400, b);
+  const row = t.db.sqlite.prepare("SELECT payload, result, idem_key FROM actions WHERE kind = 'sponsor.add_deal'").get();
+  assert.deepEqual(Object.keys(JSON.parse(row.payload)).sort(), ['brand', 'id', 'stage']);
+  assert.ok(!String(row.result).includes('injected'));
+  assert.equal(row.idem_key, 'bot:ana:k1');
+  for (const p of [{ id: 'x', stage: 'negotiating' }, { id, stage: 'bogus' }, { id }, { stage: 'paid' }]) {
+    assert.equal((await req('v1/sponsors/actions', bearer('developer'), { kind: 'sponsor.move_stage', payload: p })).status, 400, JSON.stringify(p));
+  }
+  assert.equal(t.db.sqlite.prepare("SELECT COUNT(*) n FROM deal_stage_overrides WHERE stage = 'bogus' OR deal_id = 'x'").get().n, 0);
+  // A bot can't read one of Jon's actions back by its key.
+  await t.act('sponsor.set_amount', { id, amount: 900 });
+  const jon = t.db.sqlite.prepare("SELECT id, idem_key FROM actions WHERE kind = 'sponsor.set_amount'").get();
+  const r = await (await req('v1/sponsors/actions', bearer('developer'), { kind: 'sponsor.set_amount', payload: { id, amount: 901 }, idemKey: jon.idem_key })).json();
+  assert.notEqual(r.id, jon.id);
 }));

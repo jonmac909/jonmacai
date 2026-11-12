@@ -5,7 +5,7 @@ Usage: apply_sponsor_plan.py BASE_URL [read] [--token-bot SLUG [--token-file F] 
   POST /dashboard/api/v1/sponsors/actions. --cookie: Jon's session, POST /dashboard/api/actions with X-CC: 1.
 read: GET /dashboard/api/v1/sponsors (token only) and print card counts per column, To close / To collect, Topview and Arcads.
 Writes D:\AgentTeam\qc-work\money-deals-rebuild\deals-final.json (or --out)."""
-import argparse, json, os, re, sys, urllib.error, urllib.request
+import argparse, json, os, re, sys, urllib.error, urllib.parse, urllib.request
 from pathlib import Path
 
 ARCHIVE = "1a1591983a010b39 1a1831ee29e12656 1a100fca30a15755 1a087f484852c575 19f68e77b0d330f1 1a176291fb3afb9f 1a0acaf42e06c279 1a140abb90a6cb8e 1a17ab631ca1fa85 1a11d63686781aef 1a0de0dd49b7a494 1a1148dbe5a15491 1a1921b958ae7351 1a16ca8408f9ba45 1a13372b13495a52 1a1a26bda8c7af0e 1a17e62e379dcf1e 1a19d4ee5bc7a989 1a187901df7b1bae 1a1a17a32f603e78 1a1075f2458e886a 1a1a0f150ba2544d 1a095b91a0604aec 1a188321b120540e 1a1c5669ca10d277 1a09f81f9207d0e1 1a19f5af492b3f67 1a12d18a25696cb3 1a0874c7523d0039 1a0ca7b4001e9557 1a062af4c3da3601 1a0d430648d1e5ae 1a19c7c9d8163dd9 1a0ff9d785e1635d 1a0aefac7b3d4b6a 1a0e7a2fd981655a 1a116c0e136bee30".split()
@@ -74,6 +74,8 @@ def send(url, headers, body=None):
         return {"error": str(e)}
 
 def failed(r):
+    if not isinstance(r, dict):
+        return True
     return bool(r.get("error")) or r.get("ok") is False or r.get("status") in ("failed", "error")
 
 def read(base, headers):
@@ -100,6 +102,9 @@ def main():
     a = ap.parse_args()
     base = a.base.rstrip("/")
     if a.token_bot:
+        host = urllib.parse.urlsplit(base)
+        if host.scheme != "https" and host.hostname not in ("localhost", "127.0.0.1"):
+            sys.exit("Token mode needs an https base (or localhost): %s" % base)
         url = base + "/dashboard/api/v1/sponsors/actions"
         headers = {"Content-Type": "application/json", "Authorization": "Bearer " + read_token(a.token_bot, a.token_file), "User-Agent": UA}
     else:
