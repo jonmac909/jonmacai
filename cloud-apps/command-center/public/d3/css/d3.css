@@ -164,6 +164,23 @@ html[data-theme="dark"] body{background:#0b0b0c}
   .d3 .ksr{grid-template-columns:minmax(0,1fr) 32px minmax(0,max-content) 52px;gap:8px;font-size:13px}
   .d3 .ksr .kss{font-size:11px}
 }
+/* Goals grid (Jon, 2026-11-11): every card in a row has the same width and height. Equal grid columns, rows stretch;
+   one card per row on a phone. Pipeline revenue is sized by its row, never by its deal lists (contain:size), and the
+   lists scroll inside it; the Sponsor Revenue chart grows to fill its card. Titles stay on one line. */
+.d3 .gtop,.d3 .gobjs{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(330px,100%),1fr));gap:16px;align-items:stretch}
+.d3 .gobjs{grid-template-columns:repeat(auto-fit,minmax(min(380px,100%),1fr))}
+.d3 .gtop h2,.d3 .gobjs h2{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.d3 .grevc{flex:1 1 auto;display:flex;flex-direction:column;gap:6px}
+.d3 .grevc>svg{flex:1 1 180px;min-height:180px}
+.d3 .gpipe{contain:size;min-height:460px;gap:12px}
+.d3 .gpb{flex:1 1 0;min-height:0}
+.d3 .gpb0{flex:none}
+.d3 .plist{display:flex;flex-direction:column;flex:1 1 0;min-height:44px;overflow:auto;font-size:14px}
+.d3 .gobj{container-type:inline-size}
+.d3 .gobj .cardhd{flex-wrap:wrap;row-gap:6px}
+@container (max-width:440px){
+  .d3 .gobj .gown{display:none}
+}
 .d3 .btn:disabled{opacity:.5;cursor:default}
 .d3 .btn.primary{background:var(--fill);border-color:var(--fill);color:#ffffff}
 .d3 .stat .nfl{color:var(--muted)}

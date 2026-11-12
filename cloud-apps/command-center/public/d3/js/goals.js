@@ -251,7 +251,7 @@ function summaryHtml(objs) {
   const top = rows.slice(0, KR_OPEN);
   const rest = rows.slice(KR_OPEN);
   const more = rest.length ? `<details class="ksm"><summary class="mut">+${rest.length} more</summary><div class="ksl">${rest.map(keyRowHtml).join('')}</div></details>` : '';
-  return `<section class="card ks" style="flex: 5 1 340px" aria-label="Key results">
+  return `<section class="card ks" aria-label="Key results">
 <div class="hd"><span class="chip">${icon('goals')}</span><h2>Key results</h2>${pill}</div>
 <div class="hd" style="align-items: baseline; gap: 8px"><b class="num" style="font-size: 30px">${c.r}</b><span class="dim" style="font-size: 15px">of ${all} off track${c.y ? `, ${c.y} at risk` : ''}</span></div>
 ${top.length ? `<div class="ksl">${top.map(keyRowHtml).join('')}</div>` : ''}${more}
@@ -276,11 +276,11 @@ function revenueHtml(d2resp, P) {
   const big = has
     ? `<b class="num" style="font-size: 52px">${esc(usd(m.actual))}</b>${num(m.target) ? `<span class="dim" style="font-size: 16px">of ${esc(usd(m.target))}</span>` : ''}`
     : `<b class="num nf">${esc(m ? 'No data' : 'No feed')}</b>`;
-  return `<section class="card" style="flex: 4 1 300px" aria-label="Sponsor Revenue">
+  return `<section class="card grev" aria-label="Sponsor Revenue">
 <div class="hd"><span class="chip">${icon('money')}</span><h2>Sponsor Revenue</h2><a class="go sp" href="#money" aria-label="Open Money">${icon('open')}</a></div>
 <div style="display: flex; flex-direction: column; gap: 4px"><div class="hd mut" style="gap: 12px"><span>Collected in ${esc(P.monthName)}</span><span class="hd sp" style="gap: 6px; font-size: 12px"><svg width="18" height="4" aria-hidden="true"><line class="pace" x1="0" y1="2" x2="18" y2="2"></line></svg>pace</span></div><div class="hd" style="align-items: baseline; gap: 8px">${big}</div></div>
-<div style="display: flex; flex-direction: column; gap: 6px">
-<svg viewBox="0 0 300 100" preserveAspectRatio="none" role="img" aria-label="Collected so far against the pace line" style="display: block; width: 100%; height: 220px; overflow: visible">
+<div class="grevc">
+<svg viewBox="0 0 300 100" preserveAspectRatio="none" role="img" aria-label="Collected so far against the pace line" style="display: block; width: 100%; overflow: visible">
 <line class="ax" x1="0" y1="100" x2="300" y2="100" vector-effect="non-scaling-stroke"></line>
 ${num(m?.target) && m.target > 0 ? '<line class="pace" x1="0" y1="100" x2="300" y2="0" vector-effect="non-scaling-stroke"></line>' : ''}
 ${series ? `<polyline class="act" points="${series.map(([x, y]) => `${sx(x)},${sy(y)}`).join(' ')}" vector-effect="non-scaling-stroke"></polyline>` : ''}
@@ -337,7 +337,7 @@ export function pipelineOf(d2resp) {
 function pipelineHtml(d2resp) {
   const p = pipelineOf(d2resp);
   const head = `<div class="hd"><span class="chip">${icon('money')}</span><h2>Pipeline revenue</h2><a class="go sp" href="#money" aria-label="Open Money">${icon('open')}</a></div>`;
-  if (!p) return `<section class="card" style="flex: 3 1 220px; min-width: 0" aria-label="Pipeline revenue">${head}<p class="mut">No feed: the Sponsors board could not be read.</p></section>`;
+  if (!p) return `<section class="card gpipe" aria-label="Pipeline revenue">${head}<p class="mut">No feed: the Sponsors board could not be read.</p></section>`;
   const block = (label, rows, total) => {
     const bare = rows.filter((r) => r.amt == null).length;
     const list = rows.map((r) => {
@@ -345,13 +345,13 @@ function pipelineHtml(d2resp) {
       const st = 'gap: 8px; color: inherit; text-decoration: none; padding: 3px 0';
       return r.id ? `<a class="hd" href="#money" data-deal="${esc(r.id)}" style="${st}">${inner}</a>` : `<div class="hd" style="${st}">${inner}</div>`;
     }).join('');
-    return `<div class="inner" style="gap: 6px">
+    return `<div class="inner gpb${rows.length ? '' : ' gpb0'}" style="gap: 6px">
 <div class="hd" style="align-items: baseline; gap: 8px"><span class="sub" style="font-weight: 500">${label}</span><b class="num sp" style="font-size: 26px">${esc(usd(total))}</b></div>
 <span class="mut" style="font-size: 12px">${rows.length} deal${rows.length === 1 ? '' : 's'}${bare ? ` · ${bare} no amount` : ''}</span>
-${rows.length ? `<div style="display: flex; flex-direction: column; max-height: 180px; overflow: auto; font-size: 14px">${list}</div>` : '<span class="mut" style="font-size: 13px">None</span>'}
+${rows.length ? `<div class="plist">${list}</div>` : '<span class="mut" style="font-size: 13px">None</span>'}
 </div>`;
   };
-  return `<section class="card" style="flex: 3 1 220px; min-width: 0; gap: 12px" aria-label="Pipeline revenue">${head}
+  return `<section class="card gpipe" aria-label="Pipeline revenue">${head}
 ${block('To close', p.close, p.totals.close)}
 ${block('To collect', p.collect, p.totals.collect)}
 </section>`;
@@ -361,8 +361,8 @@ function objectiveHtml(o, ui) {
   let r = 0; let y = 0; let g = 0;
   for (const k of o.krs) { if (k.tone === 'r') r++; else if (k.tone === 'y') y++; else if (k.tone === 'g') g++; }
   const pill = r ? 'bad' : y ? 'warn' : g ? 'ok' : '';
-  return `<section class="card" style="gap: 18px">
-<div class="hd cardhd"><span class="chip">${icon(o.icon)}</span><h2>${esc(o.title)}</h2><span class="pill ${pill}">${g} of ${o.krs.length} on track</span><span class="hd sp mut" style="gap: 6px"><span class="av">${esc(o.owner.charAt(0))}</span>${esc(o.owner)}</span></div>
+  return `<section class="card gobj" style="gap: 18px">
+<div class="hd cardhd"><span class="chip">${icon(o.icon)}</span><h2>${esc(o.title)}</h2><span class="pill ${pill}">${g} of ${o.krs.length} on track</span><span class="hd sp mut" style="gap: 6px"><span class="av" title="${esc(o.owner)}">${esc(o.owner.charAt(0))}</span><span class="gown">${esc(o.owner)}</span></span></div>
 ${o.krs.map((k) => krHtml(k, ui.openKr === k.id, ui.busy, ui.confirmLog)).join('\n')}
 </section>`;
 }
@@ -449,14 +449,15 @@ export function renderGoals(d2resp, d3resp, ui = {}) {
   const P = periodOf(d2resp);
   const objs = objectivesOf(d2resp, d3resp, P);
   const U = { openKr: ui.openKr || null, hgpOpen: !!ui.hgpOpen, busy: !!ui.busy, confirmLog: ui.confirmLog || null };
-  // align-items: start: each top card is as tall as its own content, not stretched to the tallest one.
+  // Every card in a row has the same width and height (Jon, 2026-11-11): equal grid columns, rows stretch, and long
+  // lists scroll inside their card instead of making it taller (d3.css "Goals grid").
   return `${headerHtml(P, 'Goals')}
-<div class="row" style="align-items: flex-start">
+<div class="gtop">
 ${summaryHtml(objs)}
 ${revenueHtml(d2resp, P)}
 ${pipelineHtml(d2resp)}
 </div>
-<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(380px, 100%), 1fr)); gap: 16px">
+<div class="gobjs">
 ${objs.map((o) => objectiveHtml(o, U)).join('\n')}
 </div>
 ${scheduledHtml(d2resp, d3resp, P, U)}`;
