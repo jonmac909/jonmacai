@@ -19,7 +19,7 @@ import { renderSystem } from './system.js';
 import { sourcesCard } from './sources.js';
 import { renderFactory, syncFactory } from './factory.js';
 import { renderTrack, trackSub } from './track.js';
-import { renderHome, homeClick, homeKeep, homeAfter, homeHints, setColour, savedColours } from './home.js';
+import { renderHome, homeClick, homeChange, homeInput, homeSubmit, homeDrag, homeKeep, homeAfter, homeHints, setColour, savedColours } from './home.js';
 // The old Track page's own renderer and sort state, loaded from /dashboard (as Dashboard 2 does) the first time Track opens.
 const OLD_TRACK = '/dashboard/js/pages/track.js';
 let oldTrack = null;
@@ -126,7 +126,7 @@ function render() {
   }
   if (p === 'home') { // a redraw keeps the scroll boxes where they were; a fresh one opens at the current time
     const keep = homeKeep(main);
-    main.innerHTML = `${note}${renderHome(S.d2, S.d3, S.ui, S.ui.now ?? Date.now())}`;
+    main.innerHTML = `${note}${renderHome(S.d2, S.d3, S.ui, S.ui.now ?? Date.now(), S.home)}`;
     homeAfter(main, keep);
     return;
   }
@@ -171,9 +171,32 @@ async function loadTrack() {
   }
 }
 
+// Home's saved tasks, Jon's own goals and his calendar week. A failed read keeps the last ones; the page says so when there are none.
+async function loadHome() {
+  try {
+    const h = await getJson('/dashboard/api/home');
+    if (!h.signedOut) S.home = h.body?.home || null;
+  } catch { /* keep what is shown */ }
+}
+// A Home write (tick, task, goal): Jon's session plus the X-CC header. -> { ok, error }
+async function send(method, path, body) {
+  try {
+    const res = await fetch(`/dashboard/api${path}`, {
+      method, credentials: 'same-origin', headers: { 'Content-Type': 'application/json', 'X-CC': '1' },
+      body: body === undefined ? undefined : JSON.stringify(body),
+    });
+    const b = await res.json().catch(() => null);
+    return { ok: res.ok && b?.ok !== false, error: b?.error || (res.ok ? '' : `answered ${res.status}`) };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+}
+const reloadHome = async () => { await loadHome(); render(); };
+const popOpen = () => !!(S.ui.hmEd || S.ui.hmGoal || S.ui.hmDrag); // a Home pop-up or drag: no redraw underneath it
+
 async function load() {
   try {
-    const [a, b] = await Promise.all([getJson('/dashboard/api/d2'), getJson('/dashboard/api/d3')]);
+    const [a, b] = await Promise.all([getJson('/dashboard/api/d2'), getJson('/dashboard/api/d3'), loadHome()]);
     if (a.signedOut || b.signedOut) {
       // Signed out: open the sign-in page once; if that lands back here still signed out, stop and show a link.
       let tried = false;
@@ -194,7 +217,7 @@ async function load() {
   if (page() === 'review' && !S.signedOut) await loadThreads();
   rail();
   // Don't redraw under Jon's typing (a Review answer, send-back note or draft edit); the next load or click redraws.
-  if (document.activeElement?.closest?.('#main textarea, #main input')) return;
+  if (document.activeElement?.closest?.('#main textarea, #main input') || popOpen()) return;
   render();
 }
 
@@ -214,7 +237,7 @@ main.addEventListener('click', async (e) => {
     if (go && /^track(\/|$)/.test(go.dataset.page)) { location.hash = go.dataset.page; return; }
     return;
   }
-  if (page() === 'home' && homeClick(e, S.ui, render)) return; // Home's switches and rows; its "+ Log" falls through to the log below
+  if (page() === 'home' && homeClick(e, S.ui, render, S, send, reloadHome)) return; // Home's switches and rows; its "+ Log" falls through to the log below
   if (page() === 'review' && await reviewClick(e, S, render, load)) return;
   if (page() === 'blockers' && await needsClick(e, S, render, load)) return;
   if (threadClick(e, S.ui, render)) return; // open or fold one message of a Money deal's email thread
@@ -286,15 +309,25 @@ main.addEventListener('click', async (e) => {
 
 // Typed Review text lives in S.ui, so a redraw keeps it.
 main.addEventListener('input', (e) => {
+  if (page() === 'home' && homeInput(e, S.ui)) return; // a Home pop-up's field
   if (e.target.matches('.rvtext')) S.ui.rvText = e.target.value;
   else if (e.target.matches('.rvin')) S.ui.rvDraft = { ...S.ui.rvDraft, [e.target.name]: e.target.value };
   else if (e.target.matches('[data-hmcol]')) setColour(e.target, S.ui); // Home: a category's colour
 });
+// Home: a task's tick box, a goal's step and the pop-ups' fields; Save in a pop-up; Esc closes one; Enter opens a calendar block.
+main.addEventListener('change', (e) => { if (page() === 'home') homeChange(e, S, render, send, reloadHome); });
+main.addEventListener('submit', (e) => { if (page() === 'home') homeSubmit(e, S, render, send, reloadHome); });
+document.addEventListener('keydown', (e) => {
+  if (page() !== 'home') return;
+  if (e.key === 'Escape' && (S.ui.hmEd || S.ui.hmGoal)) { S.ui.hmEd = null; S.ui.hmGoal = null; render(); }
+  else if (e.key === 'Enter' && e.target.matches?.('.hmev[data-hmit]')) e.target.click();
+});
+homeDrag(main, S, send, reloadHome);
 // Home: the "N more" hint under a category card follows its scroll.
 main.addEventListener('scroll', (e) => { if (e.target.classList?.contains('hmpc')) homeHints(main); }, true);
 
 window.addEventListener('hashchange', () => {
-  Object.assign(S.ui, { hmOpen: null, openKr: null, openBot: null, openBl: null, teamBot: null, teamCol: null, ...RV_CLEAR, rvDone: {}, rvKept: {} });
+  Object.assign(S.ui, { hmOpen: null, hmEd: null, hmGoal: null, hmGDel: null, openKr: null, openBot: null, openBl: null, teamBot: null, teamCol: null, ...RV_CLEAR, rvDone: {}, rvKept: {} });
   render();
   if (page() === 'review' && !S.ui.rvThreads?.threads) loadThreads().then(() => { if (page() === 'review') render(); });
 });
@@ -314,7 +347,7 @@ async function loadFactory() {
   } catch { /* keep what is shown; the 60 s load reports errors */ } finally { fastBusy = false; }
 }
 // Home's clock, "now" line and current task: a redraw every 15 s while it is open (not under an open colour picker).
-setInterval(() => { if (S.d2 && !S.signedOut && page() === 'home' && document.visibilityState === 'visible' && !document.activeElement?.closest?.('#main input')) render(); }, 15000);
+setInterval(() => { if (S.d2 && !S.signedOut && page() === 'home' && document.visibilityState === 'visible' && !document.activeElement?.closest?.('#main input') && !popOpen()) render(); }, 15000);
 setInterval(loadFactory, 3000);
 setInterval(() => { if (S.d3 && !S.signedOut && page() === 'factory' && document.visibilityState === 'visible') render(); }, 1000);
 setInterval(() => { if (document.visibilityState === 'visible') load(); }, 60000);

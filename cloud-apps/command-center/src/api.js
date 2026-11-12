@@ -11,7 +11,8 @@ import { mergeSnapshot } from './snapshot.js';
 import { listFunnel } from './webinar.js';
 import { boardStageFor, dealThreadIds, draftThreadIds } from './sponsors.js';
 import { runMoneyMove } from './money.js';
-import { exchangeGoogleCode, googleAuthUrl, runLife } from './life.js';
+import { exchangeGoogleCode, googleAuthUrl, pullCalendar, runLife } from './life.js';
+import { homeData, homeWrite } from './home.js';
 import { REVIEW_SOURCE, draftId, isIsolated, parseReview, plannerDestination, reviewMutate, upsertReview } from './review.js';
 import { botOf, handleV1, todayData } from './bots.js';
 import { freshen, youtubeAnalyticsCheck, youtubeCallback, youtubeConnect, youtubeStatus } from './youtube.js';
@@ -296,7 +297,9 @@ export async function handleApi(request, env, ctx) {
   }
   if (rest === '/google/callback' && method === 'GET') {
     const ok = await exchangeGoogleCode(env, url.origin, url.searchParams.get('code'), url.searchParams.get('state'));
-    return Response.redirect(`${url.origin}/dashboard/#life${ok ? '' : '?cal=err'}`, 302);
+    if (!ok) return Response.redirect(`${url.origin}/dashboard/#life?cal=err`, 302);
+    await pullCalendar(env).catch((err) => console.error('calendar', err)); // so Home shows the week at once, not after the next cron
+    return Response.redirect(`${url.origin}/dash/`, 302);
   }
   // Google's redirect back carries no session (the cookie is SameSite=Strict); the one-use state stands in (src/youtube.js).
   if (rest === '/youtube/callback' && method === 'GET') return youtubeCallback(request, env);
@@ -506,6 +509,16 @@ export async function handleApi(request, env, ctx) {
     const row = await actionById(env.DB, one[1]);
     if (!row) return json({ error: 'Not found' }, 404);
     return json({ id: row.id, status: row.status, result: row.result });
+  }
+  // Dashboard 3 Home: Jon's saved schedule tasks, his own goals and his Google Calendar week (src/home.js).
+  if (rest === '/home' && method === 'GET') {
+    if (!env.DB) return json({ ok: true, home: null });
+    return json({ ok: true, home: await homeData(env) });
+  }
+  if (rest.startsWith('/home/') && env.DB) {
+    const b = method === 'GET' ? {} : await request.json().catch(() => ({}));
+    const out = await homeWrite(env, method, rest.slice(5), b && typeof b === 'object' ? b : {}, url.searchParams);
+    return json(out.body, out.status);
   }
   if (rest === '/habits' && method === 'POST' && env.DB) {
     const b = await request.json().catch(() => ({}));

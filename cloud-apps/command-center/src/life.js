@@ -222,7 +222,7 @@ export async function pullCalendar(env, fetchFn = globalThis.fetch, nowMs = Date
   if (!ids.length) ids.push('primary');
   const events = [];
   for (const id of ids) {
-    const url = `${CAL}/calendars/${encodeURIComponent(id)}/events?timeMin=${encodeURIComponent(min)}&timeMax=${encodeURIComponent(max)}&singleEvents=true&orderBy=startTime&maxResults=100`;
+    const url = `${CAL}/calendars/${encodeURIComponent(id)}/events?timeMin=${encodeURIComponent(min)}&timeMax=${encodeURIComponent(max)}&singleEvents=true&orderBy=startTime&maxResults=2500`; // Google's own page limit: 100 would cut off this week on a busy calendar
     const data = await fetchFn(url, { headers }).then((r) => r.ok ? r.json() : { items: [] }).catch(() => ({ items: [] }));
     for (const e of data.items || []) events.push(normEvent(e));
   }

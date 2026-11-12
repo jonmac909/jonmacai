@@ -148,3 +148,13 @@ Stuck leaves out cards in Review on purpose: those passed QC on their newest ver
 - When GPU1 is off, or the app or its tunnel is not running there, the frame shows the gate Worker's "Hyper is not reachable" page.
 - Styles: `.d3 .card.hy` and the full-width shell rule at the end of `css/d3.css`.
 - Tests: `test/d3-hyper.test.mjs` (ticket and check endpoints, page and menu), and `cloud-apps/hyper/worker.test.mjs` for the gate.
+
+## Home page: saved schedule and goals (2026-11-12)
+Built to match the handover mockup (home-mockup.html). Before this, Home was read-only.
+- Tables (migration `0026_home_tasks.sql`): `home_tasks` (one row per task or repeating series), `home_task_days` (one row per day touched: ticked, moved "just this one", or removed for that day), `home_goals` and `home_goal_logs` (goals added with "+ Add goal"). The migration seeds the standing rules (from Mon 9 Nov 2026) and the Book trip checklist. Deleting only sets `deleted = 1`.
+- `GET /dashboard/api/home` (src/home.js `homeData`): tasks, day overrides, goals, logs, workout and date-night habit logs, and the Google Calendar week (timed events, 21 days each side) when connected.
+- Writes (session + `X-CC: 1`): `POST /home/tasks`, `PATCH /home/tasks/:id` (add `scope: 'once', occ` for one day), `DELETE /home/tasks/:id` (`?scope=once&occ=` for one day), `POST /home/tasks/:id/day` `{ day, done, on }`, `POST /home/goals`, `DELETE /home/goals/:id`, `POST /home/goals/:id/log` (`{ step, done }`, `{ done }`, `{ add }` or `{ value }`). A tick on a workout or date-night task also writes the habit log.
+- Carry-over rules live in `public/d3/js/sched.js` `dayItems`: retry slot the same day, then carried to today as Late (only within the week for repeating tasks, 14 days for one-offs, never next to the task's own slot today); a moved day shows "make-up" on the new day and a faded "Moved" on the usual day.
+- Google Calendar: connect once at `/dashboard/api/google/start` after the `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` and `SESSION_SECRET` worker secrets are set (redirect URI `https://jonmac.ai/dashboard/api/google/callback`). After connecting, the callback pulls the calendar at once and goes back to `/dash/`.
+- Not built yet: sending reminders or texts (saved only), the 8am text and Friday review message, writing tasks into Google Calendar, drag on touch screens (a tap opens the pop-up).
+- Tests: `test/home.test.mjs` (server, real SQLite) and `test/d3-home.test.mjs` (page).
