@@ -178,7 +178,10 @@ html[data-theme="dark"] body{background:#0b0b0c}
 .d3 .plist{display:flex;flex-direction:column;flex:1 1 0;min-height:44px;overflow:auto;font-size:14px}
 .d3 .gobj{container-type:inline-size}
 .d3 .gobj .cardhd{flex-wrap:wrap;row-gap:6px}
-@container (max-width:440px){
+.d3 .gobj .cardhd>h2{flex:none}
+.d3 .gobj .cardhd>.sp{flex:0 1 auto;min-width:30px;overflow:hidden}
+.d3 .gobj .gown{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+@container (max-width:300px){
   .d3 .gobj .gown{display:none}
 }
 .d3 .btn:disabled{opacity:.5;cursor:default}
