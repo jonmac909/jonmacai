@@ -22,6 +22,8 @@ const NO_FEED = { state: 'none', text: 'No feed' };
 const MIN = 60000;
 // The dispatcher's live feed (tools/dash_live_feed.py, every 2 min): grey once it is 10 minutes old.
 const LIVE_STALE = 10 * MIN;
+// The video program's board (feed video_line, every 30 s): stale once the newest entry is 3 minutes old.
+const VIDEO_STALE = 3 * MIN;
 
 const parse = (raw) => {
   if (raw && typeof raw === 'object') return raw;
@@ -46,7 +48,7 @@ export async function d3Data(env, nowMs) {
   const apSince = new Date(nowMs - 14 * DAY).toISOString();
   const AP_CARDS = `SELECT id FROM bot_tasks WHERE project IN ('home-guide-press', 'jon-mac', 'jonmacai') AND (status IN ${OPEN} OR (status = 'done' AND updated_at >= ?))`;
   const [youtube, review, approvals, questions, usage, lastUsage, open, proofs, habits, calendar, charges,
-    tasks, finished, stuck, failsToday, runs, runBots, later, scripts, scoreProofs, staged, apCards, apEvents, ytLive, live, feedRows, snapRows] = await Promise.all([
+    tasks, finished, stuck, failsToday, runs, runBots, later, scripts, scoreProofs, staged, apCards, apEvents, ytLive, live, feedRows, snapRows, video] = await Promise.all([
     q('SELECT channel, sync_error FROM yt_api'),
     // Review cards with their deliverable: the newest web proof link (a video proof first, then a passed one), and up to 6
     // web proof links in all. Local paths (D:\...) are skipped here: they once hid a card's real links and made it an empty "video".
@@ -113,12 +115,15 @@ export async function d3Data(env, nowMs) {
     // System page, Sources: when each feed and each collected snapshot last reported.
     q('SELECT name, MAX(created_at) AS at FROM bot_feed_entries GROUP BY name'),
     q('SELECT source AS name, collected_at AS at FROM snapshots'),
+    // Factory page: the video program's newest board.
+    q("SELECT data, created_at FROM bot_feed_entries WHERE name = 'video_line' ORDER BY created_at DESC LIMIT 1"),
   ]);
   return {
     youtube, review, approvals, questions, usage, lastUsage: lastUsage && (lastUsage[0] || undefined), open, proofs, habits, calendar: calendar && parse(calendar[0]?.data), charges,
     tasks, finished, stuck, failsToday, runs, runBots, later, scripts, scoreProofs, staged, apCards, apEvents, ytLive, today0, nowMs,
     live: live && (live[0] ? { d: parse(live[0].data), at: live[0].created_at } : undefined),
     feedRows, snapRows,
+    video: video && (video[0] ? { d: parse(video[0].data), at: video[0].created_at } : undefined),
   };
 }
 
@@ -667,11 +672,12 @@ function blockersOf(D, putOff = []) {
 
 // ---- Sources: every feed and snapshot behind the numbers, with who posts it and when it last reported ----
 // Real rows only: a name appears once something has been posted under it. The dispatcher's live feed turns stale after
-// 10 minutes, everything else after 24 hours (sourceOf). Unknown names are listed as they are, never hidden.
+// 10 minutes, the video program's board after 3, everything else after 24 hours (sourceOf). Unknown names are listed as they are, never hidden.
 const SOURCE_NAMES = {
   dispatch_live: ['Dispatcher live state', 'Dispatcher script'], claude_usage: ["Ana's Claude usage check", 'Ana'],
   morning_summary: ["Ana's morning summary", 'Ana'], calendar_today: ["Ana's calendar push", 'Ana'],
   ebook_sales: ['Ebook sales', 'Home Guide Press, Accounting'], daily_checklists: ['Daily checklists', 'Bots'],
+  video_line: ['Video program board', 'Video program script'],
   factory: ['Video factory', 'Factory script'], periods: ['Sponsor periods', 'Sponsors'], calendar: ['Google calendar', 'Ana'],
 };
 function sourcesOf(D) {
@@ -682,6 +688,7 @@ function sourcesOf(D) {
       const [label, owner] = SOURCE_NAMES[r.name] || [String(r.name), ''];
       const s = sourceOf(label, r.at, D.nowMs);
       if (r.name === 'dispatch_live' && s.at && D.nowMs - Date.parse(s.at) > 10 * 60000) s.stale = true;
+      if (r.name === 'video_line' && s.at && D.nowMs - Date.parse(s.at) > VIDEO_STALE) s.stale = true;
       rows.push({ name: String(r.name), label, kind, owner, at: s.at, ageLabel: s.ageLabel, stale: s.stale });
     }
   }
@@ -704,6 +711,14 @@ function scriptsOf(D) {
     const recorded = !!Number(t.footage) || PAST_RECORDING.has(String(t.stage || '').trim().toLowerCase());
     return { id: t.id, title: t.title, at: t.created_at, doc: docOf(t.note, t.doc), status: recorded ? 'Recorded' : 'To record' };
   });
+}
+
+// Factory page: the newest video_line entry as posted, plus when it was posted and whether it is stale. null when
+// nothing was posted or the table can't be read.
+function factoryOf(D) {
+  if (!D.video) return null;
+  const age = D.nowMs - Date.parse(D.video.at);
+  return { ...D.video.d, at: D.video.at, stale: !(age <= VIDEO_STALE) };
 }
 
 export function buildD3(D) {
@@ -732,6 +747,7 @@ export function buildD3(D) {
     notNow: D.later ? putOff.length : null, // Needs you items put off with "Not now"; null when needs_later can't be read
     scripts: scriptsOf(D),
     sources: sourcesOf(D),
+    factory: factoryOf(D),
     openCards: D.open ? Object.fromEntries(D.open.map((r) => [r.project || '', Number(r.n) || 0])) : null,
     goals: {
       tokenWeeks: tokenWeeks(D.usage, first, P.last, nowMs, D.live, D.lastUsage),
