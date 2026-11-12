@@ -74,7 +74,7 @@ test('signed in: the app gets a plain local request, and the answer may only be 
     headers: { Cookie: `theme=dark; ${cookie}`, Origin: HOST, Referer: `${HOST}/p/demo?tab=1`, 'CF-Connecting-IP': '203.0.113.9', 'X-Forwarded-Host': 'evil.example', Accept: 'application/json' },
   });
   assert.equal(await res.text(), 'app');
-  assert.equal(res.headers.get('Content-Security-Policy'), 'frame-ancestors https://jonmac.ai');
+  assert.equal(res.headers.get('Content-Security-Policy'), "frame-ancestors https://jonmac.ai 'self'");
   assert.equal(res.headers.get('X-Robots-Tag'), 'noindex, nofollow');
   const sent = seen.app[0];
   assert.equal(sent.url, 'http://localhost:5191/api/projects?x=1');
