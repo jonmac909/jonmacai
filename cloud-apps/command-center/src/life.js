@@ -224,10 +224,17 @@ export async function pullCalendar(env, fetchFn = globalThis.fetch, nowMs = Date
   const ids = (cals.items || []).map((c) => c.id).filter(Boolean);
   if (!ids.length) ids.push('primary');
   const events = [];
+  const seen = new Set(); // the same meeting on two of Jon's calendars shows once
   for (const id of ids) {
     const url = `${CAL}/calendars/${encodeURIComponent(id)}/events?timeMin=${encodeURIComponent(min)}&timeMax=${encodeURIComponent(max)}&singleEvents=true&orderBy=startTime&maxResults=2500`; // Google's own page limit: 100 would cut off this week on a busy calendar
     const data = await fetchFn(url, { headers }).then((r) => r.ok ? r.json() : { items: [] }).catch(() => ({ items: [] }));
-    for (const e of data.items || []) events.push(normEvent(e));
+    for (const e of data.items || []) {
+      const ev = normEvent(e);
+      const key = `${ev.title}|${ev.start}|${ev.end}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      events.push(ev);
+    }
   }
   const now = new Date(nowMs).toISOString();
   await upsertSnapshot(env.DB, 'calendar', JSON.stringify({ connected: true, events }), now, now);
