@@ -42,16 +42,19 @@ export function kelowna(iso) {
 
 // A video's group, in page order: needs you, failed, running, waiting, done.
 const RANK = { need: 0, fail: 1, run: 2, wait: 3, done: 4 };
+// Jon asked for changes on its review page: a stage reads "changes" until the new version is up (video line, 2026-11-12).
+const inChanges = (job) => [...list(job?.stages), ...list(job?.steps)].some((st) => String(st?.status || '').toLowerCase() === 'changes');
 function kindOf(job) {
   const s = String(job?.state || '').toLowerCase();
   if (job?.needs_person || s === 'needs a person') return 'need';
   if (s === 'failed') return 'fail';
   if (s.startsWith('running')) return 'run'; // "running? (process gone)" stays with the running videos
+  if (inChanges(job)) return 'run'; // changes in progress, not Done
   return s === 'done' ? 'done' : 'wait';
 }
 function stepKind(st) {
   const s = String(st?.status || '').toLowerCase();
-  return s === 'running' ? 'run' : s === 'done' ? 'done' : s === 'failed' ? 'fail' : s === 'skip' ? 'skip' : s === 'waiting' ? 'hold' : 'todo';
+  return s === 'running' ? 'run' : s === 'done' ? 'done' : s === 'failed' ? 'fail' : s === 'skip' ? 'skip' : s === 'waiting' ? 'hold' : s === 'changes' ? 'chg' : 'todo';
 }
 // A review page address the page may link to: only jonmac.ai's own review pages. '' for anything else.
 const reviewHref = (u) => (typeof u === 'string' && /^https:\/\/jonmac\.ai\/review\/[a-z0-9][a-z0-9-]{0,79}$/.test(u) ? u : '');
@@ -181,6 +184,11 @@ function cell(job, st, live, firstTodo) {
   if (!st) return '<td class="fycell"></td>';
   const k = stepKind(st);
   if (k === 'skip') return '<td class="fycell" title="Not a part of this video"><span class="fyskip" role="img" aria-label="Not a part of this video">–</span></td>';
+  if (k === 'chg') { // amber Changes, Jon's first comment under it, what is running now as its tooltip
+    const asked = String(st.note || '').replace(/^Jon asked for changes:?\s*/i, '').trim();
+    const tip = [st.note, st.doing ? `Now: ${st.doing}` : ''].filter(Boolean).join(' · ');
+    return `<td class="fycell"${tip ? ` title="${esc(tip)}"` : ''}><span class="fypill chg">Changes</span>${asked ? `<small class="fywhy">${esc(short(asked))}</small>` : ''}</td>`;
+  }
   if (k === 'hold') {
     const why = st.doing || st.note;
     return `<td class="fycell"${why ? ` title="${esc(why)}"` : ''}><span class="fynew">Waiting</span>${why ? `<small class="fywhy">${esc(short(why))}</small>` : ''}</td>`;

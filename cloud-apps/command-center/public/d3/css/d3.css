@@ -284,6 +284,7 @@ html[data-theme="dark"] body{background:#0b0b0c}
 .d3 .fypill{display:inline-flex;align-items:center;gap:.3rem;border-radius:1rem;padding:.12rem .6rem;font-size:.78rem;font-weight:600;border:1px solid var(--line);background:var(--card2);color:var(--ink2);white-space:nowrap}
 .d3 .fypill.ok{background:var(--fy-ok-bg);color:var(--ok-ink);border-color:var(--fy-ok-line)}
 .d3 .fypill.crit{background:var(--fy-bad-bg);color:var(--bad-ink);border-color:var(--fy-bad-line)}
+.d3 .fypill.chg{background:color-mix(in srgb,var(--warn) 16%,transparent);color:var(--warn-ink);border-color:color-mix(in srgb,var(--warn) 45%,transparent)}
 .d3 .fysum{display:flex;flex-wrap:wrap;align-items:center;gap:.3rem .9rem;margin:0;padding:0 4px;font-size:.88rem;color:var(--ink2)}
 .d3 .fysum b{color:var(--ink)}
 .d3 .fysum .z,.d3 .fysum .z b{color:var(--muted)}

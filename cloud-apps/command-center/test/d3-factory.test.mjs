@@ -807,3 +807,17 @@ test('a done stage with a picture link: the check itself opens it (Jon, 2026-11-
   assert.equal((html.match(/class="fyopen"/g) || []).length, 1, 'a check with no link stays a plain check');
   assert.doesNotMatch(page(STAGE_BOARD({ jobs: [{ ...STAGE_BOARD().jobs[0], stages: [G('thumbnail', 'Thumbnail', 'done', { url: 'https://evil.example/x.jpg' })] }] })), /fyopen|evil/);
 });
+
+test('final QC in "changes": an amber Changes with Jon\'s comment, and the video counts as in progress, not Done (2026-11-12)', () => {
+  const base = STAGE_BOARD().jobs[0];
+  const stages = STAGES().map((s) => (s.name === 'final_qc' ? { ...s, status: 'changes', note: 'Jon asked for changes: 0:06.2 swap this picture, it shows a dog', doing: 'Re-rendering' } : s));
+  const html = page(STAGE_BOARD({ jobs: [{ ...base, stages }] }));
+  assert.match(html, /<td class="fycell" title="Jon asked for changes: 0:06\.2 swap this picture, it shows a dog · Now: Re-rendering"><span class="fypill chg">Changes<\/span><small class="fywhy">0:06\.2 swap this picture, it shows a dog<\/small><\/td>/);
+  assert.match(html, /data-kind="run"/);
+  assert.doesNotMatch(html, />Done<\/a>/, 'no Done pill while changes are open');
+  assert.match(html, /<b>1<\/b> In progress<\/span><span class="z"><b>0<\/b> Done/);
+  const bare = page(STAGE_BOARD({ jobs: [{ ...base, stages: STAGES().map((s) => (s.name === 'final_qc' ? { ...s, status: 'changes', note: 'Jon asked for changes' } : s)) }] }));
+  assert.match(bare, /<span class="fypill chg">Changes<\/span><\/td>/);
+  const css = readFileSync(new URL('../public/d3/css/d3.css', import.meta.url), 'utf8');
+  assert.match(css, /\.d3 \.fypill\.chg\{background:color-mix\(in srgb,var\(--warn\)/);
+});
