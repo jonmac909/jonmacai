@@ -1,0 +1,18 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  // hyper.jonmac.ai: the gate in front of the HyperFrames app on GPU1 (README.md, worker.js).
+  "name": "jonmac-hyper",
+  "main": "worker.js",
+  "compatibility_date": "2026-09-07",
+  "workers_dev": false,
+  "preview_urls": false,
+  "observability": { "enabled": true, "logs": { "invocation_logs": false } }, // console.error only: /__enter URLs carry tickets
+  // The Worker is the whole of this host: there is no other origin behind it.
+  "routes": [{ "pattern": "hyper.jonmac.ai", "custom_domain": true }],
+  // Ticket checks go to the dashboard Worker (GET /dashboard/api/hyper/check).
+  "services": [{ "binding": "DASH", "service": "jonmac-command-center" }],
+  // The app itself: a Workers VPC service that reaches 127.0.0.1:5191 on GPU1 through the tunnel "hyper-studio".
+  // Made once with `wrangler vpc service create` (README.md); the id below is that service's.
+  "vpc_services": [{ "binding": "STUDIO", "service_id": "01a1cd9d-7535-7170-9f8d-251cf982a9b4" }]
+  // Secret GATE_SECRET signs this host's own cookie. Random, set once, kept nowhere else (README.md).
+}

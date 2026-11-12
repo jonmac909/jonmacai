@@ -1,5 +1,6 @@
 // Dashboard 3 shell (docs/dashboard-3.md): theme switch, hash routes, data load every 60 s (the Factory page reads its board every 3 s), and the Goals, Team,
-// Factory, Track, Blockers, Review, Money, Bluesky and System pages (the last two are fixed text and need only the date).
+// Factory, Track, Blockers, Review, Money, Bluesky and System pages (the last two are fixed text and need only the date),
+// and the Hyper page, which frames the HyperFrames app (hyper.js).
 // Data: GET /dashboard/api/d2 and /dashboard/api/d3 (session cookie). Writes: "+ Log" on Workouts and Date nights
 // (POST /dashboard/api/habits) and the Review page's buttons (existing writes only, see review.js).
 import { esc } from './util.js';
@@ -12,6 +13,7 @@ import { renderReview, reviewClick } from './review.js';
 import { renderMoney } from './money.js';
 import { threadClick } from './thread.js';
 import { renderScripts } from './scripts.js';
+import { renderHyper, openHyper } from './hyper.js';
 import { renderBluesky } from './bluesky.js';
 import { renderSystem } from './system.js';
 import { sourcesCard } from './sources.js';
@@ -21,7 +23,7 @@ import { renderTrack, trackSub } from './track.js';
 const OLD_TRACK = '/dashboard/js/pages/track.js';
 let oldTrack = null;
 
-const PAGES = { goals: 'Goals', team: 'Team', factory: 'Factory', track: 'Track', blockers: 'Blockers', review: 'Review', scripts: 'Scripts', money: 'Money', bluesky: 'Bluesky', system: 'System' };
+const PAGES = { goals: 'Goals', team: 'Team', factory: 'Factory', track: 'Track', blockers: 'Blockers', review: 'Review', scripts: 'Scripts', hyper: 'Hyper', money: 'Money', bluesky: 'Bluesky', system: 'System' };
 const SIGNIN = 'd3-signin';
 const main = document.getElementById('main');
 // Review state that belongs to one item: cleared when the item or the page changes.
@@ -92,6 +94,11 @@ function render() {
   // The Factory page counts "updated N s ago" on the server's clock: its time at the last load plus the time since.
   S.ui.now = S.d3 ? Date.parse(S.d3.asOf) + (Date.now() - (S.d3Got || Date.now())) : null;
   if (p === 'track') { main.innerHTML = `${note}${renderTrack(S.track, trackSub(location.hash), oldTrack?.track)}`; return; }
+  if (p === 'hyper') { // drawn once: a redraw would reload the app in its frame
+    if (S.signedOut) { main.innerHTML = `${headerOnly(S.d2, 'Hyper')}${note}`; return; }
+    if (!main.querySelector?.('#hyFrame')) { main.innerHTML = renderHyper(S.d2); openHyper(main, getJson); }
+    return;
+  }
   if (p === 'factory') {
     if (!S.d3) { main.innerHTML = `<div class="fy"><header class="hd fyhead"><div><h1>Factory</h1></div></header>${note || '<section class="card"><p class="mut">Loading</p></section>'}</div>`; S.fyNote = null; return; }
     // A refresh rewrites only what changed (rows matched by video id), so the table does not jump.
