@@ -1,4 +1,4 @@
-// Dashboard 3 shell (docs/dashboard-3.md): theme switch, hash routes, data load every 60 s, and the Goals, Team,
+// Dashboard 3 shell (docs/dashboard-3.md): theme switch, hash routes, data load every 60 s (the Factory page reads its board every 3 s), and the Goals, Team,
 // Factory, Track, Blockers, Review, Money, Bluesky and System pages (the last two are fixed text and need only the date),
 // and the Hyper page, which frames the HyperFrames app (hyper.js).
 // Data: GET /dashboard/api/d2 and /dashboard/api/d3 (session cookie). Writes: "+ Log" on Workouts and Date nights
@@ -287,21 +287,23 @@ window.addEventListener('hashchange', () => {
   render();
   if (page() === 'review' && !S.ui.rvThreads?.threads) loadThreads().then(() => { if (page() === 'review') render(); });
 });
-// The Factory page alone re-reads /dashboard/api/d3 every 15 s while it is open and the tab is visible.
+// The Factory page alone re-reads its own board (GET /dashboard/api/d3/factory, one query) every 3 s while it is open
+// and the tab is visible, and redraws every second in between so its clocks and "Live · Ns ago" count up.
 let fastBusy = false;
 async function loadFactory() {
   if (fastBusy || S.signedOut || page() !== 'factory' || document.visibilityState !== 'visible') return;
   fastBusy = true;
   try {
-    const b = await getJson('/dashboard/api/d3');
+    const b = await getJson('/dashboard/api/d3/factory');
     if (b.signedOut) { await load(); return; } // the full load handles signing in again
-    S.d3 = b.body;
+    if (!S.d3?.d3 || !b.body?.asOf) return; // the first full load has not landed yet
+    S.d3 = { ...S.d3, asOf: b.body.asOf, d3: { ...S.d3.d3, factory: b.body.factory ?? null } };
     S.d3Got = Date.now();
-    rail();
     if (page() === 'factory') render();
   } catch { /* keep what is shown; the 60 s load reports errors */ } finally { fastBusy = false; }
 }
-setInterval(loadFactory, 15000);
+setInterval(loadFactory, 3000);
+setInterval(() => { if (S.d3 && !S.signedOut && page() === 'factory' && document.visibilityState === 'visible') render(); }, 1000);
 setInterval(() => { if (document.visibilityState === 'visible') load(); }, 60000);
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') load(); });
 render();

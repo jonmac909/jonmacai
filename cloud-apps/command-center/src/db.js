@@ -80,8 +80,18 @@ export async function upsertSnapshot(db, source, data, collectedAt, receivedAt) 
 export async function listSnapshots(db) {
   // The factory, periods and sponsor_threads rows have their own endpoints (GET /v1/factory, /v1/periods,
   // /sponsor-threads): not part of every page load and 60 s poll.
-  const { results } = await db.prepare("SELECT source, data, collected_at, received_at FROM snapshots WHERE source NOT IN ('factory', 'periods', 'sponsor_threads')").all();
+  const { results } = await db.prepare("SELECT source, data, collected_at, received_at FROM snapshots WHERE source NOT IN ('factory', 'periods', 'sponsor_threads', 'sponsor_deals')").all();
   return results || [];
+}
+
+// Deals added by hand (sponsor.add_deal / sponsor.set_amount): one snapshots row, {deals: {<id>: {...}}}.
+export async function getSponsorDeals(db) {
+  if (!db) return {};
+  const row = await db.prepare("SELECT data FROM snapshots WHERE source = 'sponsor_deals'").first();
+  try { return JSON.parse(row?.data || '{}').deals || {}; } catch { return {}; }
+}
+export async function putSponsorDeals(db, deals, now) {
+  await upsertSnapshot(db, 'sponsor_deals', JSON.stringify({ deals }), now, now);
 }
 
 export async function getSnapshot(db, source) {

@@ -627,6 +627,7 @@ function todayOf(C, goals, checks) {
 const JUNK = [
   ['refunds', /\brefund/i, null],
   ['receipts', /\breceipt|payment (received|confirmation)|order confirmation|your (order|payment)\b|billing statement/i, /\b(receipts?|billing|payments?|orders?)@|stripe\.com|paypal\.com/i],
+  ['invites', /\bhas invited you\b|\binvited you to (join|a new|the|their)\b/i, null],
   ['newsletters', /newsletter|digest|unsubscribe/i, /\b(newsletters?|news|digest|updates|marketing)@|substack\.com|beehiiv|mailchimp|convertkit|mailerlite/i],
 ];
 const junkOf = (r) => r && JUNK.find(([, subject, sender]) => subject.test(`${r.subject || ''} ${r.reason || ''}`) || sender?.test(`${r.to || ''} ${r.contact || ''}`))?.[0];
@@ -646,16 +647,16 @@ function cleanSponsors(C) {
   const copy = JSON.parse(JSON.stringify(page));
   if (!copy.board?.columns) return copy;
   const raw = new Map((parse(C.by.sponsors?.data).cards || []).map((c) => [c.id, c]));
-  const hidden = { receipts: 0, refunds: 0, newsletters: 0 };
+  const hidden = { receipts: 0, refunds: 0, newsletters: 0, invites: 0 };
   const value = { usd: 0, priced: 0, unpriced: 0 }; // open deals: every column but Paid
   const archived = [];
   for (const col of copy.board.columns) {
     col.cards = col.cards.filter((k) => {
       const r = raw.get(k.id);
-      const kind = !(k.amt > 0) && junkOf(r);
+      const kind = !k.curated && !(k.amt > 0) && junkOf(r);
       if (kind) { hidden[kind]++; return false; }
       const last = Date.parse(r?.latestDate);
-      if (Number.isFinite(last) && C.nowMs - last >= 60 * DAY) { archived.push(k); return false; }
+      if (!k.curated && Number.isFinite(last) && C.nowMs - last >= 60 * DAY) { archived.push(k); return false; }
       if (col.boardStage !== 'paid') {
         if (k.amt > 0) { value.usd += k.amt; value.priced++; } else value.unpriced++;
       }
