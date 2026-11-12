@@ -1019,6 +1019,8 @@ export const FEEDS = {
           name: str(s.name), status: str(s.status, `${k}.status`), tries: whole(s.tries, `${k}.tries`), minutes: s.minutes ?? null,
           started: when(s.started, `${k}.started`), ended: when(s.ended, `${k}.ended`),
           note: str(s.note, `${k}.note`), fix: str(s.fix, `${k}.fix`), doing: str(s.doing, `${k}.doing`),
+          // Optional progress inside a running step ("8 of 11 checks"): kept only when the step sends it.
+          ...(s.done != null ? { done: whole(s.done, `${k}.done`) } : {}), ...(s.total != null ? { total: whole(s.total, `${k}.total`) } : {}),
         };
       };
       const job = (j, i) => {

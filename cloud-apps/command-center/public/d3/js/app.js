@@ -1,5 +1,5 @@
 // Dashboard 3 shell (docs/dashboard-3.md): theme switch, hash routes, data load every 60 s, and the Goals, Team,
-// Factory, Blockers, Review, Money, Bluesky and System pages (the last two are fixed text and need only the date).
+// Factory, Track, Blockers, Review, Money, Bluesky and System pages (the last two are fixed text and need only the date).
 // Data: GET /dashboard/api/d2 and /dashboard/api/d3 (session cookie). Writes: "+ Log" on Workouts and Date nights
 // (POST /dashboard/api/habits) and the Review page's buttons (existing writes only, see review.js).
 import { esc } from './util.js';
@@ -15,14 +15,18 @@ import { renderScripts } from './scripts.js';
 import { renderBluesky } from './bluesky.js';
 import { renderSystem } from './system.js';
 import { sourcesCard } from './sources.js';
-import { renderFactory } from './factory.js';
+import { renderFactory, syncFactory } from './factory.js';
+import { renderTrack, trackSub } from './track.js';
+// The old Track page's own renderer and sort state, loaded from /dashboard (as Dashboard 2 does) the first time Track opens.
+const OLD_TRACK = '/dashboard/js/pages/track.js';
+let oldTrack = null;
 
-const PAGES = { goals: 'Goals', team: 'Team', factory: 'Factory', blockers: 'Blockers', review: 'Review', scripts: 'Scripts', money: 'Money', bluesky: 'Bluesky', system: 'System' };
+const PAGES = { goals: 'Goals', team: 'Team', factory: 'Factory', track: 'Track', blockers: 'Blockers', review: 'Review', scripts: 'Scripts', money: 'Money', bluesky: 'Bluesky', system: 'System' };
 const SIGNIN = 'd3-signin';
 const main = document.getElementById('main');
 // Review state that belongs to one item: cleared when the item or the page changes.
 const RV_CLEAR = { rvBack: null, rvEdit: null, rvDraft: {}, rvPick: null, rvText: '', rvErr: '' };
-const S = { d2: null, d3: null, error: '', signedOut: false, ui: { openKr: null, hgpOpen: false, busy: false, openBot: null, openBl: null, blFilter: 'all', rvSel: null, rvDone: {}, rvKept: {}, rvBack: null, rvEdit: null, rvDraft: {}, rvPick: null, rvText: '', rvErr: '', bsTab: 'vision', syTab: 'map', sySel: 'sponsors', syCat: 'card' } };
+const S = { d2: null, d3: null, track: null, error: '', signedOut: false, ui: { openKr: null, hgpOpen: false, busy: false, openBot: null, openBl: null, blFilter: 'all', rvSel: null, rvDone: {}, rvKept: {}, rvBack: null, rvEdit: null, rvDraft: {}, rvPick: null, rvText: '', rvErr: '', bsTab: 'vision', syTab: 'map', sySel: 'sponsors', syCat: 'card' } };
 
 // ---- theme (the inline script in index.html applies the saved one before paint) ----
 function setTheme(t) {
@@ -78,11 +82,26 @@ function render() {
   const note = S.signedOut
     ? '<section class="card"><p>You are signed out. <a href="/dash/">Sign in</a></p></section>'
     : S.error ? `<section class="card"><p class="mut">${esc(S.error)}</p></section>` : '';
+  // Track: read on each open, as the old page does (GET /dashboard/api/snapshot?pages=track); tabs and sorting reuse it.
+  if (p === 'track' && S.ui.lastPage !== 'track') {
+    S.track = null;
+    loadTrack().then(() => { if (page() === 'track') render(); });
+  }
   if (p !== 'money' && S.ui.lastPage === 'money') S.ui.dealSel = null; // leaving Money clears the picked deal's outline
   S.ui.lastPage = p;
   // The Factory page counts "updated N s ago" on the server's clock: its time at the last load plus the time since.
   S.ui.now = S.d3 ? Date.parse(S.d3.asOf) + (Date.now() - (S.d3Got || Date.now())) : null;
-  const live = { factory: (d2, d3, ui) => renderFactory(d3, ui, d2), team: renderTeam, blockers: renderBlockers, review: renderReview, scripts: renderScripts, money: renderMoney }[p];
+  if (p === 'track') { main.innerHTML = `${note}${renderTrack(S.track, trackSub(location.hash), oldTrack?.track)}`; return; }
+  if (p === 'factory') {
+    if (!S.d3) { main.innerHTML = `<div class="fy"><header class="hd fyhead"><div><h1>Factory</h1></div></header>${note || '<section class="card"><p class="mut">Loading</p></section>'}</div>`; S.fyNote = null; return; }
+    // A refresh rewrites only what changed (rows matched by video id), so the table does not jump.
+    const html = renderFactory(S.d3, S.ui);
+    if (S.fyNote !== note || !syncFactory(main, html)) main.innerHTML = `${note}${html}`;
+    S.fyNote = note;
+    return;
+  }
+  S.fyNote = null;
+  const live = { team: renderTeam, blockers: renderBlockers, review: renderReview, scripts: renderScripts, money: renderMoney }[p];
   if (live) {
     main.innerHTML = S.d3 ? `${note}${live(S.d2, S.d3, S.ui)}` : `${headerOnly(S.d2, PAGES[p])}${note || '<section class="card"><p class="mut">Loading</p></section>'}`;
     if (p === 'money' && S.d3 && S.ui.dealSel && !S.ui.dealDone) { // a deal opened from Pipeline revenue: bring it into view once
@@ -128,6 +147,16 @@ async function loadThreads() {
   }
 }
 
+async function loadTrack() {
+  try {
+    oldTrack ||= await import(OLD_TRACK);
+    const t = await getJson(`/dashboard/api/snapshot?pages=track&v=${Date.now()}`);
+    S.track = t.signedOut ? { failed: true } : t.body?.pages?.track || {}; // {} reads "Track has no data yet"
+  } catch {
+    S.track = { failed: true };
+  }
+}
+
 async function load() {
   try {
     const [a, b] = await Promise.all([getJson('/dashboard/api/d2'), getJson('/dashboard/api/d3')]);
@@ -157,6 +186,20 @@ async function load() {
 
 // ---- clicks: open a key result's trend, show channel names, open a bot or blocker row, filter blockers, log a workout or date night ----
 main.addEventListener('click', async (e) => {
+  if (page() === 'track') { // the old Track page's own controls: sort a column, copy a video's link, open a channel
+    const sort = e.target.closest('[data-tsort]');
+    if (sort) { oldTrack?.setSort(sort.dataset.tsort); render(); return; }
+    const copy = e.target.closest('[data-copy]');
+    if (copy) {
+      const say = (text) => { copy.textContent = text; setTimeout(() => { if (copy.isConnected) copy.textContent = 'Copy'; }, 1500); };
+      (navigator.clipboard ? navigator.clipboard.writeText(copy.dataset.copy) : Promise.reject(new Error('no clipboard'))).then(() => say('Copied'), () => say('Could not copy'));
+      return;
+    }
+    if (e.target.closest('a')) return; // a Connect link opens on its own
+    const go = e.target.closest('[data-page]');
+    if (go && /^track(\/|$)/.test(go.dataset.page)) { location.hash = go.dataset.page; return; }
+    return;
+  }
   if (page() === 'review' && await reviewClick(e, S, render, load)) return;
   if (page() === 'blockers' && await needsClick(e, S, render, load)) return;
   if (threadClick(e, S.ui, render)) return; // open or fold one message of a Money deal's email thread

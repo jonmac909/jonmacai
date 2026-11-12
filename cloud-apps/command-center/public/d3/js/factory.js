@@ -1,20 +1,19 @@
-// Dashboard 3 Factory page (docs/dashboard-3.md): live progress of the video program, one card per video. A pure
-// function over the /dashboard/api/d3 answer (d3.factory = the newest video_line feed entry, built in src/d3.js).
+// Dashboard 3 Factory page (docs/dashboard-3.md): live progress of the new video program, laid out as the old Factory
+// page (/dashboard/#factory, public/js/pages/factory.js): one table, a row per video, a column per step. renderFactory is
+// a pure function over the /dashboard/api/d3 answer (d3.factory = the newest video_line feed entry, built in src/d3.js).
 // Everything from the feed is data: every string is escaped, none is ever HTML.
-import { esc, icon } from './util.js';
-import { headerOnly } from './goals.js';
+import { esc } from './util.js';
 
+const STALE_S = 180; // the pusher posts every 30 s; src/d3.js marks the entry stale after 3 minutes
+const EVENTS = 12;
 const num = (x) => typeof x === 'number' && Number.isFinite(x);
-const plural = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 const list = (v) => (Array.isArray(v) ? v : []);
-
-// "12 s ago", "5 min ago", "3 hr ago".
-export function agoShort(ms) {
-  const s = Math.max(0, Math.round(ms / 1000));
-  if (s < 90) return `${s} s ago`;
-  if (s < 90 * 60) return `${Math.round(s / 60)} min ago`;
-  return `${Math.round(s / 3600)} hr ago`;
-}
+const cap = (s) => String(s || '').replace(/^./, (c) => c.toUpperCase());
+// The old page's time format: "45m", "2h 5m".
+const wait = (min) => (!num(min) || min < 0 ? '' : min >= 60 ? `${Math.floor(min / 60)}h ${Math.round(min % 60)}m` : `${Math.round(min)}m`);
+const short = (s, n = 46) => { const t = String(s || '').trim(); return t.length > n ? `${t.slice(0, n - 1).trimEnd()}…` : t; };
+const pill = (text, cls = '', title = '') => `<span class="fypill${cls ? ` ${cls}` : ''}"${title ? ` title="${esc(title)}"` : ''}>${esc(text)}</span>`;
+const svg = (cls, label, d) => `<span class="${cls}" role="img" aria-label="${label}"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="${d}"/></svg></span>`;
 
 // A time in Kelowna (America/Vancouver): "Nov 11, 3:36 PM". '' when it is not a time.
 export function kelowna(iso) {
@@ -23,130 +22,169 @@ export function kelowna(iso) {
   return new Intl.DateTimeFormat('en-US', { timeZone: 'America/Vancouver', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }).format(new Date(t));
 }
 
-// A video's place in the list and its label: needs you, failed, running, waiting, done.
-const KINDS = {
-  need: { rank: 0, label: 'Needs you', pill: 'bad' },
-  fail: { rank: 1, label: 'Failed', pill: 'bad' },
-  gone: { rank: 2, label: 'Stopped', pill: 'warn' },
-  run: { rank: 2, label: 'Running', pill: '' },
-  wait: { rank: 3, label: 'Waiting', pill: '' },
-  done: { rank: 4, label: 'Done', pill: 'ok' },
-};
+// A video's group, in page order: needs you, failed, running, waiting, done.
+const RANK = { need: 0, fail: 1, run: 2, wait: 3, done: 4 };
 function kindOf(job) {
   const s = String(job?.state || '').toLowerCase();
   if (job?.needs_person || s === 'needs a person') return 'need';
   if (s === 'failed') return 'fail';
-  if (s.startsWith('running?')) return 'gone';
-  if (s === 'running') return 'run';
-  if (s === 'done') return 'done';
-  return s === 'todo' || !s ? 'wait' : 'other';
+  if (s.startsWith('running')) return 'run'; // "running? (process gone)" stays with the running videos
+  return s === 'done' ? 'done' : 'wait';
 }
-
-// Videos in page order: needs you first, then failed, running, waiting, done; the feed's order inside each group.
-export function factoryJobs(F) {
-  return list(F?.jobs).filter((j) => j && typeof j === 'object')
-    .map((j, i) => ({ j, i, rank: (KINDS[kindOf(j)] || KINDS.wait).rank }))
-    .sort((a, b) => a.rank - b.rank || a.i - b.i).map((x) => x.j);
-}
-
 function stepKind(st) {
   const s = String(st?.status || '').toLowerCase();
-  if (s === 'running') return 'run';
-  if (s === 'done') return 'done';
-  if (s === 'failed') return 'fail';
-  return s === 'todo' || s === 'waiting' || !s ? 'wait' : 'other';
+  return s === 'running' ? 'run' : s === 'done' ? 'done' : s === 'failed' ? 'fail' : 'todo';
 }
 
-// One step as a chip: waiting = grey, running = accent with "N min", done = green with "N min", failed = red with "try n".
-function chip(st) {
+// Videos in page order; inside a group the oldest first (by `created`, else the feed's order).
+export function factoryJobs(F) {
+  const at = (j) => (Number.isFinite(Date.parse(j.created)) ? Date.parse(j.created) : Infinity);
+  return list(F?.jobs).filter((j) => j && typeof j === 'object')
+    .map((j, i) => ({ j, i }))
+    .sort((a, b) => RANK[kindOf(a.j)] - RANK[kindOf(b.j)] || at(a.j) - at(b.j) || a.i - b.i).map((x) => x.j);
+}
+
+// The table's step columns: every step name the videos carry, in pipeline order. A step first seen on a later video
+// goes right after the step before it on that video, so [pack, render] then [pack, plan, render] reads pack, plan, render.
+export function factoryCols(jobs) {
+  const cols = [];
+  for (const j of jobs) {
+    let at = -1;
+    for (const s of list(j.steps)) {
+      if (!s?.name) continue;
+      const i = cols.indexOf(s.name);
+      if (i >= 0) at = i; else cols.splice(++at, 0, s.name);
+    }
+  }
+  return cols;
+}
+
+// One step's cell, in the old page's language. done: green check, minutes under it. run: blue bar with done/total (or
+// an unmeasured bar), the Live dot and what it is doing. fail: red X with the short reason. A step that waits for a
+// reason: "Waiting" and one short line. Any later step: grey circle.
+function cell(job, st, live, firstTodo) {
+  if (!st) return '<td class="fycell"></td>';
   const k = stepKind(st);
-  const min = num(st.minutes) ? `${Math.round(st.minutes)} min` : '';
-  const [word, extra] = k === 'run' ? ['running', min || 'running']
-    : k === 'done' ? ['done', min || 'done']
-      : k === 'fail' ? ['failed', num(st.tries) && st.tries > 0 ? `try ${st.tries}` : 'failed']
-        : k === 'wait' ? ['waiting', ''] : [String(st.status), String(st.status)];
-  const label = [st.name, word, extra && extra !== word ? extra : ''].filter(Boolean).join(', ');
-  return `<span class="fcc ${k}" role="listitem" title="${esc(label)}">${esc(st.name)}${extra ? ` · ${esc(extra)}` : ''}</span>`;
+  if (k === 'done') return `<td class="fycell">${svg('fyok', 'Done', 'M5 13l4 4L19 7')}${wait(st.minutes) ? `<small>${esc(wait(st.minutes))}</small>` : ''}</td>`;
+  if (k === 'run') {
+    const total = num(st.total) && st.total > 0 ? st.total : 0;
+    const done = Math.min(num(st.done) ? st.done : 0, total);
+    const pct = total ? Math.round((done / total) * 100) : 0;
+    const bar = total
+      ? `<div class="fyrun"><div class="fypg" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pct}"><i style="width:${pct}%"></i></div><span>${done}/${total}</span></div>`
+      : '<div class="fyrun"><div class="fypg ind" role="progressbar" aria-label="In progress"><i></i></div><span>In progress</span></div>';
+    const doing = st.doing || st.note;
+    return `<td class="fycell${live ? ' fylv' : ''}"${doing ? ` title="${esc(doing)}"` : ''}>${bar}${live ? '<span class="fylt"><i class="fydot"></i>Live</span>' : ''}${doing ? `<small class="fylx">${esc(short(doing, 70))}</small>` : ''}</td>`;
+  }
+  if (k === 'fail') {
+    const full = [st.note, st.fix ? `Fix: ${st.fix}` : ''].filter(Boolean).join(' · ');
+    const why = st.note ? short(st.note) : num(st.tries) && st.tries > 1 ? `Failed, try ${st.tries}` : 'Failed';
+    return `<td class="fycell"><div class="fyfail" title="${esc(full)}">${svg('fybad', 'Failed', 'M6 18L18 6M6 6l12 12')}<small>${esc(why)}</small></div></td>`;
+  }
+  const why = st === firstTodo ? st.note || (kindOf(job) === 'wait' ? job.note : '') : '';
+  if (why) return `<td class="fycell" title="${esc(why)}"><span class="fynew">Waiting</span><small class="fywhy">${esc(short(why))}</small></td>`;
+  return '<td class="fycell"><span class="fyidle" role="img" aria-label="Later step"></span></td>';
 }
 
-const row = (label, value) => (value ? `<div class="fcrow"><span class="mut">${esc(label)}</span><span>${esc(value)}</span></div>` : '');
-
-function jobHtml(job) {
+function rowHtml(job, cols, live, key) {
   const kind = kindOf(job);
-  const K = KINDS[kind] || { label: String(job.state), pill: '' };
   const steps = list(job.steps).filter((s) => s && typeof s === 'object');
-  const mins = /^\d+(\.\d+)?$/.test(String(job.minutes_in_state ?? '')) ? ` · ${Math.round(Number(job.minutes_in_state))} min` : '';
-  const total = num(job.steps_total) && job.steps_total > 0 ? job.steps_total : steps.length;
-  const progress = total ? `${num(job.steps_done) ? job.steps_done : steps.filter((s) => stepKind(s) === 'done').length} of ${plural(total, 'step')} done` : '';
-  const meta = [job.channel, progress].filter(Boolean).join(' · ');
-  // What is happening now: the running step's own words, else its note, else the video's note.
-  const cur = steps.find((s) => stepKind(s) === 'run') || steps.find((s) => s.name && s.name === job.step);
-  // A failed step's note is shown in its own block below, so it is not repeated here.
-  const now = (cur && stepKind(cur) !== 'fail' && (cur.doing || cur.note)) || job.note
-    || (kind === 'wait' ? 'Waiting to start.' : kind === 'done' ? 'All steps are done.' : kind === 'run' && cur ? `Working on ${cur.name}.` : '');
-  const gone = kind === 'gone' ? '<p class="fcnote bad"><span class="dot r"></span>This video says it is running, but the program working on it has stopped.</p>' : '';
-  const np = job.needs_person && typeof job.needs_person === 'object' ? job.needs_person : null;
-  const since = np ? kelowna(np.since) || np.since : '';
-  const need = kind !== 'need' ? '' : `<div class="fcneed">
-<b>Needs you</b>
-${np ? `${row('Step', np.step)}${row('Why', np.why)}${row('Look at', np.look_at)}${row('Since', since)}` : row('Why', job.note || 'The video program is waiting for a person.')}
-</div>`;
-  const fails = steps.filter((s) => stepKind(s) === 'fail').map((s) => `<div class="fcfail">
-<b>${esc(s.name)} failed${num(s.tries) && s.tries > 1 ? ` after ${esc(plural(s.tries, 'try', 'tries'))}` : ''}</b>
-${row('What happened', s.note || 'No reason was given.')}${row('How to fix it', s.fix)}
-</div>`).join('\n');
-  const final = job.final ? `<div class="fcrow fcfinal"><span class="mut">Finished file</span><span>${esc(job.final)}</span></div>` : '';
-  return `<section class="card fcjob" data-job="${esc(job.id)}" data-kind="${esc(kind)}">
-<div class="hd" style="flex-wrap: wrap"><h2>${esc(job.id)}</h2><span class="mut">${esc(meta)}</span><span class="pill ${K.pill} sp">${esc(K.label)}${esc(mins)}</span></div>
-${need}
-${steps.length ? `<div class="fcsteps" role="list" aria-label="Steps">${steps.map(chip).join('')}</div>` : ''}
-${gone}${now && !(kind === 'need' && !np && now === job.note) ? `<p class="fcnow">${esc(now)}</p>` : ''}
-${fails}
-${final}
-</section>`;
+  const firstTodo = steps.find((s) => stepKind(s) === 'todo');
+  const min = /^\d+(\.\d+)?$/.test(String(job.minutes_in_state ?? '')) ? wait(Number(job.minutes_in_state)) : '';
+  const state = kind === 'need' ? pill('Needs you', 'crit') : kind === 'done' ? pill('Done', 'ok', job.final) : '';
+  return `<tr class="fyrow" data-id="${esc(key)}" data-kind="${kind}"><td><b>${esc(job.id)}</b><small>${esc(job.channel)}</small></td>${cols.map((c) => cell(job, steps.find((s) => s.name === c), live, firstTodo)).join('')}<td class="fywait">${state}<small>${esc(min)}</small></td></tr>`;
+}
+
+// One line: how many are live now, how many videos sit at each step (the first step not done), how many are done, how many need you.
+function summary(jobs, cols, live) {
+  const n = cols.map(() => 0);
+  let done = 0;
+  for (const j of jobs) {
+    const steps = list(j.steps);
+    const at = steps.find((s) => stepKind(s) !== 'done');
+    if (kindOf(j) === 'done' || (steps.length && !at)) done++;
+    else if (at && cols.includes(at.name)) n[cols.indexOf(at.name)]++;
+  }
+  const liveN = live ? jobs.filter((j) => list(j.steps).some((s) => stepKind(s) === 'run')).length : 0;
+  const need = jobs.filter((j) => kindOf(j) === 'need').length;
+  return `<p class="fysum"><span class="fylc${liveN ? ' on' : ''}"><i class="fydot"></i><b>${liveN}</b> live now</span>${cols.map((c, i) => `<span${n[i] ? '' : ' class="z"'}><b>${n[i]}</b> ${esc(cap(c))}</span>`).join('')}<span${done ? '' : ' class="z"'}><b>${done}</b> Done</span>${pill(need === 1 ? '1 needs you' : `${need} need you`, need ? 'crit' : 'ok')}</p>`;
 }
 
 // "2026-11-11T23:36:42Z  nora-5   pack   started   pid 2732" -> its Kelowna time and the rest, columns joined by dots.
-function eventHtml(e, i) {
+function eventHtml(e) {
   const m = /^(\S+)\s+(.*)$/.exec(String(e ?? '').trim());
   const at = m ? kelowna(m[1]) : '';
   const rest = (at ? m[2] : String(e ?? '')).trim().split(/\s{2,}/).filter(Boolean).join(' · ');
-  return `<div class="fcev${i === 0 ? ' first' : ''}"><span class="mut">${esc(at)}</span><span>${esc(rest)}</span></div>`;
+  return `<p class="fyev"><span>${esc(at)}</span>${esc(rest)}</p>`;
 }
 
-export function renderFactory(d3resp, ui = {}, d2resp = null) {
+const HEAD = (status) => `<header class="hd fyhead"><div><h1>Factory</h1><p class="mut">Every video in the new video program, step by step. Updates on its own.</p></div><div class="fystatus sp" data-fy="status">${status}</div></header>`;
+
+export function renderFactory(d3resp, ui = {}) {
   const F = d3resp?.d3?.factory;
-  const head = headerOnly(d2resp, 'Factory', 'Every video being made, step by step');
   if (!F || typeof F !== 'object') {
-    return `${head}
-<section class="card"><p class="mut">No feed: the video program has not reported.</p></section>`;
+    return `<div class="fy">${HEAD(pill('Not publishing yet', 'crit'))}
+<section class="card"><p class="mut">No feed: the video program has not posted its board yet.</p></section></div>`;
   }
   const nowMs = num(ui.now) ? ui.now : Date.parse(d3resp?.asOf);
-  const age = (iso) => (Number.isFinite(nowMs) && Number.isFinite(Date.parse(iso)) ? agoShort(nowMs - Date.parse(iso)) : '');
+  const age = Number.isFinite(nowMs) && Number.isFinite(Date.parse(F.at)) ? Math.max(0, Math.round((nowMs - Date.parse(F.at)) / 1000)) : null;
+  const stale = !!F.stale || age == null || age > STALE_S;
+  const status = `${stale ? pill(`Stale: last update ${age == null ? 'unknown' : `${wait(Math.floor(age / 60)) || `${age}s`} ago`}`, 'crit') : pill(`Live · ${age}s ago`, 'ok')}${F.scheduler_running === false ? pill('Scheduler stopped', 'crit') : ''}`;
+  const live = !stale; // a stale board shows nothing as live
   const jobs = factoryJobs(F);
-  const kinds = jobs.map(kindOf);
-  const count = (key, k) => (num(F.counts?.[key]) ? F.counts[key] : kinds.filter((x) => (Array.isArray(k) ? k.includes(x) : x === k)).length);
-  const c = { jobs: num(F.counts?.jobs) ? F.counts.jobs : jobs.length, running: count('running', ['run', 'gone']), done: count('done', 'done'), need: count('needs_person', 'need') };
-  const updated = age(F.updated || F.at);
-  const notes = [
-    F.stale ? `<p class="fcnote bad" role="status"><span class="dot r"></span>The video program is not reporting.${age(F.at) ? ` Its last report came ${esc(age(F.at))}, so what you see below may be out of date.` : ''}</p>` : '',
-    F.scheduler_running === false ? '<p class="fcnote bad" role="status"><span class="dot r"></span>The scheduler is not running. No video will move to its next step until it is started again.</p>'
-      : F.scheduler_running == null ? '<p class="fcnote grey"><span class="dot"></span>The video program did not say whether the scheduler is running.</p>' : '',
-  ].filter(Boolean).join('\n');
+  const cols = factoryCols(jobs);
+  const seen = new Map(); // two videos with one id still get their own row
+  const rows = jobs.map((j) => { const id = String(j.id ?? ''); const n = seen.get(id) || 0; seen.set(id, n + 1); return rowHtml(j, cols, live, n ? `${id}#${n}` : id); });
+  if (!rows.length) rows.push(`<tr class="fyrow" data-id="_empty"><td colspan="${cols.length + 2}" class="mut">No videos in the program right now.</td></tr>`);
+  const needs = jobs.filter((j) => kindOf(j) === 'need').map((j) => {
+    const np = j.needs_person && typeof j.needs_person === 'object' ? j.needs_person : {};
+    return `<p class="fyneed"><b>${esc(j.id)}</b><span>${esc(cap(np.step || j.step))}</span><span>${esc(np.why || j.note || 'The video program is waiting for a person.')}</span><span class="fylook">${np.look_at ? `Look at ${esc(np.look_at)}` : ''}</span></p>`;
+  });
+  const events = list(F.events).filter((e) => typeof e === 'string').slice(-EVENTS).reverse();
   const unread = list(F.unreadable_jobs);
-  const summary = `<section class="card" style="gap: 10px; padding: 16px 22px">
-<div class="hd" style="flex-wrap: wrap; gap: 8px"><b>${esc(plural(c.jobs, 'video'))}</b><span class="pill">${c.running} running</span><span class="pill ${c.done ? 'ok' : ''}">${c.done} done</span><span class="pill ${c.need ? 'bad' : ''}">${c.need === 1 ? '1 needs you' : `${c.need} need you`}</span><span class="mut sp">${updated ? `updated ${esc(updated)}` : ''}</span></div>
-${notes}${unread.length ? `\n<p class="mut">${esc(plural(unread.length, 'video'))} could not be read: ${esc(unread.join(', '))}</p>` : ''}
-</section>`;
-  const cards = jobs.length ? jobs.map(jobHtml).join('\n') : '<section class="card"><p class="mut">No videos are being made right now.</p></section>';
-  const events = list(F.events).filter((e) => typeof e === 'string').reverse();
-  return `${head}
-${summary}
-<div class="fclist${F.stale ? ' fcstale' : ''}">
-${cards}
-</div>
-<section class="card" style="gap: 0">
-<div class="hd cardhd"><span class="chip">${icon('list')}</span><h2>Latest events</h2><span class="mut sp">${events.length ? 'newest first, Kelowna time' : ''}</span></div>
-${events.length ? events.map(eventHtml).join('\n') : '<p class="mut" style="padding-top: 14px">No events yet.</p>'}
-</section>`;
+  return `<div class="fy">${HEAD(status)}
+<div data-fy="sum">${summary(jobs, cols, live)}</div>
+<section class="card fybox"><div class="fytblwrap"><table class="fytable" style="--fyn: ${cols.length}">
+<colgroup><col class="fyc1">${cols.map(() => '<col class="fycs">').join('')}<col class="fycw"></colgroup>
+<thead data-fy="cols"><tr><th>Video</th>${cols.map((c) => `<th class="fycell">${esc(cap(c))}</th>`).join('')}<th>Waiting</th></tr></thead>
+<tbody class="fytbody">
+${rows.join('\n')}
+</tbody></table></div></section>
+<div data-fy="notes">${unread.length ? `<p class="mut">${unread.length === 1 ? '1 video' : `${unread.length} videos`} could not be read: ${esc(unread.join(', '))}</p>` : ''}</div>
+<div data-fy="needs">${needs.length ? `<section class="card fylist"><h2>Needs you</h2>${needs.join('')}</section>` : ''}</div>
+<div data-fy="events"><section class="card fylist"><h2>Latest events <small class="mut">newest first, Kelowna time</small></h2>${events.length ? events.map(eventHtml).join('') : '<p class="mut">No events yet.</p>'}</section></div>
+</div>`;
+}
+
+// Refresh without a jump (the old page's idea): when the Factory table is already on screen, only the parts whose HTML
+// changed are rewritten and the rows are matched by video id, so the table's scroll box and unchanged rows stay as they
+// are. Returns false when the page has to be drawn whole (first draw, or the table's columns changed).
+export function syncFactory(main, html) {
+  const body = main.querySelector?.('.fy .fytbody');
+  if (!body) return false;
+  const t = document.createElement('template');
+  t.innerHTML = html;
+  const nextBody = t.content.querySelector('.fytbody');
+  const part = (root, k) => root.querySelector(`[data-fy="${k}"]`);
+  if (!nextBody || part(t.content, 'cols').innerHTML !== part(main, 'cols')?.innerHTML) return false;
+  for (const k of ['status', 'sum', 'notes', 'needs', 'events']) {
+    const [now, next] = [part(main, k), part(t.content, k)];
+    if (!now || !next) return false;
+    if (now.innerHTML !== next.innerHTML) now.innerHTML = next.innerHTML;
+  }
+  const have = new Map([...body.children].map((tr) => [tr.dataset.id, tr]));
+  const want = [...nextBody.children];
+  const ids = new Set(want.map((tr) => tr.dataset.id));
+  have.forEach((tr, id) => { if (!ids.has(id)) tr.remove(); });
+  let at = body.firstElementChild;
+  for (const n of want) {
+    const tr = have.get(n.dataset.id);
+    if (tr && tr.outerHTML === n.outerHTML) {
+      if (tr === at) at = at.nextElementSibling; else body.insertBefore(tr, at);
+      continue;
+    }
+    if (tr) { if (tr === at) at = tr.nextElementSibling; tr.remove(); }
+    body.insertBefore(n, at);
+  }
+  return true;
 }

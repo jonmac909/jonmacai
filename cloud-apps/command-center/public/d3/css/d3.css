@@ -255,26 +255,127 @@ html[data-theme="dark"] body{background:#0b0b0c}
 .d3 .tmcard{color:inherit;text-decoration:none}
 .d3 .tmcard:hover{outline:1px solid var(--line)}
 .d3 .stage.tmon{border-color:var(--ink)}
-/* Factory page (feed video_line): step chips, the Needs you block, notices and events. Both themes use the tokens above. */
-.d3 .fclist{display:flex;flex-direction:column;gap:16px}
-.d3 .fcstale .fcjob{opacity:.6}
-.d3 .fcsteps{display:flex;flex-wrap:wrap;gap:6px}
-.d3 .fcc{display:inline-flex;align-items:center;min-height:26px;padding:3px 10px;border-radius:8px;background:var(--card2);color:var(--muted);font-size:12px;font-weight:500;max-width:100%;overflow-wrap:anywhere}
-.d3 .fcc.run{background:var(--fill);color:#ffffff}
-.d3 .fcc.done{background:transparent;color:var(--ok-ink);box-shadow:inset 0 0 0 1px var(--ok)}
-.d3 .fcc.fail{background:transparent;color:var(--bad-ink);box-shadow:inset 0 0 0 1px var(--bad)}
-.d3 .fcneed{border:2px solid var(--bad);border-radius:16px;padding:14px 16px;display:flex;flex-direction:column;gap:6px}
-.d3 .fcneed>b{color:var(--bad-ink);font-size:16px}
-.d3 .fcfail{border-left:3px solid var(--bad);padding:2px 0 2px 12px;display:flex;flex-direction:column;gap:4px}
-.d3 .fcfail>b{color:var(--bad-ink)}
-.d3 .fcrow{display:grid;grid-template-columns:104px minmax(0,1fr);gap:2px 12px;align-items:baseline;font-size:14px}
-.d3 .fcrow>span,.d3 .fcnow,.d3 .fcjob h2{min-width:0;overflow-wrap:anywhere}
-.d3 .fcnote{display:flex;align-items:baseline;gap:8px;font-weight:600}
-.d3 .fcnote .dot{position:relative;top:-1px}
-.d3 .fcnote.bad{color:var(--bad-ink)}
-.d3 .fcnote.grey{color:var(--muted);font-weight:400}
-.d3 .fcev{display:grid;grid-template-columns:132px minmax(0,1fr);gap:2px 12px;padding:8px 0;border-top:1px solid var(--line);font-size:13px;overflow-wrap:anywhere}
-.d3 .fcev.first{border-top:0}
-@media (max-width:560px){
-  .d3 .fcrow,.d3 .fcev{grid-template-columns:1fr}
+/* Factory page (feed video_line): the old Factory page's table (public/css/components.css, its fy* rules), with the same
+   sizes, on D3's theme variables so it follows the light and dark themes. */
+.d3 .fy{display:flex;flex-direction:column;gap:16px;--fy-ok-bg:color-mix(in srgb,var(--ok) 13%,transparent);--fy-ok-line:color-mix(in srgb,var(--ok) 38%,transparent);--fy-bad-bg:color-mix(in srgb,var(--bad) 12%,transparent);--fy-bad-line:color-mix(in srgb,var(--bad) 36%,transparent)}
+.d3 .fyhead{flex-wrap:wrap;padding:6px 4px 2px;gap:10px 14px}
+.d3 .fystatus{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.d3 .fypill{display:inline-flex;align-items:center;gap:.3rem;border-radius:1rem;padding:.12rem .6rem;font-size:.78rem;font-weight:600;border:1px solid var(--line);background:var(--card2);color:var(--ink2);white-space:nowrap}
+.d3 .fypill.ok{background:var(--fy-ok-bg);color:var(--ok-ink);border-color:var(--fy-ok-line)}
+.d3 .fypill.crit{background:var(--fy-bad-bg);color:var(--bad-ink);border-color:var(--fy-bad-line)}
+.d3 .fysum{display:flex;flex-wrap:wrap;align-items:center;gap:.3rem .9rem;margin:0;padding:0 4px;font-size:.88rem;color:var(--ink2)}
+.d3 .fysum b{color:var(--ink)}
+.d3 .fysum .z,.d3 .fysum .z b{color:var(--muted)}
+.d3 .fybox{padding:10px;gap:0}
+.d3 .fytblwrap{overflow-x:auto}
+.d3 .fytable{border-collapse:collapse;table-layout:fixed;--fyc1:13rem;--fyn:4;width:calc(var(--fyc1) + var(--fyn) * 9rem + 7.5rem);min-width:100%;font-size:.92rem}
+.d3 .fytable col.fyc1{width:var(--fyc1)}
+.d3 .fytable col.fycs{width:9rem}
+.d3 .fytable col.fycw{width:7.5rem}
+.d3 .fytable th{background:var(--card2);color:var(--muted);font-weight:500;font-size:.8rem;text-align:left;padding:.55rem .9rem;white-space:nowrap}
+.d3 .fytable th:first-child{border-radius:.5rem 0 0 .5rem}
+.d3 .fytable th:last-child{border-radius:0 .5rem .5rem 0}
+.d3 .fytable td{padding:.8rem .9rem;border-bottom:1px solid var(--line);color:var(--ink2);background:var(--card);vertical-align:middle}
+.d3 .fytable tr:last-child td{border-bottom:0}
+.d3 .fytable td:first-child{color:var(--ink);font-weight:600}
+.d3 .fytable td small{display:block;font-weight:400;color:var(--muted);font-size:.82rem}
+.d3 .fytable td.fycell,.d3 .fytable th.fycell{text-align:center}
+.d3 .fytable td b{display:block;font-weight:600;overflow-wrap:anywhere}
+.d3 .fywait .fypill{margin-bottom:.2rem}
+.d3 .fynew{font-size:.78rem;color:var(--muted)}
+.d3 .fytable td small.fywhy{font-size:.74rem;overflow-wrap:anywhere}
+.d3 .fyok{color:var(--ok)}
+.d3 .fybad{color:var(--bad)}
+.d3 .fyok svg,.d3 .fybad svg{display:block;margin:0 auto}
+.d3 .fyidle{display:inline-block;width:.8rem;height:.8rem;border-radius:50%;border:2px solid var(--track);box-sizing:border-box}
+.d3 .fyfail{display:flex;flex-direction:column;align-items:center;gap:.15rem}
+.d3 .fytable td .fyfail small{font-size:.74rem;color:var(--bad-ink);overflow-wrap:anywhere}
+.d3 .fyrun{display:flex;flex-direction:column;gap:.2rem;font-size:.76rem;color:var(--ink2)}
+.d3 .fypg{height:.45rem;background:var(--track);border-radius:1rem;overflow:hidden}
+.d3 .fypg i{display:block;height:100%;border-radius:1rem;background:var(--fill)}
+.d3 .fypg.ind i{width:40%;animation:fyslide 1.4s ease-in-out infinite alternate}
+@keyframes fyslide{from{margin-left:0}to{margin-left:60%}}
+/* Live: only the cell that is running now is green; everything else stays the card colour. */
+.d3 .fytable td.fylv{background:var(--fy-ok-bg);box-shadow:inset 0 0 0 1px var(--fy-ok-line)}
+.d3 .fydot{display:inline-block;width:.5rem;height:.5rem;border-radius:50%;background:var(--ok);margin-right:.3rem;animation:fypulse 1.6s ease-in-out infinite}
+.d3 .fylt{display:block;margin-top:.25rem;font-size:.7rem;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--ok-ink)}
+.d3 .fytable td small.fylx{font-size:.74rem;overflow-wrap:anywhere}
+.d3 .fytable td.fylv small.fylx{color:var(--ok-ink)}
+.d3 .fylc{display:inline-flex;align-items:center;font-weight:600;color:var(--muted)}
+.d3 .fylc.on{color:var(--ok-ink)}
+.d3 .fylc b{margin-right:.3rem}
+.d3 .fy>[data-fy]:empty{display:none}
+.d3 .fylc:not(.on) .fydot{background:var(--track);animation:none}
+@keyframes fypulse{0%,100%{opacity:1}50%{opacity:.35}}
+@media (prefers-reduced-motion:reduce){
+  .d3 .fydot{animation:none}
+  .d3 .fypg.ind i{animation:none;width:100%;opacity:.5}
+}
+.d3 .fylist{gap:0;padding:14px 18px}
+.d3 .fylist h2{font-size:15px;margin-bottom:6px}
+.d3 .fylist h2 small{font-family:var(--sans);font-weight:400;margin-left:8px}
+.d3 .fyev{display:grid;grid-template-columns:8.5rem minmax(0,1fr);gap:0 12px;padding:3px 0;font-size:.82rem;color:var(--ink2);overflow-wrap:anywhere}
+.d3 .fyev span{color:var(--muted)}
+.d3 .fyneed{display:grid;grid-template-columns:9rem 6rem minmax(0,1.2fr) minmax(0,1fr);gap:2px 12px;padding:6px 0;border-top:1px solid var(--line);font-size:.86rem;overflow-wrap:anywhere}
+.d3 .fyneed:first-of-type{border-top:0}
+.d3 .fyneed b{color:var(--bad-ink)}
+.d3 .fylook{color:var(--muted)}
+@media (max-width:640px){
+  .d3 .fytable{--fyc1:8.5rem}
+  .d3 .fytable th:first-child,.d3 .fytable td:first-child{position:sticky;left:0;z-index:1}
+  .d3 .fytable td:first-child{box-shadow:1px 0 0 var(--line)}
+  .d3 .fytable td{padding:.6rem .5rem}
+  .d3 .fyneed,.d3 .fyev{grid-template-columns:1fr}
+}
+/* Track page: the old Track page's own markup (public/js/pages/track.js, drawn unchanged inside .tkpage). These are the
+   few old rules that markup needs (public/css/components.css), copied here on D3's theme variables: /dash serves only
+   its own stylesheet, and the old one's global rules would restyle the rest of Dashboard 3. */
+.d3 .tkpage .wrap{display:flex;flex-direction:column;gap:16px}
+.d3 .tkpage .head{padding:6px 4px 2px}
+.d3 .tkpage .head p{margin-top:2px;color:var(--muted);font-size:13px}
+.d3 .tkpage .muted{color:var(--muted)}
+.d3 .tkpage .cctabs{display:flex;flex-direction:column;gap:.5rem}
+.d3 .tkpage .ccgrp{display:flex;flex-wrap:wrap;align-items:center;gap:.4rem}
+.d3 .tkpage .ccgrp>b{flex:none;width:9.5rem;font-size:.74rem;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}
+.d3 .tkpage .chip{display:inline-flex;align-items:center;gap:.4rem;width:auto;height:auto;border:1px solid var(--line);background:var(--card);border-radius:.6rem;padding:.45rem .8rem;font:inherit;font-size:.85rem;font-weight:500;color:var(--ink2);cursor:pointer}
+.d3 .tkpage .chip.on{background:var(--fill);color:#ffffff;border-color:transparent}
+.d3 .tkpage .ccn{font-size:.72rem;font-weight:600;color:var(--muted)}
+.d3 .tkpage .chip.on .ccn{color:inherit}
+.d3 .tkpage .cardhead{display:flex;justify-content:space-between;align-items:center;gap:.4rem 1rem;flex-wrap:wrap;margin:0;padding:0;border:0}
+.d3 .tkpage .cardhead h2{font-size:1.1rem}
+.d3 .tkpage .cardhead .meta{flex:1 1 24rem;font-size:.82rem;color:var(--muted)}
+.d3 .tkpage .tblwrap{overflow-x:auto}
+.d3 .tkpage table{border-collapse:collapse;width:100%;font-size:.92rem}
+.d3 .tkpage th{background:var(--card2);color:var(--muted);font-weight:500;font-size:.8rem;text-align:left;padding:.55rem .9rem;white-space:nowrap}
+.d3 .tkpage th:first-child{border-radius:.5rem 0 0 .5rem}
+.d3 .tkpage th:last-child{border-radius:0 .5rem .5rem 0}
+.d3 .tkpage td{padding:.8rem .9rem;border-bottom:1px solid var(--line);color:var(--ink2)}
+.d3 .tkpage tr:last-child td{border-bottom:0}
+.d3 .tkpage td:first-child{color:var(--ink);font-weight:600}
+.d3 .tkpage td small{display:block;font-weight:400;color:var(--muted);font-size:.82rem}
+.d3 .tkpage tbody tr[data-page]{cursor:pointer}
+.d3 .tkpage tbody tr[data-page]:hover td{background:var(--card2)}
+.d3 .tkpage tfoot td{font-weight:600;color:var(--ink);border-top:1px solid var(--line)}
+/* D3 has its own .num (the big display figures): inside the old tables it is only a right-aligned cell. */
+.d3 .tkpage td.num{font:inherit;letter-spacing:0;text-align:right}
+.d3 .tkpage th.num{font-family:var(--sans);font-size:.8rem;font-weight:500;line-height:inherit;letter-spacing:0;text-align:right}
+.d3 .tkpage .thsort{background:none;border:0;padding:0;font:inherit;color:inherit;cursor:pointer}
+.d3 .tkpage .tkcell{white-space:nowrap;font-size:.82rem}
+.d3 .tkpage .tktable th,.d3 .tkpage .tktable td{padding-inline:.6rem}
+.d3 .tkpage .tklink{font-size:.8rem;margin-right:.5rem}
+.d3 .tkpage .ccdiff{display:block;margin-top:.25rem;color:var(--muted);font-size:.8rem}
+.d3 .tkpage a.btn{text-decoration:none}
+.d3 .tkpage .pill{border-radius:1rem;padding:.12rem .6rem;font-size:.78rem;font-weight:600;border:1px solid var(--line);background:var(--card2);color:var(--ink2);box-shadow:none}
+.d3 .tkpage .pill::before{content:none}
+.d3 .tkpage .pill.ok{background:color-mix(in srgb,var(--ok) 13%,transparent);color:var(--ok-ink);border-color:color-mix(in srgb,var(--ok) 38%,transparent)}
+.d3 .tkpage .pill.risk{background:color-mix(in srgb,var(--warn) 15%,transparent);color:var(--warn-ink);border-color:color-mix(in srgb,var(--warn) 40%,transparent)}
+.d3 .tkpage .pill.crit{background:color-mix(in srgb,var(--bad) 12%,transparent);color:var(--bad-ink);border-color:color-mix(in srgb,var(--bad) 36%,transparent)}
+.d3 .tkpage .pill.blue{background:color-mix(in srgb,var(--fill) 14%,transparent);color:var(--link);border-color:transparent}
+.d3 .tkpage .pill.violet{background:rgba(139,92,246,.16);color:#7c3aed;border-color:transparent}
+.d3 .tkpage .pill.teal{background:rgba(20,184,166,.16);color:#0f766e;border-color:transparent}
+[data-theme="dark"] .d3 .tkpage .pill.violet{color:#c4b5fd}
+[data-theme="dark"] .d3 .tkpage .pill.teal{color:#5eead4}
+@media (max-width:640px){
+  .d3 .tkpage .ccgrp>b{width:100%}
+  .d3 .tkpage td,.d3 .tkpage th{padding:.6rem .5rem}
 }

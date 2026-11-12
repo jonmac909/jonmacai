@@ -7,7 +7,7 @@ import { handleApi } from '../src/api.js';
 import { sha256Hex } from '../src/bots.js';
 import worker from '../src/worker.js';
 import { signSession, COOKIE } from '../src/auth.js';
-import { renderFactory, factoryJobs, agoShort, kelowna } from '../public/d3/js/factory.js';
+import { renderFactory, factoryJobs, factoryCols, kelowna } from '../public/d3/js/factory.js';
 
 const SECRET = 'test-session-secret-32-bytes-ok!';
 const NOW = Date.parse('2026-11-12T00:00:00Z'); // Wed Nov 11, late afternoon in Kelowna
@@ -133,104 +133,146 @@ test('d3.factory: null with no entry, the newest entry with at, stale after 3 mi
   assert.deepEqual(old.sources.filter((s) => s.name === 'video_line').map((s) => [s.label, s.stale]), [['Video program board', true]]);
 });
 
-test('Factory page: summary, order, step chips, what is happening now', () => {
+test('video_line feed: a step may carry done and total (whole numbers), kept as posted', async () => {
+  const { env } = await setup();
+  const B = BOARD();
+  const withStep = (over) => ({ ...B, jobs: [{ ...B.jobs[2], steps: [{ ...B.jobs[2].steps[0], ...over }] }] });
+  const ok = await put(env, 'developer', withStep({ done: 8, total: 11 }));
+  assert.equal(ok.status, 201);
+  assert.deepEqual([ok.body.feed.data.jobs[0].steps[0].done, ok.body.feed.data.jobs[0].steps[0].total], [8, 11]);
+  const none = (await put(env, 'developer', withStep({ done: null }))).body.feed.data.jobs[0].steps[0];
+  assert.ok(!('done' in none) && !('total' in none), 'left out when the step does not send them');
+  for (const bad of [{ done: -1 }, { done: 1.5 }, { total: '11' }, { total: [11] }]) assert.equal((await put(env, 'developer', withStep(bad))).status, 400, JSON.stringify(bad));
+});
+
+const row = (html, id) => html.slice(html.indexOf(`<tr class="fyrow" data-id="${id}"`)).split('</tr>')[0];
+const CHECK = /<span class="fyok" role="img" aria-label="Done"><svg[^>]*><path d="M5 13l4 4L19 7"\/><\/svg><\/span>/.source;
+const IDLE = '<td class="fycell"><span class="fyidle" role="img" aria-label="Later step"></span></td>';
+
+test('Factory page: the old Factory table, a row per video and a column per step', () => {
   const html = page(fresh());
-  assert.match(html, /<h1>Factory<\/h1>/);
-  assert.match(html, /<b>5 videos<\/b><span class="pill">1 running<\/span><span class="pill ok">1 done<\/span><span class="pill bad">1 needs you<\/span><span class="mut sp">updated 57 s ago<\/span>/);
-  assert.doesNotMatch(html, /fcnote|fcstale/, 'fresh and the scheduler runs: no notice');
-  // Needs you first, then failed, running, waiting, done.
+  // Head, status pill and the one-line summary, as on the old page.
+  assert.match(html, /<h1>Factory<\/h1><p class="mut">Every video in the new video program, step by step\. Updates on its own\.<\/p>/);
+  assert.match(html, /<div class="fystatus sp" data-fy="status"><span class="fypill ok">Live · 10s ago<\/span><\/div>/);
+  assert.match(html, /<p class="fysum"><span class="fylc on"><i class="fydot"><\/i><b>1<\/b> live now<\/span><span><b>2<\/b> Pack<\/span><span><b>1<\/b> Plan<\/span><span><b>1<\/b> Render<\/span><span><b>1<\/b> Done<\/span><span class="fypill crit">1 needs you<\/span><\/p>/);
+  // Columns: the steps in pipeline order, capitalised, between Video and Waiting.
+  assert.deepEqual(factoryCols(factoryJobs(fresh())), ['pack', 'plan', 'render']);
+  assert.match(html, /<thead data-fy="cols"><tr><th>Video<\/th><th class="fycell">Pack<\/th><th class="fycell">Plan<\/th><th class="fycell">Render<\/th><th>Waiting<\/th><\/tr><\/thead>/);
+  assert.match(html, /<table class="fytable" style="--fyn: 3">\s*<colgroup><col class="fyc1"><col class="fycs"><col class="fycs"><col class="fycs"><col class="fycw"><\/colgroup>/);
+  // Rows: needs you, failed, running, waiting, done.
   assert.deepEqual(factoryJobs(fresh()).map((j) => j.id), ['need-1', 'fail-1', 'nora-5', 'wait-1', 'done-1']);
-  assert.deepEqual([...html.matchAll(/data-job="([^"]+)" data-kind="([^"]+)"/g)].map((m) => `${m[1]}:${m[2]}`), ['need-1:need', 'fail-1:fail', 'nora-5:run', 'wait-1:wait', 'done-1:done']);
-  const card = (id) => html.slice(html.indexOf(`data-job="${id}"`)).split('</section>')[0];
-  // The running video: an accent chip with its minutes, a grey waiting chip, and the step's own words.
-  const run = card('nora-5');
-  assert.match(run, /<h2>nora-5<\/h2><span class="mut">nora · 0 of 4 steps done<\/span><span class="pill  sp">Running · 22 min<\/span>/);
-  assert.match(run, /<span class="fcc run" role="listitem" title="pack, running, 22 min">pack · 22 min<\/span><span class="fcc wait" role="listitem" title="plan, waiting">plan<\/span>/);
-  assert.match(run, /<p class="fcnow">after 8 of 11 pack checks; last: stills PASS all 198 stills on disk<\/p>/);
-  assert.doesNotMatch(run, /fcneed|fcfail|Finished file/);
-  // The failed video: a red chip with its try, then what happened and how to fix it.
-  const fail = card('fail-1');
-  assert.match(fail, /<span class="fcc done"[^>]*>pack · 30 min<\/span><span class="fcc fail" role="listitem" title="plan, failed, try 2">plan · try 2<\/span><span class="fcc wait"/);
-  assert.match(fail, /<b>plan failed after 2 tries<\/b>[\s\S]*What happened<\/span><span>The plan had 3 scenes with no picture<\/span>[\s\S]*How to fix it<\/span><span>Add pictures for scenes 4, 9 and 12, then run it again/);
-  assert.match(fail, /<span class="pill bad sp">Failed · 3 min<\/span>/);
-  assert.match(fail, /<p class="fcnow">plan failed twice<\/p>/); // the video's note; the failed step's note sits in its own block, once
-  assert.equal(fail.split('The plan had 3 scenes with no picture').length, 2);
-  // Needs you: the block comes before the steps, with step, why, where to look and since when (Kelowna time: 3 PM or 4 PM, by whether this Node knows BC stopped changing its clocks in 2026).
-  const need = card('need-1');
-  assert.match(need, /<span class="pill bad sp">Needs you · 15 min<\/span>/);
-  assert.match(need, /<div class="fcneed">\s*<b>Needs you<\/b>[\s\S]*Step<\/span><span>render<\/span>[\s\S]*Why<\/span><span>The voice file is missing<\/span>[\s\S]*Look at<\/span><span>D:\\videos\\need-1\\voice<\/span>[\s\S]*Since<\/span><span>Nov 11, [34]:45 PM<\/span>/);
-  assert.ok(need.indexOf('fcneed') < need.indexOf('fcsteps'));
-  // Waiting and done.
-  assert.match(card('wait-1'), /<span class="pill  sp">Waiting · 9 min<\/span>[\s\S]*<p class="fcnow">Waiting to start\.<\/p>/);
-  const done = card('done-1');
-  assert.match(done, /<span class="pill ok sp">Done · 40 min<\/span>/);
-  assert.match(done, /<span class="fcc done" role="listitem" title="pack, done, 31 min">pack · 31 min<\/span><span class="fcc done" role="listitem" title="render, done, 12 min">render · 12 min<\/span>/);
-  assert.match(done, /class="fcrow fcfinal"><span class="mut">Finished file<\/span><span>D:\\videos\\done-1\\final\.mp4<\/span>/);
-  // Events: newest first, Kelowna time, columns joined.
-  const ev = html.slice(html.indexOf('Latest events'));
-  assert.match(ev, /<div class="fcev first"><span class="mut">Nov 11, [34]:36 PM<\/span><span>nora-5 · pack · started · pid 2732<\/span><\/div>\s*<div class="fcev"><span class="mut">Nov 11, [34]:36 PM<\/span><span>nora-5 · job · created<\/span>/);
+  assert.deepEqual([...html.matchAll(/<tr class="fyrow" data-id="([^"]+)" data-kind="([^"]+)"/g)].map((m) => `${m[1]}:${m[2]}`), ['need-1:need', 'fail-1:fail', 'nora-5:run', 'wait-1:wait', 'done-1:done']);
+  // Running: the unmeasured blue bar (no numbers on the step), the Live dot and what it is doing; the next step is a grey circle.
+  const run = row(html, 'nora-5');
+  assert.match(run, /<td><b>nora-5<\/b><small>nora<\/small><\/td>/);
+  assert.match(run, /<td class="fycell fylv" title="after 8 of 11 pack checks; last: stills PASS all 198 stills on disk"><div class="fyrun"><div class="fypg ind" role="progressbar" aria-label="In progress"><i><\/i><\/div><span>In progress<\/span><\/div><span class="fylt"><i class="fydot"><\/i>Live<\/span><small class="fylx">after 8 of 11 pack checks; last: stills PASS all 198 stills on disk<\/small><\/td>/);
+  assert.ok(run.includes(`${IDLE}<td class="fycell"></td><td class="fywait"><small>22m</small></td>`), 'plan waits (grey circle), this video has no render step, 22 minutes in its state');
+  // Failed: the red X with the short reason; the full note and the fix sit in the tooltip.
+  const fail = row(html, 'fail-1');
+  assert.match(fail, new RegExp(`<td class="fycell">${CHECK}<small>30m</small></td><td class="fycell"><div class="fyfail" title="The plan had 3 scenes with no picture · Fix: Add pictures for scenes 4, 9 and 12, then run it again"><span class="fybad" role="img" aria-label="Failed">`));
+  assert.match(fail, /<small>The plan had 3 scenes with no picture<\/small><\/div><\/td>/);
+  assert.ok(fail.endsWith(`${IDLE}<td class="fywait"><small>3m</small></td>`));
+  // Needs you: the red pill in the last column.
+  assert.match(row(html, 'need-1'), /<td class="fywait"><span class="fypill crit">Needs you<\/span><small>15m<\/small><\/td>$/);
+  // Waiting with no reason given: grey circles only.
+  assert.ok(row(html, 'wait-1').includes(`<td><b>wait-1</b><small>nora</small></td>${IDLE}${IDLE}<td class="fycell"></td><td class="fywait"><small>9m</small></td>`));
+  // Done: green checks with their minutes, a green Done pill; the finished file is only its tooltip.
+  const done = row(html, 'done-1');
+  assert.match(done, new RegExp(`${CHECK}<small>31m</small></td><td class="fycell"></td><td class="fycell">${CHECK}<small>12m</small></td>`));
+  assert.match(done, /<td class="fywait"><span class="fypill ok" title="D:\\videos\\done-1\\final\.mp4">Done<\/span><small>40m<\/small><\/td>$/);
+  assert.equal(html.split('final.mp4').length, 2, 'the file path appears once, as the tooltip');
+  // Under the table: the Needs you list, then the events, newest first, Kelowna time (3 PM or 4 PM, by whether this
+  // Node knows BC stopped changing its clocks in 2026).
+  assert.match(html, /<section class="card fylist"><h2>Needs you<\/h2><p class="fyneed"><b>need-1<\/b><span>Render<\/span><span>The voice file is missing<\/span><span class="fylook">Look at D:\\videos\\need-1\\voice<\/span><\/p><\/section>/);
+  assert.match(html, /<h2>Latest events <small class="mut">newest first, Kelowna time<\/small><\/h2><p class="fyev"><span>Nov 11, [34]:36 PM<\/span>nora-5 · pack · started · pid 2732<\/p><p class="fyev"><span>Nov 11, [34]:36 PM<\/span>nora-5 · job · created<\/p><\/section>/);
+  assert.ok(html.indexOf('</table>') < html.indexOf('Needs you</h2>') && html.indexOf('Needs you</h2>') < html.indexOf('Latest events'));
   assert.doesNotMatch(html, /undefined|NaN|null|—|music|sound design/i);
 });
 
-test('Factory page: stale and scheduler notices, the page clock, counts from the videos when the feed has none', () => {
-  const stale = page(fresh({ at: S(400), stale: true }));
-  assert.match(stale, /<p class="fcnote bad" role="status"><span class="dot r"><\/span>The video program is not reporting\. Its last report came 7 min ago/);
-  assert.match(stale, /<div class="fclist fcstale">/);
-  const off = page(fresh({ scheduler_running: false }));
-  assert.match(off, /<p class="fcnote bad" role="status"><span class="dot r"><\/span>The scheduler is not running\./);
-  assert.doesNotMatch(off, /not reporting/);
-  const unknown = page(fresh({ scheduler_running: undefined }));
-  assert.match(unknown, /<p class="fcnote grey"><span class="dot"><\/span>The video program did not say whether the scheduler is running\./);
-  // ui.now (the shell's clock) moves "updated N s ago" between loads.
-  assert.match(page(fresh(), { now: NOW + 15000 }), /updated 72 s ago/);
-  assert.match(page(fresh({ updated: S(4000) })), /updated 67 min ago/);
-  assert.deepEqual([agoShort(0), agoShort(89000), agoShort(90000), agoShort(3 * 3600000)], ['0 s ago', '89 s ago', '2 min ago', '3 hr ago']);
-  assert.deepEqual([kelowna('2026-07-01T19:05:00Z'), kelowna('soon'), kelowna(null)], ['Jul 1, 12:05 PM', '', '']);
-  const counted = page(fresh({ counts: undefined, unreadable_jobs: ['bad-1', 'bad-2'] }));
-  assert.match(counted, /<b>5 videos<\/b><span class="pill">1 running<\/span><span class="pill ok">1 done<\/span><span class="pill bad">1 needs you<\/span>/);
-  assert.match(counted, /2 videos could not be read: bad-1, bad-2/);
-  // A video whose program is gone, a state the page does not know, and a needs-person state with no details.
-  const odd = page(fresh({ counts: undefined, jobs: [
-    { id: 'gone-1', state: 'running? (process gone)', step: 'pack', steps: [step('pack', 'running', { minutes: 50 })] },
-    { id: 'odd-1', state: 'paused', steps: [step('pack', 'skipped')] },
-    { id: 'np-1', state: 'NEEDS A PERSON', note: 'Pick a thumbnail', steps: [] },
-  ] }));
-  assert.deepEqual([...odd.matchAll(/data-job="([^"]+)"/g)].map((m) => m[1]), ['np-1', 'gone-1', 'odd-1']);
-  assert.match(odd, /<span class="pill warn sp">Stopped<\/span>[\s\S]*This video says it is running, but the program working on it has stopped\./);
-  assert.match(odd, /<span class="pill  sp">paused<\/span>[\s\S]*<span class="fcc other" role="listitem" title="pack, skipped">pack · skipped<\/span>/);
-  assert.match(odd, /<div class="fcneed">\s*<b>Needs you<\/b>\s*<div class="fcrow"><span class="mut">Why<\/span><span>Pick a thumbnail<\/span>/);
-  assert.match(odd, /<span class="pill">1 running<\/span><span class="pill ">0 done<\/span><span class="pill bad">1 needs you<\/span>/);
+test('Factory page: measured progress, a reason to wait, long times, oldest first inside a group', () => {
+  const B = BOARD();
+  const html = page(fresh({ jobs: [
+    { id: 'b-new', channel: 'x', state: 'running', created: '2026-11-11T23:00:00Z', minutes_in_state: '135', steps: [step('pack', 'running', { done: 8, total: 11, doing: 'checking stills' }), step('plan', 'todo')] },
+    { id: 'a-old', channel: 'x', state: 'running', created: '2026-11-11T20:00:00Z', minutes_in_state: 'soon', steps: [step('pack', 'running', { done: 30, total: 11 }), step('plan', 'todo', { note: 'Starts when the pack is checked' })] },
+    { id: 'c-wait', channel: 'x', state: 'todo', note: 'Waiting for b-new to finish its pack: one pack is built at a time, and this is a long reason', steps: [step('pack', 'todo'), step('plan', 'todo')] },
+    { id: 'd-fail', channel: 'x', state: 'failed', steps: [step('pack', 'failed', { tries: 3 }), step('plan', 'todo')] },
+    { id: 'e-done', channel: 'x', state: 'done', minutes_in_state: '59', final: '', steps: [step('pack', 'done', { minutes: 125 }), step('plan', 'done')] },
+  ], events: Array.from({ length: 15 }, (_, i) => `e${i}`) }));
+  assert.deepEqual([...html.matchAll(/<tr class="fyrow" data-id="([^"]+)"/g)].map((m) => m[1]), ['d-fail', 'a-old', 'b-new', 'c-wait', 'e-done']);
+  assert.match(row(html, 'b-new'), /<div class="fyrun"><div class="fypg" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="73"><i style="width:73%"><\/i><\/div><span>8\/11<\/span><\/div><span class="fylt"><i class="fydot"><\/i>Live<\/span><small class="fylx">checking stills<\/small>/);
+  assert.match(row(html, 'b-new'), /<td class="fywait"><small>2h 15m<\/small><\/td>$/);
+  assert.match(row(html, 'a-old'), /aria-valuenow="100"><i style="width:100%"><\/i><\/div><span>11\/11<\/span>/); // never past the total
+  assert.match(row(html, 'a-old'), /<td class="fycell" title="Starts when the pack is checked"><span class="fynew">Waiting<\/span><small class="fywhy">Starts when the pack is checked<\/small><\/td><td class="fywait"><small><\/small><\/td>$/);
+  // The first step of a waiting video carries the video's own reason: full in the tooltip, one short line under "Waiting".
+  assert.match(row(html, 'c-wait'), /<td class="fycell" title="Waiting for b-new to finish its pack: one pack is built at a time, and this is a long reason"><span class="fynew">Waiting<\/span><small class="fywhy">Waiting for b-new to finish its pack: one pac…<\/small><\/td><td class="fycell"><span class="fyidle"/);
+  assert.match(row(html, 'd-fail'), /<div class="fyfail" title=""><span class="fybad"[\s\S]*<small>Failed, try 3<\/small>/);
+  assert.match(row(html, 'e-done'), /<small>2h 5m<\/small><\/td><td class="fycell"><span class="fyok"[^>]*><svg[^>]*><path[^>]*><\/svg><\/span><\/td><td class="fywait"><span class="fypill ok">Done<\/span><small>59m<\/small>/);
+  assert.match(html, /<span class="fylc on"><i class="fydot"><\/i><b>2<\/b> live now<\/span><span><b>4<\/b> Pack<\/span><span class="z"><b>0<\/b> Plan<\/span><span><b>1<\/b> Done<\/span><span class="fypill ok">0 need you<\/span>/);
+  assert.match(html, /<div data-fy="needs"><\/div>/, 'no Needs you list when nobody is needed');
+  assert.equal((html.match(/<p class="fyev">/g) || []).length, 12, 'at most 12 events');
+  assert.match(html, /<p class="fyev"><span><\/span>e14<\/p><p class="fyev"><span><\/span>e13<\/p>/);
+  assert.equal(B.jobs.length, 5);
 });
 
-test('Factory page: feed text is escaped, and the empty and no-feed states', () => {
+test('Factory page: stale, scheduler stopped, not publishing, empty, unreadable videos', () => {
+  const stale = page(fresh({ at: S(260), stale: true }));
+  assert.match(stale, /<span class="fypill crit">Stale: last update 4m ago<\/span>/);
+  assert.doesNotMatch(stale, /fylv|fylt/, 'a stale board shows nothing as live');
+  assert.match(stale, /<span class="fylc"><i class="fydot"><\/i><b>0<\/b> live now<\/span>/);
+  assert.match(row(stale, 'nora-5'), /<td class="fycell" title="after 8 of 11[^"]*"><div class="fyrun">[\s\S]*<small class="fylx">after 8 of 11/); // still says what it was doing
+  assert.match(page(fresh({ at: S(100) })), /Live · 100s ago/);
+  assert.match(page(fresh(), { now: NOW + 15000 }), /Live · 25s ago/); // the shell's clock ages the pill between loads
+  assert.match(page(fresh({ at: S(100) }), { now: NOW + 200000 }), /Stale: last update 5m ago/); // old on the page's clock, whatever the server said
+  const off = page(fresh({ scheduler_running: false }));
+  assert.match(off, /data-fy="status"><span class="fypill ok">Live · 10s ago<\/span><span class="fypill crit">Scheduler stopped<\/span><\/div>/);
+  assert.doesNotMatch(page(fresh({ scheduler_running: undefined })), /Scheduler stopped/);
+  for (const none of [page(null), renderFactory({ d3: {} }), renderFactory(null), renderFactory(undefined, undefined)]) {
+    assert.match(none, /<h1>Factory<\/h1>[\s\S]*<span class="fypill crit">Not publishing yet<\/span>[\s\S]*<p class="mut">No feed: the video program has not posted its board yet\.<\/p>/);
+    assert.doesNotMatch(none, /undefined|NaN|fytable|Latest events/);
+  }
+  const empty = page(fresh({ jobs: [], events: [], unreadable_jobs: ['bad-1', 'bad-2'] }));
+  assert.match(empty, /<thead data-fy="cols"><tr><th>Video<\/th><th>Waiting<\/th><\/tr><\/thead>/);
+  assert.match(empty, /<tr class="fyrow" data-id="_empty"><td colspan="2" class="mut">No videos in the program right now\.<\/td><\/tr>/);
+  assert.match(empty, /<span class="fylc"><i class="fydot"><\/i><b>0<\/b> live now<\/span><span class="z"><b>0<\/b> Done<\/span><span class="fypill ok">0 need you<\/span>/);
+  assert.match(empty, /<p class="mut">2 videos could not be read: bad-1, bad-2<\/p>/);
+  assert.match(empty, /No events yet\./);
+  // A video whose program is gone stays with the running ones; a needs-person state with no details still lists.
+  const odd = page(fresh({ jobs: [
+    { id: 'gone-1', state: 'running? (process gone)', step: 'pack', steps: [step('pack', 'running', { minutes: 50 })] },
+    { id: 'np-1', state: 'NEEDS A PERSON', step: 'plan', note: 'Pick a thumbnail', steps: [step('pack', 'done'), step('plan', 'todo')] },
+    { id: 'np-1', state: 'todo', steps: [step('pack', 'skipped')] },
+  ] }));
+  assert.deepEqual([...odd.matchAll(/<tr class="fyrow" data-id="([^"]+)" data-kind="([^"]+)"/g)].map((m) => `${m[1]}:${m[2]}`), ['np-1:need', 'gone-1:run', 'np-1#1:wait']); // one id twice: two rows
+  assert.match(odd, /<p class="fyneed"><b>np-1<\/b><span>Plan<\/span><span>Pick a thumbnail<\/span><span class="fylook"><\/span><\/p>/);
+});
+
+test('Factory page: feed text is escaped everywhere', () => {
   const x = '<img src=x onerror=alert(1)>"\'&';
   const html = page(fresh({
     jobs: [{ id: x, channel: x, state: 'NEEDS A PERSON', step: x, minutes_in_state: x, note: x, final: x, needs_person: { step: x, why: x, look_at: x, since: x },
-      steps: [{ name: x, status: 'running', minutes: 1, doing: x }, { name: x, status: 'failed', tries: 2, note: x, fix: x }, { name: x, status: x }] }],
+      steps: [{ name: x, status: 'running', minutes: 1, doing: x }, { name: `${x}2`, status: 'failed', tries: 2, note: x, fix: x }, { name: `${x}3`, status: x, note: x }] },
+    { id: 'ok', channel: x, state: 'done', final: x, steps: [{ name: x, status: 'done', minutes: 3 }] }],
     events: [x, `2026-11-11T23:36:42Z  ${x}`], unreadable_jobs: [x],
   }));
   assert.doesNotMatch(html, /<img|onerror=alert\(1\)>|"'&/);
   assert.ok((html.match(/&lt;img src=x onerror=alert\(1\)&gt;&quot;&#39;&amp;/g) || []).length >= 15);
-  const empty = page(fresh({ jobs: [], events: [], counts: { jobs: 0, done: 0, running: 0, needs_person: 0 } }));
-  assert.match(empty, /<b>0 videos<\/b><span class="pill">0 running<\/span><span class="pill ">0 done<\/span><span class="pill ">0 need you<\/span>/);
-  assert.match(empty, /<p class="mut">No videos are being made right now\.<\/p>/);
-  assert.match(empty, /No events yet\./);
-  for (const none of [page(null), renderFactory({ d3: {} }), renderFactory(null), renderFactory(undefined, undefined, undefined)]) {
-    assert.match(none, /<h1>Factory<\/h1>[\s\S]*<p class="mut">No feed: the video program has not reported\.<\/p>/);
-    assert.doesNotMatch(none, /undefined|NaN|Latest events/);
-  }
+  assert.match(html, /<th class="fycell">&lt;img src=x onerror=alert\(1\)&gt;&quot;&#39;&amp;<\/th>/);
 });
 
-test('Factory page: on the rail, in the shell with its 15 s reload, and its file is served', async () => {
+test('Factory and Track: together on the rail, in the shell (15 s reload, no-jump refresh), files served', async () => {
   const index = readFileSync(new URL('../public/d3/index.html', import.meta.url), 'utf8');
-  assert.match(index, /<a href="#factory" data-nav="factory">.*Factory<\/a>/);
+  assert.match(index, /<a href="#team" data-nav="team">.*\n<a href="#factory" data-nav="factory">.*Factory<\/a>\n<a href="#track" data-nav="track">.*Track<\/a>\n<a href="#blockers"/);
   const app = readFileSync(new URL('../public/d3/js/app.js', import.meta.url), 'utf8');
-  assert.match(app, /factory: 'Factory'/);
-  assert.match(app, /renderFactory\(d3, ui, d2\)/);
+  assert.match(app, /factory: 'Factory', track: 'Track'/);
+  assert.match(app, /const html = renderFactory\(S\.d3, S\.ui\);\s*if \(S\.fyNote !== note \|\| !syncFactory\(main, html\)\) main\.innerHTML/);
   assert.match(app, /page\(\) !== 'factory' \|\| document\.visibilityState !== 'visible'/);
   assert.match(app, /setInterval\(loadFactory, 15000\)/);
   const css = readFileSync(new URL('../public/d3/css/d3.css', import.meta.url), 'utf8');
-  for (const rule of ['.d3 .fcc.run{', '.d3 .fcc.done{', '.d3 .fcc.fail{', '.d3 .fcneed{', '.d3 .fcnote.bad{']) assert.ok(css.includes(rule), rule);
-  const res = await worker.fetch(new Request('https://jonmac.ai/dash/js/factory.js'), { SESSION_SECRET: SECRET, ASSETS: { fetch: async (r) => new Response(`asset:${new URL(r.url).pathname}`) } }, {});
-  assert.equal(await res.text(), 'asset:/d3/js/factory.js');
+  for (const rule of ['.d3 .fytblwrap{overflow-x:auto}', '.d3 .fytable td.fylv{', '.d3 .fypg.ind i{', '.d3 .fypill.crit{', '.d3 .fyidle{', '.d3 .tkpage td.num{', '.d3 .tkpage .chip{']) assert.ok(css.includes(rule), rule);
+  assert.doesNotMatch(css, /\.d3 \.fc(c|need|job|steps)\b/, 'the first Factory look is gone');
+  assert.doesNotMatch(css.slice(css.indexOf('/* Factory page')), /#(?!ffffff|7c3aed|0f766e|c4b5fd|5eead4)[0-9a-f]{6}\b/i, 'Factory uses the theme variables, so it follows light and dark');
+  const env = { SESSION_SECRET: SECRET, ASSETS: { fetch: async (r) => new Response(`asset:${new URL(r.url).pathname}`) } };
+  for (const [path, want] of [['/dash/js/factory.js', 'asset:/d3/js/factory.js'], ['/dash/js/track.js', 'asset:/d3/js/track.js'], ['/dashboard/js/pages/track.js', 'asset:/js/pages/track.js']]) {
+    assert.equal(await (await worker.fetch(new Request(`https://jonmac.ai${path}`), env, {})).text(), want, path);
+  }
 });
