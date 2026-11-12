@@ -2,6 +2,7 @@
 // GET /dashboard/api/home reads it; the writes below are Jon's only (session + X-CC, checked by the caller).
 import { TZ, ymd, gClientId, gClientSecret } from './life.js';
 import { upsertHabit } from './db.js';
+import { readFx } from './fx.js';
 
 const CATS = ['factory', 'sponsors', 'personal', 'pnl'];
 const REPS = ['none', 'daily', 'weekdays', 'weekly', 'monthly'];
@@ -51,10 +52,12 @@ export async function homeData(env, nowMs = Date.now()) {
     // the last 40 days cover this week and this month; "do once" and checklist marks never reset
     all("SELECT l.goal_id, l.day, l.step, l.value FROM home_goal_logs l JOIN home_goals g ON g.id = l.goal_id WHERE g.deleted = 0 AND (l.day >= ? OR l.day = '0000-00-00')", shift(today, -40)),
   ]);
+  const fx = await readFx(env).catch(() => null);
   let snap = null;
   try { snap = cal[0] ? JSON.parse(cal[0].data) : null; } catch { snap = null; }
   return {
     today, tz: TZ,
+    fx: fx ? { usdcad: fx.usdcad, day: fx.day } : null,
     tasks: tasks.map(taskOut),
     days: days.map(dayOut),
     goals: goals.map(goalOut),
