@@ -495,7 +495,14 @@ test('PnL shows revenue, expenses and profit this month; Sponsors shows money ow
   for (const per of ['today', 'week', 'month']) {
     const owed = rowOf(cats, 'sponsors', per, 'owed');
     const close = rowOf(cats, 'sponsors', per, 'close');
-    assert.match(owed.v, /^\$[\d,]+$/, per);
-    assert.match(close.v, /^\$[\d,]+$/, per);
+    assert.match(owed.v, /^\$[\d,]+$|^Not priced$/, per);
+    assert.match(close.v, /^\$[\d,]+$|^Not priced$/, per);
   }
+  // deals with no amount on the board: "Not priced", never $0
+  const sb = d2.d2.pipeline.boards.find((b) => b.goal === 'sponsors').sponsors;
+  for (const c of sb.board.columns) for (const k of c.cards || []) k.amt = 0;
+  sb.collect = { rows: [] };
+  const np = homeGoals(d2, d3Sample());
+  const close = rowOf(np, 'sponsors', 'month', 'close');
+  if (close.info !== 'None open') { assert.equal(close.v, 'Not priced'); assert.match(close.info, /no amounts on the Sponsors board/); }
 });
