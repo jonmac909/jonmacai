@@ -160,6 +160,31 @@ ${row('', `Team cost · ${P.monthShort} 1–${P.day}`, null)}
 </section>`;
 }
 
+// RBC expenses (d2 summary 'expenses' section, MoneyClaw, read only): Personal and Business, each with its own totals
+// for yesterday, last 7 and last 30 days (net, pending in, refunds netted, Kelowna time).
+const cad = (n) => `${n < 0 ? '-' : ''}$${Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+function expensesHtml(d2resp) {
+  const sec = (d2resp?.d2?.summary?.sections || []).find((s) => s.key === 'expenses');
+  const split = sec?.split || null;
+  if (!split) return `<section class="card"><div class="hd cardhd"><span class="chip">${icon('money')}</span><h2>RBC expenses</h2></div><p class="mut">No feed: ${esc(sec?.line || 'the MoneyClaw expenses feed could not be read.')}</p></section>`;
+  const cur = esc(sec.currency || 'CAD');
+  const card = (label, key, g) => {
+    const head = (extra) => `<div class="hd cardhd"><span class="chip">${icon('money')}</span><h2>${label}</h2><span class="mut">RBC · ${cur}</span>${extra}</div>`;
+    if (!g) return `<section class="card" style="flex: 1 1 300px" aria-label="${label} expenses">${head('')}<p class="mut">No feed: these figures are not in the MoneyClaw feed.</p></section>`;
+    const stat = (l, k) => `<div class="stack"><span class="mut">${l}</span><span class="krv" data-exp="${key}-${k}">${esc(cad(g[k]))}</span></div>`;
+    return `<section class="card" style="flex: 1 1 300px" aria-label="${label} expenses">
+${head(`${g.partial ? '<span class="pill warn sp">30 days partial</span>' : ''}${sec.stale ? '<span class="pill warn sp">feed stale</span>' : ''}`)}
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 12px">
+${stat('Yesterday', 'yesterday')}${stat('Last 7 days', 'week')}${g.basis === 'stages' ? stat(g.monthFrom ? `This month (from ${esc(g.monthFrom.slice(5).replace('-', '/'))})` : 'This month', 'month') : stat('Last 30 days', 'month')}
+</div>
+</section>`;
+  };
+  return `<div class="row">
+${card('Personal', 'personal', split.personal)}
+${card('Business', 'business', split.business)}
+</div>`;
+}
+
 function dealsHtml(d2resp, ui = {}) {
   const st = dealStages(d2resp);
   if (!st) {
@@ -248,6 +273,7 @@ ${tile('Team cost', `${P.monthShort} 1–${P.day}`, null)}
 ${revenueHtml(d2resp, P)}
 ${incomeHtml(d2resp, P, !!bank?.source?.stale)}
 </div>
+${expensesHtml(d2resp)}
 ${dealsHtml(d2resp, ui)}
 ${costHtml(d3resp, P)}`;
 }

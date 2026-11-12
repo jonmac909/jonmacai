@@ -138,6 +138,42 @@ function marketsSection(row0, nowMs) {
   return section('markets', title, 'Mila', [src], { rows });
 }
 
+// Personal and Business side by side for the Money page: each side's yesterday, 7 and 30 day net spend plus the combined
+// figure from both charge lists together. splitMismatch() proves Personal + Business = combined for every period.
+const chargesOf = (g) => [...(Array.isArray(g?.lastMonth?.charges) ? g.lastMonth.charges : []), ...(Array.isArray(g?.month?.charges) ? g.month.charges : [])].filter((c) => c && typeof c === 'object');
+export function expenseSplit(ex, today) {
+  if (!ex || !(ex.personal || ex.business)) return null;
+  // No charge list (MoneyClaw's feed today): use its own stage totals instead: yesterday, week (7 days), month (month to date).
+  const stageTotal = (s) => (Number.isFinite(Number(s?.totalCents)) ? Number(s.totalCents) / 100 : Number.isFinite(Number(s?.total)) ? Number(s.total) : null);
+  const side = (g) => {
+    if (!g) return null;
+    if (!Array.isArray(g.month?.charges) && !Array.isArray(g.lastMonth?.charges)) {
+      const [yesterday, week, month] = [g.yesterday, g.week, g.month].map(stageTotal);
+      if ([yesterday, week, month].some((v) => v == null)) return null;
+      return { basis: 'stages', monthFrom: isDay(g.month?.startDate) ? g.month.startDate : null, yesterday, week, month };
+    }
+    const from = Array.isArray(g.lastMonth?.charges) && isDay(g.lastMonth.startDate) ? g.lastMonth.startDate : isDay(g.month?.startDate) ? g.month.startDate : null;
+    const t = windowTotals(chargesOf(g), today, from);
+    return { basis: 'lists', from, partial: t.month.partial, yesterday: t.yesterday.total, week: t.week.total, month: t.month.total };
+  };
+  const personal = side(ex.personal);
+  const business = side(ex.business);
+  if (personal?.basis === 'stages' || business?.basis === 'stages') {
+    // MoneyClaw sends no combined figure, so with stage totals the old single figure is the two sides added, in cents
+    // (also right when one side has lists and the other stage totals). The sum check is a real test only for lists.
+    const sum = (k) => [personal, business].reduce((a, g) => a + Math.round((Number(g?.[k]) || 0) * 100), 0) / 100;
+    return { personal, business, combined: { yesterday: sum('yesterday'), week: sum('week'), month: sum('month') } };
+  }
+  const froms = [personal?.from, business?.from].filter(Boolean).sort();
+  const all = windowTotals([...chargesOf(ex.personal), ...chargesOf(ex.business)], today, froms[0] || null);
+  return { personal, business, combined: { yesterday: all.yesterday.total, week: all.week.total, month: all.month.total } };
+}
+export function splitMismatch(split) {
+  if (!split) return ['no split'];
+  const cents = (n) => Math.round((Number(n) || 0) * 100);
+  return ['yesterday', 'week', 'month'].filter((k) => cents(split.personal?.[k]) + cents(split.business?.[k]) !== cents(split.combined?.[k]));
+}
+
 function expensesSection(row0, questions, keyOf, today, nowMs) { // questions is null when the open questions or their keys could not be read
   const title = 'RBC expenses';
   const ex = row0 ? parse(row0.data).expenses : null;
@@ -186,7 +222,7 @@ function expensesSection(row0, questions, keyOf, today, nowMs) { // questions is
   if (watch && watch.length > 5) notes.push(`${watch.length - 5} more charge-watch flags are on the Questions page.`);
   if (!watch) notes.push('Charge-watch flags unavailable (bot questions unreadable). Owner: Mila.');
   if (anyList && watch && !flagged.length) notes.push('No strange purchases in the last 7 days.');
-  return section('expenses', title, 'Mila', [src], { rows: [...rows, ...flagged], notes, currency, strange });
+  return section('expenses', title, 'Mila', [src], { rows: [...rows, ...flagged], notes, currency, strange, split: expenseSplit(ex, today), stale: !!src.stale });
 }
 
 // ---- Sponsors ----
