@@ -469,7 +469,7 @@ test('d3.css: Home uses the dashboard tokens (light and dark follow the theme) a
   assert.match(home, /\.d3 \.hmwid\{display:grid;grid-template-columns:repeat\(4,minmax\(0,1fr\)\)/); // four widgets in one row, phones too
   assert.match(home, /\.d3 \.hmsecs\{display:grid;grid-template-columns:repeat\(2,minmax\(0,1fr\)\)/); // always 2 x 2
   assert.match(home, /\.d3 \.hmbox\{position:relative;height:280px;/);
-  assert.match(home, /\.d3 \.card\.hmpc\{padding:16px 20px 0;height:280px;/);
+  assert.match(home, /\.d3 \.card\.hmpc\{padding:16px 20px 0;height:400px;/); // room for PnL's month rows and Sponsors' money rows (2026-11-12)
   const phone = home.slice(home.indexOf('@media (max-width:600px)'));
   assert.doesNotMatch(phone, /hmwid\{[^}]*grid-template-columns|hmsecs\{[^}]*grid-template-columns/);
   assert.match(phone, /\.d3 \.hmday\.hmwk\{display:none\}\n\s*\.d3 \.hmday\.hmph\{display:block/); // three days on a phone
