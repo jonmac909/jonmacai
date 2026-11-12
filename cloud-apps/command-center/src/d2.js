@@ -627,7 +627,7 @@ function todayOf(C, goals, checks) {
 const JUNK = [
   ['refunds', /\brefund/i, null],
   ['receipts', /\breceipt|payment (received|confirmation)|order confirmation|your (order|payment)\b|billing statement/i, /\b(receipts?|billing|payments?|orders?)@|stripe\.com|paypal\.com/i],
-  ['invites', /has invited you|invited you to (join|a new|the|their)/i, null],
+  ['invites', /\bhas invited you\b|\binvited you to (join|a new|the|their)\b/i, null],
   ['newsletters', /newsletter|digest|unsubscribe/i, /\b(newsletters?|news|digest|updates|marketing)@|substack\.com|beehiiv|mailchimp|convertkit|mailerlite/i],
 ];
 const junkOf = (r) => r && JUNK.find(([, subject, sender]) => subject.test(`${r.subject || ''} ${r.reason || ''}`) || sender?.test(`${r.to || ''} ${r.contact || ''}`))?.[0];
