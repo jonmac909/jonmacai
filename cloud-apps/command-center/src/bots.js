@@ -1011,6 +1011,20 @@ export const FEEDS = {
         return v;
       };
       const when = (v, k) => (v == null || v === '' ? null : isoOf(v, k));
+      // A step's own sub-steps, in the order the work happens (the Factory page draws a column for each). Unlike the
+      // rest of the board nothing here is cut: a part that is not right is a 400, so no sub-step goes missing quietly.
+      const PART_STATUS = ['todo', 'running', 'done', 'failed', 'waiting'];
+      const part = (p, k) => {
+        obj(p, k);
+        if (typeof p.name !== 'string' || !p.name.trim() || p.name.length > 40) throw new Bad(400, `${k}.name must be text of 1 to 40 characters`);
+        if (!PART_STATUS.includes(p.status)) throw new Bad(400, `${k}.status must be one of ${PART_STATUS.join(', ')}`);
+        if (p.note != null && (typeof p.note !== 'string' || p.note.length > 300)) throw new Bad(400, `${k}.note must be text of at most 300 characters`);
+        return { name: p.name.trim(), status: p.status, note: p.note ?? '' };
+      };
+      const parts = (v, k) => {
+        if (arr(v, k).length > 30) throw new Bad(400, `${k} must have at most 30 entries`);
+        return v.map((p, n) => part(p, `${k}[${n}]`));
+      };
       const step = (s, k) => {
         obj(s, k);
         if (s.minutes != null && (typeof s.minutes !== 'number' || !Number.isFinite(s.minutes) || s.minutes < 0 || s.minutes > 1e6)) throw new Bad(400, `${k}.minutes must be a number or null`);
@@ -1021,6 +1035,7 @@ export const FEEDS = {
           note: str(s.note, `${k}.note`), fix: str(s.fix, `${k}.fix`), doing: str(s.doing, `${k}.doing`),
           // Optional progress inside a running step ("8 of 11 checks"): kept only when the step sends it.
           ...(s.done != null ? { done: whole(s.done, `${k}.done`) } : {}), ...(s.total != null ? { total: whole(s.total, `${k}.total`) } : {}),
+          ...(s.parts != null ? { parts: parts(s.parts, `${k}.parts`) } : {}),
         };
       };
       const job = (j, i) => {

@@ -322,6 +322,47 @@ html[data-theme="dark"] body{background:#0b0b0c}
 .d3 .fylt{display:block;margin-top:.25rem;font-size:.7rem;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--ok-ink)}
 .d3 .fytable td small.fylx{font-size:.74rem;overflow-wrap:anywhere}
 .d3 .fytable td.fylv small.fylx{color:var(--ok-ink)}
+/* A board with parts (.fyw): a narrow column per part under its step's heading. Each video is two rows that read as
+   one: the step's own line (time, running bar, Live) over its part cells. Video stays put on the left, the state on the right. */
+.d3 .fytable.fyw{--fyc1:9.5rem;--fyp:0;width:calc(var(--fyc1) + var(--fyn) * 9rem + var(--fyp) * 4.7rem + 7.5rem)}
+.d3 .fytable col.fycp{width:4.7rem}
+.d3 .fytable.fyw th{padding:.4rem .5rem;border-radius:0}
+.d3 .fytable.fyw th.fyh1{border-radius:.5rem 0 0 .5rem}
+.d3 .fytable.fyw th.fyhw{border-radius:0 .5rem .5rem 0}
+.d3 .fytable.fyw th.fygrp{color:var(--ink);font-weight:600;font-size:.84rem;padding-bottom:.1rem}
+/* A step's heading and its own line stay in view while the table scrolls sideways, as long as any of its parts shows. */
+.d3 .fytable.fyw th.fygrp span,.d3 .fysl{position:sticky;left:calc(var(--fyc1) + .6rem)}
+.d3 .fytable.fyw th.fygrp span{display:inline-block}
+.d3 .fytable.fyw th.fypt{font-size:.7rem;line-height:1.15;white-space:normal;text-align:center;vertical-align:top;padding:.15rem .2rem .45rem;overflow-wrap:anywhere}
+.d3 .fytable.fyw .fyg1{border-left:1px solid var(--line)}
+.d3 .fytable.fyw th.fyh1,.d3 .fytable.fyw td.fyvid{position:sticky;left:0;z-index:2}
+.d3 .fytable.fyw th.fyhw,.d3 .fytable.fyw td.fywait{position:sticky;right:0;z-index:2;border-left:1px solid var(--line)}
+.d3 .fytable.fyw td{padding:.45rem .5rem}
+.d3 .fytable.fyw td.fyvid{padding:.6rem .7rem;box-shadow:1px 0 0 var(--line)}
+.d3 .fytable.fyw tr.fytop td.fystg{border-bottom:0;padding:.5rem .5rem .1rem;height:1.5rem}
+.d3 .fytable.fyw tr.fytop:nth-last-child(2) td[rowspan]{border-bottom:0}
+.d3 .fysl{display:inline-flex;vertical-align:top;max-width:min(100%,38rem);align-items:center;gap:.4rem;min-width:0;font-size:.76rem;color:var(--ink2);white-space:nowrap}
+.d3 .fytable td .fysl b{display:inline;flex:none;font-weight:600;color:var(--ink2);overflow-wrap:normal}
+.d3 .fysl>span{flex:none}
+.d3 .fysl .fyok svg,.d3 .fysl .fybad svg{margin:0}
+.d3 .fysl .fypg{flex:0 1 6rem;min-width:1.6rem}
+.d3 .fysl .fylt{display:inline-flex;align-items:center;margin:0}
+.d3 .fytable td .fysl small{display:block;flex:1 1 0;min-width:0;overflow:hidden;text-overflow:ellipsis;font-size:.74rem}
+.d3 .fytable td.fysbad .fysl b,.d3 .fytable td.fysbad .fysl small{color:var(--bad-ink)}
+.d3 .fytable td.fyp{text-align:center;vertical-align:top;padding:.3rem .2rem .6rem}
+.d3 .fytable td.fyp .fyok svg,.d3 .fytable td.fyp .fybad svg,.d3 .fywt svg{display:block;margin:0 auto}
+.d3 .fytable td.fyp small{font-size:.66rem;line-height:1.2;margin-top:.15rem;overflow-wrap:anywhere;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:4;overflow:hidden}
+.d3 .fytable td.fypbad small{color:var(--bad-ink)}
+.d3 .fywt{color:var(--warn)}
+.d3 .fytable td.fyprun{background:color-mix(in srgb,var(--fill) 9%,var(--card))}
+.d3 .fytable td.fyprun .fypg{width:2.2rem;margin:.3rem auto 0}
+.d3 .fypg.off i{width:40%}
+@media (max-width:700px){
+.d3 .fytable.fyw{--fyc1:6.2rem}
+.d3 .fytable.fyw td.fyvid{padding:.5rem .45rem;font-size:.84rem}
+.d3 .fysl{max-width:min(100%,15rem)}
+.d3 .fytable.fyw th.fyhw,.d3 .fytable.fyw td.fywait{position:static}
+}
 .d3 .fylc{display:inline-flex;align-items:center;font-weight:600;color:var(--muted)}
 .d3 .fylc.on{color:var(--ok-ink)}
 .d3 .fylc b{margin-right:.3rem}
