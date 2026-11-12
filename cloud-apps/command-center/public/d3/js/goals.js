@@ -368,7 +368,7 @@ ${o.krs.map((k) => krHtml(k, ui.openKr === k.id, ui.busy, ui.confirmLog)).join('
 }
 
 // "due Nov 12" in a card's reason, as days from today.
-function dueOf(why, P) {
+export function dueOf(why, P) {
   const m = /due (Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec) (\d{1,2})/.exec(why || '');
   if (!m || !P.ymd) return null;
   const mo = MONTHS.indexOf(m[1]) + 1;
