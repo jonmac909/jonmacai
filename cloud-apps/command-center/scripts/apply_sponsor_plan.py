@@ -49,7 +49,7 @@ def main():
         if a.dry_run:
             print("DRY", kind, json.dumps(payload)); results.append({"kind": kind, "payload": payload}); continue
         req = urllib.request.Request(a.base.rstrip("/") + "/dashboard/api/actions", json.dumps({"kind": kind, "payload": payload, "idemKey": kind + ":" + json.dumps(payload, sort_keys=True)}).encode(),
-                                     {"Content-Type": "application/json", "X-CC": "1", "Cookie": cookie})
+                                     {"Content-Type": "application/json", "X-CC": "1", "Cookie": cookie, "User-Agent": "apply-sponsor-plan/1"})
         try:
             r = json.load(urllib.request.urlopen(req))
         except Exception as e:
