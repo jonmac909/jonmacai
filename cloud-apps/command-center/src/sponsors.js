@@ -92,6 +92,8 @@ export function draftThreadIds(cards) {
 }
 // Cards placed by hand: a stage override applied, or a deal added through sponsor.add_deal. They are curated:
 // kept on the board unless archived, and exempt from the d2 junk filter and the 60-day quiet archive.
+// A hand-moved new-lead/drafts card is not curated: old overrides on junk threads must not resurface (add_deal still curates).
+const LOW_STAGES = new Set(['new-lead', 'drafts']);
 export function withDeals(data, overrides = {}, deals = {}) {
   const added = Object.values(deals || {}).filter((d) => d && d.added && d.id);
   const ids = new Set(added.map((d) => d.id));
@@ -103,7 +105,7 @@ export function withDeals(data, overrides = {}, deals = {}) {
   }))];
   return cards.map((c) => {
     let out = c;
-    if (overrides[c.id]) out = { ...out, stage: overrides[c.id], moved: true };
+    if (overrides[c.id]) out = { ...out, stage: overrides[c.id], moved: !LOW_STAGES.has(overrides[c.id]) };
     const set = Number(deals?.[c.id]?.amountSet);
     if (set > 0) out = { ...out, amountSet: set };
     return c.added ? { ...out, moved: true } : out;
@@ -111,9 +113,9 @@ export function withDeals(data, overrides = {}, deals = {}) {
 }
 export function keepCard(card, nowMs, items) {
   if (card.stage === 'archived') return false;
-  if (card.moved) return true;
   const t = Date.parse(card.latestDate);
   if (card.stage === 'done' && Number.isFinite(t) && ymd(t).slice(0, 7) !== ymd(nowMs).slice(0, 7)) return false;
+  if (card.moved) return true;
   return !!(matchItem(card, items) || hasDraft(card) || ACTIVE.has(card.stage));
 }
 // Gmail thread ids (hex) of the deals the Money page shows: board cards (keepCard, stage overrides applied) not yet

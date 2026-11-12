@@ -7,7 +7,6 @@ import argparse, json, os, sys, urllib.request
 ARCHIVE = "1a1591983a010b39 1a1831ee29e12656 1a100fca30a15755 1a087f484852c575 19f68e77b0d330f1 1a176291fb3afb9f 1a0acaf42e06c279 1a140abb90a6cb8e 1a17ab631ca1fa85 1a11d63686781aef 1a0de0dd49b7a494 1a1148dbe5a15491 1a1921b958ae7351 1a16ca8408f9ba45 1a13372b13495a52 1a1a26bda8c7af0e 1a17e62e379dcf1e 1a19d4ee5bc7a989 1a187901df7b1bae 1a1a17a32f603e78 1a1075f2458e886a 1a1a0f150ba2544d 1a095b91a0604aec 1a188321b120540e 1a1c5669ca10d277 1a09f81f9207d0e1 1a19f5af492b3f67 1a12d18a25696cb3 1a0874c7523d0039 1a0ca7b4001e9557 1a062af4c3da3601 1a0d430648d1e5ae 1a19c7c9d8163dd9 1a0ff9d785e1635d 1a0aefac7b3d4b6a 1a0e7a2fd981655a 1a116c0e136bee30".split()
 MOVES = [(t, "archived") for t in ARCHIVE] + [
     ("1a1b1ce17022c48b", "negotiating"), ("1a1b13679cd7909b", "negotiating"), ("1a18839a1c32e736", "negotiating"),
-    ("1a082b1c04b4fcfb", "drafts"), ("1a16981a6a15103f", "drafts"), ("1a1c21bd78a3f390", "drafts"),
     ("1a1150ee352149da", "paid"), ("19de08dafc08e1d4", "publishing"),
     ("1a0aa308142f5466", "contract-brief"), ("1a11a047792ddd0b", "contract-brief"), ("1a1c0d26b71240b5", "contract-brief"),
 ]
@@ -22,9 +21,13 @@ ADDS = [
     ("1a1a558959518917", "BytePlus via Deeplink"), ("1a19a73e3881e2df", "Fetra"), ("1a1920de7f3179e2", "EcomTrackr"),
     ("1a1a6ebaa592a632", "Luminary/Ashlie"), ("1a1c0b5fb13575be", "Netz via Soft Story"), ("1a1bf7c324bf6f33", "Migoo"),
     ("1a1a72fab5d263e1", "Submagic"), ("1a1618b071848059", "Holopix"), ("19cf57fa54dfe839", "ReelForge"), ("1a123971d83a0e89", "Littlebird")]
-] + [("1a1c6a991715ca3d", "Topview T1 promo", "drafts", None, "Needs rate reply")]
-# Known amounts (state.md); the rest stay blank (run amounts.py to fill).
-AMOUNTS = {"1a1213c3e19344a7": 2000, "1a1150ee352149da": 4200, "1a0aa308142f5466": 3000, "1a11a047792ddd0b": 3000, "1a1b1ce17022c48b": 2500}
+] + [
+    # drafts are added (curated) so the new-lead/drafts junk filter does not hide them
+    ("1a1c6a991715ca3d", "Topview T1 promo", "drafts", None, "Needs rate reply"), ("1a082b1c04b4fcfb", "Creatify", "drafts", None, "Reply to their tier prices"),
+    ("1a16981a6a15103f", "Lomote", "drafts", None, "Needs rate reply"), ("1a1c21bd78a3f390", "Zayden TikTok Shop Launch", "drafts", None, "Rates reply drafted")]
+# Amounts in USD (build/amounts-found.md): Topview/Arcads = to collect; agreed deals; leads = Jon's quoted dedicated-video rate. Unlisted = blank.
+AMOUNTS = {"1a1213c3e19344a7": 2000, "1a1213c47e88d97d": 1500, "1a1150ee352149da": 4200, "1a0aa308142f5466": 3000, "1a11a047792ddd0b": 3000, "1a1c0d26b71240b5": 1000}
+AMOUNTS.update({t: 2500 for t in "1a1c859c4aaa74e2 1a1c6d0462e5a453 1a1c6b0ea2a3aaa7 1a1c49e73ec86448 1a1c44b75dee9b1c 1a1ac653ed5404bf 1a1abb9d08139d35 1a1a58287c79a090 1a1a558959518917 1a19a73e3881e2df 1a1920de7f3179e2 1a1a6ebaa592a632 1a1bf7c324bf6f33 1a1a72fab5d263e1 1a1c21bd78a3f390 1a1b13679cd7909b 19cf57fa54dfe839 1a123971d83a0e89 1a1b1ce17022c48b".split()})
 OUT = r"D:\AgentTeam\qc-work\money-deals-rebuild\deals-final.json"
 gid = lambda t: "gmail-thread-" + t
 

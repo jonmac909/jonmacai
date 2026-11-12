@@ -52,14 +52,16 @@ test('an archived override hides the card from the page and the board (not back 
 
 test('overrides to negotiating / drafts / contract-brief / balance-invoice land in their columns with no sheet row or draft', () => withNow(async () => {
   const t = await setup();
-  const want = { 'gmail-thread-aaa111aaa111': ['negotiating', 'Negotiations'], 'gmail-thread-bbb222bbb222': ['drafts', 'Leads'],
-    'gmail-thread-ccc333ccc333': ['contract-brief', 'Deals'], 'gmail-thread-ddd444ddd444': ['balance-invoice', 'Balance Invoice'] };
+  const want = { 'gmail-thread-aaa111aaa111': ['negotiating', 'Negotiations'],     'gmail-thread-ccc333ccc333': ['contract-brief', 'Deals'], 'gmail-thread-ddd444ddd444': ['balance-invoice', 'Balance Invoice'] };
   for (const [id, [stage]] of Object.entries(want)) await t.act('sponsor.move_stage', { id, stage });
   const r = await t.d2();
   for (const [id, [stage, col]] of Object.entries(want)) {
     assert.equal(t.db.sqlite.prepare('SELECT stage FROM deal_stage_overrides WHERE deal_id = ?').get(id).stage, stage);
     assert.equal(t.where(r, id), col, id);
   }
+  // A drafts override with no sheet row or draft is not curated (junk guard); add_deal is the way to place such a lead.
+  await t.act('sponsor.move_stage', { id: 'gmail-thread-bbb222bbb222', stage: 'drafts' });
+  assert.equal(t.where(await t.d2(), 'gmail-thread-bbb222bbb222'), null);
   // Curated cards are exempt from the junk filter and the 60-day quiet archive.
   await t.act('sponsor.move_stage', { id: 'Newsy', stage: 'negotiating' });
   await t.act('sponsor.move_stage', { id: 'Oldie', stage: 'negotiating' });
@@ -96,4 +98,46 @@ test('sponsor.add_deal + sponsor.set_amount: identical on Pipeline and Money, am
   const env = { ...t.env, MACHINE_TOKEN_GPU1: 'g' };
   const w = await (await handleApi(new Request('https://jonmac.ai/dashboard/api/sponsor-threads/wanted', { headers: { Authorization: 'Bearer g' } }), env)).json();
   assert.ok(w.threads.includes('1a1213c3e19344a7') && w.threads.includes('1a1c0d26b71240b5'));
+}));
+
+test('add_deal / set_amount validation returns 400 and stores nothing', () => withNow(async () => {
+  const t = await setup();
+  const post = async (kind, payload, headers) => {
+    const res = await handleApi(new Request('https://jonmac.ai/dashboard/api/actions', { method: 'POST', headers: { 'Content-Type': 'application/json', ...headers }, body: JSON.stringify({ kind, payload }) }), t.env);
+    return res.status;
+  };
+  const Cookie = `${COOKIE}=${await signSession(SECRET, Math.floor(NOW / 1000) + 3600)}`;
+  const ok = { Cookie, 'X-CC': '1' };
+  const id = 'gmail-thread-1a1213c3e19344a7';
+  const cases = [
+    ['sponsor.add_deal', { id: 'x', brand: 'A' }], ['sponsor.add_deal', { id, brand: 'A', amount: 'Infinity' }], ['sponsor.add_deal', { id, brand: 'A', amount: 2e6 }],
+    ['sponsor.add_deal', { id, brand: 'A', amount: -5 }], ['sponsor.add_deal', { id, brand: 'A'.repeat(201) }], ['sponsor.add_deal', { id, brand: 'A', stage: 'bogus' }],
+    ['sponsor.add_deal', { threadId: 'zz', brand: 'A' }], ['sponsor.set_amount', { id, amount: 'abc' }], ['sponsor.set_amount', { id }], ['sponsor.set_amount', { id: 'nope', amount: 5 }],
+  ];
+  for (const [k, p] of cases) assert.equal(await post(k, p, ok), 400, `${k} ${JSON.stringify(p).slice(0, 60)}`);
+  assert.equal(t.db.sqlite.prepare("SELECT COUNT(*) n FROM snapshots WHERE source = 'sponsor_deals'").get().n, 0);
+  assert.equal(await post('sponsor.add_deal', { id, brand: 'A', stage: 'negotiating', amount: 1000 }, ok), 200);
+  // Missing X-CC or session is rejected on the new kinds.
+  assert.equal(await post('sponsor.add_deal', { id, brand: 'B' }, { Cookie }), 403);
+  assert.equal(await post('sponsor.set_amount', { id, amount: 5 }, { 'X-CC': '1' }), 401);
+  assert.equal(await post('sponsor.add_deal', { id, brand: 'B' }, {}), 401);
+}));
+
+test('ingest of the sponsor_deals source is Worker-only (401 for a machine token)', async () => {
+  const t = await setup();
+  const env = { ...t.env, MACHINE_TOKEN_GPU1: 'g' };
+  const res = await handleApi(new Request('https://jonmac.ai/dashboard/api/ingest', { method: 'POST', headers: { Authorization: 'Bearer g', 'Content-Type': 'application/json' }, body: JSON.stringify({ machine: 'gpu1', source: 'sponsor_deals', collectedAt: '2026-11-11T18:00:00Z', data: { deals: {} } }) }), env);
+  assert.equal(res.status, 401);
+});
+
+test('old new-lead overrides on junk threads stay hidden; a prior-month done override stays cut; add_deal drafts stay curated', () => withNow(async () => {
+  const t = await setup();
+  await t.act('sponsor.move_stage', { id: 'Newsy', stage: 'new-lead' });
+  await t.act('sponsor.move_stage', { id: 'Oldie', stage: 'drafts' });
+  await t.act('sponsor.move_stage', { id: 'gmail-thread-eee555eee555', stage: 'done' });
+  await t.act('sponsor.add_deal', { id: 'gmail-thread-1a082b1c04b4fcfb', brand: 'Creatify', stage: 'drafts' });
+  const r = await t.d2();
+  assert.equal(t.where(r, 'Newsy'), null);
+  assert.equal(t.where(r, 'Oldie'), null);
+  assert.equal(t.where(r, 'gmail-thread-1a082b1c04b4fcfb'), 'Leads');
 }));

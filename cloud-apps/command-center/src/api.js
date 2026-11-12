@@ -173,10 +173,17 @@ async function postAction(request, env) {
     await upsertDealStage(env.DB, String(payload.id), asBoardStage(payload.stage), now);
   }
   if ((kind === 'sponsor.add_deal' || kind === 'sponsor.set_amount') && env.DB) {
-    const deals = await getSponsorDeals(env.DB);
     const tid = String(payload.threadId || '');
     const dealId = String(payload.id || (tid ? `gmail-thread-${tid}` : ''));
-    if (!dealId) return json({ id, status: 'failed', result: 'id required' }, 400);
+    const bad = (m) => json({ id, status: 'failed', result: m }, 400);
+    if (!/^gmail-thread-[0-9a-f]{6,32}$/i.test(dealId)) return bad('bad id');
+    if (tid && !/^[0-9a-f]{6,32}$/i.test(tid)) return bad('bad threadId');
+    if (payload.amount != null && payload.amount !== '' && !(Number.isFinite(Number(payload.amount)) && Number(payload.amount) >= 0 && Number(payload.amount) <= 1000000)) return bad('bad amount');
+    if (kind === 'sponsor.set_amount' && (payload.amount == null || payload.amount === '')) return bad('amount required');
+    for (const k of ['brand', 'sponsor', 'contact', 'next', 'blocker', 'status', 'subject']) if (payload[k] != null && String(payload[k]).length > 200) return bad(`${k} too long`);
+    if (kind === 'sponsor.add_deal' && payload.stage != null && !KNOWN_STAGES.has(String(payload.stage))) return bad('unknown stage');
+    const deals = await getSponsorDeals(env.DB);
+    if (!deals[dealId] && Object.keys(deals).length >= 500) return bad('too many deals');
     const prev = deals[dealId] || {};
     if (kind === 'sponsor.add_deal') {
       const stage = asBoardStage(payload.stage || 'new-lead');
@@ -379,6 +386,7 @@ export async function handleApi(request, env, ctx) {
     const collectedAt = String(body.collectedAt || '');
     if (!source || !Date.parse(collectedAt)) return json({ error: 'Bad ingest' }, 400);
     if (source === 'webinar_funnel' // written only by the Worker's own cron
+      || source === 'sponsor_deals' // hand-added deals: written only by the Worker's sponsor.add_deal / set_amount
       || source === 'periods' // written only through PUT /v1/periods (writer check + validation)
       || (source === 'sponsor_threads' && who !== 'gpu1') // partners@ threads, read on GPU1 only
       || (source.startsWith('machine_') && source !== `machine_${who}`)) {
