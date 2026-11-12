@@ -7,7 +7,7 @@ import { handleApi } from '../src/api.js';
 import { sha256Hex, FEEDS, feedKeepMs } from '../src/bots.js';
 import worker from '../src/worker.js';
 import { signSession, COOKIE } from '../src/auth.js';
-import { renderFactory, factoryJobs, factoryCols, factoryParts, factoryChannels, took, clock, kelowna } from '../public/d3/js/factory.js';
+import { renderFactory, factoryJobs, factoryCols, factoryParts, factoryChannels, totalMinutes, took, clock, kelowna } from '../public/d3/js/factory.js';
 
 const SECRET = 'test-session-secret-32-bytes-ok!';
 const NOW = Date.parse('2026-11-12T00:00:00Z'); // Wed Nov 11, late afternoon in Kelowna
@@ -71,8 +71,11 @@ test('video_line feed: developer or ana post it, the board is kept as posted, th
   aged('f_old', 2 * 1440); aged('f_31', 31); aged('f_29', 29); aged('f_other', 31);
   const ok = await put(env, 'developer', BOARD());
   assert.equal(ok.status, 201);
-  // Times come back in the server's ISO form (with milliseconds); everything else is as posted.
-  assert.deepEqual(ok.body.feed.data, JSON.parse(JSON.stringify(BOARD()).replace(/(T\d\d:\d\d:\d\d)Z"/g, '$1.000Z"')), 'a good board comes back unchanged');
+  // Times come back in the server's ISO form (with milliseconds); everything else is as posted. A video that sends no
+  // whole time gets an empty one (started, ended and total_minutes are null).
+  const want = JSON.parse(JSON.stringify(BOARD()).replace(/(T\d\d:\d\d:\d\d)Z"/g, '$1.000Z"'));
+  want.jobs = want.jobs.map((j) => ({ ...j, started: null, ended: null, total_minutes: null }));
+  assert.deepEqual(ok.body.feed.data, want, 'a good board comes back unchanged');
   assert.equal((await put(env, 'ana', { ...BOARD(), scheduler_running: null })).body.feed.data.scheduler_running, undefined); // null is not stored
   const left = (await db.prepare("SELECT id FROM bot_feed_entries WHERE id IN ('f_old', 'f_31', 'f_29', 'f_other') ORDER BY id").all()).results.map((r) => r.id);
   assert.deepEqual(left, ['f_29', 'f_other'], 'video_line entries older than 30 minutes are dropped; other feeds are not touched');
@@ -100,23 +103,25 @@ test('video_line feed: a wrong shape is a 400', async () => {
   for (const b of bad) assert.equal((await put(env, 'developer', b)).status, 400, JSON.stringify(b).slice(0, 200));
 });
 
-test('video_line feed: long input is cut, not refused (60 videos, 12 steps, newest 20 events, 300 characters)', async () => {
+test('video_line feed: long input is cut, not refused (60 videos, 20 steps and 20 stages, newest 20 events, 300 characters)', async () => {
   const { env } = await setup();
   const B = BOARD();
   const long = 'x'.repeat(500);
   const big = {
     ...B,
     // Only the first video carries long text: the whole request must stay under the API's 256 KB body limit.
-    jobs: Array.from({ length: 70 }, (_, i) => (i ? { ...B.jobs[2], id: `v${i}`, steps: Array.from({ length: 15 }, (_x, n) => step(`s${n}`, 'todo')) }
+    // The second video carries 25 stages; the others 15 steps, which are all kept.
+    jobs: Array.from({ length: 70 }, (_, i) => (i ? { ...B.jobs[2], id: `v${i}`, steps: Array.from({ length: 15 }, (_x, n) => step(`s${n}`, 'todo')), ...(i === 1 ? { stages: Array.from({ length: 25 }, (_x, n) => step(`g${n}`, 'todo', { label: long })) } : {}) }
       : { ...B.jobs[2], id: 'v0', channel: long, pipeline: long, state: long, step: long, minutes_in_state: long, note: long, final: long, needs_person: { step: long, why: long, look_at: long, since: long },
-        steps: Array.from({ length: 15 }, (_x, n) => step(`s${n}${long}`, long, { note: long, fix: long, doing: long })) })),
+        steps: Array.from({ length: 25 }, (_x, n) => step(`s${n}${long}`, long, { note: long, fix: long, doing: long })) })),
     events: Array.from({ length: 30 }, (_, i) => `e${i} ${long}`),
     unreadable_jobs: Array.from({ length: 70 }, (_, i) => (i ? `u${i}` : long)),
   };
   const r = await put(env, 'developer', big);
   assert.equal(r.status, 201);
   const d = r.body.feed.data;
-  assert.deepEqual([d.jobs.length, d.jobs[0].steps.length, d.events.length, d.unreadable_jobs.length], [60, 12, 20, 60]);
+  assert.deepEqual([d.jobs.length, d.jobs[0].steps.length, d.events.length, d.unreadable_jobs.length], [60, 20, 20, 60]);
+  assert.deepEqual([d.jobs[1].steps.length, d.jobs[1].stages.length, d.jobs[1].stages[19].name, d.jobs[1].stages[0].label.length], [15, 20, 'g19', 40], 'stages are cut at 20, a label at 40 characters');
   assert.deepEqual([d.jobs[0].id, d.jobs[59].id, d.events[0].slice(0, 4), d.events[19].slice(0, 4)], ['v0', 'v59', 'e10 ', 'e29 ']); // the newest events are the last ones
   const texts = [];
   const walk = (v) => { if (typeof v === 'string') texts.push(v); else if (v && typeof v === 'object') Object.values(v).forEach(walk); };
@@ -158,7 +163,7 @@ const IDLE = '<td class="fycell"><span class="fyidle" role="img" aria-label="Lat
 test('Factory page: the old Factory table, a row per video and a column per step', () => {
   const html = page(fresh());
   // Head, status pill and the one-line summary, as on the old page.
-  assert.match(html, /<h1>Factory<\/h1><p class="mut">Every video in the new video program, step by step\. Updates on its own\.<\/p>/);
+  assert.match(html, /<h1>Factory<\/h1><p class="mut">Every video in the new video program, stage by stage\. Updates on its own\.<\/p>/);
   assert.match(html, /<div class="fystatus sp" data-fy="status"><span class="fypill ok">Live · 10s ago<\/span><\/div>/);
   assert.match(html, /<p class="fysum"><span class="fylc on"><i class="fydot"><\/i><b>1<\/b> live now<\/span><span><b>2<\/b> Pack<\/span><span><b>1<\/b> Plan<\/span><span><b>1<\/b> Render<\/span><span><b>1<\/b> Done<\/span><span class="fypill crit">1 needs you<\/span><\/p>/);
   // Columns: the steps in pipeline order, capitalised, between Video and Waiting.
@@ -561,11 +566,173 @@ test('video_line feed: a part may carry done, total, started and seconds; a wron
     assert.equal(r.status, 400, JSON.stringify(over));
     assert.match(r.body.error, /parts\[0\]\.(done|total|started|seconds)/);
   }
-  // The new program's six steps, in order, all kept (the cut is at 12).
+  // The new program's six steps, in order, all kept (the cut is at 20).
   const six = ['source', 'script', 'pack', 'plan', 'render', 'gates'];
   const r = await put(env, 'developer', { ...B, jobs: [{ ...B.jobs[2], steps: six.map((n) => step(n, 'todo', { parts: [P(`${n} part`, 'todo')] })) }] });
   assert.deepEqual(r.body.feed.data.jobs[0].steps.map((x) => x.name), six);
   assert.deepEqual(factoryCols(r.body.feed.data.jobs), six);
+});
+
+// ---- stages: the steps folded into a few columns, the whole time a video took, the review page ----
+const G = (name, label, status, extra = {}) => step(name, status, { ...(label ? { label } : {}), ...extra });
+
+test('video_line feed: a video may carry stages (with a label), started, ended, total_minutes and a jonmac.ai review_url', async () => {
+  const { env } = await setup();
+  const B = BOARD();
+  const job = (over) => ({ ...B, jobs: [{ ...B.jobs[0], ...over }] });
+  const stages = [G('outlier', 'Outlier', 'done', { minutes: 12 }), G('script_qc', 'QC', 'waiting', { doing: 'Waits for the script' }), G('pack', 'Pack', 'todo', { done: 3, total: 8 }), G('pack_qc', 'QC', 'skip'), G('render', '', 'todo')];
+  const ok = await put(env, 'developer', job({ stages, started: '2026-11-11T20:00:00Z', ended: '2026-11-11T22:05:30+00:00', total_minutes: 125.5, review_url: 'https://jonmac.ai/review/done-1' }));
+  assert.equal(ok.status, 201, JSON.stringify(ok.body));
+  const j = ok.body.feed.data.jobs[0];
+  assert.deepEqual(j.stages, stages, 'the stages come back as posted, a label only where one was sent');
+  assert.deepEqual(j.stages.map((s) => s.label), ['Outlier', 'QC', 'Pack', 'QC', undefined]);
+  assert.deepEqual([j.started, j.ended, j.total_minutes, j.review_url], ['2026-11-11T20:00:00.000Z', '2026-11-11T22:05:30.000Z', 125.5, 'https://jonmac.ai/review/done-1']);
+  assert.equal(j.steps.length, 2, 'the steps are kept beside the stages');
+  // Still being made: no end yet. Not sent at all: no stages, no review_url, an empty whole time.
+  const live = (await put(env, 'developer', job({ started: '2026-11-11T23:20:00Z', ended: null, total_minutes: null }))).body.feed.data.jobs[0];
+  assert.deepEqual([live.started, live.ended, live.total_minutes], ['2026-11-11T23:20:00.000Z', null, null]);
+  const none = (await put(env, 'developer', job({}))).body.feed.data.jobs[0];
+  assert.ok(!('stages' in none) && !('review_url' in none), 'left out when the video does not send them');
+  assert.deepEqual([none.started, none.ended, none.total_minutes], [null, null, null]);
+  assert.deepEqual((await put(env, 'developer', job({ stages: [] }))).body.feed.data.jobs[0].stages, []);
+  // Only a jonmac.ai review page is kept; any other address is dropped, never refused.
+  for (const url of ['https://jonmac.ai/review/done-1', 'https://jonmac.ai/review/nora-6-v1']) assert.equal((await put(env, 'developer', job({ review_url: url }))).body.feed.data.jobs[0].review_url, url);
+  for (const url of ['', null, 'https://jonmac.ai/review/nora/done-1_v2.html', 'https://jonmac.ai/review/../dash', 'http://jonmac.ai/review/done-1', 'https://evil.example/review/done-1', 'https://jonmac.ai.evil.example/review/done-1', 'https://jonmac.ai/review/', 'https://jonmac.ai/reviews/done-1',
+    'https://jonmac.ai/review/done-1?next=x', 'https://jonmac.ai/review/a"b', ' https://jonmac.ai/review/done-1', 'javascript:alert(1)', `https://jonmac.ai/review/${'x'.repeat(201)}`]) {
+    const r = await put(env, 'developer', job({ review_url: url }));
+    assert.equal(r.status, 201, String(url));
+    assert.ok(!('review_url' in r.body.feed.data.jobs[0]), String(url));
+  }
+  // A wrong type is a 400.
+  const bad = [{ review_url: 7 }, { review_url: { a: 1 } }, { review_url: ['https://jonmac.ai/review/x'] }, { review_url: true }, { stages: 'outlier' }, { stages: {} }, { stages: ['outlier'] }, { stages: [{ status: 'done' }] },
+    { stages: [G('pack', 7, 'done', { label: { a: 1 } })] }, { started: 'soon' }, { started: 1794441473 }, { ended: 'later' }, { total_minutes: '125' }, { total_minutes: -1 }, { total_minutes: [125] }];
+  for (const over of bad) assert.equal((await put(env, 'developer', job(over))).status, 400, JSON.stringify(over));
+  // The d3 answer hands them to the page as posted.
+  await put(env, 'developer', job({ stages, started: '2026-11-11T20:00:00Z', review_url: 'https://jonmac.ai/review/done-1' }));
+  const f = (await d3Of(env.DB)).d3.factory.jobs[0];
+  assert.deepEqual([f.stages.length, f.stages[1].label, f.started, f.review_url], [5, 'QC', '2026-11-11T20:00:00.000Z', 'https://jonmac.ai/review/done-1']);
+});
+
+// Three videos: one being made, one finished (with its review page), one that sends no stages yet. The steps carry
+// parts, which a board with stages never draws.
+const STAGES = (st = {}) => [G('outlier', 'Outlier', 'done', { minutes: 12 }), G('script', 'Script', 'done'), G('script_qc', 'QC', 'done'), G('pack', 'Pack', 'done'), G('pack_qc', 'QC', 'done'), G('render', '', 'done'), G('final_qc', 'QC', 'done')]
+  .map((s) => ({ ...s, ...(st[s.name] ? { tries: 0, ...st[s.name] } : {}) }));
+const STAGE_BOARD = (over = {}) => fresh({ jobs: [
+  { id: 'done-9', channel: 'hgp', state: 'done', created: '2026-11-11T20:00:00Z', minutes_in_state: '114', final: 'D:\\videos\\done-9\\final.mp4', review_url: 'https://jonmac.ai/review/done-9',
+    started: '2026-11-11T20:00:00.000Z', ended: '2026-11-11T22:05:30.000Z', total_minutes: 125.5, stages: STAGES({ pack: { status: 'skip' } }), steps: [step('source', 'done', { parts: [P('Find')] })] },
+  { id: 'run-9', channel: 'nora', state: 'running', created: '2026-11-11T23:20:00Z', minutes_in_state: '3', started: '2026-11-11T23:20:00.000Z', ended: null, total_minutes: 38,
+    stages: STAGES({ script_qc: { status: 'running', doing: 'Checking the script' }, pack: { status: 'todo', done: 3, total: 8 }, pack_qc: { status: 'waiting', doing: 'Waits for the pack' }, render: { status: 'todo' }, final_qc: { status: 'skip' } }),
+    steps: [step('source', 'done', { parts: [P('Find')] }), step('script', 'running', { parts: [P('Draft', 'running')] })] },
+  { id: 'old-9', channel: 'nora', state: 'todo', created: '2026-11-11T23:50:00Z', minutes_in_state: '9', steps: [step('outlier', 'todo', { parts: [P('Find', 'todo')] })] },
+], ...over });
+const SKIP = '<td class="fycell" title="Not a part of this video"><span class="fyskip" role="img" aria-label="Not a part of this video">–</span></td>';
+
+test('Factory page with stages: a column per stage headed by its label, no part columns, skip, waiting, a partly done bar', () => {
+  const html = page(STAGE_BOARD());
+  assert.match(html, /<h1>Factory<\/h1><p class="mut">Every video in the new video program, stage by stage\. Updates on its own\.<\/p>/);
+  // Headings: each stage's label (three of them read QC), its name when it sends no label; no part columns, one row a video.
+  assert.match(html, /<table class="fytable" style="--fyn: 7">\s*<colgroup><col class="fyc1">(<col class="fycs">){7}<col class="fycw"><\/colgroup>/);
+  assert.match(html, /<thead data-fy="cols"><tr><th>Video<\/th><th class="fycell">Outlier<\/th><th class="fycell">Script<\/th><th class="fycell">QC<\/th><th class="fycell">Pack<\/th><th class="fycell">QC<\/th><th class="fycell">Render<\/th><th class="fycell">QC<\/th><th>Total time<\/th><\/tr><\/thead>/);
+  assert.doesNotMatch(html, /fytable fyw|fytop|fylow|fyst |fypb|~parts|rowspan|Find|Draft|Source/);
+  assert.deepEqual([...html.matchAll(/<tr class="fyrow" data-id="([^"]+)" data-kind="([^"]+)"/g)].map((m) => `${m[1]}:${m[2]}`), ['run-9:run', 'old-9:wait', 'done-9:done']);
+  // The summary: no count per column (several are called QC); live now, In progress, Done, needs you.
+  assert.match(html, /<div data-fy="sum"><p class="fysum"><span class="fylc on"><i class="fydot"><\/i><b>1<\/b> live now<\/span><span><b>2<\/b> In progress<\/span><span><b>1<\/b> Done<\/span><span class="fypill ok">0 need you<\/span><\/p><\/div>/);
+  // The video being made: done, done, running (Live), a stage begun with nothing of it running (a bar, 3 of 8),
+  // a stage that waits (why is the tooltip), a later stage (grey circle), a stage this video skips (a dash).
+  const run = row(html, 'run-9');
+  const DONE_CELL = `<td class="fycell">${CHECK}</td>`;
+  assert.match(run, new RegExp(`^<tr[^>]*><td><b>run-9</b><small>nora</small></td><td class="fycell">${CHECK}<small>12m</small></td>${DONE_CELL}<td class="fycell fylv" title="Checking the script"><div class="fyrun"><div class="fypg ind" role="progressbar" aria-label="In progress"><i></i></div><span>In progress</span></div><span class="fylt"><i class="fydot"></i>Live</span><small class="fylx">Checking the script</small></td>`));
+  assert.ok(run.includes('</small></td><td class="fycell"><div class="fyrun"><div class="fypg" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="38"><i style="width:38%"></i></div><span>3/8</span></div></td>'
+    + `<td class="fycell" title="Waits for the pack"><span class="fynew">Waiting</span><small class="fywhy">Waits for the pack</small></td>${IDLE}${SKIP}<td class="fywait">`), run);
+  // The finished video: checks, a dash for the stage it skipped.
+  assert.match(row(html, 'done-9'), new RegExp(`${DONE_CELL}${DONE_CELL}${SKIP.replace(/[()]/g, '\\$&')}${DONE_CELL}${DONE_CELL}${DONE_CELL}<td class="fywait">`));
+  // A video with no stages on such a board shows its steps, without their parts.
+  assert.ok(row(html, 'old-9').includes(`<td><b>old-9</b><small>nora</small></td>${IDLE}${'<td class="fycell"></td>'.repeat(6)}<td class="fywait"><small>9m</small></td>`), row(html, 'old-9'));
+  // A needs-you video and a failed one: the pill and the count; a failed video still counts as In progress.
+  const more = page(STAGE_BOARD({ jobs: [...STAGE_BOARD().jobs, { id: 'need-9', state: 'NEEDS A PERSON', step: 'script_qc', note: 'Read the script', stages: STAGES({ script_qc: { status: 'failed', note: 'Two weak lines' } }) }, { id: 'fail-9', state: 'failed', stages: STAGES({ render: { status: 'failed' } }) }] }));
+  assert.match(more, /<b>1<\/b> live now<\/span><span><b>3<\/b> In progress<\/span><span><b>1<\/b> Done<\/span><span class="fypill crit">1 needs you<\/span>/);
+  assert.match(row(more, 'need-9'), /<div class="fyfail" title="Two weak lines">[\s\S]*<td class="fywait"><span class="fypill crit">Needs you<\/span><small><\/small><\/td>$/);
+  // Stale: nothing is live. Stages that carry parts of their own still get no part columns. Stage text is data.
+  const stale = page(STAGE_BOARD({ at: S(260), stale: true }));
+  assert.match(stale, /<span class="fylc"><i class="fydot"><\/i><b>0<\/b> live now<\/span><span><b>2<\/b> In progress<\/span>/);
+  assert.doesNotMatch(stale, /fylv|fylt/);
+  assert.doesNotMatch(page(fresh({ jobs: [{ id: 'p-1', state: 'running', stages: [G('pack', 'Pack', 'running', { parts: [P('Stills')] })] }] })), /fytable fyw|fypb|~parts|Stills/);
+  const x = '<img src=x onerror=alert(1)>"\'&';
+  const bad = page(fresh({ jobs: [{ id: 'e-1', state: 'done', review_url: x, started: x, ended: x, stages: [{ name: x, label: x, status: 'waiting', doing: x }, { name: `${x}2`, label: `${x}2`, status: 'skip', note: x }] }] }));
+  assert.doesNotMatch(bad, /<img|onerror=alert\(1\)>|"'&|<a /);
+  assert.match(bad, /<th class="fycell">&lt;img src=x onerror=alert\(1\)&gt;&quot;&#39;&amp;<\/th>/);
+  assert.doesNotMatch(`${html}${more}${stale}`, /undefined|NaN|null|—/);
+});
+
+test('Factory page: the last column is "Total time" when the board sends started, from started to ended or to now', () => {
+  // The numbers: whole minutes from started to ended; while it is being made, to now on a live board only; else the
+  // board's own total_minutes; null when the board sends no times.
+  const [from, to] = ['2026-11-11T20:00:00.000Z', '2026-11-11T22:05:30.000Z'];
+  assert.deepEqual([
+    totalMinutes({ started: from, ended: to }, NOW, true), totalMinutes({ started: from, ended: to, total_minutes: 7 }, NOW, false), totalMinutes({ started: to, ended: from }, NOW, true),
+    totalMinutes({ started: S(2400), ended: null }, NOW, true), totalMinutes({ started: S(2400) }, NOW + 119000, true), totalMinutes({ started: S(-60), ended: null }, NOW, true),
+    totalMinutes({ started: S(2400), ended: null, total_minutes: 38 }, NOW, false), totalMinutes({ started: S(2400), ended: null }, NOW, false), totalMinutes({ started: S(2400) }, NaN, true),
+    totalMinutes({ started: 'soon', ended: to, total_minutes: 12 }, NOW, true), totalMinutes({ total_minutes: '12' }, NOW, true), totalMinutes({}, NOW, true), totalMinutes(null, NOW, true),
+  ], [125, 125, 0, 40, 41, 0, 38, null, null, 12, null, null, null]);
+  const html = page(STAGE_BOARD());
+  assert.match(html, /<th>Total time<\/th><\/tr><\/thead>/);
+  assert.doesNotMatch(html, /<th>Waiting<\/th>/);
+  // Ended: 20:00:00 to 22:05:30 is 2h 5m, whatever minutes_in_state says, and it does not count on.
+  const END = /<small title="From the start of the video until its render was finished and checked">2h 5m<\/small><\/td>$/;
+  assert.match(row(html, 'done-9'), END);
+  assert.match(row(page(STAGE_BOARD(), { now: NOW + 120000 }), 'done-9'), END);
+  // Being made on a live board: counted from started (23:20) to the page's clock: 40m now, 42m two minutes later.
+  assert.match(row(html, 'run-9'), /<td class="fywait"><small title="Since the video was started; still counting">40m<\/small><\/td>$/);
+  assert.match(row(page(STAGE_BOARD(), { now: NOW + 120000 }), 'run-9'), /<small title="Since the video was started; still counting">42m<\/small><\/td>$/);
+  // A stale board does not count: the board's own total_minutes. A video that sends no times keeps its minutes in state.
+  assert.match(row(page(STAGE_BOARD({ at: S(260), stale: true })), 'run-9'), /<td class="fywait"><small[^>]*>38m<\/small><\/td>$/);
+  assert.match(row(html, 'old-9'), /<td class="fywait"><small>9m<\/small><\/td>$/);
+  // The heading follows `started` alone: a board with parts and no stages gets it too, in its own heading cell.
+  const parts = PARTS_BOARD();
+  parts.jobs[0].started = S(2400);
+  const wide = page(parts);
+  assert.match(wide, /<th class="fyhw" rowspan="2">Total time<\/th>/);
+  assert.match(top(wide, 'run-1'), /<td class="fywait" rowspan="2"><small title="Since the video was started; still counting">40m<\/small><\/td>$/);
+  assert.match(top(wide, 'fail-1'), /<td class="fywait" rowspan="2"><small>12m<\/small><\/td>$/);
+});
+
+test('Factory page: the Done pill is a link to the review page when the board sends one, else a pill with the file as its tooltip', () => {
+  const html = page(STAGE_BOARD());
+  assert.match(row(html, 'done-9'), /<td class="fywait"><a class="fypill ok fylink" href="https:\/\/jonmac\.ai\/review\/done-9" target="_blank" rel="noopener" title="Open the review page">Done<\/a><small/);
+  assert.doesNotMatch(html, /final\.mp4/, 'with a link the file path shows nowhere');
+  // No review page, or an address that is not a jonmac.ai review page: the plain pill, the file its tooltip.
+  for (const url of [undefined, '', null, 7, 'https://evil.example/review/done-9', 'http://jonmac.ai/review/done-9', 'https://jonmac.ai/review/', 'https://jonmac.ai/review/x?y=1', 'javascript:alert(1)']) {
+    const b = STAGE_BOARD();
+    b.jobs[0].review_url = url;
+    const h = page(b);
+    assert.match(row(h, 'done-9'), /<td class="fywait"><span class="fypill ok" title="D:\\videos\\done-9\\final\.mp4">Done<\/span><small/, String(url));
+    assert.doesNotMatch(h, /<a |fylink|evil|javascript/, String(url));
+  }
+  // A video that is not done never links, and an old board with a review page still does.
+  const b = STAGE_BOARD();
+  b.jobs[1].review_url = 'https://jonmac.ai/review/run-9';
+  assert.equal((page(b).match(/<a /g) || []).length, 1);
+  const old = fresh();
+  old.jobs[0].review_url = 'https://jonmac.ai/review/done-1';
+  assert.match(row(page(old), 'done-1'), /<a class="fypill ok fylink" href="https:\/\/jonmac\.ai\/review\/done-1" target="_blank" rel="noopener" title="Open the review page">Done<\/a><small>40m<\/small><\/td>$/);
+  const css = readFileSync(new URL('../public/d3/css/d3.css', import.meta.url), 'utf8');
+  for (const rule of ['.d3 .fyskip{color:var(--muted)}', '.d3 a.fypill.fylink{text-decoration:none;cursor:pointer}', '.d3 a.fypill.fylink:hover{text-decoration:underline}']) assert.ok(css.includes(rule), rule);
+});
+
+test('Factory page: an old board (no stages, no started) is drawn as before', () => {
+  const html = page(fresh());
+  assert.match(html, /<thead data-fy="cols"><tr><th>Video<\/th><th class="fycell">Pack<\/th><th class="fycell">Plan<\/th><th class="fycell">Render<\/th><th>Waiting<\/th><\/tr><\/thead>/);
+  assert.match(html, /<b>1<\/b> live now<\/span><span><b>2<\/b> Pack<\/span><span><b>1<\/b> Plan<\/span><span><b>1<\/b> Render<\/span><span><b>1<\/b> Done<\/span><span class="fypill crit">1 needs you<\/span>/);
+  assert.match(row(html, 'done-1'), /<td class="fywait"><span class="fypill ok" title="D:\\videos\\done-1\\final\.mp4">Done<\/span><small>40m<\/small><\/td>$/);
+  assert.match(row(html, 'nora-5'), /<td class="fywait"><small>22m<\/small><\/td>$/);
+  assert.doesNotMatch(html, /Total time|In progress<\/span><span|fylink|fyskip|<a |<small title=/);
+  // The feed's empty whole time (null, null, null) and an empty list of stages change nothing; a label on a step is its heading.
+  const same = fresh();
+  same.jobs = same.jobs.map((j) => ({ ...j, started: null, ended: null, total_minutes: null, stages: [] }));
+  assert.equal(page(same), html);
+  const parts = page(PARTS_BOARD());
+  assert.match(parts, /<th class="fyhw" rowspan="2">Waiting<\/th>/);
+  assert.match(parts, /<span><b>2<\/b> Pack<\/span><span><b>1<\/b> Plan<\/span>/);
 });
 
 test('GET /dashboard/api/d3/factory: the board alone, the same shape as d3.factory, Jon\'s session only', async () => {
