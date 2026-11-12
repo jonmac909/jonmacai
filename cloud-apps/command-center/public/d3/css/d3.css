@@ -169,7 +169,8 @@ html[data-theme="dark"] body{background:#0b0b0c}
    lists scroll inside it; the Sponsor Revenue chart grows to fill its card. Titles stay on one line. */
 .d3 .gtop,.d3 .gobjs{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(330px,100%),1fr));gap:16px;align-items:stretch}
 .d3 .gobjs{grid-template-columns:repeat(auto-fit,minmax(min(380px,100%),1fr))}
-.d3 .gtop h2,.d3 .gobjs h2{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.d3 .gtop h2,.d3 .gobjs h2,.d3 .gsch>.hd>h2{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.d3 .gsch>.hd{flex-wrap:wrap;row-gap:6px}
 .d3 .grevc{flex:1 1 auto;display:flex;flex-direction:column;gap:6px}
 .d3 .grevc>svg{flex:1 1 180px;min-height:180px}
 .d3 .gpipe{contain:size;min-height:460px;gap:12px}

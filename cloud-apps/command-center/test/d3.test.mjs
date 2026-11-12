@@ -279,7 +279,10 @@ test('Goals: cards in a row are the same size; a long deal list scrolls inside P
   }
   assert.match(rule('.d3 .gpipe'), /contain:size/);
   assert.match(rule('.d3 .plist'), /overflow:auto/);
-  for (const sel of ['.d3 .gtop h2', '.d3 .gobjs h2']) assert.match(rule(sel), /white-space:nowrap/, sel);
+  for (const sel of ['.d3 .gtop h2', '.d3 .gobjs h2', '.d3 .gsch>.hd>h2']) assert.match(rule(sel), /white-space:nowrap/, sel);
+  // Videos Scheduled: its title keeps one line on a phone; the day pill wraps below it instead.
+  assert.match(html, /<section class="card gsch">\s*<div class="hd">[^\n]*<h2>Videos Scheduled<\/h2>/);
+  assert.match(rule('.d3 .gsch>.hd'), /flex-wrap:wrap/);
 });
 
 test('Goals: every row shows its age, stale rows are grey, sponsor rows explain their counts', () => {

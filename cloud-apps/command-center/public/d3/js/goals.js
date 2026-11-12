@@ -426,7 +426,7 @@ function scheduledHtml(d2resp, d3resp, P, ui) {
       return `<div class="kc"><span class="dot ${t === 'n' ? '' : t}"></span><span style="flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap">${esc(r.label)}</span><b style="font-weight: 600">${esc(r.actual)}<span class="dim"> / ${esc(r.target)}</span></b></div>`;
     }).join('')}</div>`
     : '';
-  return `<section class="card">
+  return `<section class="card gsch">
 <div class="hd"><span class="chip">${icon('film')}</span><h2>Videos Scheduled</h2><span class="pill sp">${esc(P.weekdayName)} · day ${P.weekday + 1} of 7</span></div>
 <div class="row" style="gap: 12px">
 <div class="inner" style="flex: 1 1 180px"><span class="sub" style="font-weight: 500">Sponsor videos</span>${sponsor}</div>
