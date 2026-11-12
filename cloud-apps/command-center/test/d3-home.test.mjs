@@ -76,7 +76,7 @@ test('Home: widgets, Schedule, then Progress as four category cards; no retired 
   const html = renderHome(SAMPLE(), d3Sample(), {}, NOW);
   const at = (s) => { const i = html.indexOf(s); assert.notEqual(i, -1, s); return i; };
   assert.ok(at('class="hmwid"') < at('aria-label="Schedule"') && at('aria-label="Schedule"') < at('<h2>Progress</h2>'));
-  assert.ok(at('aria-label="Sponsors"') < at('aria-label="Factory"') && at('aria-label="Factory"') < at('aria-label="Personal"') && at('aria-label="Personal"') < at('aria-label="PNL"'));
+  assert.ok(at('aria-label="PnL"') < at('aria-label="Sponsors"') && at('aria-label="Sponsors"') < at('aria-label="Factory"') && at('aria-label="Factory"') < at('aria-label="Personal"')); // Jon's order, 2026-11-12
   assert.match(html, /<small>Today<\/small><b><span class="hmlg">Sunday<\/span><span class="hmsm">Sun<\/span><\/b><span>8 Nov<\/span>/);
   assert.match(html, /<b class="hmclock">\d{1,2}:05 PM<\/b>/);
   assert.match(html, /Day 7 <i>of 7<\/i><\/b><div class="hmwbar"><u style="width: 100%">/);
@@ -351,7 +351,7 @@ test('Add goal: the form by type, its summary, what it sends, and the goal as a 
 
 test('Progress: numbers and status from the feeds; a goal with no source reads No feed with a grey dot', () => {
   const cats = homeGoals(SAMPLE(), d3Sample());
-  assert.deepEqual(cats.map((c) => c.title), ['Sponsors', 'Factory', 'Personal', 'PNL']);
+  assert.deepEqual(cats.map((c) => c.title), ['PnL', 'Sponsors', 'Factory', 'Personal']);
   const d2 = SAMPLE().d2;
   const sp = d2.goals.find((g) => g.key === 'sponsors');
   assert.equal(rowOf(cats, 'sponsors', 'week', 'deals').v, `${sp.week[0].actual} / ${sp.week[0].target}`);
@@ -372,7 +372,7 @@ test('Progress: numbers and status from the feeds; a goal with no source reads N
   assert.equal(rowOf(cats, 'personal', 'week', 'workouts').v, '1 / 3');
   assert.deepEqual(rowOf(cats, 'personal', 'week', 'workouts').det.items, ['Mon · done', 'Wed · missed', 'Fri · missed']);
   assert.equal(rowOf(cats, 'personal', 'week', 'datewk').v, '1 / 1'); // Thursday Nov 5 is inside this week
-  assert.deepEqual(rowsOf(cats, 'pnl', 'today'), []);
+  for (const per of ['today', 'week', 'month']) assert.deepEqual(rowsOf(cats, 'pnl', per).map((r) => r.k).slice(0, 3), ['revenue', 'bmonth', 'profit'], per);
   for (const [cat, per, k] of [['personal', 'month', 'trips'], ['personal', 'month', 'groups'], ['personal', 'month', 'networth']]) {
     const r = rowOf(cats, cat, per, k);
     assert.deepEqual([r.v, r.st, r.word, r.pct], ['No feed', 'none', 'No feed', null], k);
@@ -473,4 +473,29 @@ test('d3.css: Home uses the dashboard tokens (light and dark follow the theme) a
   const phone = home.slice(home.indexOf('@media (max-width:600px)'));
   assert.doesNotMatch(phone, /hmwid\{[^}]*grid-template-columns|hmsecs\{[^}]*grid-template-columns/);
   assert.match(phone, /\.d3 \.hmday\.hmwk\{display:none\}\n\s*\.d3 \.hmday\.hmph\{display:block/); // three days on a phone
+});
+
+test('PnL shows revenue, expenses and profit this month; Sponsors shows money owed and deals to close (Jon, 2026-11-12)', () => {
+  const d2 = SAMPLE();
+  const exp = d2.d2.summary.sections.find((s) => s.key === 'expenses');
+  exp.split.business = { basis: 'stages', monthFrom: null, yesterday: 10, week: 300, month: 1400 };
+  const sp = d2.d2.goals.find((g) => g.key === 'sponsors');
+  sp.month = [{ ...[].concat(sp.month)[0], actual: 3100, source: { ...[].concat(sp.month)[0].source, stale: false } }];
+  const fx = { usdcad: 1.4, day: '2026-11-12' };
+  const cats = homeGoals(d2, d3Sample(), undefined, undefined, { goals: [], logs: [], fx });
+  const pr = rowOf(cats, 'pnl', 'month', 'profit');
+  assert.equal(pr.v, '$2,100'); // 3,100 USD - 1,400 CAD / 1.4
+  assert.deepEqual([pr.st, pr.word], ['on', 'Profit']);
+  assert.match(pr.info, /1 USD = 1\.4000 CAD/);
+  assert.equal(rowOf(cats, 'pnl', 'today', 'revenue').n, 'Revenue this month');
+  assert.equal(rowOf(cats, 'pnl', 'today', 'bmonth').n, 'Expenses this month');
+  exp.split.business.month = 7000;
+  assert.equal(rowOf(homeGoals(d2, d3Sample(), undefined, undefined, { goals: [], logs: [], fx }), 'pnl', 'month', 'profit').v, '−$1,900');
+  assert.equal(rowOf(homeGoals(d2, d3Sample()), 'pnl', 'month', 'profit').v, 'No data', 'no rate, no sum across currencies');
+  for (const per of ['today', 'week', 'month']) {
+    const owed = rowOf(cats, 'sponsors', per, 'owed');
+    const close = rowOf(cats, 'sponsors', per, 'close');
+    assert.match(owed.v, /^\$[\d,]+$/, per);
+    assert.match(close.v, /^\$[\d,]+$/, per);
+  }
 });

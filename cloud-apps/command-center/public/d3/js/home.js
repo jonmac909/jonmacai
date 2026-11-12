@@ -28,7 +28,7 @@ export const clockOf = (h) => {
   return `${((hh + 11) % 12) + 1}:${String(Math.round((h - hh) * 60)).padStart(2, '0')}`;
 };
 
-export const CATS = [['factory', 'Factory', '#039be5'], ['sponsors', 'Sponsors', '#33b679'], ['personal', 'Personal', '#e67c73'], ['pnl', 'PNL', '#7986cb']];
+export const CATS = [['factory', 'Factory', '#039be5'], ['sponsors', 'Sponsors', '#33b679'], ['personal', 'Personal', '#e67c73'], ['pnl', 'PnL', '#7986cb']];
 // Budgets written in the handover (section 4), CAD a month. No feed holds them yet, so each row says where it is from.
 export const BUDGET = { personal: [8000, 10000, '$8–10k'], business: [3000, 5000, '$3–5k'], businessWeek: [700, 1150, '$700–1,150'] };
 
@@ -313,6 +313,25 @@ function ownRow(g, logs, P) {
     { word: s.word || WORD[s.st], nf: !!s.nf, pct: s.pct, pace: s.pace });
 }
 
+// Profit this month in USD: sponsor cash (USD) less RBC business spending (CAD) at the Bank of Canada's daily rate.
+// Grey, with no number, when any part is missing; grey with the number when either side is stale.
+function profitRow(collected, sec, fx) {
+  const rev = collected && num(collected.actual) && collected.display !== 'No data' ? collected.actual : null;
+  const b = sec?.split?.business;
+  const exp = b && num(b.month) ? b.month : null;
+  const rate = num(fx?.usdcad) && fx.usdcad > 0 ? fx.usdcad : null;
+  const why = rev == null ? 'Sponsor cash this month has not reported' : exp == null ? 'Business spending is not in the MoneyClaw feed' : !rate ? 'No USD to CAD rate yet (Bank of Canada, pulled every 6 hours)' : '';
+  if (why) return row('profit', 'Profit this month', 'No data', 'none', why, { h: '', items: [], page: PG.money }, { nf: true });
+  const p = rev - exp / rate;
+  const stale = !!(collected.source?.stale || sec?.stale);
+  const span = b.basis === 'stages' && !b.monthFrom ? '' : b.basis === 'stages' ? `spending from ${b.monthFrom.slice(5).replace('-', '/')}` : 'spending is the last 30 days';
+  const st = stale ? 'none' : p >= 0 ? 'on' : 'off';
+  return row('profit', 'Profit this month', `${p < 0 ? '−' : ''}${usd(Math.abs(p))}`, st,
+    [`${usd(rev)} in − ${cad0(exp)} CAD out`, `1 USD = ${rate.toFixed(4)} CAD`, span, stale ? 'a feed is stale' : ''].filter(Boolean).join(' · '),
+    { h: 'In USD', items: [`Revenue ${usd(rev)} (sponsor cash only; ads and affiliates have no feed yet)`, `Business spending ${cad0(exp)} CAD = ${usd(exp / rate)}`, `Bank of Canada rate${fx.day ? ` for ${fx.day}` : ''}`], page: PG.money },
+    { word: stale ? 'Stale' : p >= 0 ? 'Profit' : 'Loss' });
+}
+
 export function homeGoals(d2resp, d3resp, P = periodOf(d2resp), now = nowOf(), home = null) {
   const goals = d2resp?.d2?.goals || [];
   const G = (key) => goals.find((g) => g.key === key) || null;
@@ -354,12 +373,16 @@ export function homeGoals(d2resp, d3resp, P = periodOf(d2resp), now = nowOf(), h
     ],
     month: [
       fromMetric('collected', 'Collected', collected, { money: true, info: thru ? `Through ${thru}` : '', det: { h: `Collected in ${P.monthName || 'this month'}`, items: [collected?.note, collected?.source?.label].filter(Boolean), page: PG.money } }),
-      !pipe ? noFeed('pipeline', 'Pipeline', 'The Sponsors board could not be read.', PG.money)
-        : row('pipeline', 'Pipeline', `${pipe.close.length} to close · ${pipe.collect.length} to collect`, 'none',
-          `${plural(pipe.close.length + pipe.collect.length, 'deal')} · ${usd(pipe.totals.close)} to close · ${usd(pipe.totals.collect)} to collect`,
-          { h: 'To close', items: pipe.close.map(amt), h2: 'To collect', items2: pipe.collect.map(amt), page: PG.money }, { word: 'No target' }),
     ],
   };
+  // Money owed and deals to close, in dollars, under every period (Jon, 2026-11-12)
+  const owed = !pipe ? noFeed('owed', 'Money owed', 'The Sponsors board could not be read.', PG.money)
+    : row('owed', 'Money owed', usd(pipe.totals.collect), 'none', pipe.collect.length ? `${plural(pipe.collect.length, 'deal')} still to pay you` : 'Nothing owed',
+      { h: 'To collect', items: pipe.collect.map(amt), page: PG.money }, { word: 'To collect' });
+  const toClose = !pipe ? noFeed('close', 'Deals to close', 'The Sponsors board could not be read.', PG.money)
+    : row('close', 'Deals to close', usd(pipe.totals.close), 'none', pipe.close.length ? `${plural(pipe.close.length, 'deal')}${pipe.close.some((r) => r.amt == null) ? ` · ${pipe.close.filter((r) => r.amt == null).length} not priced` : ''}` : 'None open',
+      { h: 'To close', items: pipe.close.map(amt), page: PG.money }, { word: 'Pipeline' });
+  for (const per of ['today', 'week', 'month']) sponsors[per].push(owed, toClose);
 
   // Factory
   const queue = reviewItems(d2resp, d3resp);
@@ -426,19 +449,17 @@ export function homeGoals(d2resp, d3resp, P = periodOf(d2resp), now = nowOf(), h
     ],
   };
 
-  // PNL
+  // PnL: revenue, expenses and profit this month under every period (Jon, 2026-11-12)
+  const revenue = fromMetric('revenue', 'Revenue this month', collected, { money: true, info: ['Sponsor cash only', thru ? `through ${thru}` : ''].filter(Boolean).join(' · '),
+    det: { h: `${P.monthName || 'This month'} so far`, items: ['Sponsor cash collected', 'YouTube ads and affiliates: no feed yet'], page: PG.money } });
+  const expenses = spendRow('bmonth', 'Expenses this month', split, split?.split?.business, 'month', BUDGET.business, P);
+  const profit = profitRow(collected, split, home?.fx);
   const pnl = {
-    today: [],
-    week: [spendRow('bweek', 'Business spending', split, split?.split?.business, 'week', BUDGET.businessWeek, P)],
-    month: [
-      fromMetric('revenue', 'Revenue', collected, { money: true, info: ['Sponsor cash only', thru ? `through ${thru}` : ''].filter(Boolean).join(' · '),
-        det: { h: `${P.monthName || 'This month'} so far`, items: ['Sponsor cash collected', 'YouTube ads and affiliates: no feed yet'], page: PG.money } }),
-      spendRow('bmonth', 'Business spending', split, split?.split?.business, 'month', BUDGET.business, P),
-      row('profit', 'Profit so far', 'No data', 'none', 'Income is in USD and spending in CAD, and ads and affiliate income have no feed',
-        { h: '', items: ['Shown once income and spending are in one currency'], page: PG.money }, { nf: true }),
-    ],
+    today: [revenue, expenses, profit],
+    week: [revenue, expenses, profit, spendRow('bweek', 'Business spending', split, split?.split?.business, 'week', BUDGET.businessWeek, P)],
+    month: [revenue, expenses, profit],
   };
-  const cats = [{ key: 'sponsors', title: 'Sponsors', ...sponsors }, { key: 'factory', title: 'Factory', ...factory }, { key: 'personal', title: 'Personal', ...personal }, { key: 'pnl', title: 'PNL', ...pnl }];
+  const cats = [{ key: 'pnl', title: 'PnL', ...pnl }, { key: 'sponsors', title: 'Sponsors', ...sponsors }, { key: 'factory', title: 'Factory', ...factory }, { key: 'personal', title: 'Personal', ...personal }];
   if (P.ymd) for (const g of home?.goals || []) cats.find((c) => c.key === g.cat)?.[g.per]?.push(ownRow(g, home.logs || [], P));
   return cats;
 }

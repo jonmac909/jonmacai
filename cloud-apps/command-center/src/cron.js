@@ -8,6 +8,7 @@ import { monthWindow } from './today.js';
 import { settleApproved } from './videoreview.js';
 import { syncReach, syncStats } from './youtube.js';
 import { syncChargeWatch } from './chargewatch.js';
+import { pullFx } from './fx.js';
 
 const VIRAL_URL = 'https://app.viralview.io/api/internal/dashboard-summary';
 const MONEY_URL = 'https://moneyclaw.jonmac.ai/api/internal/dashboard-summary';
@@ -54,6 +55,7 @@ export async function handleCron(env) {
   jobs.push(syncChargeWatch(env).catch((err) => console.error('charge watch', err.message))); // new subscriptions and odd charges become Questions
   jobs.push(pullWebinarMonth(env));
   jobs.push(pullCalendar(env));
+  jobs.push(pullFx(env).catch((err) => console.error('fx', err.message))); // USD in CAD for Home's PnL card
   jobs.push(settleApproved(env).catch((err) => console.error('settle approved', err)));
   jobs.push(syncReach(env).catch((err) => console.error('youtube reach', err.message))); // impressions and CTR, 6-hourly a channel
   jobs.push(syncStats(env).catch((err) => console.error('youtube stats', err.message))); // views, status, subs, hourly a channel
