@@ -294,17 +294,18 @@ export function factoryChannels(F, jobs) {
   return out;
 }
 
-// A channel's heading row, and the one quiet row of a channel with no video. In the wide table the text sits in the
-// Video column's cell (the one column that stays put) and runs on over an empty cell, so it stays in view.
-function channelRows(c, span, wide, body) {
+// A channel's heading row, and the one quiet row of a channel with no video. The text sits in the Video column's cell
+// (the one column that stays put when the stages scroll) and runs on over an empty cell, so it stays in view.
+function channelRows(c, span, body) {
   const n = c.jobs.length;
   const key = esc(`~ch:${c.extra ? '~' : ''}${c.id}`);
-  const two = (cls, inner, tip = '') => (wide ? `<td class="fyvid ${cls}"${tip}>${inner}</td><td colspan="${span - 1}"></td>` : `<td class="${cls}" colspan="${span}"${tip}>${inner}</td>`);
+  const two = (cls, inner, tip = '') => `<td class="fyvid ${cls}"${tip}>${inner}</td><td colspan="${span - 1}"></td>`;
   const headRow = `<tr class="fych" data-id="${key}">${two('fychn', `<span>${esc(c.label)}</span>${n ? `<small>${n === 1 ? '1 video' : `${n} videos`}</small>` : ''}`)}</tr>`;
   const none = c.note || 'No video in the program yet';
   return n ? `${headRow}\n${body}` : `${headRow}\n<tr class="fyrow fynone" data-id="${key}~none">${two('fychq', `<span>${esc(none)}</span>`, ` title="${esc(none)}"`)}</tr>`;
 }
 
+const TIGHT = 8; // more stage columns than this: the narrow layout (.fyt)
 const HEAD = (status) => `<header class="hd fyhead"><div><h1>Factory</h1><p class="mut">Every video in the new video program, stage by stage. Updates on its own.</p></div><div class="fystatus sp" data-fy="status">${status}</div></header>`;
 
 export function renderFactory(d3resp, ui = {}) {
@@ -337,15 +338,19 @@ export function renderFactory(d3resp, ui = {}) {
   const grouped = chans.length > 0;
   const span = wide ? partN + soloN + 2 : cols.length + 2;
   const html = new Map(jobs.map((j) => { const id = String(j.id ?? ''); const n = seen.get(id) || 0; seen.set(id, n + 1); const key = n ? `${id}#${n}` : id; return [j, wide ? wideRows(j, cols, groups, live, key, nowMs, grouped) : rowHtml(j, cols, live, key, grouped, nowMs)]; }));
-  const rows = grouped ? chans.map((c) => channelRows(c, span, wide, c.jobs.map((j) => html.get(j)).join('\n'))) : jobs.map((j) => html.get(j));
+  const rows = grouped ? chans.map((c) => channelRows(c, span, c.jobs.map((j) => html.get(j)).join('\n'))) : jobs.map((j) => html.get(j));
   if (!rows.length) rows.push(`<tr class="fyrow" data-id="_empty"><td colspan="${cols.length + 2}" class="mut">No videos in the program right now.</td></tr>`);
+  // Many stages (a staged board has about 15): narrow stage columns, so most of the table fits a desktop window. A column
+  // that shows text (the video's title) stays wide.
+  const tight = cols.length > TIGHT;
+  const texty = new Set(cols.filter((c) => jobs.some((j) => list(j.steps).some((st) => st?.name === c && stepKind(st) === 'done' && String(st.text || '').trim()))));
   const table = wide
     ? `<table class="fytable fyw" style="--fyn: ${soloN}; --fyp: ${partN}">
 <colgroup><col class="fyc1">${groups.map((g) => (g.length ? g.map(() => '<col class="fycp">').join('') : '<col class="fycs">')).join('')}<col class="fycw"></colgroup>
 <thead data-fy="cols"><tr><th class="fyh1" rowspan="2">Video</th>${cols.map((c, i) => (groups[i].length ? `<th class="fygrp fyg1" colspan="${groups[i].length}">${esc(head(c))}</th>` : `<th class="fycell fyg1" rowspan="2">${esc(head(c))}</th>`)).join('')}<th class="fyhw" rowspan="2">${lastHead}</th></tr>
 <tr>${groups.map((g) => g.map((name, n) => `<th class="fypt${n ? '' : ' fyg1'}">${esc(head(name))}</th>`).join('')).join('')}</tr></thead>`
-    : `<table class="fytable" style="--fyn: ${cols.length}">
-<colgroup><col class="fyc1">${cols.map(() => '<col class="fycs">').join('')}<col class="fycw"></colgroup>
+    : `<table class="fytable${tight ? ' fyt' : ''}" style="--fyn: ${cols.length}${tight ? `; --fyt: ${texty.size}` : ''}">
+<colgroup><col class="fyc1">${cols.map((c) => (tight && texty.has(c) ? '<col class="fyct">' : '<col class="fycs">')).join('')}<col class="fycw"></colgroup>
 <thead data-fy="cols"><tr><th>Video</th>${cols.map((c) => `<th class="fycell">${esc(labels.get(c) || cap(c))}</th>`).join('')}<th>${lastHead}</th></tr></thead>`;
   const needs = jobs.filter((j) => kindOf(j) === 'need').map((j) => {
     const np = j.needs_person && typeof j.needs_person === 'object' ? j.needs_person : {};
