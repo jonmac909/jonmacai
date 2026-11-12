@@ -460,11 +460,11 @@ test('Factory page with channels: a heading per channel in the board\'s order, a
   assert.deepEqual([...h2.matchAll(/<tr class="[^"]+" data-id="([^"]+)"/g)].map((m) => m[1]), ['~ch:nora', 'fail-1', 'fail-1~parts', 'run-1', 'run-1~parts', '~ch:~', 'wait-1', 'wait-1~parts']);
   assert.match(h2, /<span>Nora<\/span><small>2 videos<\/small>/);
   assert.match(h2, /<tr class="fych" data-id="~ch:~"><td class="fyvid fychn"><span>No channel<\/span>/);
-  // A board with channels and no parts: the plain table, a heading across all its columns. No videos at all: every channel still shows.
+  // A board with channels and no parts: the plain table; the heading sits in the Video cell (it stays put) over an empty cell. No videos at all: every channel still shows.
   const plain = page(fresh({ channels: [{ id: 'hgp', label: 'Home Guide Press' }, { id: 'jon-mac', label: 'Jon Mac' }] }));
-  assert.match(plain, /<tr class="fych" data-id="~ch:hgp"><td class="fychn" colspan="5"><span>Home Guide Press<\/span><small>2 videos<\/small><\/td><\/tr>\n<tr class="fyrow" data-id="need-1" data-kind="need"><td><b>need-1<\/b><\/td>/);
-  assert.match(plain, /<tr class="fych" data-id="~ch:jon-mac"><td class="fychn" colspan="5"><span>Jon Mac<\/span><\/td><\/tr>\n<tr class="fyrow fynone" data-id="~ch:jon-mac~none"><td class="fychq" colspan="5" title="No video in the program yet"><span>No video in the program yet<\/span><\/td><\/tr>/);
-  assert.match(plain, /<tr class="fych" data-id="~ch:~nora"><td class="fychn" colspan="5"><span>nora<\/span><small>3 videos<\/small>/);
+  assert.match(plain, /<tr class="fych" data-id="~ch:hgp"><td class="fyvid fychn"><span>Home Guide Press<\/span><small>2 videos<\/small><\/td><td colspan="4"><\/td><\/tr>\n<tr class="fyrow" data-id="need-1" data-kind="need"><td><b>need-1<\/b><\/td>/);
+  assert.match(plain, /<tr class="fych" data-id="~ch:jon-mac"><td class="fyvid fychn"><span>Jon Mac<\/span><\/td><td colspan="4"><\/td><\/tr>\n<tr class="fyrow fynone" data-id="~ch:jon-mac~none"><td class="fyvid fychq" title="No video in the program yet"><span>No video in the program yet<\/span><\/td><td colspan="4"><\/td><\/tr>/);
+  assert.match(plain, /<tr class="fych" data-id="~ch:~nora"><td class="fyvid fychn"><span>nora<\/span><small>3 videos<\/small>/);
   const none = page(fresh({ jobs: [], channels: CHANNELS() }));
   assert.equal((none.match(/<tr class="fych"/g) || []).length, 4);
   assert.doesNotMatch(none, /No videos in the program right now/);
@@ -510,7 +510,7 @@ test('Factory with parts: styles for the bars, nothing sticky but the Video and 
   assert.ok(5.2 * 16 >= 75 && 5.2 * 16 <= 90);
   // Sticky: only the Video column (and the state column on wide screens; it lets go on a phone). The old band is gone.
   const sticky = fy.split('\n').filter((l) => l.includes('position:sticky'));
-  assert.deepEqual(sticky.map((l) => l.trim().split('{')[0]), ['.d3 .fytable.fyw th.fyh1,.d3 .fytable.fyw td.fyvid', '.d3 .fytable.fyw th.fyhw,.d3 .fytable.fyw td.fywait', '.d3 .fytable th:first-child,.d3 .fytable td:first-child']);
+  assert.deepEqual(sticky.map((l) => l.trim().split('{')[0]), ['.d3 .fytable:not(.fyw) th:first-child,.d3 .fytable:not(.fyw) td:first-child', '.d3 .fytable.fyw th.fyh1,.d3 .fytable.fyw td.fyvid', '.d3 .fytable.fyw th.fyhw,.d3 .fytable.fyw td.fywait', '.d3 .fytable th:first-child,.d3 .fytable td:first-child']);
   assert.doesNotMatch(fy, /\.fysl\b|\.fystg\b|fysbad|th\.fygrp span/);
   assert.match(fy, /@media \(max-width:700px\)\{\n\.d3 \.fytable\.fyw\{--fyc1:6\.2rem\}[\s\S]*?\.d3 \.fytable\.fyw th\.fyhw,\.d3 \.fytable\.fyw td\.fywait\{position:static\}/);
   assert.match(fy, /@media \(prefers-reduced-motion:reduce\)\{[\s\S]*?\.d3 \.fypb\.ind i\{animation:none\}/);
@@ -778,4 +778,18 @@ test('GET /dashboard/api/d3/factory: the board alone, the same shape as d3.facto
     assert.equal(down.status, 503);
     assert.equal((await down.json()).ok, false);
   } finally { Date.now = real; }
+});
+
+test('Factory with many stages: narrow stage columns, a wide one for the title, the Video column stays put', () => {
+  const names = ['outlier', 'script', 'qc1', 'captions', 'aroll', 'broll', 'qc2', 'edit', 'qc3', 'title'];
+  const job = (id) => ({ id, channel: 'hgp', state: 'running', steps: names.map((n, i) => (n === 'title' ? { name: n, status: 'done', text: 'A long video title' } : { name: n, status: i < 3 ? 'done' : 'pending' })) });
+  const html = page(fresh({ jobs: [job('a-1'), job('a-2')], channels: [{ id: 'hgp', label: 'Home Guide Press' }] }));
+  assert.match(html, /<table class="fytable fyt" style="--fyn: 10; --fyt: 1">\s*<colgroup><col class="fyc1">(<col class="fycs">){9}<col class="fyct"><col class="fycw"><\/colgroup>/);
+  assert.match(html, /<tr class="fych" data-id="~ch:hgp"><td class="fyvid fychn"><span>Home Guide Press<\/span><small>2 videos<\/small><\/td><td colspan="11"><\/td><\/tr>/);
+  // eight stages or fewer keep the roomy columns
+  assert.match(page(fresh()), /<table class="fytable" style="--fyn: 3">/);
+  const css = readFileSync(new URL('../public/d3/css/d3.css', import.meta.url), 'utf8');
+  for (const rule of ['.d3 .fytable.fyt col.fycs{width:4.6rem}', '.d3 .fytable.fyt col.fyct{width:11rem}', '.d3 .fytable:not(.fyw) th:first-child,.d3 .fytable:not(.fyw) td:first-child{position:sticky;left:0;']) assert.ok(css.includes(rule), rule);
+  // 15 stages with one title column: 10 + 14 x 4.6 + 11 + 7 = 92.4rem, about 1480 px, down from 2488
+  assert.ok((10 + 14 * 4.6 + 11 + 7) * 16 < 1500);
 });

@@ -293,6 +293,16 @@ html[data-theme="dark"] body{background:#0b0b0c}
 .d3 .fytable col.fyc1{width:var(--fyc1)}
 .d3 .fytable col.fycs{width:9rem}
 .d3 .fytable col.fycw{width:7.5rem}
+/* Many stages (.fyt): narrow stage columns, a wide one only where the stage shows text (the title). */
+.d3 .fytable.fyt{--fyc1:10rem;--fyt:0;width:calc(var(--fyc1) + (var(--fyn) - var(--fyt)) * 4.6rem + var(--fyt) * 11rem + 7rem)}
+.d3 .fytable.fyt col.fycs{width:4.6rem}
+.d3 .fytable.fyt col.fyct{width:11rem}
+.d3 .fytable.fyt col.fycw{width:7rem}
+.d3 .fytable.fyt th.fycell{white-space:normal;padding:.5rem .2rem;font-size:.74rem;line-height:1.15;overflow-wrap:anywhere}
+.d3 .fytable.fyt td.fycell{padding:.7rem .3rem}
+.d3 .fytable.fyt td.fytx{min-width:0;max-width:none}
+/* The Video column (names, channel headings) stays put while the stages scroll. */
+.d3 .fytable:not(.fyw) th:first-child,.d3 .fytable:not(.fyw) td:first-child{position:sticky;left:0;z-index:1;box-shadow:1px 0 0 var(--line)}
 .d3 .fytable th{background:var(--card2);color:var(--muted);font-weight:500;font-size:.8rem;text-align:left;padding:.55rem .9rem;white-space:nowrap}
 .d3 .fytable th:first-child{border-radius:.5rem 0 0 .5rem}
 .d3 .fytable th:last-child{border-radius:0 .5rem .5rem 0}
@@ -382,6 +392,8 @@ html[data-theme="dark"] body{background:#0b0b0c}
 .d3 .fytable td.fychn{white-space:nowrap;font-size:.86rem}
 .d3 .fytable td.fychn small{display:inline;margin-left:.6rem;font-size:.76rem}
 .d3 .fytable td.fychq{font-weight:400;color:var(--muted);font-size:.84rem}
+/* A channel heading runs on over the empty cell beside it; without max-width the browser widens the Video column to fit it. */
+.d3 .fytable td.fychn,.d3 .fytable td.fychq{max-width:0;overflow:visible;white-space:nowrap}
 .d3 .fytable.fyw td.fychn,.d3 .fytable.fyw td.fychq{box-shadow:none;white-space:nowrap}
 .d3 .fytable.fyw td.fychq{padding:.6rem .7rem}
 @media (max-width:700px){
@@ -411,7 +423,8 @@ html[data-theme="dark"] body{background:#0b0b0c}
 .d3 .fyneed b{color:var(--bad-ink)}
 .d3 .fylook{color:var(--muted)}
 @media (max-width:640px){
-  .d3 .fytable{--fyc1:8.5rem}
+  .d3 .fytable,.d3 .fytable.fyt{--fyc1:6.5rem}
+  .d3 .fytable td.fychn small{display:block;margin-left:0}
   .d3 .fytable th:first-child,.d3 .fytable td:first-child{position:sticky;left:0;z-index:1}
   .d3 .fytable td:first-child{box-shadow:1px 0 0 var(--line)}
   .d3 .fytable td{padding:.6rem .5rem}
