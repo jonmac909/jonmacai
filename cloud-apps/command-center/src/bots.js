@@ -991,6 +991,65 @@ export const FEEDS = {
       };
     },
   },
+  // The video program's board (a pusher on GPU1, every 30 s: dash.py feed-put video_line --data-file board.json), shown
+  // on Dashboard 3's Factory page. Shapes are checked (400 when wrong); long text and long lists are cut, never refused:
+  // 60 jobs, 12 steps a job, the newest 20 events, 300 characters a string. Only 1 day is kept.
+  video_line: {
+    writers: ['developer', 'ana'],
+    keepDays: 1,
+    parse: (b) => {
+      const obj = (v, k) => { if (!v || typeof v !== 'object' || Array.isArray(v)) throw new Bad(400, `${k} must be an object`); return v; };
+      const arr = (v, k) => { if (!Array.isArray(v)) throw new Bad(400, `${k} must be a list`); return v; };
+      const str = (v, k) => {
+        if (v == null) return '';
+        if (typeof v !== 'string' && typeof v !== 'number') throw new Bad(400, `${k} must be text`);
+        return String(v).slice(0, 300);
+      };
+      const whole = (v, k) => {
+        if (v == null) return 0;
+        if (typeof v !== 'number' || !Number.isInteger(v) || v < 0 || v > 1e6) throw new Bad(400, `${k} must be a whole number`);
+        return v;
+      };
+      const when = (v, k) => (v == null || v === '' ? null : isoOf(v, k));
+      const step = (s, k) => {
+        obj(s, k);
+        if (s.minutes != null && (typeof s.minutes !== 'number' || !Number.isFinite(s.minutes) || s.minutes < 0 || s.minutes > 1e6)) throw new Bad(400, `${k}.minutes must be a number or null`);
+        if (!str(s.name, `${k}.name`)) throw new Bad(400, `${k}.name is required`);
+        return {
+          name: str(s.name), status: str(s.status, `${k}.status`), tries: whole(s.tries, `${k}.tries`), minutes: s.minutes ?? null,
+          started: when(s.started, `${k}.started`), ended: when(s.ended, `${k}.ended`),
+          note: str(s.note, `${k}.note`), fix: str(s.fix, `${k}.fix`), doing: str(s.doing, `${k}.doing`),
+          // Optional progress inside a running step ("8 of 11 checks"): kept only when the step sends it.
+          ...(s.done != null ? { done: whole(s.done, `${k}.done`) } : {}), ...(s.total != null ? { total: whole(s.total, `${k}.total`) } : {}),
+        };
+      };
+      const job = (j, i) => {
+        const k = `jobs[${i}]`;
+        obj(j, k);
+        if (!str(j.id, `${k}.id`)) throw new Bad(400, `${k}.id is required`);
+        if (!str(j.state, `${k}.state`)) throw new Bad(400, `${k}.state is required`);
+        const np = j.needs_person == null ? null : obj(j.needs_person, `${k}.needs_person`);
+        return {
+          id: str(j.id), channel: str(j.channel, `${k}.channel`), pipeline: str(j.pipeline, `${k}.pipeline`), created: when(j.created, `${k}.created`),
+          state: str(j.state), step: str(j.step, `${k}.step`), minutes_in_state: str(j.minutes_in_state, `${k}.minutes_in_state`), note: str(j.note, `${k}.note`),
+          steps_done: whole(j.steps_done, `${k}.steps_done`), steps_total: whole(j.steps_total, `${k}.steps_total`),
+          needs_person: np && { step: str(np.step, `${k}.needs_person.step`), why: str(np.why, `${k}.needs_person.why`), look_at: str(np.look_at, `${k}.needs_person.look_at`), since: str(np.since, `${k}.needs_person.since`) },
+          final: str(j.final, `${k}.final`),
+          steps: arr(j.steps ?? [], `${k}.steps`).slice(0, 12).map((s, n) => step(s, `${k}.steps[${n}]`)),
+        };
+      };
+      if (b.scheduler_running != null && typeof b.scheduler_running !== 'boolean') throw new Bad(400, 'scheduler_running must be true, false or null');
+      const c = obj(b.counts ?? {}, 'counts');
+      return {
+        updated: isoOf(b.updated, 'updated', true),
+        scheduler_running: b.scheduler_running ?? null,
+        counts: Object.fromEntries(['jobs', 'done', 'running', 'needs_person'].map((k) => [k, whole(c[k], `counts.${k}`)])),
+        jobs: arr(b.jobs, 'jobs').slice(0, 60).map(job),
+        events: arr(b.events ?? [], 'events').slice(-20).map((e) => { if (typeof e !== 'string') throw new Bad(400, 'each event must be text'); return e.slice(0, 300); }),
+        unreadable_jobs: arr(b.unreadable_jobs ?? [], 'unreadable_jobs').slice(0, 60).map((x) => (typeof x === 'string' ? x : JSON.stringify(x) ?? '').slice(0, 300)),
+      };
+    },
+  },
   // Each project's daily items, from D:\AgentTeam\rules\facts\daily-checklists.md (dash.py daily-sync).
   daily_checklists: {
     writers: ['ana', 'developer'],

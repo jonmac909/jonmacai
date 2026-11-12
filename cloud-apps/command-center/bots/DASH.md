@@ -143,6 +143,7 @@ dash.py feed-put morning_summary --text-file summary.txt [--data '{"date": "2026
 dash.py feed-put calendar_today --data-file calendar.json                                     (Ana, each morning)
 dash.py feed-put claude_usage --data '{"weekPct": 62, "resetsAt": "2026-10-31T17:00:00Z"}'    (Ana)
 dash.py feed-put ebook_sales --data '{"month": "2026-10", "usd": 1234.5, "orders": 31}'       (Home Guide Press or Accounting)
+dash.py feed-put video_line --data-file board.json                                            (the video program pusher, every 30 s)
 dash.py feed claude_usage                                                                     (read the newest)
 ```
 Each post adds a new entry, and the Today page shows the newest one. A card turns stale after 24 hours without a post.

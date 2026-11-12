@@ -9,8 +9,8 @@ Hard limits: `/dashboard` and `/dashboard-2` do not change. View only, apart fro
 - Routes `jonmac.ai/dash` (308 to `/dash/`) and `jonmac.ai/dash/*`, same Worker (`src/worker.js`).
 - `/dash/` and `/dash/index.html` serve `public/d3/index.html` with Jon's session, else `public/d3/login.html` (posts `/dashboard/api/login`, reloads `/dash/`). Otherwise only `/dash/login.html`, `/dash/css/*.css` and `/dash/js/**/*.js` (from `public/d3`); anything else is a 404, and so is `/dashboard/d3/...`.
 - Theme: `localStorage['d3-theme']` (`light` default, `dark`), applied on `<html data-theme>` by an inline script before paint.
-- Routes are hashes: `#goals` (default), `#team`, `#blockers`, `#review`, `#money`.
-- Data loads on open and every 60 s while the tab is visible. Signed out (401), the page opens `/dash/` once (sessionStorage `d3-signin`), then shows a sign-in link; no reload loop.
+- Routes are hashes: `#goals` (default), `#team`, `#factory`, `#track` (and `#track/<channel>`), `#blockers`, `#review`, `#money`.
+- Data loads on open and every 60 s while the tab is visible (the Factory page also re-reads `/dashboard/api/d3` every 15 s while it is open). Signed out (401), the page opens `/dash/` once (sessionStorage `d3-signin`), then shows a sign-in link; no reload loop.
 - Files: `public/d3/js/app.js` (shell), `goals.js` (pure `renderGoals(d2, d3, ui)`), `team.js` (`renderTeam`), `blockers.js` (`blockerRows`, `renderBlockers`), `rail.js`, `util.js`; `css/d3.css` is the design's style block plus the Team/Blockers design rules plus "Build additions".
 - Team roster: `src/d3-team.json`, a copy of `D:\AgentTeamules\BOTS.md` (slug = the bot's `areas/<slug>.md` and its card owner name). Retired bots (Mila, Ivy, Zendaya, the old Emma/Indy areas) are not in it. `test/d3.test.mjs` fails when it drifts from BOTS.md (on GPU1).
 
@@ -25,6 +25,7 @@ Jon's session, `Cache-Control: no-store`, read only (`src/d3.js`). Each part is 
   team: { bots: [{ slug, names, role, counts, card, tone, failedToday, running, tokens, finishedToday }], names, working, waiting, failedToday, cost } | null,
   blockers: [{ id, kind: 'p'|'f'|'s', you, review?, title, at, age, owner, blocks }] | null,
   openCards: { <project>: n } | null,
+  factory: { ...newest video_line entry, at, stale } | null,   // Factory page; stale = posted more than 3 minutes ago
   goals: { tokenWeeks, qcFirstTry, workouts, dateNights, charges }   // same metric shape as d2
 } }
 ```
@@ -101,3 +102,24 @@ Stuck leaves out cards in Review on purpose: those passed QC on their newest ver
 - Text lives in `public/d3/js/bluesky-data.js` and `public/d3/js/system-data.js`, copied unchanged from the approved designs (`D:\AgentTeam\briefs\dashboard3\Bluesky.dc.html`, `System.dc.html`) by `scripts/d3-text-from-design.mjs <designDir> <outDir>`. A test re-runs it and fails if the files drift from the designs.
 - Layout: `bluesky.js` (tabs Vision and plans, OKRs 2027, Quarters, Departments, 2026 reflection, Your call) and `system.js` (Map, How work moves, Team and your day, December goals). Styles are the designs' rules in `d3.css`.
 - Ana keeps the System pills true: in `system-data.js` set a part's `b` to `'ready'` (In place) or `'fix'` (To fix); no `b` reads To build. Pills read as of Nov 10 until then. If the designs change, re-run the script instead of editing by hand.
+
+## Factory page (2026-11-11)
+
+- Route `#factory`, rail item "Factory", `public/d3/js/factory.js` (pure `renderFactory(d3, ui)`). Live progress of the video program, laid out as the older Factory page on `/dashboard`: one compact table, a row per video and a column per step. The first look (one card per video) was dropped on 2026-11-11.
+- Source: the feed `video_line` (`src/bots.js` `FEEDS`; writers developer and ana; 1 day kept). A pusher on GPU1 posts the program's board every 30 s: `dash.py feed-put video_line --data-file board.json`. The body is `{updated, scheduler_running, counts: {jobs, done, running, needs_person}, jobs: [{id, channel, pipeline, created, state, step, minutes_in_state, note, steps_done, steps_total, needs_person: {step, why, look_at, since} | null, final, steps: [{name, status, tries, minutes, started, ended, note, fix, doing, done, total}]}], events: [text, newest last], unreadable_jobs}`. A step's `done` and `total` are optional whole numbers (for example 8 of 11 checks); with both, the running bar is measured. A wrong shape is a 400. Long input is cut, not refused: 60 videos, 12 steps a video, the newest 20 events, 300 characters a string.
+- `d3.factory` is the newest entry plus `at` (when it was posted) and `stale` (true once it is more than 3 minutes old); `null` when nothing was posted or the table can't be read.
+- Head: "Factory" with one status pill on the right: green "Live · 12s ago", red "Stale: last update 4m ago" (3 minutes without a post), red "Not publishing yet" (no entry), plus red "Scheduler stopped" when `scheduler_running` is false. Then one line: how many are live now, a count per step (a video counts at its first step that is not done), Done, and a pill "N need you" (red above zero).
+- Table: first column the video (id bold, channel small), then one column per step in pipeline order (names from the videos' own steps, first letter capitalised), last column "Waiting". Cells: done is a green check with its minutes; running is a blue bar (`done`/`total` when sent, else a moving bar that reads "In progress") with a green "Live" dot and the step's `doing`; failed is a red X with a short reason (the full `note` and `fix` are the tooltip); the first step not started that has a reason (the step's `note`, else the video's `note`) reads "Waiting" with one short line (full text in the tooltip); a later step is a grey circle; a step a video does not have is blank. The last column is the minutes in the current state (`59m`, `2h 15m`), a red "Needs you" pill, or a green "Done" pill whose tooltip is the finished file. File paths show nowhere else, except "Look at" in the Needs you list.
+- Row order: needs you, failed, running, waiting, done; oldest `created` first inside a group. A stale board shows nothing as live.
+- Under the table: "Needs you" (video, step, why, where to look) only when a video needs a person; "Latest events", newest first, Kelowna time, at most 12.
+- Refresh: the shell re-reads `/dashboard/api/d3` every 15 s while the page is open and `syncFactory(main, html)` rewrites only the parts that changed (rows matched by video id), so the table does not jump or lose its sideways scroll. On a phone the table scrolls sideways inside its box.
+- Styles: the `fy*` rules at the end of `css/d3.css`, the old page's sizes on Dashboard 3's theme variables (light and dark).
+- The name: this is Dashboard 3's Factory page. The older Factory page on `/dashboard` (one overwritten row, `tools/factory_publish.py`) is a different source and is unchanged.
+- The System page's Sources list shows the feed as "Video program board", stale after 3 minutes.
+
+## Track page (2026-11-11)
+
+- Route `#track` (all channels) and `#track/<channel>` (one channel), rail item "Track" next to Factory. It is the old `/dashboard/#track` page: same numbers, same tables, same controls. View only.
+- Nothing is rewritten. The shell loads the old page's own module `/dashboard/js/pages/track.js` the first time Track opens (`track(page, null, channel)` and `setSort`), and reads the same data the old page reads: `GET /dashboard/api/snapshot?pages=track` -> `pages.track`, on each open. `public/d3/js/track.js` only wraps that markup in `.tkpage` (`renderTrack(page, channel, draw)`, `trackSub(hash)`) and covers "Loading Track" and "Could not load Track".
+- Controls, handled in `app.js`: a column heading sorts (`data-tsort`), a channel tab or row opens `#track/<channel>` (`data-page`), "Copy" copies a video's tracked link (`data-copy`), and a "Connect" link opens as on the old page.
+- Styles: the old stylesheet is not loaded, because its page-wide rules (`.card`, `.chip`, `table`) would restyle the rest of Dashboard 3. The rules Track needs are copied from `public/css/components.css` into `css/d3.css` under `.d3 .tkpage`, on Dashboard 3's theme variables. If the old Track page gains new markup, add its rule there.
