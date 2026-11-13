@@ -1,8 +1,12 @@
 #!/usr/bin/env python3
-"""Apply Ana's 2026-11-11 sponsor plan to a dashboard: moves, adds and amounts through POST /dashboard/api/actions.
-Usage: apply_sponsor_plan.py BASE_URL [--cookie C | env DASH_COOKIE] [--dry-run]
-Sends X-CC: 1. Writes D:\AgentTeam\qc-work\money-deals-rebuild\deals-final.json."""
-import argparse, json, os, sys, urllib.request
+r"""Apply Ana's 2026-11-11 sponsor plan to a dashboard: moves, adds and amounts.
+Usage: apply_sponsor_plan.py BASE_URL [read] [--token-bot SLUG [--token-file F] | --cookie C | env DASH_COOKIE] [--dry-run] [--out F]
+--token-bot: bot Bearer token (D:\AgentTeam\secrets\bot-tokens\<slug>.token, or --token-file for a preview token),
+  POST /dashboard/api/v1/sponsors/actions. --cookie: Jon's session, POST /dashboard/api/actions with X-CC: 1.
+read: GET /dashboard/api/v1/sponsors (token only) and print card counts per column, To close / To collect, Topview and Arcads.
+Writes D:\AgentTeam\qc-work\money-deals-rebuild\deals-final.json (or --out)."""
+import argparse, json, os, re, sys, urllib.error, urllib.parse, urllib.request
+from pathlib import Path
 
 ARCHIVE = "1a1591983a010b39 1a1831ee29e12656 1a100fca30a15755 1a087f484852c575 19f68e77b0d330f1 1a176291fb3afb9f 1a0acaf42e06c279 1a140abb90a6cb8e 1a17ab631ca1fa85 1a11d63686781aef 1a0de0dd49b7a494 1a1148dbe5a15491 1a1921b958ae7351 1a16ca8408f9ba45 1a13372b13495a52 1a1a26bda8c7af0e 1a17e62e379dcf1e 1a19d4ee5bc7a989 1a187901df7b1bae 1a1a17a32f603e78 1a1075f2458e886a 1a1a0f150ba2544d 1a095b91a0604aec 1a188321b120540e 1a1c5669ca10d277 1a09f81f9207d0e1 1a19f5af492b3f67 1a12d18a25696cb3 1a0874c7523d0039 1a0ca7b4001e9557 1a062af4c3da3601 1a0d430648d1e5ae 1a19c7c9d8163dd9 1a0ff9d785e1635d 1a0aefac7b3d4b6a 1a0e7a2fd981655a 1a116c0e136bee30".split()
 MOVES = [(t, "archived") for t in ARCHIVE] + [
@@ -31,6 +35,8 @@ AMOUNTS.update({t: 2500 for t in "1a1c859c4aaa74e2 1a1c6d0462e5a453 1a1c6b0ea2a3
 # The source snapshot mangled these names (Luminarysm, ve AI); the subjects say Enter and Naive AI.
 BRANDS = {"1a0aa308142f5466": "Enter", "1a11a047792ddd0b": "Naive AI"}
 OUT = r"D:\AgentTeam\qc-work\money-deals-rebuild\deals-final.json"
+TOKEN_DIR = Path(r"D:\AgentTeam\secrets\bot-tokens")
+UA = "apply-sponsor-plan/1"
 gid = lambda t: "gmail-thread-" + t
 
 def plan():
@@ -41,26 +47,85 @@ def plan():
         acts.append(("sponsor.set_amount", {"id": gid(t), "amount": a, **({"brand": BRANDS[t]} if t in BRANDS else {})}))
     return acts
 
+def read_token(slug, path=None):
+    r"""Same rules as D:\AgentTeam\tools\dash.py read_token; --token-file overrides the path (preview tokens)."""
+    if not re.match(r"^[a-z0-9][a-z0-9-]{0,39}$", slug or ""):
+        sys.exit("Bad bot name: %s" % slug)
+    p = Path(path) if path else TOKEN_DIR / ("%s.token" % slug)
+    try:
+        token = p.read_text(encoding="utf-8").strip()
+    except OSError:
+        sys.exit("No token file for %s at %s." % (slug, p))
+    if not token:
+        sys.exit("Token file %s is empty." % p)
+    return token
+
+def send(url, headers, body=None):
+    req = urllib.request.Request(url, json.dumps(body).encode() if body is not None else None, headers, method="POST" if body is not None else "GET")
+    try:
+        return json.load(urllib.request.urlopen(req))
+    except urllib.error.HTTPError as e:
+        try:
+            detail = json.load(e)
+        except Exception:
+            detail = None
+        return {"error": "HTTP %s" % e.code, "detail": detail}
+    except Exception as e:
+        return {"error": str(e)}
+
+def failed(r):
+    if not isinstance(r, dict):
+        return True
+    return bool(r.get("error")) or r.get("ok") is False or r.get("status") in ("failed", "error")
+
+def read(base, headers):
+    r = send(base + "/dashboard/api/v1/sponsors", headers)
+    if failed(r) or not (r.get("board") or {}).get("columns"):
+        print("READ FAILED", json.dumps(r)[:500]); return 1
+    cols = r["board"]["columns"]
+    print("asOf", r.get("asOf"))
+    print("columns:", ", ".join("%s %d" % (c.get("title"), len(c.get("cards") or [])) for c in cols))
+    p = r.get("pipeline") or {}
+    t = p.get("totals") or {}
+    print("To close: $%s (%d deals)  To collect: $%s (%d deals)" % (t.get("close"), len(p.get("close") or []), t.get("collect"), len(p.get("collect") or [])))
+    for brand in ("Topview", "Arcads"):
+        hits = [(c.get("title"), k) for c in cols for k in c.get("cards") or [] if str(k.get("name", "")).lower().startswith(brand.lower())]
+        for title, k in hits or [(None, {})]:
+            print("%-8s %s" % (brand, "not on the board" if title is None else "%s | stage %s | amount %s | %s" % (k.get("name"), title, k.get("amt"), k.get("id"))))
+    return 0
+
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("base"); ap.add_argument("--cookie"); ap.add_argument("--dry-run", action="store_true")
+    ap.add_argument("base"); ap.add_argument("cmd", nargs="?", choices=["apply", "read"], default="apply")
+    ap.add_argument("--cookie"); ap.add_argument("--token-bot"); ap.add_argument("--token-file")
+    ap.add_argument("--dry-run", action="store_true"); ap.add_argument("--out", default=OUT)
     a = ap.parse_args()
-    cookie = a.cookie or os.environ.get("DASH_COOKIE", "")
-    acts = plan(); results = []
+    base = a.base.rstrip("/")
+    if a.token_bot:
+        host = urllib.parse.urlsplit(base)
+        if host.scheme != "https" and host.hostname not in ("localhost", "127.0.0.1"):
+            sys.exit("Token mode needs an https base (or localhost): %s" % base)
+        url = base + "/dashboard/api/v1/sponsors/actions"
+        headers = {"Content-Type": "application/json", "Authorization": "Bearer " + read_token(a.token_bot, a.token_file), "User-Agent": UA}
+    else:
+        url = base + "/dashboard/api/actions"
+        headers = {"Content-Type": "application/json", "X-CC": "1", "Cookie": a.cookie or os.environ.get("DASH_COOKIE", ""), "User-Agent": UA}
+    if a.cmd == "read":
+        if not a.token_bot:
+            sys.exit("read needs --token-bot")
+        return read(base, headers)
+    acts = plan(); results = []; errors = 0
     for kind, payload in acts:
         if a.dry_run:
             print("DRY", kind, json.dumps(payload)); results.append({"kind": kind, "payload": payload}); continue
-        req = urllib.request.Request(a.base.rstrip("/") + "/dashboard/api/actions", json.dumps({"kind": kind, "payload": payload, "idemKey": kind + ":" + json.dumps(payload, sort_keys=True)}).encode(),
-                                     {"Content-Type": "application/json", "X-CC": "1", "Cookie": cookie, "User-Agent": "apply-sponsor-plan/1"})
-        try:
-            r = json.load(urllib.request.urlopen(req))
-        except Exception as e:
-            r = {"error": str(e)}
+        r = send(url, headers, {"kind": kind, "payload": payload, "idemKey": kind + ":" + json.dumps(payload, sort_keys=True)})
+        errors += failed(r)
         print(kind, payload["id"], r); results.append({"kind": kind, "payload": payload, "result": r})
     n = lambda k: sum(1 for x, _ in acts if x == k)
-    print(f"SUMMARY moves={n('sponsor.move_stage')} adds={n('sponsor.add_deal')} amounts={n('sponsor.set_amount')}")
-    os.makedirs(os.path.dirname(OUT), exist_ok=True)
-    json.dump({"dryRun": a.dry_run, "base": a.base, "actions": results}, open(OUT, "w", encoding="utf8"), indent=1)
+    print(f"SUMMARY moves={n('sponsor.move_stage')} adds={n('sponsor.add_deal')} amounts={n('sponsor.set_amount')} errors={errors}{' (dry run)' if a.dry_run else ''} via={'token:' + a.token_bot if a.token_bot else 'cookie'}")
+    os.makedirs(os.path.dirname(a.out), exist_ok=True)
+    json.dump({"dryRun": a.dry_run, "base": a.base, "errors": errors, "actions": results}, open(a.out, "w", encoding="utf8"), indent=1)
+    return 1 if errors else 0
 
 if __name__ == "__main__":
     sys.exit(main())

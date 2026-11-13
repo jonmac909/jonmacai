@@ -295,8 +295,8 @@ ${pills ? `<div class="hd" style="flex-wrap: wrap; gap: 6px">${pills}</div>` : '
 // Pipeline revenue (Jon, 2026-11-11): deals still to close and money still to collect, from the Sponsors board and its
 // money-owed list. To collect = every owed row plus agreed and in-work deals not on that list; To close = leads and
 // talks. Paid and archived deals are left out. Each row opens its deal on the Money page.
-const CLOSE_COLS = ['Leads', 'Negotiations'];
-const COLLECT_COLS = ['Deals', 'Deposit Invoice', 'Deposit Paid', 'Video Production', 'Video Approved', 'Video Live', 'Balance Invoice'];
+export const CLOSE_COLS = ['Leads', 'Negotiations'];
+export const COLLECT_COLS = ['Deals', 'Deposit Invoice', 'Deposit Paid', 'Video Production', 'Video Approved', 'Video Live', 'Balance Invoice'];
 // One key for a deal across the Goals card and the Money page: its board id, else its name.
 export const dealKey = (id, name) => (id ? String(id) : `n:${String(name || '').trim().toLowerCase()}`);
 const money = (v) => (num(v) ? v : typeof v === 'string' && /\d/.test(v) ? Number(v.replace(/[^0-9.]/g, '')) : NaN);
