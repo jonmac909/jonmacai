@@ -452,7 +452,6 @@ export function homeGoals(d2resp, d3resp, P = periodOf(d2resp), now = nowOf(), h
       spendRow('pspend', 'Personal spending', split, split?.split?.personal, 'month', BUDGET.personal, P),
       noFeed('trips', 'Trips', 'No travel spending feed yet. Set a limit with + Add goal, Spending limit.', PG.money),
       noFeed('groups', 'Expense goals by group', 'MoneyClaw Goals is not connected yet.', PG.money),
-      noFeed('networth', 'Net worth', 'MoneyClaw monthly snapshots are not connected yet.', PG.money),
     ],
   };
 

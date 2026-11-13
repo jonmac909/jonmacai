@@ -13,6 +13,7 @@ import { boardStageFor, dealThreadIds, draftThreadIds } from './sponsors.js';
 import { runMoneyMove } from './money.js';
 import { exchangeGoogleCode, gClientId, googleAuthUrl, pullCalendar, runLife } from './life.js';
 import { homeData, homeWrite } from './home.js';
+import { personalData, personalWrite } from './personal.js';
 import { REVIEW_SOURCE, draftId, isIsolated, parseReview, plannerDestination, reviewMutate, upsertReview } from './review.js';
 import { botOf, handleV1, todayData } from './bots.js';
 import { freshen, youtubeAnalyticsCheck, youtubeCallback, youtubeConnect, youtubeStatus } from './youtube.js';
@@ -518,6 +519,15 @@ export async function handleApi(request, env, ctx) {
   if (rest.startsWith('/home/') && env.DB) {
     const b = method === 'GET' ? {} : await request.json().catch(() => ({}));
     const out = await homeWrite(env, method, rest.slice(5), b && typeof b === 'object' ? b : {}, url.searchParams);
+    return json(out.body, out.status);
+  }
+  // The Personal page: meals, grocery prices, trips, rules, expense tags and recipe photos (src/personal.js).
+  if (rest === '/personal' && method === 'GET') {
+    if (!env.DB) return json({ ok: true, personal: null });
+    return json({ ok: true, personal: await personalData(env) });
+  }
+  if (rest.startsWith('/personal/') && env.DB) {
+    const out = await personalWrite(env, method, rest.slice(9), request);
     return json(out.body, out.status);
   }
   if (rest === '/habits' && method === 'POST' && env.DB) {
