@@ -1109,6 +1109,9 @@ export const FEEDS = {
           total_minutes: totalMin(j.total_minutes, `${k}.total_minutes`),
           // The video's review page. Only a jonmac.ai review address is kept: the page makes a link of it.
           ...(reviewUrl(j.review_url, `${k}.review_url`) ? { review_url: reviewUrl(j.review_url, `${k}.review_url`) } : {}),
+          // Where the video is now (2026-11-12): making, review (on its review page, waiting for Jon), changes, approved,
+          // scheduled or stuck. Kept only when it is one of those; any other text is dropped, not refused.
+          ...(['making', 'review', 'changes', 'approved', 'scheduled', 'stuck'].includes(str(j.phase, `${k}.phase`)) ? { phase: j.phase } : {}),
         };
       };
       if (b.scheduler_running != null && typeof b.scheduler_running !== 'boolean') throw new Bad(400, 'scheduler_running must be true, false or null');

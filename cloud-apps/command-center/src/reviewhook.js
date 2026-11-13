@@ -5,6 +5,8 @@
 //        which wakes its owner like any comment of his (postComment, card_comment), plus one history line.
 //   GET  /dashboard/api/review-hook/qc          each review page's newest QC pass, for the review Worker's QC gate
 //        (a version is QC-only, hidden from Jon, until a pass checked after its file was published).
+//   POST /dashboard/api/review-hook/qc-pass     the Factory's own QC pass on a review version {slug, by, note, video_key, at}
+//        (Jon, 2026-11-12): it has no card to hold a proof, so the pass is a review_qc_passes row, counted like a proof.
 // The card: the task id the publisher stored, else the card titled like the video ("<title> - <channel>"; case,
 // punctuation and the channel suffix ignored), else the card whose proof is that review page (linkedTask).
 import { logEvent, postComment, wakeOwner } from './bots.js';
@@ -131,11 +133,30 @@ async function passesOf(db) {
     const slug = REVIEW_PAGE.exec(r.link || '')?.[1]?.toLowerCase();
     if (slug && slug !== 'media' && !(passes[slug] >= r.at)) passes[slug] = r.at;
   }
+  // The Factory's own passes (no card): newest per slug, beside the proofs.
+  const own = (await db.prepare('SELECT slug, MAX(at) AS at FROM review_qc_passes GROUP BY slug').all()).results || [];
+  for (const r of own) if (!(passes[r.slug] >= r.at)) passes[r.slug] = r.at;
   return passes;
 }
 
 async function qcPassed(env) {
   return json({ ok: true, passes: await passesOf(env.DB) });
+}
+
+// The Factory's QC pass on one review version. The review Worker checked the slug is a published version and sends its
+// file and its own clock's time (the clock that stamped the version's QC hold), so the pass counts for that file only.
+async function qcPass(request, env) {
+  const clip = (v, max) => (typeof v === 'string' ? v.trim().slice(0, max) : '');
+  let b = null;
+  try { b = await request.json(); } catch { /* answered below */ }
+  const slug = typeof b?.slug === 'string' ? b.slug.toLowerCase() : '';
+  const by = clip(b?.by, 60);
+  if (!SLUG.test(slug) || !by) return json({ ok: false, error: 'Send JSON with slug and by' }, 400);
+  const at = typeof b.at === 'string' && Math.abs(Date.parse(b.at) - Date.now()) < LATE_MS ? new Date(b.at).toISOString() : new Date().toISOString();
+  const pass = { id: `qcp_${crypto.randomUUID().replace(/-/g, '')}`, slug, video_key: clip(b.video_key, 300) || null, by, note: clip(b.note, 500), at };
+  await env.DB.prepare('INSERT INTO review_qc_passes (id, slug, video_key, passed_by, note, at) VALUES (?, ?, ?, ?, ?, ?)')
+    .bind(pass.id, slug, pass.video_key, by, pass.note, at).run();
+  return json({ ok: true, pass }, 201);
 }
 
 export async function reviewHook(request, env, ctx) {
@@ -145,5 +166,6 @@ export async function reviewHook(request, env, ctx) {
   const path = new URL(request.url).pathname.replace(/\/+$/, '');
   if (path === '/dashboard/api/review-hook/submission' && request.method === 'POST') return submission(request, env, ctx);
   if (path === '/dashboard/api/review-hook/qc' && request.method === 'GET') return qcPassed(env);
+  if (path === '/dashboard/api/review-hook/qc-pass' && request.method === 'POST') return qcPass(request, env);
   return json({ ok: false, error: 'Not found' }, 404);
 }

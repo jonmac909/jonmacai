@@ -288,6 +288,34 @@ async function visibleSlugs(env, rows) {
   return new Set(rows.filter((r) => passes[r.slug] && passes[r.slug] >= (held.get(`${r.slug}|${r.video_key}`) || "")).map((r) => r.slug));
 }
 
+// POST /api/review/<slug>/qc-pass {by, note} (agent token only): the Factory's own QC pass (Jon, 2026-11-12: "yes" to the
+// Factory marking its review pages QC-passed once its final checks pass). The Factory has no card, so it has no proof for
+// QC to pass; this records the pass on the dashboard instead (review-hook/qc-pass, for this version's current file, by,
+// note and time), where the gate reads it like a passed proof: the version shows on Jon's list and can be approved.
+// Approve stays Jon's alone, a recut is held again, and the lock after his approval is untouched.
+async function qcPass(request, env, base, row) {
+  const body = (await readJson(request)) || {};
+  const by = text(body.by, 60) || "factory";
+  const note = text(body.note, 500);
+  if (!note) return fail(400, "note is required: what passed (e.g. \"Factory final checks passed\")");
+  if (!env.DASHBOARD) return fail(503, "dashboard_not_connected");
+  let res = null, out = {};
+  try {
+    res = await env.DASHBOARD.fetch(new Request(`${DASHBOARD_HOOK}/qc-pass`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${env.REVIEW_API_TOKEN}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ slug: row.slug, by, note, video_key: row.video_key, at: now() }),
+    }));
+    out = await res.json().catch(() => ({}));
+  } catch (error) {
+    console.error("qc pass", error?.stack || error);
+  }
+  if (!res?.ok || !out.pass) return fail(502, `The dashboard did not record the QC pass (${res ? res.status : "unreachable"}). Try again in a minute.`);
+  const video = await gatedVideo(env, row, base);
+  return json({ qc_pass: { slug: row.slug, by: out.pass.by, note: out.pass.note, at: out.pass.at, video_key: row.video_key },
+    video, qc_only: video.qc_only, approvable: !video.qc_only && video.status === "needs_review" });
+}
+
 // What an API reader sees as a version's status. needs_review means "on Jon's list", so it is only reported once QC passed
 // this file; until then it reads qc_only (and qc_only is true). The stored status stays needs_review, so a QC pass needs no sync.
 async function gatedVideos(env, rows, origin) {
@@ -509,6 +537,10 @@ async function api(request, env, url) {
   if (resource === "next" && id === undefined && method === "POST") {
     if (!agent) return fail(403, "agent_token_required");
     return nextVersion(request, env, url, slug);
+  }
+  if (resource === "qc-pass" && id === undefined && method === "POST") {
+    if (!agent) return fail(403, "agent_token_required"); // never Jon's session, never the dashboard's reviewer pages
+    return qcPass(request, env, base, row);
   }
 
   if (resource === "status" && id === undefined && method === "POST") {

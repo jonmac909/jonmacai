@@ -13,6 +13,8 @@
 // --fix "what changed": a QC fault fixed on top of the approved version, under a new slug (e.g. diane-1-v3b). It carries
 // his approval: never on his list, upload it once QC passes. Post the same line on the card.
 // A published version is QC-only: hidden from Jon's list and not approvable until QC passes its dashboard proof.
+// --qc-passed "<note>" [--by factory]: the Factory's own final checks passed (Jon, 2026-11-12), so the version is marked
+// QC-passed after publishing: on Jon's list with Approve. With --slug and no --file it only marks that published version.
 // --replaces <old slug>: after publishing, link this version from the old page ("New version ready")
 // via POST /api/review/<old slug>/next, answering Jon's latest Submit changes there.
 // --file/--source/--compare accept a local path or an http(s) URL. --chapters accepts a JSON array of
@@ -208,10 +210,20 @@ async function main() {
   loadEnvFile(args["env-file"] || join(homedir(), ".jonmac-review.env"));
   const base = (args.base || process.env.REVIEW_BASE_URL || "https://jonmac.ai").replace(/\/+$/, "");
   const token = process.env.REVIEW_API_TOKEN;
+  const slugOk = (s) => /^[a-z0-9](?:[a-z0-9-]{0,78}[a-z0-9])?$/.test(s);
+  if (args["qc-passed"] !== undefined && !String(args["qc-passed"] || "").trim()) throw new Error("--qc-passed needs a note: what passed");
+  const qcPass = (call) => call(`${args.slug}/qc-pass`, { method: "POST", body: { by: args.by || "factory", note: args["qc-passed"] } });
+  if (args["qc-passed"] && !args.file) { // mark an already published version QC-passed, nothing uploaded
+    if (!args.slug || !slugOk(args.slug)) throw new Error("--slug is required: the published version to mark QC-passed");
+    if (!token) throw new Error("REVIEW_API_TOKEN is not set (env or ~/.jonmac-review.env)");
+    const done = await qcPass(client(base, token));
+    console.log(JSON.stringify({ ok: true, slug: args.slug, qc_pass: done.qc_pass, qc_only: done.qc_only, approvable: done.approvable,
+      status: done.video?.status, page_url: done.video?.page_url }, null, 2));
+    return;
+  }
   for (const name of ["slug", "channel", "video", "version", "title", "file"]) {
     if (!args[name]) throw new Error(`--${name} is required (see --help)`);
   }
-  const slugOk = (s) => /^[a-z0-9](?:[a-z0-9-]{0,78}[a-z0-9])?$/.test(s);
   if (!slugOk(args.slug)) throw new Error("--slug must be lowercase letters, digits and dashes");
   if (args.replaces !== undefined && (!slugOk(args.replaces) || args.replaces === args.slug)) throw new Error("--replaces must be the previous version's slug");
 
@@ -245,9 +257,12 @@ async function main() {
   const linked = args.replaces
     ? (await call(`${args.replaces}/next`, { method: "POST", body: { result_slug: args.slug } })).submission
     : null;
-  console.log(JSON.stringify({ ok: true, qc_only: true, jon_sees_it: "only after QC passes its dashboard proof",
+  const passed = args["qc-passed"] ? await qcPass(call) : null;
+  console.log(JSON.stringify({ ok: true, qc_only: passed ? passed.qc_only : true,
+    jon_sees_it: passed ? (passed.qc_only ? "not yet: the QC pass did not open it" : "now: marked QC-passed") : "only after QC passes its dashboard proof",
+    ...(passed ? { qc_pass: passed.qc_pass, approvable: passed.approvable } : {}),
     page_url: published.page_url, video_url: published.video_url,
-    size: video.size, sha256: video.sha256, duration: video.duration, status: published.status,
+    size: video.size, sha256: video.sha256, duration: video.duration, status: passed?.video?.status || published.status,
     ...(linked ? { replaces: args.replaces, linked_submission: linked.id } : {}) }, null, 2));
 }
 
