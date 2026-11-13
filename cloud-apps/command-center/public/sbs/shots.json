@@ -1,0 +1,116 @@
+{
+ "peter-collins-ours": {
+  "status": 200,
+  "final": "https://homeguidepress.com/drivers-bundle",
+  "height": 9314,
+  "bytes": 285014
+ },
+ "jack-mercer-ours": {
+  "status": 200,
+  "final": "https://homeguidepress.com/ready-at-home",
+  "height": 9824,
+  "bytes": 311008
+ },
+ "rosa-cooks-ours": {
+  "status": 200,
+  "final": "https://homeguidepress.com/the-hand-me-down-kitchen",
+  "height": 9928,
+  "bytes": 152214
+ },
+ "rosas-clean-home-ours": {
+  "status": 200,
+  "final": "https://homeguidepress.com/the-old-way-to-a-clean-house",
+  "height": 9843,
+  "bytes": 146984
+ },
+ "rosas-house-hacks-ours": {
+  "status": 200,
+  "final": "https://homeguidepress.com/fix-it-like-family-did",
+  "height": 10105,
+  "bytes": 121487
+ },
+ "giovanni-moretti-ours": {
+  "status": 200,
+  "final": "https://homeguidepress.com/finally-written-down",
+  "height": 12662,
+  "bytes": 274271
+ },
+ "frank-bennett-dogs-ours": {
+  "status": 200,
+  "final": "https://homeguidepress.com/the-long-life-dog",
+  "height": 10035,
+  "bytes": 375661
+ },
+ "ruth-calder-ours": {
+  "status": 200,
+  "final": "https://homeguidepress.com/the-dark-house-plan",
+  "height": 9222,
+  "bytes": 305084
+ },
+ "ruth-calder-src": {
+  "status": 200,
+  "final": "https://jodannerprep.com/",
+  "height": 10702,
+  "bytes": 383136
+ },
+ "dale-whitaker-ours": {
+  "status": 200,
+  "final": "https://homeguidepress.com/the-pitbull-playbook",
+  "height": 8500,
+  "bytes": 329773
+ },
+ "dale-whitaker-src": {
+  "status": 200,
+  "final": "https://pitbulldogdad.com/",
+  "height": 8773,
+  "bytes": 353426
+ },
+ "nora-fairweather-ours": {
+  "status": 200,
+  "final": "https://homeguidepress.com/reading-your-cat",
+  "height": 10356,
+  "bytes": 301713
+ },
+ "nora-fairweather-src": {
+  "status": 200,
+  "final": "https://leobennettsecrets.com/",
+  "height": 10657,
+  "bytes": 309266
+ },
+ "gail-merriman-ours": {
+  "status": 200,
+  "final": "https://homeguidepress.com/yards-back",
+  "height": 7740,
+  "bytes": 218219
+ },
+ "gail-merriman-src": {
+  "status": 200,
+  "final": "https://golfmegan.com/",
+  "height": 7874,
+  "bytes": 276133
+ },
+ "naomi-takeda-ours": {
+  "status": 200,
+  "final": "https://homeguidepress.com/japan-before-you-go",
+  "height": 12961,
+  "bytes": 401978
+ },
+ "naomi-takeda-src": {
+  "status": 200,
+  "final": "https://marikoaono.com/",
+  "height": 17281,
+  "bytes": 496060
+ },
+ "walter-brandt-ours": {
+  "status": 200,
+  "final": "https://homeguidepress.com/the-good-old-dog",
+  "height": 7374,
+  "bytes": 248054
+ },
+ "walter-brandt-src": {
+  "status": 200,
+  "final": "https://stevecooperpets.com/",
+  "height": 8067,
+  "bytes": 319455
+ }
+}
