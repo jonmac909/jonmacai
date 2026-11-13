@@ -158,7 +158,7 @@ test('tool/workspace invite emails are junk, but an added deal with that subject
   assert.equal(cards.find((k) => k.id === 'gmail-thread-1a0aa308142f5466').name, 'Enter');
 }));
 
-test('bot v1 sponsor routes: 401 no/bad token, 403 other bots, 400 other kinds, move/add/set_amount work, GET returns columns', () => withNow(async () => {
+test('bot v1 sponsor routes: 401 no/bad token, 403 other bots (developer), 400 other kinds, move/add/set_amount work, GET returns columns', () => withNow(async () => {
   const t = await setup();
   const { sha256Hex } = await import('../src/bots.js');
   const tok = (b) => `ccb_${b.padEnd(40, 'x')}`;
@@ -167,21 +167,21 @@ test('bot v1 sponsor routes: 401 no/bad token, 403 other bots, 400 other kinds, 
   const add = { kind: 'sponsor.add_deal', payload: { brand: 'Topview', stage: 'balance-invoice', amount: 2000, threadId: '1a1213c3e19344a7' } };
   assert.equal((await call('sponsors/actions', null, add)).status, 401);
   assert.equal((await call('sponsors/actions', tok('nobody'), add)).status, 401);
-  assert.equal((await call('sponsors/actions', tok('sponsors'), add)).status, 403);
+  assert.equal((await call('sponsors/actions', tok('developer'), add)).status, 403);
   assert.equal((await call('sponsors', null)).status, 401);
-  for (const kind of ['money.move_and_remember', 'life.x', 'sponsor.send_reply', undefined]) assert.equal((await call('sponsors/actions', tok('developer'), { ...add, kind })).status, 400, String(kind));
-  assert.equal((await call('sponsors/actions', tok('developer'), { kind: 'sponsor.add_deal', payload: { id: 'x' } })).status, 400);
-  const ok = await call('sponsors/actions', tok('developer'), add);
+  for (const kind of ['money.move_and_remember', 'life.x', 'sponsor.send_reply', undefined]) assert.equal((await call('sponsors/actions', tok('sponsors'), { ...add, kind })).status, 400, String(kind));
+  assert.equal((await call('sponsors/actions', tok('sponsors'), { kind: 'sponsor.add_deal', payload: { id: 'x' } })).status, 400);
+  const ok = await call('sponsors/actions', tok('sponsors'), add);
   assert.equal(ok.status, 200);
   assert.equal((await ok.json()).status, 'done');
   const id = 'gmail-thread-1a1213c3e19344a7';
-  const setAmt = await call('sponsors/actions', tok('developer'), { kind: 'sponsor.set_amount', payload: { id, amount: 2500 } });
+  const setAmt = await call('sponsors/actions', tok('sponsors'), { kind: 'sponsor.set_amount', payload: { id, amount: 2500 } });
   assert.equal(setAmt.status, 200);
   assert.equal((await setAmt.json()).status, 'done');
-  const move = await call('sponsors/actions', tok('developer'), { kind: 'sponsor.move_stage', payload: { id: 'gmail-thread-bbb222bbb222', stage: 'negotiating' } });
+  const move = await call('sponsors/actions', tok('sponsors'), { kind: 'sponsor.move_stage', payload: { id: 'gmail-thread-bbb222bbb222', stage: 'negotiating' } });
   assert.equal(move.status, 200);
   assert.equal(t.db.sqlite.prepare("SELECT stage FROM deal_stage_overrides WHERE deal_id = 'gmail-thread-bbb222bbb222'").get().stage, 'negotiating');
-  const g = await (await call('sponsors', tok('developer'))).json();
+  const g = await (await call('sponsors', tok('sponsors'))).json();
   assert.ok(g.ok && Array.isArray(g.board.columns) && g.board.columns.length > 5);
   const col = (id2) => g.board.columns.find((c) => c.cards.some((k) => k.id === id2))?.title;
   assert.equal(col(id), 'Balance Invoice');
@@ -197,7 +197,7 @@ test('bot v1 sponsor routes: ana allowed, revoked/cookie/bad body rejected, extr
   const t = await setup();
   const { sha256Hex } = await import('../src/bots.js');
   const tok = (b) => `ccb_${b.padEnd(40, 'y')}`;
-  for (const b of ['ana', 'developer', 'gone']) t.db.sqlite.prepare('INSERT INTO bot_tokens (token_hash, bot, created_at) VALUES (?, ?, ?)').run(await sha256Hex(tok(b)), b === 'gone' ? 'developer' : b, 'x');
+  for (const b of ['ana', 'sponsors', 'gone']) t.db.sqlite.prepare('INSERT INTO bot_tokens (token_hash, bot, created_at) VALUES (?, ?, ?)').run(await sha256Hex(tok(b)), b === 'gone' ? 'sponsors' : b, 'x');
   t.db.sqlite.prepare('UPDATE bot_tokens SET revoked_at = ? WHERE token_hash = ?').run('y', await sha256Hex(tok('gone')));
   const Cookie = `${COOKIE}=${await signSession(SECRET, Math.floor(NOW / 1000) + 3600)}`;
   const req = (path, headers, body) => handleApi(new Request(`https://jonmac.ai/dashboard/api/${path}`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...headers }, body: typeof body === 'string' ? body : JSON.stringify(body) }), t.env);
@@ -207,19 +207,85 @@ test('bot v1 sponsor routes: ana allowed, revoked/cookie/bad body rejected, extr
   assert.equal((await req('v1/sponsors/actions', bearer('ana'), add)).status, 200);
   assert.equal((await req('v1/sponsors/actions', bearer('gone'), add)).status, 401);
   assert.equal((await req('v1/sponsors/actions', { Cookie, 'X-CC': '1' }, add)).status, 401);
-  assert.equal((await req('actions', bearer('developer'), add)).status, 401);
-  for (const b of ['[1,2]', '"str"', '42', 'null', 'not json']) assert.equal((await req('v1/sponsors/actions', bearer('developer'), b)).status, 400, b);
+  assert.equal((await req('actions', bearer('sponsors'), add)).status, 401);
+  for (const b of ['[1,2]', '"str"', '42', 'null', 'not json']) assert.equal((await req('v1/sponsors/actions', bearer('sponsors'), b)).status, 400, b);
   const row = t.db.sqlite.prepare("SELECT payload, result, idem_key FROM actions WHERE kind = 'sponsor.add_deal'").get();
   assert.deepEqual(Object.keys(JSON.parse(row.payload)).sort(), ['brand', 'id', 'stage']);
   assert.ok(!String(row.result).includes('injected'));
   assert.equal(row.idem_key, 'bot:ana:k1');
   for (const p of [{ id: 'x', stage: 'negotiating' }, { id, stage: 'bogus' }, { id }, { stage: 'paid' }]) {
-    assert.equal((await req('v1/sponsors/actions', bearer('developer'), { kind: 'sponsor.move_stage', payload: p })).status, 400, JSON.stringify(p));
+    assert.equal((await req('v1/sponsors/actions', bearer('sponsors'), { kind: 'sponsor.move_stage', payload: p })).status, 400, JSON.stringify(p));
   }
   assert.equal(t.db.sqlite.prepare("SELECT COUNT(*) n FROM deal_stage_overrides WHERE stage = 'bogus' OR deal_id = 'x'").get().n, 0);
   // A bot can't read one of Jon's actions back by its key.
   await t.act('sponsor.set_amount', { id, amount: 900 });
   const jon = t.db.sqlite.prepare("SELECT id, idem_key FROM actions WHERE kind = 'sponsor.set_amount'").get();
-  const r = await (await req('v1/sponsors/actions', bearer('developer'), { kind: 'sponsor.set_amount', payload: { id, amount: 901 }, idemKey: jon.idem_key })).json();
+  const r = await (await req('v1/sponsors/actions', bearer('sponsors'), { kind: 'sponsor.set_amount', payload: { id, amount: 901 }, idemKey: jon.idem_key })).json();
   assert.notEqual(r.id, jon.id);
+}));
+
+test('bot deals routes (t_0d63a48a3be4423c): list, set amount makes the home Sponsors total appear, paid leaves Money owed, 403/400/404', () => withNow(async () => {
+  const t = await setup();
+  const { sha256Hex } = await import('../src/bots.js');
+  const { homeGoals } = await import('../public/d3/js/home.js');
+  const tok = (b) => `ccb_${b.padEnd(40, 'z')}`;
+  for (const b of ['sponsors', 'ana', 'developer', 'scarlett']) t.db.sqlite.prepare('INSERT INTO bot_tokens (token_hash, bot, created_at) VALUES (?, ?, ?)').run(await sha256Hex(tok(b)), b, 'x');
+  const call = (auth, body) => handleApi(new Request('https://jonmac.ai/dashboard/api/v1/sponsors/deals', { method: body ? 'POST' : 'GET', headers: { 'Content-Type': 'application/json', ...(auth ? { Authorization: `Bearer ${tok(auth)}` } : {}) }, ...(body ? { body: typeof body === 'string' ? body : JSON.stringify(body) } : {}) }), t.env);
+  const home = async () => {
+    const cats = homeGoals(await t.d2(), null);
+    const r = (k) => cats.find((c) => c.key === 'sponsors').month.find((x) => x.k === k);
+    return { owed: r('owed'), close: r('close') };
+  };
+  // Planted: every deal unpriced, so both home rows read "Not priced".
+  const lead = 'gmail-thread-bbb222bbb222'; // moved to Negotiations on Jon's board: Deals to close
+  const prod = 'gmail-thread-aaa111aaa111'; // Video Production: Money owed
+  await t.act('sponsor.move_stage', { id: lead, stage: 'negotiating' });
+  let h = await home();
+  assert.equal(h.close.v, 'Not priced');
+  assert.equal(h.owed.v, 'Not priced');
+  // Only sponsors and ana; others 403, no token 401.
+  assert.equal((await call(null)).status, 401);
+  for (const b of ['developer', 'scarlett']) {
+    assert.equal((await call(b)).status, 403, b);
+    assert.equal((await call(b, { id: prod, amount: 2000 })).status, 403, b);
+  }
+  const list = await (await call('ana')).json();
+  assert.ok(list.ok);
+  const row = (id) => list.deals.find((d) => d.id === id);
+  assert.deepEqual(row(lead), { id: lead, sponsor: lead, stage: 'Negotiations', boardStage: 'negotiating', amount: null, threadId: '', bucket: 'to-close' });
+  assert.equal(row(prod).bucket, 'owed');
+  assert.equal(row(prod).stage, 'Video Production');
+  // Set amounts: the home rows show dollar totals instead of Not priced.
+  const s1 = await call('sponsors', { id: prod, amount: 2000 });
+  assert.equal(s1.status, 200);
+  assert.deepEqual(await s1.json(), { ok: true, id: prod, amount: 2000 });
+  assert.equal((await call('ana', { id: lead, amount: '1500' })).status, 200);
+  h = await home();
+  assert.equal(h.owed.v, '$2,000');
+  assert.equal(h.close.v, '$1,500');
+  assert.equal((await (await call('sponsors')).json()).deals.find((d) => d.id === prod).amount, 2000);
+  // Stage to paid moves it out of Money owed (amount kept), in one call with a new amount too.
+  const s2 = await call('sponsors', { id: prod, stage: 'paid', amount: 2100 });
+  assert.equal(s2.status, 200);
+  assert.deepEqual(await s2.json(), { ok: true, id: prod, amount: 2100, stage: 'paid' });
+  const after = (await (await call('sponsors')).json()).deals.find((d) => d.id === prod);
+  assert.equal(after.bucket, null);
+  assert.equal(after.amount, 2100);
+  h = await home();
+  assert.notEqual(h.owed.v, '$2,000');
+  assert.ok(!(await t.d2()).d2.pipeline.boards.find((b) => b.goal === 'sponsors').sponsors.board.columns.filter((c) => c.title !== 'Paid & Done' && !c.archived).some((c) => c.cards.some((k) => k.id === prod)));
+  // Bad amount 400, and nothing changes (not even a stage sent with it).
+  for (const amount of [-1, 1000001, 'abc']) assert.equal((await call('sponsors', { id: lead, amount, stage: 'contract-brief' })).status, 400, String(amount));
+  assert.equal(t.db.sqlite.prepare('SELECT stage FROM deal_stage_overrides WHERE deal_id = ?').get(lead).stage, 'negotiating');
+  assert.equal((await (await call('sponsors')).json()).deals.find((d) => d.id === lead).amount, 1500);
+  // Bad id 400, unknown id 404, bad stage / nothing to set / bad body 400.
+  for (const id of ['x', 'gmail-thread-zz', '', 'Newsy']) assert.equal((await call('sponsors', { id, amount: 5 })).status, 400, id);
+  assert.equal((await call('sponsors', { id: 'gmail-thread-fff999fff999', amount: 5 })).status, 404);
+  assert.equal((await call('sponsors', { id: lead, stage: 'bogus' })).status, 400);
+  assert.equal((await call('sponsors', { id: lead })).status, 400);
+  for (const body of ['[1]', 'not json', 'null']) assert.equal((await call('sponsors', body)).status, 400, body);
+  // No deal added or removed, and only sponsor.set_amount / move_stage rows were written.
+  assert.equal((await (await call('sponsors')).json()).deals.length, list.deals.length);
+  assert.deepEqual(t.db.sqlite.prepare('SELECT DISTINCT kind FROM actions ORDER BY kind').all().map((r) => r.kind), ['sponsor.move_stage', 'sponsor.set_amount']);
+  assert.deepEqual(Object.keys(JSON.parse(t.db.sqlite.prepare("SELECT data FROM snapshots WHERE source = 'sponsor_deals'").get().data).deals).sort(), [lead, prod].sort());
 }));

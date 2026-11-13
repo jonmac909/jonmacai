@@ -16,7 +16,7 @@ import { homeData, homeWrite } from './home.js';
 import { personalData, personalWrite } from './personal.js';
 import { REVIEW_SOURCE, draftId, isIsolated, parseReview, plannerDestination, reviewMutate, upsertReview } from './review.js';
 import { botOf, handleV1, todayData } from './bots.js';
-import { pipelineOf } from '../public/d3/js/goals.js';
+import { CLOSE_COLS, COLLECT_COLS, pipelineOf } from '../public/d3/js/goals.js';
 import { freshen, youtubeAnalyticsCheck, youtubeCallback, youtubeConnect, youtubeStatus } from './youtube.js';
 import { channelData } from './channels.js';
 import { trackData } from './track.js';
@@ -274,7 +274,8 @@ async function d2Build(env, now) {
 
 // Bots with a v1 token (2026-11-11): the sponsor plan loader posts the same actions Jon's board does (same handler and
 // checks as /actions, these kinds only), and a bot reads the Sponsors page plus the Goals pipeline totals Jon sees.
-const SPONSOR_BOTS = ['developer', 'ana'];
+// Only Sponsors (Florence) and Ana write deals (card t_0d63a48a3be4423c); every other bot gets 403.
+const SPONSOR_BOTS = ['sponsors', 'ana'];
 const SPONSOR_BOT_FIELDS = {
   'sponsor.move_stage': ['id', 'stage'],
   'sponsor.add_deal': ['id', 'threadId', 'brand', 'sponsor', 'contact', 'stage', 'amount', 'next', 'blocker', 'status', 'subject'],
@@ -298,6 +299,39 @@ async function sponsorsForBot(request, env, rest) {
     const idemKey = `bot:${bot}:${body.idemKey != null ? String(body.idemKey).slice(0, 400) : crypto.randomUUID()}`;
     return postAction(request, env, { kind: body.kind, payload, idemKey });
   }
+  // Deals (card t_0d63a48a3be4423c): the board's deals as a flat list, and one deal's amount and/or stage set through the
+  // same sponsor.set_amount / sponsor.move_stage handler Jon's board uses. Never adds or deletes a deal.
+  if (rest === '/v1/sponsors/deals' && request.method === 'GET') {
+    const now = Date.now();
+    return json({ ok: true, asOf: new Date(now).toISOString(), deals: boardDeals((await d2Build(env, now)).d2) });
+  }
+  if (rest === '/v1/sponsors/deals' && request.method === 'POST') {
+    const body = await request.json().catch(() => null);
+    const b = body && typeof body === 'object' && !Array.isArray(body) ? body : {};
+    const id = String(b.id || '');
+    const hasAmt = b.amount != null && b.amount !== '';
+    const hasStage = b.stage != null && b.stage !== '';
+    if (!/^gmail-thread-[0-9a-f]{6,32}$/i.test(id)) return json({ ok: false, error: 'id must be a gmail-thread-<hex> deal id' }, 400);
+    if (!hasAmt && !hasStage) return json({ ok: false, error: 'give amount and/or stage' }, 400);
+    if (hasStage && !KNOWN_STAGES.has(String(b.stage))) return json({ ok: false, error: `stage must be one of: ${[...KNOWN_STAGES].join(', ')}` }, 400);
+    if (!boardDeals((await d2Build(env, Date.now())).d2).some((d) => d.id === id)) return json({ ok: false, error: 'No deal with that id on the Sponsors board' }, 404);
+    const run = async (kind, payload) => {
+      const res = await postAction(request, env, { kind, payload, idemKey: `bot:${bot}:${crypto.randomUUID()}` });
+      return { status: res.status, body: await res.json() };
+    };
+    const done = {};
+    if (hasAmt) { // amount first: a bad amount (400 from set_amount's own check) leaves the stage untouched too
+      const r = await run('sponsor.set_amount', { id, amount: b.amount });
+      if (r.status !== 200) return json({ ok: false, error: r.body.result || 'amount refused' }, r.status);
+      done.amount = Number(b.amount);
+    }
+    if (hasStage) {
+      const r = await run('sponsor.move_stage', { id, stage: String(b.stage) });
+      if (r.status !== 200) return json({ ok: false, error: r.body.result || 'stage refused' }, r.status);
+      done.stage = String(b.stage);
+    }
+    return json({ ok: true, id, ...done });
+  }
   if (rest === '/v1/sponsors' && request.method === 'GET') {
     const now = Date.now();
     const { out, d2 } = await d2Build(env, now);
@@ -306,6 +340,15 @@ async function sponsorsForBot(request, env, rest) {
     return json({ ok: true, asOf: new Date(now).toISOString(), sponsors: out.pages.sponsors || null, board: view?.board || null, hidden: view?.hidden || null, value: view?.value || null, pipeline: pipelineOf({ d2 }) });
   }
   return json({ ok: false, error: 'Not found' }, 404);
+}
+
+// One row per board card: Money owed = agreed and in-work columns, Deals to close = leads and talks (as pipelineOf).
+function boardDeals(d2) {
+  const cols = (d2.pipeline?.boards || []).find((g) => g.goal === 'sponsors')?.sponsors?.board?.columns || [];
+  return cols.flatMap((c) => (c.cards || []).map((k) => ({
+    id: k.id, sponsor: k.name, stage: c.title, boardStage: k.boardStage || null, amount: Number(k.amt) > 0 ? Number(k.amt) : null, threadId: k.threadId || '',
+    bucket: c.archived ? null : COLLECT_COLS.includes(c.title) ? 'owed' : CLOSE_COLS.includes(c.title) ? 'to-close' : null,
+  })));
 }
 
 const KNOWN_STAGES = new Set(['drafts', 'new-lead', 'negotiating', 'contract-brief', 'invoice-sent', 'deposit-paid', 'script-approval', 'production', 'video-approval', 'publishing', 'balance-invoice', 'paid', 'done', 'archived']);
@@ -329,7 +372,7 @@ export async function handleApi(request, env, ctx) {
   const rest = path.slice(PREFIX.length) || '/';
   const method = request.method;
 
-  if (rest === '/v1/sponsors' || rest === '/v1/sponsors/actions') return sponsorsForBot(request, env, rest);
+  if (rest === '/v1/sponsors' || rest === '/v1/sponsors/actions' || rest === '/v1/sponsors/deals') return sponsorsForBot(request, env, rest);
   // Per-bot API (bot tokens or Jon's session); see src/bots.js.
   if (rest === '/v1' || rest.startsWith('/v1/')) return handleV1(request, env, rest.slice(3), ctx);
 
