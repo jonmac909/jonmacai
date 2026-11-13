@@ -460,12 +460,13 @@ test('d2 cleans a copy of the sponsors board and leaves pages.sponsors as /dashb
   assert.deepEqual(all({ board: { columns: clean.board.columns.slice(0, -1) } }).sort(), ['c-arcads', 'c-invideo', 'c-paid', 'c-poppy']);
   assert.deepEqual(clean.value, { usd: 6700, priced: 2, unpriced: 1 }); // Invideo 4,200 + Poppy 2,500; Paid left out
   assert.deepEqual(clean.tiles, page.tiles);
-  // Each card sits in the column of its own feed stage; the Today "Negotiating, to close" tile still finds Poppy.
+  // Each card sits in the column of its own feed stage; Poppy is in Negotiations, so the Today "Deals to close" tile
+  // leaves her out (Jon, 2026-11-13: talks count in neither bucket).
   const colOf = (id) => clean.board.columns.find((c) => c.cards.some((k) => k.id === id))?.title;
   assert.equal(colOf('c-poppy'), 'Negotiations');
   assert.equal(colOf('c-paid'), 'Paid & Done');
-  const neg = body.d2.today.rows?.find?.((r) => r.label === 'Negotiating, to close');
-  if (neg) assert.match(String(neg.value), /1 deal/);
+  const tile = (body.d2.summary?.sections || []).flatMap((s) => s.rows || []).find((r) => r.label === 'Deals to close');
+  if (tile) assert.doesNotMatch(`${tile.value} ${tile.sub}`, /Poppy/);
 });
 
 test('/snapshot answers exactly as before for the same data', async () => {

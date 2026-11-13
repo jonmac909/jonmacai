@@ -2,6 +2,7 @@
 // number comes from a feed this Worker already holds (or Open-Meteo for the weather); a section with nothing to
 // show says why in one line and names its owner, never a made-up value. No collector, no schedule.
 import { sourceOf } from './today.js';
+import { pipelineOf } from '../public/d3/js/goals.js';
 import { vanYmd } from './periods.js';
 
 const DAY = 86400000;
@@ -252,9 +253,10 @@ function sponsorsSection(C, X) {
     rows.push(missing('Collections due', 'The sponsor collections feed has not reported. No source, owner Florence'));
   }
   const real = !!parse(C.by.sponsors?.data).collections;
-  const neg = real ? X.sponsors?.board?.columns?.filter((c) => !c.archived).flatMap((c) => c.cards).filter((k) => k.boardStage === 'negotiating') : null;
-  rows.push(neg ? (neg.length ? row('Negotiating, to close', `${neg.length} deal${neg.length === 1 ? '' : 's'}`, neg.slice(0, 5).map((k) => `${k.name}${k.amt > 0 ? ` ${k.amtLabel}` : ''}`).join(', ')) : row('Negotiating, to close', 'None open'))
-    : missing('Negotiating, to close', 'The sponsor deal board has not reported. No source, owner Florence'));
+  // Same buckets as Home's Deals to close (Jon, 2026-11-13): priced Deals and Deposit Invoice cards not on the owed list.
+  const neg = real ? pipelineOf({ d2: { pipeline: { boards: [{ goal: 'sponsors', sponsors: X.sponsors }] } } })?.close : null;
+  rows.push(neg ? (neg.length ? row('Deals to close', `${neg.length} deal${neg.length === 1 ? '' : 's'} · ${money(neg.reduce((n, r) => n + r.amt, 0))}`, neg.slice(0, 5).map((r) => `${r.name} ${money(r.amt)}`).join(', ')) : row('Deals to close', 'None open'))
+    : missing('Deals to close', 'The sponsor deal board has not reported. No source, owner Florence'));
   if (real) sources.push(sourceOf('Sponsor deal board', C.by.sponsors.collected_at, C.nowMs));
   const open = X.videoCards ? X.videoCards.filter((c) => c.status !== 'done') : null;
   rows.push(open ? (open.length ? row('Videos still to make', `${open.length} sponsor video${open.length === 1 ? '' : 's'}`, open.slice(0, 5).map((c) => `${c.title.split(':')[0].trim()}${c.due ? ` (due ${short(c.due)})` : ''}`).join(', ')) : row('Videos still to make', 'None open'))

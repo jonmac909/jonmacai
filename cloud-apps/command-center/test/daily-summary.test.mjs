@@ -210,7 +210,13 @@ test('sponsors: every piece without a source says so and names Florence', () => 
 
 test('sponsors: income, who owes, due dates, deals to close and videos to make from the existing feeds', () => {
   const cash = { month: { usd: 3100, payments: 2 }, unpaidAvailable: true, owed: 2100, unpaid: [{ sponsor: 'Invideo', owed: 2100, due: '2026-11-08' }] };
-  const sponsors = { board: { columns: [{ boardStage: 'negotiating', cards: [{ boardStage: 'negotiating', name: 'Poppy', amt: 2500, amtLabel: '$2,500' }] }] } };
+  // Deals to close (Jon, 2026-11-13): priced Deals / Deposit Invoice not on the owed list. Talks, unpriced deals and an
+  // owed deal count nowhere here.
+  const sponsors = { collect: { rows: [{ sponsor: 'Invideo', owedUsd: 2100 }] }, board: { columns: [
+    { title: 'Negotiations', cards: [{ boardStage: 'negotiating', name: 'Poppy', amt: 2500 }] },
+    { title: 'Deals', cards: [{ id: 'd1', name: 'Enter', amt: 3000 }, { id: 'd2', name: 'Munch' }, { id: 'd3', name: 'Invideo', amt: 2100 }] },
+    { title: 'Deposit Invoice', cards: [{ id: 'd4', name: 'Topview', amt: 2000 }] },
+  ] } };
   const c = ctx({
     cash, cards: [{ key: 'sponsors', usd: 3100, source: { label: 'Sponsor cash', ageLabel: 'updated 1 hr ago', stale: false } }],
     by: { sponsors: { collected_at: ago(1), data: JSON.stringify({ collections: { items: [] } }) } }, src: { calendar: {}, cards: { label: 'Dashboard cards', ageLabel: 'live', stale: false } },
@@ -221,7 +227,7 @@ test('sponsors: income, who owes, due dates, deals to close and videos to make f
   assert.equal(by['Owes you'].value, '$2,100 from 1 sponsor');
   assert.equal(by['Collections due'].value, 'Invideo $2,100 overdue since Nov 8');
   assert.equal(by['Collections due'].cls, 'crit');
-  assert.deepEqual([by['Negotiating, to close'].value, by['Negotiating, to close'].sub], ['1 deal', 'Poppy $2,500']);
+  assert.deepEqual([by['Deals to close'].value, by['Deals to close'].sub], ['2 deals · $5,000', 'Enter $3,000, Topview $2,000']);
   assert.deepEqual([by['Videos still to make'].value, by['Videos still to make'].sub], ['1 sponsor video', 'Poppy video 1 (due Nov 12)']);
 });
 

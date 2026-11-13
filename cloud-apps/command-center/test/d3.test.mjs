@@ -1182,6 +1182,23 @@ test('Pipeline revenue: a repeat sponsor\'s second deal is its own row; an owed 
   assert.equal(new Set(ids).size, ids.length);
 });
 
+test('Pipeline revenue: an owed row by name only takes the collect card first, so a repeat sponsor\'s Deals card stays to close', () => {
+  const d2 = SAMPLE();
+  const sp = d2.d2.pipeline.boards.find((b) => b.goal === 'sponsors').sponsors;
+  const col = (t) => sp.board.columns.find((c) => c.title === t).cards;
+  col('Deals').unshift({ id: 'c-rep-deal', name: 'RepeatCo', amt: 4000 });
+  col('Deposit Paid').push({ id: 'c-rep-dp', name: 'RepeatCo', amt: 3000 });
+  col('Leads').push({ id: 'c-lo', name: 'LeadOnlyCo', amt: 0 });
+  sp.collect.rows.push({ sponsor: 'RepeatCo', owedUsd: 1500, payload: {} }, { sponsor: 'LeadOnlyCo', owedUsd: 700, payload: {} });
+  const p = pipelineOf(d2);
+  assert.deepEqual(p.collect.filter((r) => /RepeatCo/.test(r.name)).map((r) => [r.id, r.amt]), [['c-rep-dp', 1500]]);
+  assert.ok(p.close.some((r) => r.id === 'c-rep-deal' && r.amt === 4000));
+  assert.ok(!p.close.some((r) => r.id === 'c-rep-dp'));
+  // A name that only matches a lead keeps its link, counted once in collect, and the lead stays out of close.
+  assert.deepEqual(p.collect.filter((r) => r.name === 'LeadOnlyCo').map((r) => [r.id, r.amt]), [['c-lo', 700]]);
+  assert.ok(!p.close.some((r) => r.id === 'c-lo'));
+});
+
 test('Pipeline revenue (Jon, 2026-11-13): to close = priced Deals and Deposit Invoice; to collect = Deposit Paid on; leads and talks in neither', async () => {
   const { homeGoals } = await import('../public/d3/js/home.js');
   const d2 = SAMPLE();

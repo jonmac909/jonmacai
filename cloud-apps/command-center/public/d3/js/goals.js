@@ -309,11 +309,14 @@ export function pipelineOf(d2resp) {
   const live = deals([...CLOSE_COLS, ...COLLECT_COLS]); // the cards the Money page shows
   const nm = (s) => String(s || '').trim().toLowerCase();
   const used = new Set(); // board cards already counted, so each deal is counted once
-  // An owed row is the same deal as a board card with its id; a row with no id takes the first unused card of that name.
+  // An owed row is the same deal as a board card with its id; a row with no id takes the first unused card of that name,
+  // collect columns first, then close columns, then any other card (a lead or talk) only for its link.
   // A second deal with the same sponsor but its own id stays a separate deal.
+  const tiers = [deals(COLLECT_COLS), deals(CLOSE_COLS), deals(['Leads', 'Negotiations'])];
+  const byName = (name) => { for (const t of tiers) { const k = t.find((k) => !used.has(k) && nm(k.name) === nm(name)); if (k) return k; } return null; };
   const cardFor = (id, name) => (id
     ? live.find((k) => k.id != null && String(k.id) === String(id))
-    : nm(name) && live.find((k) => !used.has(k) && nm(k.name) === nm(name))) || null;
+    : nm(name) && byName(name)) || null;
   const row = (k, name, amt) => ({ id: k ? dealKey(k.id, k.name) : null, name: name || 'Sponsor', amt: Number.isFinite(amt) && amt > 0 ? amt : null });
   const collect = [];
   const owed = (sp.collect?.rows || []).map((r) => ({ r, amt: money(r.owedUsd ?? r.owed) })).filter((x) => x.amt > 0);

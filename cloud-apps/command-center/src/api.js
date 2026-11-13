@@ -16,7 +16,7 @@ import { homeData, homeWrite } from './home.js';
 import { personalData, personalWrite } from './personal.js';
 import { REVIEW_SOURCE, draftId, isIsolated, parseReview, plannerDestination, reviewMutate, upsertReview } from './review.js';
 import { botOf, handleV1, todayData } from './bots.js';
-import { CLOSE_COLS, COLLECT_COLS, pipelineOf } from '../public/d3/js/goals.js';
+import { dealKey, pipelineOf } from '../public/d3/js/goals.js';
 import { freshen, youtubeAnalyticsCheck, youtubeCallback, youtubeConnect, youtubeStatus } from './youtube.js';
 import { channelData } from './channels.js';
 import { trackData } from './track.js';
@@ -342,14 +342,19 @@ async function sponsorsForBot(request, env, rest) {
   return json({ ok: false, error: 'Not found' }, 404);
 }
 
-// One row per board card, as pipelineOf: Money owed = deposit paid on, Deals to close = priced Deals and Deposit Invoice.
+// One row per board card, bucketed by pipelineOf itself (Home's Money owed / Deals to close), so a card an owed row
+// matched is 'owed', not 'to-close'.
 function boardDeals(d2) {
   const cols = (d2.pipeline?.boards || []).find((g) => g.goal === 'sponsors')?.sponsors?.board?.columns || [];
+  const p = pipelineOf({ d2 });
+  const keys = (rows) => new Set((rows || []).map((r) => r.id).filter(Boolean));
+  const owed = keys(p?.collect), close = keys(p?.close);
   return cols.flatMap((c) => (c.cards || []).map((k) => {
     const amount = Number(k.amt) > 0 ? Number(k.amt) : null;
+    const key = dealKey(k.id, k.name);
     return {
       id: k.id, sponsor: k.name, stage: c.title, boardStage: k.boardStage || null, amount, threadId: k.threadId || '',
-      bucket: c.archived ? null : COLLECT_COLS.includes(c.title) ? 'owed' : CLOSE_COLS.includes(c.title) && amount ? 'to-close' : null,
+      bucket: c.archived ? null : owed.has(key) ? 'owed' : close.has(key) ? 'to-close' : null,
     };
   }));
 }
