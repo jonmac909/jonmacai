@@ -68,10 +68,18 @@ function stepKind(st) {
 const reviewHref = (u) => (typeof u === 'string' && /^https:\/\/jonmac\.ai\/review\/[a-z0-9][a-z0-9-]{0,79}$/.test(u) ? u : '');
 // A link a stage carries (a thumbnail, a page): a jonmac.ai review page or a proof picture (/dashboard/f/). '' for anything else.
 const lookHref = (u) => (typeof u === 'string' && /^https:\/\/jonmac\.ai\/(review\/[a-z0-9][a-z0-9-]{0,79}(\/[a-zA-Z0-9][a-zA-Z0-9._-]{0,79})?|dashboard\/f\/[0-9a-f]{32}\.(png|jpg))$/.test(u) ? u : '');
-// The Done pill: a link to the video's review page when the board sends one, else the pill with the file as its tooltip.
-const donePill = (job) => (reviewHref(job.review_url)
-  ? `<a class="fypill ok fylink" href="${esc(reviewHref(job.review_url))}" target="_blank" rel="noopener" title="Open the review page">Done</a>`
-  : pill('Done', 'ok', job.final));
+// Where a made video is now (the board's `phase`, 2026-11-12): on its review page it waits for Jon, it is not Done.
+// making, changes and stuck keep the pills they had (changes: the amber Changes in its stage).
+const PHASES = { review: ['Waiting for review', 'rev'], approved: ['Approved', 'ok'], scheduled: ['Scheduled', 'ok'] };
+const phaseOf = (job) => (Object.hasOwn(PHASES, String(job?.phase ?? '')) ? PHASES[job.phase] : null);
+// The Done pill (or the phase's): a link to the video's review page when the board sends one, else the pill with the file
+// as its tooltip.
+const donePill = (job) => {
+  const [text, cls] = phaseOf(job) || ['Done', 'ok'];
+  return reviewHref(job.review_url)
+    ? `<a class="fypill ${cls} fylink" href="${esc(reviewHref(job.review_url))}" target="_blank" rel="noopener" title="Open the review page">${esc(text)}</a>`
+    : pill(text, cls, job.final);
+};
 // The whole time a video took, in minutes: from `started` to `ended`, or to now while it is still being made (a live
 // board only). null when the board does not send the times (an older board).
 export function totalMinutes(job, nowMs, live) {
@@ -83,7 +91,7 @@ export function totalMinutes(job, nowMs, live) {
 }
 // The last column: the state pill and under it the whole time the video took; on an older board, the minutes in its state.
 function lastCell(job, kind, nowMs, live, attrs = '') {
-  const state = kind === 'need' ? pill('Needs you', 'crit') : kind === 'done' ? donePill(job) : '';
+  const state = kind === 'need' ? pill('Needs you', 'crit') : kind === 'done' || (kind !== 'fail' && phaseOf(job)) ? donePill(job) : '';
   const total = totalMinutes(job, nowMs, live);
   const min = total != null ? wait(total) : /^\d+(\.\d+)?$/.test(String(job.minutes_in_state ?? '')) ? wait(Number(job.minutes_in_state)) : '';
   const tip = total != null ? ` title="${job.ended ? 'From the start of the video until its render was finished and checked' : 'Since the video was started; still counting'}"` : '';

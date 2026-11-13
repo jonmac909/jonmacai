@@ -95,6 +95,12 @@ node cloud-apps/review/scripts/review_publish.mjs --slug mina-1-v10 --channel mi
 - The token comes from `REVIEW_API_TOKEN` or `~/.jonmac-review.env`.
 - Use one slug per version (`<video>-v<n>`). Publishing the same slug again replaces its
   media, resets the status to needs review and keeps its comments.
+- A published version is QC-only (off Jon's list, no Approve) until QC passes it. QC passes a carded video with a
+  passed proof on its card. The Factory has no card (Jon, 2026-11-12), so once its own final checks pass it marks the
+  version itself: `--qc-passed "<what passed>"` on publish, or alone for a published version
+  (`node review_publish.mjs --slug giovanni-4-v1 --qc-passed "Factory final checks passed"`). That is
+  `POST /api/review/<slug>/qc-pass {by, note}` (agent token only), recorded on the dashboard (`review_qc_passes`:
+  slug, file, by, note, time) and counted like a passed proof. Approve stays Jon's; a recut is held again.
 - GPU1 copy: `C:/tmp/fi04-review/scripts/review_publish.mjs`.
 
 ### Checks and deploy (Docker gate; no GitHub Actions)

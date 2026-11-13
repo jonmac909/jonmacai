@@ -830,3 +830,30 @@ test('Factory page: a failed cell says Failed and the part in plain words; the n
   assert.match(html, /<b class="fyfl">Failed<\/b><small>Render check<\/small><details class="fywhyd"><summary>Why\?<\/summary><div class="fypop"><p>1 stretches over 12 s where nothing cuts/);
   assert.ok(!html.includes('preflight_render'), 'no tool names');
 });
+
+test("the board's phase (2026-11-12): a video on its review page reads Waiting for review, not Done; then Approved, Scheduled", async () => {
+  const { env } = await setup();
+  const B = BOARD();
+  const job = (over) => ({ ...B, jobs: [{ ...B.jobs[0], ...over }] });
+  for (const phase of ['making', 'review', 'changes', 'approved', 'scheduled', 'stuck']) assert.equal((await put(env, 'developer', job({ phase }))).body.feed.data.jobs[0].phase, phase);
+  for (const phase of ['', 'done', 'REVIEW', null]) assert.ok(!('phase' in (await put(env, 'developer', job({ phase }))).body.feed.data.jobs[0]), String(phase));
+  for (const phase of [{ a: 1 }, ['review'], true]) assert.equal((await put(env, 'developer', job({ phase }))).status, 400, JSON.stringify(phase));
+
+  const at = (phase, url = 'https://jonmac.ai/review/done-9', over = {}) => {
+    const b = STAGE_BOARD();
+    Object.assign(b.jobs[0], { phase, review_url: url, ...over });
+    return row(page(b), 'done-9');
+  };
+  const link = (text, cls) => new RegExp(`<td class="fywait"><a class="fypill ${cls} fylink" href="https://jonmac\\.ai/review/done-9" target="_blank" rel="noopener" title="Open the review page">${text}</a><small`);
+  assert.match(at('review'), link('Waiting for review', 'rev'));
+  assert.doesNotMatch(at('review'), />Done</);
+  assert.match(at('approved'), link('Approved', 'ok'));
+  assert.match(at('scheduled'), link('Scheduled', 'ok'));
+  for (const phase of [undefined, 'making', 'stuck', 'changes', 'toString', '__proto__']) assert.match(at(phase), link('Done', 'ok'), String(phase));
+  assert.match(at('review', ''), /<td class="fywait"><span class="fypill rev" title="D:\\videos\\done-9\\final\.mp4">Waiting for review<\/span><small/);
+  // A video waiting on its page that the board does not call done still says so; a failed one never does.
+  assert.match(at('review', 'https://jonmac.ai/review/done-9', { state: 'todo' }), link('Waiting for review', 'rev'));
+  assert.doesNotMatch(at('review', 'https://jonmac.ai/review/done-9', { state: 'failed' }), /fypill/);
+  const css = readFileSync(new URL('../public/d3/css/d3.css', import.meta.url), 'utf8');
+  assert.match(css, /\.d3 \.fypill\.rev\{background:color-mix\(in srgb,var\(--link\)/);
+});

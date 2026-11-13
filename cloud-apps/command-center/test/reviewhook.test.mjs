@@ -69,3 +69,28 @@ test('the hook needs the review token; the backfill fills only open cards and wa
   assert.equal(results.length, 2);
   assert.match(results[1].body, /posted late\)\. That version is final: upload it, and don't post a newer one unless he asks for changes\.\n/);
 });
+
+test("the Factory's own QC pass (2026-11-12): token only, recorded with who, note, file and time, and counted in /qc", async () => {
+  const db = sqliteD1();
+  const env = { DB: db, REVIEW_API_TOKEN: TOKEN };
+  const hook = (body, token = TOKEN, path = 'qc-pass') => worker.fetch(new Request(`https://jonmac.ai/dashboard/api/review-hook/${path}`, {
+    method: body ? 'POST' : 'GET', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: body && JSON.stringify(body),
+  }), env, {});
+  const at = new Date(Date.now() - 1000).toISOString();
+  assert.equal((await hook({ slug: 'nora-5-v1', by: 'factory', note: 'x' }, 'wrong-token-0123456789')).status, 401);
+  for (const bad of [{ by: 'factory' }, { slug: 'Bad Slug!', by: 'factory' }, { slug: 'nora-5-v1' }, { slug: 'nora-5-v1', by: '  ' }]) assert.equal((await hook(bad)).status, 400, JSON.stringify(bad));
+  const ok = await hook({ slug: 'nora-5-v1', by: 'factory', note: 'Factory final checks passed', video_key: 'review/nora-5-v1/video-a.mp4', at });
+  assert.equal(ok.status, 201);
+  const { pass } = await ok.json();
+  assert.deepEqual([pass.slug, pass.by, pass.note, pass.video_key, pass.at], ['nora-5-v1', 'factory', 'Factory final checks passed', 'review/nora-5-v1/video-a.mp4', at], "the review Worker's time is kept");
+  const row = await db.prepare("SELECT slug, video_key, passed_by, note, at FROM review_qc_passes").first();
+  assert.deepEqual(row, { slug: 'nora-5-v1', video_key: 'review/nora-5-v1/video-a.mp4', passed_by: 'factory', note: 'Factory final checks passed', at });
+  // A time far off this clock is not trusted: the pass is stamped now.
+  const late = await (await hook({ slug: 'rosa-house-8-v1', by: 'factory', at: '2020-01-01T00:00:00Z' })).json();
+  assert.ok(Date.now() - Date.parse(late.pass.at) < 5000);
+  // /qc: the newest pass per slug, proofs and Factory passes together.
+  await db.prepare("INSERT INTO bot_tasks (id, title, owner, status, project, created_by, updated_by, created_at, updated_at) VALUES ('t_00000000000000e1', 'A - Test', 'video-editor', 'review', 'home-guide-press', 'ana', 'ana', 'x', 'x')").run();
+  await db.prepare("INSERT INTO bot_proofs (id, task_id, kind, link, status, created_by, created_at) VALUES ('p_00000000000000e1', 't_00000000000000e1', 'render', 'https://jonmac.ai/review/nora-5-v1', 'passed', 'qc', '2020-01-01T00:00:00.000Z')").run();
+  const { passes } = await (await hook(null, TOKEN, 'qc')).json();
+  assert.deepEqual(passes, { 'nora-5-v1': at, 'rosa-house-8-v1': late.pass.at });
+});

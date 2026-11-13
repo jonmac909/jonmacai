@@ -184,6 +184,32 @@ test("publish script uploads MP4 + source + compare; republish replaces media, k
   assert.deepEqual(v8.chapters, [[0, "Intro"], [4, "Middle"]]);
 });
 
+test("publish script --qc-passed: the Factory marks its version QC-passed, on publish or alone for a published slug", async () => {
+  // Async, not spawnSync: the QC pass goes through the in-process DASHBOARD stub, so the loop must keep running.
+  const run = (args) => new Promise((resolve) => {
+    const child = spawn(process.execPath, [script, "--base", runtime.url, ...args], {
+      env: { ...process.env, REVIEW_API_TOKEN: SECRETS.REVIEW_API_TOKEN, NODE_TLS_REJECT_UNAUTHORIZED: "0", NODE_NO_WARNINGS: "1" },
+    });
+    let stdout = "", stderr = "";
+    child.stdout.on("data", (d) => { stdout += d; });
+    child.stderr.on("data", (d) => { stderr += d; });
+    child.on("close", (status) => resolve({ status, stdout, stderr }));
+  });
+  const published = await run(["--slug", "fqc-1-v1", "--channel", "nora", "--video", "fqc-1", "--version", "v1", "--title", "Factory video",
+    "--file", clipPath, "--qc-passed", "Factory final checks passed"]);
+  assert.equal(published.status, 0, published.stderr);
+  const out = JSON.parse(published.stdout);
+  assert.deepEqual([out.qc_only, out.approvable, out.jon_sees_it, out.qc_pass.by, out.qc_pass.note], [false, true, "now: marked QC-passed", "factory", "Factory final checks passed"]);
+  // Alone: --slug and --qc-passed, nothing uploaded.
+  const alone = await run(["--slug", "fqc-1-v1", "--qc-passed", "Factory gates passed", "--by", "factory-line"]);
+  assert.equal(alone.status, 0, alone.stderr);
+  const marked = JSON.parse(alone.stdout);
+  assert.deepEqual([marked.slug, marked.qc_only, marked.approvable, marked.qc_pass.by, marked.qc_pass.note], ["fqc-1-v1", false, true, "factory-line", "Factory gates passed"]);
+  assert.equal((await run(["--slug", "fqc-9-v1", "--qc-passed", "x"])).status, 1, "an unknown slug fails");
+  assert.equal((await run(["--slug", "fqc-1-v1", "--qc-passed", " "])).status, 1, "a pass needs a note");
+  await fetchApp("/api/review/fqc-1-v1", { method: "DELETE", headers: agent }).then((r) => r.arrayBuffer());
+});
+
 test("adding a source: page goes side by side, status, comments and media kept, an existing source is never replaced", async () => {
   publish(["--slug", "mina-3-v1", "--channel", "mina", "--video", "mina-3", "--version", "v1", "--title", "No source yet", "--file", clipPath]);
   const addSource = async (slug, kind = "source") => {

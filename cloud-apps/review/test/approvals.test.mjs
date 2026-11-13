@@ -331,3 +331,54 @@ test("existing versions are held by migration 0007, a new table only, until a QC
   await runtime.db.batch(hold.map((s) => runtime.db.prepare(s))); // a rerun adds nothing
   assert.equal((await runtime.db.prepare("SELECT COUNT(*) AS n FROM qc_holds WHERE slug = 'legacy-1-v1'").first()).n, 1);
 });
+
+test("the Factory marks its own version QC-passed (Jon, 2026-11-12): on Jon's list with Approve; Approve stays his", { skip }, async () => {
+  const jonList = async () => (await call("/api/review/jon-list", { headers: agent })).body.slugs;
+  const page = async (slug) => (await fetchApp(`/review/${slug}`, { headers: asJon() })).text();
+  const pass = (slug, body = { by: "factory", note: "Factory final checks passed" }, headers = agent) => call(`/api/review/${slug}/qc-pass`, jsonInit("POST", body, headers));
+  assert.equal((await publish("factory-1-v1")).status, 201); // no task: the Factory has no card
+  assert.equal((await jonList()).includes("factory-1-v1"), false);
+
+  // Only the agent token marks a pass, with a note, on a version that exists.
+  assert.equal((await pass("factory-1-v1", undefined, asJon())).status, 403, "Jon's session can't mark QC");
+  assert.equal((await pass("factory-1-v1", undefined, { ...asJon(), Origin: "https://evil.example" })).status, 403);
+  assert.equal((await pass("factory-1-v1", { by: "factory" })).status, 400, "a pass needs its note");
+  assert.equal((await pass("factory-9-v1")).status, 404);
+  assert.equal((await submit("factory-1-v1", "approve")).status, 409, "still QC-only");
+  dashboardDown = true;
+  const down = await pass("factory-1-v1");
+  dashboardDown = false;
+  assert.equal(down.status, 502, "nothing counts when the dashboard did not record it");
+  assert.equal((await jonList()).includes("factory-1-v1"), false);
+
+  const done = await pass("factory-1-v1");
+  assert.equal(done.status, 200);
+  assert.deepEqual([done.body.qc_only, done.body.approvable, done.body.video.status], [false, true, "needs_review"]);
+  assert.deepEqual([done.body.qc_pass.by, done.body.qc_pass.note, done.body.qc_pass.video_key], ["factory", "Factory final checks passed", "review/factory-1-v1/video-test.mp4"]);
+  const [stored] = await rows("SELECT slug, video_key, passed_by, note, at FROM review_qc_passes WHERE slug = 'factory-1-v1'");
+  assert.deepEqual([stored.passed_by, stored.note, stored.at], ["factory", "Factory final checks passed", done.body.qc_pass.at], "who, what and when are recorded");
+  assert.ok((await (await call("/api/review/videos", { headers: agent })).body.videos.find((v) => v.slug === "factory-1-v1")).qc_only === false);
+  assert.ok((await jonList()).includes("factory-1-v1"), "on Jon's list");
+  const shown = await page("factory-1-v1");
+  assert.match(shown, /id="approve"/);
+  assert.doesNotMatch(shown, /QC only:/);
+  // The dashboard's own QC list counts it too, so the pipeline check sees no broken gate.
+  assert.ok((await (await reviewHook(new Request("https://jonmac.ai/dashboard/api/review-hook/qc", { headers: agent }), { DB: ccDb, REVIEW_API_TOKEN: SECRETS.REVIEW_API_TOKEN })).json()).passes["factory-1-v1"]);
+
+  // The agent still can't approve; Jon can, and his approval tells the owner it is final, then the 409 lock holds.
+  assert.equal((await call("/api/review/factory-1-v1/submit", jsonInit("POST", { kind: "approve" }))).status, 403);
+  assert.equal((await submit("factory-1-v1", "approve")).status, 201);
+  assert.match((await cardComments(CARD)).at(-1).body, /^Jon approved v1 of .+ That version is final: upload it.+\nhttps:\/\/jonmac\.ai\/review\/factory-1-v1$/s, "the owner hears it passed QC");
+  assert.equal((await publish("factory-1-v2")).status, 409);
+  assert.equal((await pass("factory-1-v1")).status, 200, "a pass after his approval changes nothing else");
+  assert.equal((await jonList()).includes("factory-1-v1"), false, "approved: off the to-do list");
+
+  // A recut under the same slug is held again until it is passed again.
+  assert.equal((await publish("factory-2-v1")).status, 201);
+  assert.equal((await pass("factory-2-v1")).status, 200);
+  await new Promise((r) => setTimeout(r, 5));
+  const key = "review/factory-2-v1/video-recut.mp4";
+  await runtime.bucket.put(key, new Uint8Array([0, 0, 0, 24]));
+  assert.equal((await call("/api/review/factory-2-v1/publish", jsonInit("POST", { channel: "test", video: "factory-2", version: "v1", title: TITLE, video_key: key }))).status, 200);
+  assert.equal((await jonList()).includes("factory-2-v1"), false, "the recut is QC-only again");
+});
