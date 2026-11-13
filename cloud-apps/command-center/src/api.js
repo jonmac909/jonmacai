@@ -342,13 +342,16 @@ async function sponsorsForBot(request, env, rest) {
   return json({ ok: false, error: 'Not found' }, 404);
 }
 
-// One row per board card: Money owed = agreed and in-work columns, Deals to close = leads and talks (as pipelineOf).
+// One row per board card, as pipelineOf: Money owed = deposit paid on, Deals to close = priced Deals and Deposit Invoice.
 function boardDeals(d2) {
   const cols = (d2.pipeline?.boards || []).find((g) => g.goal === 'sponsors')?.sponsors?.board?.columns || [];
-  return cols.flatMap((c) => (c.cards || []).map((k) => ({
-    id: k.id, sponsor: k.name, stage: c.title, boardStage: k.boardStage || null, amount: Number(k.amt) > 0 ? Number(k.amt) : null, threadId: k.threadId || '',
-    bucket: c.archived ? null : COLLECT_COLS.includes(c.title) ? 'owed' : CLOSE_COLS.includes(c.title) ? 'to-close' : null,
-  })));
+  return cols.flatMap((c) => (c.cards || []).map((k) => {
+    const amount = Number(k.amt) > 0 ? Number(k.amt) : null;
+    return {
+      id: k.id, sponsor: k.name, stage: c.title, boardStage: k.boardStage || null, amount, threadId: k.threadId || '',
+      bucket: c.archived ? null : COLLECT_COLS.includes(c.title) ? 'owed' : CLOSE_COLS.includes(c.title) && amount ? 'to-close' : null,
+    };
+  }));
 }
 
 const KNOWN_STAGES = new Set(['drafts', 'new-lead', 'negotiating', 'contract-brief', 'invoice-sent', 'deposit-paid', 'script-approval', 'production', 'video-approval', 'publishing', 'balance-invoice', 'paid', 'done', 'archived']);

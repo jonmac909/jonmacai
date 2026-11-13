@@ -376,7 +376,8 @@ export function homeGoals(d2resp, d3resp, P = periodOf(d2resp), now = nowOf(), h
     ],
   };
   // Money owed and deals to close, in dollars, under every period (Jon, 2026-11-12)
-  // A deal with no amount on the board is counted but not priced; all unpriced reads "Not priced", never a bare $0.
+  // A deal owing money with no amount on the board is counted but not priced; all unpriced reads "Not priced", never a
+  // bare $0. Deals to close holds priced deals only (Jon, 2026-11-13), so it is always a dollar total.
   const money$ = (list, total) => (total > 0 ? usd(total) : list.some((r) => r.amt == null) ? 'Not priced' : usd(0));
   const dealsInfo = (list, none, what) => {
     if (!list.length) return none;
@@ -387,7 +388,7 @@ export function homeGoals(d2resp, d3resp, P = periodOf(d2resp), now = nowOf(), h
     : row('owed', 'Money owed', money$(pipe.collect, pipe.totals.collect), 'none', dealsInfo(pipe.collect, 'Nothing owed', ' still to pay you'),
       { h: 'To collect', items: pipe.collect.map(amt), page: PG.money }, { word: 'To collect' });
   const toClose = !pipe ? noFeed('close', 'Deals to close', 'The Sponsors board could not be read.', PG.money)
-    : row('close', 'Deals to close', money$(pipe.close, pipe.totals.close), 'none', dealsInfo(pipe.close, 'None open', ''),
+    : row('close', 'Deals to close', usd(pipe.totals.close), 'none', dealsInfo(pipe.close, 'None open', ''),
       { h: 'To close', items: pipe.close.map(amt), page: PG.money }, { word: 'Pipeline' });
   for (const per of ['today', 'week', 'month']) sponsors[per].push(owed, toClose);
 

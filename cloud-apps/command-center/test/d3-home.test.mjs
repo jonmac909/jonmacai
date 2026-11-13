@@ -499,13 +499,15 @@ test('PnL shows revenue, expenses and profit this month; Sponsors shows money ow
     const owed = rowOf(cats, 'sponsors', per, 'owed');
     const close = rowOf(cats, 'sponsors', per, 'close');
     assert.match(owed.v, /^\$[\d,]+$|^Not priced$/, per);
-    assert.match(close.v, /^\$[\d,]+$|^Not priced$/, per);
+    assert.match(close.v, /^\$[\d,]+$/, per); // to close holds priced deals only (Jon, 2026-11-13)
   }
-  // deals with no amount on the board: "Not priced", never $0
+  // deals with no amount on the board: Money owed reads "Not priced", never $0; Deals to close drops them
   const sb = d2.d2.pipeline.boards.find((b) => b.goal === 'sponsors').sponsors;
   for (const c of sb.board.columns) for (const k of c.cards || []) k.amt = 0;
   sb.collect = { rows: [] };
   const np = homeGoals(d2, d3Sample());
   const close = rowOf(np, 'sponsors', 'month', 'close');
-  if (close.info !== 'None open') { assert.equal(close.v, 'Not priced'); assert.match(close.info, /no amounts on the Sponsors board/); }
+  assert.deepEqual([close.v, close.info], ['$0', 'None open']);
+  const owed = rowOf(np, 'sponsors', 'month', 'owed');
+  if (owed.info !== 'Nothing owed') { assert.equal(owed.v, 'Not priced'); assert.match(owed.info, /no amounts on the Sponsors board/); }
 });
