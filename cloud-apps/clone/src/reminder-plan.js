@@ -63,7 +63,7 @@ function configuredUrl(value, zoom = false) {
 export function reminderLinks(env) {
   return { join: configuredUrl(env.CLONE_ZOOM_JOIN_URL, true), replay: configuredUrl(env.CLONE_REPLAY_URL) };
 }
-const NEEDS = { E4: 'join', E5: 'join', E6: 'join', E7: 'join', E8: 'replay', L1: 'replay' };
+const NEEDS = { C0: 'join', E4: 'join', E5: 'join', E6: 'join', E7: 'join', E8: 'replay', L1: 'replay' };
 export const replayStep = step => NEEDS[step] === 'replay';
 export function missingLink(step, links) {
   return NEEDS[step] && !links[NEEDS[step]] ? `missing_${NEEDS[step]}_url` : null;
@@ -75,13 +75,14 @@ export function reminderPlan({ transaction_ref, purchased_at, session_at }, env,
   const links = reminderLinks(env);
   const live = purchased_at >= session;
   const candidates = lateBuyer({ purchased_at, session_at }) ? [['L1', purchased_at + (isSandbox(env) ? 3 * 60 * 1000 : 0)]] : [
-    ['E1', purchased_at + (isSandbox(env) ? 3 * 60 * 1000 : 0)], ['E2', session - 24 * HOUR],
+    // C0: seat confirmation with the Zoom link, sent at once; held until CLONE_ZOOM_JOIN_URL is set.
+    ['C0', purchased_at + (isSandbox(env) ? 3 * 60 * 1000 : 0)], ['E1', purchased_at + (isSandbox(env) ? 3 * 60 * 1000 : 0)], ['E2', session - 24 * HOUR],
     ['E3', easternTime(session, 0, 9)], ['E4', session - HOUR],
     ['E5', session - 10 * 60 * 1000], ['E6', live ? purchased_at : session],
     ['E7', session + 15 * 60 * 1000], ['E8', easternTime(session, 1, 9)],
   ];
   return candidates.map(([step, at]) => {
-    const liveJoin = live && step === 'E6', immediate = ['E1', 'L1'].includes(step) || liveJoin;
+    const liveJoin = live && step === 'E6', immediate = ['C0', 'E1', 'L1'].includes(step) || liveJoin;
     return {
       step, scheduled_at: liveJoin || (immediate && !isSandbox(env)) ? null : new Date(at).toISOString(),
       idempotency_key: `${transaction_ref}-${step}`, ...links,
@@ -112,6 +113,17 @@ export function reminderMessage(session, plan, env) {
   const reminder = plan.step === 'L1' ? null : plan.step === 'E8' ? `Your session was ${session.session_label}. The recording is yours to revisit.` :
     `Your live training: ${session.session_label}. Join from a computer.`;
   const copy = {
+    C0: ["you're in: your Zoom link", `Hey,
+
+Your seat is confirmed for ${session.session_label}.
+
+[Here's your Zoom link](${plan.join})
+
+Save this email. Open the link on a computer a few minutes early and check that Zoom works.
+
+[Put the session on your calendar](${calendarUrl(session.session_at)})
+
+Jon`],
     E1: ["you're in", `Hey,\n\nQuick story. The people who win on TikTok Shop are rarely the most creative. They found something already selling and moved while it was hot.\n\nWinning videos are public. You can see what sells and why.\n\nThat's the Clone Method. No big following, no camera. One product, one structure that works.\n\n[Put the session on your calendar](${calendarUrl(session.session_at)})\n\nJon`],
     E2: ["followers", `Hey,\n\nA follower count says almost nothing about whether a video can sell.\n\nTikTok Shop tests your video on strangers. If it sells, it shows it to more strangers. It doesn't care who follows you.\n\nSo the question isn't how to get followers. It's how to make a video that sells.\n\nReply and tell me what you sell. I read these.\n\nJon`],
     E3: ["here's what we're building tonight", `Hey,\n\nTonight we build.\n\nWe'll pick a product, study a winning example together, and build your first clone while I'm there to correct you. Not a theory session. A working session.\n\nBy the end you'll have a draft you can test this week.\n\nBring a laptop and an idea. If you do not have a product picked yet, that is fine. We'll find one.\n\nSee you tonight.\n\nJon`],
