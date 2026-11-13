@@ -17,6 +17,7 @@ import { renderHyper, openHyper } from './hyper.js';
 import { renderBluesky } from './bluesky.js';
 import { renderSystem } from './system.js';
 import { sourcesCard } from './sources.js';
+import { renderPersonal, mnavHtml, moneyBizHtml, personalClick, personalChange, personalInput, personalSubmit, personalPaste, personalKey, personalPopOpen, nowParts } from './personal.js';
 import { renderFactory, syncFactory } from './factory.js';
 import { renderTrack, trackSub } from './track.js';
 import { renderHome, homeClick, homeChange, homeInput, homeSubmit, homeDrag, homeKeep, homeAfter, homeHints, setColour, savedColours } from './home.js';
@@ -24,7 +25,8 @@ import { renderHome, homeClick, homeChange, homeInput, homeSubmit, homeDrag, hom
 const OLD_TRACK = '/dashboard/js/pages/track.js';
 let oldTrack = null;
 
-const PAGES = { home: 'Home', goals: 'Goals', team: 'Team', factory: 'Factory', track: 'Track', blockers: 'Blockers', review: 'Review', scripts: 'Scripts', hyper: 'Hyper', money: 'Money', bluesky: 'Bluesky', system: 'System' };
+// Home is the Goals page (Jacqueline's handover): #goals and any unknown hash draw it.
+const PAGES = { home: 'Goals', team: 'Team', factory: 'Factory', track: 'Track', blockers: 'Blockers', review: 'Review', scripts: 'Scripts', hyper: 'Hyper', personal: 'Personal', money: 'Money', bluesky: 'Bluesky', system: 'System' };
 const SIGNIN = 'd3-signin';
 const main = document.getElementById('main');
 // Review state that belongs to one item: cleared when the item or the page changes.
@@ -109,9 +111,11 @@ function render() {
     return;
   }
   S.fyNote = null;
+  if (p === 'personal') { main.innerHTML = `${note}${renderPersonal(S, route().slice(1), S.ui)}`; return; }
   const live = { team: renderTeam, blockers: renderBlockers, review: renderReview, scripts: renderScripts, money: renderMoney }[p];
   if (live) {
-    main.innerHTML = S.d3 ? `${note}${live(S.d2, S.d3, S.ui)}` : `${headerOnly(S.d2, PAGES[p])}${note || '<section class="card"><p class="mut">Loading</p></section>'}`;
+    const top = p === 'money' ? mnavHtml('money') : '';
+    main.innerHTML = S.d3 ? `${top}${note}${p === 'money' ? renderMoney(S.d2, S.d3, S.ui, S.ui.deal ? '' : moneyBizHtml(S.personal, S.ui, S.home?.today || nowParts().ymd)) : live(S.d2, S.d3, S.ui)}` : `${headerOnly(S.d2, PAGES[p])}${note || '<section class="card"><p class="mut">Loading</p></section>'}`;
     if (p === 'money' && S.d3 && S.ui.dealSel && !S.ui.dealDone) { // a deal opened from Pipeline revenue: bring it into view once
       document.getElementById(`deal-${S.ui.dealSel}`)?.scrollIntoView({ block: 'center' });
       S.ui.dealDone = true;
@@ -126,7 +130,7 @@ function render() {
   }
   if (p === 'home') { // a redraw keeps the scroll boxes where they were; a fresh one opens at the current time
     const keep = homeKeep(main);
-    main.innerHTML = `${note}${renderHome(S.d2, S.d3, S.ui, S.ui.now ?? Date.now(), S.home)}`;
+    main.innerHTML = `${mnavHtml('home')}${note}${renderHome(S.d2, S.d3, S.ui, S.ui.now ?? Date.now(), S.home)}`;
     homeAfter(main, keep);
     return;
   }
@@ -192,11 +196,22 @@ async function send(method, path, body) {
   }
 }
 const reloadHome = async () => { await loadHome(); render(); };
-const popOpen = () => !!(S.ui.hmEd || S.ui.hmGoal || S.ui.hmDrag); // a Home pop-up or drag: no redraw underneath it
+// The Personal page's saved meals, prices, trips, rules and expense tags, and MoneyClaw's spending (src/personal.js).
+async function loadPersonal() {
+  try {
+    const h = await getJson('/dashboard/api/personal');
+    if (!h.signedOut) { S.personal = h.body?.personal || null; S.personalErr = S.personal ? '' : 'The Personal page needs the database.'; }
+  } catch (err) { if (!S.personal) S.personalErr = `Could not load the Personal page (${err.message}).`; }
+}
+const reloadPersonal = async () => { await loadPersonal(); render(); };
+S.rerender = () => render();
+S.reloadAll = async () => { await Promise.all([loadHome(), loadPersonal()]); render(); };
+// a Home or Personal pop-up, or a drag: no redraw underneath it
+const popOpen = () => !!(S.ui.hmEd || S.ui.hmGoal || S.ui.hmDrag || personalPopOpen(S.ui));
 
 async function load() {
   try {
-    const [a, b] = await Promise.all([getJson('/dashboard/api/d2'), getJson('/dashboard/api/d3'), loadHome()]);
+    const [a, b] = await Promise.all([getJson('/dashboard/api/d2'), getJson('/dashboard/api/d3'), loadHome(), loadPersonal()]);
     if (a.signedOut || b.signedOut) {
       // Signed out: open the sign-in page once; if that lands back here still signed out, stop and show a link.
       let tried = false;
@@ -237,6 +252,7 @@ main.addEventListener('click', async (e) => {
     if (go && /^track(\/|$)/.test(go.dataset.page)) { location.hash = go.dataset.page; return; }
     return;
   }
+  if ((page() === 'personal' || page() === 'money') && personalClick(e, S, render, send, reloadPersonal, send)) return; // Personal page, and the Money page's expense list
   if (page() === 'home' && homeClick(e, S.ui, render, S, send, reloadHome)) return; // Home's switches and rows; its "+ Log" falls through to the log below
   if (page() === 'review' && await reviewClick(e, S, render, load)) return;
   if (page() === 'blockers' && await needsClick(e, S, render, load)) return;
@@ -310,14 +326,24 @@ main.addEventListener('click', async (e) => {
 // Typed Review text lives in S.ui, so a redraw keeps it.
 main.addEventListener('input', (e) => {
   if (page() === 'home' && homeInput(e, S.ui)) return; // a Home pop-up's field
+  if (page() === 'personal' && personalInput(e, S.ui)) return; // the meal pop-up's fields
   if (e.target.matches('.rvtext')) S.ui.rvText = e.target.value;
   else if (e.target.matches('.rvin')) S.ui.rvDraft = { ...S.ui.rvDraft, [e.target.name]: e.target.value };
   else if (e.target.matches('[data-hmcol]')) setColour(e.target, S.ui); // Home: a category's colour
 });
 // Home: a task's tick box, a goal's step and the pop-ups' fields; Save in a pop-up; Esc closes one; Enter opens a calendar block.
-main.addEventListener('change', (e) => { if (page() === 'home') homeChange(e, S, render, send, reloadHome); });
-main.addEventListener('submit', (e) => { if (page() === 'home') homeSubmit(e, S, render, send, reloadHome); });
+main.addEventListener('change', (e) => {
+  if (page() === 'home') homeChange(e, S, render, send, reloadHome);
+  else if (page() === 'personal' || page() === 'money') personalChange(e, S, render, send, reloadPersonal, send);
+});
+main.addEventListener('submit', (e) => {
+  if (page() === 'home') homeSubmit(e, S, render, send, reloadHome);
+  else if (page() === 'personal') personalSubmit(e, S, render, send, reloadPersonal);
+});
+// Personal: pasting a recipe turns it into Ingredients and Method at once.
+main.addEventListener('paste', (e) => { if (page() === 'personal') personalPaste(e, S.ui, render); });
 document.addEventListener('keydown', (e) => {
+  if (page() === 'personal' && personalKey(e, S.ui, render)) return;
   if (page() !== 'home') return;
   if (e.key === 'Escape' && (S.ui.hmEd || S.ui.hmGoal)) { S.ui.hmEd = null; S.ui.hmGoal = null; render(); }
   else if (e.key === 'Enter' && e.target.matches?.('.hmev[data-hmit]')) e.target.click();
@@ -327,7 +353,7 @@ homeDrag(main, S, send, reloadHome);
 main.addEventListener('scroll', (e) => { if (e.target.classList?.contains('hmpc')) homeHints(main); }, true);
 
 window.addEventListener('hashchange', () => {
-  Object.assign(S.ui, { hmOpen: null, hmEd: null, hmGoal: null, hmGDel: null, openKr: null, openBot: null, openBl: null, teamBot: null, teamCol: null, ...RV_CLEAR, rvDone: {}, rvKept: {} });
+  Object.assign(S.ui, { psMeal: null, psPop: null, psErr: '', hmOpen: null, hmMore: false, hmEd: null, hmGoal: null, hmGDel: null, openKr: null, openBot: null, openBl: null, teamBot: null, teamCol: null, ...RV_CLEAR, rvDone: {}, rvKept: {} });
   render();
   if (page() === 'review' && !S.ui.rvThreads?.threads) loadThreads().then(() => { if (page() === 'review') render(); });
 });

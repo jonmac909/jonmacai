@@ -339,7 +339,9 @@ test('Goals: missing sources read No feed / No data with a grey dot; text is esc
   assert.doesNotMatch(renderGoals(d2, d3Sample(), { confirmLog: 'workout' }), /Confirm log\?/);
 });
 
-test('Shell: "+ Log" first click shows Confirm log? (kept on reload), a fast double-tap and the 4 s revert do not post, a later second click posts once', async () => {
+// The old Goals page this drove is retired (#goals now draws Home, Jacqueline's handover); Home's own "+ Log" rows show
+// only on workout and date-night days and are covered in d3-home.test.mjs.
+test.skip('Shell: "+ Log" first click shows Confirm log? (kept on reload), a fast double-tap and the 4 s revert do not post, a later second click posts once', async () => {
   const settle = async () => { for (let i = 0; i < 30; i++) await new Promise((r) => setImmediate(r)); };
   const nodes = new Map();
   let onClick = null;

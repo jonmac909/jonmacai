@@ -38,16 +38,17 @@ const HOME = async (more = () => {}) => {
 const rowsOf = (cats, key, per) => cats.find((c) => c.key === key)[per];
 const rowOf = (cats, key, per, k) => rowsOf(cats, key, per).find((r) => r.k === k);
 
-test('Home is the default page: /dash/ with no hash opens it, and every earlier page stays in the menu', () => {
+test('Home is the default page and is called Goals in the menu; Personal sits between Hyper and Money', () => {
   const app = read('../public/d3/js/app.js');
   assert.match(app, /return PAGES\[k\] \? k : 'home';/);
-  assert.match(app, /const PAGES = \{ home: 'Home', goals: 'Goals', team: 'Team', factory: 'Factory', track: 'Track', blockers: 'Blockers', review: 'Review', scripts: 'Scripts', hyper: 'Hyper', money: 'Money', bluesky: 'Bluesky', system: 'System' \};/);
+  assert.match(app, /const PAGES = \{ home: 'Goals', team: 'Team', factory: 'Factory', track: 'Track', blockers: 'Blockers', review: 'Review', scripts: 'Scripts', hyper: 'Hyper', personal: 'Personal', money: 'Money', bluesky: 'Bluesky', system: 'System' \};/);
   const index = read('../public/d3/index.html');
   const nav = [...index.matchAll(/<a href="#([a-z]+)" data-nav="([a-z]+)">/g)].map((m) => { assert.equal(m[1], m[2]); return m[1]; });
-  assert.deepEqual(nav, ['home', 'goals', 'team', 'factory', 'track', 'blockers', 'review', 'scripts', 'hyper', 'money', 'bluesky', 'system']);
+  assert.deepEqual(nav, ['home', 'team', 'factory', 'track', 'blockers', 'review', 'scripts', 'hyper', 'personal', 'money', 'bluesky', 'system']);
+  assert.match(index, /data-nav="home">.*<\/svg>Goals<\/a>/);
 });
 
-test('Shell: no hash draws Home, #goals still draws Goals', async () => {
+test('Shell: no hash and #goals both draw Home (the Goals page); See more starts closed', async () => {
   const settle = async () => { for (let i = 0; i < 30; i++) await new Promise((r) => setImmediate(r)); };
   const store = () => { const m = new Map(); return { getItem: (k) => m.get(k) ?? null, setItem: (k, v) => m.set(k, String(v)), removeItem: (k) => m.delete(k) }; };
   const realInterval = globalThis.setInterval;
@@ -66,10 +67,11 @@ test('Shell: no hash draws Home, #goals still draws Goals', async () => {
   const home = await open('', 1);
   assert.match(home.html, /<div class="hm"/);
   assert.match(home.html, /aria-label="Schedule"/);
-  assert.equal(home.title, 'Home · Jon Mac');
+  assert.equal(home.title, 'Goals · Jon Mac');
+  assert.match(home.html, /data-hmmore aria-expanded="false">See more/);
+  assert.match(home.html, /class="psmnav"/);
   const goals = await open('#goals', 2);
-  assert.doesNotMatch(goals.html, /<div class="hm"/);
-  assert.match(goals.html, /Key results/);
+  assert.match(goals.html, /<div class="hm"/);
 });
 
 test('Home: widgets, Schedule, then Progress as four category cards; no retired agent names, no mockup sample numbers', () => {
@@ -97,15 +99,15 @@ test('Home: widgets, Schedule, then Progress as four category cards; no retired 
 test('Schedule: the standing rules are saved tasks, seeded by the migration, by weekday', async () => {
   const home = await HOME();
   const names = (ymd) => dayItems(home, ymd, '2026-11-01', 0).map((x) => `${clockOf(x.s)} ${x.w}`);
-  assert.deepEqual(names('2026-11-09'), ['9:00 Sponsor emails', '11:00 Workout', '12:00 Cook lunch', '5:00 Dinner']); // Monday
+  assert.deepEqual(names('2026-11-09'), ['8:00 Groceries · Meals 1–4', '9:00 Sponsor emails', '11:00 Workout', '12:00 Cook lunch', '5:00 Dinner']); // Monday
   assert.deepEqual(names('2026-11-10'), ['8:00 Garbage out', '9:00 Sponsor emails', '11:30 Cook lunch', '5:00 Dinner']); // Tuesday
-  assert.deepEqual(names('2026-11-12'), ['9:00 Sponsor emails', '11:30 Cook lunch', '4:00 Date night · happy hour']); // Thursday: date night covers dinner
+  assert.deepEqual(names('2026-11-12'), ['8:00 Groceries · Meals 5–7', '9:00 Sponsor emails', '11:30 Cook lunch', '4:00 Date night · happy hour']); // Thursday: date night covers dinner
   assert.deepEqual(names('2026-11-13'), ['9:00 Sponsor emails', '11:00 Workout', '12:00 Cook lunch', '3:30 Friday review', '5:00 Dinner']);
   assert.deepEqual(names('2026-11-14'), ['11:30 Cook lunch', '5:00 Dinner']); // Saturday: nothing from work
   assert.deepEqual(names('2026-11-15'), ['10:30 Plan meals for the week', '11:30 Cook lunch', '5:00 Dinner']);
   // the seed itself starts on Monday Nov 9, so nothing before it reads as missed
   const seeded = await homeData({ DB: sqliteD1() }, NOW);
-  assert.equal(seeded.tasks.length, 9);
+  assert.equal(seeded.tasks.length, 11); // 0028_personal.sql adds the two grocery days
   assert.equal(seeded.tasks.every((t) => t.from === '2026-11-09' && !occursOn(t, '2026-11-06')), true);
 });
 
@@ -373,10 +375,11 @@ test('Progress: numbers and status from the feeds; a goal with no source reads N
   assert.deepEqual(rowOf(cats, 'personal', 'week', 'workouts').det.items, ['Mon · done', 'Wed · missed', 'Fri · missed']);
   assert.equal(rowOf(cats, 'personal', 'week', 'datewk').v, '1 / 1'); // Thursday Nov 5 is inside this week
   for (const per of ['today', 'week', 'month']) assert.deepEqual(rowsOf(cats, 'pnl', per).map((r) => r.k).slice(0, 3), ['revenue', 'bmonth', 'profit'], per);
-  for (const [cat, per, k] of [['personal', 'month', 'trips'], ['personal', 'month', 'groups'], ['personal', 'month', 'networth']]) {
+  for (const [cat, per, k] of [['personal', 'month', 'trips'], ['personal', 'month', 'groups']]) {
     const r = rowOf(cats, cat, per, k);
     assert.deepEqual([r.v, r.st, r.word, r.pct], ['No feed', 'none', 'No feed', null], k);
   }
+  assert.equal(rowOf(cats, 'personal', 'month', 'networth'), undefined); // removed (handover: no net worth)
   assert.equal(rowOf(cats, 'pnl', 'month', 'profit').v, 'No data'); // never a USD income minus CAD spending sum
   // nothing reporting at all: every row is grey, none invents a number
   const empty = homeGoals({ d2: { goals: [], period: {} } }, null);

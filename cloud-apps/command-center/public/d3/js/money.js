@@ -244,7 +244,8 @@ ${box('Per project', 'needs tokens saved on every run')}
 </section>`;
 }
 
-export function renderMoney(d2resp, d3resp, ui = {}) {
+// `top`: the business budget and tagged business expenses (personal.js moneyBizHtml), drawn first.
+export function renderMoney(d2resp, d3resp, ui = {}, top = '') {
   const P = periodOf(d2resp);
   const asOf = Date.parse(d2resp?.asOf);
   const read = Number.isFinite(asOf)
@@ -263,6 +264,7 @@ ${d ? dealHtml(d, ui) : '<section class="card"><div class="hd cardhd"><a class="
   const vv = moneyTile(d2resp, 'Viral View MRR');
   const bank = moneyTile(d2resp, 'Bank feed');
   return `${head}
+${top}
 <div class="row">
 ${tile('Collected', num(m?.target) ? `of ${usd(m.target)}` : 'this month', num(m?.actual) ? usd(m.actual) : null)}
 ${tile('Agreed, not invoiced', agreed ? (priced.length ? priced.map((d) => d.name).join(', ') : 'no priced deal agreed') : '', agreed ? usd(priced.reduce((n, d) => n + d.amt, 0)) : null)}

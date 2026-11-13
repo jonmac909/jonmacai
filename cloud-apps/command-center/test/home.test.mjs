@@ -19,7 +19,7 @@ test('GET /home: the seeded standing rules and Book trip, today, and a calendar 
   const home = await read();
   assert.equal(home.today, '2026-11-12');
   assert.equal(home.tz, 'America/Vancouver');
-  assert.deepEqual(home.tasks.map((t) => t.id).sort(), ['r-date', 'r-dinner', 'r-emails', 'r-garbage', 'r-lunch', 'r-lunch-wo', 'r-meals', 'r-review', 'r-workout']);
+  assert.deepEqual(home.tasks.map((t) => t.id).sort(), ['r-date', 'r-dinner', 'r-emails', 'r-garbage', 'r-groc-mon', 'r-groc-thu', 'r-lunch', 'r-lunch-wo', 'r-meals', 'r-review', 'r-workout']);
   assert.deepEqual(home.tasks.find((t) => t.id === 'r-workout'), { id: 'r-workout', title: 'Workout', cat: 'personal', start: 660, end: 720, rep: 'weekly', days: [0, 2, 4], day: null, from: '2026-11-09', miss: 'retry', retry: 900, rem: 'none', text: false, note: '', kind: 'workout' });
   assert.deepEqual(home.goals.map((g) => [g.id, g.type, g.steps.length]), [['g-trip', 'checklist', 3]]);
   assert.deepEqual(home.calendar, { connected: false, canConnect: false, at: null, events: [] });
@@ -46,7 +46,7 @@ test('Tasks: add, change every time, change or remove just one day, delete', asy
     [{ miss: 'retry' }, 'The retry time has to be later than the start time'], [{ miss: 'retry', retry: 590 }, 'The retry time has to be later than the start time'],
     [{ rem: '5' }, 'Unknown reminder'], [{ rep: 'yearly' }, 'Unknown repeat'], [{ note: 'x'.repeat(1001) }, 'The note is too long (1000 characters at most)'],
   ]) assert.deepEqual(await w('POST', '/tasks', { ...TASK, ...patch }), { status: 400, body: { ok: false, error } }, JSON.stringify(patch));
-  assert.equal((await read()).tasks.length, 10);
+  assert.equal((await read()).tasks.length, 12);
   // every time: a one-off made weekly starts today, and missing fields keep their value
   const wk = await w('PATCH', `/tasks/${id}`, { rep: 'weekly', days: [4, 1, 1], start: 615, end: 660 });
   assert.deepEqual([wk.body.task.rep, wk.body.task.days, wk.body.task.from, wk.body.task.start, wk.body.task.title, wk.body.task.rem], ['weekly', [1, 4], '2026-11-12', 615, 'Call the bank', '10']);
