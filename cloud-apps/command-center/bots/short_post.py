@@ -6,10 +6,11 @@
 
 Ask Jon first: dash.py approval-request post_clips "<clip titles>" --project short-form --payload-file p.json, with p.json:
   {"platforms": ["instagram_reels", "facebook_reels", "tiktok", "youtube_shorts"], "youtube_channel": "jonmacai",
+   "youtube_playlist": "PLxxxxxxxxxx" (or "youtube_playlist_title": "Name", created if missing; required for youtube_shorts),
    "clips": [{"file": "D:/AgentTeam/footage/short-form/clip1.mp4", "sha256": "<Get-FileHash -Algorithm SHA256>",
               "title": "YouTube title", "caption": "...", "hashtags": "#a #b", "synthetic": true}]}
   Clips: vertical .mp4, 3 to 90 s, passing scrub.py --check (the .scrubbed.mp4). "sha256" pins the exact file Jon watched: a re-rendered file is refused.
-  "synthetic": true when realistic AI people, voices or scenes appear.
+  "synthetic": true when realistic AI people, voices or scenes appear (TikTok's AI label only; YouTube's AI-use option is never set).
 post refuses anything but an approved post_clips approval of this bot, and posts only the clips it lists. It claims the
 approval, posts each clip once per platform and account (keyed by the file's SHA-256, so a rerun, a copy or a second run
 at the same time never posts twice), records the post id, link or error per platform, and marks the approval done when
@@ -351,7 +352,11 @@ def connected(name):
 # ---- YouTube Shorts: the YouTube uploader does the upload ----
 
 def youtube(y, clip, rec, save):
-    rec['id'] = video = yt.upload(y, y.channel, clip['file'], clip['yt_meta'])['video']  # a rerun returns the same video
+    out = yt.upload(y, y.channel, clip['file'], clip['yt_meta'], playlist=clip['yt_playlist'],
+                    playlist_title=clip['yt_playlist_title'])  # a rerun returns the same video
+    rec['id'] = video = out['video']
+    if any('playlist' in p for p in out['problems']):  # every YouTube upload is in a playlist; a rerun retries just that
+        raise Fail(1, 'the Short is up but not in its playlist (%s); run again to retry' % '; '.join(out['problems']))
     items = y.call('GET', yt.API + '/videos', query={'part': 'status', 'id': video}).get('items') or []
     privacy = items[0].get('status', {}).get('privacyStatus') if items else 'missing'
     if privacy != 'public':  # Google locks uploads through an unaudited API project private
@@ -469,9 +474,10 @@ def clips_of(payload):
             desc = text if '#shorts' in text.lower() else text + ' #Shorts'
             _, clip['yt_meta'], _ = yt.upload_meta(argparse.Namespace(
                 file=str(path), title=str(c.get('yt_short_title') or c.get('title') or ''), description=desc,
-                description_file=None, tags=None, playlist=None, thumbnail=None, category=22,
-                synthetic='yes' if synthetic else 'no'))
+                description_file=None, tags=None, playlist=payload.get('youtube_playlist'),
+                playlist_title=payload.get('youtube_playlist_title'), thumbnail=None, category=22))
             clip['yt_meta']['status']['privacyStatus'] = 'public'
+            clip['yt_playlist'], clip['yt_playlist_title'] = payload.get('youtube_playlist'), payload.get('youtube_playlist_title')
         out.append(clip)
     return platforms, channel, out
 

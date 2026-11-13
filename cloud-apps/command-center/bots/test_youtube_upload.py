@@ -1,4 +1,6 @@
 """python -I bots/test_youtube_upload.py  (stdlib only; Google and the dashboard are faked)"""
+import contextlib
+import io
 import json
 import os
 import shutil
@@ -35,6 +37,7 @@ class FakeGoogle:
     def __init__(self, size, quota=False, thumb_status=200, breaks=0):
         self.size, self.quota, self.thumb_status, self.breaks = size, quota, thumb_status, breaks
         self.got, self.sessions, self.calls, self.meta, self.updated = b'', 0, [], None, None
+        self.playlists, self.added, self.created = [('PLexisting001', 'Shorts')], None, None
 
     def __call__(self, method, url, data=None, headers=None):
         self.calls.append((method, url))
@@ -65,7 +68,13 @@ class FakeGoogle:
             return self.thumb_status, {}, (b'{}' if self.thumb_status == 200 else json.dumps(
                 {'error': {'message': 'no permission', 'errors': [{'reason': 'forbidden'}]}}).encode())
         if url.startswith(yu.API + '/playlistItems'):
+            self.added = json.loads(data)['snippet']['playlistId']
             return 200, {}, b'{"id": "pi1"}'
+        if url.startswith(yu.API + '/playlists') and method == 'GET':
+            return 200, {}, json.dumps({'items': [{'id': i, 'snippet': {'title': t}} for i, t in self.playlists]}).encode()
+        if url.startswith(yu.API + '/playlists') and method == 'POST':
+            self.created = json.loads(data)
+            return 200, {}, b'{"id": "PLnewnewnew1"}'
         if url.startswith(yu.API + '/videos') and method == 'GET':
             return 200, {}, json.dumps({'items': [{'id': 'VIDEO000001', 'status': {
                 'privacyStatus': 'private', 'uploadStatus': 'processed', 'license': 'youtube', 'embeddable': True,
@@ -110,7 +119,9 @@ class Base(unittest.TestCase):
             return yu.run(yu.parser().parse_args(list(argv)))
 
     def up(self, google, *extra):
-        return self.cli(google, 'upload', 'mina', str(self.video), '--title', 'I Cloned a Viral Ad', '--synthetic', 'yes',
+        if '--playlist' not in extra and '--playlist-title' not in extra:
+            extra += ('--playlist', 'PLabcdefghij')
+        return self.cli(google, 'upload', 'mina', str(self.video), '--title', 'I Cloned a Viral Ad',
                         '--description', 'Made with Viral View', '--tags', 'ai ugc, viral view', '--test-clip', *extra)
 
 
@@ -121,8 +132,7 @@ class Upload(Base):
         self.assertEqual(g.got, self.video.read_bytes())
         self.assertEqual(g.uploaded_chunks(), 3)
         self.assertIn(('POST', yu.UPLOAD + '/videos?uploadType=resumable&part=snippet,status'), g.calls)
-        self.assertEqual(g.meta['status'], {'privacyStatus': 'private', 'selfDeclaredMadeForKids': False,
-                                            'containsSyntheticMedia': True})
+        self.assertEqual(g.meta['status'], {'privacyStatus': 'private', 'selfDeclaredMadeForKids': False})  # AI use stays blank
         self.assertEqual(g.meta['snippet']['tags'], ['ai ugc', 'viral view'])
         self.assertEqual(out['video'], 'VIDEO000001')
         self.assertEqual(out['privacy'], 'private')
@@ -182,6 +192,27 @@ class Upload(Base):
         self.assertIn('quota for today is used up', str(e.exception))
         self.assertIn('midnight Pacific', str(e.exception))
 
+    def test_a_playlist_is_required_and_the_ai_use_flag_is_gone(self):
+        base = ['upload', 'mina', str(self.video), '--title', 'T', '--test-clip']
+        for extra in ([], ['--playlist', 'PLabcdefghij', '--playlist-title', 'Shorts']):
+            with self.assertRaises(yu.Fail) as e:
+                self.cli(FakeGoogle(0), *base, *extra)
+            self.assertEqual(e.exception.code, 2)
+            self.assertIn('playlist', str(e.exception))
+        with self.assertRaises(SystemExit), contextlib.redirect_stderr(io.StringIO()):
+            self.cli(FakeGoogle(0), *base, '--playlist', 'PLabcdefghij', '--synthetic', 'yes')
+
+    def test_playlist_title_uses_the_channels_playlist_or_creates_a_private_one(self):
+        g = FakeGoogle(self.video.stat().st_size)
+        out = self.up(g, '--playlist-title', 'shorts')  # found by name, any case
+        self.assertEqual((out['problems'], g.added, g.created), ([], 'PLexisting001', None))
+        g = FakeGoogle(self.video.stat().st_size)
+        g.playlists = []
+        self.video.write_bytes(os.urandom(600 * 1024))  # a different file: a new upload record
+        out = self.up(g, '--playlist-title', 'Cloned Ads')
+        self.assertEqual((out['problems'], g.added), ([], 'PLnewnewnew1'))
+        self.assertEqual(g.created, {'snippet': {'title': 'Cloned Ads'}, 'status': {'privacyStatus': 'private'}})
+
     def test_refused_thumbnail_is_reported_and_retried_on_the_next_run(self):
         thumb = self.dir / 't.jpg'
         thumb.write_bytes(b'\xff\xd8jpg')
@@ -198,7 +229,7 @@ class Upload(Base):
                          [yu.UPLOAD + '/thumbnails/set?videoId=VIDEO000001'])  # no 2nd playlist add
 
     def test_real_videos_wait_for_the_audit_but_dry_run_still_shows_the_plan(self):
-        args = ['upload', 'mina', str(self.video), '--title', 'T', '--synthetic', 'no']
+        args = ['upload', 'mina', str(self.video), '--title', 'T', '--playlist', 'PLabcdefghij']
         with self.assertRaises(yu.Fail) as e:
             self.cli(FakeGoogle(0), *args)
         self.assertEqual(e.exception.code, 2)
@@ -238,7 +269,7 @@ class Upload(Base):
 
     def test_bad_metadata_is_refused_before_any_byte(self):
         with self.assertRaises(yu.Fail) as e:
-            self.cli(FakeGoogle(0), 'upload', 'mina', str(self.video), '--title', 'a <b>', '--synthetic', 'no', '--test-clip')
+            self.cli(FakeGoogle(0), 'upload', 'mina', str(self.video), '--title', 'a <b>', '--playlist', 'PLabcdefghij', '--test-clip')
         self.assertEqual(e.exception.code, 2)
 
     def test_delete_only_takes_test_clips_this_tool_uploaded(self):
@@ -252,7 +283,7 @@ class Upload(Base):
 
     def test_unconnected_channel_is_a_local_problem(self):
         with self.assertRaises(yu.Fail) as e:
-            self.cli(FakeGoogle(0), 'upload', 'theo', str(self.video), '--title', 'T', '--synthetic', 'no', '--test-clip')
+            self.cli(FakeGoogle(0), 'upload', 'theo', str(self.video), '--title', 'T', '--playlist', 'PLabcdefghij', '--test-clip')
         self.assertEqual(e.exception.code, 2)
 
 
