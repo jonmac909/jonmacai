@@ -678,11 +678,11 @@ class Packs(Base):
     def card(self, title, status='doing', owner='video-editor'):
         self.cards.append({'id': 't-pk', 'title': title, 'status': status, 'owner': owner, 'updatedAt': ago(5)})
 
-    def test_low_wakes_elle_and_scarlett_once(self):
+    def test_low_wakes_scarlett_once(self):
         self.pass_codes['hgp-two'] = 1
         out = self.run_guard()
-        self.assertEqual({tg.ELLE, tg.SCARLETT}, {s[1] for s in out})
-        self.assertEqual(2, len(out))
+        self.assertEqual({tg.SCARLETT}, {s[1] for s in out})
+        self.assertEqual(1, len(out))
         self.assertIn('Only 1 pack', out[0][2])
         self.assertEqual([], self.run_guard())
 
@@ -691,7 +691,7 @@ class Packs(Base):
 
     def test_a_pack_olivia_started_does_not_count(self):
         self.card('Edit HGP first video: One')
-        self.assertEqual(2, len(self.run_guard()))
+        self.assertEqual(1, len(self.run_guard()))
 
     def test_todo_card_still_counts_as_ready(self):
         self.card('Edit HGP first video: One', 'todo')
@@ -708,21 +708,21 @@ class Packs(Base):
     def test_folders_that_are_not_packs_are_skipped(self):
         self.pack('topview-v2')
         self.card('Edit One', 'done')
-        self.assertEqual(2, len(self.run_guard()))
+        self.assertEqual(1, len(self.run_guard()))
 
     def test_recovering_clears_it_so_the_next_shortage_alerts(self):
         self.pass_codes['hgp-two'] = 1
-        self.assertEqual(2, len(self.run_guard()))
+        self.assertEqual(1, len(self.run_guard()))
         self.pass_codes['hgp-two'] = 0
         self.t += tg.PACKS_RECHECK_S
         self.assertEqual([], self.run_guard())
         self.pass_codes['hgp-two'] = 1
         self.t += tg.PACKS_RECHECK_S
-        self.assertEqual(2, len(self.run_guard()))
+        self.assertEqual(1, len(self.run_guard()))
 
     def test_a_known_shortage_rechecks_hourly_not_every_run(self):
         self.pass_codes['hgp-two'] = 1
-        self.assertEqual(2, len(self.run_guard()))
+        self.assertEqual(1, len(self.run_guard()))
         with mock.patch.object(tg, 'preflight') as preflight:
             self.assertEqual([], self.run_guard())
             preflight.assert_not_called()
@@ -731,10 +731,10 @@ class Packs(Base):
             self.assertEqual([], self.run_guard())
             preflight.assert_called()
 
-    def test_unchecked_packs_wake_the_builders_and_report_once(self):
+    def test_unchecked_packs_wake_scarlett_and_report_once(self):
         self.pass_codes.update({'hgp-one': 2, 'hgp-two': None})
         out = self.run_guard()
-        self.assertEqual({tg.ELLE, tg.SCARLETT}, {s[1] for s in out if s[0] == 'wake'})
+        self.assertEqual({tg.SCARLETT}, {s[1] for s in out if s[0] == 'wake'})
         self.assertEqual([], [s[1] for s in out if s[0] == 'fire'])  # one slow preflight isn't a failure
         self.t += tg.PACKS_RECHECK_S
         self.assertEqual(['script_failure'], [s[1] for s in self.run_guard() if s[0] == 'fire'])  # two in a row is
@@ -743,18 +743,18 @@ class Packs(Base):
     def test_an_unchecked_pack_does_not_hide_a_shortage(self):
         self.pass_codes.update({'hgp-one': 1, 'hgp-two': None})
         out = self.run_guard()
-        self.assertEqual({tg.ELLE, tg.SCARLETT}, {s[1] for s in out if s[0] == 'wake'})
+        self.assertEqual({tg.SCARLETT}, {s[1] for s in out if s[0] == 'wake'})
         self.assertIn('Could not check: hgp-two', out[0][2])
 
     def test_one_ready_and_one_unchecked_is_a_shortage(self):
         self.pass_codes['hgp-two'] = None
-        self.assertEqual({tg.ELLE, tg.SCARLETT}, {s[1] for s in self.run_guard() if s[0] == 'wake'})
+        self.assertEqual({tg.SCARLETT}, {s[1] for s in self.run_guard() if s[0] == 'wake'})
 
     def test_a_pack_with_a_finished_video_does_not_count(self):
         final = self.root / 'edits' / 'hgp-one' / 'final'
         final.mkdir()
         (final / 'cut.mp4').write_bytes(b'x')
-        self.assertEqual({tg.ELLE, tg.SCARLETT}, {s[1] for s in self.run_guard()})
+        self.assertEqual({tg.SCARLETT}, {s[1] for s in self.run_guard()})
 
     def test_a_healthy_check_waits_an_hour_too(self):
         self.assertEqual([], self.run_guard())
@@ -776,19 +776,22 @@ class Packs(Base):
         self.run_guard()
         self.assertIn('packs:unchecked', tg.load()['seen'])
 
-    def test_a_partial_wake_retries_next_run_without_preflight(self):
+    def test_a_failed_wake_retries_next_run_without_preflight(self):
         self.pass_codes['hgp-two'] = 1
+        calls = []
 
         def send(agent, text, cid):
-            if agent == tg.ELLE:
+            calls.append(agent)
+            if len(calls) == 1:
                 raise RuntimeError('http 500')
             self.sent.append(('wake', agent, text))
 
         with mock.patch.dict(sys.modules, {'openbot_api': types.SimpleNamespace(send=send)}):
-            self.assertEqual([tg.SCARLETT], [s[1] for s in self.run_guard()])
-        with mock.patch.object(tg, 'preflight') as preflight:
-            self.assertEqual([tg.ELLE], [s[1] for s in self.run_guard()])
-            preflight.assert_not_called()
+            self.assertEqual([], self.run_guard())
+            with mock.patch.object(tg, 'preflight') as preflight:
+                self.assertEqual([tg.SCARLETT], [s[1] for s in self.run_guard()])
+                preflight.assert_not_called()
+        self.assertEqual([tg.SCARLETT, tg.SCARLETT], calls)
 
     def test_preflight_runs_the_quick_check(self):  # frame reads take minutes and need the full Python
         with mock.patch.object(tg.subprocess, 'run', return_value=mock.Mock(returncode=1)) as run:
@@ -817,23 +820,23 @@ class Packs(Base):
         self.pack('theo-2')
         self.pass_codes['hgp-two'] = 1
         self.card('Edit Viral View Theo #2: Second')
-        self.assertEqual(2, len(self.run_guard()))
+        self.assertEqual(1, len(self.run_guard()))
 
     def test_a_folder_with_a_number_matches_a_plain_title_only_as_video_1(self):
         self.pack('theo-1')
         self.pass_codes['hgp-two'] = 1
         self.card('How To Make AI UGC That Looks Real - Theo')
-        self.assertEqual(2, len(self.run_guard()))
+        self.assertEqual(1, len(self.run_guard()))
 
     def test_a_card_waiting_on_jon_uses_up_its_pack(self):
         self.card('Edit HGP first video: One', 'waiting_on_jon')
-        self.assertEqual(2, len(self.run_guard()))
+        self.assertEqual(1, len(self.run_guard()))
 
     def test_cards_past_the_default_limit_count(self):
         for i in range(100):
             self.card('Other card %d' % i)
         self.card('Edit HGP first video: One')
-        self.assertEqual(2, len(self.run_guard()))
+        self.assertEqual(1, len(self.run_guard()))
 
 
 class Unreachable(Base):
@@ -1082,7 +1085,7 @@ class Failures(Base):
 
     def test_a_dashboard_timeout_keeps_the_pack_result_and_retries_next_run(self):
         self.pass_codes['hgp-two'] = 1
-        self.assertEqual(2, len(self.run_guard()))
+        self.assertEqual(1, len(self.run_guard()))
         self.t += tg.PACKS_RECHECK_S
         hung = mock.Mock(side_effect=subprocess.TimeoutExpired('dash', 60))
         with mock.patch.object(tg, 'waiting_packs', hung):
@@ -1319,12 +1322,17 @@ class Idle(Base):
 
 
 class ARoll(Base):
-    """pipeline_cards is faked as [(stage, entry time, card)]: 2 script passed, 3-5 a-roll made and not yet with the editor."""
+    """pipeline_cards is faked as [(stage, entry time, card)]: 2 script passed, 3-5 a-roll made and not yet with the editor.
+    Any passed script with no a-roll wakes Sydney, whoever holds the card (Jon, 2026-11-08)."""
+    SYDNEY = 'agent-sydney'
+
     def setUp(self):
         super().setUp()
         self.agent(tg.ELLE, 'Elle')
         self.agent(tg.SCARLETT, 'Scarlett')
-        self.slugs.update({'home-guide-press': [tg.ELLE], 'viral-view': [tg.SCARLETT], 'qc': ['agent-q']})
+        self.agent(self.SYDNEY, 'Sydney')
+        self.slugs.update({'home-guide-press': [tg.ELLE], 'viral-view': [tg.SCARLETT], 'jon-mac-youtube': [self.SYDNEY],
+                           'qc': ['agent-q']})
         self.script('Old script - Rosa', 600)
         self.script('New script - Rosa', 100)
 
@@ -1334,47 +1342,54 @@ class ARoll(Base):
     def wakes(self):
         return [s[1:] for s in self.run_guard() if s[0] == 'wake']
 
-    def test_low_buffer_wakes_the_owner_of_the_oldest_passed_script(self):
+    def test_a_passed_script_wakes_sydney_with_the_oldest(self):
         [(agent, text)] = self.wakes()
-        self.assertEqual(tg.ELLE, agent)
+        self.assertEqual(self.SYDNEY, agent)
         self.assertIn('Old script - Rosa', text)
-        self.assertIn('0 of 3', text)
+        self.assertIn('2 passed scripts have no a-roll', text)
+        self.assertIn('then hand the card to Scarlett', text)
         self.assertIn('do not submit it again', text)
 
-    def test_buffer_counts_a_rolls_clips_and_preflight_passed(self):
-        for stage in (3, 4, 5):
-            self.script('Rendered %d - Rosa' % stage, 10, stage=stage)  # under 30 minutes: not yet a next-step wake
-        self.assertEqual([], self.wakes())
+    def test_elle_is_never_woken_for_a_roll(self):
+        self.assertNotIn(tg.ELLE, [w[0] for w in self.wakes()])
 
-    def test_two_a_rolls_still_wake(self):
-        self.script('A - Rosa', 50, stage=3)
-        self.script('B - Rosa', 50, stage=5)
-        self.assertIn('2 of 3', self.wakes()[0][1])
+    def test_made_a_rolls_do_not_stop_the_wake(self):
+        for stage in (3, 4, 5):
+            self.script('Rendered %d - Rosa' % stage, 10, stage=stage)
+        [(agent, text)] = self.wakes()
+        self.assertEqual(self.SYDNEY, agent)
+        self.assertIn('2 passed scripts have no a-roll', text)  # only the ones without an a-roll count
 
     def test_no_passed_script_nothing_to_wake_for(self):
         self.pipe.clear()
         self.assertEqual([], self.wakes())
 
-    def test_scarlett_owns_her_scripts(self):
+    def test_whoever_holds_the_card_it_is_still_sydneys(self):
         self.pipe.clear()
         self.script('Her script - Viral', 90, owner='viral-view')
-        self.assertEqual(tg.SCARLETT, self.wakes()[0][0])
+        self.assertEqual(self.SYDNEY, self.wakes()[0][0])
 
-    def test_other_owners_are_skipped_for_the_next_oldest(self):
+    def test_the_oldest_wins_even_when_another_owner_holds_it(self):
         self.pipe.insert(0, (2, self.t - 9000 * 60, {'id': 't-qc', 'owner': 'qc', 'title': 'QC card - Rosa'}))
         [(agent, text)] = self.wakes()
-        self.assertIn('Old script - Rosa', text)
+        self.assertEqual(self.SYDNEY, agent)
+        self.assertIn('QC card - Rosa', text)
 
-    def test_busy_owner_is_not_woken_for_a_card_of_her_own(self):
-        self.turn(tg.ELLE, 'u1', 5, last=1)
+    def test_waiting_external_cards_are_skipped(self):
+        self.pipe[0][2]['note'] = 'Waiting external until 2099-01-01'
+        [(agent, text)] = self.wakes()
+        self.assertIn('New script - Rosa', text)
+
+    def test_busy_sydney_is_not_woken(self):
+        self.turn(self.SYDNEY, 'u1', 5, last=1)
         self.assertEqual([], self.wakes())
 
-    def test_queued_owner_is_not_woken(self):
-        self.queue(tg.ELLE)
+    def test_queued_sydney_is_not_woken(self):
+        self.queue(self.SYDNEY)
         self.assertEqual([], self.wakes())
 
-    def test_capped_owner_is_not_woken(self):
-        self.transcript('team', tg.ELLE, self.refused())
+    def test_capped_sydney_is_not_woken(self):
+        self.transcript('team', self.SYDNEY, self.refused())
         self.assertEqual([], self.wakes())
 
     def test_one_wake_per_card_per_30_minutes_then_again(self):
@@ -1382,14 +1397,14 @@ class ARoll(Base):
         self.assertEqual([1, 0, 0, 1], counts)
 
     def test_a_todo_card_does_not_block_the_aroll_wake(self):
-        self.cards.append({'id': 't-todo', 'owner': 'home-guide-press', 'title': 'Thumbnail for X', 'status': 'todo',
+        self.cards.append({'id': 't-todo', 'owner': 'jon-mac-youtube', 'title': 'Thumbnail for X', 'status': 'todo',
                            'updatedAt': ago(1), 'createdAt': ago(500)})
         [(agent, text)] = self.wakes()
-        self.assertEqual(tg.ELLE, agent)
+        self.assertEqual(self.SYDNEY, agent)
         self.assertIn('Old script - Rosa', text)
 
     def test_a_bot_woken_by_another_check_waits_30_minutes(self):
-        self.state_seen('idle:%s:t-x' % tg.ELLE, 5)
+        self.state_seen('idle:%s:t-x' % self.SYDNEY, 5)
         self.assertEqual([], self.wakes())
 
     def state_seen(self, key, minutes):
@@ -1398,30 +1413,30 @@ class ARoll(Base):
         tg.save(state)
 
     def test_a_bot_whose_turn_ended_5_minutes_ago_waits(self):
-        self.db.execute('insert into projection_threads values (?, ?)', ('th-d', tg.ELLE))
+        self.db.execute('insert into projection_threads values (?, ?)', ('th-d', self.SYDNEY))
         self.db.execute("insert into projection_turns values ('d', 'th-d', 'completed', ?, ?)", (ago(9), ago(5)))
         self.assertEqual([], self.wakes())
 
     def test_idle_nudge_skips_a_bot_the_aroll_check_woke_lately(self):
         self.pipe.clear()
-        self.cards.append({'id': 't-doing', 'owner': 'home-guide-press', 'title': 'Her doing card', 'status': 'doing',
+        self.cards.append({'id': 't-doing', 'owner': 'jon-mac-youtube', 'title': 'Her doing card', 'status': 'doing',
                            'updatedAt': ago(1)})
         self.assertEqual(1, len(self.wakes()))  # no aroll wake yet: idle nudges her
-        self.state_seen('aroll:%s:t-old' % tg.ELLE, 5)
-        self.state_seen('idle:%s:t-doing' % tg.ELLE, 99)  # long expired
+        self.state_seen('aroll:%s:t-old' % self.SYDNEY, 5)
+        self.state_seen('idle:%s:t-doing' % self.SYDNEY, 99)  # long expired
         self.assertEqual([], self.wakes())
 
     def test_next_run_after_30_minutes_wakes_the_next_card(self):
         self.assertEqual(1, len(self.wakes()))
         self.pipe[:] = [c for c in self.pipe if c[2]['title'] != 'Old script - Rosa']  # her a-roll was started
-        self.pipe.append((4, self.t, {'id': 't-old', 'owner': 'home-guide-press', 'title': 'Old script - Rosa'}))
+        self.pipe.append((4, self.t, {'id': 't-old', 'owner': 'viral-view', 'title': 'Old script - Rosa'}))
         self.wakes(), self.wakes()  # +10, +20
         [(agent, text)] = self.wakes()  # +30
         self.assertIn('New script - Rosa', text)
 
 
 class Balance(Base):
-    """Slugs: developer (Lucy) backs up to moneyclaw (Mila), then historient (Emma). Cards need createdAt."""
+    """Slugs: developer (Lucy) backs up to moneyclaw (Mila) only; no bot has the historient slug now. Cards need createdAt."""
     MILA, EMMA = 'agent-mila', 'agent-emma'
 
     def setUp(self):
@@ -1489,17 +1504,17 @@ class Balance(Base):
         self.assertEqual([], self.wakes('overloaded'))
         self.assertEqual([], self.moved())
 
-    def test_the_backup_must_be_lighter_else_the_next_one(self):
+    def test_the_backup_must_be_lighter_else_nothing_moves(self):
         self.cards_for('developer', 4)
         self.cards_for('moneyclaw', 4)
         self.wakes()
-        self.assertEqual('historient', self.moved()[0][1])
+        self.assertEqual([], self.moved())
 
     def test_a_capped_backup_is_skipped(self):
         self.cards_for('developer', 4)
         self.transcript('mila', self.MILA, self.refused())
         self.wakes()
-        self.assertEqual('historient', self.moved()[0][1])
+        self.assertEqual([], self.moved())
 
     def test_no_backup_alerts_ana_once(self):
         self.cards_for('developer', 4)
@@ -1530,21 +1545,22 @@ class Balance(Base):
         self.assertEqual(1, len(self.moved()))
 
     def test_a_backup_that_would_become_overloaded_is_skipped(self):
-        first = self.cards_for('developer', 5)[0]
+        self.cards_for('developer', 5)
         self.cards_for('moneyclaw', 3)
-        self.assertEqual(1, len(self.wakes('overloaded')))
-        self.assertEqual([(first['id'], 'historient')], self.moved())  # Mila would have 4 and pass it on
+        self.assertEqual([], self.wakes('overloaded'))
+        self.assertEqual([], self.moved())  # Mila would have 4 and pass it on
 
     def test_a_backup_with_queued_messages_is_skipped(self):
         self.cards_for('developer', 4)
         self.queue(self.MILA), self.queue(self.MILA)  # one more wake makes 3
         self.wakes()
-        self.assertEqual('historient', self.moved()[0][1])
+        self.assertEqual([], self.moved())
 
     def test_a_backup_woken_by_another_check_lately_is_skipped(self):
         self.cards_for('developer', 4)
         self.state_seen('aroll:%s:t-x' % self.MILA, 5)
-        self.assertEqual([self.EMMA], [w[0] for w in self.wakes('overloaded')])
+        self.assertEqual([], self.wakes('overloaded'))
+        self.assertEqual([], self.moved())
 
     def test_a_failed_comment_still_locks_the_move_and_wakes(self):
         self.cards_for('developer', 6)
@@ -1594,11 +1610,11 @@ class Next(Base):
 
     def setUp(self):
         super().setUp()
-        for agent, name in [(tg.ELLE, 'Elle'), (self.OLIVIA, 'Olivia'), (self.SYDNEY, 'Sydney'), (tg.JESSICA, 'Jessica'),
-                            (tg.NINA, 'Nina')]:
+        for agent, name in [(tg.ELLE, 'Elle'), (tg.SCARLETT, 'Scarlett'), (self.OLIVIA, 'Olivia'), (self.SYDNEY, 'Sydney'),
+                            (tg.JESSICA, 'Jessica'), (tg.NINA, 'Nina')]:
             self.agent(agent, name)
-        self.slugs.update({'home-guide-press': [tg.ELLE], 'video-editor': [self.OLIVIA], 'jon-mac-youtube': [self.SYDNEY],
-                           'qc': [tg.JESSICA, tg.NINA]})
+        self.slugs.update({'home-guide-press': [tg.ELLE], 'viral-view': [tg.SCARLETT], 'video-editor': [self.OLIVIA],
+                           'jon-mac-youtube': [self.SYDNEY], 'qc': [tg.JESSICA, tg.NINA]})
 
     def hand(self, stage, minutes, title='Rosa vac', owner='home-guide-press', status='todo', proof=None):
         card = {'id': 't-' + title[:4] + str(len(self.pipe)), 'owner': owner, 'title': title, 'status': status,
@@ -1641,10 +1657,10 @@ class Next(Base):
         self.hand(5, 29)
         self.assertEqual([], self.wakes())
 
-    def test_a_failed_script_wakes_its_owner(self):
+    def test_a_failed_script_wakes_sydney_even_when_elle_holds_the_card(self):
         self.hand(0, 60, 'Rosa script')
         [(agent, text)] = self.wakes()
-        self.assertEqual(tg.ELLE, agent)
+        self.assertEqual(self.SYDNEY, agent)
         self.assertIn('failed QC or was never sent', text)
 
     def test_sydney_gets_her_failed_script_back(self):
@@ -1655,18 +1671,19 @@ class Next(Base):
         self.hand(0, 60, status='doing')
         self.assertEqual([], self.wakes())
 
-    def test_an_a_roll_with_no_clips_wakes_its_owner(self):
+    def test_an_a_roll_with_no_clips_wakes_scarlett_whoever_holds_the_card(self):
         self.hand(3, 45, 'Rosa a-roll')
         [(agent, text)] = self.wakes()
-        self.assertEqual(tg.ELLE, agent)
+        self.assertEqual(tg.SCARLETT, agent)
         self.assertIn('Build them and run preflight', text)
 
-    def test_only_elle_and_scarlett_build_clips_and_only_script_writers_fix_scripts(self):
+    def test_only_scarlett_builds_clips_and_only_sydney_fixes_scripts(self):
         self.hand(3, 45, owner='qc')
-        self.hand(3, 45, owner='jon-mac-youtube')
         self.hand(0, 45, owner='video-editor')
         self.hand(0, 45, owner='qc')
         self.assertEqual([], self.wakes())
+        self.hand(3, 45, owner='jon-mac-youtube')  # Sydney holds it, but clips are Scarlett's
+        self.assertEqual([tg.SCARLETT], [w[0] for w in self.wakes()])
 
     def test_a_card_qc_or_jon_holds_is_not_nudged(self):
         for stage in (0, 3, 5):
@@ -1700,17 +1717,17 @@ class Next(Base):
 
     def test_a_busy_bot_is_not_woken(self):
         self.hand(3, 45)
-        self.turn(tg.ELLE, 'u1', 5, last=1)
+        self.turn(tg.SCARLETT, 'u1', 5, last=1)
         self.assertEqual([], self.wakes())
 
     def test_a_bot_with_a_message_queued_is_not_woken(self):
         self.hand(3, 45)
-        self.queue(tg.ELLE)
+        self.queue(tg.SCARLETT)
         self.assertEqual([], self.wakes())
 
     def test_a_bot_held_by_a_usage_limit_is_not_woken(self):
         self.hand(3, 45)
-        self.transcript('team', tg.ELLE, self.refused())
+        self.transcript('team', tg.SCARLETT, self.refused())
         self.assertEqual([], self.wakes())
 
     def test_one_wake_per_card_per_30_minutes_then_again(self):
@@ -1757,7 +1774,7 @@ class Buffers(Base):
         self.agent(tg.SCARLETT, 'Scarlett')
         self.agent(self.SYDNEY, 'Sydney')
         self.slugs.update({'home-guide-press': [tg.ELLE], 'viral-view': [tg.SCARLETT], 'jon-mac-youtube': [self.SYDNEY]})
-        patcher = mock.patch.object(tg, 'CHECKS', _ALL_CHECKS)
+        patcher = mock.patch.object(tg, 'CHECKS', [c for c in _ALL_CHECKS if c[0] != 'aroll'])  # check_aroll has its own tests
         patcher.start()
         self.addCleanup(patcher.stop)
         for i in range(tg.SCRIPTS_MIN):
@@ -1852,14 +1869,12 @@ class Buffers(Base):
         self.card(4, 25, 'Older - Rosa', pack='x')
         self.assertIn('Older - Rosa', self.wakes()[0][1])
 
-    def test_the_other_owner_gets_the_next_pack_when_the_first_is_busy(self):
+    def test_elle_never_gets_a_pack_wake_even_when_scarlett_is_busy(self):
         self.drop(5, 2)
         self.card(3, 25, 'Elle pack - Rosa')
         self.card(3, 20, 'Her pack - Viral', 'viral-view')
-        self.turn(tg.ELLE, 'u1', 5, last=1)
-        [(agent, text)] = self.wakes()
-        self.assertEqual(tg.SCARLETT, agent)
-        self.assertIn('Her pack - Viral', text)
+        self.turn(tg.SCARLETT, 'u1', 5, last=1)
+        self.assertEqual([], self.wakes())
 
     def test_never_more_wakes_than_packs_missing(self):
         self.drop(5, 1)
@@ -1889,7 +1904,7 @@ class Buffers(Base):
         self.drop(5, 1)
         self.card(3, 25, 'Elle pack - Rosa')
         state = tg.load()
-        state['seen']['idle:%s:t-x' % tg.ELLE] = tg.iso(self.t - 5 * 60)
+        state['seen']['idle:%s:t-x' % tg.SCARLETT] = tg.iso(self.t - 5 * 60)
         tg.save(state)
         self.assertEqual([], self.wakes())
 
@@ -1898,7 +1913,7 @@ class Buffers(Base):
         self.drop(5, 1)
         self.topic('Next topic - Rosa')
         self.card(3, 25, 'Elle pack - Rosa')
-        self.assertEqual({self.SYDNEY, tg.ELLE}, {a for a, _ in self.wakes()})
+        self.assertEqual({self.SYDNEY, tg.SCARLETT}, {a for a, _ in self.wakes()})
 
     def test_pack_order_file_skips_comments_and_blank_lines(self):
         path = self.root / 'order.txt'
@@ -1918,7 +1933,7 @@ class GpuGap(Base):
         self.agent(tg.ELLE, 'Elle')
         self.agent(tg.SCARLETT, 'Scarlett')
         self.slugs.update({'home-guide-press': [tg.ELLE], 'viral-view': [tg.SCARLETT]})
-        patcher = mock.patch.object(tg, 'CHECKS', _ALL_CHECKS)
+        patcher = mock.patch.object(tg, 'CHECKS', [c for c in _ALL_CHECKS if c[0] != 'aroll'])  # check_aroll has its own tests
         patcher.start()
         self.addCleanup(patcher.stop)
         for i in range(tg.SCRIPTS_MIN):
@@ -1930,13 +1945,13 @@ class GpuGap(Base):
     def test_idle_gpu_wakes_the_owner_of_a_pack_with_no_clips(self):
         self.card(3, 5, 'Waiting clips - Rosa')
         [(agent, text)] = self.wakes()
-        self.assertEqual(tg.ELLE, agent)
+        self.assertEqual(tg.SCARLETT, agent)
         self.assertIn('25 minutes', text)
         self.assertIn('Waiting clips - Rosa', text)
 
     def test_a_pack_with_clips_building_counts_too(self):
         self.card(4, 5, 'Stuck clips - Rosa')
-        self.assertEqual(tg.ELLE, self.wakes()[0][0])
+        self.assertEqual(tg.SCARLETT, self.wakes()[0][0])
 
     def test_busy_gpu_wakes_nobody(self):
         self.card(3, 5, 'Waiting clips - Rosa')
@@ -1961,21 +1976,25 @@ class GpuGap(Base):
         [(agent, _)] = self.wakes()  # one pack for the one empty GPU
         self.assertEqual(tg.SCARLETT, agent)
 
-    def test_a_busy_owner_is_skipped_for_the_next_pack(self):
+    def test_a_busy_scarlett_is_not_replaced_by_elle(self):
         self.order = ['peter-3', 'rosa-house']
         self.card(3, 5, 'First in order - Viral', 'viral-view', pack='Peter-3')
         self.card(3, 5, 'Second - Rosa', pack='rosa-house')
         self.turn(tg.SCARLETT, 'u1', 5, last=1)
-        [(agent, text)] = self.wakes()
-        self.assertEqual(tg.ELLE, agent)
-        self.assertIn('Second - Rosa', text)
+        self.assertEqual([], self.wakes())
 
     def test_doing_held_and_waiting_external_cards_are_skipped(self):
         self.card(3, 5, 'Doing - Rosa', status='doing')
         self.card(3, 5, 'In QC - Rosa', status='qc')
         self.card(3, 5, 'Sponsor wait - Rosa', note='Waiting external until 2026-12-31')
-        self.card(3, 5, 'Not hers - Sydney', 'jon-mac-youtube')
+        self.card(3, 5, 'Other owner - Rosa', 'qc')
         self.assertEqual([], self.wakes())
+
+    def test_a_card_sydney_holds_still_goes_to_scarlett(self):  # Scarlett builds every pack's clips, whoever holds the card
+        self.card(3, 5, 'Held by Sydney - Rosa', 'jon-mac-youtube')
+        [(agent, text)] = self.wakes()
+        self.assertEqual(tg.SCARLETT, agent)
+        self.assertIn('Held by Sydney - Rosa', text)
 
     def test_one_wake_per_card_not_every_tick(self):
         self.card(3, 5, 'Waiting clips - Rosa')
@@ -1983,10 +2002,10 @@ class GpuGap(Base):
         self.assertEqual([], self.wakes())
 
     def test_a_bot_already_woken_by_another_check_is_not_woken_again(self):
-        self.drop(5, 1)  # the pack buffer is low: the Buffers check wakes Elle first
+        self.drop(5, 1)  # the pack buffer is low: the Buffers check wakes Scarlett first
         self.card(3, 5, 'Waiting clips - Rosa')
         [(agent, text)] = self.wakes()
-        self.assertEqual(tg.ELLE, agent)
+        self.assertEqual(tg.SCARLETT, agent)
         self.assertIn('Pack buffer is', text)
 
     drop = Buffers.drop
@@ -2008,10 +2027,10 @@ class GpuQueues(Base):
     def alerts(self):
         return [a for s in self.run_guard() if s[0] == 'fire' for a in s[2]['alerts']]
 
-    def test_a_queue_under_three_runnable_jobs_wakes_elle(self):
+    def test_a_queue_under_three_runnable_jobs_wakes_scarlett(self):
         self.gpu_queues['GPU2'] = (2, True, None)
         [(agent, text)] = self.wakes()
-        self.assertEqual(tg.ELLE, agent)
+        self.assertEqual(tg.SCARLETT, agent)
         self.assertIn('GPU2 has 2 runnable jobs', text)
         self.assertIn('Qwen still', text)
 
@@ -2025,15 +2044,14 @@ class GpuQueues(Base):
         self.assertIn('GPU1 has 0 runnable jobs', text)
         self.assertIn('Omni clip', text)
 
-    def test_both_queues_low_wake_both_bots_once_each(self):
+    def test_both_queues_low_wake_scarlett_once(self):
         self.gpu_queues.update({'GPU1': (1, True, None), 'GPU2': (1, True, None)})
-        self.assertEqual([tg.ELLE, tg.SCARLETT], sorted([a for a, _ in self.wakes()], key=[tg.ELLE, tg.SCARLETT].index))
+        self.assertEqual([tg.SCARLETT], [a for a, _ in self.wakes()])
 
-    def test_scarlett_is_woken_when_elle_is_busy(self):
+    def test_elle_is_never_woken_when_scarlett_is_busy(self):
         self.gpu_queues['GPU1'] = (1, True, None)
-        self.turn(tg.ELLE, 'u1', 5, last=1)
-        [(agent, _)] = self.wakes()
-        self.assertEqual(tg.SCARLETT, agent)
+        self.turn(tg.SCARLETT, 'u1', 5, last=1)
+        self.assertEqual([], self.wakes())
 
     def test_one_wake_per_queue_not_every_tick(self):
         self.gpu_queues['GPU2'] = (0, False, None)
@@ -2400,7 +2418,6 @@ class EachTriggerOnce(Base):
                     'Queue behind a 2 hour turn': sum('queued behind' in t for t in alerts),
                     'Queue with no open turn': sum('no open turn' in t for t in alerts),
                     'Video proof waiting 30 minutes': wakes.count(tg.NINA),
-                    'Under 2 packs: Elle': wakes.count(tg.ELLE),
                     'Under 2 packs: Scarlett': wakes.count(tg.SCARLETT),
                     'Ana quiet 45 minutes: restart': sum(s[0] == 'restart' for s in out),
                     'Bot held by a usage limit': sum('held by a usage limit' in t for t in alerts)}
