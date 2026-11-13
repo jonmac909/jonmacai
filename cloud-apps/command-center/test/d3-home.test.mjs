@@ -374,7 +374,7 @@ test('Progress: numbers and status from the feeds; a goal with no source reads N
   assert.equal(rowOf(cats, 'personal', 'week', 'workouts').v, '1 / 3');
   assert.deepEqual(rowOf(cats, 'personal', 'week', 'workouts').det.items, ['Mon · done', 'Wed · missed', 'Fri · missed']);
   assert.equal(rowOf(cats, 'personal', 'week', 'datewk').v, '1 / 1'); // Thursday Nov 5 is inside this week
-  for (const per of ['today', 'week', 'month']) assert.deepEqual(rowsOf(cats, 'pnl', per).map((r) => r.k).slice(0, 3), ['revenue', 'bmonth', 'profit'], per);
+  for (const per of ['today', 'week', 'month']) assert.deepEqual(rowsOf(cats, 'pnl', per).map((r) => r.k).slice(0, 4), ['revenue', 'bmonth', 'pmonth', 'profit'], per);
   for (const [cat, per, k] of [['personal', 'month', 'trips'], ['personal', 'month', 'groups']]) {
     const r = rowOf(cats, cat, per, k);
     assert.deepEqual([r.v, r.st, r.word, r.pct], ['No feed', 'none', 'No feed', null], k);
@@ -491,7 +491,7 @@ test('PnL shows revenue, expenses and profit this month; Sponsors shows money ow
   assert.deepEqual([pr.st, pr.word], ['on', 'Profit']);
   assert.match(pr.info, /1 USD = 1\.4000 CAD/);
   assert.equal(rowOf(cats, 'pnl', 'today', 'revenue').n, 'Revenue this month');
-  assert.equal(rowOf(cats, 'pnl', 'today', 'bmonth').n, 'Expenses this month');
+  assert.equal(rowOf(cats, 'pnl', 'today', 'bmonth').n, 'Business expenses');
   exp.split.business.month = 7000;
   assert.equal(rowOf(homeGoals(d2, d3Sample(), undefined, undefined, { goals: [], logs: [], fx }), 'pnl', 'month', 'profit').v, '−$1,900');
   assert.equal(rowOf(homeGoals(d2, d3Sample()), 'pnl', 'month', 'profit').v, 'No data', 'no rate, no sum across currencies');

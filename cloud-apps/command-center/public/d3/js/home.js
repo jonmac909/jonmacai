@@ -321,12 +321,12 @@ function profitRow(collected, sec, fx) {
   const exp = b && num(b.month) ? b.month : null;
   const rate = num(fx?.usdcad) && fx.usdcad > 0 ? fx.usdcad : null;
   const why = rev == null ? 'Sponsor cash this month has not reported' : exp == null ? 'Business spending is not in the MoneyClaw feed' : !rate ? 'No USD to CAD rate yet (Bank of Canada, pulled every 6 hours)' : '';
-  if (why) return row('profit', 'Profit this month', 'No data', 'none', why, { h: '', items: [], page: PG.money }, { nf: true });
+  if (why) return row('profit', 'Business profit this month', 'No data', 'none', why, { h: '', items: [], page: PG.money }, { nf: true });
   const p = rev - exp / rate;
   const stale = !!(collected.source?.stale || sec?.stale);
   const span = b.basis === 'stages' && !b.monthFrom ? '' : b.basis === 'stages' ? `spending from ${b.monthFrom.slice(5).replace('-', '/')}` : 'spending is the last 30 days';
   const st = stale ? 'none' : p >= 0 ? 'on' : 'off';
-  return row('profit', 'Profit this month', `${p < 0 ? '−' : ''}${usd(Math.abs(p))}`, st,
+  return row('profit', 'Business profit this month', `${p < 0 ? '−' : ''}${usd(Math.abs(p))}`, st,
     [`${usd(rev)} in − ${cad0(exp)} CAD out`, `1 USD = ${rate.toFixed(4)} CAD`, span, stale ? 'a feed is stale' : ''].filter(Boolean).join(' · '),
     { h: 'In USD', items: [`Revenue ${usd(rev)} (sponsor cash only; ads and affiliates have no feed yet)`, `Business spending ${cad0(exp)} CAD = ${usd(exp / rate)}`, `Bank of Canada rate${fx.day ? ` for ${fx.day}` : ''}`], page: PG.money },
     { word: stale ? 'Stale' : p >= 0 ? 'Profit' : 'Loss' });
@@ -458,12 +458,14 @@ export function homeGoals(d2resp, d3resp, P = periodOf(d2resp), now = nowOf(), h
   // PnL: revenue, expenses and profit this month under every period (Jon, 2026-11-12)
   const revenue = fromMetric('revenue', 'Revenue this month', collected, { money: true, info: ['Sponsor cash only', thru ? `through ${thru}` : ''].filter(Boolean).join(' · '),
     det: { h: `${P.monthName || 'This month'} so far`, items: ['Sponsor cash collected', 'YouTube ads and affiliates: no feed yet'], page: PG.money } });
-  const expenses = spendRow('bmonth', 'Expenses this month', split, split?.split?.business, 'month', BUDGET.business, P);
+  // Expenses split into Business and Personal (Jon, 2026-11-13); profit is revenue less business spending only
+  const expenses = spendRow('bmonth', 'Business expenses', split, split?.split?.business, 'month', BUDGET.business, P);
+  const pexp = spendRow('pmonth', 'Personal expenses', split, split?.split?.personal, 'month', BUDGET.personal, P);
   const profit = profitRow(collected, split, home?.fx);
   const pnl = {
-    today: [revenue, expenses, profit],
-    week: [revenue, expenses, profit, spendRow('bweek', 'Business spending', split, split?.split?.business, 'week', BUDGET.businessWeek, P)],
-    month: [revenue, expenses, profit],
+    today: [revenue, expenses, pexp, profit],
+    week: [revenue, expenses, pexp, profit, spendRow('bweek', 'Business spending', split, split?.split?.business, 'week', BUDGET.businessWeek, P)],
+    month: [revenue, expenses, pexp, profit],
   };
   const cats = [{ key: 'pnl', title: 'PnL', ...pnl }, { key: 'sponsors', title: 'Sponsors', ...sponsors }, { key: 'factory', title: 'Factory', ...factory }, { key: 'personal', title: 'Personal', ...personal }];
   if (P.ymd) for (const g of home?.goals || []) cats.find((c) => c.key === g.cat)?.[g.per]?.push(ownRow(g, home.logs || [], P));
