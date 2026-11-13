@@ -243,12 +243,12 @@ test('Goals: sections in the design order, targets from the data, no design samp
 });
 
 test('Goals: cards in a row are the same size; a long deal list scrolls inside Pipeline revenue (Jon, 2026-11-11)', () => {
-  // Plant a long Pipeline list: 33 leads and 17 deals in production.
+  // Plant a long Pipeline list: 33 priced deals to close and 17 deals in production.
   const d2 = SAMPLE();
   const cols = d2.d2.pipeline.boards.find((b) => b.goal === 'sponsors').sponsors.board.columns;
-  const lead = cols.find((c) => c.title === 'Leads');
+  const lead = cols.find((c) => c.title === 'Deals');
   const prod = cols.find((c) => c.title === 'Video Production');
-  for (let i = 1; i <= 33; i++) lead.cards.push({ id: `qc-lead-${i}`, name: `QC long list lead ${i} with a long sponsor name`, amt: null });
+  for (let i = 1; i <= 33; i++) lead.cards.push({ id: `qc-lead-${i}`, name: `QC long list deal ${i} with a long sponsor name`, amt: 1000 + i });
   for (let i = 1; i <= 17; i++) prod.cards.push({ id: `qc-prod-${i}`, name: `QC production deal ${i}`, amt: null });
   const html = renderGoals(d2, d3Sample(), {});
   // Top row and objectives sit in their own equal-column grids, in order.
@@ -1128,17 +1128,18 @@ test('Goals: Pipeline revenue replaces Blockers, To review and Tokens; totals ar
   const html = renderGoals(d2, d3Sample(), {});
   for (const s of ['>Blockers<', '>To review<', '>Tokens<', 'href="#blockers"', 'href="#review"']) assert.ok(!html.includes(s), s);
   const p = pipelineOf(d2);
-  // Fixture: Poppy negotiating $2,500; Invideo owes $2,100 (its money-owed row wins over the $4,200 deal); Arcads in
-  // production with no amount; Creatify paid and Topview archived are left out.
-  assert.deepEqual(p.close.map((r) => [r.id, r.name, r.amt]), [['c-poppy', 'Poppy', 2500]]);
+  // Fixture: Poppy negotiating $2,500 counts nowhere (Jon, 2026-11-13: talks are not deals to close); Invideo owes
+  // $2,100 (its money-owed row wins over the $4,200 deal); Arcads in production with no amount; Creatify paid and
+  // Topview archived are left out.
+  assert.deepEqual(p.close, []);
   assert.deepEqual(p.collect.map((r) => [r.id, r.name, r.amt]), [['c-invideo', 'Invideo', 2100], ['c-arcads', 'Arcads', null]]);
   for (const k of ['close', 'collect']) assert.equal(p.totals[k], p[k].reduce((n, r) => n + (r.amt || 0), 0), k);
   const card = html.slice(html.indexOf('aria-label="Pipeline revenue"'));
-  assert.match(card, /To close<\/span><b class="num sp" style="font-size: 26px">\$2,500</);
+  assert.match(card, /To close<\/span><b class="num sp" style="font-size: 26px">\$0</);
   assert.match(card, /To collect<\/span><b class="num sp" style="font-size: 26px">\$2,100</);
   assert.match(card, /2 deals · 1 no amount/);
-  for (const id of ['c-poppy', 'c-invideo', 'c-arcads']) assert.match(card, new RegExp(`href="#money" data-deal="${id}"`));
-  assert.ok(!/Creatify|Topview|\$4,200/.test(card.slice(0, card.indexOf('</section>'))));
+  for (const id of ['c-invideo', 'c-arcads']) assert.match(card, new RegExp(`href="#money" data-deal="${id}"`));
+  assert.ok(!/Poppy|Creatify|Topview|\$4,200/.test(card.slice(0, card.indexOf('</section>'))));
   // Every row opens its deal on Money: the same key marks the card there and outlines it.
   const money = renderMoney(d2, d3Sample(), { dealSel: 'c-arcads' });
   assert.match(money, /id="deal-c-arcads" style="gap: 4px; outline: 2px solid #2563eb/);
@@ -1156,18 +1157,18 @@ test('Goals: Pipeline revenue replaces Blockers, To review and Tokens; totals ar
   assert.match(bare, /Pipeline revenue<\/h2>[\s\S]*No feed: the Sponsors board could not be read/);
   assert.doesNotMatch(bare, /NaN|undefined/);
   // Names are escaped.
-  cols.find((c) => c.title === 'Negotiations').cards[0].name = '<img src=x onerror=alert(1)>';
+  cols.find((c) => c.title === 'Video Production').cards[0].name = '<img src=x onerror=alert(1)>';
   assert.ok(!renderGoals(old, null, {}).includes('<img src=x'));
 });
 
 test('Pipeline revenue: a repeat sponsor\'s second deal is its own row; an owed row with no live card has no dead link', () => {
   const d2 = SAMPLE();
   const sp = d2.d2.pipeline.boards.find((b) => b.goal === 'sponsors').sponsors;
-  sp.board.columns.find((c) => c.title === 'Leads').cards.push({ id: 'c-invideo-2', name: 'Invideo', amt: 3000 });
+  sp.board.columns.find((c) => c.title === 'Deals').cards.push({ id: 'c-invideo-2', name: 'Invideo', amt: 3000 });
   sp.collect.rows.push({ sponsor: 'Gone Co', owedUsd: 900, payload: { id: 'c-archived' } });
   const p = pipelineOf(d2);
-  assert.deepEqual(p.close.map((r) => [r.id, r.amt]), [['c-invideo-2', 3000], ['c-poppy', 2500]]);
-  assert.equal(p.totals.close, 5500);
+  assert.deepEqual(p.close.map((r) => [r.id, r.amt]), [['c-invideo-2', 3000]]);
+  assert.equal(p.totals.close, 3000);
   assert.deepEqual(p.collect.map((r) => [r.id, r.name, r.amt]), [['c-invideo', 'Invideo', 2100], [null, 'Gone Co', 900], ['c-arcads', 'Arcads', null]]);
   assert.equal(p.totals.collect, 3000);
   const card = renderGoals(d2, null, {});
@@ -1179,6 +1180,47 @@ test('Pipeline revenue: a repeat sponsor\'s second deal is its own row; an owed 
   assert.equal(q.collect.find((r) => r.amt === 2100).id, 'c-invideo');
   const ids = [...q.close, ...q.collect].map((r) => r.id).filter(Boolean);
   assert.equal(new Set(ids).size, ids.length);
+});
+
+test('Pipeline revenue: an owed row by name only takes the collect card first, so a repeat sponsor\'s Deals card stays to close', () => {
+  const d2 = SAMPLE();
+  const sp = d2.d2.pipeline.boards.find((b) => b.goal === 'sponsors').sponsors;
+  const col = (t) => sp.board.columns.find((c) => c.title === t).cards;
+  col('Deals').unshift({ id: 'c-rep-deal', name: 'RepeatCo', amt: 4000 });
+  col('Deposit Paid').push({ id: 'c-rep-dp', name: 'RepeatCo', amt: 3000 });
+  col('Leads').push({ id: 'c-lo', name: 'LeadOnlyCo', amt: 0 });
+  sp.collect.rows.push({ sponsor: 'RepeatCo', owedUsd: 1500, payload: {} }, { sponsor: 'LeadOnlyCo', owedUsd: 700, payload: {} });
+  const p = pipelineOf(d2);
+  assert.deepEqual(p.collect.filter((r) => /RepeatCo/.test(r.name)).map((r) => [r.id, r.amt]), [['c-rep-dp', 1500]]);
+  assert.ok(p.close.some((r) => r.id === 'c-rep-deal' && r.amt === 4000));
+  assert.ok(!p.close.some((r) => r.id === 'c-rep-dp'));
+  // A name that only matches a lead keeps its link, counted once in collect, and the lead stays out of close.
+  assert.deepEqual(p.collect.filter((r) => r.name === 'LeadOnlyCo').map((r) => [r.id, r.amt]), [['c-lo', 700]]);
+  assert.ok(!p.close.some((r) => r.id === 'c-lo'));
+});
+
+test('Pipeline revenue (Jon, 2026-11-13): to close = priced Deals and Deposit Invoice; to collect = Deposit Paid on; leads and talks in neither', async () => {
+  const { homeGoals } = await import('../public/d3/js/home.js');
+  const d2 = SAMPLE();
+  const sp = d2.d2.pipeline.boards.find((b) => b.goal === 'sponsors').sponsors;
+  const col = (t) => sp.board.columns.find((c) => c.title === t).cards;
+  col('Leads').push({ id: 'c-lead', name: 'LeadCo', amt: 1200 });
+  col('Negotiations').push({ id: 'c-talk', name: 'TalkCo', amt: 4000 }); // priced, still talking: counts nowhere
+  col('Deals').push({ id: 'c-deal', name: 'DealCo', amt: 3000 }, { id: 'c-deal-np', name: 'NoPriceCo', amt: 0 });
+  col('Deposit Invoice').push({ id: 'c-dinv', name: 'InvCo', amt: 2500 });
+  col('Deposit Paid').push({ id: 'c-dpaid', name: 'PaidDepCo', amt: 2000 });
+  const p = pipelineOf(d2);
+  assert.deepEqual(p.close.map((r) => [r.id, r.amt]), [['c-deal', 3000], ['c-dinv', 2500]]);
+  assert.equal(p.totals.close, 5500);
+  assert.deepEqual(p.collect.map((r) => r.id), ['c-invideo', 'c-dpaid', 'c-arcads']);
+  assert.equal(p.totals.collect, 4100);
+  const all = [...p.close, ...p.collect].map((r) => r.id);
+  for (const id of ['c-lead', 'c-talk', 'c-poppy', 'c-deal-np']) assert.ok(!all.includes(id), id);
+  // Home: Deals to close is a dollar total, never "Not priced", and lists no unpriced or talking deals.
+  const cats = homeGoals(d2, null);
+  const close = cats.find((c) => c.key === 'sponsors').month.find((x) => x.k === 'close');
+  assert.equal(close.v, '$5,500');
+  assert.doesNotMatch(JSON.stringify(close), /Not priced|no amount|TalkCo|LeadCo|NoPriceCo|Poppy/);
 });
 
 test('Team page: each bot shows its profile picture from /dash/img/bots, rows with several bots stack them, others keep the letter', async () => {

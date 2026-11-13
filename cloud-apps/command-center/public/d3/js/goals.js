@@ -293,10 +293,11 @@ ${pills ? `<div class="hd" style="flex-wrap: wrap; gap: 6px">${pills}</div>` : '
 }
 
 // Pipeline revenue (Jon, 2026-11-11): deals still to close and money still to collect, from the Sponsors board and its
-// money-owed list. To collect = every owed row plus agreed and in-work deals not on that list; To close = leads and
-// talks. Paid and archived deals are left out. Each row opens its deal on the Money page.
-export const CLOSE_COLS = ['Leads', 'Negotiations'];
-export const COLLECT_COLS = ['Deals', 'Deposit Invoice', 'Deposit Paid', 'Video Production', 'Video Approved', 'Video Live', 'Balance Invoice'];
+// money-owed list (Jon, 2026-11-13). To collect (Money owed) = deposit received, balance still owed: every owed row plus
+// deals from Deposit Paid on. To close = price confirmed, no deposit yet (Deals, Deposit Invoice), priced only.
+// Leads and talks count nowhere. Paid and archived deals are left out. Each row opens its deal on the Money page.
+export const CLOSE_COLS = ['Deals', 'Deposit Invoice'];
+export const COLLECT_COLS = ['Deposit Paid', 'Video Production', 'Video Approved', 'Video Live', 'Balance Invoice'];
 // One key for a deal across the Goals card and the Money page: its board id, else its name.
 export const dealKey = (id, name) => (id ? String(id) : `n:${String(name || '').trim().toLowerCase()}`);
 const money = (v) => (num(v) ? v : typeof v === 'string' && /\d/.test(v) ? Number(v.replace(/[^0-9.]/g, '')) : NaN);
@@ -308,11 +309,14 @@ export function pipelineOf(d2resp) {
   const live = deals([...CLOSE_COLS, ...COLLECT_COLS]); // the cards the Money page shows
   const nm = (s) => String(s || '').trim().toLowerCase();
   const used = new Set(); // board cards already counted, so each deal is counted once
-  // An owed row is the same deal as a board card with its id; a row with no id takes the first unused card of that name.
+  // An owed row is the same deal as a board card with its id; a row with no id takes the first unused card of that name,
+  // collect columns first, then close columns, then any other card (a lead or talk) only for its link.
   // A second deal with the same sponsor but its own id stays a separate deal.
+  const tiers = [deals(COLLECT_COLS), deals(CLOSE_COLS), deals(['Leads', 'Negotiations'])];
+  const byName = (name) => { for (const t of tiers) { const k = t.find((k) => !used.has(k) && nm(k.name) === nm(name)); if (k) return k; } return null; };
   const cardFor = (id, name) => (id
     ? live.find((k) => k.id != null && String(k.id) === String(id))
-    : nm(name) && live.find((k) => !used.has(k) && nm(k.name) === nm(name))) || null;
+    : nm(name) && byName(name)) || null;
   const row = (k, name, amt) => ({ id: k ? dealKey(k.id, k.name) : null, name: name || 'Sponsor', amt: Number.isFinite(amt) && amt > 0 ? amt : null });
   const collect = [];
   const owed = (sp.collect?.rows || []).map((r) => ({ r, amt: money(r.owedUsd ?? r.owed) })).filter((x) => x.amt > 0);
@@ -328,7 +332,7 @@ export function pipelineOf(d2resp) {
     collect.push(row(k, k.name, k.amt));
     used.add(k);
   }
-  const close = deals(CLOSE_COLS).filter((k) => !used.has(k)).map((k) => row(k, k.name, k.amt));
+  const close = deals(CLOSE_COLS).filter((k) => !used.has(k)).map((k) => row(k, k.name, k.amt)).filter((r) => r.amt != null);
   const sort = (a) => a.sort((x, y) => (y.amt ?? -1) - (x.amt ?? -1));
   const sum = (a) => a.reduce((n, r) => n + (r.amt || 0), 0);
   return { close: sort(close), collect: sort(collect), totals: { close: sum(close), collect: sum(collect) } };

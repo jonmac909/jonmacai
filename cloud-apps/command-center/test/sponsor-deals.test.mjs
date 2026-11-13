@@ -90,9 +90,11 @@ test('sponsor.add_deal + sponsor.set_amount: identical on Pipeline and Money, am
   assert.equal(pl.id, mo.id);
   assert.equal(mo.next, 'Chase invoice 1073');
   assert.equal(mo.threadId, '1a1213c3e19344a7');
-  assert.ok(p.collect.some((x) => x.name === 'Munch'), 'Munch in To collect (Deals)');
+  // Topview (Deposit Invoice, priced) is to close; Munch (Deals, no amount yet) counts in neither (Jon, 2026-11-13).
+  assert.ok(p.close.some((x) => x.name === 'Topview'), 'Topview in To close (Deposit Invoice)');
+  assert.ok(![...p.close, ...p.collect].some((x) => x.name === 'Munch'), 'unpriced Munch in neither list');
   assert.ok(m.some((x) => x.name === 'Munch'));
-  assert.equal(p.totals.collect, 2000);
+  assert.equal(p.totals.close, 2000);
   assert.ok(!(r.sources?.sponsor_deals), 'the deals row is not a feed');
   // GPU1 reads the added deals' threads too.
   const env = { ...t.env, MACHINE_TOKEN_GPU1: 'g' };
@@ -236,12 +238,12 @@ test('bot deals routes (t_0d63a48a3be4423c): list, set amount makes the home Spo
     const r = (k) => cats.find((c) => c.key === 'sponsors').month.find((x) => x.k === k);
     return { owed: r('owed'), close: r('close') };
   };
-  // Planted: every deal unpriced, so both home rows read "Not priced".
-  const lead = 'gmail-thread-bbb222bbb222'; // moved to Negotiations on Jon's board: Deals to close
+  // Planted: every deal unpriced, so Money owed reads "Not priced" and Deals to close (priced only) is empty.
+  const lead = 'gmail-thread-bbb222bbb222'; // moved to Deals on Jon's board: Deals to close once priced
   const prod = 'gmail-thread-aaa111aaa111'; // Video Production: Money owed
-  await t.act('sponsor.move_stage', { id: lead, stage: 'negotiating' });
+  await t.act('sponsor.move_stage', { id: lead, stage: 'contract-brief' });
   let h = await home();
-  assert.equal(h.close.v, 'Not priced');
+  assert.deepEqual([h.close.v, h.close.info], ['$0', 'None open']);
   assert.equal(h.owed.v, 'Not priced');
   // Only sponsors and ana; others 403, no token 401.
   assert.equal((await call(null)).status, 401);
@@ -252,7 +254,7 @@ test('bot deals routes (t_0d63a48a3be4423c): list, set amount makes the home Spo
   const list = await (await call('ana')).json();
   assert.ok(list.ok);
   const row = (id) => list.deals.find((d) => d.id === id);
-  assert.deepEqual(row(lead), { id: lead, sponsor: lead, stage: 'Negotiations', boardStage: 'negotiating', amount: null, threadId: '', bucket: 'to-close' });
+  assert.deepEqual(row(lead), { id: lead, sponsor: lead, stage: 'Deals', boardStage: 'contract-brief', amount: null, threadId: '', bucket: null });
   assert.equal(row(prod).bucket, 'owed');
   assert.equal(row(prod).stage, 'Video Production');
   // Set amounts: the home rows show dollar totals instead of Not priced.
@@ -263,6 +265,7 @@ test('bot deals routes (t_0d63a48a3be4423c): list, set amount makes the home Spo
   h = await home();
   assert.equal(h.owed.v, '$2,000');
   assert.equal(h.close.v, '$1,500');
+  assert.equal((await (await call('sponsors')).json()).deals.find((d) => d.id === lead).bucket, 'to-close');
   assert.equal((await (await call('sponsors')).json()).deals.find((d) => d.id === prod).amount, 2000);
   // Stage to paid moves it out of Money owed (amount kept), in one call with a new amount too.
   const s2 = await call('sponsors', { id: prod, stage: 'paid', amount: 2100 });
@@ -275,8 +278,8 @@ test('bot deals routes (t_0d63a48a3be4423c): list, set amount makes the home Spo
   assert.notEqual(h.owed.v, '$2,000');
   assert.ok(!(await t.d2()).d2.pipeline.boards.find((b) => b.goal === 'sponsors').sponsors.board.columns.filter((c) => c.title !== 'Paid & Done' && !c.archived).some((c) => c.cards.some((k) => k.id === prod)));
   // Bad amount 400, and nothing changes (not even a stage sent with it).
-  for (const amount of [-1, 1000001, 'abc']) assert.equal((await call('sponsors', { id: lead, amount, stage: 'contract-brief' })).status, 400, String(amount));
-  assert.equal(t.db.sqlite.prepare('SELECT stage FROM deal_stage_overrides WHERE deal_id = ?').get(lead).stage, 'negotiating');
+  for (const amount of [-1, 1000001, 'abc']) assert.equal((await call('sponsors', { id: lead, amount, stage: 'invoice-sent' })).status, 400, String(amount));
+  assert.equal(t.db.sqlite.prepare('SELECT stage FROM deal_stage_overrides WHERE deal_id = ?').get(lead).stage, 'contract-brief');
   assert.equal((await (await call('sponsors')).json()).deals.find((d) => d.id === lead).amount, 1500);
   // Bad id 400, unknown id 404, bad stage / nothing to set / bad body 400.
   for (const id of ['x', 'gmail-thread-zz', '', 'Newsy']) assert.equal((await call('sponsors', { id, amount: 5 })).status, 400, id);

@@ -6443,9 +6443,8 @@
        "cls": "muted"
       },
       {
-       "label": "Negotiating, to close",
-       "value": "1 deal",
-       "sub": "Poppy $2,500"
+       "label": "Deals to close",
+       "value": "None open"
       },
       {
        "label": "Videos still to make",
