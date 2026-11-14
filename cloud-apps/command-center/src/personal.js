@@ -95,6 +95,8 @@ export async function personalWrite(env, method, rest, request, fetchFn = global
       await env.UPLOADS.put(`proofs/${name}`, bytes, { httpMetadata: { contentType: type } });
       url = `/dashboard/f/${name}`;
     }
+    // ?read=0: a trip or stop picture, kept as it is (only recipe photos are read into text)
+    if (new URL(request.url).searchParams.get('read') === '0') return good({ url });
     const read = await readPhoto(env, bytes, type, fetchFn).catch((err) => ({ text: '', note: `Photo saved, but reading it failed (${err.message}).` }));
     return good({ url, ...read });
   }

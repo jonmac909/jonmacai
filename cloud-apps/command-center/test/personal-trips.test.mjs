@@ -80,7 +80,7 @@ test('Trips: editing a stop saves every field and the rest of the trip is kept',
   editStop(T, 0, 1, { ...v, k0: '<img src=x onerror=alert(1)>' });
   const listed = page({ store: { trips: T } });
   assert.doesNotMatch(listed, /<img src=x/);
-  assert.match(listed, /&lt;img src=x onerror=alert\(1\)&gt; · booked<\/label>/);
+  assert.match(listed, /&lt;img src=x onerror=alert\(1\)&gt; <i>booked<\/i><\/label>/);
 });
 
 test('Trips: the calendar view puts each stop on each of its days and opens its edit on click', () => {

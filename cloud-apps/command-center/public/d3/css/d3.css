@@ -802,3 +802,25 @@ html[data-theme="dark"] body{background:#0b0b0c}
   .d3 .pscal{grid-template-columns:minmax(0,1fr)}.d3 .pscalh,.d3 .pscday.out{display:none}.d3 .pscdw{display:inline}
   .d3 .pscday{min-height:0;grid-template-columns:86px minmax(0,1fr);align-items:center}.d3 .pscday.empty{padding:3px 5px}
 }
+
+/* Trip and stop cards with a photo (Jon, 2026-11-14: "make into cards and add a photo") */
+.d3 .psph{position:relative;overflow:hidden;background:linear-gradient(135deg,color-mix(in srgb,var(--link) 35%,var(--card2)),var(--card2));min-height:0}
+.d3 .psph img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}.d3 .psph img:not([src]){display:none}
+.d3 .psphi{position:absolute;inset:0;display:grid;place-items:center;font-family:var(--disp);font-size:44px;font-weight:600;color:color-mix(in srgb,var(--ink) 35%,transparent)}
+.d3 .psphup{position:absolute;right:8px;bottom:8px;padding:4px 10px;border-radius:999px;background:rgba(0,0,0,.55);color:#ffffff;font-size:12px;cursor:pointer}
+.d3 a.pstcard{padding:0;overflow:hidden;gap:0}.d3 .pstcard .psph{aspect-ratio:16/7}
+.d3 .pstcb{display:grid;gap:4px;padding:14px 18px 16px}.d3 .pstcb b{font-size:19px;font-weight:600}.d3 .pstcb em{font-style:normal;font-size:13px;color:var(--muted)}.d3 .pstcb .psfoot{margin-top:8px}
+.d3 .psstops{display:grid;gap:14px;padding:4px 20px 18px}
+.d3 .psstops .psstop{padding:0;border:1px solid var(--line);border-radius:14px;background:var(--card);box-shadow:var(--shadow);overflow:hidden;display:grid;grid-template-columns:240px minmax(0,1fr);gap:0}
+.d3 .psstops .psstop .psph{min-height:170px}
+.d3 .psstops .psstop.over{box-shadow:0 -3px 0 var(--link)}.d3 .psstops .psstop.under{box-shadow:0 3px 0 var(--link)}
+.d3 .psstb{display:grid;gap:12px;padding:14px 16px;align-content:start;min-width:0}
+.d3 .psstb .psst2h b{font-size:18px;font-family:var(--disp);font-weight:600}
+.d3 .psstb .psbk{padding:8px 10px}.d3 .psstb .psbk label{font-size:13px}.d3 .psbk label i{font-style:normal;font-weight:500;color:var(--ok);font-size:12px}
+.d3 .psstend{padding:16px 20px;border-top:1px solid var(--line)}
+@media (max-width:760px){
+  .d3 .psstops{padding:4px 12px 14px}
+  .d3 .psstops .psstop{grid-template-columns:minmax(0,1fr)}.d3 .psstops .psstop .psph{min-height:0;aspect-ratio:16/8}
+  .d3 .psstb .psbk3{grid-template-columns:repeat(3,minmax(0,1fr))}
+}
+.d3 .psthrow .pslnk+.pslnk{margin-left:0}

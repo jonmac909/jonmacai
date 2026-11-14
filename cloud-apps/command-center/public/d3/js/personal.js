@@ -126,6 +126,30 @@ const tripCost = (t) => t.stops.reduce((a, s) => a + s.items.reduce((b, x) => b 
 const tripBooked = (t) => { let n = 0; let all = 0; t.stops.forEach((s) => s.items.forEach((x) => { all++; if (x.ok) n++; })); return [n, all]; };
 const tripDates = (t) => { const ds = t.stops.flatMap((s) => [s.from, s.to]).filter(Boolean).sort(); return ds.length ? `${fmtD(ds[0])} – ${fmtD(ds[ds.length - 1])}` : 'Dates not set'; };
 const budLine = (t) => (t.bud ? `${usd0(tripCost(t))} of ${usd0(t.bud)} budget` : `${usd0(tripCost(t))} · no budget`);
+// A place's photo: Jon's own upload, else the first real photo in the place's Wikipedia article (no flags, maps or
+// crests), looked up once per name while the page is open and dropped into the picture when it arrives.
+const WIKI = {};
+const NOT_PHOTO = /flag|map|coat|locat|logo|emblem|seal|arms|atlas|diagram|portrait/i;
+function placePhoto(name, own) {
+  if (own) return own;
+  const k = String(name || '').trim();
+  if (!k || typeof fetch !== 'function' || typeof document === 'undefined') return '';
+  if (!(k in WIKI)) {
+    WIKI[k] = '';
+    fetch(`https://en.wikipedia.org/api/rest_v1/page/media-list/${encodeURIComponent(k.replace(/ /g, '_'))}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((b) => {
+        const it = (b?.items || []).find((i) => i.type === 'image' && /\.jpe?g$/i.test(i.title || '') && !NOT_PHOTO.test(i.title) && i.srcset?.length);
+        const src = it ? it.srcset[it.srcset.length - 1].src || '' : '';
+        if (!src) return;
+        WIKI[k] = src.startsWith('//') ? `https:${src}` : src;
+        document.querySelectorAll('img[data-psimg]').forEach((im) => { if (im.dataset.psimg === k && !im.getAttribute('src')) im.src = WIKI[k]; });
+      })
+      .catch(() => {});
+  }
+  return WIKI[k];
+}
+const photoHtml = (name, own, up) => { const src = placePhoto(name, own); return `<div class="psph"><span class="psphi">${esc(String(name || '?').trim().slice(0, 1).toUpperCase())}</span><img alt="" loading="lazy" data-psimg="${esc(String(name || '').trim())}"${src ? ` src="${esc(src)}"` : ''}>${up ? `<label class="psphup"><input type="file" accept="image/*" hidden ${up}>${own ? 'Change photo' : 'Add photo'}</label>` : ''}</div>`; };
 const tripBar = (t) => (t.bud ? bar((tripCost(t) / t.bud) * 100, tripCost(t) > t.bud ? 'bad' : '') : '');
 // A stop's order is its place in the saved list: Jon sets it (drag, or the arrows), and nothing re-sorts it by date.
 export function moveStop(T, n, from, to) {
@@ -334,16 +358,16 @@ function tripsPage(S, sub, ui) {
   let html;
   if (!t) {
     html = `<div class="pstrhead"><span></span><button type="button" class="btn primary" data-pstrip="new">+ Add trip</button></div>
-<div class="psgrid">${T.map((x, i) => { const [b, a] = tripBooked(x); return `<div class="pscard pstcard"><a href="#personal/trips/${i}"><b>${esc(x.name)}</b><em>${esc(tripDates(x))} · ${x.stops.length} stop${x.stops.length === 1 ? '' : 's'}</em></a><div class="psfoot">${tripBar(x)}<span>${a ? `${b} of ${a} booked` : 'No stops yet'} · ${esc(budLine(x))}</span><button type="button" class="btn sm primary" data-psaddstop="${i}">+ Add stop</button></div></div>`; }).join('') || '<p class="mut">No trips yet.</p>'}</div>`;
+<div class="psgrid">${T.map((x, i) => { const [b, a] = tripBooked(x); return `<a class="pscard pstcard" href="#personal/trips/${i}">${photoHtml(x.name, x.img)}<div class="pstcb"><b>${esc(x.name)}</b><em>${esc(tripDates(x))} · ${x.stops.length} stop${x.stops.length === 1 ? '' : 's'}</em><div class="psfoot">${tripBar(x)}<span>${a ? `${b} of ${a} booked` : 'No stops yet'} · ${esc(budLine(x))}</span></div></div></a>`; }).join('') || '<p class="mut">No trips yet.</p>'}</div>`;
   } else {
     const [b, a] = tripBooked(t); const cal = ui.psTView === 'cal'; const L = t.stops.length;
     const views = `<div class="psfilter" role="group" aria-label="View">${[['list', 'List'], ['cal', 'Calendar']].map(([k, l]) => `<button type="button" data-pstview="${k}" aria-pressed="${(k === 'cal') === cal}">${l}</button>`).join('')}</div>`;
-    html = `<section class="card pstrip"><div class="psthead"><div class="psthrow"><h2>${esc(t.name)}</h2><span class="mut">${esc(tripDates(t))}</span><button type="button" class="pslnk" data-pstrip="edit">Edit</button></div>${tripBar(t)}<div class="pstvrow"><span class="mut">${esc(budLine(t))} · ${a ? `${b} of ${a} booked` : 'nothing to book yet'}</span>${L ? views : ''}</div></div>
-${cal && L ? tripCal(t) : L ? t.stops.map((s, j) => `<div class="psstop" data-psstop="${j}"><div class="psst2h"><span class="psgrip" draggable="true" data-psgrip="${j}" title="Drag to move">⠿</span><b>${esc(s.place)}</b>${s.ex ? '<span class="psex">example</span>' : ''}<span class="mut">${s.from ? fmtD(s.from) : '?'} – ${s.to ? fmtD(s.to) : '?'}</span><span class="psstc"><button type="button" class="psmv" data-psmove="${j}.-1" aria-label="Move ${esc(s.place)} up"${j ? '' : ' disabled'}>↑</button><button type="button" class="psmv" data-psmove="${j}.1" aria-label="Move ${esc(s.place)} down"${j < L - 1 ? '' : ' disabled'}>↓</button><button type="button" class="pslnk" data-psedstop="${j}">Edit</button><button type="button" class="pslnk" data-psdelstop="${j}">Remove</button></span></div>
+    html = `<section class="card pstrip"><div class="psthead"><div class="psthrow"><h2>${esc(t.name)}</h2><span class="mut">${esc(tripDates(t))}</span><label class="pslnk"><input type="file" accept="image/*" hidden data-pstphoto>${t.img ? 'Change photo' : 'Trip photo'}</label><button type="button" class="pslnk" data-pstrip="edit">Edit</button></div>${tripBar(t)}<div class="pstvrow"><span class="mut">${esc(budLine(t))} · ${a ? `${b} of ${a} booked` : 'nothing to book yet'}</span>${L ? views : ''}</div></div>
+${cal && L ? tripCal(t) : L ? `<div class="psstops">${t.stops.map((s, j) => `<div class="psstop" data-psstop="${j}">${photoHtml(s.place, s.img, `data-psstphoto="${j}"`)}<div class="psstb"><div class="psst2h"><span class="psgrip" draggable="true" data-psgrip="${j}" title="Drag to move">⠿</span><b>${esc(s.place)}</b>${s.ex ? '<span class="psex">example</span>' : ''}<span class="mut">${s.from ? fmtD(s.from) : '?'} – ${s.to ? fmtD(s.to) : '?'}</span><span class="psstc"><button type="button" class="psmv" data-psmove="${j}.-1" aria-label="Move ${esc(s.place)} up"${j ? '' : ' disabled'}>↑</button><button type="button" class="psmv" data-psmove="${j}.1" aria-label="Move ${esc(s.place)} down"${j < L - 1 ? '' : ' disabled'}>↓</button><button type="button" class="pslnk" data-psedstop="${j}">Edit</button><button type="button" class="pslnk" data-psdelstop="${j}">Remove</button></span></div>
 ${s.notes || s.link ? `<div class="psnote">${s.notes ? `<p>${esc(s.notes)}</p>` : ''}${s.link ? `<a href="${esc(webLink(s.link))}" target="_blank" rel="noopener noreferrer">${esc(s.link.replace(/^https?:\/\//i, '').slice(0, 60))}</a>` : ''}</div>` : ''}
-<div class="psbk3">${s.items.map((x, k) => `<div class="psbk${x.ok ? ' on' : ''}"><label><input type="checkbox" data-psbook="${j}.${k}"${x.ok ? ' checked' : ''}> ${esc(x.k)}${x.ok ? ' · booked' : ''}</label><span class="pscost">$<input type="number" min="0" step="10" data-pscost="${j}.${k}" value="${esc(x.cost)}" placeholder="cost" aria-label="${esc(x.k)} cost"></span></div>`).join('')}</div></div>`).join('')
-  : '<p class="mut psstop">No stops yet. Add the first place you\'re going.</p>'}
-<div class="psstop psrowend"><button type="button" class="btn" data-psaddstop="${n}">+ Add stop</button><a class="btn primary" href="#personal/trips">Done</a></div></section>`;
+<div class="psbk3">${s.items.map((x, k) => `<div class="psbk${x.ok ? ' on' : ''}"><label><input type="checkbox" data-psbook="${j}.${k}"${x.ok ? ' checked' : ''}> ${esc(x.k)}${x.ok ? ' <i>booked</i>' : ''}</label><span class="pscost">$<input type="number" min="0" step="10" data-pscost="${j}.${k}" value="${esc(x.cost)}" placeholder="cost" aria-label="${esc(x.k)} cost"></span></div>`).join('')}</div></div></div>`).join('')}</div>`
+  : '<p class="mut psstend">No stops yet. Add the first place you\'re going.</p>'}
+<div class="psstend psrowend"><button type="button" class="btn" data-psaddstop="${n}">+ Add stop</button><a class="btn primary" href="#personal/trips">Done</a></div></section>`;
   }
   return html + (ui.psPop ? popHtml(ui.psPop, T) : '');
 }
@@ -566,6 +590,19 @@ export async function personalChange(e, S, render, send, reload, sendHome) {
       }
     } catch (err) { d.note = `Could not upload the photo (${err.message}).`; }
     d.busy = false; if (ui.psMeal === d) render();
+    return;
+  }
+  if (t.matches('[data-psstphoto], [data-pstphoto]')) {
+    const file = t.files?.[0]; if (!file) return;
+    const n = tripN(); const j = t.matches('[data-psstphoto]') ? Number(t.dataset.psstphoto) : null;
+    try {
+      const res = await fetch('/dashboard/api/personal/photo?read=0', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': file.type || 'image/jpeg', 'X-CC': '1' }, body: file });
+      const b = await res.json().catch(() => null);
+      if (!res.ok || !b?.ok || !b.url) { ui.psErr = `Could not upload the photo (${b?.error || res.status}).`; render(); return; }
+      const T = structuredClone(tripsOf(S.personal));
+      if (j == null) T[n].img = b.url; else T[n].stops[j].img = b.url;
+      save(S, 'trips', T, send, render, reload);
+    } catch (err) { ui.psErr = `Could not upload the photo (${err.message}).`; render(); }
     return;
   }
   if (t.matches('[data-psprice]')) {
