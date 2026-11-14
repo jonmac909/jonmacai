@@ -5,13 +5,13 @@
 import { botOf } from './bots.js';
 
 const TYPES = {
-  png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', pdf: 'application/pdf', mp4: 'video/mp4',
+  png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', webp: 'image/webp', gif: 'image/gif', pdf: 'application/pdf', mp4: 'video/mp4',
   txt: 'text/plain; charset=utf-8', md: 'text/plain; charset=utf-8', json: 'application/json; charset=utf-8',
 };
 // Workers take request bodies up to 100 MB. Longer renders go through review_publish.mjs (multipart).
 export const PROOF_MAX = 95 * 1024 * 1024;
 export const FILE_PREFIX = '/dashboard/f/';
-const NAME_RE = /^[0-9a-f]{32}\.(png|jpe?g|pdf|mp4|txt|md|json)$/;
+const NAME_RE = /^[0-9a-f]{32}\.(png|jpe?g|webp|gif|pdf|mp4|txt|md|json)$/;
 
 const out = (body, status = 200) => Response.json(body, { status, headers: { 'Cache-Control': 'no-store' } });
 

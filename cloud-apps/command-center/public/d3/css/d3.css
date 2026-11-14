@@ -908,3 +908,19 @@ html[data-theme="dark"] body{background:#0b0b0c}
 .d3 .pscitycal .pscday{min-height:110px}.d3 .pscitycal .psct,.d3 .pscitycal .psctadd{width:40px;height:40px;border-radius:10px}
 .d3 .pscnames{display:grid;gap:1px;font-size:11px;color:var(--ink2);min-width:0}.d3 .pscnames span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 @media (max-width:760px){.d3 .pscitycal .pscday{min-height:0}}
+/* Booking details, paperwork, quick add and the map (Jon, 2026-11-14) */
+.d3 .psbk{min-width:0}.d3 .psbkd{display:flex;gap:8px;align-items:center;width:100%;min-width:0;margin-top:2px;padding:6px 2px 0;border:0;border-top:1px dashed var(--line);background:none;font:inherit;font-size:12px;color:var(--ink2);cursor:pointer;text-align:left}
+.d3 .psbkd span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.d3 .psbkd i{color:var(--link);font-style:normal;font-weight:600}.d3 .psbkd em{font-style:normal;color:var(--muted);white-space:nowrap}.d3 .psbkd:hover span{color:var(--link)}
+.d3 .psbkf{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.d3 .psmodes{display:flex;flex-wrap:wrap;gap:6px}.d3 .psmodes button{padding:7px 14px;border-radius:999px;border:1px solid var(--line);background:var(--card);color:var(--ink);font:inherit;font-size:13px;cursor:pointer}.d3 .psmodes button[aria-pressed="true"]{background:var(--link);border-color:var(--link);color:#ffffff}
+.d3 .psmore{justify-self:start;text-align:left}
+.d3 .psdocs{display:grid;gap:6px}.d3 .psdocs>small{font-size:12px;color:var(--muted)}.d3 .psdocs>.btn{justify-self:start}
+.d3 .psdoc{display:flex;gap:8px;align-items:center;padding:7px 10px;border:1px solid var(--line);border-radius:10px}.d3 .psdoc a{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--link)}
+.d3 .psquick{margin:2px 0 4px}.d3 .psquick input{width:100%;padding:10px 12px;border:1px dashed var(--line);border-radius:12px;background:var(--card2);color:var(--ink);font:inherit}.d3 .psquick input:focus{border-style:solid;outline:none;border-color:var(--link);background:var(--card)}
+.d3 .psmapw{display:grid;gap:8px}.d3 .psmap{height:520px;border-radius:16px;overflow:hidden;border:1px solid var(--line);background:var(--card2);z-index:0}.d3 .psmap>p{padding:16px}
+.d3 .psmapk{display:flex;flex-wrap:wrap;gap:6px 12px;align-items:center;font-size:12px;color:var(--muted);margin:0}.d3 .psk{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:-6px}
+.d3 .psmpin{display:grid;place-items:center;border-radius:12px;border:3px solid #ffffff;box-shadow:0 2px 8px rgba(0,0,0,.35);overflow:hidden;color:#ffffff;font-weight:700;font-size:15px}
+.d3 .psmpin img{width:100%;height:100%;object-fit:cover}
+.d3 .psmpin.plan,.d3 .psk.plan,.d3 .psmpin.stop{background:var(--link)}.d3 .psmpin.ok,.d3 .psk.ok{background:var(--ok)}.d3 .psmpin.want,.d3 .psk.want{background:var(--muted)}.d3 .psmpin.hotel,.d3 .psk.hotel{background:var(--warn)}
+.d3 .psmpin.ok{border-color:var(--ok)}.d3 .psmpin.hotel{border-color:var(--warn)}
+@media (max-width:760px){.d3 .psbkf{grid-template-columns:minmax(0,1fr)}.d3 .psmap{height:380px}}

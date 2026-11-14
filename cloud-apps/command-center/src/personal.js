@@ -85,18 +85,20 @@ export async function personalWrite(env, method, rest, request, fetchFn = global
   const now = new Date(nowMs).toISOString();
   if (rest === '/photo' && method === 'POST') {
     const type = String(request.headers.get('content-type') || '').split(';')[0].trim().toLowerCase();
-    if (!IMG[type]) return bad('Send a photo (JPEG, PNG, WebP or GIF)');
+    const keep = new URL(request.url).searchParams.get('read') === '0';
+    const ext = IMG[type] || (keep && type === 'application/pdf' ? 'pdf' : ''); // a trip's paperwork may be a PDF
+    if (!ext) return bad(keep ? 'Send a photo or a PDF' : 'Send a photo (JPEG, PNG, WebP or GIF)');
     const bytes = await request.arrayBuffer();
     if (!bytes.byteLength) return bad('The photo is empty');
     if (bytes.byteLength > PHOTO_MAX) return bad('The photo is too big (8 MB at most)');
     let url = '';
     if (env.UPLOADS) {
-      const name = `${crypto.randomUUID().replace(/-/g, '')}.${IMG[type]}`;
+      const name = `${crypto.randomUUID().replace(/-/g, '')}.${ext}`;
       await env.UPLOADS.put(`proofs/${name}`, bytes, { httpMetadata: { contentType: type } });
       url = `/dashboard/f/${name}`;
     }
     // ?read=0: a trip or stop picture, kept as it is (only recipe photos are read into text)
-    if (new URL(request.url).searchParams.get('read') === '0') return good({ url });
+    if (keep) return good({ url });
     const read = await readPhoto(env, bytes, type, fetchFn).catch((err) => ({ text: '', note: `Photo saved, but reading it failed (${err.message}).` }));
     return good({ url, ...read });
   }

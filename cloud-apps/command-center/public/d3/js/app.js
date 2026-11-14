@@ -17,7 +17,7 @@ import { renderHyper, openHyper } from './hyper.js';
 import { renderBluesky } from './bluesky.js';
 import { renderSystem } from './system.js';
 import { sourcesCard } from './sources.js';
-import { renderPersonal, mnavHtml, moneyBizHtml, personalClick, personalChange, personalInput, personalSubmit, personalPaste, personalKey, personalPopOpen, personalDrag, nowParts } from './personal.js';
+import { renderPersonal, mnavHtml, moneyBizHtml, personalClick, personalChange, personalInput, personalSubmit, personalPaste, personalKey, personalPopOpen, personalDrag, personalAfter, nowParts } from './personal.js';
 import { renderFactory, syncFactory } from './factory.js';
 import { renderTrack, trackSub } from './track.js';
 import { renderHome, homeClick, homeChange, homeInput, homeSubmit, homeDrag, homeKeep, homeAfter, homeHints, setColour, savedColours } from './home.js';
@@ -111,7 +111,7 @@ function render() {
     return;
   }
   S.fyNote = null;
-  if (p === 'personal') { main.innerHTML = `${note}${renderPersonal(S, route().slice(1), S.ui)}`; return; }
+  if (p === 'personal') { main.innerHTML = `${note}${renderPersonal(S, route().slice(1), S.ui)}`; personalAfter(main, S, send, render, reloadPersonal); return; }
   const live = { team: renderTeam, blockers: renderBlockers, review: renderReview, scripts: renderScripts, money: renderMoney }[p];
   if (live) {
     const top = p === 'money' ? mnavHtml('money') : '';
