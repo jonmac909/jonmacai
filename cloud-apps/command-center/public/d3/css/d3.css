@@ -878,3 +878,33 @@ html[data-theme="dark"] body{background:#0b0b0c}
 .d3 .pscityb .psthrow .pslnk{margin-left:auto}
 .d3 .pscityp{border-top:1px solid var(--line);padding:14px 20px 18px;gap:10px}.d3 .pscityp .psplh b{font-size:16px}.d3 .pscityp .psplh .btn{margin-left:auto}
 @media (max-width:760px){.d3 .pscityh{grid-template-columns:minmax(0,1fr);padding:12px}.d3 .pscityh .psph{max-width:none}.d3 .pscityp{padding:12px}}
+/* The city page: its days, each with its plans as rounded squares, and its Want to do list (Jon, 2026-11-14) */
+.d3 .pscsec{border-top:1px solid var(--line);padding:14px 20px 18px;display:grid;gap:12px}
+.d3 .pscsec .psplh b{font-size:16px}.d3 .pscsec .psplh .btn:first-of-type{margin-left:auto}
+.d3 .pscdays{display:grid;gap:8px}
+.d3 .pscdrow{display:grid;grid-template-columns:64px minmax(0,1fr);gap:12px;align-items:start;padding:10px;border:1px solid var(--line);border-radius:14px}
+.d3 .pscdd{display:grid;justify-items:center;gap:0;padding-top:4px}.d3 .pscdd small{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+.d3 .pscdd b{font-family:var(--disp);font-size:24px;line-height:1.1}.d3 .pscdd span{font-size:11px;color:var(--muted)}
+.d3 .pscdtiles{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-start}
+.d3 .psbt{display:grid;gap:3px;width:88px;text-align:center}.d3 .psbt span{font-size:12px;font-weight:600;line-height:1.25;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.d3 .psbt small{font-size:10px;color:var(--muted)}
+.d3 .psbti{width:88px;height:88px;border-radius:18px;padding:0;border:0;overflow:hidden;background:var(--card2);color:var(--muted);font-size:26px;font-weight:600;display:grid;place-items:center;cursor:pointer;position:relative}
+.d3 .psbti img{width:100%;height:100%;object-fit:cover;display:block}
+.d3 .psbti.ok::after{content:'✓';position:absolute;right:5px;bottom:5px;width:18px;height:18px;border-radius:50%;background:var(--ok);color:#ffffff;font-size:11px;line-height:18px;text-align:center}
+.d3 .pscdadd{width:88px;height:88px;border-radius:18px;border:1px dashed var(--line);background:transparent;color:var(--muted);font-size:24px;cursor:pointer}.d3 .pscdadd:hover{border-color:var(--link);color:var(--link)}
+.d3 .pswcat{display:grid;gap:6px}.d3 .pswcat>small{font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+.d3 .psdpw{display:grid;gap:4px}.d3 .psdpw>small{font-size:12px;color:var(--muted)}
+.d3 .psdpick{display:grid;grid-template-columns:repeat(auto-fill,minmax(64px,1fr));gap:6px}
+.d3 .psdp{display:grid;justify-items:center;gap:0;padding:6px 4px;border:1px solid var(--line);border-radius:12px;background:var(--card);color:var(--ink);cursor:pointer}
+.d3 .psdp small,.d3 .psdp span{font-size:10px;color:var(--muted)}.d3 .psdp b{font-size:17px}
+.d3 .psdp.want{grid-column:1/-1}.d3 .psdp.want b{font-size:14px}
+.d3 .psdp.on{border-color:var(--link);background:color-mix(in srgb,var(--link) 10%,var(--card));box-shadow:inset 0 0 0 1px var(--link)}
+.d3 .pstfb select{font:inherit;font-size:15px;padding:7px 8px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--ink)}
+.d3 .psbuild{max-width:520px}.d3 .psbday{display:grid;gap:6px;padding:10px 0;border-top:1px solid var(--line)}.d3 .psbday>b{font-size:14px}
+.d3 .psbrow{display:grid;grid-template-columns:44px minmax(0,1fr) auto;gap:10px;align-items:center;font-size:13px}
+.d3 .psbrow select{font:inherit;font-size:13px;padding:4px 6px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--ink)}
+@media (max-width:760px){.d3 .pscsec{padding:12px}.d3 .pscdrow{grid-template-columns:44px minmax(0,1fr);padding:8px}.d3 .psbt,.d3 .psbti,.d3 .pscdadd{width:72px}.d3 .psbti,.d3 .pscdadd{height:72px}}
+.d3 .pscsec .psplh .psfilter{margin-left:auto}.d3 .pscsec .psplh .psfilter~.btn{margin-left:0}
+.d3 .pscitycal .pscday{min-height:110px}.d3 .pscitycal .psct,.d3 .pscitycal .psctadd{width:40px;height:40px;border-radius:10px}
+.d3 .pscnames{display:grid;gap:1px;font-size:11px;color:var(--ink2);min-width:0}.d3 .pscnames span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+@media (max-width:760px){.d3 .pscitycal .pscday{min-height:0}}
