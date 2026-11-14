@@ -1006,3 +1006,23 @@ html[data-theme="dark"] body{background:#0b0b0c}
   .d3 .psstops .psstop{grid-template-columns:150px minmax(0,1fr);gap:16px}
   .d3 .psstb .psbk{padding:10px}
 }
+/* Phones: the booking boxes stack, one per row, and the stop's controls stay on the title's line. */
+@media (max-width:760px){
+  .d3 .psstb .psbk3,.d3 .psbk3{grid-template-columns:minmax(0,1fr)}
+  .d3 .psst2h{flex-wrap:wrap;row-gap:4px}
+  .d3 .psst2h .psstc{margin-left:auto}
+  .d3 .psbk button.psbkd{min-height:0}
+}
+/* Layout follows the room the stops actually have, not the screen: under 720px the photo goes on top as a banner;
+   when the boxes have under 540px they stack. The travel dropdown never shrinks away. */
+.d3 .psstops{container:psstops/inline-size}
+.d3 .psstb{container:psstb/inline-size}
+.d3 .psbkmode{flex:none}
+@container psstops (max-width:720px){
+  .d3 .psstops .psstop{grid-template-columns:minmax(0,1fr);gap:12px;padding:12px}
+  .d3 .psstops .psstop .psphl .psph{height:auto;min-height:0;aspect-ratio:16/7}
+}
+@container psstb (max-width:540px){
+  .d3 .psbk3{grid-template-columns:minmax(0,1fr)}
+  .d3 .psbk button.psbkd{min-height:0}
+}

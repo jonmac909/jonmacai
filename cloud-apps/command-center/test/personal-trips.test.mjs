@@ -263,3 +263,11 @@ test('stop rows and booking boxes stay lined up', async () => {
   assert.match(css, /\.d3 \.psbk\{display:flex;flex-direction:column\}/);
   assert.match(css, /\.d3 \.psbk \.pscost\{order:4\}/);
 });
+
+test('the last stop back in Kelowna is "Back home": just the journey, no accommodation, car or plans', async () => {
+  const { isHomeLeg, renderPersonal } = await import('../public/d3/js/personal.js');
+  const t = { name: 'Portugal', stops: [{ place: 'Lisbon', items: [] }, { place: 'Kelowna', from: '2027-04-17', items: [{ k: 'Flight' }, { k: 'Accommodation' }, { k: 'Car' }] }] };
+  assert.equal(isHomeLeg(t, 1), true);
+  assert.equal(isHomeLeg(t, 0), false);
+  assert.equal(isHomeLeg({ stops: [{ place: 'Kelowna' }] }, 0), false);
+});
