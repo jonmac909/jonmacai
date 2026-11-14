@@ -17,7 +17,7 @@ import { renderHyper, openHyper } from './hyper.js';
 import { renderBluesky } from './bluesky.js';
 import { renderSystem } from './system.js';
 import { sourcesCard } from './sources.js';
-import { renderPersonal, mnavHtml, moneyBizHtml, personalClick, personalChange, personalInput, personalSubmit, personalPaste, personalKey, personalPopOpen, nowParts } from './personal.js';
+import { renderPersonal, mnavHtml, moneyBizHtml, personalClick, personalChange, personalInput, personalSubmit, personalPaste, personalKey, personalPopOpen, personalDrag, nowParts } from './personal.js';
 import { renderFactory, syncFactory } from './factory.js';
 import { renderTrack, trackSub } from './track.js';
 import { renderHome, homeClick, homeChange, homeInput, homeSubmit, homeDrag, homeKeep, homeAfter, homeHints, setColour, savedColours } from './home.js';
@@ -349,6 +349,7 @@ document.addEventListener('keydown', (e) => {
   else if (e.key === 'Enter' && e.target.matches?.('.hmev[data-hmit]')) e.target.click();
 });
 homeDrag(main, S, send, reloadHome);
+personalDrag(main, S, () => page() === 'personal', send, render, reloadPersonal); // Trips: drag a stop by its handle
 // Home: the "N more" hint under a category card follows its scroll.
 main.addEventListener('scroll', (e) => { if (e.target.classList?.contains('hmpc')) homeHints(main); }, true);
 

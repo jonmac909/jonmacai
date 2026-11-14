@@ -127,6 +127,44 @@ const tripBooked = (t) => { let n = 0; let all = 0; t.stops.forEach((s) => s.ite
 const tripDates = (t) => { const ds = t.stops.flatMap((s) => [s.from, s.to]).filter(Boolean).sort(); return ds.length ? `${fmtD(ds[0])} – ${fmtD(ds[ds.length - 1])}` : 'Dates not set'; };
 const budLine = (t) => (t.bud ? `${usd0(tripCost(t))} of ${usd0(t.bud)} budget` : `${usd0(tripCost(t))} · no budget`);
 const tripBar = (t) => (t.bud ? bar((tripCost(t) / t.bud) * 100, tripCost(t) > t.bud ? 'bad' : '') : '');
+// A stop's order is its place in the saved list: Jon sets it (drag, or the arrows), and nothing re-sorts it by date.
+export function moveStop(T, n, from, to) {
+  const s = T[n]?.stops;
+  if (!s || from === to || !(from >= 0 && to >= 0 && from < s.length && to < s.length)) return false;
+  s.splice(to, 0, s.splice(from, 1)[0]);
+  return true;
+}
+const webLink = (v) => { const l = String(v || '').trim().slice(0, 500); return !l ? '' : /^https?:\/\//i.test(l) ? l : `https://${l}`; };
+// The stop form (place, dates, notes, link, and each booking's name, cost and booked tick) onto stop j of trip n.
+// Returns what to fix, or '' when saved into T.
+export const formStop = (s, v) => ({
+  ...s, place: String(v.place || '').trim().slice(0, 80), from: v.from || '', to: v.to || '', notes: String(v.notes || '').trim().slice(0, 2000), link: webLink(v.link),
+  items: (s.items || []).map((x, k) => { const c = v[`c${k}`]; return { ...x, k: String(v[`k${k}`] ?? '').trim().slice(0, 40) || x.k, cost: c == null || c === '' ? '' : Math.max(0, Number(c) || 0), ok: v[`o${k}`] != null }; }),
+});
+export function editStop(T, n, j, v) {
+  const s = T[n]?.stops?.[j];
+  if (!s) return 'That stop is gone. Reload the page.';
+  if (!String(v.place || '').trim()) return 'Add the place';
+  if (v.from && v.to && v.to < v.from) return 'Leave date is before arrive date';
+  Object.assign(s, formStop(s, v), { ex: 0 });
+  return '';
+}
+// The calendar: the trip's weeks (Monday first), each stop on every day from its arrive to its leave date.
+function tripCal(t) {
+  const ds = t.stops.flatMap((s) => [s.from, s.to]).filter(Boolean).sort();
+  const chip = (s, j) => `<button type="button" class="pscchip" style="--h:${(j * 67) % 360}" data-psedstop="${j}" title="Edit ${esc(s.place)}">${esc(s.place)}</button>`;
+  const undated = t.stops.map((s, j) => (!s.from && !s.to ? chip(s, j) : '')).join('');
+  const none = undated ? `<div class="psstop pscnone"><span class="mut">No dates yet</span><div class="pscchips">${undated}</div></div>` : '';
+  if (!ds.length) return `<p class="mut psstop">Add dates to the stops to see them on the calendar.</p>${none}`;
+  const first = ds[0]; const last = ds[ds.length - 1];
+  const days = [];
+  for (let d = addD(first, -dow(first)), i = 0; d <= last || dow(d) !== 0; d = addD(d, 1), i++) { if (i > 371) break; days.push(d); }
+  const cells = days.map((d) => {
+    const on = t.stops.map((s, j) => { const a = s.from || s.to; const b = s.to || s.from; return a && a <= d && d <= b ? chip(s, j) : ''; }).join('');
+    return `<div class="pscday${d < first || d > last ? ' out' : ''}${on ? '' : ' empty'}"><small><span class="pscdw">${DAYS[dow(d)]} </span>${fmtD(d)}</small><div class="pscchips">${on}</div></div>`;
+  }).join('');
+  return `<div class="psstop"><div class="pscal"><div class="pscalh">${DAYS.map((x) => `<span>${x}</span>`).join('')}</div>${cells}</div></div>${none}`;
+}
 const task = (H, id) => (H?.tasks || []).find((t) => t.id === id) || null;
 const habitOn = (H, kind, ymd) => (H?.habits || []).some((h) => h.kind === kind && h.day === ymd);
 
@@ -298,10 +336,12 @@ function tripsPage(S, sub, ui) {
     html = `<div class="pstrhead"><span></span><button type="button" class="btn primary" data-pstrip="new">+ Add trip</button></div>
 <div class="psgrid">${T.map((x, i) => { const [b, a] = tripBooked(x); return `<div class="pscard pstcard"><a href="#personal/trips/${i}"><b>${esc(x.name)}</b><em>${esc(tripDates(x))} · ${x.stops.length} stop${x.stops.length === 1 ? '' : 's'}</em></a><div class="psfoot">${tripBar(x)}<span>${a ? `${b} of ${a} booked` : 'No stops yet'} · ${esc(budLine(x))}</span><button type="button" class="btn sm primary" data-psaddstop="${i}">+ Add stop</button></div></div>`; }).join('') || '<p class="mut">No trips yet.</p>'}</div>`;
   } else {
-    const [b, a] = tripBooked(t);
-    html = `<section class="card pstrip"><div class="psthead"><div class="psthrow"><h2>${esc(t.name)}</h2><span class="mut">${esc(tripDates(t))}</span><button type="button" class="pslnk" data-pstrip="edit">Edit</button></div>${tripBar(t)}<span class="mut">${esc(budLine(t))} · ${a ? `${b} of ${a} booked` : 'nothing to book yet'}</span></div>
-${t.stops.length ? t.stops.map((s, j) => `<div class="psstop"><div class="psst2h"><b>${esc(s.place)}</b>${s.ex ? '<span class="psex">example</span>' : ''}<span class="mut">${s.from ? fmtD(s.from) : '?'} – ${s.to ? fmtD(s.to) : '?'}</span><button type="button" class="pslnk" data-psdelstop="${j}">Remove</button></div>
-<div class="psbk3">${s.items.map((x, k) => `<div class="psbk${x.ok ? ' on' : ''}"><label><input type="checkbox" data-psbook="${j}.${k}"${x.ok ? ' checked' : ''}> ${x.k}${x.ok ? ' · booked' : ''}</label><span class="pscost">$<input type="number" min="0" step="10" data-pscost="${j}.${k}" value="${esc(x.cost)}" placeholder="cost" aria-label="${x.k} cost"></span></div>`).join('')}</div></div>`).join('')
+    const [b, a] = tripBooked(t); const cal = ui.psTView === 'cal'; const L = t.stops.length;
+    const views = `<div class="psfilter" role="group" aria-label="View">${[['list', 'List'], ['cal', 'Calendar']].map(([k, l]) => `<button type="button" data-pstview="${k}" aria-pressed="${(k === 'cal') === cal}">${l}</button>`).join('')}</div>`;
+    html = `<section class="card pstrip"><div class="psthead"><div class="psthrow"><h2>${esc(t.name)}</h2><span class="mut">${esc(tripDates(t))}</span><button type="button" class="pslnk" data-pstrip="edit">Edit</button></div>${tripBar(t)}<div class="pstvrow"><span class="mut">${esc(budLine(t))} · ${a ? `${b} of ${a} booked` : 'nothing to book yet'}</span>${L ? views : ''}</div></div>
+${cal && L ? tripCal(t) : L ? t.stops.map((s, j) => `<div class="psstop" data-psstop="${j}"><div class="psst2h"><span class="psgrip" draggable="true" data-psgrip="${j}" title="Drag to move">⠿</span><b>${esc(s.place)}</b>${s.ex ? '<span class="psex">example</span>' : ''}<span class="mut">${s.from ? fmtD(s.from) : '?'} – ${s.to ? fmtD(s.to) : '?'}</span><span class="psstc"><button type="button" class="psmv" data-psmove="${j}.-1" aria-label="Move ${esc(s.place)} up"${j ? '' : ' disabled'}>↑</button><button type="button" class="psmv" data-psmove="${j}.1" aria-label="Move ${esc(s.place)} down"${j < L - 1 ? '' : ' disabled'}>↓</button><button type="button" class="pslnk" data-psedstop="${j}">Edit</button><button type="button" class="pslnk" data-psdelstop="${j}">Remove</button></span></div>
+${s.notes || s.link ? `<div class="psnote">${s.notes ? `<p>${esc(s.notes)}</p>` : ''}${s.link ? `<a href="${esc(webLink(s.link))}" target="_blank" rel="noopener noreferrer">${esc(s.link.replace(/^https?:\/\//i, '').slice(0, 60))}</a>` : ''}</div>` : ''}
+<div class="psbk3">${s.items.map((x, k) => `<div class="psbk${x.ok ? ' on' : ''}"><label><input type="checkbox" data-psbook="${j}.${k}"${x.ok ? ' checked' : ''}> ${esc(x.k)}${x.ok ? ' · booked' : ''}</label><span class="pscost">$<input type="number" min="0" step="10" data-pscost="${j}.${k}" value="${esc(x.cost)}" placeholder="cost" aria-label="${esc(x.k)} cost"></span></div>`).join('')}</div></div>`).join('')
   : '<p class="mut psstop">No stops yet. Add the first place you\'re going.</p>'}
 <div class="psstop psrowend"><button type="button" class="btn" data-psaddstop="${n}">+ Add stop</button><a class="btn primary" href="#personal/trips">Done</a></div></section>`;
   }
@@ -309,12 +349,16 @@ ${t.stops.length ? t.stops.map((s, j) => `<div class="psstop"><div class="psst2h
 }
 function popHtml(p, T) {
   const t = T[p.i];
-  const body = p.kind === 'stop'
-    ? '<label>Where<input name="place" placeholder="Lisbon"></label><div class="pstf2"><label>Arrive<input type="date" name="from"></label><label>Leave<input type="date" name="to"></label></div>'
+  const s = p.kind === 'stop' ? p.draft || (p.j != null ? t?.stops?.[p.j] : null) || { place: '', from: '', to: '', notes: '', link: '', items: items3() } : null;
+  const ed = p.kind === 'stop' && p.j != null;
+  const body = s
+    ? `<label>Where<input name="place" value="${esc(s.place)}" placeholder="Lisbon"></label><div class="pstf2"><label>Arrive<input type="date" name="from" value="${esc(s.from)}"></label><label>Leave<input type="date" name="to" value="${esc(s.to)}"></label></div>
+<label>Notes<textarea name="notes" rows="3" placeholder="Address, check-in time, who's coming">${esc(s.notes || '')}</textarea></label><label>Link<input name="link" inputmode="url" value="${esc(s.link || '')}" placeholder="booking.com/..."></label>
+<div class="psedbk">${(s.items || []).map((x, k) => `<div class="psedr"><input name="k${k}" value="${esc(x.k)}" aria-label="Booking ${k + 1}"><span class="pscost">$<input type="number" min="0" step="10" name="c${k}" value="${esc(x.cost)}" placeholder="cost" aria-label="${esc(x.k)} cost"></span><label class="psedok"><input type="checkbox" name="o${k}"${x.ok ? ' checked' : ''}> Booked</label></div>`).join('')}</div>`
     : `<label>Where<input name="name" value="${p.kind === 'edit' && t ? esc(t.name) : ''}" placeholder="Portugal"></label><label>Budget $<input type="number" min="0" step="100" name="bud" value="${p.kind === 'edit' && t?.bud ? t.bud : ''}" placeholder="5000"></label>`;
-  const title = p.kind === 'stop' ? `Add a stop to ${t?.name || 'the trip'}` : p.kind === 'edit' ? 'Edit trip' : 'New trip';
+  const title = ed ? `Edit ${s.place || 'stop'}` : p.kind === 'stop' ? `Add a stop to ${t?.name || 'the trip'}` : p.kind === 'edit' ? 'Edit trip' : 'New trip';
   return `<div class="hmhost" data-psback><form class="hmed pspop" data-psform="pop"><div class="hmedh"><b class="hmedt">${esc(title)}</b><button type="button" class="btn sm" data-psx aria-label="Close">✕</button></div>
-<div class="pstfb">${body}</div><div class="hmedf"><span class="psbad">${esc(p.err || '')}</span><button type="button" class="btn" data-psx style="margin-left:auto">Cancel</button><button class="btn primary">${p.kind === 'stop' ? 'Add stop' : p.kind === 'edit' ? 'Save' : 'Add trip'}</button></div></form></div>`;
+<div class="pstfb">${body}</div><div class="hmedf"><span class="psbad">${esc(p.err || '')}</span><button type="button" class="btn" data-psx style="margin-left:auto">Cancel</button><button class="btn primary">${ed ? 'Save' : p.kind === 'stop' ? 'Add stop' : p.kind === 'edit' ? 'Save' : 'Add trip'}</button></div></form></div>`;
 }
 
 // ---- expenses with tags (Personal › Budget and the Money page) ----
@@ -376,11 +420,14 @@ export function renderPersonal(S, sub, ui, ms = Date.now()) {
 
 // ---- events ----
 // Saves one stored key (optimistic: the page shows the change at once; a failed save says so and reloads).
-async function save(S, key, value, send, render, reload) {
+// Saves go out one at a time, so two fast changes (say two taps on a stop's arrow) reach the server in order.
+let saving = Promise.resolve();
+function save(S, key, value, send, render, reload) {
   S.personal.store = { ...S.personal.store, [key]: value };
   render();
-  const r = await send('PUT', `/personal/${key}`, value);
-  if (!r.ok) { S.ui.psErr = `Could not save (${r.error}).`; await reload(); }
+  const run = saving.then(() => send('PUT', `/personal/${key}`, value)).then(async (r) => { if (!r.ok) { S.ui.psErr = `Could not save (${r.error}).`; await reload(); } });
+  saving = run.catch(() => {});
+  return run;
 }
 const draftOf = (m, i) => ({ i, n: m.n, r: m.r, on: [...(m.on || [])], src: m.src, imgs: [...(m.imgs || [])], view: m.r.trim() ? 'split' : 'full', sel: [], meth: '', ing: [], note: '', err: '' });
 // Splits the draft's recipe into its parts for the formatted view (and names the meal from its first line).
@@ -400,7 +447,7 @@ async function saveMeal(S, send, render, reload, close) {
   await save(S, 'meals', { list: meals }, send, render, reload);
 }
 
-export function personalPopOpen(ui) { return !!(ui.psMeal || ui.psPop); }
+export function personalPopOpen(ui) { return !!(ui.psMeal || ui.psPop || ui.psDrag); }
 
 export function personalKey(e, ui, render) {
   if (e.key === 'Escape' && (ui.psMeal || ui.psPop)) { ui.psMeal = null; ui.psPop = null; render(); return true; }
@@ -447,9 +494,43 @@ export function personalClick(e, S, render, send, reload, sendHome) {
   if (as) { ui.psPop = { kind: 'stop', i: Number(as.dataset.psaddstop) }; render(); main(t)?.querySelector('.pspop input')?.focus(); return true; }
   const ds = t.closest('[data-psdelstop]');
   if (ds) { const T = structuredClone(tripsOf(S.personal)); const n = Number(location.hash.split('/')[2]); T[n].stops.splice(Number(ds.dataset.psdelstop), 1); save(S, 'trips', T, send, render, reload); return true; }
+  const es = t.closest('[data-psedstop]');
+  if (es) { const j = Number(es.dataset.psedstop); ui.psPop = { kind: 'stop', i: tripN(), j, was: tripsOf(S.personal)[tripN()]?.stops?.[j]?.place }; render(); main(t)?.querySelector('.pspop input')?.focus(); return true; }
+  const mv = t.closest('[data-psmove]');
+  if (mv) { const [j, d] = mv.dataset.psmove.split('.').map(Number); reorder(S, j, j + d, send, render, reload); return true; }
+  const tv = t.closest('[data-pstview]');
+  if (tv) { ui.psTView = tv.dataset.pstview; render(); return true; }
   return false;
 }
 const main = (el) => el.closest?.('#main') || document.getElementById('main');
+const tripN = () => Number(location.hash.split('/')[2]);
+function reorder(S, from, to, send, render, reload) {
+  const T = structuredClone(tripsOf(S.personal));
+  if (moveStop(T, tripN(), from, to)) save(S, 'trips', T, send, render, reload);
+}
+// Drag a stop by its handle onto another stop to put it there (the arrows do the same on a phone).
+export function personalDrag(root, S, on, send, render, reload) {
+  let from = null;
+  const clear = () => root.querySelectorAll('.psstop.drag, .psstop.over, .psstop.under').forEach((x) => x.classList.remove('drag', 'over', 'under'));
+  root.addEventListener('dragstart', (e) => {
+    const g = on() && e.target.closest?.('[data-psgrip]'); if (!g) return;
+    from = Number(g.dataset.psgrip); S.ui.psDrag = true;
+    e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', String(from));
+    const card = g.closest('.psstop'); if (card) { card.classList.add('drag'); e.dataTransfer.setDragImage?.(card, 16, 16); }
+  });
+  root.addEventListener('dragover', (e) => {
+    const c = from != null && e.target.closest?.('[data-psstop]'); if (!c) return;
+    e.preventDefault(); e.dataTransfer.dropEffect = 'move';
+    const cls = Number(c.dataset.psstop) > from ? 'under' : 'over'; // the line shows where the stop will land
+    root.querySelectorAll('.psstop.over, .psstop.under').forEach((x) => { if (x !== c) x.classList.remove('over', 'under'); }); c.classList.remove('over', 'under'); if (Number(c.dataset.psstop) !== from) c.classList.add(cls);
+  });
+  root.addEventListener('drop', (e) => {
+    const c = from != null && e.target.closest?.('[data-psstop]'); if (!c) return;
+    e.preventDefault(); const f = from; from = null; S.ui.psDrag = false; clear();
+    reorder(S, f, Number(c.dataset.psstop), send, render, reload);
+  });
+  root.addEventListener('dragend', () => { from = null; S.ui.psDrag = false; clear(); });
+}
 
 // The workout and date-night rules change the schedule's own tasks (PATCH /home/tasks/<id>).
 async function patch(S, id, body, sendHome) {
@@ -539,12 +620,16 @@ export async function personalSubmit(e, S, render, send, reload) {
     const v = Object.fromEntries(new FormData(form).entries());
     const T = structuredClone(tripsOf(S.personal)); const p = ui.psPop;
     if (p.kind === 'stop') {
-      const place = String(v.place || '').trim();
-      if (!place) { p.err = 'Add the place'; render(); return true; }
-      if (v.from && v.to && v.to < v.from) { p.err = 'Leave date is before arrive date'; render(); return true; }
       const t = T[p.i]; if (!t) return true;
-      t.stops.push({ place: place.slice(0, 80), from: v.from || '', to: v.to || '', items: items3() });
-      t.stops.sort((x, y) => (x.from || '9').localeCompare(y.from || '9'));
+      const add = p.j == null;
+      if (add) t.stops.push({ place: '', from: '', to: '', items: items3() });
+      const j = add ? t.stops.length - 1 : p.j;
+      if (!add && t.stops[j]?.place !== p.was) { p.err = 'This stop changed on another screen. Close and open it again.'; render(); return true; }
+      const base = t.stops[j];
+      const err = editStop(T, p.i, j, v);
+      if (err) { p.err = err; if (base) p.draft = formStop(base, v); render(); return true; }
+      // A new stop goes before the first stop that starts later; the stops already there keep Jon's order.
+      if (add && t.stops[j].from) { const at = t.stops.findIndex((x, k) => k < j && x.from && x.from > t.stops[j].from); if (at >= 0) moveStop(T, p.i, j, at); }
       ui.psPop = null;
       if (!location.hash.startsWith(`#personal/trips/${p.i}`)) location.hash = `#personal/trips/${p.i}`;
     } else {
