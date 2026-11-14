@@ -869,3 +869,12 @@ html[data-theme="dark"] body{background:#0b0b0c}
   .d3 .psstops .psstop{grid-template-columns:96px minmax(0,1fr);padding:10px}.d3 .psstops .psstop .psph{border-radius:12px}.d3 .psstops .psstop .psstb{padding:0 0 0 8px}
   .d3 .psplan{grid-template-columns:44px minmax(0,1fr) auto}.d3 .psplan>a.pslnk{display:none}
 }
+/* Each city has its own page with its plans; the trip page only links to it (Jon, 2026-11-14) */
+.d3 .psphl{display:block;align-self:start}.d3 .psphl .psph{aspect-ratio:1/1;border-radius:16px}
+.d3 .pscityl{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:12px;background:var(--card2);color:var(--ink);text-decoration:none;font-size:13px}
+.d3 .pscityl span{color:var(--muted)}.d3 .pscityl b{margin-left:auto;color:var(--link);font-weight:600}.d3 .pscityl:hover{background:color-mix(in srgb,var(--link) 8%,var(--card2))}
+.d3 .pscity{padding:0}.d3 .pscityh{display:grid;grid-template-columns:260px minmax(0,1fr);gap:18px;padding:18px 20px}
+.d3 .pscityh .psph{aspect-ratio:1/1;border-radius:18px}.d3 .pscityb{display:grid;gap:12px;align-content:start;min-width:0}
+.d3 .pscityb .psthrow .pslnk{margin-left:auto}
+.d3 .pscityp{border-top:1px solid var(--line);padding:14px 20px 18px;gap:10px}.d3 .pscityp .psplh b{font-size:16px}.d3 .pscityp .psplh .btn{margin-left:auto}
+@media (max-width:760px){.d3 .pscityh{grid-template-columns:minmax(0,1fr);padding:12px}.d3 .pscityh .psph{max-width:none}.d3 .pscityp{padding:12px}}

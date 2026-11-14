@@ -14,7 +14,7 @@ const TRIPS = () => [{ name: 'Portugal', bud: 5000, stops: [
 ] }];
 const put = (env, key, body) => personalWrite(env, 'PUT', `/${key}`, { json: async () => body, headers: new Map() });
 const places = (P) => P.store.trips[0].stops.map((s) => s.place);
-const page = (P, ui = {}) => renderPersonal({ personal: P, home: null }, ['trips', '0'], ui, Date.parse('2026-11-14T18:00:00Z'));
+const page = (P, ui = {}, sub = ['trips', '0']) => renderPersonal({ personal: P, home: null }, sub, ui, Date.parse('2026-11-14T18:00:00Z'));
 
 test('Trips: a reordered stop list is saved and read back in that order, not by date', async () => {
   const env = { DB: sqliteD1() };
@@ -122,12 +122,17 @@ test('Trips: plans are saved per day, moved when their day changes, listed under
   assert.equal(savePlan(T, 0, { n: 'Fado night', d: '2026-12-07' }, { d: '2026-12-02', k: 1 }), '');
   assert.deepEqual(Object.keys(T[0].plans).sort(), ['2026-12-02', '2026-12-07']);
   assert.equal(savePlan(T, 0, { n: 'x', d: '2026-12-07' }, { d: '2026-12-02', k: 5 }), 'That plan changed on another screen. Close and open it again.');
-  const html = page({ store: { trips: T } });
-  assert.match(html, /data-psaddplan="2026-12-01">\+ Add plan/); // Lisbon's card adds on its first day
+  // the trip page only links to each city; the city page holds its plans
+  const trip = page({ store: { trips: T } });
+  assert.match(trip, /<a class="pscityl" href="#personal\/trips\/0\/0"><span>1 plan · 1 booked<\/span><b>Open Lisbon ›<\/b><\/a>/);
+  assert.doesNotMatch(trip, /class="psplan/);
+  const html = page({ store: { trips: T } }, {}, ['trips', '0', '0']);
+  assert.match(html, /<\/span> <a href="#personal\/trips\/0">Portugal<\/a> <span>›<\/span> Lisbon<\/h1>/);
+  assert.match(html, /data-psaddplan="2026-12-01">\+ Add plan/); // Lisbon adds on its first day
   assert.match(html, /<div class="psplan ok"><button type="button" class="psplt ok" data-psplanedit="2026-12-02.0"[^>]*><span>S<\/span><\/button><button type="button" class="psplb" data-psplanedit="2026-12-02.0"><b>Sintra day trip<\/b><span class="mut">Wed Dec 2 · \$80<\/span>/);
-  assert.match(html, /data-psplanok="2026-12-07.0"> Idea/);
+  assert.match(page({ store: { trips: T } }, {}, ['trips', '0', '2']), /data-psplanok="2026-12-07.0"> Idea/); // Porto's page
   assert.doesNotMatch(before, /\$80 of/);
-  assert.match(html, /\$80 of \$5,000 budget|\$\d[\d,]* of \$5,000 budget/);
+  assert.match(trip, /\$80 of \$5,000 budget/); // the plan's cost is in the trip budget
   assert.ok(dropPlan(T, 0, '2026-12-07', 0));
   assert.equal(T[0].plans['2026-12-07'], undefined);
   assert.equal(dropPlan(T, 0, '2026-12-07', 0), false);
