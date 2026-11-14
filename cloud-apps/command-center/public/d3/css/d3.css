@@ -1026,3 +1026,8 @@ html[data-theme="dark"] body{background:#0b0b0c}
   .d3 .psbk3{grid-template-columns:minmax(0,1fr)}
   .d3 .psbk button.psbkd{min-height:0}
 }
+/* Map pins show the whole photo (Leaflet's own img rule sizes marker images to their full width), and map tiles meet
+   without hairline gaps on scaled screens. */
+.d3 .leaflet-container .leaflet-marker-pane .psmpin img{display:block;width:100%!important;height:100%!important;max-width:none!important;object-fit:cover}
+.d3 .psmpin{display:block}.d3 .psmpin>span{display:grid;place-items:center;width:100%;height:100%}
+.d3 .leaflet-container .leaflet-tile-pane img.leaflet-tile{width:256.5px!important;height:256.5px!important}
