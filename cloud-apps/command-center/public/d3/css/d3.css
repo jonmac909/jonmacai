@@ -924,3 +924,7 @@ html[data-theme="dark"] body{background:#0b0b0c}
 .d3 .psmpin.plan,.d3 .psk.plan,.d3 .psmpin.stop{background:var(--link)}.d3 .psmpin.ok,.d3 .psk.ok{background:var(--ok)}.d3 .psmpin.want,.d3 .psk.want{background:var(--muted)}.d3 .psmpin.hotel,.d3 .psk.hotel{background:var(--warn)}
 .d3 .psmpin.ok{border-color:var(--ok)}.d3 .psmpin.hotel{border-color:var(--warn)}
 @media (max-width:760px){.d3 .psbkf{grid-template-columns:minmax(0,1fr)}.d3 .psmap{height:380px}}
+.d3 .psbkfiles{display:flex;flex-wrap:wrap;gap:6px;min-width:0}
+.d3 .psbkfile{display:inline-flex;align-items:center;gap:6px;max-width:100%;padding:5px 9px;border-radius:8px;background:var(--card2);border:1px solid var(--line);color:var(--ink);font-size:12px;text-decoration:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.d3 .psbkfile b{font-size:9px;letter-spacing:.04em;padding:2px 4px;border-radius:4px;background:var(--link);color:#ffffff}.d3 .psbkfile:hover{border-color:var(--link)}
+.d3 .psbkatt{display:inline-flex;align-items:center;padding:5px 9px;border-radius:8px;border:1px dashed var(--line);color:var(--link);font-size:12px;font-weight:600;cursor:pointer}.d3 .psbkatt:hover{border-color:var(--link)}

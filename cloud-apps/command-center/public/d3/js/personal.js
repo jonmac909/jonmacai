@@ -148,6 +148,7 @@ export function savePlan(T, n, v, at = null, j = null) {
     const old = list?.[k];
     if (!old) return 'That plan changed on another screen. Close and open it again.';
     if (old.n === name && Number.isFinite(old.lat)) Object.assign(plan, { lat: old.lat, lon: old.lon }); // keep where it is on the map
+    if (old.n === name && old.miss) plan.miss = 1;
     if (at.w != null ? !d && at.j === j : at.d === d) { list[k] = plan; return ''; }
     list.splice(k, 1);
     if (at.w == null && !list.length) delete t.plans[at.d];
@@ -169,10 +170,12 @@ export function dropWant(T, n, j, w) {
 // groups at a time, nearest first, until there is one group per free day. `items` are [{ w, lat, lon, cat }];
 // returns [{ d, ws }] (the want-to-do indexes for each day) and the ones left over.
 const km = (a, b) => { const r = Math.PI / 180; const x = (b.lon - a.lon) * r * Math.cos(((a.lat + b.lat) / 2) * r); const y = (b.lat - a.lat) * r; return 6371 * Math.hypot(x, y); };
-export function groupNear(items, days) {
+export const FAR_KM = 25;
+export function groupNear(items, days, center = null) {
   const placed = items.filter((x) => Number.isFinite(x.lat) && Number.isFinite(x.lon));
-  const trips = placed.filter((x) => x.cat === 'Day trip');
-  let groups = placed.filter((x) => x.cat !== 'Day trip').map((x) => ({ ws: [x.w], lat: x.lat, lon: x.lon }));
+  const far = (x) => x.cat === 'Day trip' || (center && Number.isFinite(center.lat) && km(center, x) > FAR_KM);
+  const trips = placed.filter(far);
+  let groups = placed.filter((x) => !far(x)).map((x) => ({ ws: [x.w], lat: x.lat, lon: x.lon }));
   const room = Math.max(0, days.length - trips.length);
   while (groups.length > room && groups.length > 1) {
     let best = null;
@@ -198,23 +201,31 @@ const budLine = (t) => (t.bud ? `${usd0(tripCost(t))} of ${usd0(t.bud)} budget` 
 // A trip with no photo of its own shows its first stop (a known city beats the country article). A place's photo: Jon's own upload, else the first real photo in the place's Wikipedia article (no flags, maps or
 // crests), looked up once per name while the page is open and dropped into the picture when it arrives.
 const WIKI = {};
-const NOT_PHOTO = /flag|map|coat|locat|logo|emblem|seal|arms|atlas|diagram|portrait/i;
+// Not scenic: flags, maps, crests, logos, portraits, and pictures taken from space.
+const NOT_PHOTO = /flag|map|coat|locat|logo|emblem|seal|arms|atlas|diagram|portrait|satellite|landsat|sentinel|nasa|iss0|from_space|topograph|relief|terra|modis/i;
+// "Estoril/Cascais" or "Foz do Douro, Porto" looks up its first place.
+export const placeKey = (name) => String(name || '').split(/[/,(]/)[0].trim();
+export async function placePic(name) {
+  const k = placeKey(name); if (!k) return '';
+  try {
+    const r = await fetch(`https://en.wikipedia.org/api/rest_v1/page/media-list/${encodeURIComponent(k.replace(/ /g, '_'))}`);
+    const b = r.ok ? await r.json() : null;
+    const it = (b?.items || []).find((i) => i.type === 'image' && /\.jpe?g$/i.test(i.title || '') && !NOT_PHOTO.test(i.title) && i.srcset?.length);
+    const src = it ? it.srcset[it.srcset.length - 1].src || '' : '';
+    return src.startsWith('//') ? `https:${src}` : src;
+  } catch { return ''; }
+}
 function placePhoto(name, own) {
   if (own) return own;
-  const k = String(name || '').trim();
+  const k = placeKey(name);
   if (!k || typeof fetch !== 'function' || typeof document === 'undefined') return '';
   if (!(k in WIKI)) {
     WIKI[k] = '';
-    fetch(`https://en.wikipedia.org/api/rest_v1/page/media-list/${encodeURIComponent(k.replace(/ /g, '_'))}`)
-      .then((r) => (r.ok ? r.json() : null))
-      .then((b) => {
-        const it = (b?.items || []).find((i) => i.type === 'image' && /\.jpe?g$/i.test(i.title || '') && !NOT_PHOTO.test(i.title) && i.srcset?.length);
-        const src = it ? it.srcset[it.srcset.length - 1].src || '' : '';
-        if (!src) return;
-        WIKI[k] = src.startsWith('//') ? `https:${src}` : src;
-        document.querySelectorAll('img[data-psimg]').forEach((im) => { if (im.dataset.psimg === k && !im.getAttribute('src')) im.src = WIKI[k]; });
-      })
-      .catch(() => {});
+    placePic(k).then((src) => {
+      if (!src) return;
+      WIKI[k] = src;
+      document.querySelectorAll('img[data-psimg]').forEach((im) => { if (placeKey(im.dataset.psimg) === k && !im.getAttribute('src')) im.src = src; });
+    });
   }
   return WIKI[k];
 }
@@ -438,19 +449,22 @@ export const MODES = ['Flight', 'Train', 'Bus', 'Ferry', 'Drive'];
 const bkKind = (k) => (MODES.includes(k) ? 'go' : k === 'Hotel' || k === 'Accommodation' ? 'hotel' : k === 'Car' ? 'car' : 'other');
 // Older trips call it Hotel; Jon says accommodation (2026-11-14).
 const bkName = (k) => (k === 'Hotel' ? 'Accommodation' : k);
-const ride = (co, no, seat) => [['from', 'From', 'Lisbon'], ['to', 'To', 'Porto'], ['dep', 'Leaves', '', 1], ['arr', 'Arrives', '', 1], ['co', co[0], co[1]], ['no', no[0], no[1]], ['seat', seat, ''], ['code', 'Booking code', '']];
-// [name, label, placeholder, date-and-time]; the first four show at once, the rest under More details.
+// Each way of getting there asks for its own things (Jon, 2026-11-14: "i need airports").
+const ride = (a, b) => [['from', `From ${a}`, b[0]], ['to', `To ${a}`, b[1]], ['dep', 'Departs', '', 1], ['arr', 'Arrives', '', 1]];
+// [name, label, placeholder, date-and-time]; SHOW says how many show at once, the rest are under More details.
 export const BKF = {
-  Flight: ride(['Airline', 'TAP'], ['Flight number', 'TP 1350'], 'Seat'),
-  Train: ride(['Company', 'CP'], ['Train number', 'IC 521'], 'Coach and seat'),
-  Bus: ride(['Company', 'FlixBus'], ['Route', 'N 801'], 'Seat'),
-  Ferry: ride(['Company', ''], ['Sailing', ''], 'Cabin or seat'),
-  Drive: [['from', 'From', 'Lisbon'], ['to', 'To', 'Porto'], ['dep', 'Leave', '', 1], ['dur', 'How long', '3h']],
+  Flight: [['from', 'From airport', 'LIS Lisbon'], ['to', 'To airport', 'LPA Gran Canaria'], ['dep', 'Departs', '', 1], ['arr', 'Lands', '', 1], ['co', 'Airline', 'TAP, Ryanair'], ['no', 'Flight number', 'TP 1350'],
+    ['term', 'Terminal', 'T1'], ['seat', 'Seat', '14C'], ['bags', 'Bags', '1 checked, 1 carry-on'], ['code', 'Booking code', 'ABC123']],
+  Train: [...ride('station', ['Lisboa Santa Apolónia', 'Porto Campanhã']), ['co', 'Company', 'CP'], ['no', 'Train number', 'AP 121'], ['seat', 'Coach and seat', 'Coach 4, seat 32'], ['code', 'Booking code', '']],
+  Bus: [...ride('stop', ['Sete Rios', 'Porto Campo 24 de Agosto']), ['co', 'Company', 'FlixBus, Rede Expressos'], ['no', 'Route', ''], ['seat', 'Seat', ''], ['code', 'Booking code', '']],
+  Ferry: [...ride('port', ['Huelva', 'Las Palmas']), ['co', 'Company', 'Naviera Armas'], ['no', 'Sailing', ''], ['seat', 'Cabin or seat', ''], ['veh', 'Car on board', 'Yes, plate AB-12-CD'], ['code', 'Booking code', '']],
+  Drive: [['from', 'From', 'Lisbon'], ['to', 'To', 'Porto'], ['dep', 'Leave', '', 1], ['dur', 'How long', '3h'], ['tolls', 'Tolls and parking', 'Via Verde']],
   hotel: [['name', 'Where', 'Memmo Alfama, an Airbnb'], ['addr', 'Address', 'Travessa das Merceeiras 27, Lisbon'], ['cin', 'Check-in', '', 1], ['cout', 'Check-out', '', 1], ['code', 'Booking code', ''], ['phone', 'Phone', '']],
   car: [['co', 'Company', 'Sixt'], ['addr', 'Pick-up address', 'Lisbon airport'], ['dep', 'Pick-up', '', 1], ['arr', 'Return', '', 1], ['ret', 'Return address', ''], ['code', 'Booking code', '']],
   other: [['what', 'What', ''], ['addr', 'Address', ''], ['when', 'When', '', 1], ['code', 'Booking code', '']],
 };
 const fieldsOf = (k) => BKF[k] || BKF[bkKind(k)];
+const SHOW = { Flight: 6, Train: 6 };
 const tm = (v) => { const m = /^(\d{4}-\d{2}-\d{2})(?:T(\d{2}:\d{2}))?/.exec(v || ''); return m ? `${fmtD(m[1])}${m[2] ? ` ${m[2]}` : ''}` : ''; };
 export function bkSum(x) {
   const d = x.det || {};
@@ -461,9 +475,11 @@ export function bkSum(x) {
   return [d.what, tm(d.when)].filter(Boolean).join(' · ');
 }
 const mapsLink = (a) => `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(a)}`;
+let attBusy = ''; // the box whose files are uploading ("j.k")
+const docLink = (d) => `<a class="psbkfile" href="${esc(d.url)}" target="_blank" rel="noopener noreferrer" title="Open ${esc(d.n)}"><b>${/\.pdf$/i.test(d.url) ? 'PDF' : 'IMG'}</b>${esc(d.n)}</a>`;
 function bkBox(x, j, k) {
-  const sum = bkSum(x); const n = (x.docs || []).length;
-  return `<div class="psbk${x.ok ? ' on' : ''}"><label><input type="checkbox" data-psbook="${j}.${k}"${x.ok ? ' checked' : ''}> ${esc(bkName(x.k))}${x.ok ? ' <i>booked</i>' : ''}</label><span class="pscost">$<input type="number" min="0" step="10" data-pscost="${j}.${k}" value="${esc(x.cost)}" placeholder="cost" aria-label="${esc(bkName(x.k))} cost"></span><button type="button" class="psbkd" data-psbkdet="${j}.${k}">${sum ? `<span>${esc(sum)}</span>` : '<i>+ Details</i>'}${n ? `<em>${n} file${n === 1 ? '' : 's'}</em>` : ''}</button></div>`;
+  const sum = bkSum(x); const docs = x.docs || [];
+  return `<div class="psbk${x.ok ? ' on' : ''}"><label><input type="checkbox" data-psbook="${j}.${k}"${x.ok ? ' checked' : ''}> ${esc(bkName(x.k))}${x.ok ? ' <i>booked</i>' : ''}</label><span class="pscost">$<input type="number" min="0" step="10" data-pscost="${j}.${k}" value="${esc(x.cost)}" placeholder="cost" aria-label="${esc(bkName(x.k))} cost"></span><button type="button" class="psbkd" data-psbkdet="${j}.${k}">${sum ? `<span>${esc(sum)}</span>` : '<i>+ Details</i>'}</button><div class="psbkfiles">${docs.map(docLink).join('')}<label class="psbkatt"><input type="file" accept="image/*,application/pdf" multiple hidden data-psbkatt="${j}.${k}">${attBusy === `${j}.${k}` ? 'Uploading…' : `+ Attach ${bkKind(x.k) === 'go' ? 'ticket' : 'booking'}`}</label></div></div>`;
 }
 const bkRow = (s, j) => `<div class="psbk3">${s.items.map((x, k) => bkBox(x, j, k)).join('')}</div>`;
 // The details form onto booking k of stop j. Returns what to fix, or '' when saved into T.
@@ -483,15 +499,15 @@ export function saveBk(T, n, j, k, was, v) {
 }
 function bkPop(p, t) {
   const st = t?.stops?.[p.j]; const x = p.draft; const go = MODES.includes(x.k);
-  const f = fieldsOf(x.k); const more = p.more || f.slice(4).some(([nm]) => x.det[nm]) || x.det.notes || x.docs.length;
+  const f = fieldsOf(x.k); const sh = SHOW[x.k] || 4; const more = p.more || f.slice(sh).some(([nm]) => x.det[nm]) || x.det.notes;
   const inp = ([nm, l, ph, dt]) => `<label>${l}<input name="${nm}"${dt ? ' type="datetime-local"' : ''} value="${esc(x.det[nm] || '')}"${ph ? ` placeholder="${esc(ph)}"` : ''}></label>`;
   const addr = x.det.addr;
   return `<div class="hmhost" data-psback><form class="hmed pspop psbkpop" data-psform="bk"><div class="hmedh"><b class="hmedt">${go ? 'Getting to' : esc(bkName(x.k))}${go ? ' ' : ' in '}${esc(st?.place || '')}</b><button type="button" class="btn sm" data-psx aria-label="Close">✕</button></div>
 <div class="pstfb">${go ? `<div class="psmodes" role="group" aria-label="How">${MODES.map((m) => `<button type="button" data-psbkmode="${m}" aria-pressed="${m === x.k}">${m}</button>`).join('')}</div>` : ''}
-<div class="psbkf">${f.slice(0, 4).map(inp).join('')}</div>${addr ? `<a class="pslnk" href="${esc(mapsLink(addr))}" target="_blank" rel="noopener noreferrer">Open the address in Maps ›</a>` : ''}
-${more ? `<div class="psbkf">${f.slice(4).map(inp).join('')}</div>
-<label>Notes<textarea name="notes" rows="2" placeholder="Terminal, baggage, door code, who to call">${esc(x.det.notes || '')}</textarea></label>
-<div class="psdocs"><small>Paperwork</small>${x.docs.map((d, i) => `<div class="psdoc"><a href="${esc(d.url)}" target="_blank" rel="noopener noreferrer">${esc(d.n)}</a><button type="button" class="pslnk" data-psbkdocx="${i}">Remove</button></div>`).join('') || '<span class="mut">Tickets, confirmations, insurance (photo or PDF)</span>'}<label class="btn sm"><input type="file" accept="image/*,application/pdf" hidden data-psbkdoc>${p.busy ? 'Uploading…' : '+ Attach'}</label></div>` : '<button type="button" class="pslnk psmore" data-psmore>+ More details and paperwork</button>'}
+<div class="psbkf">${f.slice(0, sh).map(inp).join('')}</div>
+<div class="psdocs"><small>Paperwork</small>${x.docs.map((d, i) => `<div class="psdoc"><a href="${esc(d.url)}" target="_blank" rel="noopener noreferrer">${esc(d.n)}</a><button type="button" class="pslnk" data-psbkdocx="${i}">Remove</button></div>`).join('') || '<span class="mut">Tickets, confirmations, insurance (photo or PDF)</span>'}<label class="btn sm"><input type="file" accept="image/*,application/pdf" hidden data-psbkdoc>${p.busy ? 'Uploading…' : '+ Attach'}</label></div>${addr ? `<a class="pslnk" href="${esc(mapsLink(addr))}" target="_blank" rel="noopener noreferrer">Open the address in Maps ›</a>` : ''}
+${more ? `<div class="psbkf">${f.slice(sh).map(inp).join('')}</div>
+<label>Notes<textarea name="notes" rows="2" placeholder="Terminal, baggage, door code, who to call">${esc(x.det.notes || '')}</textarea></label>` : '<button type="button" class="pslnk psmore" data-psmore>+ More details</button>'}
 <div class="pstf2"><label>Cost $<input type="number" min="0" step="10" name="cost" value="${esc(x.cost ?? '')}" placeholder="0"></label><label class="psedok"><input type="checkbox" name="ok"${x.ok ? ' checked' : ''}> Booked</label></div></div>
 <div class="hmedf"><span class="psbad">${esc(p.err || '')}</span><button type="button" class="btn" data-psx style="margin-left:auto">Cancel</button><button class="btn primary">Save</button></div></form></div>`;
 }
@@ -513,6 +529,7 @@ export function mapPts(t, j = null) {
     return pts;
   }
   const s = t.stops[j];
+  if (ok(s)) pts.push({ lat: s.lat, lon: s.lon, n: s.place, sub: 'Where you\'re staying', kind: 'stop', img: s.img });
   plansOf(t).filter((x) => inStop(s, x.d)).forEach((x) => { if (ok(x)) pts.push({ lat: x.lat, lon: x.lon, n: x.n, sub: `${DAYS[dow(x.d)]} ${fmtD(x.d)}${x.ok ? ' · booked' : ''}`, kind: x.ok ? 'ok' : 'plan', img: x.img }); });
   (s.want || []).forEach((x) => { if (ok(x)) pts.push({ lat: x.lat, lon: x.lon, n: x.n, sub: `Want to do${x.cat ? ` · ${x.cat}` : ''}`, kind: 'want', img: x.img }); });
   hotel(s);
@@ -536,34 +553,41 @@ async function findSpots(S, n, j, send, render, reload) {
   if (finding) return;
   const T = structuredClone(tripsOf(S.personal)); const t = T[n]; if (!t) return;
   const before = JSON.stringify(tripsOf(S.personal));
-  const todo = []; const need = (o, q) => { if (o && q && !Number.isFinite(o.lat) && !o.nf) todo.push([o, q]); };
+  const todo = []; const need = (o, how) => { if (o && how.q && !Number.isFinite(o.lat) && !o.miss) todo.push([o, how]); };
   const where = (...a) => a.filter(Boolean).join(', ');
+  let pics = false;
+  for (const s of (j == null ? t.stops : [t.stops[j]])) {
+    if (s && !s.img && s.place) { const src = WIKI[placeKey(s.place)] || await placePic(s.place); if (src) { s.img = src; pics = true; } }
+  }
   (j == null ? t.stops : [t.stops[j]]).forEach((s) => {
     if (!s) return;
-    need(s, where(s.place, t.name));
-    const h = (s.items || []).find((x) => bkKind(x.k) === 'hotel'); if (h?.det?.addr) need(h.det, h.det.addr);
+    need(s, { q: where(placeKey(s.place), t.name) });
+    const h = (s.items || []).find((x) => bkKind(x.k) === 'hotel'); if (h?.det?.addr) need(h.det, { q: h.det.addr, near: s });
     if (j == null) return;
-    Object.entries(t.plans || {}).forEach(([d, xs]) => { if (inStop(s, d)) xs.forEach((x) => need(x, where(x.n, s.place, t.name))); });
-    (s.want || []).forEach((x) => need(x, where(x.n, s.place, t.name)));
+    const thing = (x) => need(x, { q: where(x.n, s.place, t.name), wq: `${x.n} ${t.name}`, near: s, photo: true });
+    Object.entries(t.plans || {}).forEach(([d, xs]) => { if (inStop(s, d)) xs.forEach((x) => x.n && thing(x)); });
+    (s.want || []).forEach((x) => x.n && thing(x));
   });
-  if (!todo.length) return;
+  if (!todo.length) {
+    if (pics && JSON.stringify(tripsOf(S.personal)) === before) await save(S, 'trips', T, send, render, reload);
+    return;
+  }
   finding = true;
   try {
-    for (const [c, [o, q]] of todo.entries()) {
+    for (const [c, [o, how]] of todo.entries()) {
       S.ui.psMapNote = `Finding places on the map… ${c + 1} of ${todo.length}`;
       const el = document.querySelector('.psmapw > p.mut'); if (el) el.textContent = S.ui.psMapNote;
-      try {
-        const r = await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=1&accept-language=en&q=${encodeURIComponent(q)}`);
-        const b = r.ok ? await r.json() : [];
-        if (b[0]) { o.lat = Number(b[0].lat); o.lon = Number(b[0].lon); } else o.nf = 1;
-      } catch { /* try again next time */ }
-      await sleep(1100); // OpenStreetMap asks for one search a second at most
+      await lookUp(o, how);
     }
   } finally { finding = false; S.ui.psMapNote = ''; }
   if (JSON.stringify(tripsOf(S.personal)) !== before) { render(); return; } // changed meanwhile: try again on the next draw
   await save(S, 'trips', T, send, render, reload);
 }
 export async function personalAfter(root, S, send, render, reload) {
+  const cityEl = root?.querySelector?.('[data-pscityat]');
+  if (cityEl) { const [cn, cj] = cityEl.dataset.pscityat.split('.').map(Number); findSpots(S, cn, cj, send, render, reload); }
+  const tripEl = root?.querySelector?.('[data-pstripat]');
+  if (tripEl && !root.querySelector('[data-psmap]')) findSpots(S, Number(tripEl.dataset.pstripat), null, send, render, reload);
   const el = root?.querySelector?.('[data-psmap]'); if (!el) return;
   const [n, j0] = el.dataset.psmap.split('.'); const j = j0 == null ? null : Number(j0);
   const t = tripsOf(S.personal)[Number(n)]; if (!t) return;
@@ -573,10 +597,11 @@ export async function personalAfter(root, S, send, render, reload) {
   const pts = mapPts(t, j); const s = j != null ? t.stops[j] : null;
   el.innerHTML = '';
   const m = L.map(el, { scrollWheelZoom: false });
-  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '&copy; OpenStreetMap' }).addTo(m);
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager_nolabels/{z}/{x}/{y}{r}.png', { maxZoom: 19, subdomains: 'abcd', attribution: '&copy; OpenStreetMap &copy; CARTO' }).addTo(m);
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}{r}.png', { maxZoom: 19, subdomains: 'abcd', pane: 'shadowPane' }).addTo(m);
   pts.forEach((p) => {
     const icon = L.divIcon({ className: `psmpin ${p.kind}`, html: p.img ? `<img alt="" src="${esc(p.img)}">` : `<span>${esc((p.n || '?').trim().charAt(0).toUpperCase())}</span>`, iconSize: [40, 40], iconAnchor: [20, 20] });
-    L.marker([p.lat, p.lon], { icon, title: p.n }).addTo(m).bindPopup(`<b>${esc(p.n || 'Untitled')}</b>${p.sub ? `<br>${esc(p.sub)}` : ''}${p.kind === 'stop' ? `<br><a href="#personal/trips/${n}/${p.k}">Open ${esc(p.n)} ›</a>` : ''}`);
+    L.marker([p.lat, p.lon], { icon, title: p.n }).addTo(m).bindPopup(`<b>${esc(p.n || 'Untitled')}</b>${p.sub ? `<br>${esc(p.sub)}` : ''}${p.kind === 'stop' && p.k != null ? `<br><a href="#personal/trips/${n}/${p.k}">Open ${esc(p.n)} ›</a>` : ''}`);
   });
   const route = pts.filter((p) => p.kind === 'stop').map((p) => [p.lat, p.lon]);
   if (route.length > 1) L.polyline(route, { color: '#2563eb', weight: 3, dashArray: '6 8' }).addTo(m);
@@ -604,7 +629,7 @@ function cityPage(t, n, j, ui) {
   const cats = CATS.filter((c) => want.some((x) => (x.cat || 'Other') === c));
   const cv = ui.psCView || 'list';
   const dayRow = (d) => { const here = ps.filter((x) => x.d === d); return `<div class="pscdrow"><div class="pscdd"><small>${DAYS[dow(d)]}</small><b>${Number(d.slice(8))}</b><span>${fmtD(d).split(' ')[0]}</span></div><div class="pscdtiles">${here.map(bigTile).join('')}<button type="button" class="pscdadd" data-psaddplan="${d}" data-psj="${j}" aria-label="Add a plan on ${fmtD(d)}">+</button></div></div>`; };
-  return `<section class="card pscity"><div class="pscityh">${photoHtml(s.place, s.img, `data-psstphoto="${j}"`)}<div class="pscityb"><div class="psthrow"><h2>${esc(s.place)}</h2><span class="mut">${s.from ? fmtD(s.from) : '?'} – ${s.to ? fmtD(s.to) : '?'}${daysTxt(nDays(s.from, s.to))}</span><button type="button" class="pslnk" data-psedstop="${j}">Edit</button></div>
+  return `<section class="card pscity" data-pscityat="${n}.${j}"><div class="pscityh">${photoHtml(s.place, s.img, `data-psstphoto="${j}"`)}<div class="pscityb"><div class="psthrow"><h2>${esc(s.place)}</h2><span class="mut">${s.from ? fmtD(s.from) : '?'} – ${s.to ? fmtD(s.to) : '?'}${daysTxt(nDays(s.from, s.to))}</span><button type="button" class="pslnk" data-psedstop="${j}">Edit</button></div>
 ${s.notes || s.link ? `<div class="psnote">${s.notes ? `<p>${esc(s.notes)}</p>` : ''}${s.link ? `<a href="${esc(webLink(s.link))}" target="_blank" rel="noopener noreferrer">${esc(s.link.replace(/^https?:\/\//i, '').slice(0, 60))}</a>` : ''}</div>` : ''}
 ${bkRow(s, j)}</div></div>
 <div class="pscsec"><div class="psplh"><b>Days</b><span class="mut">${days.length ? `${days.length} day${days.length === 1 ? '' : 's'} · ${ps.length} plan${ps.length === 1 ? '' : 's'}, ${ps.filter((x) => x.ok).length} booked` : 'Add the arrive and leave dates to see the days'}</span><div class="psfilter" role="group" aria-label="View">${[['list', 'List'], ['cal', 'Calendar'], ['map', 'Map']].map(([k, l]) => `<button type="button" data-pscview="${k}" aria-pressed="${k === cv}">${l}</button>`).join('')}</div><button type="button" class="btn sm primary" data-psaddplan="" data-psj="${j}">+ Add plan</button></div>
@@ -625,7 +650,7 @@ function tripsPage(S, sub, ui) {
   } else {
     const [b, a] = tripBooked(t); const tv = ui.psTView || 'list'; const L = t.stops.length;
     const views = `<div class="psfilter" role="group" aria-label="View">${[['list', 'List'], ['cal', 'Calendar'], ['map', 'Map']].map(([k, l]) => `<button type="button" data-pstview="${k}" aria-pressed="${k === tv}">${l}</button>`).join('')}</div>`;
-    html = `<section class="card pstrip"><div class="psthead"><div class="psthrow"><h2>${esc(t.name)}</h2><span class="mut">${esc(tripDates(t))}</span><label class="pslnk"><input type="file" accept="image/*" hidden data-pstphoto>${t.img ? 'Change photo' : 'Trip photo'}</label><button type="button" class="pslnk" data-pstrip="edit">Edit</button></div>${tripBar(t)}<div class="pstvrow"><span class="mut">${esc(budLine(t))} · ${a ? `${b} of ${a} booked` : 'nothing to book yet'}</span>${L ? views : ''}</div></div>
+    html = `<section class="card pstrip" data-pstripat="${n}"><div class="psthead"><div class="psthrow"><h2>${esc(t.name)}</h2><span class="mut">${esc(tripDates(t))}</span><label class="pslnk"><input type="file" accept="image/*" hidden data-pstphoto>${t.img ? 'Change photo' : 'Trip photo'}</label><button type="button" class="pslnk" data-pstrip="edit">Edit</button></div>${tripBar(t)}<div class="pstvrow"><span class="mut">${esc(budLine(t))} · ${a ? `${b} of ${a} booked` : 'nothing to book yet'}</span>${L ? views : ''}</div></div>
 ${tv === 'cal' && L ? tripCal(t) : tv === 'map' && L ? mapBox(n, null, ui) : L ? `<div class="psstops">${t.stops.map((s, j) => `<div class="psstop" data-psstop="${j}"><a class="psphl" href="#personal/trips/${n}/${j}" aria-label="Open ${esc(s.place)}">${photoHtml(s.place, s.img)}</a><div class="psstb"><div class="psst2h"><span class="psgrip" draggable="true" data-psgrip="${j}" title="Drag to move">⠿</span><b>${esc(s.place)}</b>${s.ex ? '<span class="psex">example</span>' : ''}<span class="mut">${s.from ? fmtD(s.from) : '?'} – ${s.to ? fmtD(s.to) : '?'}${daysTxt(nDays(s.from, s.to))}</span><span class="psstc"><button type="button" class="psmv" data-psmove="${j}.-1" aria-label="Move ${esc(s.place)} up"${j ? '' : ' disabled'}>↑</button><button type="button" class="psmv" data-psmove="${j}.1" aria-label="Move ${esc(s.place)} down"${j < L - 1 ? '' : ' disabled'}>↓</button><button type="button" class="pslnk" data-psedstop="${j}">Edit</button><button type="button" class="pslnk" data-psdelstop="${j}">Remove</button></span></div>
 ${s.notes || s.link ? `<div class="psnote">${s.notes ? `<p>${esc(s.notes)}</p>` : ''}${s.link ? `<a href="${esc(webLink(s.link))}" target="_blank" rel="noopener noreferrer">${esc(s.link.replace(/^https?:\/\//i, '').slice(0, 60))}</a>` : ''}</div>` : ''}
 ${bkRow(s, j)}
@@ -887,30 +912,47 @@ const tripN = () => Number(location.hash.split('/')[2]);
 // Build my days: find each want-to-do place on OpenStreetMap (once; the spot is saved on the place), then group the
 // places that are near each other onto the city's free days and show the plan before anything moves.
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+// Find one thing on the map. A plan or want-to-do place asks Wikipedia first (it copes with spellings like "obido"
+// and brings a photo), then OpenStreetMap; a stop or an address asks OpenStreetMap first. A match more than 300 km
+// from the city is wrong. Nothing found marks it, so it isn't asked again until its name changes.
+async function lookUp(o, { q, wq, near, photo }) {
+  const okAt = (lat, lon) => Number.isFinite(lat) && Number.isFinite(lon) && (!near || !Number.isFinite(near.lat) || km(near, { lat, lon }) < 300);
+  const osm = async () => {
+    try {
+      const r = await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=1&accept-language=en&q=${encodeURIComponent(q)}`);
+      const b = r.ok ? await r.json() : []; const lat = Number(b[0]?.lat); const lon = Number(b[0]?.lon);
+      if (okAt(lat, lon)) { o.lat = lat; o.lon = lon; }
+    } catch { /* not found */ }
+    await sleep(1100); // OpenStreetMap asks for one search a second at most
+  };
+  const wiki = async () => {
+    try {
+      const r = await fetch(`https://en.wikipedia.org/w/api.php?action=query&format=json&origin=*&generator=search&gsrlimit=1&gsrsearch=${encodeURIComponent(wq)}&prop=coordinates%7Cpageimages&piprop=thumbnail&pithumbsize=800`);
+      const pg = r.ok ? Object.values((await r.json())?.query?.pages || {})[0] : null; const c = pg?.coordinates?.[0];
+      if (c && okAt(c.lat, c.lon)) { o.lat = c.lat; o.lon = c.lon; if (photo && !o.img && pg.thumbnail?.source) o.img = pg.thumbnail.source; }
+    } catch { /* not found */ }
+  };
+  if (wq) { await wiki(); if (!Number.isFinite(o.lat) && q) await osm(); } else await osm();
+  if (!Number.isFinite(o.lat)) o.miss = 1;
+}
 async function buildDays(S, j, send, render, reload) {
   const ui = S.ui; const n = tripN();
   const T = structuredClone(tripsOf(S.personal)); const t = T[n]; const st = t?.stops?.[j]; if (!st?.want?.length) return;
   const p = { kind: 'build', i: n, j, groups: [], left: [], busy: 'Finding the places on the map…', note: '' };
   ui.psPop = p; render();
+  if (!Number.isFinite(st.lat)) await lookUp(st, { q: [st.place, t.name].filter(Boolean).join(', ') });
   const todo = st.want.filter((x) => !Number.isFinite(x.lat) && x.n);
-  let found = 0; let missed = 0;
   for (const [c, x] of todo.entries()) {
     if (ui.psPop !== p) return;
     p.busy = `Finding the places on the map… ${c + 1} of ${todo.length}`; render();
-    try {
-      const q = [x.n, st.place, t.name].filter(Boolean).join(', ');
-      const r = await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=1&accept-language=en&q=${encodeURIComponent(q)}`);
-      const b = r.ok ? await r.json() : [];
-      if (b[0]) { x.lat = Number(b[0].lat); x.lon = Number(b[0].lon); found++; } else missed++;
-    } catch { missed++; }
-    await sleep(1100); // OpenStreetMap asks for one search a second at most
+    await lookUp(x, { q: [x.n, st.place, t.name].filter(Boolean).join(', '), wq: `${x.n} ${t.name}`, near: st, photo: true });
   }
   if (ui.psPop !== p) return;
-  if (found) { await save(S, 'trips', structuredClone(T), send, () => {}, reload); }
+  await save(S, 'trips', structuredClone(T), send, () => {}, reload);
   const ps = plansOf(t);
   const free = stopDays(st).filter((d) => !ps.some((x) => x.d === d));
   const days = free.length ? free : stopDays(st);
-  const g = groupNear(st.want.map((x, w) => ({ w, lat: x.lat, lon: x.lon, cat: x.cat })), days);
+  const g = groupNear(st.want.map((x, w) => ({ w, lat: x.lat, lon: x.lon, cat: x.cat })), days, st);
   p.groups = g.days; p.left = g.left; p.busy = '';
   const noMap = st.want.filter((x) => !Number.isFinite(x.lat)).length;
   p.note = [free.length ? '' : 'Every day already has a plan, so these go on top of them.', noMap ? `${noMap} place${noMap === 1 ? '' : 's'} could not be found on the map and stay on Want to do.` : ''].filter(Boolean).join(' ');
@@ -989,6 +1031,23 @@ export async function personalChange(e, S, render, send, reload, sendHome) {
       if (!res.ok || !b?.ok || !b.url) p.err = `Could not upload the photo (${b?.error || res.status}).`; else p.draft.img = b.url;
     } catch (err) { p.err = `Could not upload the photo (${err.message}).`; }
     p.busy = false; if (ui.psPop === p) render();
+    return;
+  }
+  if (t.matches('[data-psbkatt]')) {
+    const files = [...(t.files || [])]; if (!files.length) return;
+    const key = t.dataset.psbkatt; const [j, k] = key.split('.').map(Number); const n = tripN();
+    attBusy = key; ui.psErr = ''; render();
+    const got = [];
+    for (const file of files) {
+      try {
+        const res = await fetch('/dashboard/api/personal/photo?read=0', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': file.type || 'application/octet-stream', 'X-CC': '1' }, body: file });
+        const b = await res.json().catch(() => null);
+        if (!res.ok || !b?.ok || !b.url) ui.psErr = `Could not attach ${file.name} (${b?.error || res.status}).`; else got.push({ n: (file.name || 'File').slice(0, 120), url: b.url });
+      } catch (err) { ui.psErr = `Could not attach ${file.name} (${err.message}).`; }
+    }
+    attBusy = '';
+    const T = structuredClone(tripsOf(S.personal)); const it = T[n]?.stops?.[j]?.items?.[k];
+    if (it && got.length) { it.docs = [...(it.docs || []), ...got].slice(0, 20); await save(S, 'trips', T, send, render, reload); } else render();
     return;
   }
   if (t.matches('[data-psbkdoc]') && ui.psPop?.kind === 'bk') {

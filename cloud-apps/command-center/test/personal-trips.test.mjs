@@ -200,7 +200,8 @@ test('Trips: booking details (how you get there, accommodation, car), paperwork 
   assert.equal(bkSum(T[0].stops[0].items[1]), 'Memmo · Rua A 1, Lisbon');
   const html = page({ store: { trips: T } }, {}, ['trips', '0', '0']);
   assert.match(html, /> Accommodation<\/label>/);
-  assert.match(html, /data-psbkdet="0.0"><span>IC 521 · Lisbon → Porto · Dec 4 09:39<\/span><em>1 file<\/em>/);
+  assert.match(html, /data-psbkdet="0.0"><span>IC 521 · Lisbon → Porto · Dec 4 09:39<\/span><\/button><div class="psbkfiles"><a class="psbkfile" href="\/dashboard\/f\/a.pdf" target="_blank" rel="noopener noreferrer" title="Open ticket.pdf"><b>PDF<\/b>ticket.pdf<\/a><label class="psbkatt"><input type="file" accept="image\/\*,application\/pdf" multiple hidden data-psbkatt="0.0">\+ Attach ticket<\/label>/);
+  assert.match(html, /data-psbkatt="0.1">\+ Attach booking</);
   assert.match(html, /data-psbkdet="0.2"><i>\+ Details<\/i>/);
   assert.match(html, /data-pscview="map" aria-pressed="false">Map/);
   assert.match(html, /<form class="psquick" data-psform="quick" data-psj="0">/);
