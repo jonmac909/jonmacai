@@ -341,7 +341,7 @@ function tripsPage(S, sub, ui) {
     html = `<section class="card pstrip"><div class="psthead"><div class="psthrow"><h2>${esc(t.name)}</h2><span class="mut">${esc(tripDates(t))}</span><button type="button" class="pslnk" data-pstrip="edit">Edit</button></div>${tripBar(t)}<div class="pstvrow"><span class="mut">${esc(budLine(t))} · ${a ? `${b} of ${a} booked` : 'nothing to book yet'}</span>${L ? views : ''}</div></div>
 ${cal && L ? tripCal(t) : L ? t.stops.map((s, j) => `<div class="psstop" data-psstop="${j}"><div class="psst2h"><span class="psgrip" draggable="true" data-psgrip="${j}" title="Drag to move">⠿</span><b>${esc(s.place)}</b>${s.ex ? '<span class="psex">example</span>' : ''}<span class="mut">${s.from ? fmtD(s.from) : '?'} – ${s.to ? fmtD(s.to) : '?'}</span><span class="psstc"><button type="button" class="psmv" data-psmove="${j}.-1" aria-label="Move ${esc(s.place)} up"${j ? '' : ' disabled'}>↑</button><button type="button" class="psmv" data-psmove="${j}.1" aria-label="Move ${esc(s.place)} down"${j < L - 1 ? '' : ' disabled'}>↓</button><button type="button" class="pslnk" data-psedstop="${j}">Edit</button><button type="button" class="pslnk" data-psdelstop="${j}">Remove</button></span></div>
 ${s.notes || s.link ? `<div class="psnote">${s.notes ? `<p>${esc(s.notes)}</p>` : ''}${s.link ? `<a href="${esc(webLink(s.link))}" target="_blank" rel="noopener noreferrer">${esc(s.link.replace(/^https?:\/\//i, '').slice(0, 60))}</a>` : ''}</div>` : ''}
-<div class="psbk3">${s.items.map((x, k) => `<div class="psbk${x.ok ? ' on' : ''}"><label><input type="checkbox" data-psbook="${j}.${k}"${x.ok ? ' checked' : ''}> ${x.k}${x.ok ? ' · booked' : ''}</label><span class="pscost">$<input type="number" min="0" step="10" data-pscost="${j}.${k}" value="${esc(x.cost)}" placeholder="cost" aria-label="${x.k} cost"></span></div>`).join('')}</div></div>`).join('')
+<div class="psbk3">${s.items.map((x, k) => `<div class="psbk${x.ok ? ' on' : ''}"><label><input type="checkbox" data-psbook="${j}.${k}"${x.ok ? ' checked' : ''}> ${esc(x.k)}${x.ok ? ' · booked' : ''}</label><span class="pscost">$<input type="number" min="0" step="10" data-pscost="${j}.${k}" value="${esc(x.cost)}" placeholder="cost" aria-label="${esc(x.k)} cost"></span></div>`).join('')}</div></div>`).join('')
   : '<p class="mut psstop">No stops yet. Add the first place you\'re going.</p>'}
 <div class="psstop psrowend"><button type="button" class="btn" data-psaddstop="${n}">+ Add stop</button><a class="btn primary" href="#personal/trips">Done</a></div></section>`;
   }
@@ -420,11 +420,14 @@ export function renderPersonal(S, sub, ui, ms = Date.now()) {
 
 // ---- events ----
 // Saves one stored key (optimistic: the page shows the change at once; a failed save says so and reloads).
-async function save(S, key, value, send, render, reload) {
+// Saves go out one at a time, so two fast changes (say two taps on a stop's arrow) reach the server in order.
+let saving = Promise.resolve();
+function save(S, key, value, send, render, reload) {
   S.personal.store = { ...S.personal.store, [key]: value };
   render();
-  const r = await send('PUT', `/personal/${key}`, value);
-  if (!r.ok) { S.ui.psErr = `Could not save (${r.error}).`; await reload(); }
+  const run = saving.then(() => send('PUT', `/personal/${key}`, value)).then(async (r) => { if (!r.ok) { S.ui.psErr = `Could not save (${r.error}).`; await reload(); } });
+  saving = run.catch(() => {});
+  return run;
 }
 const draftOf = (m, i) => ({ i, n: m.n, r: m.r, on: [...(m.on || [])], src: m.src, imgs: [...(m.imgs || [])], view: m.r.trim() ? 'split' : 'full', sel: [], meth: '', ing: [], note: '', err: '' });
 // Splits the draft's recipe into its parts for the formatted view (and names the meal from its first line).
@@ -492,7 +495,7 @@ export function personalClick(e, S, render, send, reload, sendHome) {
   const ds = t.closest('[data-psdelstop]');
   if (ds) { const T = structuredClone(tripsOf(S.personal)); const n = Number(location.hash.split('/')[2]); T[n].stops.splice(Number(ds.dataset.psdelstop), 1); save(S, 'trips', T, send, render, reload); return true; }
   const es = t.closest('[data-psedstop]');
-  if (es) { ui.psPop = { kind: 'stop', i: tripN(), j: Number(es.dataset.psedstop) }; render(); main(t)?.querySelector('.pspop input')?.focus(); return true; }
+  if (es) { const j = Number(es.dataset.psedstop); ui.psPop = { kind: 'stop', i: tripN(), j, was: tripsOf(S.personal)[tripN()]?.stops?.[j]?.place }; render(); main(t)?.querySelector('.pspop input')?.focus(); return true; }
   const mv = t.closest('[data-psmove]');
   if (mv) { const [j, d] = mv.dataset.psmove.split('.').map(Number); reorder(S, j, j + d, send, render, reload); return true; }
   const tv = t.closest('[data-pstview]');
@@ -508,7 +511,7 @@ function reorder(S, from, to, send, render, reload) {
 // Drag a stop by its handle onto another stop to put it there (the arrows do the same on a phone).
 export function personalDrag(root, S, on, send, render, reload) {
   let from = null;
-  const clear = () => root.querySelectorAll('.psstop.drag, .psstop.over').forEach((x) => x.classList.remove('drag', 'over'));
+  const clear = () => root.querySelectorAll('.psstop.drag, .psstop.over, .psstop.under').forEach((x) => x.classList.remove('drag', 'over', 'under'));
   root.addEventListener('dragstart', (e) => {
     const g = on() && e.target.closest?.('[data-psgrip]'); if (!g) return;
     from = Number(g.dataset.psgrip); S.ui.psDrag = true;
@@ -518,7 +521,8 @@ export function personalDrag(root, S, on, send, render, reload) {
   root.addEventListener('dragover', (e) => {
     const c = from != null && e.target.closest?.('[data-psstop]'); if (!c) return;
     e.preventDefault(); e.dataTransfer.dropEffect = 'move';
-    root.querySelectorAll('.psstop.over').forEach((x) => { if (x !== c) x.classList.remove('over'); }); c.classList.add('over');
+    const cls = Number(c.dataset.psstop) > from ? 'under' : 'over'; // the line shows where the stop will land
+    root.querySelectorAll('.psstop.over, .psstop.under').forEach((x) => { if (x !== c) x.classList.remove('over', 'under'); }); c.classList.remove('over', 'under'); if (Number(c.dataset.psstop) !== from) c.classList.add(cls);
   });
   root.addEventListener('drop', (e) => {
     const c = from != null && e.target.closest?.('[data-psstop]'); if (!c) return;
@@ -620,6 +624,7 @@ export async function personalSubmit(e, S, render, send, reload) {
       const add = p.j == null;
       if (add) t.stops.push({ place: '', from: '', to: '', items: items3() });
       const j = add ? t.stops.length - 1 : p.j;
+      if (!add && t.stops[j]?.place !== p.was) { p.err = 'This stop changed on another screen. Close and open it again.'; render(); return true; }
       const base = t.stops[j];
       const err = editStop(T, p.i, j, v);
       if (err) { p.err = err; if (base) p.draft = formStop(base, v); render(); return true; }

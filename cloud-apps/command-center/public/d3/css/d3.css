@@ -759,9 +759,9 @@ html[data-theme="dark"] body{background:#0b0b0c}
 .d3 .pstvrow{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .d3 .psst2h{flex-wrap:wrap}.d3 .psstc{margin-left:auto;display:flex;align-items:center;gap:10px}.d3 .psst2h .psstc .pslnk{margin-left:0}
 .d3 .psgrip{cursor:grab;color:var(--muted);font-size:16px;line-height:1;padding:2px;user-select:none;touch-action:none}
-.d3 .psmv{min-width:30px;min-height:30px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--ink2);font-size:14px;line-height:1}
+.d3 .psmv{min-width:38px;min-height:38px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--ink2);font-size:14px;line-height:1}
 .d3 .psmv:disabled{opacity:.35}
-.d3 .psstop.drag{opacity:.45}.d3 .psstop.over{box-shadow:inset 0 3px 0 var(--link)}
+.d3 .psstop.drag{opacity:.45}.d3 .psstop.over{box-shadow:inset 0 3px 0 var(--link)}.d3 .psstop.under{box-shadow:inset 0 -3px 0 var(--link)}
 .d3 .psnote{display:grid;gap:4px;font-size:13px;color:var(--ink2)}.d3 .psnote p{margin:0;white-space:pre-wrap;overflow-wrap:anywhere}.d3 .psnote a{color:var(--link);overflow-wrap:anywhere}
 .d3 .pstfb textarea{font-size:15px}
 .d3 .psedbk{display:grid;gap:6px}.d3 .psedr{display:grid;grid-template-columns:minmax(0,1fr) 120px auto;gap:8px;align-items:center}

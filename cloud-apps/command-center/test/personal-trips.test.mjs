@@ -76,6 +76,11 @@ test('Trips: editing a stop saves every field and the rest of the trip is kept',
   // a link without a web scheme can't run script
   editStop(T, 0, 1, { ...v, link: 'javascript:alert(1)' });
   assert.equal(T[0].stops[1].link, 'https://javascript:alert(1)');
+  // a booking name is Jon's text now: the list prints it escaped
+  editStop(T, 0, 1, { ...v, k0: '<img src=x onerror=alert(1)>' });
+  const listed = page({ store: { trips: T } });
+  assert.doesNotMatch(listed, /<img src=x/);
+  assert.match(listed, /&lt;img src=x onerror=alert\(1\)&gt; · booked<\/label>/);
 });
 
 test('Trips: the calendar view puts each stop on each of its days and opens its edit on click', () => {
