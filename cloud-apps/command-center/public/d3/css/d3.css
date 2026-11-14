@@ -1104,3 +1104,28 @@ html[data-theme="dark"] body{background:#0b0b0c}
 .d3 .psmvrow{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:6px}
 .d3 .psmvpill{padding:8px 14px;border:1px solid var(--line);border-radius:999px;background:var(--card);color:var(--ink);font:inherit;font-size:14px;font-weight:600;cursor:pointer}
 .d3 .psmvpill.on{background:var(--link);border-color:var(--link);color:#ffffff}
+/* Phone drag: hold a tile, it lifts and follows the finger onto a calendar day. */
+.d3 [data-psdragp]{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
+.d3 [data-psdragp] img{-webkit-user-drag:none;pointer-events:none}
+.d3 .psghost{position:fixed;left:0;top:0;z-index:9999;pointer-events:none;opacity:.9;box-shadow:0 12px 30px rgba(0,0,0,.3);border-radius:16px}
+/* City page header: the photo on top like the stops, then the name and the booking boxes in a full-width row. */
+.d3 .pscityh{grid-template-columns:minmax(0,1fr)}
+.d3 .pscityh .psph{aspect-ratio:16/7;max-height:340px;max-width:none;width:100%}
+@media (max-width:760px){.d3 .pscityh .psph{aspect-ratio:1/1;max-height:none}}
+.d3 .pswantsec{border-bottom:1px solid var(--line)}
+/* Trip page: little photos of each city's plans and things to do, beside "Open <city>". */
+.d3 .pscityl{display:flex;align-items:center;gap:10px}
+.d3 .pscityl>span:not(.pscthumbs){flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.d3 .pscthumbs{display:flex;flex:none}
+.d3 .pscthumbs i{display:grid;place-items:center;width:30px;height:30px;margin-left:-8px;border-radius:9px;border:2px solid var(--card2);background:var(--card);overflow:hidden;font-style:normal;font-size:12px;font-weight:700;color:var(--muted)}
+.d3 .pscthumbs i:first-child{margin-left:0}
+.d3 .pscthumbs img{width:100%;height:100%;object-fit:cover}
+/* Trips by year: "+ Trip" and "+ Mini trip" sit by the year; mini trips are small square thumbnails, 5 to a row. */
+.d3 .pstyh{display:flex;align-items:baseline;gap:16px}.d3 .pstyh h2{margin:0 auto 0 0;font-family:var(--disp);font-size:26px;font-weight:600}
+.d3 .pstyear .pstadd{aspect-ratio:auto;height:88px;grid-auto-flow:column;align-items:center}
+.d3 .pstminis{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px}
+.d3 .pstminis a.pstcard{aspect-ratio:1/1;border-radius:16px}
+.d3 .pstminis a.pstcard .pstcb{padding:28px 10px 10px}.d3 .pstminis a.pstcard .pstcb b{font-size:15px}.d3 .pstminis a.pstcard .pstcb em{font-size:11px}
+.d3 .pstminis .pstpill{transform:scale(.8);transform-origin:top left}.d3 .pstminis .pstlock{transform:scale(.8);transform-origin:top right}
+@media (max-width:760px){.d3 .pstminis{grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}}
+.d3 .pstyh .pslnk{font-size:14px;font-weight:600}
