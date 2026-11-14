@@ -394,8 +394,19 @@ function homePage(S) {
 }
 
 // ---- trips ----
+function cityPage(t, n, j, ui) {
+  const s = t.stops[j];
+  const ps = plansOf(t).filter((x) => inStop(s, x.d));
+  return `<section class="card pscity"><div class="pscityh">${photoHtml(s.place, s.img, `data-psstphoto="${j}"`)}<div class="pscityb"><div class="psthrow"><h2>${esc(s.place)}</h2><span class="mut">${s.from ? fmtD(s.from) : '?'} – ${s.to ? fmtD(s.to) : '?'}</span><button type="button" class="pslnk" data-psedstop="${j}">Edit</button></div>
+${s.notes || s.link ? `<div class="psnote">${s.notes ? `<p>${esc(s.notes)}</p>` : ''}${s.link ? `<a href="${esc(webLink(s.link))}" target="_blank" rel="noopener noreferrer">${esc(s.link.replace(/^https?:\/\//i, '').slice(0, 60))}</a>` : ''}</div>` : ''}
+<div class="psbk3">${s.items.map((x, k) => `<div class="psbk${x.ok ? ' on' : ''}"><label><input type="checkbox" data-psbook="${j}.${k}"${x.ok ? ' checked' : ''}> ${esc(x.k)}${x.ok ? ' <i>booked</i>' : ''}</label><span class="pscost">$<input type="number" min="0" step="10" data-pscost="${j}.${k}" value="${esc(x.cost)}" placeholder="cost" aria-label="${esc(x.k)} cost"></span></div>`).join('')}</div></div></div>
+<div class="psplans pscityp"><div class="psplh"><b>Plans</b><span class="mut">${ps.length ? `${ps.length} · ${ps.filter((x) => x.ok).length} booked` : 'Day trips, things to do and anything booked'}</span><button type="button" class="btn sm primary" data-psaddplan="${esc(s.from || s.to || '')}">+ Add plan</button></div>${ps.map(planRow).join('')}</div>
+<div class="psstend psrowend"><a class="btn" href="#personal/trips/${n}">‹ ${esc(t.name)}</a></div></section>${ui.psErr ? `<p class="psbad">${esc(ui.psErr)}</p>` : ''}`;
+}
 function tripsPage(S, sub, ui) {
   const T = tripsOf(S.personal); const n = sub[1] != null ? Number(sub[1]) : null; const t = n != null ? T[n] : null;
+  const j = sub[2] != null ? Number(sub[2]) : null;
+  if (t && j != null && t.stops[j]) return cityPage(t, n, j, ui) + (ui.psPop ? popHtml(ui.psPop, T) : '');
   let html;
   if (!t) {
     html = `<div class="pstrhead"><span></span><button type="button" class="btn primary" data-pstrip="new">+ Add trip</button></div>
@@ -404,10 +415,10 @@ function tripsPage(S, sub, ui) {
     const [b, a] = tripBooked(t); const cal = ui.psTView === 'cal'; const L = t.stops.length;
     const views = `<div class="psfilter" role="group" aria-label="View">${[['list', 'List'], ['cal', 'Calendar']].map(([k, l]) => `<button type="button" data-pstview="${k}" aria-pressed="${(k === 'cal') === cal}">${l}</button>`).join('')}</div>`;
     html = `<section class="card pstrip"><div class="psthead"><div class="psthrow"><h2>${esc(t.name)}</h2><span class="mut">${esc(tripDates(t))}</span><label class="pslnk"><input type="file" accept="image/*" hidden data-pstphoto>${t.img ? 'Change photo' : 'Trip photo'}</label><button type="button" class="pslnk" data-pstrip="edit">Edit</button></div>${tripBar(t)}<div class="pstvrow"><span class="mut">${esc(budLine(t))} · ${a ? `${b} of ${a} booked` : 'nothing to book yet'}</span>${L ? views : ''}</div></div>
-${cal && L ? tripCal(t) : L ? `<div class="psstops">${t.stops.map((s, j) => `<div class="psstop" data-psstop="${j}">${photoHtml(s.place, s.img, `data-psstphoto="${j}"`)}<div class="psstb"><div class="psst2h"><span class="psgrip" draggable="true" data-psgrip="${j}" title="Drag to move">⠿</span><b>${esc(s.place)}</b>${s.ex ? '<span class="psex">example</span>' : ''}<span class="mut">${s.from ? fmtD(s.from) : '?'} – ${s.to ? fmtD(s.to) : '?'}</span><span class="psstc"><button type="button" class="psmv" data-psmove="${j}.-1" aria-label="Move ${esc(s.place)} up"${j ? '' : ' disabled'}>↑</button><button type="button" class="psmv" data-psmove="${j}.1" aria-label="Move ${esc(s.place)} down"${j < L - 1 ? '' : ' disabled'}>↓</button><button type="button" class="pslnk" data-psedstop="${j}">Edit</button><button type="button" class="pslnk" data-psdelstop="${j}">Remove</button></span></div>
+${cal && L ? tripCal(t) : L ? `<div class="psstops">${t.stops.map((s, j) => `<div class="psstop" data-psstop="${j}"><a class="psphl" href="#personal/trips/${n}/${j}" aria-label="Open ${esc(s.place)}">${photoHtml(s.place, s.img)}</a><div class="psstb"><div class="psst2h"><span class="psgrip" draggable="true" data-psgrip="${j}" title="Drag to move">⠿</span><b>${esc(s.place)}</b>${s.ex ? '<span class="psex">example</span>' : ''}<span class="mut">${s.from ? fmtD(s.from) : '?'} – ${s.to ? fmtD(s.to) : '?'}</span><span class="psstc"><button type="button" class="psmv" data-psmove="${j}.-1" aria-label="Move ${esc(s.place)} up"${j ? '' : ' disabled'}>↑</button><button type="button" class="psmv" data-psmove="${j}.1" aria-label="Move ${esc(s.place)} down"${j < L - 1 ? '' : ' disabled'}>↓</button><button type="button" class="pslnk" data-psedstop="${j}">Edit</button><button type="button" class="pslnk" data-psdelstop="${j}">Remove</button></span></div>
 ${s.notes || s.link ? `<div class="psnote">${s.notes ? `<p>${esc(s.notes)}</p>` : ''}${s.link ? `<a href="${esc(webLink(s.link))}" target="_blank" rel="noopener noreferrer">${esc(s.link.replace(/^https?:\/\//i, '').slice(0, 60))}</a>` : ''}</div>` : ''}
 <div class="psbk3">${s.items.map((x, k) => `<div class="psbk${x.ok ? ' on' : ''}"><label><input type="checkbox" data-psbook="${j}.${k}"${x.ok ? ' checked' : ''}> ${esc(x.k)}${x.ok ? ' <i>booked</i>' : ''}</label><span class="pscost">$<input type="number" min="0" step="10" data-pscost="${j}.${k}" value="${esc(x.cost)}" placeholder="cost" aria-label="${esc(x.k)} cost"></span></div>`).join('')}</div>
-<div class="psplans"><div class="psplh"><b>Plans</b><button type="button" class="pslnk" data-psaddplan="${esc(s.from || s.to || '')}">+ Add plan</button></div>${plansOf(t).filter((x) => inStop(s, x.d)).map(planRow).join('') || '<p class="mut">Day trips, things to do and anything booked.</p>'}</div></div></div>`).join('')}${(() => { const lost = plansOf(t).filter((x) => !t.stops.some((s) => inStop(s, x.d))); return lost.length ? `<div class="psplans psplother"><div class="psplh"><b>Other plans</b><span class="mut">on days with no stop</span></div>${lost.map(planRow).join('')}</div>` : ''; })()}</div>`
+${(() => { const ps = plansOf(t).filter((x) => inStop(s, x.d)); const ok = ps.filter((x) => x.ok).length; return `<a class="pscityl" href="#personal/trips/${n}/${j}"><span>${ps.length ? `${ps.length} plan${ps.length === 1 ? '' : 's'}${ok ? ` · ${ok} booked` : ''}` : 'No plans yet'}</span><b>Open ${esc(s.place)} ›</b></a>`; })()}</div></div>`).join('')}</div>`
   : '<p class="mut psstend">No stops yet. Add the first place you\'re going.</p>'}
 <div class="psstend psrowend"><button type="button" class="btn" data-psaddstop="${n}">+ Add stop</button><a class="btn primary" href="#personal/trips">Done</a></div></section>`;
   }
@@ -489,7 +500,8 @@ export function renderPersonal(S, sub, ui, ms = Date.now()) {
   const k = NAMES[sub[0]] ? sub[0] : '';
   const T = tripsOf(S.personal);
   const extra = k === 'trips' && sub[1] != null && T[Number(sub[1])] ? T[Number(sub[1])].name : '';
-  const head = `${mnavHtml('personal')}<header class="hd pshead">${crumbs(k ? [k] : [], extra)}</header>`;
+  const city = extra && sub[2] != null ? T[Number(sub[1])].stops[Number(sub[2])] : null;
+  const head = `${mnavHtml('personal')}<header class="hd pshead">${city ? `<h1 class="pscrumb"><a href="#personal/trips/${Number(sub[1])}" aria-label="Back">‹</a> <a href="#personal">Personal</a> <span>›</span> <a href="#personal/trips">Trips</a> <span>›</span> <a href="#personal/trips/${Number(sub[1])}">${esc(extra)}</a> <span>›</span> ${esc(city.place)}</h1>` : crumbs(k ? [k] : [], extra)}</header>`;
   if (!S.personal) return `${head}<section class="card"><p class="mut">${S.personalErr ? esc(S.personalErr) : 'Loading'}</p></section>`;
   const body = k === 'meals' ? mealsPage(S, now, ui) : k === 'workouts' ? workoutsPage(S, now, ui) : k === 'date' ? datePage(S, now, ui)
     : k === 'trips' ? tripsPage(S, sub, ui) : k === 'home' ? homePage(S) : k === 'budget' ? `<div class="psexwrap">${expensesCard('personal', S.personal, ui, now.ymd)}</div>` : overview(S, now);
