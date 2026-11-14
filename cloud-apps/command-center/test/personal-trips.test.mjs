@@ -91,14 +91,20 @@ test('Trips: the calendar view puts each stop on each of its days and opens its 
   assert.match(list, /data-pstview="list" aria-pressed="true">List<\/button><button type="button" data-pstview="cal" aria-pressed="false">Calendar/);
   const cal = page(P, { psTView: 'cal' });
   assert.doesNotMatch(cal, /data-psgrip/);
-  const days = [...cal.matchAll(/<div class="pscday[^"]*"><small><span class="pscdw">(\w+) <\/span>([^<]+)<\/small><div class="pscchips">(.*?)<\/div><\/div>/g)]
-    .map((m) => [m[1], m[2], [...m[3].matchAll(/data-psedstop="(\d)"[^>]*>([^<]+)</g)].map((c) => c[2])]);
-  assert.equal(days.length, 14); // Mon Nov 30 to Sun Dec 13: whole weeks around Dec 1-9
-  assert.deepEqual(days[0], ['Mon', 'Nov 30', []]);
-  assert.deepEqual(days[1], ['Tue', 'Dec 1', ['Lisbon']]);
-  assert.deepEqual(days[4], ['Fri', 'Dec 4', ['Lisbon', 'Sintra']]);
-  assert.deepEqual(days[6], ['Sun', 'Dec 6', ['Porto']]);
-  assert.deepEqual(days[9], ['Wed', 'Dec 9', ['Porto']]);
-  assert.match(cal, /<div class="pscday out empty"><small><span class="pscdw">Mon <\/span>Nov 30/);
+  // one block per month: December 2026 only, its 31 days after the Monday-first padding (Dec 1 is a Tuesday)
+  assert.deepEqual([...cal.matchAll(/<h3>([^<]+)<\/h3>/g)].map((m) => m[1]), ['December 2026']);
+  assert.equal((cal.match(/<div class="pscday pad"><\/div>/g) || []).length, 1);
+  const days = [...cal.matchAll(/<div class="pscday[^"]*" data-ymd="([\d-]+)"><small><span class="pscdw">(\w+) <\/span>(\d+)<\/small><div class="pscchips">(.*?)<\/div>/g)]
+    .map((m) => [m[1], m[2], [...m[4].matchAll(/data-psedstop="(\d)"[^>]*><img[^>]*>([^<]+)</g)].map((c) => c[2])]);
+  assert.equal(days.length, 31);
+  assert.deepEqual(days[0], ['2026-12-01', 'Tue', ['Lisbon']]);
+  assert.deepEqual(days[3], ['2026-12-04', 'Fri', ['Lisbon', 'Sintra']]);
+  assert.deepEqual(days[5], ['2026-12-06', 'Sun', ['Porto']]);
+  assert.deepEqual(days[8], ['2026-12-09', 'Wed', ['Porto']]);
+  assert.deepEqual(days[9], ['2026-12-10', 'Thu', []]);
+  assert.match(cal, /<div class="pscday out empty" data-ymd="2026-12-10">/); // after the trip: faded, no + to add
+  assert.match(cal, /data-ymd="2026-12-02">.*?<label class="psctadd"[^>]*><input type="file" accept="image\/\*" hidden data-psplan="2026-12-02">/);
+  const withPlan = structuredClone(T); withPlan[0].plans = { '2026-12-02': [{ img: '/dashboard/f/abc.jpg' }] };
+  assert.match(page({ store: { trips: withPlan } }, { psTView: 'cal' }), /<span class="psct"><a href="\/dashboard\/f\/abc.jpg"[^>]*><img alt="" loading="lazy" src="\/dashboard\/f\/abc.jpg"><\/a><button type="button" class="psctx" data-psplandel="2026-12-02.0"/);
   assert.match(cal, /No dates yet<\/span><div class="pscchips"><button type="button" class="pscchip"[^>]*data-psedstop="3"/); // Faro has no dates
 });

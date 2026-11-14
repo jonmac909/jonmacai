@@ -824,3 +824,26 @@ html[data-theme="dark"] body{background:#0b0b0c}
   .d3 .psstb .psbk3{grid-template-columns:repeat(3,minmax(0,1fr))}
 }
 .d3 .psthrow .pslnk+.pslnk{margin-left:0}
+/* A trip on the Trips list is one rounded square photo, its name and numbers on a dark fade at the bottom (Jon, 2026-11-14) */
+.d3 .pstgrid{grid-template-columns:repeat(auto-fill,minmax(240px,320px));grid-auto-rows:auto}
+.d3 a.pstcard{position:relative;aspect-ratio:1/1;min-height:0;border:0;border-radius:22px;overflow:hidden;padding:0}
+.d3 a.pstcard .psph{position:absolute;inset:0;aspect-ratio:auto}
+.d3 a.pstcard .psph img{transition:transform .4s ease}.d3 a.pstcard:hover .psph img{transform:scale(1.04)}
+.d3 a.pstcard .pstcb{position:absolute;left:0;right:0;bottom:0;padding:56px 18px 16px;gap:2px;background:linear-gradient(to top,rgba(0,0,0,.78),rgba(0,0,0,.45) 55%,rgba(0,0,0,0))}
+.d3 a.pstcard .pstcb b{color:#ffffff;font-family:var(--disp);font-size:24px;font-weight:600;letter-spacing:-.01em}
+.d3 a.pstcard .pstcb em{color:rgba(255,255,255,.82)}
+.d3 a.pstcard .psfoot{margin-top:10px}.d3 a.pstcard .psfoot span{color:rgba(255,255,255,.9)}
+.d3 a.pstcard .psbar{background:rgba(255,255,255,.28)}.d3 a.pstcard .psbar u{background:#ffffff}
+@media (max-width:760px){.d3 .pstgrid{grid-template-columns:minmax(0,1fr)}.d3 a.pstcard{aspect-ratio:1/1}}
+/* The trip calendar, one month at a time, with a small photo of the stop and thumbnails of things to do (Jon, 2026-11-14) */
+.d3 .pscals{display:grid;gap:22px;padding:6px 20px 18px}.d3 .pscmon h3{margin:0 0 8px;font-size:15px;font-weight:600}
+.d3 .pscday.pad{border:0;min-height:0}
+.d3 .pscday{min-height:92px}.d3 .pscday small{font-weight:600}
+.d3 .pscchip{display:flex;align-items:center;gap:5px;border-left:0;background:var(--card2);padding:2px 6px 2px 2px;border-radius:999px}
+.d3 .pscchip img{width:20px;height:20px;border-radius:50%;object-fit:cover;flex:none;background:var(--line)}.d3 .pscchip img:not([src]){visibility:hidden}
+.d3 .pscthumbs{display:flex;flex-wrap:wrap;gap:4px;margin-top:2px}
+.d3 .psct{position:relative;width:30px;height:30px}.d3 .psct img{width:30px;height:30px;border-radius:6px;object-fit:cover;display:block}
+.d3 .psctx{position:absolute;top:-5px;right:-5px;width:16px;height:16px;border-radius:50%;border:0;background:rgba(0,0,0,.65);color:#ffffff;font-size:11px;line-height:16px;padding:0;display:none;cursor:pointer}
+.d3 .psct:hover .psctx,.d3 .psct:focus-within .psctx{display:block}
+.d3 .psctadd{width:30px;height:30px;border:1px dashed var(--line);border-radius:6px;display:grid;place-items:center;color:var(--muted);font-size:16px;cursor:pointer}.d3 .psctadd:hover{border-color:var(--link);color:var(--link)}
+@media (max-width:760px){.d3 .pscals{padding:4px 12px 14px}.d3 .pscday.pad{display:none}.d3 .pscday{min-height:0}.d3 .pscthumbs{grid-column:2}.d3 .psctx{display:block}}
