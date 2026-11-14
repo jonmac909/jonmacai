@@ -200,9 +200,10 @@ test('Trips: booking details (how you get there, accommodation, car), paperwork 
   assert.equal(bkSum(T[0].stops[0].items[1]), 'Memmo · Rua A 1, Lisbon');
   const html = page({ store: { trips: T } }, {}, ['trips', '0', '0']);
   assert.match(html, /> Accommodation<\/label>/);
-  assert.match(html, /data-psbkdet="0.0"><span>IC 521 · Lisbon → Porto · Dec 4 09:39<\/span><\/button><div class="psbkfiles"><a class="psbkfile" href="\/dashboard\/f\/a.pdf" target="_blank" rel="noopener noreferrer" title="Open ticket.pdf"><b>PDF<\/b>ticket.pdf<\/a><label class="psbkatt"><input type="file" accept="image\/\*,application\/pdf" multiple hidden data-psbkatt="0.0">\+ Attach ticket<\/label>/);
-  assert.match(html, /data-psbkatt="0.1">\+ Attach booking</);
-  assert.match(html, /data-psbkdet="0.2"><i>\+ Details<\/i>/);
+  assert.match(html, /data-psbkatt="0.0">/); // the upload icon
+  assert.match(html, /data-psbkdet="0.0"><b>Lisbon → Porto<\/b><small>IC 521 · Dec 4 09:39<\/small><\/button>/);
+  assert.match(html, /<div class="psbkfiles"><a class="psbkfile" href="\/dashboard\/f\/a.pdf" target="_blank" rel="noopener noreferrer" title="Open ticket.pdf"><b>PDF<\/b>ticket.pdf<\/a><\/div>/);
+  assert.match(html, /data-psbkdet="0.2"><small class="none">Add the rental<\/small>/);
   assert.match(html, /data-pscview="map" aria-pressed="false">Map/);
   assert.match(html, /<form class="psquick" data-psform="quick" data-psj="0">/);
   assert.match(page({ store: { trips: T } }, { psCView: 'map' }, ['trips', '0', '0']), /<div class="psmap" data-psmap="0.0">/);
@@ -215,4 +216,29 @@ test('Trips: booking details (how you get there, accommodation, car), paperwork 
   // the plan pop-up asks for what and the day; the rest waits behind More details
   const pop = page({ store: { trips: T } }, { psPop: { kind: 'plan', i: 0, j: 0, draft: { n: '', d: '' } } }, ['trips', '0', '0']);
   assert.doesNotMatch(pop, /name="cat"/); assert.match(pop, /data-psmore/);
+});
+
+test('Trips: an empty leg reads from home or the stop before; trips sit by year in Snowbird or Fall escape, and a locked one stays', async () => {
+  const { legOf, bkFace, tripSlot, placeTrip } = await import('../public/d3/js/personal.js');
+  const T = TRIPS();
+  assert.deepEqual(legOf(T[0], 0), { from: 'Kelowna', to: 'Lisbon' });
+  assert.deepEqual(legOf({ stops: [{ place: 'Porto' }, { place: 'Gran Canaria' }, { place: 'Estoril/Cascais' }] }, 2), { from: 'Gran Canaria', to: 'Estoril' });
+  assert.deepEqual(bkFace({ k: 'Flight' }, { from: 'Kelowna', to: 'Lisbon' }), { top: 'Kelowna → Lisbon', sub: '', none: 'Add times and details' });
+  assert.equal(bkFace({ k: 'Flight', det: { from: 'YLW', to: 'LIS' } }, { from: 'Kelowna', to: 'Lisbon' }).top, 'YLW → LIS');
+  assert.match(page({ store: { trips: T } }, {}, ['trips', '0']), /data-psbkdet="0.0"><b>Kelowna → Lisbon<\/b><small class="none">Add times and details<\/small>/);
+  // where a trip sits: saved, or from its first date (Jan = that winter, Aug-Oct = fall, Nov = next winter), or not placed
+  assert.deepEqual(tripSlot({ stops: [{ from: '2027-01-14' }] }), { yr: 2027, sea: 'snow' });
+  assert.deepEqual(tripSlot({ stops: [{ from: '2027-08-20' }] }), { yr: 2027, sea: 'fall' });
+  assert.deepEqual(tripSlot({ stops: [{ from: '2027-11-20' }] }), { yr: 2028, sea: 'snow' });
+  assert.deepEqual(tripSlot({ stops: [] }), { yr: null, sea: 'snow' });
+  assert.deepEqual(tripSlot({ yr: 2028, sea: 'fall', stops: [{ from: '2027-01-01' }] }), { yr: 2028, sea: 'fall' });
+  const L = [{ name: 'Portugal', yr: 2027, sea: 'snow', lock: true, stops: [] }, { name: 'Aegean', sea: 'snow', stops: [] }, { name: 'Paris', yr: 2027, sea: 'fall', mini: 1, stops: [] }];
+  assert.equal(placeTrip(L, 0, 2028, 'snow'), false); // locked
+  assert.equal(placeTrip(L, 1, 2028, 'snow'), true); assert.equal(L[1].yr, 2028);
+  const html = page({ store: { trips: L } }, {}, ['trips']);
+  assert.deepEqual([...html.matchAll(/<section class="pstyear"><h2>([^<]+)<\/h2>/g)].map((m) => m[1]), ['2027', '2028', '2029', 'Not placed yet']);
+  assert.match(html, /data-psdrop="2027.snow">[\s\S]*?data-pstcard="0"[\s\S]*?🔒 Locked/);
+  assert.match(html, /<a class="pscard pstcard locked" href="#personal\/trips\/0" draggable="false"/);
+  assert.match(html, /<a class="pstmini" href="#personal\/trips\/2" draggable="true" data-pstcard="2">/);
+  assert.match(html, /data-pstripnew="2027.fall.1">\+ Short trip/);
 });
