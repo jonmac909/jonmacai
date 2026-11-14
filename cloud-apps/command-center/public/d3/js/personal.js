@@ -690,17 +690,21 @@ export function placeTrip(T, i, yr, sea) {
 }
 const lockBtn = (x, i) => `<button type="button" class="pstlock${x.lock ? ' on' : ''}" data-pslock="${i}" aria-pressed="${!!x.lock}" title="${x.lock ? 'Locked: click to let it move' : 'Lock it where it is'}">${x.lock ? '🔒 Locked' : '🔓'}</button>`;
 // A trip's card: the photo, its name and dates, a season pill (tap to switch) and the lock. Short trips are smaller.
-const seaPill = (x, i) => { const k = tripSlot(x).sea; return `<button type="button" class="pstpill ${k}" data-psseason="${i}" title="${x.lock ? 'Locked' : 'Tap to switch season'}"${x.lock ? ' disabled' : ''}>${k === 'fall' ? 'Fall escape' : 'Snowbird'}</button>`; };
+const seaPill = (x, i) => { const k = tripSlot(x).sea; return `<button type="button" class="pstpill ${k}" data-psseason="${i}" title="${x.lock ? 'Locked' : 'Tap to move it'}"${x.lock ? ' disabled' : ''}>${k === 'fall' ? 'Fall escape' : 'Snowbird'}</button>`; };
 function tripCard(x, i) {
   return `<a class="pscard pstcard${x.lock ? ' locked' : ''}${x.mini ? ' mini' : ''}" href="#personal/trips/${i}" draggable="${!x.lock}" data-pstcard="${i}">${photoHtml(x.stops[0]?.place || x.name, x.img || x.stops[0]?.img)}${seaPill(x, i)}${lockBtn(x, i)}<div class="pstcb"><b>${esc(x.name)}</b><em>${esc(tripDates(x))}</em></div></a>`;
 }
 // Trips by year (Jon, 2026-11-14): the year, then its trips in one row, Snowbird first. Drag a card to another year;
 // its pill says the season.
+// The years shown: from the one being planned (next year from October on) to one past the latest trip.
+export function tripYearRange(T, now = new Date()) {
+  const base = now.getFullYear() + (now.getMonth() >= 9 ? 1 : 0);
+  const used = T.map(tripSlot).map((x) => x.yr).filter(Boolean);
+  return [Math.min(base, ...used), Math.max(base, ...used) + 1];
+}
 function tripYears(T, now = new Date()) {
   const slots = T.map(tripSlot);
-  const base = now.getFullYear() + (now.getMonth() >= 9 ? 1 : 0); // from October on, next year is the one being planned
-  const used = slots.map((x) => x.yr).filter(Boolean);
-  const lo = Math.min(base, ...used); const hi = Math.max(base, ...used) + 1; // always a free year to drag into
+  const [lo, hi] = tripYearRange(T, now); // always a free year to drag into
   const order = (i) => (slots[i].sea === 'fall' ? 1 : 0) * 2 + (T[i].mini ? 1 : 0);
   const row = (yr) => {
     const here = T.map((x, i) => i).filter((i) => slots[i].yr === yr).sort((a, b) => order(a) - order(b));
@@ -715,7 +719,7 @@ function tripsPage(S, sub, ui) {
   if (t && j != null && t.stops[j]) return cityPage(t, n, j, ui) + (ui.psPop ? popHtml(ui.psPop, T) : '');
   let html;
   if (!t) {
-    html = `<div class="pstrhead"><span class="mut">Drag a trip to another year. Tap its pill to switch Snowbird or Fall escape. Locked trips stay put.</span><button type="button" class="btn primary" data-pstrip="new">+ Add trip</button></div>${tripYears(T)}`;
+    html = `<div class="pstrhead"><span class="mut">Drag a trip to another year, or tap its pill to move it. Locked trips stay put.</span><button type="button" class="btn primary" data-pstrip="new">+ Add trip</button></div>${tripYears(T)}`;
   } else {
     const [b, a] = tripBooked(t); const tv = ui.psTView || 'list'; const L = t.stops.length;
     const views = `<div class="psfilter" role="group" aria-label="View">${[['list', 'List'], ['cal', 'Calendar'], ['map', 'Map']].map(([k, l]) => `<button type="button" data-pstview="${k}" aria-pressed="${k === tv}">${l}</button>`).join('')}</div>`;
@@ -762,6 +766,14 @@ function buildPop(p, t) {
 }
 function popHtml(p, T) {
   const t = T[p.i];
+  if (p.kind === 'place') {
+    const [lo, hi] = tripYearRange(T); const yrs = []; for (let y = lo; y <= hi; y++) yrs.push(y);
+    const pill = (k, v, l, on) => `<button type="button" class="psmvpill${on ? ' on' : ''}" data-psplace="${k}:${v}" aria-pressed="${on}">${l}</button>`;
+    return `<div class="hmhost" data-psback><div class="hmed pspop psmovepop"><div class="hmedh"><b class="hmedt">Move ${esc(t?.name || 'trip')}</b><button type="button" class="btn sm" data-psx aria-label="Close">✕</button></div>
+<div class="pstfb"><small class="mut">Year</small><div class="psmvrow">${yrs.map((y) => pill('yr', y, y, p.draft.yr === y)).join('')}${pill('yr', '', 'Not placed', !p.draft.yr)}</div>
+<small class="mut">Season</small><div class="psmvrow">${SEAS.map(([k, l]) => pill('sea', k, l, p.draft.sea === k)).join('')}</div></div>
+<div class="hmedf"><button type="button" class="btn primary" data-psx style="margin-left:auto">Done</button></div></div></div>`;
+  }
   if (p.kind === 'plan' || p.kind === 'build') return planPop(p, t);
   if (p.kind === 'bk') return bkPop(p, t);
   const s = p.kind === 'stop' ? p.draft || (p.j != null ? t?.stops?.[p.j] : null) || { place: '', from: '', to: '', notes: '', link: '', items: items3() } : null;
@@ -914,9 +926,16 @@ export function personalClick(e, S, render, send, reload, sendHome) {
   const sp = t.closest('[data-psseason]');
   if (sp) {
     e.preventDefault(); e.stopPropagation();
-    const T = structuredClone(tripsOf(S.personal)); const i = Number(sp.dataset.psseason); const x = T[i]; if (!x || x.lock) return true;
-    const now = tripSlot(x); placeTrip(T, i, now.yr, now.sea === 'fall' ? 'snow' : 'fall');
-    save(S, 'trips', T, send, render, reload); return true;
+    const i = Number(sp.dataset.psseason); const x = tripsOf(S.personal)[i]; if (!x || x.lock) return true;
+    ui.psPop = { kind: 'place', i, draft: tripSlot(x) }; render(); return true;
+  }
+  const pl = t.closest('[data-psplace]');
+  if (pl && ui.psPop?.kind === 'place') {
+    const [k, v] = pl.dataset.psplace.split(':'); const p = ui.psPop;
+    if (k === 'yr') p.draft.yr = Number(v) || null; else p.draft.sea = v;
+    const T = structuredClone(tripsOf(S.personal));
+    if (placeTrip(T, p.i, p.draft.yr, p.draft.sea)) save(S, 'trips', T, send, render, reload); else render();
+    return true;
   }
   const tn = t.closest('[data-pstripnew]');
   if (tn) { const [yr, sea, mini] = tn.dataset.pstripnew.split('.'); ui.psPop = { kind: 'new', i: 0, slot: { yr: Number(yr) || null, sea, mini: mini === '1' ? 1 : 0 } }; render(); main(t)?.querySelector('.pspop input')?.focus(); return true; }

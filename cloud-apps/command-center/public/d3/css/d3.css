@@ -1099,3 +1099,8 @@ html[data-theme="dark"] body{background:#0b0b0c}
   .d3 .pscitycal .psct,.d3 .pscitycal .psctadd{width:20px;height:20px;border-radius:6px;font-size:12px}
   .d3 .pscitycal .pscnames{display:none}
 }
+/* Move a trip (tap its pill): pick the year and the season. */
+.d3 .psmovepop .pstfb{gap:8px}
+.d3 .psmvrow{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:6px}
+.d3 .psmvpill{padding:8px 14px;border:1px solid var(--line);border-radius:999px;background:var(--card);color:var(--ink);font:inherit;font-size:14px;font-weight:600;cursor:pointer}
+.d3 .psmvpill.on{background:var(--link);border-color:var(--link);color:#ffffff}
