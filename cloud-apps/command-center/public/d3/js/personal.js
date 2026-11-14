@@ -126,7 +126,7 @@ const tripCost = (t) => t.stops.reduce((a, s) => a + s.items.reduce((b, x) => b 
 const tripBooked = (t) => { let n = 0; let all = 0; t.stops.forEach((s) => s.items.forEach((x) => { all++; if (x.ok) n++; })); return [n, all]; };
 const tripDates = (t) => { const ds = t.stops.flatMap((s) => [s.from, s.to]).filter(Boolean).sort(); return ds.length ? `${fmtD(ds[0])} – ${fmtD(ds[ds.length - 1])}` : 'Dates not set'; };
 const budLine = (t) => (t.bud ? `${usd0(tripCost(t))} of ${usd0(t.bud)} budget` : `${usd0(tripCost(t))} · no budget`);
-// A place's photo: Jon's own upload, else the first real photo in the place's Wikipedia article (no flags, maps or
+// A trip with no photo of its own shows its first stop (a known city beats the country article). A place's photo: Jon's own upload, else the first real photo in the place's Wikipedia article (no flags, maps or
 // crests), looked up once per name while the page is open and dropped into the picture when it arrives.
 const WIKI = {};
 const NOT_PHOTO = /flag|map|coat|locat|logo|emblem|seal|arms|atlas|diagram|portrait/i;
@@ -176,18 +176,29 @@ export function editStop(T, n, j, v) {
 // The calendar: the trip's weeks (Monday first), each stop on every day from its arrive to its leave date.
 function tripCal(t) {
   const ds = t.stops.flatMap((s) => [s.from, s.to]).filter(Boolean).sort();
-  const chip = (s, j) => `<button type="button" class="pscchip" style="--h:${(j * 67) % 360}" data-psedstop="${j}" title="Edit ${esc(s.place)}">${esc(s.place)}</button>`;
+  const chip = (s, j) => { const src = placePhoto(s.place, s.img); return `<button type="button" class="pscchip" data-psedstop="${j}" title="Edit ${esc(s.place)}"><img alt="" loading="lazy" data-psimg="${esc(String(s.place || '').trim())}"${src ? ` src="${esc(src)}"` : ''}>${esc(s.place)}</button>`; };
   const undated = t.stops.map((s, j) => (!s.from && !s.to ? chip(s, j) : '')).join('');
-  const none = undated ? `<div class="psstop pscnone"><span class="mut">No dates yet</span><div class="pscchips">${undated}</div></div>` : '';
-  if (!ds.length) return `<p class="mut psstop">Add dates to the stops to see them on the calendar.</p>${none}`;
+  const none = undated ? `<div class="psstend pscnone"><span class="mut">No dates yet</span><div class="pscchips">${undated}</div></div>` : '';
+  if (!ds.length) return `<p class="mut psstend">Add dates to the stops to see them on the calendar.</p>${none}`;
   const first = ds[0]; const last = ds[ds.length - 1];
-  const days = [];
-  for (let d = addD(first, -dow(first)), i = 0; d <= last || dow(d) !== 0; d = addD(d, 1), i++) { if (i > 371) break; days.push(d); }
-  const cells = days.map((d) => {
-    const on = t.stops.map((s, j) => { const a = s.from || s.to; const b = s.to || s.from; return a && a <= d && d <= b ? chip(s, j) : ''; }).join('');
-    return `<div class="pscday${d < first || d > last ? ' out' : ''}${on ? '' : ' empty'}"><small><span class="pscdw">${DAYS[dow(d)]} </span>${fmtD(d)}</small><div class="pscchips">${on}</div></div>`;
-  }).join('');
-  return `<div class="psstop"><div class="pscal"><div class="pscalh">${DAYS.map((x) => `<span>${x}</span>`).join('')}</div>${cells}</div></div>${none}`;
+  const plans = t.plans || {};
+  // One block per month (Jon, 2026-11-14), Monday first. A day in the trip shows where he is (a small photo of the
+  // stop) and the thumbnails of what he wants to do that day, with + to add one.
+  const months = [];
+  for (let m = `${first.slice(0, 7)}-01`; m <= last; m = addD(m, 32).slice(0, 7) + '-01') months.push(m);
+  return `<div class="pscals">${months.map((m) => {
+    const days = [];
+    for (let d = m; d.slice(0, 7) === m.slice(0, 7); d = addD(d, 1)) days.push(d);
+    const pad = '<div class="pscday pad"></div>'.repeat(dow(m));
+    const cells = days.map((d) => {
+      const inTrip = d >= first && d <= last;
+      const on = t.stops.map((s, j) => { const a = s.from || s.to; const b = s.to || s.from; return a && a <= d && d <= b ? chip(s, j) : ''; }).join('');
+      const th = (plans[d] || []).map((x, k) => `<span class="psct"><a href="${esc(x.img)}" target="_blank" rel="noopener"><img alt="" loading="lazy" src="${esc(x.img)}"></a><button type="button" class="psctx" data-psplandel="${d}.${k}" aria-label="Remove">×</button></span>`).join('');
+      const add = inTrip ? `<label class="psctadd" title="Add something to do"><input type="file" accept="image/*" hidden data-psplan="${d}">+</label>` : '';
+      return `<div class="pscday${inTrip ? '' : ' out'}${on ? '' : ' empty'}" data-ymd="${d}"><small><span class="pscdw">${DAYS[dow(d)]} </span>${Number(d.slice(8))}</small><div class="pscchips">${on}</div>${th || add ? `<div class="pscthumbs">${th}${add}</div>` : ''}</div>`;
+    }).join('');
+    return `<div class="pscmon"><h3>${new Date(`${m}T12:00:00Z`).toLocaleDateString('en-US', { timeZone: 'UTC', month: 'long', year: 'numeric' })}</h3><div class="pscal"><div class="pscalh">${DAYS.map((x) => `<span>${x}</span>`).join('')}</div>${pad}${cells}</div></div>`;
+  }).join('')}</div>${none}`;
 }
 const task = (H, id) => (H?.tasks || []).find((t) => t.id === id) || null;
 const habitOn = (H, kind, ymd) => (H?.habits || []).some((h) => h.kind === kind && h.day === ymd);
@@ -358,7 +369,7 @@ function tripsPage(S, sub, ui) {
   let html;
   if (!t) {
     html = `<div class="pstrhead"><span></span><button type="button" class="btn primary" data-pstrip="new">+ Add trip</button></div>
-<div class="psgrid">${T.map((x, i) => { const [b, a] = tripBooked(x); return `<a class="pscard pstcard" href="#personal/trips/${i}">${photoHtml(x.name, x.img)}<div class="pstcb"><b>${esc(x.name)}</b><em>${esc(tripDates(x))} · ${x.stops.length} stop${x.stops.length === 1 ? '' : 's'}</em><div class="psfoot">${tripBar(x)}<span>${a ? `${b} of ${a} booked` : 'No stops yet'} · ${esc(budLine(x))}</span></div></div></a>`; }).join('') || '<p class="mut">No trips yet.</p>'}</div>`;
+<div class="psgrid pstgrid">${T.map((x, i) => { const [b, a] = tripBooked(x); return `<a class="pscard pstcard" href="#personal/trips/${i}">${photoHtml(x.stops[0]?.place || x.name, x.img || x.stops[0]?.img)}<div class="pstcb"><b>${esc(x.name)}</b><em>${esc(tripDates(x))} · ${x.stops.length} stop${x.stops.length === 1 ? '' : 's'}</em><div class="psfoot">${tripBar(x)}<span>${a ? `${b} of ${a} booked` : 'No stops yet'} · ${esc(budLine(x))}</span></div></div></a>`; }).join('') || '<p class="mut">No trips yet.</p>'}</div>`;
   } else {
     const [b, a] = tripBooked(t); const cal = ui.psTView === 'cal'; const L = t.stops.length;
     const views = `<div class="psfilter" role="group" aria-label="View">${[['list', 'List'], ['cal', 'Calendar']].map(([k, l]) => `<button type="button" data-pstview="${k}" aria-pressed="${(k === 'cal') === cal}">${l}</button>`).join('')}</div>`;
@@ -516,6 +527,12 @@ export function personalClick(e, S, render, send, reload, sendHome) {
   if (tr) { ui.psPop = { kind: tr.dataset.pstrip, i: Number((location.hash.split('/')[2]) ?? 0) }; render(); main(t)?.querySelector('.pspop input')?.focus(); return true; }
   const as = t.closest('[data-psaddstop]');
   if (as) { ui.psPop = { kind: 'stop', i: Number(as.dataset.psaddstop) }; render(); main(t)?.querySelector('.pspop input')?.focus(); return true; }
+  const pd = t.closest('[data-psplandel]');
+  if (pd) {
+    const [d, k] = pd.dataset.psplandel.split('.'); const T = structuredClone(tripsOf(S.personal)); const tr = T[tripN()];
+    if (tr?.plans?.[d]) { tr.plans[d].splice(Number(k), 1); if (!tr.plans[d].length) delete tr.plans[d]; save(S, 'trips', T, send, render, reload); }
+    return true;
+  }
   const ds = t.closest('[data-psdelstop]');
   if (ds) { const T = structuredClone(tripsOf(S.personal)); const n = Number(location.hash.split('/')[2]); T[n].stops.splice(Number(ds.dataset.psdelstop), 1); save(S, 'trips', T, send, render, reload); return true; }
   const es = t.closest('[data-psedstop]');
@@ -592,15 +609,15 @@ export async function personalChange(e, S, render, send, reload, sendHome) {
     d.busy = false; if (ui.psMeal === d) render();
     return;
   }
-  if (t.matches('[data-psstphoto], [data-pstphoto]')) {
+  if (t.matches('[data-psstphoto], [data-pstphoto], [data-psplan]')) {
     const file = t.files?.[0]; if (!file) return;
-    const n = tripN(); const j = t.matches('[data-psstphoto]') ? Number(t.dataset.psstphoto) : null;
+    const n = tripN(); const j = t.matches('[data-psstphoto]') ? Number(t.dataset.psstphoto) : null; const day = t.dataset.psplan || '';
     try {
       const res = await fetch('/dashboard/api/personal/photo?read=0', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': file.type || 'image/jpeg', 'X-CC': '1' }, body: file });
       const b = await res.json().catch(() => null);
       if (!res.ok || !b?.ok || !b.url) { ui.psErr = `Could not upload the photo (${b?.error || res.status}).`; render(); return; }
       const T = structuredClone(tripsOf(S.personal));
-      if (j == null) T[n].img = b.url; else T[n].stops[j].img = b.url;
+      if (day) { T[n].plans = T[n].plans || {}; (T[n].plans[day] = T[n].plans[day] || []).push({ img: b.url }); } else if (j == null) T[n].img = b.url; else T[n].stops[j].img = b.url;
       save(S, 'trips', T, send, render, reload);
     } catch (err) { ui.psErr = `Could not upload the photo (${err.message}).`; render(); }
     return;
