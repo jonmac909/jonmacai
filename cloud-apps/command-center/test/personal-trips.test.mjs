@@ -124,7 +124,7 @@ test('Trips: plans are saved per day, moved when their day changes, listed under
   assert.equal(savePlan(T, 0, { n: 'x', d: '2026-12-07' }, { d: '2026-12-02', k: 5 }), 'That plan changed on another screen. Close and open it again.');
   // the trip page only links to each city; the city page holds its plans
   const trip = page({ store: { trips: T } });
-  assert.match(trip, /<a class="pscityl" href="#personal\/trips\/0\/0"><span>1 plan · 1 booked<\/span><b>Open Lisbon ›<\/b><\/a>/);
+  assert.match(trip, /<a class="pscityl" href="#personal\/trips\/0\/0"><span class="pscthumbs">.*?<\/span><span>1 plan · 1 booked<\/span><b>Open Lisbon ›<\/b><\/a>/);
   assert.doesNotMatch(trip, /class="psplan/);
   const html = page({ store: { trips: T } }, {}, ['trips', '0', '0']);
   assert.match(html, /<\/span> <a href="#personal\/trips\/0">Portugal<\/a> <span>›<\/span> Lisbon<\/h1>/);
@@ -141,7 +141,7 @@ test('Trips: plans are saved per day, moved when their day changes, listed under
   assert.equal(dropPlan(T, 0, '2026-12-07', 0), false);
   const dlg = page({ store: { trips: T } }, { psPop: { kind: 'plan', i: 0, at: { d: '2026-12-02', k: 0 }, draft: { ...T[0].plans['2026-12-02'][0], d: '2026-12-02' } } });
   assert.match(dlg, /<b class="hmedt">Edit plan<\/b>/);
-  assert.match(dlg, /name="n" autocomplete="off" value="Sintra day trip"/);
+  assert.match(dlg, /name="n" autocomplete="off" autocapitalize="words" value="Sintra day trip"/);
   assert.match(dlg, /name="ok" checked/);
   assert.match(dlg, /data-psplanrm>Remove/);
 });
@@ -165,9 +165,9 @@ test('Trips: a city keeps a Want to do list by category; Build my days puts plac
   assert.ok(dropWant(T, 0, 0, 1)); assert.equal(dropWant(T, 0, 0, 5), false);
   // the pop-up on a city page picks one of its days, or Want to do
   const dlg = page({ store: { trips: T } }, { psPop: { kind: 'plan', i: 0, j: 0, draft: { n: '', d: '' } } }, ['trips', '0', '0']);
-  assert.deepEqual([...dlg.matchAll(/data-psdpick="([\d-]*)"/g)].map((m) => m[1]), ['2026-12-01', '2026-12-02', '2026-12-03', '2026-12-04', '']);
-  assert.match(dlg, /<button type="button" class="psdp want on" data-psdpick="" aria-pressed="true">/);
-  assert.match(dlg, /<b>3<\/b><span>1 plan<\/span>/);
+  assert.deepEqual([...dlg.split('<select name="d">')[1].split('</select>')[0].matchAll(/<option value="([\d-]*)"/g)].map((m) => m[1]).slice(0, 5), ['', '2026-12-01', '2026-12-02', '2026-12-03', '2026-12-04']);
+  assert.match(dlg, /<option value="" selected>Want to do \(no day yet\)<\/option>/);
+  assert.match(dlg, /Dec 3 · 1 plan<\/option>/);
   // grouping: Belém pair together, Alfama pair together, the day trip alone, the one with no spot left over
   const at = (w, lat, lon, cat = '') => ({ w, lat, lon, cat });
   const g = groupNear([at(0, 38.6916, -9.2160), at(1, 38.6975, -9.2065), at(2, 38.7139, -9.1334), at(3, 38.7115, -9.1300), at(4, 38.8029, -9.3817, 'Day trip'), { w: 5 }], ['2026-12-01', '2026-12-02', '2026-12-03']);
@@ -218,7 +218,7 @@ test('Trips: booking details (how you get there, accommodation, car), paperwork 
   assert.deepEqual(mapPts(T[0]).map((p) => [p.n, p.kind]), [['Memmo', 'hotel'], ['Sintra', 'stop']]);
   // the plan pop-up asks for what and the day; the rest waits behind More details
   const pop = page({ store: { trips: T } }, { psPop: { kind: 'plan', i: 0, j: 0, draft: { n: '', d: '' } } }, ['trips', '0', '0']);
-  assert.doesNotMatch(pop, /name="cat"/); assert.match(pop, /data-psmore/);
+  assert.match(pop, /name="cat"/); assert.doesNotMatch(pop, /name="cost"/); assert.match(pop, /data-psmore/);
 });
 
 test('Trips: an empty leg reads from home or the stop before; trips sit by year in Snowbird or Fall escape, and a locked one stays', async () => {
@@ -240,7 +240,7 @@ test('Trips: an empty leg reads from home or the stop before; trips sit by year 
   assert.equal(placeTrip(L, 1, 2028, 'snow'), true); assert.equal(L[1].yr, 2028);
   const html = page({ store: { trips: L } }, {}, ['trips']);
   // each year is a title and one row of cards, Snowbird first; each card has its season pill
-  assert.deepEqual([...html.matchAll(/<section class="pstyear" data-psdrop="[^"]*"><h2>([^<]+)<\/h2>/g)].map((m) => m[1]), ['2027', '2028', '2029', 'Not placed yet']);
+  assert.deepEqual([...html.matchAll(/<section class="pstyear" data-psdrop="[^"]*"><div class="pstyh"><h2>([^<]+)<\/h2>/g)].map((m) => m[1]), ['2027', '2028', '2029', 'Not placed yet']);
   assert.match(html, /data-psdrop="2027\.">[\s\S]*?data-pstcard="0"[\s\S]*?>Snowbird<[\s\S]*?🔒 Locked[\s\S]*?data-pstcard="2"[\s\S]*?>Fall escape</);
   assert.match(html, /<a class="pscard pstcard locked" href="#personal\/trips\/0" draggable="false"/);
   assert.match(html, /<a class="pscard pstcard mini" href="#personal\/trips\/2" draggable="true" data-pstcard="2">/);
@@ -253,7 +253,7 @@ test('want-to-do tiles have a remove button, and the plan pop-up can move a plan
   const T = [{ name: 'Portugal', stops: [{ place: 'Lisbon', items: [], want: [{ n: 'braga' }] }, { place: 'Porto', items: [], want: [] }] }];
   assert.equal(savePlan(T, 0, { n: 'braga', d: '' }, { j: 0, w: 0 }, 1), '');
   assert.deepEqual(T[0].stops[0].want, []);
-  assert.equal(T[0].stops[1].want[0].n, 'braga');
+  assert.equal(T[0].stops[1].want[0].n, 'Braga');
 });
 
 // Jon, 2026-11-14: "line things up and make sure it stays that way". The last word in the CSS keeps the stop photo
@@ -279,4 +279,9 @@ test('trips: the year range for Move covers every placed trip and one year after
   const { tripYearRange } = await import('../public/d3/js/personal.js');
   const [lo, hi] = tripYearRange([{ name: 'A', yr: 2029, sea: 'snow' }], new Date('2026-11-14'));
   assert.equal(lo, 2027); assert.equal(hi, 2030);
+});
+
+test('trips: names typed in lower case read capitalised', async () => {
+  const { caps } = await import('../public/d3/js/personal.js');
+  assert.equal(caps('benagil cave'), 'Benagil Cave'); assert.equal(caps('foz do douro'), 'Foz do Douro'); assert.equal(caps('iPhone shop'), 'iPhone shop');
 });
