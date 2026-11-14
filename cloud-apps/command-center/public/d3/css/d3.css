@@ -1031,3 +1031,71 @@ html[data-theme="dark"] body{background:#0b0b0c}
 .d3 .leaflet-container .leaflet-marker-pane .psmpin img{display:block;width:100%!important;height:100%!important;max-width:none!important;object-fit:cover}
 .d3 .psmpin{display:block}.d3 .psmpin>span{display:grid;place-items:center;width:100%;height:100%}
 .d3 .leaflet-container .leaflet-tile-pane img.leaflet-tile{width:256.5px!important;height:256.5px!important}
+/* Trips by year, one row each (Jon, 2026-11-14): photo cards with a season pill; Snowbird first. */
+.d3 .pstyear{display:grid;gap:12px;margin-top:22px;padding:6px;border-radius:20px}.d3 .pstyear.over{background:color-mix(in srgb,var(--link) 8%,transparent)}
+.d3 .pstrow{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:16px}
+.d3 .pstrow a.pstcard{aspect-ratio:4/5;border-radius:22px}
+.d3 .pstrow a.pstcard .pstcb{padding:48px 16px 14px}.d3 .pstrow a.pstcard .pstcb b{font-size:22px}
+.d3 .pstpill{position:absolute;top:10px;left:10px;z-index:2;padding:5px 11px;border:0;border-radius:999px;font:inherit;font-size:12px;font-weight:600;cursor:pointer;background:rgba(255,255,255,.92);color:var(--link)}
+.d3 .pstpill.fall{color:var(--warn)}.d3 .pstpill:disabled{cursor:default}
+.d3 .pstadd{display:grid;place-content:center;gap:4px;aspect-ratio:4/5;border:2px dashed var(--line);border-radius:22px;background:transparent;color:var(--muted);font:inherit;font-weight:600;cursor:pointer}
+.d3 .pstadd span{font-size:30px;line-height:1;font-weight:400}.d3 .pstadd:hover{border-color:var(--link);color:var(--link)}
+@media (max-width:760px){.d3 .pstrow{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}}
+/* Stops: always the photo on top as a banner, then the title, boxes and plans (Jon, 2026-11-14: "just have this layout always"). */
+.d3 .psstops .psstop{grid-template-columns:minmax(0,1fr);gap:16px;padding:18px}
+.d3 .psstops .psstop .psphl .psph{height:auto;min-height:0;aspect-ratio:16/7;max-height:340px;width:100%;border-radius:16px}
+.d3 .psstops .psstop.home .psphl .psph{aspect-ratio:16/5}
+@media (max-width:760px){.d3 .psstops .psstop .psphl .psph{aspect-ratio:1/1;max-height:none}.d3 .psstops .psstop{padding:12px;gap:12px}}
+/* Phones: the bookings are a compact list. Each row has a tick, the name and upload on top, then a one-line summary
+   with a small cost box beside it. No box borders or grey cards. */
+@media (max-width:760px){
+  .d3 .psstb .psbk3{gap:0;border-top:1px solid var(--line)}
+  .d3 .psstb .psbk{display:grid;grid-template-columns:minmax(0,1fr) 96px;grid-template-areas:"h h" "d c" "f f";column-gap:10px;row-gap:2px;padding:10px 0;border:0;border-bottom:1px solid var(--line);border-radius:0;background:transparent}
+  .d3 .psstb .psbk.on{background:transparent}
+  .d3 .psstb .psbk .psbkh{grid-area:h;height:28px;min-height:28px}
+  .d3 .psstb .psbk button.psbkd{grid-area:d;flex:none;min-height:0;padding:0 0 0 26px;background:transparent;border-radius:0}
+  .d3 .psstb .psbk button.psbkd b{font-size:14px}.d3 .psstb .psbk button.psbkd small{font-size:12px}
+  .d3 .psstb .psbk .pscost{grid-area:c;height:32px;padding:0 8px;font-size:13px;align-self:center}
+  .d3 .psstb .psbk .psbkfiles{grid-area:f;padding-left:26px}
+  .d3 .psstb .psbk .psbkup{width:28px;height:28px}
+  .d3 .psst2h .psstc .pslnk{padding:4px 6px;font-size:13px}.d3 .psmv{width:28px;height:28px;min-width:28px;min-height:28px}
+}
+.d3 .pstrow .pstadd:only-child{aspect-ratio:auto;height:88px;grid-column:1/-1;grid-auto-flow:column;align-items:center}
+/* Stop numbers: on the stop's title and on its map pin. */
+.d3 .psstno{display:inline-grid;place-items:center;min-width:24px;height:24px;padding:0 6px;border-radius:999px;background:var(--link);color:#ffffff;font-size:13px;font-weight:700;flex:none}
+.d3 .psmpin{overflow:visible}.d3 .psmpin img,.d3 .psmpin>span{border-radius:9px}
+.d3 .psmno{position:absolute;top:-10px;left:-10px;min-width:22px;height:22px;padding:0 6px;border-radius:999px;background:var(--link);color:#ffffff;border:2px solid #ffffff;font-style:normal;font-size:12px;font-weight:700;display:grid;place-items:center;white-space:nowrap;box-shadow:0 1px 4px rgba(0,0,0,.35)}
+/* Free days: one slim row of day chips per run. */
+.d3 .pscdfree{display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:10px 14px;border:1px dashed var(--line);border-radius:14px}
+.d3 .pscdfl{display:grid;min-width:120px}.d3 .pscdfl b{font-size:13px}.d3 .pscdfl small{font-size:12px;color:var(--muted)}
+.d3 .pscdchips{display:flex;flex-wrap:wrap;gap:6px;flex:1;min-width:0}
+.d3 .pscdchip{display:grid;place-items:center;width:40px;height:40px;padding:0;border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--ink);font:inherit;font-size:14px;font-weight:600;line-height:1.05;cursor:pointer}
+.d3 .pscdchip small{font-size:9px;font-weight:600;color:var(--muted);text-transform:uppercase}
+.d3 .pscdchip:hover{border-color:var(--link);color:var(--link)}
+/* Drag a plan or a want-to-do onto a calendar day (or back to Want to do). */
+.d3 [data-psdragp]{cursor:grab}.d3 [data-psdragp].drag{opacity:.4}
+.d3 .pscday.over{background:color-mix(in srgb,var(--link) 12%,var(--card));box-shadow:inset 0 0 0 2px var(--link)}
+.d3 .pswantsec.over{background:color-mix(in srgb,var(--link) 6%,transparent);box-shadow:inset 0 0 0 2px var(--link);border-radius:16px}
+/* Want to do: the categories sit side by side, not one under another. */
+.d3 .pswcats{display:flex;flex-wrap:wrap;gap:12px 28px;align-items:flex-start}
+/* Phones: the city page's bookings are the same compact list as the trip page's. */
+@media (max-width:760px){
+  .d3 .pscityb .psbk3{gap:0;border-top:1px solid var(--line)}
+  .d3 .pscityb .psbk{display:grid;grid-template-columns:minmax(0,1fr) 96px;grid-template-areas:"h h" "d c" "f f";column-gap:10px;row-gap:2px;padding:10px 0;border:0;border-bottom:1px solid var(--line);border-radius:0;background:transparent}
+  .d3 .pscityb .psbk .psbkh{grid-area:h;height:28px;min-height:28px}
+  .d3 .pscityb .psbk button.psbkd{grid-area:d;flex:none;min-height:0;padding:0 0 0 26px;background:transparent;border-radius:0}
+  .d3 .pscityb .psbk .pscost{grid-area:c;height:32px;padding:0 8px;font-size:13px;align-self:center}
+  .d3 .pscityb .psbk .psbkfiles{grid-area:f;padding-left:26px}
+  .d3 .pscityh .psph{aspect-ratio:1/1}
+}
+/* Phones: the city calendar stays a 7-day grid, with small cells: the date, tiny photos and a small +. */
+@media (max-width:760px){
+  .d3 .pscitycal{grid-template-columns:repeat(7,minmax(0,1fr));gap:3px}
+  .d3 .pscitycal .pscalh{display:contents}.d3 .pscitycal .pscday.out{display:grid}
+  .d3 .pscitycal .pscday{min-height:64px;grid-template-columns:minmax(0,1fr);align-items:start;padding:4px;gap:3px;border-radius:8px}
+  .d3 .pscitycal .pscdw{display:none}
+  .d3 .pscitycal .pscday small{font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:clip}
+  .d3 .pscitycal .pscthumbs{grid-column:auto;display:flex;flex-wrap:wrap;gap:2px}
+  .d3 .pscitycal .psct,.d3 .pscitycal .psctadd{width:20px;height:20px;border-radius:6px;font-size:12px}
+  .d3 .pscitycal .pscnames{display:none}
+}

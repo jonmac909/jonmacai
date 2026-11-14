@@ -105,7 +105,7 @@ test('Trips: the calendar view puts each stop on each of its days and opens its 
   assert.match(cal, /<div class="pscday out empty" data-ymd="2026-12-10">/); // after the trip: faded, no + to add
   assert.match(cal, /data-ymd="2026-12-02">.*?<button type="button" class="psctadd" data-psaddplan="2026-12-02"/);
   const withPlan = structuredClone(T); withPlan[0].plans = { '2026-12-02': [{ img: '/dashboard/f/abc.jpg', n: 'Belém', ok: true }] };
-  assert.match(page({ store: { trips: withPlan } }, { psTView: 'cal' }), /<button type="button" class="psct ok" data-psplanedit="2026-12-02.0" title="Belém · booked"><img alt="" loading="lazy" src="\/dashboard\/f\/abc.jpg"><\/button>/);
+  assert.match(page({ store: { trips: withPlan } }, { psTView: 'cal' }), /<button type="button" class="psct ok" draggable="true" data-psdragp="d.2026-12-02.0" data-psplanedit="2026-12-02.0" title="Belém · booked"><img alt="" loading="lazy" src="\/dashboard\/f\/abc.jpg"><\/button>/);
   assert.match(cal, /No dates yet<\/span><div class="pscchips"><button type="button" class="pscchip"[^>]*data-psedstop="3"/); // Faro has no dates
 });
 
@@ -128,9 +128,10 @@ test('Trips: plans are saved per day, moved when their day changes, listed under
   assert.doesNotMatch(trip, /class="psplan/);
   const html = page({ store: { trips: T } }, {}, ['trips', '0', '0']);
   assert.match(html, /<\/span> <a href="#personal\/trips\/0">Portugal<\/a> <span>›<\/span> Lisbon<\/h1>/);
-  // Lisbon (Dec 1-4) lists its four days, each with its plans as rounded squares and a + for that day
-  assert.deepEqual([...html.matchAll(/<div class="pscdrow"><div class="pscdd"><small>(\w+)<\/small><b>(\d+)<\/b>/g)].map((m) => `${m[1]} ${m[2]}`), ['Tue 1', 'Wed 2', 'Thu 3', 'Fri 4']);
-  assert.match(html, /<b>2<\/b><span>Dec<\/span><\/div><div class="pscdtiles"><div class="psbt"><button type="button" class="psbti ok" data-psplanedit="2026-12-02.0" title="Sintra day trip · booked"><span>S<\/span><\/button><span>Sintra day trip<\/span><\/div><button type="button" class="pscdadd" data-psaddplan="2026-12-02" data-psj="0"/);
+  // Lisbon (Dec 1-4) is a calendar: its four days take drops, each with its plans (draggable) and a + for that day
+  assert.deepEqual([...html.matchAll(/data-psdropday="(2026-12-\d\d)"/g)].map((m) => m[1]), ['2026-12-01', '2026-12-02', '2026-12-03', '2026-12-04']);
+  assert.match(html, /data-psdropday="2026-12-02">[\s\S]*?draggable="true" data-psdragp="d\.2026-12-02\.0" data-psplanedit="2026-12-02\.0" title="Sintra day trip · booked"/);
+  assert.match(html, /class="pscsec pswantsec" data-psdropday=""/);
   assert.match(html, /data-psaddplan="" data-psj="0">\+ Add plan/);
   assert.match(page({ store: { trips: T } }, {}, ['trips', '0', '2']), /data-psplanedit="2026-12-07.0" title="Fado night">/); // Porto's page
   assert.doesNotMatch(before, /\$80 of/);
@@ -238,11 +239,13 @@ test('Trips: an empty leg reads from home or the stop before; trips sit by year 
   assert.equal(placeTrip(L, 0, 2028, 'snow'), false); // locked
   assert.equal(placeTrip(L, 1, 2028, 'snow'), true); assert.equal(L[1].yr, 2028);
   const html = page({ store: { trips: L } }, {}, ['trips']);
-  assert.deepEqual([...html.matchAll(/<section class="pstyear"><h2>([^<]+)<\/h2>/g)].map((m) => m[1]), ['2027', '2028', '2029', 'Not placed yet']);
-  assert.match(html, /data-psdrop="2027.snow">[\s\S]*?data-pstcard="0"[\s\S]*?🔒 Locked/);
+  // each year is a title and one row of cards, Snowbird first; each card has its season pill
+  assert.deepEqual([...html.matchAll(/<section class="pstyear" data-psdrop="[^"]*"><h2>([^<]+)<\/h2>/g)].map((m) => m[1]), ['2027', '2028', '2029', 'Not placed yet']);
+  assert.match(html, /data-psdrop="2027\.">[\s\S]*?data-pstcard="0"[\s\S]*?>Snowbird<[\s\S]*?🔒 Locked[\s\S]*?data-pstcard="2"[\s\S]*?>Fall escape</);
   assert.match(html, /<a class="pscard pstcard locked" href="#personal\/trips\/0" draggable="false"/);
-  assert.match(html, /<a class="pstmini" href="#personal\/trips\/2" draggable="true" data-pstcard="2">/);
-  assert.match(html, /data-pstripnew="2027.fall.1">\+ Short trip/);
+  assert.match(html, /<a class="pscard pstcard mini" href="#personal\/trips\/2" draggable="true" data-pstcard="2">/);
+  // dropped on a year, a trip keeps its season
+  assert.equal(placeTrip(L, 2, 2028, ''), true); assert.equal(L[2].sea, 'fall');
 });
 
 test('want-to-do tiles have a remove button, and the plan pop-up can move a plan to another city', async () => {

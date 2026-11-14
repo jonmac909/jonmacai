@@ -189,7 +189,7 @@ export function groupNear(items, days, center = null) {
   const used = new Set(all.flatMap((g) => g.ws));
   return { days: all.map((g, k) => ({ d: days[k], ws: g.ws })).sort((x, y) => (x.d < y.d ? -1 : 1)), left: items.map((x) => x.w).filter((w) => !used.has(w)) };
 }
-const planTile = (x, cls = 'psct') => `<button type="button" class="${cls}${x.ok ? ' ok' : ''}" ${x.w != null ? `data-pswantedit="${x.j}.${x.w}"` : `data-psplanedit="${x.d}.${x.k}"`} title="${esc(x.n || 'Plan')}${x.ok ? ' · booked' : ''}">${x.img ? `<img alt="" loading="lazy" src="${esc(x.img)}">` : `<span>${esc((x.n || '?').slice(0, 1).toUpperCase())}</span>`}</button>`;
+const planTile = (x, cls = 'psct') => `<button type="button" class="${cls}${x.ok ? ' ok' : ''}" draggable="true" data-psdragp="${x.w != null ? `w.${x.j}.${x.w}` : `d.${x.d}.${x.k}`}" ${x.w != null ? `data-pswantedit="${x.j}.${x.w}"` : `data-psplanedit="${x.d}.${x.k}"`} title="${esc(x.n || 'Plan')}${x.ok ? ' · booked' : ''}">${x.img ? `<img alt="" loading="lazy" src="${esc(x.img)}">` : `<span>${esc((x.n || '?').slice(0, 1).toUpperCase())}</span>`}</button>`;
 // A plan as a rounded square with its name under it (the city page's days and its Want to do list).
 const bigTile = (x) => `<div class="psbt">${planTile(x, 'psbti')}${x.w != null ? `<button type="button" class="psbtx" data-pswantrm="${x.j}.${x.w}" aria-label="Remove ${esc(x.n || 'it')}" title="Remove">✕</button>` : ''}<span>${esc(x.n || 'Untitled')}</span>${x.cat ? `<small>${esc(x.cat)}</small>` : ''}</div>`;
 const planRow = (x) => `<div class="psplan${x.ok ? ' ok' : ''}">${planTile(x, 'psplt')}<button type="button" class="psplb" data-psplanedit="${x.d}.${x.k}"><b>${esc(x.n || 'Untitled')}</b><span class="mut">${DAYS[dow(x.d)]} ${fmtD(x.d)}${x.cost !== '' && x.cost != null ? ` · ${usd0(Number(x.cost) || 0)}` : ''}</span></button>${x.link ? `<a class="pslnk" href="${esc(x.link)}" target="_blank" rel="noopener noreferrer">Link</a>` : ''}<label class="psplok"><input type="checkbox" data-psplanok="${x.d}.${x.k}"${x.ok ? ' checked' : ''}> ${x.ok ? 'Booked' : 'Idea'}</label></div>`;
@@ -623,8 +623,14 @@ export async function personalAfter(root, S, send, render, reload) {
   L.tileLayer(esri('World_Imagery'), { maxZoom: 18, attribution: 'Tiles &copy; Esri, Maxar, Earthstar Geographics' }).addTo(m);
   L.tileLayer(esri('Reference/World_Transportation'), { minZoom: 12, maxZoom: 18, opacity: 0.8, pane: 'shadowPane' }).addTo(m);
   L.tileLayer(esri('Reference/World_Boundaries_and_Places'), { maxZoom: 18, pane: 'shadowPane' }).addTo(m);
+  // Stops carry their number; a place visited twice (Lisbon at the start and the end) is one pin with both numbers.
+  const at = (p) => `${p.lat.toFixed(4)},${p.lon.toFixed(4)}`; const nums = {};
+  pts.forEach((p) => { if (p.kind === 'stop' && p.k != null) (nums[at(p)] = nums[at(p)] || []).push(p.k + 1); });
+  const drawn = new Set();
   pts.forEach((p) => {
-    const icon = L.divIcon({ className: `psmpin ${p.kind}`, html: p.img ? `<img alt="" src="${esc(p.img)}">` : `<span>${esc((p.n || '?').trim().charAt(0).toUpperCase())}</span>`, iconSize: [40, 40], iconAnchor: [20, 20] });
+    const no = p.kind === 'stop' && p.k != null ? nums[at(p)] : null;
+    if (no) { if (drawn.has(at(p))) return; drawn.add(at(p)); }
+    const icon = L.divIcon({ className: `psmpin ${p.kind}`, html: (p.img ? `<img alt="" src="${esc(p.img)}">` : `<span>${esc((p.n || '?').trim().charAt(0).toUpperCase())}</span>`) + (no ? `<i class="psmno">${no.join(' · ')}</i>` : ''), iconSize: [40, 40], iconAnchor: [20, 20] });
     L.marker([p.lat, p.lon], { icon, title: p.n }).addTo(m).bindPopup(`<b>${esc(p.n || 'Untitled')}</b>${p.sub ? `<br>${esc(p.sub)}` : ''}${p.kind === 'stop' && p.k != null ? `<br><a href="#personal/trips/${n}/${p.k}">Open ${esc(p.n)} ›</a>` : ''}`);
   });
   const route = pts.filter((p) => p.kind === 'stop').map((p) => [p.lat, p.lon]);
@@ -642,7 +648,7 @@ function cityCal(days, ps, j) {
   return `<div class="pscal pscitycal"><div class="pscalh">${DAYS.map((x) => `<span>${x}</span>`).join('')}</div>${cells.map((d) => {
     if (d < first || d > last) return `<div class="pscday out empty"><small>${Number(d.slice(8))}</small></div>`;
     const here = ps.filter((x) => x.d === d);
-    return `<div class="pscday" data-ymd="${d}"><small><span class="pscdw">${DAYS[dow(d)]} </span>${fmtD(d)}</small><div class="pscthumbs">${here.map((x) => planTile(x)).join('')}<button type="button" class="psctadd" data-psaddplan="${d}" data-psj="${j}" aria-label="Add a plan on ${fmtD(d)}">+</button></div>${here.length ? `<div class="pscnames">${here.map((x) => `<span>${esc(x.n || 'Untitled')}</span>`).join('')}</div>` : ''}</div>`;
+    return `<div class="pscday" data-ymd="${d}" data-psdropday="${d}"><small><span class="pscdw">${DAYS[dow(d)]} </span>${fmtD(d)}</small><div class="pscthumbs">${here.map((x) => planTile(x)).join('')}<button type="button" class="psctadd" data-psaddplan="${d}" data-psj="${j}" aria-label="Add a plan on ${fmtD(d)}">+</button></div>${here.length ? `<div class="pscnames">${here.map((x) => `<span>${esc(x.n || 'Untitled')}</span>`).join('')}</div>` : ''}</div>`;
   }).join('')}</div>`;
 }
 function cityPage(t, n, j, ui) {
@@ -651,17 +657,16 @@ function cityPage(t, n, j, ui) {
   const ps = plansOf(t).filter((x) => inStop(s, x.d));
   const want = (s.want || []).map((x, w) => ({ ...x, j, w }));
   const cats = CATS.filter((c) => want.some((x) => (x.cat || 'Other') === c));
-  const cv = ui.psCView || 'list';
-  const dayRow = (d) => { const here = ps.filter((x) => x.d === d); return `<div class="pscdrow"><div class="pscdd"><small>${DAYS[dow(d)]}</small><b>${Number(d.slice(8))}</b><span>${fmtD(d).split(' ')[0]}</span></div><div class="pscdtiles">${here.map(bigTile).join('')}<button type="button" class="pscdadd" data-psaddplan="${d}" data-psj="${j}" aria-label="Add a plan on ${fmtD(d)}">+</button></div></div>`; };
+  const cv = ui.psCView === 'map' ? 'map' : 'cal'; // the days are a calendar (Jon, 2026-11-14), or the map
   return `<section class="card pscity" data-pscityat="${n}.${j}"><div class="pscityh">${photoHtml(s.place, s.img, `data-psstphoto="${j}"`)}<div class="pscityb"><div class="psthrow"><h2>${esc(s.place)}</h2><span class="mut">${s.from ? fmtD(s.from) : '?'} – ${s.to ? fmtD(s.to) : '?'}${daysTxt(nDays(s.from, s.to))}</span><button type="button" class="pslnk" data-psedstop="${j}">Edit</button></div>
 ${s.notes || s.link ? `<div class="psnote">${s.notes ? `<p>${esc(s.notes)}</p>` : ''}${s.link ? `<a href="${esc(webLink(s.link))}" target="_blank" rel="noopener noreferrer">${esc(s.link.replace(/^https?:\/\//i, '').slice(0, 60))}</a>` : ''}</div>` : ''}
 ${bkRow(s, j, t)}</div></div>
-<div class="pscsec"><div class="psplh"><b>Days</b><span class="mut">${days.length ? `${days.length} day${days.length === 1 ? '' : 's'} · ${ps.length} plan${ps.length === 1 ? '' : 's'}, ${ps.filter((x) => x.ok).length} booked` : 'Add the arrive and leave dates to see the days'}</span><div class="psfilter" role="group" aria-label="View">${[['list', 'List'], ['cal', 'Calendar'], ['map', 'Map']].map(([k, l]) => `<button type="button" data-pscview="${k}" aria-pressed="${k === cv}">${l}</button>`).join('')}</div><button type="button" class="btn sm primary" data-psaddplan="" data-psj="${j}">+ Add plan</button></div>
-${cv === 'map' ? mapBox(n, j, ui) : !days.length ? '' : cv === 'cal' ? cityCal(days, ps, j) : `<div class="pscdays">${days.map(dayRow).join('')}</div>`}</div>
-<div class="pscsec"><div class="psplh"><b>Want to do</b><span class="mut">${want.length ? `${want.length} not on a day yet` : 'Places and things with no day yet'}</span>${want.length && days.length ? `<button type="button" class="btn sm" data-psbuild="${j}">Build my days</button>` : ''}<button type="button" class="btn sm" data-psaddplan="" data-psj="${j}" data-pswant="1">+ Add</button></div>
+<div class="pscsec"><div class="psplh"><b>Days</b><span class="mut">${days.length ? `${days.length} day${days.length === 1 ? '' : 's'} · ${ps.length} plan${ps.length === 1 ? '' : 's'}, ${ps.filter((x) => x.ok).length} booked` : 'Add the arrive and leave dates to see the days'}</span><div class="psfilter" role="group" aria-label="View">${[['cal', 'Calendar'], ['map', 'Map']].map(([k, l]) => `<button type="button" data-pscview="${k}" aria-pressed="${k === cv}">${l}</button>`).join('')}</div><button type="button" class="btn sm primary" data-psaddplan="" data-psj="${j}">+ Add plan</button></div>
+${cv === 'map' ? mapBox(n, j, ui) : !days.length ? '' : cityCal(days, ps, j)}</div>
+<div class="pscsec pswantsec" data-psdropday=""><div class="psplh"><b>Want to do</b><span class="mut">${want.length ? `${want.length} not on a day yet` : 'Places and things with no day yet'}</span>${want.length && days.length ? `<button type="button" class="btn sm" data-psbuild="${j}">Build my days</button>` : ''}<button type="button" class="btn sm" data-psaddplan="" data-psj="${j}" data-pswant="1">+ Add</button></div>
 <form class="psquick" data-psform="quick" data-psj="${j}"><input name="n" autocomplete="off" placeholder="Type a place or thing and press Enter" aria-label="Add to Want to do"></form>
-${want.length ? '<p class="pswhint">Tap one to give it a day, move it to another city or change it. ✕ removes it.</p>' : ''}
-${cats.map((c) => `<div class="pswcat"><small>${esc(c)}</small><div class="pscdtiles">${want.filter((x) => (x.cat || 'Other') === c).map(bigTile).join('')}</div></div>`).join('')}</div>
+${want.length ? '<p class="pswhint">Drag one onto a day in the calendar, or tap it to move it to another city or change it. ✕ removes it.</p>' : ''}
+${cats.length ? `<div class="pswcats">${cats.map((c) => `<div class="pswcat"><small>${esc(c)}</small><div class="pscdtiles">${want.filter((x) => (x.cat || 'Other') === c).map(bigTile).join('')}</div></div>`).join('')}</div>` : ''}</div>
 <div class="psstend psrowend"><a class="btn" href="#personal/trips/${n}">‹ ${esc(t.name)}</a></div></section>${ui.psErr ? `<p class="psbad">${esc(ui.psErr)}</p>` : ''}`;
 }
 // ---- trips by year (Jon, 2026-11-14): each year has Snowbird (about 3 winter months) and Fall escape (August to the
@@ -679,29 +684,28 @@ export function tripSlot(t) {
 }
 export function placeTrip(T, i, yr, sea) {
   const t = T[i]; if (!t || t.lock) return false;
-  t.yr = yr || null; t.sea = sea === 'fall' ? 'fall' : 'snow';
+  const k = sea || tripSlot(t).sea; // dropped on a year: keeps its season
+  t.yr = yr || null; t.sea = k === 'fall' ? 'fall' : 'snow';
   return true;
 }
 const lockBtn = (x, i) => `<button type="button" class="pstlock${x.lock ? ' on' : ''}" data-pslock="${i}" aria-pressed="${!!x.lock}" title="${x.lock ? 'Locked: click to let it move' : 'Lock it where it is'}">${x.lock ? '🔒 Locked' : '🔓'}</button>`;
+// A trip's card: the photo, its name and dates, a season pill (tap to switch) and the lock. Short trips are smaller.
+const seaPill = (x, i) => { const k = tripSlot(x).sea; return `<button type="button" class="pstpill ${k}" data-psseason="${i}" title="${x.lock ? 'Locked' : 'Tap to switch season'}"${x.lock ? ' disabled' : ''}>${k === 'fall' ? 'Fall escape' : 'Snowbird'}</button>`; };
 function tripCard(x, i) {
-  const [b, a] = tripBooked(x);
-  return `<a class="pscard pstcard${x.lock ? ' locked' : ''}" href="#personal/trips/${i}" draggable="${!x.lock}" data-pstcard="${i}">${photoHtml(x.stops[0]?.place || x.name, x.img || x.stops[0]?.img)}${lockBtn(x, i)}<div class="pstcb"><b>${esc(x.name)}</b><em>${esc(tripDates(x))} · ${x.stops.length} stop${x.stops.length === 1 ? '' : 's'}</em><div class="psfoot">${tripBar(x)}<span>${a ? `${b} of ${a} booked` : 'No stops yet'} · ${esc(budLine(x))}</span></div></div></a>`;
+  return `<a class="pscard pstcard${x.lock ? ' locked' : ''}${x.mini ? ' mini' : ''}" href="#personal/trips/${i}" draggable="${!x.lock}" data-pstcard="${i}">${photoHtml(x.stops[0]?.place || x.name, x.img || x.stops[0]?.img)}${seaPill(x, i)}${lockBtn(x, i)}<div class="pstcb"><b>${esc(x.name)}</b><em>${esc(tripDates(x))}</em></div></a>`;
 }
-const miniCard = (x, i) => `<a class="pstmini${x.lock ? ' locked' : ''}" href="#personal/trips/${i}" draggable="${!x.lock}" data-pstcard="${i}">${photoHtml(x.stops[0]?.place || x.name, x.img || x.stops[0]?.img)}<span><b>${esc(x.name)}</b><em>${esc(tripDates(x))}</em></span>${lockBtn(x, i)}</a>`;
+// Trips by year (Jon, 2026-11-14): the year, then its trips in one row, Snowbird first. Drag a card to another year;
+// its pill says the season.
 function tripYears(T, now = new Date()) {
   const slots = T.map(tripSlot);
   const base = now.getFullYear() + (now.getMonth() >= 9 ? 1 : 0); // from October on, next year is the one being planned
   const used = slots.map((x) => x.yr).filter(Boolean);
   const lo = Math.min(base, ...used); const hi = Math.max(base, ...used) + 1; // always a free year to drag into
-  const col = (yr, k, label, sub) => {
-    const here = T.map((x, i) => [x, i]).filter(([, i]) => slots[i].yr === yr && slots[i].sea === k);
-    const big = here.filter(([x]) => !x.mini); const minis = here.filter(([x]) => x.mini);
-    const at = `${yr || ''}.${k}`;
-    return `<div class="pstsea ${k}" data-psdrop="${at}"><div class="pstseah"><b>${label}</b><span class="mut">${sub}</span></div>
-${big.length ? `<div class="pstgrid">${big.map(([x, i]) => tripCard(x, i)).join('')}</div>` : ''}${minis.length ? `<div class="pstminis">${minis.map(([x, i]) => miniCard(x, i)).join('')}</div>` : ''}
-${!here.length ? '<p class="pstempty">Drag a trip here</p>' : ''}<div class="pstseaf"><button type="button" class="pslnk" data-pstripnew="${at}.0">+ Trip</button>${k === 'fall' ? `<button type="button" class="pslnk" data-pstripnew="${at}.1">+ Short trip</button>` : ''}</div></div>`;
+  const order = (i) => (slots[i].sea === 'fall' ? 1 : 0) * 2 + (T[i].mini ? 1 : 0);
+  const row = (yr) => {
+    const here = T.map((x, i) => i).filter((i) => slots[i].yr === yr).sort((a, b) => order(a) - order(b));
+    return `<section class="pstyear" data-psdrop="${yr || ''}."><h2>${yr || 'Not placed yet'}</h2><div class="pstrow">${here.map((i) => tripCard(T[i], i)).join('')}<button type="button" class="pstadd" data-pstripnew="${yr || ''}.snow.0"><span>+</span>Trip</button></div></section>`;
   };
-  const row = (yr) => `<section class="pstyear"><h2>${yr || 'Not placed yet'}</h2><div class="pstseas">${SEAS.map(([k, l, sub]) => col(yr, k, l, sub)).join('')}</div></section>`;
   const years = []; for (let y = lo; y <= hi; y++) years.push(y);
   return years.map(row).join('') + row(null);
 }
@@ -711,12 +715,12 @@ function tripsPage(S, sub, ui) {
   if (t && j != null && t.stops[j]) return cityPage(t, n, j, ui) + (ui.psPop ? popHtml(ui.psPop, T) : '');
   let html;
   if (!t) {
-    html = `<div class="pstrhead"><span class="mut">Drag a trip to another year or season. Locked trips stay put.</span><button type="button" class="btn primary" data-pstrip="new">+ Add trip</button></div>${tripYears(T)}`;
+    html = `<div class="pstrhead"><span class="mut">Drag a trip to another year. Tap its pill to switch Snowbird or Fall escape. Locked trips stay put.</span><button type="button" class="btn primary" data-pstrip="new">+ Add trip</button></div>${tripYears(T)}`;
   } else {
     const [b, a] = tripBooked(t); const tv = ui.psTView || 'list'; const L = t.stops.length;
     const views = `<div class="psfilter" role="group" aria-label="View">${[['list', 'List'], ['cal', 'Calendar'], ['map', 'Map']].map(([k, l]) => `<button type="button" data-pstview="${k}" aria-pressed="${k === tv}">${l}</button>`).join('')}</div>`;
     html = `<section class="card pstrip" data-pstripat="${n}"><div class="psthead"><div class="psthrow"><h2>${esc(t.name)}</h2><span class="mut">${esc(tripDates(t))}</span><label class="pslnk"><input type="file" accept="image/*" hidden data-pstphoto>${t.img ? 'Change photo' : 'Trip photo'}</label><button type="button" class="pslnk" data-pstrip="edit">Edit</button></div>${tripBar(t)}<div class="pstvrow"><span class="mut">${esc(budLine(t))} · ${a ? `${b} of ${a} booked` : 'nothing to book yet'}</span>${L ? views : ''}</div></div>
-${tv === 'cal' && L ? tripCal(t) : tv === 'map' && L ? mapBox(n, null, ui) : L ? `<div class="psstops">${t.stops.map((s, j) => `<div class="psstop${isHomeLeg(t, j) ? ' home' : ''}" data-psstop="${j}"><a class="psphl" href="#personal/trips/${n}/${j}" aria-label="Open ${esc(s.place)}">${photoHtml(s.place, s.img)}</a><div class="psstb"><div class="psst2h"><span class="psgrip" draggable="true" data-psgrip="${j}" title="Drag to move">⠿</span>${isHomeLeg(t, j) ? `<b>Back home</b><span class="mut">${esc(s.place)}${s.from ? ` · ${fmtD(s.from)}` : ''}</span>` : `<b>${esc(s.place)}</b>${s.ex ? '<span class="psex">example</span>' : ''}<span class="mut">${s.from ? fmtD(s.from) : '?'} – ${s.to ? fmtD(s.to) : '?'}${daysTxt(nDays(s.from, s.to))}</span>`}<span class="psstc"><button type="button" class="psmv" data-psmove="${j}.-1" aria-label="Move ${esc(s.place)} up"${j ? '' : ' disabled'}>↑</button><button type="button" class="psmv" data-psmove="${j}.1" aria-label="Move ${esc(s.place)} down"${j < L - 1 ? '' : ' disabled'}>↓</button><button type="button" class="pslnk" data-psedstop="${j}">Edit</button><button type="button" class="pslnk" data-psdelstop="${j}">Remove</button></span></div>
+${tv === 'cal' && L ? tripCal(t) : tv === 'map' && L ? mapBox(n, null, ui) : L ? `<div class="psstops">${t.stops.map((s, j) => `<div class="psstop${isHomeLeg(t, j) ? ' home' : ''}" data-psstop="${j}"><a class="psphl" href="#personal/trips/${n}/${j}" aria-label="Open ${esc(s.place)}">${photoHtml(s.place, s.img)}</a><div class="psstb"><div class="psst2h"><span class="psgrip" draggable="true" data-psgrip="${j}" title="Drag to move">⠿</span><span class="psstno">${j + 1}</span>${isHomeLeg(t, j) ? `<b>Back home</b><span class="mut">${esc(s.place)}${s.from ? ` · ${fmtD(s.from)}` : ''}</span>` : `<b>${esc(s.place)}</b>${s.ex ? '<span class="psex">example</span>' : ''}<span class="mut">${s.from ? fmtD(s.from) : '?'} – ${s.to ? fmtD(s.to) : '?'}${daysTxt(nDays(s.from, s.to))}</span>`}<span class="psstc"><button type="button" class="psmv" data-psmove="${j}.-1" aria-label="Move ${esc(s.place)} up"${j ? '' : ' disabled'}>↑</button><button type="button" class="psmv" data-psmove="${j}.1" aria-label="Move ${esc(s.place)} down"${j < L - 1 ? '' : ' disabled'}>↓</button><button type="button" class="pslnk" data-psedstop="${j}">Edit</button><button type="button" class="pslnk" data-psdelstop="${j}">Remove</button></span></div>
 ${s.notes || s.link ? `<div class="psnote">${s.notes ? `<p>${esc(s.notes)}</p>` : ''}${s.link ? `<a href="${esc(webLink(s.link))}" target="_blank" rel="noopener noreferrer">${esc(s.link.replace(/^https?:\/\//i, '').slice(0, 60))}</a>` : ''}</div>` : ''}
 ${bkRow(s, j, t)}
 ${isHomeLeg(t, j) ? '' : (() => { const ps = plansOf(t).filter((x) => inStop(s, x.d)); const ok = ps.filter((x) => x.ok).length; return `<a class="pscityl" href="#personal/trips/${n}/${j}"><span>${ps.length ? `${ps.length} plan${ps.length === 1 ? '' : 's'}${ok ? ` · ${ok} booked` : ''}` : 'No plans yet'}</span><b>Open ${esc(s.place)} ›</b></a>`; })()}</div></div>`).join('')}</div>`
@@ -907,6 +911,13 @@ export function personalClick(e, S, render, send, reload, sendHome) {
     x.lock = !x.lock; if (x.lock && !x.sea) Object.assign(x, tripSlot(x)); // locking pins it where it shows now
     save(S, 'trips', T, send, render, reload); return true;
   }
+  const sp = t.closest('[data-psseason]');
+  if (sp) {
+    e.preventDefault(); e.stopPropagation();
+    const T = structuredClone(tripsOf(S.personal)); const i = Number(sp.dataset.psseason); const x = T[i]; if (!x || x.lock) return true;
+    const now = tripSlot(x); placeTrip(T, i, now.yr, now.sea === 'fall' ? 'snow' : 'fall');
+    save(S, 'trips', T, send, render, reload); return true;
+  }
   const tn = t.closest('[data-pstripnew]');
   if (tn) { const [yr, sea, mini] = tn.dataset.pstripnew.split('.'); ui.psPop = { kind: 'new', i: 0, slot: { yr: Number(yr) || null, sea, mini: mini === '1' ? 1 : 0 } }; render(); main(t)?.querySelector('.pspop input')?.focus(); return true; }
   const tr = t.closest('[data-pstrip]');
@@ -1069,6 +1080,30 @@ export function personalDrag(root, S, on, send, render, reload) {
     reorder(S, f, Number(c.dataset.psstop), send, render, reload);
   });
   root.addEventListener('dragend', () => { from = null; S.ui.psDrag = false; clear(); });
+  // City page: drag a want-to-do or a plan onto a calendar day, or back onto Want to do.
+  let plan = null;
+  const unday = () => root.querySelectorAll('[data-psdropday].over, [data-psdragp].drag').forEach((x) => x.classList.remove('over', 'drag'));
+  root.addEventListener('dragstart', (e) => {
+    const c = on() && e.target.closest?.('[data-psdragp]'); if (!c) return;
+    plan = c.dataset.psdragp; S.ui.psDrag = true; c.classList.add('drag');
+    e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', plan);
+  });
+  root.addEventListener('dragover', (e) => {
+    const z = plan != null && e.target.closest?.('[data-psdropday]'); if (!z) return;
+    e.preventDefault(); e.dataTransfer.dropEffect = 'move';
+    root.querySelectorAll('[data-psdropday].over').forEach((x) => { if (x !== z) x.classList.remove('over'); }); z.classList.add('over');
+  });
+  root.addEventListener('drop', (e) => {
+    const z = plan != null && e.target.closest?.('[data-psdropday]'); if (!z) return;
+    e.preventDefault(); const src = plan; plan = null; S.ui.psDrag = false; unday();
+    const T = structuredClone(tripsOf(S.personal)); const n = Number(location.hash.split('/')[2]); const j = Number(location.hash.split('/')[3]);
+    const [kind, a, b] = src.split('.'); const at = kind === 'w' ? { j: Number(a), w: Number(b) } : { d: a, k: Number(b) };
+    const x = kind === 'w' ? T[n]?.stops?.[at.j]?.want?.[at.w] : T[n]?.plans?.[at.d]?.[at.k]; if (!x) return;
+    const d = z.dataset.psdropday || '';
+    if ((kind === 'd' && d === at.d) || (kind === 'w' && !d)) return;
+    if (!savePlan(T, n, { ...x, d, ok: x.ok ? true : null }, at, j)) save(S, 'trips', T, send, render, reload);
+  });
+  root.addEventListener('dragend', () => { plan = null; S.ui.psDrag = false; unday(); });
   let card = null;
   const unmark = () => root.querySelectorAll('.pstsea.over, [data-pstcard].drag').forEach((x) => x.classList.remove('over', 'drag'));
   root.addEventListener('dragstart', (e) => {
@@ -1079,7 +1114,7 @@ export function personalDrag(root, S, on, send, render, reload) {
   root.addEventListener('dragover', (e) => {
     const z = card != null && e.target.closest?.('[data-psdrop]'); if (!z) return;
     e.preventDefault(); e.dataTransfer.dropEffect = 'move';
-    root.querySelectorAll('.pstsea.over').forEach((x) => { if (x !== z) x.classList.remove('over'); }); z.classList.add('over');
+    root.querySelectorAll('.pstyear.over').forEach((x) => { if (x !== z) x.classList.remove('over'); }); z.classList.add('over');
   });
   root.addEventListener('drop', (e) => {
     const z = card != null && e.target.closest?.('[data-psdrop]'); if (!z) return;
