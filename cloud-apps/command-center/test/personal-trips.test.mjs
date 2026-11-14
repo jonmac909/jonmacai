@@ -274,3 +274,9 @@ test('the last stop back in Kelowna is "Back home": just the journey, no accommo
   assert.equal(isHomeLeg(t, 0), false);
   assert.equal(isHomeLeg({ stops: [{ place: 'Kelowna' }] }, 0), false);
 });
+
+test('trips: the year range for Move covers every placed trip and one year after', async () => {
+  const { tripYearRange } = await import('../public/d3/js/personal.js');
+  const [lo, hi] = tripYearRange([{ name: 'A', yr: 2029, sea: 'snow' }], new Date('2026-11-14'));
+  assert.equal(lo, 2027); assert.equal(hi, 2030);
+});
