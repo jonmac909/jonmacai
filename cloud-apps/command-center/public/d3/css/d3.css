@@ -956,3 +956,15 @@ html[data-theme="dark"] body{background:#0b0b0c}
 .d3 button.psbkd b{font-size:14px;font-weight:600;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .d3 button.psbkd small{font-size:12px;color:var(--ink2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.d3 button.psbkd small.none{color:var(--link)}
 .d3 .psbk.on button.psbkd{background:color-mix(in srgb,var(--ok) 8%,var(--card))}
+/* Booking boxes line up: header, details and cost on the same rows; travel mode is a dropdown (Jon, 2026-11-14) */
+.d3 .psbk3{align-items:stretch}
+.d3 .psbk{grid-template-rows:auto 1fr auto auto}
+.d3 .psbkh{min-height:30px}.d3 .psbkh .psbkck{flex:0 1 auto}.d3 .psbkh .psbkck:only-of-type{flex:1}
+.d3 .psbkmode{flex:1;min-width:0;appearance:none;-webkit-appearance:none;border:0;background:transparent url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E") no-repeat right 6px center;padding:4px 24px 4px 6px;margin-left:-6px;border-radius:8px;font:inherit;font-weight:600;color:var(--ink);cursor:pointer}
+.d3 .psbkmode:hover,.d3 .psbkmode:focus{background-color:var(--card2);outline:none}
+.d3 .psbkok{font-size:12px;color:var(--ok);font-style:normal;margin-right:4px}
+.d3 button.psbkd{min-height:62px;align-content:center}
+.d3 .psbkmode{flex:0 1 auto;text-align:left;text-align-last:left;width:auto}
+.d3 .psbkh .psbkup{margin-left:auto}
+.d3 .psbkh label.psbkck:first-child{flex:0 1 auto}
+.d3 .psbk{display:flex;flex-direction:column}.d3 .psbk button.psbkd{flex:1}.d3 .psbk .psbkfiles{order:3}.d3 .psbk .pscost{order:4}
