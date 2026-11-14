@@ -847,3 +847,25 @@ html[data-theme="dark"] body{background:#0b0b0c}
 .d3 .psct:hover .psctx,.d3 .psct:focus-within .psctx{display:block}
 .d3 .psctadd{width:30px;height:30px;border:1px dashed var(--line);border-radius:6px;display:grid;place-items:center;color:var(--muted);font-size:16px;cursor:pointer}.d3 .psctadd:hover{border-color:var(--link);color:var(--link)}
 @media (max-width:760px){.d3 .pscals{padding:4px 12px 14px}.d3 .pscday.pad{display:none}.d3 .pscday{min-height:0}.d3 .pscthumbs{grid-column:2}.d3 .psctx{display:block}}
+/* Stop photos are rounded squares inside the card (Jon, 2026-11-14), and each stop lists its plans */
+.d3 .psstops .psstop{grid-template-columns:200px minmax(0,1fr);padding:12px;gap:4px}
+.d3 .psstops .psstop .psph{min-height:0;aspect-ratio:1/1;border-radius:16px;align-self:start}
+.d3 .psstops .psstop .psstb{padding:4px 6px 4px 12px}
+.d3 .psplans{display:grid;gap:6px;border-top:1px solid var(--line);padding-top:10px}
+.d3 .psplh{display:flex;align-items:center;gap:10px}.d3 .psplh b{font-size:13px}.d3 .psplh .pslnk{margin-left:auto;font-size:13px}
+.d3 .psplans>p{margin:0;font-size:13px}
+.d3 .psplan{display:grid;grid-template-columns:44px minmax(0,1fr) auto auto;gap:10px;align-items:center}
+.d3 .psplt,.d3 .psct{padding:0;border:0;overflow:hidden;background:var(--card2);color:var(--muted);font-weight:600;display:grid;place-items:center;cursor:pointer;position:relative}
+.d3 .psplt{width:44px;height:44px;border-radius:12px}.d3 .psplt img,.d3 .psct img{width:100%;height:100%;object-fit:cover;display:block}
+.d3 .psplt.ok::after,.d3 .psct.ok::after{content:'✓';position:absolute;right:2px;bottom:2px;width:14px;height:14px;border-radius:50%;background:var(--ok);color:#ffffff;font-size:9px;line-height:14px;text-align:center}
+.d3 .psplb{display:grid;gap:1px;text-align:left;border:0;background:transparent;padding:0;min-width:0;cursor:pointer;color:var(--ink)}
+.d3 .psplb b{font-size:14px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.d3 .psplb span{font-size:12px}
+.d3 .psplok{display:flex;align-items:center;gap:5px;font-size:12px;color:var(--muted);cursor:pointer}.d3 .psplan.ok .psplok{color:var(--ok);font-weight:600}
+.d3 .psplother{margin-top:2px;padding:12px;border:1px dashed var(--line);border-radius:14px}
+.d3 .psct{width:30px;height:30px;border-radius:8px}.d3 .psctadd{background:transparent;padding:0}
+.d3 .psplimg{display:flex;align-items:center;gap:10px}.d3 .psplimg img,.d3 .psplimg>span{width:72px;height:72px;border-radius:14px;object-fit:cover;background:var(--card2)}
+.d3 .psplimg>span{display:grid;place-items:center;font-size:11px;color:var(--muted)}
+@media (max-width:760px){
+  .d3 .psstops .psstop{grid-template-columns:96px minmax(0,1fr);padding:10px}.d3 .psstops .psstop .psph{border-radius:12px}.d3 .psstops .psstop .psstb{padding:0 0 0 8px}
+  .d3 .psplan{grid-template-columns:44px minmax(0,1fr) auto}.d3 .psplan>a.pslnk{display:none}
+}

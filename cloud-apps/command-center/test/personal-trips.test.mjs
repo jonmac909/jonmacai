@@ -3,7 +3,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { personalData, personalWrite } from '../src/personal.js';
-import { renderPersonal, moveStop, editStop } from '../public/d3/js/personal.js';
+import { renderPersonal, moveStop, editStop, savePlan, dropPlan, plansOf } from '../public/d3/js/personal.js';
 import { sqliteD1 } from './sqlited1.mjs';
 
 const items = () => [{ k: 'Flight', cost: '', ok: false }, { k: 'Hotel', cost: '', ok: false }, { k: 'Car', cost: '', ok: false }];
@@ -103,8 +103,37 @@ test('Trips: the calendar view puts each stop on each of its days and opens its 
   assert.deepEqual(days[8], ['2026-12-09', 'Wed', ['Porto']]);
   assert.deepEqual(days[9], ['2026-12-10', 'Thu', []]);
   assert.match(cal, /<div class="pscday out empty" data-ymd="2026-12-10">/); // after the trip: faded, no + to add
-  assert.match(cal, /data-ymd="2026-12-02">.*?<label class="psctadd"[^>]*><input type="file" accept="image\/\*" hidden data-psplan="2026-12-02">/);
-  const withPlan = structuredClone(T); withPlan[0].plans = { '2026-12-02': [{ img: '/dashboard/f/abc.jpg' }] };
-  assert.match(page({ store: { trips: withPlan } }, { psTView: 'cal' }), /<span class="psct"><a href="\/dashboard\/f\/abc.jpg"[^>]*><img alt="" loading="lazy" src="\/dashboard\/f\/abc.jpg"><\/a><button type="button" class="psctx" data-psplandel="2026-12-02.0"/);
+  assert.match(cal, /data-ymd="2026-12-02">.*?<button type="button" class="psctadd" data-psaddplan="2026-12-02"/);
+  const withPlan = structuredClone(T); withPlan[0].plans = { '2026-12-02': [{ img: '/dashboard/f/abc.jpg', n: 'Belém', ok: true }] };
+  assert.match(page({ store: { trips: withPlan } }, { psTView: 'cal' }), /<button type="button" class="psct ok" data-psplanedit="2026-12-02.0" title="Belém · booked"><img alt="" loading="lazy" src="\/dashboard\/f\/abc.jpg"><\/button>/);
   assert.match(cal, /No dates yet<\/span><div class="pscchips"><button type="button" class="pscchip"[^>]*data-psedstop="3"/); // Faro has no dates
+});
+
+test('Trips: plans are saved per day, moved when their day changes, listed under their stop and counted in the budget', () => {
+  const T = TRIPS(); T[0].bud = 5000;
+  const before = page({ store: { trips: structuredClone(T) } });
+  assert.equal(savePlan(T, 0, { n: '', img: '', d: '2026-12-02' }), 'Add what it is, or a photo');
+  assert.equal(savePlan(T, 0, { n: 'Sintra day trip', d: '' }), 'Pick the day');
+  assert.equal(savePlan(T, 0, { n: ' Sintra day trip ', d: '2026-12-02', cost: '80', link: 'getyourguide.com/x', ok: 'on' }), '');
+  assert.equal(savePlan(T, 0, { n: 'Fado night', d: '2026-12-02', cost: '' }), '');
+  assert.deepEqual(plansOf(T[0]).map((x) => [x.d, x.k, x.n, x.cost, x.ok, x.link]), [
+    ['2026-12-02', 0, 'Sintra day trip', 80, true, 'https://getyourguide.com/x'], ['2026-12-02', 1, 'Fado night', '', false, '']]);
+  // a new day moves it; the old day is dropped when empty
+  assert.equal(savePlan(T, 0, { n: 'Fado night', d: '2026-12-07' }, { d: '2026-12-02', k: 1 }), '');
+  assert.deepEqual(Object.keys(T[0].plans).sort(), ['2026-12-02', '2026-12-07']);
+  assert.equal(savePlan(T, 0, { n: 'x', d: '2026-12-07' }, { d: '2026-12-02', k: 5 }), 'That plan changed on another screen. Close and open it again.');
+  const html = page({ store: { trips: T } });
+  assert.match(html, /data-psaddplan="2026-12-01">\+ Add plan/); // Lisbon's card adds on its first day
+  assert.match(html, /<div class="psplan ok"><button type="button" class="psplt ok" data-psplanedit="2026-12-02.0"[^>]*><span>S<\/span><\/button><button type="button" class="psplb" data-psplanedit="2026-12-02.0"><b>Sintra day trip<\/b><span class="mut">Wed Dec 2 · \$80<\/span>/);
+  assert.match(html, /data-psplanok="2026-12-07.0"> Idea/);
+  assert.doesNotMatch(before, /\$80 of/);
+  assert.match(html, /\$80 of \$5,000 budget|\$\d[\d,]* of \$5,000 budget/);
+  assert.ok(dropPlan(T, 0, '2026-12-07', 0));
+  assert.equal(T[0].plans['2026-12-07'], undefined);
+  assert.equal(dropPlan(T, 0, '2026-12-07', 0), false);
+  const dlg = page({ store: { trips: T } }, { psPop: { kind: 'plan', i: 0, at: { d: '2026-12-02', k: 0 }, draft: { ...T[0].plans['2026-12-02'][0], d: '2026-12-02' } } });
+  assert.match(dlg, /<b class="hmedt">Edit plan<\/b>/);
+  assert.match(dlg, /name="n" value="Sintra day trip"/);
+  assert.match(dlg, /name="ok" checked/);
+  assert.match(dlg, /data-psplanrm>Remove/);
 });
