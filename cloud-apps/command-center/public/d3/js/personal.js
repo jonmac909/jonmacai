@@ -117,7 +117,7 @@ export function groc(meals, idxs, P = {}) {
 // ---- saved data, with defaults ----
 const blankMeal = () => ({ n: '', r: '', on: [], src: '', imgs: [] });
 export const mealsOf = (P) => { const l = P?.store?.meals?.list; return Array.from({ length: 7 }, (_, i) => ({ ...blankMeal(), ...(Array.isArray(l) && l[i] ? l[i] : {}) })); };
-const items3 = () => [{ k: 'Flight', cost: '', ok: false }, { k: 'Hotel', cost: '', ok: false }, { k: 'Car', cost: '', ok: false }];
+const items3 = () => [{ k: 'Flight', cost: '', ok: false }, { k: 'Accommodation', cost: '', ok: false }, { k: 'Car', cost: '', ok: false }];
 // Portugal is the first trip; its stops are examples until Jon adds the real ones (the handover's open question).
 export const tripsOf = (P) => (Array.isArray(P?.store?.trips) ? P.store.trips : [{ name: 'Portugal', bud: 5000, stops: [
   { place: 'Lisbon', from: '', to: '', ex: 1, items: items3() }, { place: 'Porto', from: '', to: '', ex: 1, items: items3() }] }]);
@@ -433,6 +433,158 @@ function homePage(S) {
 }
 
 // ---- trips ----
+// ---- booking details (Jon, 2026-11-14): how he gets there (a dropdown), the hotel, the car, and the paperwork ----
+export const MODES = ['Flight', 'Train', 'Bus', 'Ferry', 'Drive'];
+const bkKind = (k) => (MODES.includes(k) ? 'go' : k === 'Hotel' || k === 'Accommodation' ? 'hotel' : k === 'Car' ? 'car' : 'other');
+// Older trips call it Hotel; Jon says accommodation (2026-11-14).
+const bkName = (k) => (k === 'Hotel' ? 'Accommodation' : k);
+const ride = (co, no, seat) => [['from', 'From', 'Lisbon'], ['to', 'To', 'Porto'], ['dep', 'Leaves', '', 1], ['arr', 'Arrives', '', 1], ['co', co[0], co[1]], ['no', no[0], no[1]], ['seat', seat, ''], ['code', 'Booking code', '']];
+// [name, label, placeholder, date-and-time]; the first four show at once, the rest under More details.
+export const BKF = {
+  Flight: ride(['Airline', 'TAP'], ['Flight number', 'TP 1350'], 'Seat'),
+  Train: ride(['Company', 'CP'], ['Train number', 'IC 521'], 'Coach and seat'),
+  Bus: ride(['Company', 'FlixBus'], ['Route', 'N 801'], 'Seat'),
+  Ferry: ride(['Company', ''], ['Sailing', ''], 'Cabin or seat'),
+  Drive: [['from', 'From', 'Lisbon'], ['to', 'To', 'Porto'], ['dep', 'Leave', '', 1], ['dur', 'How long', '3h']],
+  hotel: [['name', 'Where', 'Memmo Alfama, an Airbnb'], ['addr', 'Address', 'Travessa das Merceeiras 27, Lisbon'], ['cin', 'Check-in', '', 1], ['cout', 'Check-out', '', 1], ['code', 'Booking code', ''], ['phone', 'Phone', '']],
+  car: [['co', 'Company', 'Sixt'], ['addr', 'Pick-up address', 'Lisbon airport'], ['dep', 'Pick-up', '', 1], ['arr', 'Return', '', 1], ['ret', 'Return address', ''], ['code', 'Booking code', '']],
+  other: [['what', 'What', ''], ['addr', 'Address', ''], ['when', 'When', '', 1], ['code', 'Booking code', '']],
+};
+const fieldsOf = (k) => BKF[k] || BKF[bkKind(k)];
+const tm = (v) => { const m = /^(\d{4}-\d{2}-\d{2})(?:T(\d{2}:\d{2}))?/.exec(v || ''); return m ? `${fmtD(m[1])}${m[2] ? ` ${m[2]}` : ''}` : ''; };
+export function bkSum(x) {
+  const d = x.det || {};
+  const kind = bkKind(x.k);
+  if (kind === 'go') return [d.no || d.co, d.from && d.to ? `${d.from} → ${d.to}` : d.from || d.to, tm(d.dep)].filter(Boolean).join(' · ');
+  if (kind === 'hotel') return [d.name, d.addr].filter(Boolean).join(' · ');
+  if (kind === 'car') return [d.co, tm(d.dep)].filter(Boolean).join(' · ');
+  return [d.what, tm(d.when)].filter(Boolean).join(' · ');
+}
+const mapsLink = (a) => `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(a)}`;
+function bkBox(x, j, k) {
+  const sum = bkSum(x); const n = (x.docs || []).length;
+  return `<div class="psbk${x.ok ? ' on' : ''}"><label><input type="checkbox" data-psbook="${j}.${k}"${x.ok ? ' checked' : ''}> ${esc(bkName(x.k))}${x.ok ? ' <i>booked</i>' : ''}</label><span class="pscost">$<input type="number" min="0" step="10" data-pscost="${j}.${k}" value="${esc(x.cost)}" placeholder="cost" aria-label="${esc(bkName(x.k))} cost"></span><button type="button" class="psbkd" data-psbkdet="${j}.${k}">${sum ? `<span>${esc(sum)}</span>` : '<i>+ Details</i>'}${n ? `<em>${n} file${n === 1 ? '' : 's'}</em>` : ''}</button></div>`;
+}
+const bkRow = (s, j) => `<div class="psbk3">${s.items.map((x, k) => bkBox(x, j, k)).join('')}</div>`;
+// The details form onto booking k of stop j. Returns what to fix, or '' when saved into T.
+export function saveBk(T, n, j, k, was, v) {
+  const it = T[n]?.stops?.[j]?.items?.[k];
+  if (!it || it.k !== was) return 'That booking changed on another screen. Close and open it again.';
+  const kk = MODES.includes(v.k) && MODES.includes(it.k) ? v.k : it.k;
+  const det = {};
+  for (const [f] of [...fieldsOf(kk), ['notes']]) { const x = String(v.det?.[f] ?? '').trim().slice(0, f === 'notes' ? 2000 : 200); if (x) det[f] = x; }
+  const old = it.det || {};
+  if (det.addr && det.addr === old.addr && Number.isFinite(old.lat)) Object.assign(det, { lat: old.lat, lon: old.lon }); // keep where it is on the map
+  it.k = kk; it.det = det;
+  it.docs = (v.docs || []).filter((d) => d?.url).map((d) => ({ n: String(d.n || 'File').slice(0, 120), url: String(d.url).slice(0, 500) })).slice(0, 20);
+  it.cost = v.cost == null || v.cost === '' ? '' : Math.max(0, Number(v.cost) || 0);
+  it.ok = !!v.ok;
+  return '';
+}
+function bkPop(p, t) {
+  const st = t?.stops?.[p.j]; const x = p.draft; const go = MODES.includes(x.k);
+  const f = fieldsOf(x.k); const more = p.more || f.slice(4).some(([nm]) => x.det[nm]) || x.det.notes || x.docs.length;
+  const inp = ([nm, l, ph, dt]) => `<label>${l}<input name="${nm}"${dt ? ' type="datetime-local"' : ''} value="${esc(x.det[nm] || '')}"${ph ? ` placeholder="${esc(ph)}"` : ''}></label>`;
+  const addr = x.det.addr;
+  return `<div class="hmhost" data-psback><form class="hmed pspop psbkpop" data-psform="bk"><div class="hmedh"><b class="hmedt">${go ? 'Getting to' : esc(bkName(x.k))}${go ? ' ' : ' in '}${esc(st?.place || '')}</b><button type="button" class="btn sm" data-psx aria-label="Close">✕</button></div>
+<div class="pstfb">${go ? `<div class="psmodes" role="group" aria-label="How">${MODES.map((m) => `<button type="button" data-psbkmode="${m}" aria-pressed="${m === x.k}">${m}</button>`).join('')}</div>` : ''}
+<div class="psbkf">${f.slice(0, 4).map(inp).join('')}</div>${addr ? `<a class="pslnk" href="${esc(mapsLink(addr))}" target="_blank" rel="noopener noreferrer">Open the address in Maps ›</a>` : ''}
+${more ? `<div class="psbkf">${f.slice(4).map(inp).join('')}</div>
+<label>Notes<textarea name="notes" rows="2" placeholder="Terminal, baggage, door code, who to call">${esc(x.det.notes || '')}</textarea></label>
+<div class="psdocs"><small>Paperwork</small>${x.docs.map((d, i) => `<div class="psdoc"><a href="${esc(d.url)}" target="_blank" rel="noopener noreferrer">${esc(d.n)}</a><button type="button" class="pslnk" data-psbkdocx="${i}">Remove</button></div>`).join('') || '<span class="mut">Tickets, confirmations, insurance (photo or PDF)</span>'}<label class="btn sm"><input type="file" accept="image/*,application/pdf" hidden data-psbkdoc>${p.busy ? 'Uploading…' : '+ Attach'}</label></div>` : '<button type="button" class="pslnk psmore" data-psmore>+ More details and paperwork</button>'}
+<div class="pstf2"><label>Cost $<input type="number" min="0" step="10" name="cost" value="${esc(x.cost ?? '')}" placeholder="0"></label><label class="psedok"><input type="checkbox" name="ok"${x.ok ? ' checked' : ''}> Booked</label></div></div>
+<div class="hmedf"><span class="psbad">${esc(p.err || '')}</span><button type="button" class="btn" data-psx style="margin-left:auto">Cancel</button><button class="btn primary">Save</button></div></form></div>`;
+}
+// Keep what Jon has typed in the booking form before the pop-up is drawn again.
+function keepBk(el, p) {
+  const form = el.closest?.('form'); if (!form) return;
+  const v = Object.fromEntries(new FormData(form).entries());
+  for (const [f] of [...fieldsOf(p.draft.k), ['notes']]) if (v[f] != null) p.draft.det[f] = v[f];
+  if (v.cost != null) p.draft.cost = v.cost;
+  p.draft.ok = v.ok != null;
+}
+
+// ---- the map (Jon, 2026-11-14): OpenStreetMap through Leaflet, loaded only when Map is picked ----
+export function mapPts(t, j = null) {
+  const pts = []; const ok = (o) => o && Number.isFinite(o.lat) && Number.isFinite(o.lon);
+  const hotel = (s) => { const h = (s.items || []).find((x) => bkKind(x.k) === 'hotel'); if (ok(h?.det)) pts.push({ lat: h.det.lat, lon: h.det.lon, n: h.det.name || 'Accommodation', sub: h.det.addr, kind: 'hotel' }); };
+  if (j == null) {
+    t.stops.forEach((s, k) => { if (ok(s)) pts.push({ lat: s.lat, lon: s.lon, n: s.place, sub: `${s.from ? fmtD(s.from) : '?'} – ${s.to ? fmtD(s.to) : '?'}`, kind: 'stop', img: s.img, k }); hotel(s); });
+    return pts;
+  }
+  const s = t.stops[j];
+  plansOf(t).filter((x) => inStop(s, x.d)).forEach((x) => { if (ok(x)) pts.push({ lat: x.lat, lon: x.lon, n: x.n, sub: `${DAYS[dow(x.d)]} ${fmtD(x.d)}${x.ok ? ' · booked' : ''}`, kind: x.ok ? 'ok' : 'plan', img: x.img }); });
+  (s.want || []).forEach((x) => { if (ok(x)) pts.push({ lat: x.lat, lon: x.lon, n: x.n, sub: `Want to do${x.cat ? ` · ${x.cat}` : ''}`, kind: 'want', img: x.img }); });
+  hotel(s);
+  return pts;
+}
+const mapBox = (n, j, ui) => `<div class="psmapw">${ui.psMapNote ? `<p class="mut">${esc(ui.psMapNote)}</p>` : ''}<div class="psmap" data-psmap="${n}${j != null ? `.${j}` : ''}"><p class="mut">Loading the map…</p></div><p class="psmapk"><span class="psk plan"></span>Plan <span class="psk ok"></span>Booked <span class="psk want"></span>Want to do <span class="psk hotel"></span>Accommodation</p></div>`;
+let leafletP = null;
+function leaflet() {
+  if (window.L?.map) return Promise.resolve(window.L);
+  leafletP = leafletP || new Promise((res, rej) => {
+    const c = document.createElement('link'); c.rel = 'stylesheet'; c.href = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css'; document.head.append(c);
+    const sc = document.createElement('script'); sc.src = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js';
+    sc.onload = () => res(window.L); sc.onerror = () => { leafletP = null; rej(new Error('no map')); }; document.head.append(sc);
+  });
+  return leafletP;
+}
+let finding = false;
+// Find on OpenStreetMap whatever has no spot yet (stops, the hotel's address, plans and want-to-do places), one a
+// second, and save the spots so it happens once. A place it can't find is marked and not asked again.
+async function findSpots(S, n, j, send, render, reload) {
+  if (finding) return;
+  const T = structuredClone(tripsOf(S.personal)); const t = T[n]; if (!t) return;
+  const before = JSON.stringify(tripsOf(S.personal));
+  const todo = []; const need = (o, q) => { if (o && q && !Number.isFinite(o.lat) && !o.nf) todo.push([o, q]); };
+  const where = (...a) => a.filter(Boolean).join(', ');
+  (j == null ? t.stops : [t.stops[j]]).forEach((s) => {
+    if (!s) return;
+    need(s, where(s.place, t.name));
+    const h = (s.items || []).find((x) => bkKind(x.k) === 'hotel'); if (h?.det?.addr) need(h.det, h.det.addr);
+    if (j == null) return;
+    Object.entries(t.plans || {}).forEach(([d, xs]) => { if (inStop(s, d)) xs.forEach((x) => need(x, where(x.n, s.place, t.name))); });
+    (s.want || []).forEach((x) => need(x, where(x.n, s.place, t.name)));
+  });
+  if (!todo.length) return;
+  finding = true;
+  try {
+    for (const [c, [o, q]] of todo.entries()) {
+      S.ui.psMapNote = `Finding places on the map… ${c + 1} of ${todo.length}`;
+      const el = document.querySelector('.psmapw > p.mut'); if (el) el.textContent = S.ui.psMapNote;
+      try {
+        const r = await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=1&accept-language=en&q=${encodeURIComponent(q)}`);
+        const b = r.ok ? await r.json() : [];
+        if (b[0]) { o.lat = Number(b[0].lat); o.lon = Number(b[0].lon); } else o.nf = 1;
+      } catch { /* try again next time */ }
+      await sleep(1100); // OpenStreetMap asks for one search a second at most
+    }
+  } finally { finding = false; S.ui.psMapNote = ''; }
+  if (JSON.stringify(tripsOf(S.personal)) !== before) { render(); return; } // changed meanwhile: try again on the next draw
+  await save(S, 'trips', T, send, render, reload);
+}
+export async function personalAfter(root, S, send, render, reload) {
+  const el = root?.querySelector?.('[data-psmap]'); if (!el) return;
+  const [n, j0] = el.dataset.psmap.split('.'); const j = j0 == null ? null : Number(j0);
+  const t = tripsOf(S.personal)[Number(n)]; if (!t) return;
+  findSpots(S, Number(n), j, send, render, reload);
+  let L; try { L = await leaflet(); } catch { el.innerHTML = '<p class="mut">The map could not load. Try again in a minute.</p>'; return; }
+  if (!el.isConnected) return;
+  const pts = mapPts(t, j); const s = j != null ? t.stops[j] : null;
+  el.innerHTML = '';
+  const m = L.map(el, { scrollWheelZoom: false });
+  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '&copy; OpenStreetMap' }).addTo(m);
+  pts.forEach((p) => {
+    const icon = L.divIcon({ className: `psmpin ${p.kind}`, html: p.img ? `<img alt="" src="${esc(p.img)}">` : `<span>${esc((p.n || '?').trim().charAt(0).toUpperCase())}</span>`, iconSize: [40, 40], iconAnchor: [20, 20] });
+    L.marker([p.lat, p.lon], { icon, title: p.n }).addTo(m).bindPopup(`<b>${esc(p.n || 'Untitled')}</b>${p.sub ? `<br>${esc(p.sub)}` : ''}${p.kind === 'stop' ? `<br><a href="#personal/trips/${n}/${p.k}">Open ${esc(p.n)} ›</a>` : ''}`);
+  });
+  const route = pts.filter((p) => p.kind === 'stop').map((p) => [p.lat, p.lon]);
+  if (route.length > 1) L.polyline(route, { color: '#2563eb', weight: 3, dashArray: '6 8' }).addTo(m);
+  if (pts.length > 1) m.fitBounds(L.latLngBounds(pts.map((p) => [p.lat, p.lon])).pad(0.2), { maxZoom: 14 });
+  else if (pts.length) m.setView([pts[0].lat, pts[0].lon], 13);
+  else if (s && Number.isFinite(s.lat)) m.setView([s.lat, s.lon], 12);
+  else m.setView([30, 0], 2);
+}
 // The city's days as a calendar (Monday first, its own weeks only), each day with its plans and a + (Jon, 2026-11-14).
 function cityCal(days, ps, j) {
   const first = days[0]; const last = days[days.length - 1];
@@ -450,14 +602,15 @@ function cityPage(t, n, j, ui) {
   const ps = plansOf(t).filter((x) => inStop(s, x.d));
   const want = (s.want || []).map((x, w) => ({ ...x, j, w }));
   const cats = CATS.filter((c) => want.some((x) => (x.cat || 'Other') === c));
-  const cal = ui.psCView === 'cal';
+  const cv = ui.psCView || 'list';
   const dayRow = (d) => { const here = ps.filter((x) => x.d === d); return `<div class="pscdrow"><div class="pscdd"><small>${DAYS[dow(d)]}</small><b>${Number(d.slice(8))}</b><span>${fmtD(d).split(' ')[0]}</span></div><div class="pscdtiles">${here.map(bigTile).join('')}<button type="button" class="pscdadd" data-psaddplan="${d}" data-psj="${j}" aria-label="Add a plan on ${fmtD(d)}">+</button></div></div>`; };
   return `<section class="card pscity"><div class="pscityh">${photoHtml(s.place, s.img, `data-psstphoto="${j}"`)}<div class="pscityb"><div class="psthrow"><h2>${esc(s.place)}</h2><span class="mut">${s.from ? fmtD(s.from) : '?'} – ${s.to ? fmtD(s.to) : '?'}${daysTxt(nDays(s.from, s.to))}</span><button type="button" class="pslnk" data-psedstop="${j}">Edit</button></div>
 ${s.notes || s.link ? `<div class="psnote">${s.notes ? `<p>${esc(s.notes)}</p>` : ''}${s.link ? `<a href="${esc(webLink(s.link))}" target="_blank" rel="noopener noreferrer">${esc(s.link.replace(/^https?:\/\//i, '').slice(0, 60))}</a>` : ''}</div>` : ''}
-<div class="psbk3">${s.items.map((x, k) => `<div class="psbk${x.ok ? ' on' : ''}"><label><input type="checkbox" data-psbook="${j}.${k}"${x.ok ? ' checked' : ''}> ${esc(x.k)}${x.ok ? ' <i>booked</i>' : ''}</label><span class="pscost">$<input type="number" min="0" step="10" data-pscost="${j}.${k}" value="${esc(x.cost)}" placeholder="cost" aria-label="${esc(x.k)} cost"></span></div>`).join('')}</div></div></div>
-<div class="pscsec"><div class="psplh"><b>Days</b><span class="mut">${days.length ? `${days.length} day${days.length === 1 ? '' : 's'} · ${ps.length} plan${ps.length === 1 ? '' : 's'}, ${ps.filter((x) => x.ok).length} booked` : 'Add the arrive and leave dates to see the days'}</span>${days.length ? `<div class="psfilter" role="group" aria-label="View">${[['list', 'List'], ['cal', 'Calendar']].map(([k, l]) => `<button type="button" data-pscview="${k}" aria-pressed="${(k === 'cal') === cal}">${l}</button>`).join('')}</div>` : ''}<button type="button" class="btn sm primary" data-psaddplan="" data-psj="${j}">+ Add plan</button></div>
-${!days.length ? '' : cal ? cityCal(days, ps, j) : `<div class="pscdays">${days.map(dayRow).join('')}</div>`}</div>
+${bkRow(s, j)}</div></div>
+<div class="pscsec"><div class="psplh"><b>Days</b><span class="mut">${days.length ? `${days.length} day${days.length === 1 ? '' : 's'} · ${ps.length} plan${ps.length === 1 ? '' : 's'}, ${ps.filter((x) => x.ok).length} booked` : 'Add the arrive and leave dates to see the days'}</span><div class="psfilter" role="group" aria-label="View">${[['list', 'List'], ['cal', 'Calendar'], ['map', 'Map']].map(([k, l]) => `<button type="button" data-pscview="${k}" aria-pressed="${k === cv}">${l}</button>`).join('')}</div><button type="button" class="btn sm primary" data-psaddplan="" data-psj="${j}">+ Add plan</button></div>
+${cv === 'map' ? mapBox(n, j, ui) : !days.length ? '' : cv === 'cal' ? cityCal(days, ps, j) : `<div class="pscdays">${days.map(dayRow).join('')}</div>`}</div>
 <div class="pscsec"><div class="psplh"><b>Want to do</b><span class="mut">${want.length ? `${want.length} not on a day yet` : 'Places and things with no day yet'}</span>${want.length && days.length ? `<button type="button" class="btn sm" data-psbuild="${j}">Build my days</button>` : ''}<button type="button" class="btn sm" data-psaddplan="" data-psj="${j}" data-pswant="1">+ Add</button></div>
+<form class="psquick" data-psform="quick" data-psj="${j}"><input name="n" autocomplete="off" placeholder="Type a place or thing and press Enter" aria-label="Add to Want to do"></form>
 ${cats.map((c) => `<div class="pswcat"><small>${esc(c)}</small><div class="pscdtiles">${want.filter((x) => (x.cat || 'Other') === c).map(bigTile).join('')}</div></div>`).join('')}</div>
 <div class="psstend psrowend"><a class="btn" href="#personal/trips/${n}">‹ ${esc(t.name)}</a></div></section>${ui.psErr ? `<p class="psbad">${esc(ui.psErr)}</p>` : ''}`;
 }
@@ -470,12 +623,12 @@ function tripsPage(S, sub, ui) {
     html = `<div class="pstrhead"><span></span><button type="button" class="btn primary" data-pstrip="new">+ Add trip</button></div>
 <div class="psgrid pstgrid">${T.map((x, i) => { const [b, a] = tripBooked(x); return `<a class="pscard pstcard" href="#personal/trips/${i}">${photoHtml(x.stops[0]?.place || x.name, x.img || x.stops[0]?.img)}<div class="pstcb"><b>${esc(x.name)}</b><em>${esc(tripDates(x))} · ${x.stops.length} stop${x.stops.length === 1 ? '' : 's'}</em><div class="psfoot">${tripBar(x)}<span>${a ? `${b} of ${a} booked` : 'No stops yet'} · ${esc(budLine(x))}</span></div></div></a>`; }).join('') || '<p class="mut">No trips yet.</p>'}</div>`;
   } else {
-    const [b, a] = tripBooked(t); const cal = ui.psTView === 'cal'; const L = t.stops.length;
-    const views = `<div class="psfilter" role="group" aria-label="View">${[['list', 'List'], ['cal', 'Calendar']].map(([k, l]) => `<button type="button" data-pstview="${k}" aria-pressed="${(k === 'cal') === cal}">${l}</button>`).join('')}</div>`;
+    const [b, a] = tripBooked(t); const tv = ui.psTView || 'list'; const L = t.stops.length;
+    const views = `<div class="psfilter" role="group" aria-label="View">${[['list', 'List'], ['cal', 'Calendar'], ['map', 'Map']].map(([k, l]) => `<button type="button" data-pstview="${k}" aria-pressed="${k === tv}">${l}</button>`).join('')}</div>`;
     html = `<section class="card pstrip"><div class="psthead"><div class="psthrow"><h2>${esc(t.name)}</h2><span class="mut">${esc(tripDates(t))}</span><label class="pslnk"><input type="file" accept="image/*" hidden data-pstphoto>${t.img ? 'Change photo' : 'Trip photo'}</label><button type="button" class="pslnk" data-pstrip="edit">Edit</button></div>${tripBar(t)}<div class="pstvrow"><span class="mut">${esc(budLine(t))} · ${a ? `${b} of ${a} booked` : 'nothing to book yet'}</span>${L ? views : ''}</div></div>
-${cal && L ? tripCal(t) : L ? `<div class="psstops">${t.stops.map((s, j) => `<div class="psstop" data-psstop="${j}"><a class="psphl" href="#personal/trips/${n}/${j}" aria-label="Open ${esc(s.place)}">${photoHtml(s.place, s.img)}</a><div class="psstb"><div class="psst2h"><span class="psgrip" draggable="true" data-psgrip="${j}" title="Drag to move">⠿</span><b>${esc(s.place)}</b>${s.ex ? '<span class="psex">example</span>' : ''}<span class="mut">${s.from ? fmtD(s.from) : '?'} – ${s.to ? fmtD(s.to) : '?'}${daysTxt(nDays(s.from, s.to))}</span><span class="psstc"><button type="button" class="psmv" data-psmove="${j}.-1" aria-label="Move ${esc(s.place)} up"${j ? '' : ' disabled'}>↑</button><button type="button" class="psmv" data-psmove="${j}.1" aria-label="Move ${esc(s.place)} down"${j < L - 1 ? '' : ' disabled'}>↓</button><button type="button" class="pslnk" data-psedstop="${j}">Edit</button><button type="button" class="pslnk" data-psdelstop="${j}">Remove</button></span></div>
+${tv === 'cal' && L ? tripCal(t) : tv === 'map' && L ? mapBox(n, null, ui) : L ? `<div class="psstops">${t.stops.map((s, j) => `<div class="psstop" data-psstop="${j}"><a class="psphl" href="#personal/trips/${n}/${j}" aria-label="Open ${esc(s.place)}">${photoHtml(s.place, s.img)}</a><div class="psstb"><div class="psst2h"><span class="psgrip" draggable="true" data-psgrip="${j}" title="Drag to move">⠿</span><b>${esc(s.place)}</b>${s.ex ? '<span class="psex">example</span>' : ''}<span class="mut">${s.from ? fmtD(s.from) : '?'} – ${s.to ? fmtD(s.to) : '?'}${daysTxt(nDays(s.from, s.to))}</span><span class="psstc"><button type="button" class="psmv" data-psmove="${j}.-1" aria-label="Move ${esc(s.place)} up"${j ? '' : ' disabled'}>↑</button><button type="button" class="psmv" data-psmove="${j}.1" aria-label="Move ${esc(s.place)} down"${j < L - 1 ? '' : ' disabled'}>↓</button><button type="button" class="pslnk" data-psedstop="${j}">Edit</button><button type="button" class="pslnk" data-psdelstop="${j}">Remove</button></span></div>
 ${s.notes || s.link ? `<div class="psnote">${s.notes ? `<p>${esc(s.notes)}</p>` : ''}${s.link ? `<a href="${esc(webLink(s.link))}" target="_blank" rel="noopener noreferrer">${esc(s.link.replace(/^https?:\/\//i, '').slice(0, 60))}</a>` : ''}</div>` : ''}
-<div class="psbk3">${s.items.map((x, k) => `<div class="psbk${x.ok ? ' on' : ''}"><label><input type="checkbox" data-psbook="${j}.${k}"${x.ok ? ' checked' : ''}> ${esc(x.k)}${x.ok ? ' <i>booked</i>' : ''}</label><span class="pscost">$<input type="number" min="0" step="10" data-pscost="${j}.${k}" value="${esc(x.cost)}" placeholder="cost" aria-label="${esc(x.k)} cost"></span></div>`).join('')}</div>
+${bkRow(s, j)}
 ${(() => { const ps = plansOf(t).filter((x) => inStop(s, x.d)); const ok = ps.filter((x) => x.ok).length; return `<a class="pscityl" href="#personal/trips/${n}/${j}"><span>${ps.length ? `${ps.length} plan${ps.length === 1 ? '' : 's'}${ok ? ` · ${ok} booked` : ''}` : 'No plans yet'}</span><b>Open ${esc(s.place)} ›</b></a>`; })()}</div></div>`).join('')}</div>`
   : '<p class="mut psstend">No stops yet. Add the first place you\'re going.</p>'}
 <div class="psstend psrowend"><button type="button" class="btn" data-psaddstop="${n}">+ Add stop</button><a class="btn primary" href="#personal/trips">Done</a></div></section>`;
@@ -491,13 +644,13 @@ function planPop(p, t) {
     ? `<div class="psdpw"><small>Day</small><div class="psdpick" role="group" aria-label="Day">${stopDays(st).map((d) => { const c = ps.filter((y) => y.d === d).length; return `<button type="button" class="psdp${x.d === d ? ' on' : ''}" data-psdpick="${d}" aria-pressed="${x.d === d}"><small>${DAYS[dow(d)]}</small><b>${Number(d.slice(8))}</b><span>${c ? `${c} plan${c === 1 ? '' : 's'}` : fmtD(d).split(' ')[0]}</span></button>`; }).join('')}<button type="button" class="psdp want${x.d ? '' : ' on'}" data-psdpick="" aria-pressed="${!x.d}"><b>Want to do</b><span>no day yet</span></button></div><input type="hidden" name="d" value="${esc(x.d || '')}"></div>`
     : `<label>Day<input type="date" name="d" value="${esc(x.d || '')}"></label>`;
   return `<div class="hmhost" data-psback><form class="hmed pspop" data-psform="plan"><div class="hmedh"><b class="hmedt">${p.at ? 'Edit plan' : `Add a plan${st ? ` in ${esc(st.place)}` : ` to ${esc(t?.name || 'the trip')}`}`}</b><button type="button" class="btn sm" data-psx aria-label="Close">✕</button></div>
-<div class="pstfb"><div class="psplimg">${x.img ? `<img alt="" src="${esc(x.img)}">` : '<span>No photo</span>'}<label class="btn sm"><input type="file" accept="image/*" hidden data-psplanimg>${p.busy ? 'Uploading…' : x.img ? 'Change photo' : 'Add photo'}</label>${x.img ? '<button type="button" class="pslnk" data-psplanimgx>Remove photo</button>' : ''}</div>
-<label>What<input name="n" value="${esc(x.n || '')}" placeholder="Sintra day trip, Belém pastéis, fado night"></label>
+<div class="pstfb">${p.at || p.more ? `<div class="psplimg">${x.img ? `<img alt="" src="${esc(x.img)}">` : '<span>No photo</span>'}<label class="btn sm"><input type="file" accept="image/*" hidden data-psplanimg>${p.busy ? 'Uploading…' : x.img ? 'Change photo' : 'Add photo'}</label>${x.img ? '<button type="button" class="pslnk" data-psplanimgx>Remove photo</button>' : ''}</div>
+` : ''}<label>What<input name="n" autocomplete="off" value="${esc(x.n || '')}" placeholder="Sintra day trip, Belém pastéis, fado night"></label>
 ${dayField}
-<div class="pstf2"><label>Category<select name="cat"><option value="">Pick one</option>${CATS.map((c) => `<option${x.cat === c ? ' selected' : ''}>${c}</option>`).join('')}</select></label><label>Cost $<input type="number" min="0" step="5" name="cost" value="${esc(x.cost ?? '')}" placeholder="0"></label></div>
+${p.at || p.more ? `<div class="pstf2"><label>Category<select name="cat"><option value="">Pick one</option>${CATS.map((c) => `<option${x.cat === c ? ' selected' : ''}>${c}</option>`).join('')}</select></label><label>Cost $<input type="number" min="0" step="5" name="cost" value="${esc(x.cost ?? '')}" placeholder="0"></label></div>
 <label>Link<input name="link" inputmode="url" value="${esc(x.link || '')}" placeholder="getyourguide.com/..."></label>
 <label>Notes<textarea name="notes" rows="2" placeholder="Times, tickets, who's coming">${esc(x.notes || '')}</textarea></label>
-<label class="psedok"><input type="checkbox" name="ok"${x.ok ? ' checked' : ''}> Booked</label></div>
+<label class="psedok"><input type="checkbox" name="ok"${x.ok ? ' checked' : ''}> Booked</label>` : '<button type="button" class="pslnk psmore" data-psmore>+ More details (photo, category, cost, link, notes)</button>'}</div>
 <div class="hmedf"><span class="psbad">${esc(p.err || '')}</span>${p.at ? '<button type="button" class="btn" data-psplanrm>Remove</button>' : ''}<button type="button" class="btn" data-psx style="margin-left:auto">Cancel</button><button class="btn primary">${p.at ? 'Save' : 'Add plan'}</button></div></form></div>`;
 }
 // Build my days: what the map found, one day per area; each place can be moved before it is saved.
@@ -513,12 +666,13 @@ function buildPop(p, t) {
 function popHtml(p, T) {
   const t = T[p.i];
   if (p.kind === 'plan' || p.kind === 'build') return planPop(p, t);
+  if (p.kind === 'bk') return bkPop(p, t);
   const s = p.kind === 'stop' ? p.draft || (p.j != null ? t?.stops?.[p.j] : null) || { place: '', from: '', to: '', notes: '', link: '', items: items3() } : null;
   const ed = p.kind === 'stop' && p.j != null;
   const body = s
     ? `<label>Where<input name="place" value="${esc(s.place)}" placeholder="Lisbon"></label><div class="pstf2"><label>Arrive<input type="date" name="from" value="${esc(s.from)}"></label><label>Leave<input type="date" name="to" value="${esc(s.to)}"></label></div>
 <label>Notes<textarea name="notes" rows="3" placeholder="Address, check-in time, who's coming">${esc(s.notes || '')}</textarea></label><label>Link<input name="link" inputmode="url" value="${esc(s.link || '')}" placeholder="booking.com/..."></label>
-<div class="psedbk">${(s.items || []).map((x, k) => `<div class="psedr"><input name="k${k}" value="${esc(x.k)}" aria-label="Booking ${k + 1}"><span class="pscost">$<input type="number" min="0" step="10" name="c${k}" value="${esc(x.cost)}" placeholder="cost" aria-label="${esc(x.k)} cost"></span><label class="psedok"><input type="checkbox" name="o${k}"${x.ok ? ' checked' : ''}> Booked</label></div>`).join('')}</div>`
+<div class="psedbk">${(s.items || []).map((x, k) => `<div class="psedr"><input name="k${k}" value="${esc(bkName(x.k))}" aria-label="Booking ${k + 1}"><span class="pscost">$<input type="number" min="0" step="10" name="c${k}" value="${esc(x.cost)}" placeholder="cost" aria-label="${esc(x.k)} cost"></span><label class="psedok"><input type="checkbox" name="o${k}"${x.ok ? ' checked' : ''}> Booked</label></div>`).join('')}</div>`
     : `<label>Where<input name="name" value="${p.kind === 'edit' && t ? esc(t.name) : ''}" placeholder="Portugal"></label><label>Budget $<input type="number" min="0" step="100" name="bud" value="${p.kind === 'edit' && t?.bud ? t.bud : ''}" placeholder="5000"></label>`;
   const title = ed ? `Edit ${s.place || 'stop'}` : p.kind === 'stop' ? `Add a stop to ${t?.name || 'the trip'}` : p.kind === 'edit' ? 'Edit trip' : 'New trip';
   return `<div class="hmhost" data-psback><form class="hmed pspop" data-psform="pop"><div class="hmedh"><b class="hmedt">${esc(title)}</b><button type="button" class="btn sm" data-psx aria-label="Close">✕</button></div>
@@ -662,7 +816,7 @@ export function personalClick(e, S, render, send, reload, sendHome) {
     const d = ap.dataset.psaddplan || ''; const tr = tripsOf(S.personal)[tripN()];
     let j = ap.dataset.psj != null ? Number(ap.dataset.psj) : (tr?.stops || []).findIndex((x) => d && inStop(x, d));
     if (!(j >= 0)) j = null;
-    const day = d || (j != null && !ap.dataset.pswant ? stopDays(tr.stops[j])[0] || '' : '');
+    const day = d;
     ui.psPop = { kind: 'plan', i: tripN(), j, draft: { n: '', d: day, cat: '', img: '', link: '', cost: '', ok: false, notes: '' } }; render(); main(t)?.querySelector('.pspop input[name="n"]')?.focus(); return true;
   }
   const dp = t.closest('[data-psdpick]');
@@ -707,6 +861,17 @@ export function personalClick(e, S, render, send, reload, sendHome) {
   if (mv) { const [j, d] = mv.dataset.psmove.split('.').map(Number); reorder(S, j, j + d, send, render, reload); return true; }
   const cv = t.closest('[data-pscview]');
   if (cv) { ui.psCView = cv.dataset.pscview; render(); return true; }
+  const bd2 = t.closest('[data-psbkdet]');
+  if (bd2) {
+    const [j, k] = bd2.dataset.psbkdet.split('.').map(Number); const it = tripsOf(S.personal)[tripN()]?.stops?.[j]?.items?.[k]; if (!it) return true;
+    ui.psPop = { kind: 'bk', i: tripN(), j, k, was: it.k, draft: { k: it.k, det: { ...(it.det || {}) }, docs: [...(it.docs || [])], cost: it.cost, ok: !!it.ok } };
+    render(); main(t)?.querySelector('.psbkpop .psbkf input')?.focus(); return true;
+  }
+  const bm = t.closest('[data-psbkmode]');
+  if (bm && ui.psPop?.kind === 'bk') { keepBk(t, ui.psPop); ui.psPop.draft.k = bm.dataset.psbkmode; render(); return true; }
+  const bx = t.closest('[data-psbkdocx]');
+  if (bx && ui.psPop?.kind === 'bk') { keepBk(t, ui.psPop); ui.psPop.draft.docs.splice(Number(bx.dataset.psbkdocx), 1); render(); return true; }
+  if (t.closest('[data-psmore]') && (ui.psPop?.kind === 'bk' || ui.psPop?.kind === 'plan')) { if (ui.psPop.kind === 'bk') keepBk(t, ui.psPop); else keepPlanForm(t, ui.psPop); ui.psPop.more = true; render(); return true; }
   const tv = t.closest('[data-pstview]');
   if (tv) { ui.psTView = tv.dataset.pstview; render(); return true; }
   return false;
@@ -826,6 +991,17 @@ export async function personalChange(e, S, render, send, reload, sendHome) {
     p.busy = false; if (ui.psPop === p) render();
     return;
   }
+  if (t.matches('[data-psbkdoc]') && ui.psPop?.kind === 'bk') {
+    const file = t.files?.[0]; if (!file) return;
+    const p = ui.psPop; keepBk(t, p); p.busy = true; p.err = ''; render();
+    try {
+      const res = await fetch('/dashboard/api/personal/photo?read=0', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': file.type || 'application/octet-stream', 'X-CC': '1' }, body: file });
+      const b = await res.json().catch(() => null);
+      if (!res.ok || !b?.ok || !b.url) p.err = `Could not attach it (${b?.error || res.status}).`; else p.draft.docs.push({ n: file.name || 'File', url: b.url });
+    } catch (err) { p.err = `Could not attach it (${err.message}).`; }
+    p.busy = false; if (ui.psPop === p) render();
+    return;
+  }
   if (t.matches('[data-psbuildmv]') && ui.psPop?.kind === 'build') {
     const p = ui.psPop; const w = Number(t.dataset.psbuildmv); const d = t.value;
     p.groups.forEach((g) => { g.ws = g.ws.filter((x) => x !== w); }); p.left = p.left.filter((x) => x !== w);
@@ -905,6 +1081,23 @@ export async function personalSubmit(e, S, render, send, reload) {
     if (err) { p.err = err; render(); return true; }
     ui.psPop = null;
     await save(S, 'trips', T, send, render, reload);
+    return true;
+  }
+  if (form.dataset.psform === 'bk' && ui.psPop?.kind === 'bk') {
+    const p = ui.psPop; keepBk(form, p);
+    const T = structuredClone(tripsOf(S.personal));
+    const err = saveBk(T, p.i, p.j, p.k, p.was, p.draft);
+    if (err) { p.err = err; render(); return true; }
+    ui.psPop = null;
+    await save(S, 'trips', T, send, render, reload);
+    return true;
+  }
+  if (form.dataset.psform === 'quick') {
+    const n = String(new FormData(form).get('n') || '').trim(); if (!n) return true;
+    const T = structuredClone(tripsOf(S.personal));
+    if (savePlan(T, tripN(), { n, d: '' }, null, Number(form.dataset.psj))) return true;
+    await save(S, 'trips', T, send, render, reload);
+    document.querySelector('.psquick input')?.focus();
     return true;
   }
   if (form.dataset.psform === 'pop' && ui.psPop) {

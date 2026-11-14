@@ -140,7 +140,7 @@ test('Trips: plans are saved per day, moved when their day changes, listed under
   assert.equal(dropPlan(T, 0, '2026-12-07', 0), false);
   const dlg = page({ store: { trips: T } }, { psPop: { kind: 'plan', i: 0, at: { d: '2026-12-02', k: 0 }, draft: { ...T[0].plans['2026-12-02'][0], d: '2026-12-02' } } });
   assert.match(dlg, /<b class="hmedt">Edit plan<\/b>/);
-  assert.match(dlg, /name="n" value="Sintra day trip"/);
+  assert.match(dlg, /name="n" autocomplete="off" value="Sintra day trip"/);
   assert.match(dlg, /name="ok" checked/);
   assert.match(dlg, /data-psplanrm>Remove/);
 });
@@ -181,4 +181,37 @@ test('Trips: the trip and each city say how many days, counting both ends', asyn
   assert.equal(nDays('2027-01-14', '2027-04-17'), 94);
   assert.equal(nDays('', '2027-01-20'), 0);
   assert.equal(nDays('2027-01-20', '2027-01-14'), 0);
+});
+
+test('Trips: booking details (how you get there, accommodation, car), paperwork and the map pins', async () => {
+  const { saveBk, bkSum, mapPts, MODES } = await import('../public/d3/js/personal.js');
+  const T = TRIPS();
+  assert.deepEqual(MODES, ['Flight', 'Train', 'Bus', 'Ferry', 'Drive']);
+  // the first box switches to Train; only that mode's fields are kept; files keep their names
+  assert.equal(saveBk(T, 0, 0, 0, 'Flight', { k: 'Train', det: { from: ' Lisbon ', to: 'Porto', dep: '2026-12-04T09:39', no: 'IC 521', junk: 'x' }, docs: [{ n: 'ticket.pdf', url: '/dashboard/f/a.pdf' }, { n: 'no url' }], cost: '30', ok: true }), '');
+  const it = T[0].stops[0].items[0];
+  assert.deepEqual([it.k, it.det, it.docs, it.cost, it.ok], ['Train', { from: 'Lisbon', to: 'Porto', dep: '2026-12-04T09:39', no: 'IC 521' }, [{ n: 'ticket.pdf', url: '/dashboard/f/a.pdf' }], 30, true]);
+  assert.equal(bkSum(it), 'IC 521 · Lisbon → Porto · Dec 4 09:39');
+  assert.match(saveBk(T, 0, 0, 0, 'Flight', { k: 'Bus' }), /changed on another screen/); // someone else changed it
+  // the accommodation box (still called Hotel on older trips) can't become a train; its spot stays while the address does
+  T[0].stops[0].items[1].det = { addr: 'Rua A 1, Lisbon', lat: 38.7, lon: -9.1 };
+  assert.equal(saveBk(T, 0, 0, 1, 'Hotel', { k: 'Train', det: { name: 'Memmo', addr: 'Rua A 1, Lisbon' } }), '');
+  assert.deepEqual([T[0].stops[0].items[1].k, T[0].stops[0].items[1].det.lat], ['Hotel', 38.7]);
+  assert.equal(bkSum(T[0].stops[0].items[1]), 'Memmo · Rua A 1, Lisbon');
+  const html = page({ store: { trips: T } }, {}, ['trips', '0', '0']);
+  assert.match(html, /> Accommodation<\/label>/);
+  assert.match(html, /data-psbkdet="0.0"><span>IC 521 · Lisbon → Porto · Dec 4 09:39<\/span><em>1 file<\/em>/);
+  assert.match(html, /data-psbkdet="0.2"><i>\+ Details<\/i>/);
+  assert.match(html, /data-pscview="map" aria-pressed="false">Map/);
+  assert.match(html, /<form class="psquick" data-psform="quick" data-psj="0">/);
+  assert.match(page({ store: { trips: T } }, { psCView: 'map' }, ['trips', '0', '0']), /<div class="psmap" data-psmap="0.0">/);
+  // pins: plans (booked or not), want-to-do places and the accommodation; the trip map pins each stop
+  T[0].plans = { '2026-12-02': [{ n: 'Sintra', ok: true, lat: 38.8, lon: -9.4 }, { n: 'No spot' }] };
+  T[0].stops[0].want = [{ n: 'Óbidos', lat: 39.36, lon: -9.16 }];
+  assert.deepEqual(mapPts(T[0], 0).map((p) => [p.n, p.kind]), [['Sintra', 'ok'], ['Óbidos', 'want'], ['Memmo', 'hotel']]);
+  T[0].stops[1].lat = 41.15; T[0].stops[1].lon = -8.6;
+  assert.deepEqual(mapPts(T[0]).map((p) => [p.n, p.kind]), [['Memmo', 'hotel'], ['Sintra', 'stop']]);
+  // the plan pop-up asks for what and the day; the rest waits behind More details
+  const pop = page({ store: { trips: T } }, { psPop: { kind: 'plan', i: 0, j: 0, draft: { n: '', d: '' } } }, ['trips', '0', '0']);
+  assert.doesNotMatch(pop, /name="cat"/); assert.match(pop, /data-psmore/);
 });
