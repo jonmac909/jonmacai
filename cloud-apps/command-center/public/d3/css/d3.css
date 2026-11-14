@@ -997,3 +997,12 @@ html[data-theme="dark"] body{background:#0b0b0c}
   .d3 .psstops .psstop{grid-template-columns:minmax(0,1fr);gap:12px;padding:12px}
   .d3 .psstops .psstop .psphl .psph{height:auto;min-height:0;aspect-ratio:16/7}
 }
+/* A box's name never runs into its upload icon: the name shrinks with an ellipsis, and on narrower screens the stop
+   photo takes less room so the boxes keep theirs. */
+.d3 .psbkh{gap:6px;min-width:0}
+.d3 .psbkh label.psbkck:first-child{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.d3 .psbkh .psbkup{flex:none}
+@media (max-width:1280px) and (min-width:761px){
+  .d3 .psstops .psstop{grid-template-columns:150px minmax(0,1fr);gap:16px}
+  .d3 .psstb .psbk{padding:10px}
+}
