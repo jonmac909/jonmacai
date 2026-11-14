@@ -244,3 +244,11 @@ test('Trips: an empty leg reads from home or the stop before; trips sit by year 
   assert.match(html, /<a class="pstmini" href="#personal\/trips\/2" draggable="true" data-pstcard="2">/);
   assert.match(html, /data-pstripnew="2027.fall.1">\+ Short trip/);
 });
+
+test('want-to-do tiles have a remove button, and the plan pop-up can move a plan to another city', async () => {
+  const { savePlan } = await import('../public/d3/js/personal.js');
+  const T = [{ name: 'Portugal', stops: [{ place: 'Lisbon', items: [], want: [{ n: 'braga' }] }, { place: 'Porto', items: [], want: [] }] }];
+  assert.equal(savePlan(T, 0, { n: 'braga', d: '' }, { j: 0, w: 0 }, 1), '');
+  assert.deepEqual(T[0].stops[0].want, []);
+  assert.equal(T[0].stops[1].want[0].n, 'braga');
+});

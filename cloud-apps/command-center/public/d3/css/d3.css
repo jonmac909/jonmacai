@@ -968,3 +968,22 @@ html[data-theme="dark"] body{background:#0b0b0c}
 .d3 .psbkh .psbkup{margin-left:auto}
 .d3 .psbkh label.psbkck:first-child{flex:0 1 auto}
 .d3 .psbk{display:flex;flex-direction:column}.d3 .psbk button.psbkd{flex:1}.d3 .psbk .psbkfiles{order:3}.d3 .psbk .pscost{order:4}
+/* Want to do: a ✕ on each tile, and the tile says how to edit or move it (Jon, 2026-11-14) */
+.d3 .psbt{position:relative}
+.d3 .psbtx{position:absolute;top:4px;right:4px;width:24px;height:24px;border-radius:999px;border:0;padding:0;display:grid;place-items:center;background:rgba(0,0,0,.55);color:#ffffff;font-size:11px;cursor:pointer;opacity:0;transition:opacity .15s}
+.d3 .psbt:hover .psbtx,.d3 .psbtx:focus-visible{opacity:1}
+@media (hover:none){.d3 .psbtx{opacity:1}}
+.d3 .pswhint{font-size:12px;color:var(--muted);margin:-2px 0 0}
+/* Trip page tidy-up (Jon, 2026-11-14: "line things up and make sure it stays that way").
+   One row height (32px) for the stop header's controls; the cost box holds its $ inside; every booking box is
+   header / details / cost, top to bottom, so the three always sit level. */
+.d3 .psst2h{align-items:center;min-height:32px}
+.d3 .psstc{gap:2px}
+.d3 .psmv{min-width:32px;min-height:32px;width:32px;height:32px;padding:0;border:0;border-radius:8px;background:transparent;color:var(--ink2);display:grid;place-items:center}
+.d3 .psmv:hover:not(:disabled){background:var(--card2);color:var(--ink)}.d3 .psmv:disabled{opacity:.25}
+.d3 .psstc .pslnk{padding:6px 8px;border-radius:8px}.d3 .psstc .pslnk:hover{background:var(--card2)}
+.d3 .psbk .pscost{gap:4px;height:38px;padding:0 12px;border:1px solid var(--line);border-radius:10px;background:var(--card);font-size:14px}
+.d3 .psbk .pscost:focus-within{border-color:var(--link)}
+.d3 .psbk .pscost input{border:0;padding:0;height:100%;background:transparent;outline:none;border-radius:0}
+.d3 .psbkh{height:32px;min-height:32px}
+.d3 .psbk3{gap:10px}.d3 .psbk{gap:10px;padding:12px}
