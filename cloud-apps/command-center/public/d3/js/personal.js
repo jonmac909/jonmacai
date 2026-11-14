@@ -616,12 +616,13 @@ export async function personalAfter(root, S, send, render, reload) {
   if (!el.isConnected) return;
   const pts = mapPts(t, j); const s = j != null ? t.stops[j] : null;
   el.innerHTML = '';
-  const m = L.map(el, { scrollWheelZoom: false, maxZoom: 16 });
-  // Esri's maps need no key (CARTO started asking for one, 2026-11-14). National Geographic's map (blue sea, green
-  // hills) to zoom 12, where it ends; the street map closer in.
+  const m = L.map(el, { scrollWheelZoom: false, maxZoom: 18 });
+  // Satellite with place names, Jon's pick (2026-11-14); Esri's tiles need no key. Roads and street names show from
+  // zoom 12, when you're looking at a city.
   const esri = (name) => `https://server.arcgisonline.com/ArcGIS/rest/services/${name}/MapServer/tile/{z}/{y}/{x}`;
-  L.tileLayer(esri('NatGeo_World_Map'), { maxZoom: 12, attribution: 'Tiles &copy; Esri, National Geographic, Garmin, HERE' }).addTo(m);
-  L.tileLayer(esri('World_Street_Map'), { minZoom: 13, maxZoom: 16 }).addTo(m);
+  L.tileLayer(esri('World_Imagery'), { maxZoom: 18, attribution: 'Tiles &copy; Esri, Maxar, Earthstar Geographics' }).addTo(m);
+  L.tileLayer(esri('Reference/World_Transportation'), { minZoom: 12, maxZoom: 18, opacity: 0.8, pane: 'shadowPane' }).addTo(m);
+  L.tileLayer(esri('Reference/World_Boundaries_and_Places'), { maxZoom: 18, pane: 'shadowPane' }).addTo(m);
   pts.forEach((p) => {
     const icon = L.divIcon({ className: `psmpin ${p.kind}`, html: p.img ? `<img alt="" src="${esc(p.img)}">` : `<span>${esc((p.n || '?').trim().charAt(0).toUpperCase())}</span>`, iconSize: [40, 40], iconAnchor: [20, 20] });
     L.marker([p.lat, p.lon], { icon, title: p.n }).addTo(m).bindPopup(`<b>${esc(p.n || 'Untitled')}</b>${p.sub ? `<br>${esc(p.sub)}` : ''}${p.kind === 'stop' && p.k != null ? `<br><a href="#personal/trips/${n}/${p.k}">Open ${esc(p.n)} ›</a>` : ''}`);
