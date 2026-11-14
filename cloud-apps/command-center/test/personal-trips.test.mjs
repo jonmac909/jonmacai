@@ -80,7 +80,7 @@ test('Trips: editing a stop saves every field and the rest of the trip is kept',
   editStop(T, 0, 1, { ...v, k0: '<img src=x onerror=alert(1)>' });
   const listed = page({ store: { trips: T } });
   assert.doesNotMatch(listed, /<img src=x/);
-  assert.match(listed, /&lt;img src=x onerror=alert\(1\)&gt; <i>booked<\/i><\/label>/);
+  assert.match(listed, /&lt;img src=x onerror=alert\(1\)&gt;<\/label><i class="psbkok">booked<\/i>/);
 });
 
 test('Trips: the calendar view puts each stop on each of its days and opens its edit on click', () => {
@@ -203,7 +203,9 @@ test('Trips: booking details (how you get there, accommodation, car), paperwork 
   assert.match(html, /data-psbkatt="0.0">/); // the upload icon
   assert.match(html, /data-psbkdet="0.0"><b>Lisbon → Porto<\/b><small>IC 521 · Dec 4 09:39<\/small><\/button>/);
   assert.match(html, /<div class="psbkfiles"><a class="psbkfile" href="\/dashboard\/f\/a.pdf" target="_blank" rel="noopener noreferrer" title="Open ticket.pdf"><b>PDF<\/b>ticket.pdf<\/a><\/div>/);
-  assert.match(html, /data-psbkdet="0.2"><small class="none">Add the rental<\/small>/);
+  assert.match(html, /data-psbkdet="0.2"><b>Rental car<\/b><small class="none">Add the rental<\/small>/);
+  // travel boxes pick their mode from a dropdown on the box
+  assert.match(html, /<select class="psbkmode" data-psbkk="0.0"[^>]*><option>Flight<\/option><option selected>Train<\/option>/);
   assert.match(html, /data-pscview="map" aria-pressed="false">Map/);
   assert.match(html, /<form class="psquick" data-psform="quick" data-psj="0">/);
   assert.match(page({ store: { trips: T } }, { psCView: 'map' }, ['trips', '0', '0']), /<div class="psmap" data-psmap="0.0">/);

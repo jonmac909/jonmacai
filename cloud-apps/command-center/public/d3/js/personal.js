@@ -148,7 +148,7 @@ export function savePlan(T, n, v, at = null, j = null) {
     const old = list?.[k];
     if (!old) return 'That plan changed on another screen. Close and open it again.';
     if (old.n === name && Number.isFinite(old.lat)) Object.assign(plan, { lat: old.lat, lon: old.lon }); // keep where it is on the map
-    if (old.n === name && old.miss) plan.miss = 1;
+    if (old.n === name && old.nomap) plan.nomap = 1;
     if (at.w != null ? !d && at.j === j : at.d === d) { list[k] = plan; return ''; }
     list.splice(k, 1);
     if (at.w == null && !list.length) delete t.plans[at.d];
@@ -487,15 +487,16 @@ const UP = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="
 // What a box says: the leg (or the place) on top, the details under it; empty boxes still read well.
 export function bkFace(x, leg) {
   const d = x.det || {}; const kind = bkKind(x.k);
+  // every box has two lines, so the three sit level
   if (kind === 'go') return { top: `${d.from || leg.from || '?'} → ${d.to || leg.to || '?'}`, sub: [d.no || d.co, tm(d.dep)].filter(Boolean).join(' · '), none: x.k === 'Drive' ? 'Add when you leave' : 'Add times and details' };
-  if (kind === 'hotel') return { top: d.name || '', sub: d.addr || '', none: 'Where are you staying?' };
-  if (kind === 'car') return { top: d.co || '', sub: tm(d.dep) ? `Pick-up ${tm(d.dep)}` : '', none: 'Add the rental' };
-  return { top: d.what || '', sub: tm(d.when), none: 'Add details' };
+  if (kind === 'hotel') return { top: d.name || leg.to || 'Accommodation', sub: d.addr || '', none: d.name ? 'Add the address' : 'Where are you staying?' };
+  if (kind === 'car') return { top: d.co || 'Rental car', sub: tm(d.dep) ? `Pick-up ${tm(d.dep)}` : '', none: 'Add the rental' };
+  return { top: d.what || bkName(x.k), sub: tm(d.when), none: 'Add details' };
 }
 function bkBox(x, j, k, leg) {
   const f = bkFace(x, leg); const docs = x.docs || []; const busy = attBusy === `${j}.${k}`;
-  return `<div class="psbk${x.ok ? ' on' : ''}"><div class="psbkh"><label><input type="checkbox" data-psbook="${j}.${k}"${x.ok ? ' checked' : ''}> ${esc(bkName(x.k))}${x.ok ? ' <i>booked</i>' : ''}</label><label class="psbkup${busy ? ' busy' : ''}" title="Upload ${bkKind(x.k) === 'go' ? 'ticket' : 'booking'}" aria-label="Upload ${bkKind(x.k) === 'go' ? 'ticket' : 'booking'}"><input type="file" accept="image/*,application/pdf" multiple hidden data-psbkatt="${j}.${k}">${busy ? '…' : UP}</label></div>
-<button type="button" class="psbkd" data-psbkdet="${j}.${k}">${f.top ? `<b>${esc(f.top)}</b>` : ''}<small${f.sub ? '' : ' class="none"'}>${esc(f.sub || (f.top && bkKind(x.k) !== 'go' ? '' : f.none) || f.none)}</small></button>
+  return `<div class="psbk${x.ok ? ' on' : ''}"><div class="psbkh"><label class="psbkck"><input type="checkbox" data-psbook="${j}.${k}"${x.ok ? ' checked' : ''} aria-label="${esc(bkName(x.k))} booked">${bkKind(x.k) === 'go' ? '' : ` ${esc(bkName(x.k))}`}</label>${bkKind(x.k) === 'go' ? `<select class="psbkmode" data-psbkk="${j}.${k}" aria-label="How you're getting there">${MODES.map((m) => `<option${m === x.k ? ' selected' : ''}>${m}</option>`).join('')}</select>` : ''}${x.ok ? '<i class="psbkok">booked</i>' : ''}<label class="psbkup${busy ? ' busy' : ''}" title="Upload ${bkKind(x.k) === 'go' ? 'ticket' : 'booking'}" aria-label="Upload ${bkKind(x.k) === 'go' ? 'ticket' : 'booking'}"><input type="file" accept="image/*,application/pdf" multiple hidden data-psbkatt="${j}.${k}">${busy ? '…' : UP}</label></div>
+<button type="button" class="psbkd" data-psbkdet="${j}.${k}"><b>${esc(f.top)}</b><small${f.sub ? '' : ' class="none"'}>${esc(f.sub || f.none)}</small></button>
 <span class="pscost">$<input type="number" min="0" step="10" data-pscost="${j}.${k}" value="${esc(x.cost)}" placeholder="cost" aria-label="${esc(bkName(x.k))} cost"></span>${docs.length ? `<div class="psbkfiles">${docs.map(docLink).join('')}</div>` : ''}</div>`;
 }
 const bkRow = (s, j, t) => `<div class="psbk3">${s.items.map((x, k) => bkBox(x, j, k, legOf(t, j))).join('')}</div>`;
@@ -570,7 +571,7 @@ async function findSpots(S, n, j, send, render, reload) {
   if (finding) return;
   const T = structuredClone(tripsOf(S.personal)); const t = T[n]; if (!t) return;
   const before = JSON.stringify(tripsOf(S.personal));
-  const todo = []; const need = (o, how) => { if (o && how.q && !Number.isFinite(o.lat) && !o.miss) todo.push([o, how]); };
+  const todo = []; const need = (o, how) => { if (o && how.q && !Number.isFinite(o.lat) && !o.nomap) todo.push([o, how]); };
   const where = (...a) => a.filter(Boolean).join(', ');
   let pics = false;
   for (const s of (j == null ? t.stops : [t.stops[j]])) {
@@ -613,9 +614,11 @@ export async function personalAfter(root, S, send, render, reload) {
   if (!el.isConnected) return;
   const pts = mapPts(t, j); const s = j != null ? t.stops[j] : null;
   el.innerHTML = '';
-  const m = L.map(el, { scrollWheelZoom: false });
-  L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager_nolabels/{z}/{x}/{y}{r}.png', { maxZoom: 19, subdomains: 'abcd', attribution: '&copy; OpenStreetMap &copy; CARTO' }).addTo(m);
-  L.tileLayer('https://{s}.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}{r}.png', { maxZoom: 19, subdomains: 'abcd', pane: 'shadowPane' }).addTo(m);
+  const m = L.map(el, { scrollWheelZoom: false, maxZoom: 16 });
+  // Esri's light grey map: calm, needs no key (CARTO started asking for one, 2026-11-14)
+  const esri = (name) => `https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/${name}/MapServer/tile/{z}/{y}/{x}`;
+  L.tileLayer(esri('World_Light_Gray_Base'), { maxZoom: 16, attribution: 'Tiles &copy; Esri, HERE, Garmin, &copy; OpenStreetMap' }).addTo(m);
+  L.tileLayer(esri('World_Light_Gray_Reference'), { maxZoom: 16, pane: 'shadowPane' }).addTo(m);
   pts.forEach((p) => {
     const icon = L.divIcon({ className: `psmpin ${p.kind}`, html: p.img ? `<img alt="" src="${esc(p.img)}">` : `<span>${esc((p.n || '?').trim().charAt(0).toUpperCase())}</span>`, iconSize: [40, 40], iconAnchor: [20, 20] });
     L.marker([p.lat, p.lon], { icon, title: p.n }).addTo(m).bindPopup(`<b>${esc(p.n || 'Untitled')}</b>${p.sub ? `<br>${esc(p.sub)}` : ''}${p.kind === 'stop' && p.k != null ? `<br><a href="#personal/trips/${n}/${p.k}">Open ${esc(p.n)} ›</a>` : ''}`);
@@ -981,10 +984,10 @@ const tripN = () => Number(location.hash.split('/')[2]);
 // places that are near each other onto the city's free days and show the plan before anything moves.
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 // Find one thing on the map. A plan or want-to-do place asks Wikipedia first (it copes with spellings like "obido"
-// and brings a photo), then OpenStreetMap; a stop or an address asks OpenStreetMap first. A match more than 300 km
-// from the city is wrong. Nothing found marks it, so it isn't asked again until its name changes.
+// and brings a photo), then OpenStreetMap; a stop or an address asks OpenStreetMap first. A match more than 700 km
+// from the city is wrong (Braga is 330 km from Estoril, so 700). Nothing found marks it, so it isn't asked again until its name changes.
 async function lookUp(o, { q, wq, near, photo }) {
-  const okAt = (lat, lon) => Number.isFinite(lat) && Number.isFinite(lon) && (!near || !Number.isFinite(near.lat) || km(near, { lat, lon }) < 300);
+  const okAt = (lat, lon) => Number.isFinite(lat) && Number.isFinite(lon) && (!near || !Number.isFinite(near.lat) || km(near, { lat, lon }) < 700);
   const osm = async () => {
     try {
       const r = await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=1&accept-language=en&q=${encodeURIComponent(q)}`);
@@ -1001,7 +1004,7 @@ async function lookUp(o, { q, wq, near, photo }) {
     } catch { /* not found */ }
   };
   if (wq) { await wiki(); if (!Number.isFinite(o.lat) && q) await osm(); } else await osm();
-  if (!Number.isFinite(o.lat)) o.miss = 1;
+  if (!Number.isFinite(o.lat)) o.nomap = 1;
 }
 async function buildDays(S, j, send, render, reload) {
   const ui = S.ui; const n = tripN();
@@ -1182,6 +1185,11 @@ export async function personalChange(e, S, render, send, reload, sendHome) {
     const r = await send('POST', '/personal/tags', { id, tag: t.value });
     if (!r.ok) { ui.psErr = `Could not save the tag (${r.error}).`; await reload(); }
     return;
+  }
+  if (t.dataset.psbkk != null) {
+    const T = structuredClone(tripsOf(S.personal)); const n = Number(location.hash.split('/')[2]); const [j, k] = t.dataset.psbkk.split('.').map(Number);
+    const it = T[n]?.stops[j]?.items[k]; if (!it || !MODES.includes(t.value)) return;
+    it.k = t.value; save(S, 'trips', T, send, render, reload); return;
   }
   const bk = t.dataset.psbook ?? t.dataset.pscost;
   if (bk != null) {
