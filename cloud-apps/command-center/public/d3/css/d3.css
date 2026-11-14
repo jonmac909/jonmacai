@@ -987,3 +987,13 @@ html[data-theme="dark"] body{background:#0b0b0c}
 .d3 .psbk .pscost input{border:0;padding:0;height:100%;background:transparent;outline:none;border-radius:0}
 .d3 .psbkh{height:32px;min-height:32px}
 .d3 .psbk3{gap:10px}.d3 .psbk{gap:10px;padding:12px}
+/* Stop rows: the photo runs the full height of the stop, its top level with the title and its bottom level with the
+   plans bar (Jon, 2026-11-14: "you can't have the thumbnail and content not line up"). */
+.d3 .psstops .psstop{grid-template-columns:200px minmax(0,1fr);padding:16px;gap:20px;align-items:stretch}
+.d3 .psstops .psstop .psphl{align-self:stretch;height:100%}
+.d3 .psstops .psstop .psphl .psph{aspect-ratio:auto;height:100%;min-height:160px;border-radius:14px}
+.d3 .psstops .psstop .psstb{padding:0;gap:12px}
+@media (max-width:760px){
+  .d3 .psstops .psstop{grid-template-columns:minmax(0,1fr);gap:12px;padding:12px}
+  .d3 .psstops .psstop .psphl .psph{height:auto;min-height:0;aspect-ratio:16/7}
+}

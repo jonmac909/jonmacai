@@ -252,3 +252,14 @@ test('want-to-do tiles have a remove button, and the plan pop-up can move a plan
   assert.deepEqual(T[0].stops[0].want, []);
   assert.equal(T[0].stops[1].want[0].n, 'braga');
 });
+
+// Jon, 2026-11-14: "line things up and make sure it stays that way". The last word in the CSS keeps the stop photo
+// the full height of its stop, and every booking box header / details / cost.
+test('stop rows and booking boxes stay lined up', async () => {
+  const { readFile } = await import('node:fs/promises');
+  const css = await readFile(new URL('../public/d3/css/d3.css', import.meta.url), 'utf8');
+  assert.match(css, /\.d3 \.psstops \.psstop \.psphl\{align-self:stretch;height:100%\}/);
+  assert.match(css, /\.d3 \.psstops \.psstop \.psphl \.psph\{aspect-ratio:auto;height:100%/);
+  assert.match(css, /\.d3 \.psbk\{display:flex;flex-direction:column\}/);
+  assert.match(css, /\.d3 \.psbk \.pscost\{order:4\}/);
+});
