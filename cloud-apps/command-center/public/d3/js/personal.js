@@ -202,7 +202,9 @@ const budLine = (t) => (t.bud ? `${usd0(tripCost(t))} of ${usd0(t.bud)} budget` 
 // crests), looked up once per name while the page is open and dropped into the picture when it arrives.
 const WIKI = {};
 // Not scenic: flags, maps, crests, logos, portraits, and pictures taken from space.
-const NOT_PHOTO = /flag|map|coat|locat|logo|emblem|seal|arms|atlas|diagram|portrait|satellite|landsat|sentinel|nasa|iss0|from_space|topograph|relief|terra|modis/i;
+const NOT_PHOTO = /flag|map|coat|locat|logo|emblem|seal|arms|atlas|diagram|portrait|satellite|landsat|sentinel|nasa|iss0|from_space|topograph|relief|terra|modis|casino|hotel|resort|airport|stadium|interior|station|hospital|building|street|sign/i;
+// Scenic first: a view, a beach, the water, the old town (Jon, 2026-11-14: "a casino??").
+const SCENIC = /panoram|view|beach|praia|playa|bay|baia|coast|harbou?r|marina|port_|skyline|sunset|dune|old.?town|river|cliff|lagoon|island|landscape/i;
 // "Estoril/Cascais" or "Foz do Douro, Porto" looks up its first place.
 export const placeKey = (name) => String(name || '').split(/[/,(]/)[0].trim();
 export async function placePic(name) {
@@ -210,7 +212,8 @@ export async function placePic(name) {
   try {
     const r = await fetch(`https://en.wikipedia.org/api/rest_v1/page/media-list/${encodeURIComponent(k.replace(/ /g, '_'))}`);
     const b = r.ok ? await r.json() : null;
-    const it = (b?.items || []).find((i) => i.type === 'image' && /\.jpe?g$/i.test(i.title || '') && !NOT_PHOTO.test(i.title) && i.srcset?.length);
+    const ok = (b?.items || []).filter((i) => i.type === 'image' && /\.jpe?g$/i.test(i.title || '') && !NOT_PHOTO.test(i.title) && i.srcset?.length);
+    const it = ok.find((i) => SCENIC.test(i.title)) || ok[0];
     const src = it ? it.srcset[it.srcset.length - 1].src || '' : '';
     return src.startsWith('//') ? `https:${src}` : src;
   } catch { return ''; }
@@ -477,11 +480,25 @@ export function bkSum(x) {
 const mapsLink = (a) => `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(a)}`;
 let attBusy = ''; // the box whose files are uploading ("j.k")
 const docLink = (d) => `<a class="psbkfile" href="${esc(d.url)}" target="_blank" rel="noopener noreferrer" title="Open ${esc(d.n)}"><b>${/\.pdf$/i.test(d.url) ? 'PDF' : 'IMG'}</b>${esc(d.n)}</a>`;
-function bkBox(x, j, k) {
-  const sum = bkSum(x); const docs = x.docs || [];
-  return `<div class="psbk${x.ok ? ' on' : ''}"><label><input type="checkbox" data-psbook="${j}.${k}"${x.ok ? ' checked' : ''}> ${esc(bkName(x.k))}${x.ok ? ' <i>booked</i>' : ''}</label><span class="pscost">$<input type="number" min="0" step="10" data-pscost="${j}.${k}" value="${esc(x.cost)}" placeholder="cost" aria-label="${esc(bkName(x.k))} cost"></span><button type="button" class="psbkd" data-psbkdet="${j}.${k}">${sum ? `<span>${esc(sum)}</span>` : '<i>+ Details</i>'}</button><div class="psbkfiles">${docs.map(docLink).join('')}<label class="psbkatt"><input type="file" accept="image/*,application/pdf" multiple hidden data-psbkatt="${j}.${k}">${attBusy === `${j}.${k}` ? 'Uploading…' : `+ Attach ${bkKind(x.k) === 'go' ? 'ticket' : 'booking'}`}</label></div></div>`;
+// Home, where the first leg starts; each later leg starts at the stop before (Jon, 2026-11-14).
+export const HOME = 'Kelowna';
+export const legOf = (t, j) => ({ from: j > 0 ? placeKey(t.stops[j - 1]?.place) : HOME, to: placeKey(t.stops[j]?.place) });
+const UP = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M17 8l-5-5-5 5"/><path d="M12 3v12"/></svg>';
+// What a box says: the leg (or the place) on top, the details under it; empty boxes still read well.
+export function bkFace(x, leg) {
+  const d = x.det || {}; const kind = bkKind(x.k);
+  if (kind === 'go') return { top: `${d.from || leg.from || '?'} → ${d.to || leg.to || '?'}`, sub: [d.no || d.co, tm(d.dep)].filter(Boolean).join(' · '), none: x.k === 'Drive' ? 'Add when you leave' : 'Add times and details' };
+  if (kind === 'hotel') return { top: d.name || '', sub: d.addr || '', none: 'Where are you staying?' };
+  if (kind === 'car') return { top: d.co || '', sub: tm(d.dep) ? `Pick-up ${tm(d.dep)}` : '', none: 'Add the rental' };
+  return { top: d.what || '', sub: tm(d.when), none: 'Add details' };
 }
-const bkRow = (s, j) => `<div class="psbk3">${s.items.map((x, k) => bkBox(x, j, k)).join('')}</div>`;
+function bkBox(x, j, k, leg) {
+  const f = bkFace(x, leg); const docs = x.docs || []; const busy = attBusy === `${j}.${k}`;
+  return `<div class="psbk${x.ok ? ' on' : ''}"><div class="psbkh"><label><input type="checkbox" data-psbook="${j}.${k}"${x.ok ? ' checked' : ''}> ${esc(bkName(x.k))}${x.ok ? ' <i>booked</i>' : ''}</label><label class="psbkup${busy ? ' busy' : ''}" title="Upload ${bkKind(x.k) === 'go' ? 'ticket' : 'booking'}" aria-label="Upload ${bkKind(x.k) === 'go' ? 'ticket' : 'booking'}"><input type="file" accept="image/*,application/pdf" multiple hidden data-psbkatt="${j}.${k}">${busy ? '…' : UP}</label></div>
+<button type="button" class="psbkd" data-psbkdet="${j}.${k}">${f.top ? `<b>${esc(f.top)}</b>` : ''}<small${f.sub ? '' : ' class="none"'}>${esc(f.sub || (f.top && bkKind(x.k) !== 'go' ? '' : f.none) || f.none)}</small></button>
+<span class="pscost">$<input type="number" min="0" step="10" data-pscost="${j}.${k}" value="${esc(x.cost)}" placeholder="cost" aria-label="${esc(bkName(x.k))} cost"></span>${docs.length ? `<div class="psbkfiles">${docs.map(docLink).join('')}</div>` : ''}</div>`;
+}
+const bkRow = (s, j, t) => `<div class="psbk3">${s.items.map((x, k) => bkBox(x, j, k, legOf(t, j))).join('')}</div>`;
 // The details form onto booking k of stop j. Returns what to fix, or '' when saved into T.
 export function saveBk(T, n, j, k, was, v) {
   const it = T[n]?.stops?.[j]?.items?.[k];
@@ -631,7 +648,7 @@ function cityPage(t, n, j, ui) {
   const dayRow = (d) => { const here = ps.filter((x) => x.d === d); return `<div class="pscdrow"><div class="pscdd"><small>${DAYS[dow(d)]}</small><b>${Number(d.slice(8))}</b><span>${fmtD(d).split(' ')[0]}</span></div><div class="pscdtiles">${here.map(bigTile).join('')}<button type="button" class="pscdadd" data-psaddplan="${d}" data-psj="${j}" aria-label="Add a plan on ${fmtD(d)}">+</button></div></div>`; };
   return `<section class="card pscity" data-pscityat="${n}.${j}"><div class="pscityh">${photoHtml(s.place, s.img, `data-psstphoto="${j}"`)}<div class="pscityb"><div class="psthrow"><h2>${esc(s.place)}</h2><span class="mut">${s.from ? fmtD(s.from) : '?'} – ${s.to ? fmtD(s.to) : '?'}${daysTxt(nDays(s.from, s.to))}</span><button type="button" class="pslnk" data-psedstop="${j}">Edit</button></div>
 ${s.notes || s.link ? `<div class="psnote">${s.notes ? `<p>${esc(s.notes)}</p>` : ''}${s.link ? `<a href="${esc(webLink(s.link))}" target="_blank" rel="noopener noreferrer">${esc(s.link.replace(/^https?:\/\//i, '').slice(0, 60))}</a>` : ''}</div>` : ''}
-${bkRow(s, j)}</div></div>
+${bkRow(s, j, t)}</div></div>
 <div class="pscsec"><div class="psplh"><b>Days</b><span class="mut">${days.length ? `${days.length} day${days.length === 1 ? '' : 's'} · ${ps.length} plan${ps.length === 1 ? '' : 's'}, ${ps.filter((x) => x.ok).length} booked` : 'Add the arrive and leave dates to see the days'}</span><div class="psfilter" role="group" aria-label="View">${[['list', 'List'], ['cal', 'Calendar'], ['map', 'Map']].map(([k, l]) => `<button type="button" data-pscview="${k}" aria-pressed="${k === cv}">${l}</button>`).join('')}</div><button type="button" class="btn sm primary" data-psaddplan="" data-psj="${j}">+ Add plan</button></div>
 ${cv === 'map' ? mapBox(n, j, ui) : !days.length ? '' : cv === 'cal' ? cityCal(days, ps, j) : `<div class="pscdays">${days.map(dayRow).join('')}</div>`}</div>
 <div class="pscsec"><div class="psplh"><b>Want to do</b><span class="mut">${want.length ? `${want.length} not on a day yet` : 'Places and things with no day yet'}</span>${want.length && days.length ? `<button type="button" class="btn sm" data-psbuild="${j}">Build my days</button>` : ''}<button type="button" class="btn sm" data-psaddplan="" data-psj="${j}" data-pswant="1">+ Add</button></div>
@@ -639,21 +656,61 @@ ${cv === 'map' ? mapBox(n, j, ui) : !days.length ? '' : cv === 'cal' ? cityCal(d
 ${cats.map((c) => `<div class="pswcat"><small>${esc(c)}</small><div class="pscdtiles">${want.filter((x) => (x.cat || 'Other') === c).map(bigTile).join('')}</div></div>`).join('')}</div>
 <div class="psstend psrowend"><a class="btn" href="#personal/trips/${n}">‹ ${esc(t.name)}</a></div></section>${ui.psErr ? `<p class="psbad">${esc(ui.psErr)}</p>` : ''}`;
 }
+// ---- trips by year (Jon, 2026-11-14): each year has Snowbird (about 3 winter months) and Fall escape (August to the
+// end of October: the UK with his mum, and short trips around Europe to try places for a long stay). A trip is dragged
+// between years and seasons unless it's locked. ----
+export const SEAS = [['snow', 'Snowbird', 'Winter, about 3 months away'], ['fall', 'Fall escape', 'Aug – Oct · UK with Mum, short trips around Europe']];
+// Where a trip sits: its saved year and season, or (never placed) from its first date; no date and no season = not
+// placed yet, under Snowbird.
+export function tripSlot(t) {
+  if (t.sea) return { yr: Number(t.yr) || null, sea: t.sea === 'fall' ? 'fall' : 'snow' };
+  const d = (t.stops || []).map((s) => s.from || s.to).filter(Boolean).sort()[0];
+  if (!d) return { yr: null, sea: 'snow' };
+  const y = Number(d.slice(0, 4)); const m = Number(d.slice(5, 7));
+  return m >= 7 && m <= 10 ? { yr: y, sea: 'fall' } : { yr: m >= 11 ? y + 1 : y, sea: 'snow' };
+}
+export function placeTrip(T, i, yr, sea) {
+  const t = T[i]; if (!t || t.lock) return false;
+  t.yr = yr || null; t.sea = sea === 'fall' ? 'fall' : 'snow';
+  return true;
+}
+const lockBtn = (x, i) => `<button type="button" class="pstlock${x.lock ? ' on' : ''}" data-pslock="${i}" aria-pressed="${!!x.lock}" title="${x.lock ? 'Locked: click to let it move' : 'Lock it where it is'}">${x.lock ? '🔒 Locked' : '🔓'}</button>`;
+function tripCard(x, i) {
+  const [b, a] = tripBooked(x);
+  return `<a class="pscard pstcard${x.lock ? ' locked' : ''}" href="#personal/trips/${i}" draggable="${!x.lock}" data-pstcard="${i}">${photoHtml(x.stops[0]?.place || x.name, x.img || x.stops[0]?.img)}${lockBtn(x, i)}<div class="pstcb"><b>${esc(x.name)}</b><em>${esc(tripDates(x))} · ${x.stops.length} stop${x.stops.length === 1 ? '' : 's'}</em><div class="psfoot">${tripBar(x)}<span>${a ? `${b} of ${a} booked` : 'No stops yet'} · ${esc(budLine(x))}</span></div></div></a>`;
+}
+const miniCard = (x, i) => `<a class="pstmini${x.lock ? ' locked' : ''}" href="#personal/trips/${i}" draggable="${!x.lock}" data-pstcard="${i}">${photoHtml(x.stops[0]?.place || x.name, x.img || x.stops[0]?.img)}<span><b>${esc(x.name)}</b><em>${esc(tripDates(x))}</em></span>${lockBtn(x, i)}</a>`;
+function tripYears(T, now = new Date()) {
+  const slots = T.map(tripSlot);
+  const base = now.getFullYear() + (now.getMonth() >= 9 ? 1 : 0); // from October on, next year is the one being planned
+  const used = slots.map((x) => x.yr).filter(Boolean);
+  const lo = Math.min(base, ...used); const hi = Math.max(base, ...used) + 1; // always a free year to drag into
+  const col = (yr, k, label, sub) => {
+    const here = T.map((x, i) => [x, i]).filter(([, i]) => slots[i].yr === yr && slots[i].sea === k);
+    const big = here.filter(([x]) => !x.mini); const minis = here.filter(([x]) => x.mini);
+    const at = `${yr || ''}.${k}`;
+    return `<div class="pstsea ${k}" data-psdrop="${at}"><div class="pstseah"><b>${label}</b><span class="mut">${sub}</span></div>
+${big.length ? `<div class="pstgrid">${big.map(([x, i]) => tripCard(x, i)).join('')}</div>` : ''}${minis.length ? `<div class="pstminis">${minis.map(([x, i]) => miniCard(x, i)).join('')}</div>` : ''}
+${!here.length ? '<p class="pstempty">Drag a trip here</p>' : ''}<div class="pstseaf"><button type="button" class="pslnk" data-pstripnew="${at}.0">+ Trip</button>${k === 'fall' ? `<button type="button" class="pslnk" data-pstripnew="${at}.1">+ Short trip</button>` : ''}</div></div>`;
+  };
+  const row = (yr) => `<section class="pstyear"><h2>${yr || 'Not placed yet'}</h2><div class="pstseas">${SEAS.map(([k, l, sub]) => col(yr, k, l, sub)).join('')}</div></section>`;
+  const years = []; for (let y = lo; y <= hi; y++) years.push(y);
+  return years.map(row).join('') + row(null);
+}
 function tripsPage(S, sub, ui) {
   const T = tripsOf(S.personal); const n = sub[1] != null ? Number(sub[1]) : null; const t = n != null ? T[n] : null;
   const j = sub[2] != null ? Number(sub[2]) : null;
   if (t && j != null && t.stops[j]) return cityPage(t, n, j, ui) + (ui.psPop ? popHtml(ui.psPop, T) : '');
   let html;
   if (!t) {
-    html = `<div class="pstrhead"><span></span><button type="button" class="btn primary" data-pstrip="new">+ Add trip</button></div>
-<div class="psgrid pstgrid">${T.map((x, i) => { const [b, a] = tripBooked(x); return `<a class="pscard pstcard" href="#personal/trips/${i}">${photoHtml(x.stops[0]?.place || x.name, x.img || x.stops[0]?.img)}<div class="pstcb"><b>${esc(x.name)}</b><em>${esc(tripDates(x))} · ${x.stops.length} stop${x.stops.length === 1 ? '' : 's'}</em><div class="psfoot">${tripBar(x)}<span>${a ? `${b} of ${a} booked` : 'No stops yet'} · ${esc(budLine(x))}</span></div></div></a>`; }).join('') || '<p class="mut">No trips yet.</p>'}</div>`;
+    html = `<div class="pstrhead"><span class="mut">Drag a trip to another year or season. Locked trips stay put.</span><button type="button" class="btn primary" data-pstrip="new">+ Add trip</button></div>${tripYears(T)}`;
   } else {
     const [b, a] = tripBooked(t); const tv = ui.psTView || 'list'; const L = t.stops.length;
     const views = `<div class="psfilter" role="group" aria-label="View">${[['list', 'List'], ['cal', 'Calendar'], ['map', 'Map']].map(([k, l]) => `<button type="button" data-pstview="${k}" aria-pressed="${k === tv}">${l}</button>`).join('')}</div>`;
     html = `<section class="card pstrip" data-pstripat="${n}"><div class="psthead"><div class="psthrow"><h2>${esc(t.name)}</h2><span class="mut">${esc(tripDates(t))}</span><label class="pslnk"><input type="file" accept="image/*" hidden data-pstphoto>${t.img ? 'Change photo' : 'Trip photo'}</label><button type="button" class="pslnk" data-pstrip="edit">Edit</button></div>${tripBar(t)}<div class="pstvrow"><span class="mut">${esc(budLine(t))} · ${a ? `${b} of ${a} booked` : 'nothing to book yet'}</span>${L ? views : ''}</div></div>
 ${tv === 'cal' && L ? tripCal(t) : tv === 'map' && L ? mapBox(n, null, ui) : L ? `<div class="psstops">${t.stops.map((s, j) => `<div class="psstop" data-psstop="${j}"><a class="psphl" href="#personal/trips/${n}/${j}" aria-label="Open ${esc(s.place)}">${photoHtml(s.place, s.img)}</a><div class="psstb"><div class="psst2h"><span class="psgrip" draggable="true" data-psgrip="${j}" title="Drag to move">⠿</span><b>${esc(s.place)}</b>${s.ex ? '<span class="psex">example</span>' : ''}<span class="mut">${s.from ? fmtD(s.from) : '?'} – ${s.to ? fmtD(s.to) : '?'}${daysTxt(nDays(s.from, s.to))}</span><span class="psstc"><button type="button" class="psmv" data-psmove="${j}.-1" aria-label="Move ${esc(s.place)} up"${j ? '' : ' disabled'}>↑</button><button type="button" class="psmv" data-psmove="${j}.1" aria-label="Move ${esc(s.place)} down"${j < L - 1 ? '' : ' disabled'}>↓</button><button type="button" class="pslnk" data-psedstop="${j}">Edit</button><button type="button" class="pslnk" data-psdelstop="${j}">Remove</button></span></div>
 ${s.notes || s.link ? `<div class="psnote">${s.notes ? `<p>${esc(s.notes)}</p>` : ''}${s.link ? `<a href="${esc(webLink(s.link))}" target="_blank" rel="noopener noreferrer">${esc(s.link.replace(/^https?:\/\//i, '').slice(0, 60))}</a>` : ''}</div>` : ''}
-${bkRow(s, j)}
+${bkRow(s, j, t)}
 ${(() => { const ps = plansOf(t).filter((x) => inStop(s, x.d)); const ok = ps.filter((x) => x.ok).length; return `<a class="pscityl" href="#personal/trips/${n}/${j}"><span>${ps.length ? `${ps.length} plan${ps.length === 1 ? '' : 's'}${ok ? ` · ${ok} booked` : ''}` : 'No plans yet'}</span><b>Open ${esc(s.place)} ›</b></a>`; })()}</div></div>`).join('')}</div>`
   : '<p class="mut psstend">No stops yet. Add the first place you\'re going.</p>'}
 <div class="psstend psrowend"><button type="button" class="btn" data-psaddstop="${n}">+ Add stop</button><a class="btn primary" href="#personal/trips">Done</a></div></section>`;
@@ -832,6 +889,15 @@ export function personalClick(e, S, render, send, reload, sendHome) {
   if (exh) { const k = exh.dataset.psexh; ui.exShut = { ...(ui.exShut || {}), [k]: !ui.exShut?.[k] }; render(); return true; }
   const day = t.closest('[data-psday]');
   if (day) { workoutDays(S, Number(day.dataset.psday), sendHome); return true; }
+  const lk = t.closest('[data-pslock]');
+  if (lk) {
+    e.preventDefault(); e.stopPropagation();
+    const T = structuredClone(tripsOf(S.personal)); const x = T[Number(lk.dataset.pslock)]; if (!x) return true;
+    x.lock = !x.lock; if (x.lock && !x.sea) Object.assign(x, tripSlot(x)); // locking pins it where it shows now
+    save(S, 'trips', T, send, render, reload); return true;
+  }
+  const tn = t.closest('[data-pstripnew]');
+  if (tn) { const [yr, sea, mini] = tn.dataset.pstripnew.split('.'); ui.psPop = { kind: 'new', i: 0, slot: { yr: Number(yr) || null, sea, mini: mini === '1' ? 1 : 0 } }; render(); main(t)?.querySelector('.pspop input')?.focus(); return true; }
   const tr = t.closest('[data-pstrip]');
   if (tr) { ui.psPop = { kind: tr.dataset.pstrip, i: Number((location.hash.split('/')[2]) ?? 0) }; render(); main(t)?.querySelector('.pspop input')?.focus(); return true; }
   const as = t.closest('[data-psaddstop]');
@@ -889,7 +955,9 @@ export function personalClick(e, S, render, send, reload, sendHome) {
   const bd2 = t.closest('[data-psbkdet]');
   if (bd2) {
     const [j, k] = bd2.dataset.psbkdet.split('.').map(Number); const it = tripsOf(S.personal)[tripN()]?.stops?.[j]?.items?.[k]; if (!it) return true;
-    ui.psPop = { kind: 'bk', i: tripN(), j, k, was: it.k, draft: { k: it.k, det: { ...(it.det || {}) }, docs: [...(it.docs || [])], cost: it.cost, ok: !!it.ok } };
+    const det = { ...(it.det || {}) };
+    if (bkKind(it.k) === 'go' && !det.from && !det.to) Object.assign(det, legOf(tripsOf(S.personal)[tripN()], j));
+    ui.psPop = { kind: 'bk', i: tripN(), j, k, was: it.k, draft: { k: it.k, det, docs: [...(it.docs || [])], cost: it.cost, ok: !!it.ok } };
     render(); main(t)?.querySelector('.psbkpop .psbkf input')?.focus(); return true;
   }
   const bm = t.closest('[data-psbkmode]');
@@ -984,6 +1052,25 @@ export function personalDrag(root, S, on, send, render, reload) {
     reorder(S, f, Number(c.dataset.psstop), send, render, reload);
   });
   root.addEventListener('dragend', () => { from = null; S.ui.psDrag = false; clear(); });
+  let card = null;
+  const unmark = () => root.querySelectorAll('.pstsea.over, [data-pstcard].drag').forEach((x) => x.classList.remove('over', 'drag'));
+  root.addEventListener('dragstart', (e) => {
+    const c = on() && e.target.closest?.('[data-pstcard]'); if (!c || c.getAttribute('draggable') !== 'true') return;
+    card = Number(c.dataset.pstcard); S.ui.psDrag = true; c.classList.add('drag');
+    e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', String(card));
+  });
+  root.addEventListener('dragover', (e) => {
+    const z = card != null && e.target.closest?.('[data-psdrop]'); if (!z) return;
+    e.preventDefault(); e.dataTransfer.dropEffect = 'move';
+    root.querySelectorAll('.pstsea.over').forEach((x) => { if (x !== z) x.classList.remove('over'); }); z.classList.add('over');
+  });
+  root.addEventListener('drop', (e) => {
+    const z = card != null && e.target.closest?.('[data-psdrop]'); if (!z) return;
+    e.preventDefault(); const i = card; card = null; S.ui.psDrag = false; unmark();
+    const [yr, sea] = z.dataset.psdrop.split('.'); const T = structuredClone(tripsOf(S.personal));
+    if (placeTrip(T, i, Number(yr) || null, sea)) save(S, 'trips', T, send, render, reload);
+  });
+  root.addEventListener('dragend', () => { card = null; S.ui.psDrag = false; unmark(); });
 }
 
 // The workout and date-night rules change the schedule's own tasks (PATCH /home/tasks/<id>).
@@ -1179,6 +1266,7 @@ export async function personalSubmit(e, S, render, send, reload) {
       const name = String(v.name || '').trim();
       if (!name) { p.err = 'Add where the trip is'; render(); return true; }
       if (p.kind === 'edit' && T[p.i]) Object.assign(T[p.i], { name: name.slice(0, 80), bud: Math.max(0, Number(v.bud) || 0) });
+      else if (p.slot) { T.push({ name: name.slice(0, 80), bud: Math.max(0, Number(v.bud) || 0), stops: [], ...p.slot }); } // stays on the list, in its season
       else { T.push({ name: name.slice(0, 80), bud: Math.max(0, Number(v.bud) || 0), stops: [] }); location.hash = `#personal/trips/${T.length - 1}`; }
       ui.psPop = null;
     }
