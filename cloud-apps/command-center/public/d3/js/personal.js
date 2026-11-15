@@ -335,7 +335,13 @@ function overview(S, now) {
   const wk = addD(now.ymd, -dow(now.ymd));
   const woDays = wo ? taskDays(wo) : [];
   const woDone = woDays.filter((d) => habitOn(H, 'workout', addD(wk, d))).length;
-  const trip = tripsOf(P)[0]; const [tb, ta] = trip ? tripBooked(trip) : [0, 0];
+  // The trip coming up next (or the one he's on), counting down to it (Jon, 2026-11-15).
+  const span = (t) => { const ds = t.stops.flatMap((x) => [x.from, x.to]).filter(Boolean).sort(); return ds.length ? [ds[0], ds[ds.length - 1]] : null; };
+  const trip = tripsOf(P).filter((t) => { const d = span(t); return d && d[1] >= now.ymd; }).sort((a, b) => span(a)[0].localeCompare(span(b)[0]))[0] || tripsOf(P)[0];
+  const tsp = trip && span(trip); const toGo = tsp ? nDays(now.ymd, tsp[0]) - 1 : null; const onDay = tsp && toGo <= 0 ? nDays(tsp[0], now.ymd) : 0;
+  // flights and places to stay are what has to be booked; a car is optional, and coming home is just the journey
+  const must = trip ? trip.stops.flatMap((x, j) => x.items.filter((it) => bkKind(it.k) === 'go' || (bkKind(it.k) === 'hotel' && !isHomeLeg(trip, j)))) : [];
+  const tb = must.filter((x) => x.ok).length; const ta = must.length;
   const dt = task(H, 'r-date'); const dtNext = dt && nextOcc(dt, now);
   const homeTasks = (H?.tasks || []).filter((t) => t.cat === 'personal' && !t.kind && t.id !== 'r-lunch-wo');
   const homeNext = homeTasks.map((t) => ({ t, o: nextOcc(t, now) })).filter((x) => x.o).sort((a, b) => a.o.i - b.o.i || a.t.start - b.t.start)[0];
@@ -344,8 +350,8 @@ function overview(S, now) {
 ${budget}
 ${card('meals', 'Meals', next >= 0 ? 'Next up' : 'This week', next >= 0 ? esc(meals[next].n) : 'No meals yet', next >= 0 ? `Meal ${next + 1} · 2 portions` : 'Add 7 meals on Sunday', `${nM} of 7 planned`, (nM / 7) * 100)}
 ${wo ? card('workouts', 'Workouts', esc(whenText(woNext, wo)), 'Workout', esc(daysText(wo)), `${woDone} of ${woDays.length} this week`, woDays.length ? (woDone / woDays.length) * 100 : 0) : card('workouts', 'Workouts', 'Not on the schedule', 'No workout', '', '', null)}
-${trip ? card('trips', 'Trips', `${esc(trip.name)} · ${esc(tripDates(trip))}`, ta ? `${tb} <i>of ${ta} booked</i>` : `${trip.stops.length} <i>stops</i>`, esc(trip.stops.map((s) => s.place).join(' → ') || 'Add stops'), esc(trip.bud ? `${usd0(tripCost(trip))} of ${usd0(trip.bud)}` : 'Budget not set'), ta ? (tb / ta) * 100 : 0) : card('trips', 'Trips', 'No trips', 'Add a trip', '', '', null)}
-${dt ? card('date', 'Date night', esc(dtNext ? `${dtNext.i === 0 ? 'Tonight' : dtNext.i === 1 ? 'Tomorrow' : `${DAYS[dow(dtNext.ymd)]} ${fmtD(dtNext.ymd)}`} ${fmtT(dt.start)}–${fmtT(dt.end)}` : ''), esc(dt.title.split('·').pop().trim() || 'Date night'), dtNext && dtNext.i ? '' : 'Covers dinner', `Every ${DAYL[taskDays(dt)[0]] || ''}`, null) : card('date', 'Date night', '', 'Not on the schedule', '', '', null)}
+${trip ? card('trips', 'Trips', esc(trip.name), toGo > 0 ? `${toGo} <i>day${toGo === 1 ? '' : 's'} to go</i>` : onDay ? `Day ${onDay} <i>of ${nDays(tsp[0], tsp[1])}</i>` : `${trip.stops.length} <i>stops</i>`, esc(`${tripDates(trip)} · ${trip.stops.length} stop${trip.stops.length === 1 ? '' : 's'}`), esc(`${ta ? (tb ? `${tb} of ${ta} flights and stays booked` : `${ta} flights and stays to book`) : 'Add the stops'}${trip.bud ? ` · ${usd0(trip.bud)} budget` : ''}`), ta ? (tb / ta) * 100 : 0) : card('trips', 'Trips', 'No trips', 'Add a trip', '', '', null)}
+${dt ? card('date', 'Date night', esc(dtNext ? `${dtNext.i === 0 ? 'Tonight' : dtNext.i === 1 ? 'Tomorrow' : `${DAYS[dow(dtNext.ymd)]} ${fmtD(dtNext.ymd)}`} ${fmtT(dt.start)}–${fmtT(dt.end)}` : ''), 'Book something', esc(dtNext && !dtNext.i ? 'Covers dinner' : 'Pick a spot and book it'), `Every ${DAYL[taskDays(dt)[0]] || ''}`, null) : card('date', 'Date night', '', 'Not on the schedule', '', '', null)}
 ${card('home', 'Home', 'Next', homeNext ? esc(homeNext.t.title) : 'Nothing set', homeNext ? esc(whenText(homeNext.o, homeNext.t)) : '', plan ? esc(`${plan.title} ${DAYS[taskDays(plan)[0]] || ''} ${fmtT(plan.start)}`) : '', null)}
 </div>`;
 }
