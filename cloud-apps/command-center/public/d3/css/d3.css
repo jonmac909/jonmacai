@@ -1141,3 +1141,7 @@ html[data-theme="dark"] body{background:#0b0b0c}
 .d3 .pstrip .pscityl{padding:6px 10px;min-height:0}
 @media (max-width:760px){.d3 .pstrip .psstop{grid-template-columns:72px minmax(0,1fr);gap:10px;padding:10px}.d3 .pstrip .psstop .psphl .psph{width:72px;aspect-ratio:1/1}}
 @media (max-width:760px){.d3 .psbkchip{height:28px;padding:0 10px;font-size:12px}}
+/* Meal method: Prep (done ahead by whoever preps) above Cooking. */
+.d3 .psmeth{display:flex;flex-direction:column;gap:6px}.d3 .psmeth>b:not(:first-child){margin-top:8px}.d3 .psmeth>small{margin-top:-4px;font-size:12px}
+.d3 .psmeth textarea.pstext{flex:1;min-height:140px}.d3 .psmeth textarea.psprep{flex:0 0 auto;min-height:110px}
+.d3 .psipart{padding:12px 6px 4px;font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--muted)}.d3 .psipart:first-child{padding-top:4px}

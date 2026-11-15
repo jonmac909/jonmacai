@@ -48,17 +48,40 @@ export function splitR(t) {
   let mH = L.findIndex((l) => /^\s*(method|directions|instructions|steps)\s*:?\s*$/i.test(l));
   const mS = mH < 0 ? L.findIndex((l) => /^\s*1[.)]\s/.test(l)) : mH + 1;
   if (mH < 0) mH = mS < 0 ? L.length : mS;
-  return { head: iH > 0 ? L.slice(0, iH).join('\n').trim() : '', ing: L.slice(iH >= 0 ? iH + 1 : 0, mH).map((x) => x.trim()).filter(Boolean), meth: mS < 0 ? '' : L.slice(mS).join('\n').trim() };
+  // A "Prep" section (chopping, seasoning: done ahead by whoever preps) sits between the ingredients and the method.
+  const pH = L.findIndex((l, i) => i > iH && i < mH && /^\s*prep(aration)?\s*:?\s*$/i.test(l));
+  const meth = mS < 0 ? '' : L.slice(mS).join('\n').trim();
+  const split = pH >= 0 ? { prep: L.slice(pH + 1, mH).join('\n').trim(), meth } : prepSplit(meth);
+  return { head: iH > 0 ? L.slice(0, iH).join('\n').trim() : '', ing: L.slice(iH >= 0 ? iH + 1 : 0, pH >= 0 ? pH : mH).map((x) => x.trim()).filter(Boolean), ...split };
+}
+// With no Prep section yet, the steps that are only getting things ready (chop, season, mix, no heat) become the prep.
+const PREP_STEP = /^\W*(\d+[.)]\s*)?((finely|roughly|thinly|coarsely)\s+)?(pat|season|chop|dice|mince|slice|peel|trim|wash|rinse|zest|juice|grate|measure|mix|whisk|combine|marinate|crush|cut|prep|prepare|soak|drain|pick|halve|score|toss|pound|butterfly|debone|devein|shell|core|seed)\b/i;
+const HEAT = /\b(heat|preheat|pan|skillet|wok|oven|sear|fry|saut|bake|roast|simmer|boil|grill|broil|cook|melt|toast|stove|burner|air fryer)/i;
+export function prepSplit(meth) {
+  const steps = String(meth || '').split(/\n\s*\n|\n(?=\W*\d+[.)]\s)/).map((x) => x.trim()).filter(Boolean);
+  const isPrep = (x) => PREP_STEP.test(x) && !HEAT.test(x);
+  return { prep: steps.filter(isPrep).join('\n\n'), meth: steps.filter((x) => !isPrep(x)).join('\n\n') };
 }
 const PANTRY = /^(salt|pepper|black pepper|olive oil|oil|garam masala|turmeric|cumin|fajita spice|spice|water)$/i;
-const PREP = /\(.*?\)|\b(cut up|halved|sliced|diced|chopped|minced|to serve|for serving|thinly)\b/gi;
+const PREP = /\(.*?\)|\b(cut up|halved|sliced|diced|chopped|minced|to serve|for serving|thinly|finely|roughly|coarsely|freshly ground|freshly|skin[- ]on|skinless|boneless|drained|rinsed|crushed|peeled|softened|melted|divided|optional|to taste|(?:at )?room temperature|cubed|grated|zested|juiced|trimmed|patted dry|beaten|plus more|cold|warm)\b/gi;
+const BULLET = /^\s*(?:[*\u2022\u2013-]|\d+[.)])\s+/;
 const sing = (w) => w.replace(/oes$/, 'o').replace(/ies$/, 'y').replace(/([^s])s$/, '$1');
+// A recipe made of parts ("Branzino", "Rice", "Lemon-caper beurre blanc"): its ingredient lines grouped under each part.
+export function ingParts(lines) {
+  const bulleted = lines.filter((l) => BULLET.test(l)).length >= 2;
+  if (!bulleted) return [{ t: '', lines }];
+  const parts = [];
+  lines.forEach((l) => { if (!BULLET.test(l)) parts.push({ t: l.replace(/:\s*$/, '').replace(/^for the\s+/i, '').trim(), lines: [] }); else (parts[parts.length - 1] || parts[parts.push({ t: '', lines: [] }) - 1]).lines.push(l); });
+  return parts.filter((x) => x.lines.length).map((x) => ({ ...x, t: x.t ? x.t.charAt(0).toUpperCase() + x.t.slice(1) : '' }));
+}
 export function parseIng(lines) {
   const out = [];
-  lines.forEach((l) => l.split(/,|\band\b/i).forEach((part) => {
+  // A recipe with bullet points: the lines without one are section headings ("Branzino", "Lemon-caper beurre blanc").
+  const bulleted = lines.filter((l) => BULLET.test(l)).length >= 2;
+  lines.filter((l) => !bulleted || BULLET.test(l)).map((l) => l.replace(BULLET, '')).forEach((l) => l.split(/,|\band\b/i).forEach((part) => {
     const p = part.replace(PREP, '').replace(/handful of|a few/ig, '').replace(/\s+/g, ' ').trim();
     if (!p) return;
-    const m = p.match(/^(\d+(?:\.\d+)?)\s*(kg|g|ml|l|lb|cups?|tbsp|tsp|heads?|pints?|bunch(?:es)?|jars?|cans?|packs?)?\s+(.+)$/i);
+    const m = p.replace(/^(\d+)\/(\d+)/, (_, x, y) => String(Number(x) / Number(y))).replace(/^[½⅓¼¾⅔]/, (c) => ({ '½': '0.5', '⅓': '0.33', '¼': '0.25', '¾': '0.75', '⅔': '0.67' })[c]).match(/^(\d*\.?\d+)\s*(kg|g|ml|l|lb|cups?|tbsp|tsp|heads?|pints?|bunch(?:es)?|jars?|cans?|packs?)?\s+(.+)$/i);
     let q = null; let u = ''; let name = p;
     if (m) { q = Number(m[1]); u = (m[2] || '').toLowerCase().replace(/s$/, ''); name = m[3]; }
     name = name.replace(/^fresh\s+/i, '');
@@ -209,7 +232,7 @@ const NOT_PHOTO = /bus_|routemaster|train|tram_|locomotiv|aircraft|airport|stati
 // Scenic first: a view, a beach, the water, the old town (Jon, 2026-11-14: "a casino??").
 const SCENIC = /panoram|view|beach|praia|playa|bay|baia|coast|harbou?r|marina|port_|skyline|sunset|dune|old.?town|river|cliff|lagoon|island|landscape/i;
 // "Estoril/Cascais" or "Foz do Douro, Porto" looks up its first place.
-export const placeKey = (name) => String(name || '').split(/[/,(]/)[0].trim();
+export const placeKey = (name) => String(name || '').split(/[/,(&+]|\band\b/)[0].trim();
 // A place's photo: Wikivoyage's lead photo first (picked for travellers: the marina, the old town, the skyline),
 // then the first real photo on its Wikipedia page.
 export const PIC_V = 3;
@@ -391,18 +414,20 @@ function mealModal(d) {
     body = `<textarea class="pstext psbig" id="psText" data-psin="r" placeholder="Paste the whole recipe here" aria-label="Full recipe">${esc(d.r)}</textarea>`;
   } else {
     const ing = parseIng(d.ing || []);
-    const rows = ing.length ? ing.map((x, k) => {
+    const row = (x) => {
       const q = qtyText(x.qs);
       const label = `<span class="pst">${esc(x.name)}${q ? ` <span class="mut">${esc(q)}</span>` : ''}${x.pantry ? ' <span class="mut">· pantry</span>' : ''}</span>`;
       return d.on.includes(x.key)
         ? `<div class="psir on">${label}<span class="psonl">✓ On list</span><button type="button" class="pslnk" data-psoff="${esc(x.key)}">Remove</button></div>`
         : `<label class="psir"><input type="checkbox" data-pssel="${esc(x.key)}"${d.sel.includes(x.key) ? ' checked' : ''}>${label}</label>`;
-    }).join('') : '<p class="mut">No ingredients found. Use Edit recipe to add an "Ingredients" line.</p>';
+    };
+    const parts = ingParts(d.ing || []);
+    const rows = ing.length ? parts.map((pt) => `${pt.t ? `<div class="psipart">${esc(pt.t)}</div>` : ''}${parseIng(pt.lines).map(row).join('')}`).join('') : '<p class="mut">No ingredients found. Use Edit recipe to add an "Ingredients" line.</p>';
     const left = ing.filter((x) => !d.on.includes(x.key) && !x.pantry).length;
     const act = left || d.sel.length
       ? `${left ? '<button type="button" class="btn sm primary" data-psaddall>Add all to groceries</button>' : ''}<button type="button" class="btn sm" data-psaddsel${d.sel.length ? '' : ' disabled'}>Add selected${d.sel.length ? ` (${d.sel.length})` : ''}</button>`
       : (ing.length ? '<span class="psonl">✓ All on the grocery list</span>' : '');
-    body = `<div class="pssplit psbig"><div class="pscolb"><b>Ingredients</b><div class="psilist">${rows}</div><div class="psiact">${act}</div></div><div class="pscolb"><b>Method</b><textarea class="pstext" data-psin="meth" aria-label="Method" placeholder="Steps">${esc(d.meth || '')}</textarea></div></div>`;
+    body = `<div class="pssplit psbig"><div class="pscolb"><b>Ingredients</b><div class="psilist">${rows}</div><div class="psiact">${act}</div></div><div class="pscolb psmeth"><b>Prep</b><small class="mut">Chopping, seasoning, getting it ready</small><textarea class="pstext psprep" data-psin="prep" aria-label="Prep" placeholder="Prep steps">${esc(d.prep || '')}</textarea><b>Cooking</b><textarea class="pstext" data-psin="meth" aria-label="Cooking" placeholder="Cooking steps">${esc(d.meth || '')}</textarea></div></div>`;
   }
   return `<div class="hmhost" data-psback><form class="hmed psmodal" data-psform="meal">
 <div class="hmedh"><input class="hmedt" data-psin="n" value="${esc(d.n)}" placeholder="Meal ${d.i + 1} name" aria-label="Meal name"><button type="button" class="btn sm" data-psx aria-label="Close">✕</button></div>
@@ -899,15 +924,15 @@ function save(S, key, value, send, render, reload) {
   saving = run.catch(() => {});
   return run;
 }
-const draftOf = (m, i) => ({ i, n: m.n, r: m.r, on: [...(m.on || [])], src: m.src, imgs: [...(m.imgs || [])], view: m.r.trim() ? 'split' : 'full', sel: [], meth: '', ing: [], note: '', err: '' });
+const draftOf = (m, i) => ({ i, n: m.n, r: m.r, on: [...(m.on || [])], src: m.src, imgs: [...(m.imgs || [])], view: m.r.trim() ? 'split' : 'full', sel: [], meth: '', prep: '', ing: [], note: '', err: '' });
 // Splits the draft's recipe into its parts for the formatted view (and names the meal from its first line).
 function toSplit(d) {
   const p = splitR(d.r);
-  if (!p.head && p.ing.length && !/\d/.test(p.ing[0]) && p.ing[0].length < 60) p.head = p.ing.shift();
+  if (!p.head && p.ing.length && !BULLET.test(p.ing[1] || '') && !/\d/.test(p.ing[0]) && p.ing[0].length < 60) p.head = p.ing.shift();
   if (!d.n.trim() && p.head) d.n = p.head.split('\n')[0].replace(/\s*\(.*\)\s*$/, '').slice(0, 80);
-  Object.assign(d, { view: 'split', head: p.head, ing: p.ing, meth: p.meth, sel: [] });
+  Object.assign(d, { view: 'split', head: p.head, ing: p.ing, prep: p.prep, meth: p.meth, sel: [] });
 }
-const compose = (d) => (d.ing.length || d.meth.trim() || d.head ? `${d.head ? `${d.head}\n\n` : ''}Ingredients\n${d.ing.join('\n')}\n\nMethod\n${d.meth.trim()}` : '');
+const compose = (d) => (d.ing.length || d.meth.trim() || (d.prep || '').trim() || d.head ? `${d.head ? `${d.head}\n\n` : ''}Ingredients\n${d.ing.join('\n')}\n\n${(d.prep || '').trim() ? `Prep\n${d.prep.trim()}\n\n` : ''}Method\n${d.meth.trim()}` : '');
 async function saveMeal(S, send, render, reload, close) {
   const d = S.ui.psMeal;
   const meals = mealsOf(S.personal);
@@ -928,7 +953,7 @@ export function personalInput(e, ui) {
   const f = e.target.dataset?.psin;
   if (!f || !ui.psMeal) return false;
   const d = ui.psMeal;
-  if (f === 'meth') { d.meth = e.target.value; d.r = compose(d); } else d[f] = e.target.value;
+  if (f === 'meth' || f === 'prep') { d[f] = e.target.value; d.r = compose(d); } else d[f] = e.target.value;
   return true;
 }
 

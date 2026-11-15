@@ -285,3 +285,25 @@ test('trips: names typed in lower case read capitalised', async () => {
   const { caps } = await import('../public/d3/js/personal.js');
   assert.equal(caps('benagil cave'), 'Benagil Cave'); assert.equal(caps('foz do douro'), 'Foz do Douro'); assert.equal(caps('iPhone shop'), 'iPhone shop');
 });
+
+test('meals: bullet recipes skip their headings and prep notes like "skin on" and "drained"', async () => {
+  const { parseIng } = await import('../public/d3/js/personal.js');
+  const xs = parseIng(['Branzino', '* 2 branzino fillets, skin on', '* 1 garlic clove, crushed', '* Salt, freshly ground black pepper', 'Lemon-caper beurre blanc', '* 2 tbsp finely chopped shallot', '* 1 tbsp capers, drained']);
+  assert.deepEqual(xs.map((x) => x.name), ['Branzino fillets', 'Garlic clove', 'Salt', 'Black pepper', 'Shallot', 'Capers']);
+  assert.deepEqual(xs[0].qs, [[2, '']]);
+});
+
+test('meals: the method splits into Prep (no heat) and Cooking', async () => {
+  const { prepSplit, splitR } = await import('../public/d3/js/personal.js');
+  const r = prepSplit('1. Pat the fillets dry and season with salt.\n2. Finely chop the shallot.\n3. Heat the oil in a pan and sear the fish skin-side down.\n4. Serve.');
+  assert.match(r.prep, /^1\. Pat[\s\S]*2\. Finely chop/); assert.doesNotMatch(r.prep, /sear/); assert.match(r.meth, /^3\. Heat[\s\S]*4\. Serve\.$/);
+  const s = splitR('Ingredients\n2 eggs\n\nPrep\nWhisk the eggs\n\nMethod\nCook them');
+  assert.deepEqual([s.ing, s.prep, s.meth], [['2 eggs'], 'Whisk the eggs', 'Cook them']);
+});
+
+test('meals: a recipe in parts lists each part under its own heading; "UK & Malta" looks up the UK', async () => {
+  const { ingParts, placeKey } = await import('../public/d3/js/personal.js');
+  const ps = ingParts(['Branzino', '* 2 fillets', '* 1 tbsp oil', 'For the rice:', '* 1 cup rice', '* Water']);
+  assert.deepEqual(ps.map((x) => [x.t, x.lines.length]), [['Branzino', 2], ['Rice', 2]]);
+  assert.equal(placeKey('UK & Malta'), 'UK'); assert.equal(placeKey('Estoril/Cascais'), 'Estoril');
+});
