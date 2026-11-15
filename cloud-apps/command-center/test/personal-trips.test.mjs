@@ -314,3 +314,16 @@ test('trips: the card photo is the new place, not the UK', async () => {
   assert.equal(tripPic({ name: 'UK & Scotland', stops: [{ place: 'UK' }, { place: 'Scotland', img: 'x' }] }).img, 'x');
   assert.equal(tripPic({ name: 'Portugal', stops: [{ place: 'Lisbon' }] }).name, 'Lisbon');
 });
+
+test('trips: misspelt places take the right spelling; places get a category', async () => {
+  const { fixName, guessCat } = await import('../public/d3/js/personal.js');
+  assert.equal(fixName('obido', 'Óbidos, Portugal'), 'Óbidos');
+  assert.equal(fixName('sintra', 'Sintra'), 'Sintra');
+  assert.equal(fixName('Coa Valley', 'Côa Valley'), 'Côa Valley');
+  assert.equal(fixName('Braga', 'Braga'), '');
+  assert.equal(fixName('Tomar', 'Knights Templar'), '');
+  assert.equal(guessCat('Time Out Market food hall', false), 'Food');
+  assert.equal(guessCat('Praia da Rocha beach in Portimão', false), 'Beach');
+  assert.equal(guessCat('Braga city in Portugal', true), 'Day trip');
+  assert.equal(guessCat('Jerónimos Monastery', false), 'Sights');
+});

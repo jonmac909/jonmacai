@@ -192,6 +192,27 @@ export function dropWant(T, n, j, w) {
 // Build my days: places near each other share a day. Day trips get a day of their own; the rest are joined two
 // groups at a time, nearest first, until there is one group per free day. `items` are [{ w, lat, lon, cat }];
 // returns [{ d, ws }] (the want-to-do indexes for each day) and the ones left over.
+// A typed name and the Wikipedia page found for it: the page's spelling when it is the same place spelt better
+// ("obido" -> "Óbidos", "sintra" -> "Sintra"). '' when it is a different place.
+const plain = (x) => String(x || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
+const edits = (a, b) => { let r = Array.from({ length: b.length + 1 }, (_, i) => i); for (let i = 1; i <= a.length; i++) { const q = [i]; for (let k = 1; k <= b.length; k++) q[k] = Math.min(r[k] + 1, q[k - 1] + 1, r[k - 1] + (a[i - 1] === b[k - 1] ? 0 : 1)); r = q; } return r[b.length]; };
+export function fixName(typed, title) {
+  const t = String(title || '').replace(/\s*\(.*?\)\s*$/, '').replace(/,.*$/, '').trim(); const a = plain(typed); const b = plain(t);
+  if (!a || !b || t === String(typed || '').trim()) return '';
+  if (a === b || edits(a, b) <= Math.max(1, Math.floor(a.length / 4))) return t;
+  if (b.startsWith(`${a} `) && a.length >= 4 && b.split(' ').length - a.split(' ').length <= 2) return t;
+  return '';
+}
+// A category from the name and what Wikipedia says it is; somewhere a town or more away is a day trip.
+export function guessCat(text, far) {
+  const x = String(text || '').toLowerCase();
+  if (/\b(restaurant|caf[eé]|bakery|pastelaria|patisserie|tasca|tavern|food market|food hall|market|mercado|winery|wine bar|port cellar|cellars?)\b/.test(x)) return 'Food';
+  if (/\b(beach|praia|playa|cove)\b/.test(x)) return 'Beach';
+  if (/\b(nightclub|night club|bar|pub|club)\b/.test(x)) return 'Nightlife';
+  if (/\b(shopping|mall|department store|boutique|outlet)\b/.test(x)) return 'Shopping';
+  if (far) return 'Day trip';
+  return 'Sights';
+}
 const km = (a, b) => { const r = Math.PI / 180; const x = (b.lon - a.lon) * r * Math.cos(((a.lat + b.lat) / 2) * r); const y = (b.lat - a.lat) * r; return 6371 * Math.hypot(x, y); };
 export const FAR_KM = 25;
 export function groupNear(items, days, center = null) {
@@ -604,8 +625,9 @@ export function mapPts(t, j = null) {
   }
   const s = t.stops[j];
   if (ok(s)) pts.push({ lat: s.lat, lon: s.lon, n: s.place, sub: 'Where you\'re staying', kind: 'stop', img: s.img });
-  plansOf(t).filter((x) => inStop(s, x.d)).forEach((x) => { if (ok(x)) pts.push({ lat: x.lat, lon: x.lon, n: x.n, sub: `${DAYS[dow(x.d)]} ${fmtD(x.d)}${x.ok ? ' · booked' : ''}`, kind: x.ok ? 'ok' : 'plan', img: x.img }); });
-  (s.want || []).forEach((x) => { if (ok(x)) pts.push({ lat: x.lat, lon: x.lon, n: x.n, sub: `Want to do${x.cat ? ` · ${x.cat}` : ''}`, kind: 'want', img: x.img }); });
+  const near = (x) => !ok(s) || km(s, x) < 60; // a far day trip stays in the list but doesn't stretch the city's map
+  plansOf(t).filter((x) => inStop(s, x.d)).forEach((x) => { if (ok(x) && near(x)) pts.push({ lat: x.lat, lon: x.lon, n: x.n, sub: `${DAYS[dow(x.d)]} ${fmtD(x.d)}${x.ok ? ' · booked' : ''}`, kind: x.ok ? 'ok' : 'plan', img: x.img }); });
+  (s.want || []).forEach((x) => { if (ok(x) && near(x)) pts.push({ lat: x.lat, lon: x.lon, n: x.n, sub: `Want to do${x.cat ? ` · ${x.cat}` : ''}`, kind: 'want', img: x.img }); });
   hotel(s);
   return pts;
 }
@@ -644,6 +666,13 @@ async function findSpots(S, n, j, send, render, reload) {
     Object.entries(t.plans || {}).forEach(([d, xs]) => { if (inStop(s, d)) xs.forEach((x) => x.n && thing(x)); });
     (s.want || []).forEach((x) => x.n && thing(x));
   });
+  const fix = [];
+  if (j != null && t.stops[j]) { const s = t.stops[j]; (s.want || []).forEach((x) => x.n && !x.wv && fix.push([x, s])); Object.entries(t.plans || {}).forEach(([d, xs]) => { if (inStop(s, d)) xs.forEach((x) => x.n && !x.wv && fix.push([x, s])); }); }
+  if (fix.length && !finding) {
+    finding = true;
+    try { for (const [x, s] of fix) { await wikiFix(x, s, t.name); pics = true; } } finally { finding = false; }
+    todo.splice(0, todo.length, ...todo.filter(([o]) => !Number.isFinite(o.lat) && !o.nomap));
+  }
   if (!todo.length) {
     if (pics && JSON.stringify(tripsOf(S.personal)) === before) await save(S, 'trips', T, send, render, reload);
     return;
@@ -1100,6 +1129,23 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 // Find one thing on the map. A plan or want-to-do place asks Wikipedia first (it copes with spellings like "obido"
 // and brings a photo), then OpenStreetMap; a stop or an address asks OpenStreetMap first. A match more than 700 km
 // from the city is wrong (Braga is 330 km from Estoril, so 700). Nothing found marks it, so it isn't asked again until its name changes.
+// One Wikipedia search per place (it copes with "obido" and "coa valley"): the right spelling, a photo, the spot
+// and a category, each only when it's missing. Marked so it's asked once.
+async function wikiFix(x, s, country) {
+  try {
+    const r = await fetch(`https://en.wikipedia.org/w/api.php?action=query&format=json&origin=*&generator=search&gsrlimit=1&gsrsearch=${encodeURIComponent(`${x.n} ${country || ''}`.trim())}&prop=coordinates%7Cpageimages%7Cdescription&piprop=thumbnail&pithumbsize=800`);
+    const pg = r.ok ? Object.values((await r.json())?.query?.pages || {})[0] : null;
+    if (pg) {
+      const c = pg.coordinates?.[0]; const close = c && (!Number.isFinite(s?.lat) || km(s, c) < 700);
+      const nm = fixName(x.n, pg.title); if (nm && (close || !c)) x.n = nm;
+      if (close && !Number.isFinite(x.lat)) { x.lat = c.lat; x.lon = c.lon; delete x.nomap; }
+      if (!x.img && pg.thumbnail?.source && (close || nm)) x.img = pg.thumbnail.source;
+      if (!x.cat) x.cat = guessCat(`${x.n} ${pg.title} ${pg.description || ''}`, Number.isFinite(x.lat) && Number.isFinite(s?.lat) && km(s, x) > 25);
+    } else if (!x.cat) x.cat = guessCat(x.n, false);
+  } catch { /* try again next time */ return; }
+  x.wv = 1;
+  await sleep(150);
+}
 async function lookUp(o, { q, wq, near, photo }) {
   const okAt = (lat, lon) => Number.isFinite(lat) && Number.isFinite(lon) && (!near || !Number.isFinite(near.lat) || km(near, { lat, lon }) < 700);
   const osm = async () => {
