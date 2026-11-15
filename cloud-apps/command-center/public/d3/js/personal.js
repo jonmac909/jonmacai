@@ -681,7 +681,7 @@ async function findSpots(S, n, j, send, render, reload) {
     (s.want || []).forEach((x) => x.n && thing(x));
   });
   const fix = [];
-  if (j != null && t.stops[j]) { const s = t.stops[j]; (s.want || []).forEach((x) => x.n && !x.wv && fix.push([x, s])); Object.entries(t.plans || {}).forEach(([d, xs]) => { if (inStop(s, d)) xs.forEach((x) => x.n && !x.wv && fix.push([x, s])); }); }
+  if (j != null && t.stops[j]) { const s = t.stops[j]; const redo = (x) => x.n && (!x.wv || (x.wv < 2 && !x.img)); (s.want || []).forEach((x) => redo(x) && fix.push([x, s])); Object.entries(t.plans || {}).forEach(([d, xs]) => { if (inStop(s, d)) xs.forEach((x) => redo(x) && fix.push([x, s])); }); }
   if (fix.length && !finding) {
     finding = true;
     try { for (const [x, s] of fix) { await wikiFix(x, s, t.name); pics = true; } } finally { finding = false; }
@@ -1149,17 +1149,22 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 // and a category, each only when it's missing. Marked so it's asked once.
 async function wikiFix(x, s, country) {
   try {
-    const r = await fetch(`https://en.wikipedia.org/w/api.php?action=query&format=json&origin=*&generator=search&gsrlimit=1&gsrsearch=${encodeURIComponent(`${x.n} ${country || ''}`.trim())}&prop=coordinates%7Cpageimages%7Cdescription&piprop=thumbnail&pithumbsize=800`);
-    const pg = r.ok ? Object.values((await r.json())?.query?.pages || {})[0] : null;
+    const r = await fetch(`https://en.wikipedia.org/w/api.php?action=query&format=json&origin=*&generator=search&gsrlimit=4&gsrsearch=${encodeURIComponent(`${x.n} ${country || ''}`.trim())}&prop=coordinates%7Cpageimages%7Cdescription&piprop=thumbnail&pithumbsize=800`);
+    const pgs = r.ok ? Object.values((await r.json())?.query?.pages || {}).sort((a, b) => a.index - b.index) : [];
+    const pg = pgs[0];
     if (pg) {
       const c = pg.coordinates?.[0]; const close = c && (!Number.isFinite(s?.lat) || km(s, c) < 700);
       const nm = fixName(x.n, pg.title); if (nm && (close || !c)) x.n = nm;
       if (close && !Number.isFinite(x.lat)) { x.lat = c.lat; x.lon = c.lon; delete x.nomap; }
-      if (!x.img && pg.thumbnail?.source && (close || nm)) x.img = pg.thumbnail.source;
+      // the photo: the best match that has one and is nearby (the Coa Valley's own page has none; Foz Côa's does)
+      const near = (q) => !q.coordinates?.[0] || !Number.isFinite(s?.lat) || km(s, q.coordinates[0]) < 120;
+      const pic = pgs.find((q) => q.thumbnail?.source && near(q));
+      if (!x.img && pic) x.img = pic.thumbnail.source;
+      if (!x.img) { const src = await placePic(x.n); if (src) x.img = src; }
       if (!x.cat) x.cat = guessCat(`${x.n} ${pg.title} ${pg.description || ''}`, Number.isFinite(x.lat) && Number.isFinite(s?.lat) && km(s, x) > 25);
     } else if (!x.cat) x.cat = guessCat(x.n, false);
   } catch { /* try again next time */ return; }
-  x.wv = 1;
+  x.wv = 2;
   await sleep(150);
 }
 async function lookUp(o, { q, wq, near, photo }) {
