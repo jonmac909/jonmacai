@@ -8,16 +8,8 @@ import { esc } from './util.js';
 const TZ = 'America/Vancouver';
 const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 const DAYL = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-// Overview cards: each has its own colour and icon so they don't blend together (Jon, 2026-11-15).
-const ico = (d) => `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
-const OV_ICON = {
-  budget: ico('<rect x="2" y="6" width="20" height="13" rx="2"/><path d="M2 10h20"/><path d="M6 15h4"/>'),
-  meals: ico('<path d="M7 2v20"/><path d="M4 2v6a3 3 0 0 0 6 0V2"/><path d="M17 22V2c-2.2 0-4 2.7-4 6v5h4"/>'),
-  workouts: ico('<path d="M6 7v10"/><path d="M18 7v10"/><path d="M3 10v4"/><path d="M21 10v4"/><path d="M6 12h12"/>'),
-  trips: ico('<path d="M17.8 19.2 16 11l3.5-3.5C21 6 21.5 4 21 3c-1-.5-3 0-4.5 1.5L13 8 4.8 6.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.5-.1 1 .3 1.3L9 12l-2 3H4l-1 1 3 2 2 3 1-1v-3l3-2 3.5 5.3c.3.4.8.5 1.3.3l.5-.2c.4-.3.6-.7.5-1.2z"/>'),
-  date: ico('<path d="M19 14c1.5-1.5 3-3.2 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.8 0-3 .5-4.5 2-1.5-1.5-2.7-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4 3 5.5l7 7Z"/>'),
-  home: ico('<path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/><path d="M10 21v-6h4v6"/>'),
-};
+// Overview cards: an emoji each so they don't blend together (Jon, 2026-11-15).
+const OV_ICON = { budget: '💰', meals: '🍽️', workouts: '🏋️', trips: '✈️', date: '🍷', home: '🏠' };
 const NAMES = { meals: 'Meals', workouts: 'Workouts', date: 'Date night', budget: 'Budget', trips: 'Trips', home: 'Home' };
 const BUDGET = { personal: [8000, 10000, '$8–10k'], business: [3000, 5000, '$3–5k'] };
 const FOOD_MONTH = 1000;
