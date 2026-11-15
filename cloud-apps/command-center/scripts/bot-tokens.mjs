@@ -3,11 +3,13 @@
 // the truth: an existing file is reused, and any other active hash for that bot is revoked, so
 // re-running is safe. The slug is the bot's rules file name (areas/<slug>.md).
 //
-//   node scripts/bot-tokens.mjs [--env preview] [--rotate <slug>] [--dry-run]
+//   node scripts/bot-tokens.mjs [--env preview] [--rotate <slug>] [--add <slug>] [--dry-run]
 //     --bots D:\AgentTeam\rules\BOTS.md   --out D:\AgentTeam\secrets\bot-tokens
 //     WRANGLER=<path to wrangler(.cmd)>   (default: npx wrangler)
 // Rotate a lost or leaked token: run with --rotate <slug> (production), then again with
 // --env preview and no --rotate so the preview database revokes the old one too.
+// --add <slug> issues and registers only that one slug, even if BOTS.md doesn't name it yet (a team slug
+// such as marketing, before Ana points its workspaces at areas/<slug>.md). Run it again with --env preview.
 import { randomBytes, createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
@@ -15,11 +17,11 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { spawnSync } from 'node:child_process';
 
 const APP_DIR = join(dirname(fileURLToPath(import.meta.url)), '..');
-const OPTIONS = ['bots', 'out', 'env', 'rotate'];
+const OPTIONS = ['bots', 'out', 'env', 'rotate', 'add'];
 const FLAGS = ['dry-run'];
 
 export function parseArgs(argv) {
-  const out = { bots: 'D:\\AgentTeam\\rules\\BOTS.md', out: 'D:\\AgentTeam\\secrets\\bot-tokens', env: '', rotate: '', 'dry-run': false };
+  const out = { bots: 'D:\\AgentTeam\\rules\\BOTS.md', out: 'D:\\AgentTeam\\secrets\\bot-tokens', env: '', rotate: '', add: '', 'dry-run': false };
   for (let i = 0; i < argv.length; i++) {
     const m = argv[i].match(/^--([a-z-]+)(?:=(.*))?$/);
     if (!m) throw new Error(`Unexpected argument: ${argv[i]}`);
@@ -35,6 +37,8 @@ export function parseArgs(argv) {
   // Each run revokes hashes that don't match the token files, so only the real folder may write.
   if (out.out !== 'D:\\AgentTeam\\secrets\\bot-tokens' && !out['dry-run']) throw new Error('--out needs --dry-run');
   if (out.rotate && out.env) throw new Error('Rotate in production first (no --env), then re-run with --env preview');
+  if (out.add && !/^[a-z0-9][a-z0-9-]{0,39}$/.test(out.add)) throw new Error(`--add ${out.add}: not a bot slug like video-editor`);
+  if (out.add && out.rotate) throw new Error('--add and --rotate are separate runs');
   return out;
 }
 
@@ -60,7 +64,7 @@ export function tokenSql(slug, hash, now) {
 function main() {
   const opt = parseArgs(process.argv.slice(2));
   const database = opt.env === 'preview' ? 'command_center_preview' : 'command_center';
-  const bots = botsFrom(readFileSync(opt.bots, 'utf8'));
+  const bots = opt.add ? [{ name: opt.add, slug: opt.add }] : botsFrom(readFileSync(opt.bots, 'utf8'));
   if (!bots.length) throw new Error(`No bots found in ${opt.bots}`);
   if (opt.rotate && !bots.some((b) => b.slug === opt.rotate)) throw new Error(`--rotate ${opt.rotate}: not in ${opt.bots}`);
   if (opt.rotate && opt['dry-run']) throw new Error('--rotate cannot be a dry run');

@@ -1035,6 +1035,47 @@
      ]
     },
     {
+     "slug": "historient",
+     "label": "Historient",
+     "checklist": {
+      "missing": "Ana syncs the daily checklist with dash.py daily-sync"
+     },
+     "waiting": 0,
+     "goals": [],
+     "columns": [
+      {
+       "key": "todo",
+       "label": "To do",
+       "items": []
+      },
+      {
+       "key": "doing",
+       "label": "Doing",
+       "items": []
+      },
+      {
+       "key": "waiting_on_jon",
+       "label": "Waiting on Jon",
+       "items": []
+      },
+      {
+       "key": "qc",
+       "label": "QC",
+       "items": []
+      },
+      {
+       "key": "review",
+       "label": "Review",
+       "items": []
+      },
+      {
+       "key": "done",
+       "label": "Done",
+       "items": []
+      }
+     ]
+    },
+    {
      "slug": "coding",
      "label": "Coding",
      "checklist": {

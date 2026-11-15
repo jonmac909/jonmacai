@@ -12,6 +12,7 @@ export const PROJECTS = [
   { slug: 'home-guide-press', label: 'Home Guide Press' },
   { slug: 'short-form', label: 'Short-form' },
   { slug: 'accounting', label: 'Accounting' },
+  { slug: 'historient', label: 'Historient' },
   { slug: 'coding', label: 'Coding' },
 ];
 // Today's goal cards (by key) that each project shows; the webinar funnel is part of Viral View.

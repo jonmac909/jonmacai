@@ -1271,6 +1271,7 @@ const DAILY_TICKERS = {
   'home-guide-press': ['home-guide-press'],
   'short-form': ['short-form'],
   accounting: ['accounting'],
+  historient: ['historient', 'marketing'],
   coding: ['developer'],
 };
 const fold = (s) => s.trim().toLowerCase();

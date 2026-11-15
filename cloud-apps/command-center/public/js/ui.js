@@ -43,7 +43,7 @@ export function noLoneWords(roots) {
 export const BOT_NAMES = {
   jon: 'You', ana: 'Ana', sponsors: 'Florence', 'video-editor': 'Olivia', 'viral-view': 'Scarlett', 'jon-mac-youtube': 'Sydney',
   'home-guide-press': 'Elle', 'short-form': 'Samantha', accounting: 'Elizabeth', developer: 'Lucy', qc: 'Jessica', inbox: 'Zendaya',
-  spotify: 'Daisy', moneyclaw: 'Mila', historient: 'Emma',
+  spotify: 'Daisy', moneyclaw: 'Mila', historient: 'Emma', marketing: 'Marketing',
 };
 export const botName = (slug) => { const k = String(slug ?? '').toLowerCase(); return Object.hasOwn(BOT_NAMES, k) ? BOT_NAMES[k] : String(slug ?? ''); };
 

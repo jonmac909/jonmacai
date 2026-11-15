@@ -363,6 +363,11 @@ test('token script: slugs come from BOTS.md rules files; issued tokens pass the 
   assert.throws(() => parseArgs(['--rotate', 'qc', '--env', 'preview']));
   assert.throws(() => parseArgs(['--out', 'C:\\tmp\\t']));
   assert.equal(parseArgs(['--out', 'C:\\tmp\\t', '--dry-run']).out, 'C:\\tmp\\t');
+  // --add: one slug BOTS.md doesn't name yet (marketing), in production or preview.
+  assert.equal(parseArgs(['--add', 'marketing']).add, 'marketing');
+  assert.equal(parseArgs(['--add=marketing', '--env', 'preview']).env, 'preview');
+  assert.throws(() => parseArgs(['--add', 'Marketing Team']));
+  assert.throws(() => parseArgs(['--add', 'marketing', '--rotate', 'qc']));
 });
 
 test('workers.dev answers only on the preview Worker', async () => {

@@ -5,7 +5,7 @@
 Exit codes: 0 = ok. 1 = the dashboard refused (the reason is on stderr). 2 = a local problem (usage, unknown bot, no token, bad payload). 3 = the dashboard can't be reached or failed.
 
 **Who you are:** run it from your own OpenBot workspace (BOTS.md maps the folder to your bot). Scripts that run outside every workspace set `DASH_BOT=<your slug>`. Inside a workspace, the folder wins, and a different `DASH_BOT` is refused.
-Slugs are your rules file names: `ana`, `sponsors`, `viral-view`, `video-editor`, `jon-mac-youtube`, `home-guide-press`, `short-form`, `developer`, `qc`, `accounting`, `inbox`, `spotify`, `moneyclaw`, `historient`.
+Slugs are your rules file names: `ana`, `sponsors`, `viral-view`, `video-editor`, `jon-mac-youtube`, `home-guide-press`, `short-form`, `developer`, `qc`, `accounting`, `inbox`, `spotify`, `moneyclaw`, `historient`, `marketing` (Margot, Rhea, Cleo, Vera, Tess).
 Your token is `D:\AgentTeam\secrets\bot-tokens\<slug>.token`. Never print, paste, commit or copy it. Never use another bot's slug or token. Every row records the bot whose token wrote it, and QC's checks count only from QC's token.
 `dash.py whoami` checks your token.
 
@@ -19,6 +19,7 @@ Every task, question and approval sets `--project`. Jon sees each project on its
 - `home-guide-press`: Elle.
 - `short-form`: Samantha.
 - `accounting`: Elizabeth.
+- `historient`: the Historient app and its marketing (the Marketing team).
 - Developer: `coding` for dashboard/script work that serves no single project, otherwise the project it serves.
 
 `unsorted` (or leaving it out) puts it in Unsorted. Filter lists with `--project`.
@@ -56,7 +57,7 @@ dash.py feed daily_checklists                    (every project's items, in orde
   - `sponsors`: sponsors.
   - `jon-mac` (YT-JM) and `jonmacai` (YT-AI UGC): jon-mac-youtube or video-editor.
   - `viral-view`: viral-view. `home-guide-press`: home-guide-press. `short-form`: short-form.
-  - `accounting`: accounting. `coding`: developer.
+  - `accounting`: accounting. `historient`: historient or marketing. `coding`: developer.
 - The link is proof, as in `proof-add`. Ticking the same item again that day replaces its link and note.
 - Ana runs `dash.py daily-sync` after editing `D:\AgentTeam\rules\facts\daily-checklists.md` (`--file` reads another copy).
 

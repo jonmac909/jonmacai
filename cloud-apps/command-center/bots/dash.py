@@ -30,11 +30,14 @@ WAKE_EXPIRES_S = 1800  # QC's video turnaround: a bot that never read its wake g
 NINA_WORKSPACE = 'agent-2661cbff-8f2f-4c2a-a493-4d0cb59a201f'  # both QC bots are the slug qc; the folder tells them apart
 TASK_STATUSES = ['todo', 'doing', 'waiting_on_jon', 'qc', 'review', 'done', 'cancelled']
 PROOF_KINDS = ['render', 'url', 'pdf', 'test']
-FEEDS = ['morning_summary', 'calendar_today', 'claude_usage', 'ebook_sales', 'daily_checklists', 'video_line']
+FEEDS = ['morning_summary', 'calendar_today', 'claude_usage', 'ebook_sales', 'daily_checklists', 'dispatch_live', 'video_line']
 # Same labels, slugs and order as PROJECTS in src/projects.js. "unsorted" means no project.
 LABELS = {'Sponsors': 'sponsors', 'YT-JM': 'jon-mac', 'YT-AI UGC': 'jonmacai', 'Viral View': 'viral-view',
-          'Home Guide Press': 'home-guide-press', 'Short-form': 'short-form', 'Accounting': 'accounting', 'Coding': 'coding'}
+          'Home Guide Press': 'home-guide-press', 'Short-form': 'short-form', 'Accounting': 'accounting',
+          'Historient': 'historient', 'Coding': 'coding'}
 PROJECTS = list(LABELS.values())
+# Tabs that may have no daily checklist: Historient work comes only when Jon assigns it (daily-checklists.md has no section).
+DAILY_OPTIONAL = {'historient'}
 CALENDAR_STATUSES = ['idea', 'planned', 'scripted', 'recording', 'editing', 'qc', 'review', 'scheduled', 'published']
 CALENDAR_DIR = Path(r'D:\AgentTeam\calendar')  # one CSV per channel: date,time_pt,channel,title,status,link[,youtube_id]
 CONTENT_DIR = Path(r'D:\AgentTeam\content')  # channel,outlier_title,source_channel,url,views,channel_avg,multiple,published_date,selected[,thumbnail_url]
@@ -283,6 +286,8 @@ def look_gate_check(ctx, args):
         sys.path.insert(0, str(Path(__file__).resolve().parent))
         import look_gate
         why = look_gate.problem(args.link)
+        if not why and ctx['bot'] == 'short-form':  # lip sync blocks short-form renders (Jon's ask, 2026-11-09)
+            why = look_gate.lip_problem(args.link)
         blocking = look_gate.BLOCK_FLAG.exists()
     except Exception as err:
         print('dash.py: warning: could not check first-try QC (%s); posting anyway.' % err, file=sys.stderr)
@@ -291,6 +296,25 @@ def look_gate_check(ctx, args):
         raise Fail(1, 'Blocked: %s.' % why)
     if why:
         print('dash.py: warning (first-try QC, warn-only for now): %s.' % why, file=sys.stderr)
+
+
+def script_gate_check(ctx, args):
+    """Script pre-check (2026-11-11): a proof whose link is a local path to a script file (## NARRATION) must pass script_precheck.
+    Ana, QC and nina are exempt. A checker error lets the post through."""
+    if ctx['bot'] in ('ana', 'qc', 'nina') or not args.link or args.link.startswith(('http://', 'https://')):
+        return
+    try:
+        sys.path.insert(0, str(Path(__file__).resolve().parent))
+        import script_precheck
+        if not script_precheck.is_script_file(args.link):
+            return
+        lines, failed = script_precheck.check_file(args.link)
+    except Exception as err:
+        print('dash.py: warning: could not run the script pre-check (%s); posting anyway.' % err, file=sys.stderr)
+        return
+    if failed:
+        raise Fail(1, 'Blocked: script pre-check failed.\n' + '\n'.join(l for l in lines if l.split()[1:2] == ['FAIL']) + '\n' + lines[-1])
+    args.note = ((args.note + ' | ') if args.note else '') + lines[-1]
 
 
 def qc_limit(ctx, task_id, kind='render', link=''):
@@ -335,7 +359,7 @@ def daily_lists(path):
             lists[slug].append(line[2:].strip())
     if not any(lists.values()):
         raise Fail(2, 'No checklist items in %s: expected "## <tab label>" sections with "- item" lines.' % path)
-    missing = [label for label, slug in LABELS.items() if not lists.get(slug)]
+    missing = [label for label, slug in LABELS.items() if not lists.get(slug) and slug not in DAILY_OPTIONAL]
     if missing:  # a typo'd heading would otherwise empty that tab's checklist
         raise Fail(2, 'No items under: %s. Check the "## " headings in %s.' % (', '.join(missing), path))
     return lists
@@ -536,6 +560,7 @@ def run(args, ctx):
     if c == 'proof-add':
         warn_local_link(args.link)
         look_gate_check(ctx, args)
+        script_gate_check(ctx, args)
         qc_limit(ctx, args.task_id, args.kind, args.link)
         out = call(ctx, 'POST', '/tasks/%s/proofs' % q(args.task_id, safe=''),
                    only({'kind': args.kind, 'link': args.link, 'note': args.note}))
@@ -548,6 +573,10 @@ def run(args, ctx):
     if c == 'proof-check':
         return call(ctx, 'POST', '/proofs/%s/check' % q(args.id, safe=''), only({'result': args.result, 'note': args.note}))
     if c == 'ask':
+        # CORE: questions for Jon are multiple choice, so the Review page can show answer buttons.
+        if len([o for o in (args.option or []) if o and o.strip()]) < 2:
+            raise Fail(2, 'A question for Jon needs at least 2 --option answers (recommended first, '
+                          'then "Other (type your own)").')
         return call(ctx, 'POST', '/questions', only({'question': args.question, 'options': args.option or None,
                                                     'context': args.context, 'task': args.task, 'project': project,
                                                     'minutes': args.minutes, 'key': args.key}))
@@ -594,6 +623,14 @@ def run(args, ctx):
         return call(ctx, 'POST', '/daily', only({'project': project, 'item': args.item, 'link': args.link, 'note': args.note}))
     if c == 'channels':
         return call(ctx, 'GET', '/channels')
+    if c == 'deals':  # Sponsors and Ana only (403 for others): one short line per board deal
+        rows = call(ctx, 'GET', '/sponsors/deals')['deals']
+        rows = [d for d in rows if args.all or d.get('bucket')]
+        return {'count': len(rows), 'deals': ['%s | %s | %s | %s | %s' % (d['id'], d['sponsor'], d['stage'], '$%s' % format(d['amount'], ',g') if d.get('amount') else 'not priced', d.get('bucket') or '-') for d in rows]}
+    if c == 'deal-set':
+        if args.amount is None and args.stage is None:
+            raise Fail(2, 'deal-set needs --amount and/or --stage')
+        return call(ctx, 'POST', '/sponsors/deals', only({'id': args.id, 'amount': args.amount, 'stage': args.stage}))
     if c == 'channel-set':
         return call(ctx, 'PUT', '/channels/%s' % q(args.channel, safe=''), {'schedule': args.schedule})
     if c == 'calendar':
@@ -794,6 +831,10 @@ def parser():
     a.add_argument('--note')
 
     s.add_parser('channels', help='the channel slugs (Calendar and Content tabs) and their posting schedules')
+    a = s.add_parser('deals', help='Sponsors/Ana: the Sponsors board deals (id | sponsor | stage | amount | owed or to-close); --all adds paid and archived')
+    a.add_argument('--all', action='store_true')
+    a = s.add_parser('deal-set', help='Sponsors/Ana: set one deal amount (USD, 0 clears) and/or stage (new-lead, negotiating, contract-brief, invoice-sent, deposit-paid, production, publishing, balance-invoice, paid, done, archived ...)')
+    a.add_argument('id'); a.add_argument('--amount', type=float); a.add_argument('--stage')
 
     a = s.add_parser('channel-set', help="set a channel's posting schedule ('' clears it)")
     a.add_argument('channel', help='channel slug, see: dash.py channels')

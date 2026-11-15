@@ -12,6 +12,7 @@
     { "slug": "developer", "names": ["Lucy"], "role": "Developer" },
     { "slug": "qc", "names": ["Jessica", "Nina"], "role": "QC" },
     { "slug": "accounting", "names": ["Elizabeth"], "role": "Accounting" },
-    { "slug": "spotify", "names": ["Daisy"], "role": "Spotify" }
+    { "slug": "spotify", "names": ["Daisy"], "role": "Spotify" },
+    { "slug": "marketing", "names": ["Margot", "Rhea", "Cleo", "Vera", "Tess"], "role": "Marketing" }
   ]
 }

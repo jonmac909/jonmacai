@@ -13,7 +13,7 @@ import { signSession, COOKIE } from '../src/auth.js';
 import { sqliteD1 } from './sqlited1.mjs';
 
 const SECRET = 'test-session-secret-32-bytes-ok!';
-const BOTS = ['ana', 'sponsors', 'qc', 'developer', 'jon-mac-youtube', 'video-editor', 'viral-view', 'home-guide-press', 'short-form', 'accounting'];
+const BOTS = ['ana', 'sponsors', 'qc', 'developer', 'jon-mac-youtube', 'video-editor', 'viral-view', 'home-guide-press', 'short-form', 'accounting', 'historient', 'marketing'];
 const TOK = Object.fromEntries(BOTS.map((b) => [b, `ccb_${b.padEnd(43, 'x')}`]));
 const NOW = Date.parse('2026-10-29T19:00:00Z'); // Thu Oct 29, 12:00 PT
 
@@ -61,6 +61,27 @@ test('project, minutes and due: checked on the way in, returned on the way out',
   assert.deepEqual([a.status, a.body.approval.project, a.body.approval.minutes], [201, 'sponsors', 480]);
   assert.equal((await call(env, 'POST', '/v1/approvals', { bot: 'sponsors', body: { action: 'send_pitches', title: 'x', minutes: 500 } })).status, 400);
   assert.equal((await call(env, 'GET', `/v1/questions/${q.body.question.id}`, { bot: 'sponsors' })).body.question.project, 'jonmacai');
+});
+
+test('historient is a project and marketing a bot: marketing files a Historient card, the board shows it, dash.py knows the label', async () => {
+  const { env } = await setup();
+  assert.equal(PROJECTS.find((x) => x.slug === 'historient')?.label, 'Historient');
+  assert.equal((await call(env, 'GET', '/v1/me', { bot: 'marketing' })).body.bot, 'marketing');
+  const t = await call(env, 'POST', '/v1/tasks', { bot: 'marketing', body: { title: 'Launch post - Historient', project: 'Historient' } });
+  assert.deepEqual([t.status, t.body.task.project, t.body.task.owner], [201, 'historient', 'marketing']);
+  const mine = await call(env, 'POST', '/v1/tasks', { bot: 'developer', body: { title: 'x', owner: 'marketing', project: 'coding' } });
+  assert.deepEqual([mine.status, mine.body.task.owner], [201, 'marketing'], 'marketing is a known owner');
+  const moved = await call(env, 'PATCH', `/v1/tasks/${mine.body.task.id}`, { bot: 'developer', body: { project: 'historient' } });
+  assert.deepEqual([moved.status, moved.body.task.project], [200, 'historient']);
+  const listed = await call(env, 'GET', '/v1/tasks?project=historient', { jon: true });
+  assert.deepEqual(listed.body.tasks.map((x) => x.id).sort(), [t.body.task.id, mine.body.task.id].sort());
+  const out = { pages: { projects: {} } };
+  buildProjects(out, {}, {}, { today: { tasks: listed.body.tasks, questions: [], approvals: [], feeds: {} } }, NOW);
+  const lane = out.pages.projects.projects.find((x) => x.slug === 'historient');
+  assert.equal(lane.label, 'Historient');
+  assert.deepEqual(lane.columns.find((c) => c.key === 'todo').items.map((i) => i.id).sort(), [t.body.task.id, mine.body.task.id].sort());
+  const py = spawnSync(process.env.PYTHON || 'python', ['-I', '-c', 'import sys; sys.path.insert(0, sys.argv[1]); import dash; print(dash.project_of("Historient"))', join(dirname(fileURLToPath(import.meta.url)), '..', 'bots')], { encoding: 'utf8' });
+  assert.equal(py.stdout.trim(), 'historient', py.stderr);
 });
 
 test('?project= filters tasks, questions and approvals; unsorted lists the ones with none', async () => {
@@ -169,7 +190,7 @@ test('projects page: lanes, counts, board columns, Unsorted and goal cards; no m
   const col = (slug, key) => lane(slug).columns.find((c) => c.key === key).items.map((i) => i.id);
   assert.deepEqual(p.projects.map((x) => x.slug), [...PROJECTS.map((x) => x.slug), 'unsorted']);
   assert.deepEqual(p.projects.map((x) => [x.label, x.waiting]), [['Sponsors', 3], ['YT-JM', 0], ['YT-AI UGC', 0], ['Viral View', 2], ['Home Guide Press', 1],
-    ['Short-form', 0], ['Accounting', 0], ['Coding', 0], ['Unsorted', 1]], 'questions + approvals + waiting_on_jon tasks + open jon tasks');
+    ['Short-form', 0], ['Accounting', 0], ['Historient', 0], ['Coding', 0], ['Unsorted', 1]], 'questions + approvals + waiting_on_jon tasks + open jon tasks');
   assert.deepEqual(lane('sponsors').columns.map((c) => c.label), ['To do', 'Doing', 'Waiting on Jon', 'QC', 'Review', 'Done']);
   assert.deepEqual([col('sponsors', 'todo'), col('sponsors', 'waiting_on_jon')], [['t1', 't2'], ['t3', 'q1']]);
   assert.deepEqual([col('viral-view', 'waiting_on_jon'), col('viral-view', 'done'), col('jon-mac', 'qc'), col('unsorted', 'doing')], [['t4', 'a1'], ['t5'], ['t9'], ['t8']]);
@@ -178,7 +199,7 @@ test('projects page: lanes, counts, board columns, Unsorted and goal cards; no m
   assert.deepEqual([lane('viral-view').columns[5].items[0].proof, lane('jon-mac').columns[3].items[0].proof], ['https://jonmac.ai/review/5', ''], 'web links only');
   const a1 = lane('viral-view').columns[2].items[1];
   assert.deepEqual([a1.kind, a1.decideUrl, a1.detail], ['approval', '/dashboard/api/v1/approvals/a1/decide', 'Runs post clips.'], "Today's approval item");
-  assert.deepEqual(p.projects.map((x) => x.goals.map((g) => g.key)), [['sponsors'], [], [], ['viral', 'webinar'], ['ebooks'], [], [], [], []]);
+  assert.deepEqual(p.projects.map((x) => x.goals.map((g) => g.key)), [['sponsors'], [], [], ['viral', 'webinar'], ['ebooks'], [], [], [], [], []]);
   assert.deepEqual([p.summary.text, p.calendar.events, p.available, p.today], ['All good', [{ time: '09:30-10:00', title: 'Call' }], true, undefined]);
 
   const quiet = fixture();
@@ -270,7 +291,7 @@ test('dispatch_live feed: developer or ana, checked shapes, keeps only 2 days', 
 
 const TICKERS = {
   sponsors: ['sponsors'], 'jon-mac': ['jon-mac-youtube', 'video-editor'], jonmacai: ['jon-mac-youtube', 'video-editor'], 'viral-view': ['viral-view'],
-  'home-guide-press': ['home-guide-press'], 'short-form': ['short-form'], accounting: ['accounting'], coding: ['developer'],
+  'home-guide-press': ['home-guide-press'], 'short-form': ['short-form'], accounting: ['accounting'], historient: ['historient', 'marketing'], coding: ['developer'],
 };
 
 test('POST /v1/daily: only the owning bot ticks, by item text or number, with a proof link; again the same day updates it', async () => {
@@ -357,6 +378,7 @@ test('dash.py daily-sync reads "## <tab label>" sections and "- item" lines; the
     '## Coding ',
     '- Live sites checked',
     '',
+    // No "## Historient": that tab has no daily checklist (dash.DAILY_OPTIONAL), like the real daily-checklists.md.
     ...['YT-AI UGC', 'Viral View', 'Home Guide Press', 'Short-form', 'Accounting'].flatMap((t) => [`## ${t}`, `- ${t} daily`]),
     "The video tabs' \"Finished render\" item needs Video Editor's render.",
   ].join('\r\n');
