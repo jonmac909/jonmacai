@@ -1181,3 +1181,11 @@ html[data-theme="dark"] body{background:#0b0b0c}
 @media (min-width:761px) and (max-width:1180px){.d3 .pstrip .psstops .psstop .psbk{grid-template-columns:150px minmax(0,1fr) 90px;grid-template-areas:"h d c"}.d3 .pstrip .psstops .psstop .psbk .psbkfiles,.d3 .pstrip .psstops .psstop .psbk button.psbkd small{display:none}}
 @media (min-width:761px){.d3 .pstrip .psstops .psstop .psst2h{display:flex;flex-wrap:nowrap;align-items:center;gap:8px;overflow:hidden;white-space:nowrap}.d3 .pstrip .psstops .psstop .psst2h>.mut{min-width:0;overflow:hidden;text-overflow:ellipsis}.d3 .pstrip .psstops .psstop .psst2h .psstc{margin-left:auto;flex:none}}
 @media (min-width:761px) and (max-width:1180px){.d3 .pstrip .psstops .psstop .psbk .psbkok,.d3 .pstrip .psstops .psstop .psbk .psbkup{display:none}.d3 .pstrip .psstops .psstop .psbk{grid-template-columns:140px minmax(0,1fr) 90px}}
+/* Trip page: every stop as a pill at the top, tap to open it (Jon, 2026-11-15). */
+.d3 .psstopnav{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
+.d3 .psstopnav a{display:inline-flex;align-items:center;gap:8px;height:36px;padding:0 14px 0 4px;border:1px solid var(--line);border-radius:999px;background:var(--card);color:var(--ink);font-size:13px;font-weight:600;text-decoration:none;white-space:nowrap}
+.d3 .psstopnav a:hover{border-color:var(--accent)}
+.d3 .psstopnav .psnavph{display:inline-grid;place-items:center;width:28px;height:28px;border-radius:50%;overflow:hidden;background:var(--card2);color:var(--muted);font-size:12px}
+.d3 .psstopnav .psnavph img{width:100%;height:100%;object-fit:cover}
+.d3 .psstopnav b{color:var(--muted);font-weight:600}
+@media (max-width:760px){.d3 .psstopnav{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;margin-right:-12px;padding-right:12px}.d3 .psstopnav::-webkit-scrollbar{display:none}}

@@ -249,14 +249,14 @@ const budLine = (t) => (t.bud ? `${usd0(tripCost(t))} of ${usd0(t.bud)} budget` 
 // crests), looked up once per name while the page is open and dropped into the picture when it arrives.
 const WIKI = {};
 // Not scenic: flags, maps, crests, logos, portraits, and pictures taken from space.
-const NOT_PHOTO = /bus_|routemaster|train|tram_|locomotiv|aircraft|airport|station|metro|underground|taxi|flag|map|coat|locat|logo|emblem|seal|arms|atlas|diagram|portrait|satellite|landsat|sentinel|nasa|iss0|from_space|topograph|relief|terra|modis|casino|hotel|resort|airport|stadium|interior|station|hospital|building|street|sign/i;
+const NOT_PHOTO = /panoram|_pano|pano_|bus_|routemaster|train|tram_|locomotiv|aircraft|airport|station|metro|underground|taxi|flag|map|coat|locat|logo|emblem|seal|arms|atlas|diagram|portrait|satellite|landsat|sentinel|nasa|iss0|from_space|topograph|relief|terra|modis|casino|hotel|resort|airport|stadium|interior|station|hospital|building|street|sign/i;
 // Scenic first: a view, a beach, the water, the old town (Jon, 2026-11-14: "a casino??").
 const SCENIC = /panoram|view|beach|praia|playa|bay|baia|coast|harbou?r|marina|port_|skyline|sunset|dune|old.?town|river|cliff|lagoon|island|landscape/i;
 // "Estoril/Cascais" or "Foz do Douro, Porto" looks up its first place.
 export const placeKey = (name) => String(name || '').split(/[/,(&+]|\band\b/)[0].trim();
 // A place's photo: Wikivoyage's lead photo first (picked for travellers: the marina, the old town, the skyline),
 // then the first real photo on its Wikipedia page.
-export const PIC_V = 3;
+export const PIC_V = 4;
 // A country or region shows its capital ("UK" shows London), from Wikidata's capital field.
 async function capitalOf(k) {
   try {
@@ -820,7 +820,7 @@ function tripsPage(S, sub, ui) {
   } else {
     const [b, a] = tripBooked(t); const tv = ui.psTView || 'list'; const L = t.stops.length;
     const views = `<div class="psfilter" role="group" aria-label="View">${[['list', 'List'], ['cal', 'Calendar'], ['map', 'Map']].map(([k, l]) => `<button type="button" data-pstview="${k}" aria-pressed="${k === tv}">${l}</button>`).join('')}</div>`;
-    html = `<section class="card pstrip" data-pstripat="${n}"><div class="psthead"><div class="psthrow"><h2>${esc(t.name)}</h2><span class="mut">${esc(tripDates(t))}</span><label class="pslnk"><input type="file" accept="image/*" hidden data-pstphoto>${t.img ? 'Change photo' : 'Trip photo'}</label><button type="button" class="pslnk" data-pstrip="edit">Edit</button></div>${tripBar(t)}<div class="pstvrow"><span class="mut">${esc(budLine(t))} · ${a ? `${b} of ${a} booked` : 'nothing to book yet'}</span>${L ? views : ''}</div></div>
+    html = `<section class="card pstrip" data-pstripat="${n}"><div class="psthead"><div class="psthrow"><h2>${esc(t.name)}</h2><span class="mut">${esc(tripDates(t))}</span><label class="pslnk"><input type="file" accept="image/*" hidden data-pstphoto>${t.img ? 'Change photo' : 'Trip photo'}</label><button type="button" class="pslnk" data-pstrip="edit">Edit</button></div>${tripBar(t)}<div class="pstvrow"><span class="mut">${esc(budLine(t))} · ${a ? `${b} of ${a} booked` : 'nothing to book yet'}</span>${L ? views : ''}</div>${L ? `<nav class="psstopnav" aria-label="Stops">${t.stops.map((s, j) => `<a href="#personal/trips/${n}/${j}"><span class="psnavph">${(() => { const src = placePhoto(s.place, s.img); return src ? `<img alt="" src="${esc(src)}">` : esc(String(s.place || '?').trim().charAt(0).toUpperCase()); })()}</span><b>${j + 1}</b>${esc(s.place || 'Stop')}</a>`).join('')}</nav>` : ''}</div>
 ${tv === 'cal' && L ? tripCal(t) : tv === 'map' && L ? mapBox(n, null, ui) : L ? `<div class="psstops">${t.stops.map((s, j) => `<div class="psstop${isHomeLeg(t, j) ? ' home' : ''}" data-psstop="${j}"><a class="psphl" href="#personal/trips/${n}/${j}" aria-label="Open ${esc(s.place)}">${photoHtml(s.place, s.img)}</a><div class="psstb"><div class="psst2h"><span class="psgrip" draggable="true" data-psgrip="${j}" title="Drag to move">⠿</span><span class="psstno">${j + 1}</span>${isHomeLeg(t, j) ? `<b>Back home</b><span class="mut">${esc(s.place)}${s.from ? ` · ${fmtD(s.from)}` : ''}</span>` : `<b>${esc(s.place)}</b>${s.ex ? '<span class="psex">example</span>' : ''}<span class="mut">${s.from ? fmtD(s.from) : '?'} – ${s.to ? fmtD(s.to) : '?'}${daysTxt(nDays(s.from, s.to))}</span>`}<span class="psstc"><button type="button" class="psmv" data-psmove="${j}.-1" aria-label="Move ${esc(s.place)} up"${j ? '' : ' disabled'}>↑</button><button type="button" class="psmv" data-psmove="${j}.1" aria-label="Move ${esc(s.place)} down"${j < L - 1 ? '' : ' disabled'}>↓</button><button type="button" class="pslnk" data-psedstop="${j}">Edit</button><button type="button" class="pslnk" data-psdelstop="${j}">Remove</button></span></div>
 ${s.notes || s.link ? `<div class="psnote">${s.notes ? `<p>${esc(s.notes)}</p>` : ''}${s.link ? `<a href="${esc(webLink(s.link))}" target="_blank" rel="noopener noreferrer">${esc(s.link.replace(/^https?:\/\//i, '').slice(0, 60))}</a>` : ''}</div>` : ''}
 ${bkRow(s, j, t)}
