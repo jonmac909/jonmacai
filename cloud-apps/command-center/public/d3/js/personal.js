@@ -638,7 +638,7 @@ async function findSpots(S, n, j, send, render, reload) {
   let pics = false;
   for (const s of (j == null ? t.stops : [t.stops[j]])) {
     // no photo yet, or one picked the old way (Jon's own uploads aren't on Wikimedia, so they're kept)
-    const stale = s?.img && s.imgv !== PIC_V && /upload\.wikimedia\.org/.test(s.img);
+    const stale = s?.img && s.imgv !== PIC_V && /wikimedia\.org|wikipedia\.org/.test(s.img);
     if (s && s.place && (!s.img || stale)) { const src = WIKI[placeKey(s.place)] || await placePic(s.place); if (src) { s.img = src; s.imgv = PIC_V; pics = true; } else if (stale) { s.imgv = PIC_V; pics = true; } }
   }
   (j == null ? t.stops : [t.stops[j]]).forEach((s) => {
