@@ -1211,3 +1211,16 @@ html[data-theme="dark"] body{background:#0b0b0c}
 }
 .d3 .psmday>small{height:22px;white-space:nowrap}
 @media (max-width:900px){.d3 .psmday>small i{display:none}}
+/* Overview cards: a colour and an icon each, and calmer type (Jon, 2026-11-15). */
+.d3 .pscard.ov{--tone:var(--fill);position:relative;overflow:hidden;border-top:3px solid var(--tone)}
+.d3{--t-budget:#16a34a;--t-meals:#ea580c;--t-workouts:#2563eb;--t-trips:#0891b2;--t-date:#db2777;--t-home:#7c3aed}
+.d3 .pscard.ov-budget{--tone:var(--t-budget)}.d3 .pscard.ov-meals{--tone:var(--t-meals)}.d3 .pscard.ov-workouts{--tone:var(--t-workouts)}
+.d3 .pscard.ov-trips{--tone:var(--t-trips)}.d3 .pscard.ov-date{--tone:var(--t-date)}.d3 .pscard.ov-home{--tone:var(--t-home)}
+.d3 .pscard.ov>small{display:flex;align-items:center;gap:10px;font-size:12px;letter-spacing:.06em;color:var(--muted)}
+.d3 .pscard.ov .psico{display:inline-grid;place-items:center;width:32px;height:32px;border-radius:10px;background:color-mix(in srgb,var(--tone) 13%,transparent);color:var(--tone)}
+.d3 .pscard.ov .psmain b{font-family:var(--disp);font-size:20px;font-weight:600;letter-spacing:-.01em}
+.d3 .pscard.ov .psmain b i{font-size:12px}
+.d3 .pscard.ov .psmain em,.d3 .pscard.ov .psmain span{font-size:13px}
+.d3 .pscard.ov .psbar>u{background:var(--tone)}
+.d3 .pscard.ov .psfoot span{font-size:12.5px;color:var(--tone)}
+@media (max-width:760px){.d3 .pscard.ov .psmain b{font-size:16px}.d3 .pscard.ov .psico{width:26px;height:26px;border-radius:8px}.d3 .pscard.ov .psico svg{width:15px;height:15px}}
