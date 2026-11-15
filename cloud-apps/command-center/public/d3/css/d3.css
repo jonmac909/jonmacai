@@ -1130,18 +1130,6 @@ html[data-theme="dark"] body{background:#0b0b0c}
 @media (max-width:760px){.d3 .pstminis{grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}}
 .d3 .pstyh .pslnk{font-size:14px;font-weight:600}
 .d3 .psedr select{width:100%;min-width:0}
-/* Trip page stops, compact (Jon, 2026-11-15): a small photo beside the name, bookings as chips, so the whole list fits. */
-.d3 .pstrip .psstop{display:grid;grid-template-columns:112px minmax(0,1fr);gap:14px;align-items:start;padding:12px}
-.d3 .pstrip .psstop .psphl .psph{aspect-ratio:1/1;max-height:none;width:112px;border-radius:14px}
-.d3 .pstrip .psstb{display:grid;gap:8px;min-width:0}
-.d3 .psbkchips{display:flex;flex-wrap:wrap;gap:6px}
-.d3 .psbkchip{display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 12px;border:1px solid var(--line);border-radius:999px;background:var(--card);color:var(--ink);font:inherit;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap}
-.d3 .psbkchip i{font-style:normal;font-size:13px}.d3 .psbkchip small{font-weight:500;color:var(--muted)}
-.d3 .psbkchip.on{border-color:color-mix(in srgb,var(--ok) 50%,var(--line));background:color-mix(in srgb,var(--ok) 10%,var(--card))}.d3 .psbkchip.on b{color:var(--ok)}
-.d3 .pstrip .pscityl{padding:6px 10px;min-height:0}
-@media (max-width:760px){.d3 .pstrip .psstop{grid-template-columns:72px minmax(0,1fr);gap:10px;padding:10px}.d3 .pstrip .psstop .psphl .psph{width:72px;aspect-ratio:1/1}}
-@media (max-width:760px){.d3 .psbkchip{height:28px;padding:0 10px;font-size:12px}}
-/* Meal method: Prep (done ahead by whoever preps) above Cooking. */
 .d3 .psmeth{display:flex;flex-direction:column;gap:6px}.d3 .psmeth>b:not(:first-child){margin-top:8px}.d3 .psmeth>small{margin-top:-4px;font-size:12px}
 .d3 .psmeth textarea.pstext{flex:1;min-height:140px}.d3 .psmeth textarea.psprep{flex:0 0 auto;min-height:110px}
 .d3 .psipart{padding:12px 6px 4px;font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--muted)}.d3 .psipart:first-child{padding-top:4px}

@@ -58,8 +58,8 @@ test('Trips: editing a stop saves every field and the rest of the trip is kept',
   assert.deepEqual(places(P), ['Lisbon', 'Sintra palaces', 'Porto']); // edited in place, not moved by its new dates
   assert.equal(P.store.trips[0].name, 'Portugal');
   assert.equal(P.store.trips[0].bud, 5000);
-  // the city page shows the notes and the link; the edit dialog opens filled in
-  assert.match(page(P, {}, ['trips', '0', '1']), /<p>Pena first, 9:30 tickets<\/p><a href="https:\/\/parquesdesintra.pt\/en" target="_blank"/);
+  // the list shows the notes and the link; the edit dialog opens filled in
+  assert.match(page(P), /<p>Pena first, 9:30 tickets<\/p><a href="https:\/\/parquesdesintra.pt\/en" target="_blank"/);
   const dlg = page(P, { psPop: { kind: 'stop', i: 0, j: 1 } });
   assert.match(dlg, /<b class="hmedt">Edit Sintra palaces<\/b>/);
   assert.match(dlg, /name="place" value="Sintra palaces"/);
@@ -80,7 +80,7 @@ test('Trips: editing a stop saves every field and the rest of the trip is kept',
   editStop(T, 0, 1, { ...v, k0: '<img src=x onerror=alert(1)>' });
   const listed = page({ store: { trips: T } });
   assert.doesNotMatch(listed, /<img src=x/);
-  assert.match(listed, /&lt;img src=x onerror=alert\(1\)&gt;( <b>✓<\/b>|<\/label><i class="psbkok">booked<\/i>)/);
+  assert.match(listed, /&lt;img src=x onerror=alert\(1\)&gt;<\/label><i class="psbkok">booked<\/i>/);
 });
 
 test('Trips: the calendar view puts each stop on each of its days and opens its edit on click', () => {
@@ -228,7 +228,7 @@ test('Trips: an empty leg reads from home or the stop before; trips sit by year 
   assert.deepEqual(legOf({ stops: [{ place: 'Porto' }, { place: 'Gran Canaria' }, { place: 'Estoril/Cascais' }] }, 2), { from: 'Gran Canaria', to: 'Estoril' });
   assert.deepEqual(bkFace({ k: 'Flight' }, { from: 'Kelowna', to: 'Lisbon' }), { top: 'Kelowna → Lisbon', sub: '', none: 'Add times and details' });
   assert.equal(bkFace({ k: 'Flight', det: { from: 'YLW', to: 'LIS' } }, { from: 'Kelowna', to: 'Lisbon' }).top, 'YLW → LIS');
-  assert.match(page({ store: { trips: T } }, {}, ['trips', '0', '0']), /data-psbkdet="0.0"><b>Kelowna → Lisbon<\/b><small class="none">Add times and details<\/small>/);
+  assert.match(page({ store: { trips: T } }, {}, ['trips', '0']), /data-psbkdet="0.0"><b>Kelowna → Lisbon<\/b><small class="none">Add times and details<\/small>/);
   // where a trip sits: saved, or from its first date (Jan = that winter, Aug-Oct = fall, Nov = next winter), or not placed
   assert.deepEqual(tripSlot({ stops: [{ from: '2027-01-14' }] }), { yr: 2027, sea: 'snow' });
   assert.deepEqual(tripSlot({ stops: [{ from: '2027-08-20' }] }), { yr: 2027, sea: 'fall' });
