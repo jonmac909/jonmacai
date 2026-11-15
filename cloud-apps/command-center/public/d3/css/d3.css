@@ -1133,3 +1133,51 @@ html[data-theme="dark"] body{background:#0b0b0c}
 .d3 .psmeth{display:flex;flex-direction:column;gap:6px}.d3 .psmeth>b:not(:first-child){margin-top:8px}.d3 .psmeth>small{margin-top:-4px;font-size:12px}
 .d3 .psmeth textarea.pstext{flex:1;min-height:140px}.d3 .psmeth textarea.psprep{flex:0 0 auto;min-height:110px}
 .d3 .psipart{padding:12px 6px 4px;font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--muted)}.d3 .psipart:first-child{padding-top:4px}
+/* Trip page stops, minimal (Jon, 2026-11-15): a square photo beside the stop; every booking (checkmark, details, files, cost) kept, as tidy lines. */
+.d3 .pstrip .psstops .psstop{display:grid;grid-template-columns:232px minmax(0,1fr);grid-template-areas:"ph hd" "ph bk" "ph st";grid-template-rows:auto 1fr auto;column-gap:20px;row-gap:8px;align-items:start;padding:16px}
+.d3 .pstrip .psstops .psstop>.psstb{display:contents}
+.d3 .pstrip .psstops .psstop>.psphl{grid-area:ph;width:232px;height:232px}
+.d3 .pstrip .psstops .psstop>.psphl .psph{width:100%;height:100%;aspect-ratio:1/1;min-height:0;max-height:none;border-radius:14px}
+.d3 .pstrip .psstops .psstop .psst2h{grid-area:hd;min-width:0}
+.d3 .pstrip .psstops .psstop .psbk3{grid-area:bk;align-self:stretch;display:grid;grid-template-columns:minmax(0,1fr);gap:0;border-top:1px solid var(--line)}
+.d3 .pstrip .psstops .psstop .psbk{display:grid;grid-template-columns:150px minmax(0,1fr) auto 110px;grid-template-areas:"h d f c";align-items:center;column-gap:12px;padding:8px 0;border:0;border-bottom:1px solid var(--line);border-radius:0;background:transparent;min-height:0}
+.d3 .pstrip .psstops .psstop .psbk .psbkh{grid-area:h;min-width:0}
+.d3 .pstrip .psstops .psstop .psbk button.psbkd{grid-area:d;flex:none;min-height:0;padding:0;background:transparent;border-radius:0;min-width:0}
+.d3 .pstrip .psstops .psstop .psbk button.psbkd b,.d3 .pstrip .psstops .psstop .psbk button.psbkd small{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.d3 .pstrip .psstops .psstop .psbk .psbkfiles{grid-area:f;order:0}
+.d3 .pstrip .psstops .psstop .psbk .pscost{grid-area:c;order:0;height:32px;padding:0 8px;font-size:13px}
+.d3 .pstrip .psstops .psstop>.psstb>:not(.psst2h):not(.psbk3){grid-area:st;min-width:0}
+@media (max-width:760px){
+  .d3 .pstrip .psstops .psstop{grid-template-columns:84px minmax(0,1fr);grid-template-areas:"ph hd" "bk bk" "st st";grid-template-rows:84px auto auto;column-gap:12px;row-gap:10px;padding:12px}
+  .d3 .pstrip .psstops .psstop>.psphl{width:84px;height:84px}
+  .d3 .pstrip .psstops .psstop .psst2h{align-self:center}
+  .d3 .pstrip .psstops .psstop .psbk{grid-template-columns:minmax(0,1fr) 96px;grid-template-areas:"h c" "d c" "f f";row-gap:2px}
+  .d3 .pstrip .psstops .psstop .psbk button.psbkd{padding-left:26px}
+}
+/* Bookings minimized to one line each; photo square = header + 3 lines + plans strip. */
+.d3 .pstrip .psstops .psstop{grid-template-columns:216px minmax(0,1fr);grid-template-rows:32px auto 48px}
+.d3 .pstrip .psstops .psstop>.psphl{width:216px;height:216px}
+.d3 .pstrip .psstops .psstop .psst2h{height:32px;align-self:center}
+.d3 .pstrip .psstops .psstop .psbk3{align-self:start}
+.d3 .pstrip .psstops .psstop .psbk{box-sizing:border-box;height:40px;padding:0;grid-template-columns:170px minmax(0,1fr) auto 96px;grid-template-areas:"h d f c"}
+.d3 .pstrip .psstops .psstop .psbk .psbkh{display:flex;align-items:center;gap:6px;white-space:nowrap}
+.d3 .pstrip .psstops .psstop .psbk .psbkh .psbkck{display:inline-flex;align-items:center;gap:6px}
+.d3 .pstrip .psstops .psstop .psbk .psbkh .psbkup{margin-left:auto}
+.d3 .pstrip .psstops .psstop .psbk button.psbkd{display:flex;align-items:baseline;gap:8px;overflow:hidden;white-space:nowrap}
+.d3 .pstrip .psstops .psstop .psbk button.psbkd small{color:var(--muted);flex:1 1 auto;min-width:0}
+.d3 .pstrip .psstops .psstop .psbk .psbkfiles .psbkfile{height:26px;font-size:12px}
+.d3 .pstrip .psstops .psstop .psbk .pscost{height:30px}
+.d3 .pstrip .psstops .psstop>.psstb>:not(.psst2h):not(.psbk3){box-sizing:border-box;height:48px;align-self:end}
+@media (max-width:760px){
+  .d3 .pstrip .psstops .psstop{grid-template-columns:84px minmax(0,1fr);grid-template-rows:84px auto auto}
+  .d3 .pstrip .psstops .psstop>.psphl{width:84px;height:84px}
+  .d3 .pstrip .psstops .psstop .psst2h{height:auto}
+  .d3 .pstrip .psstops .psstop .psbk{height:44px;grid-template-columns:auto minmax(0,1fr) 84px;grid-template-areas:"h d c";column-gap:10px;row-gap:0}
+  .d3 .pstrip .psstops .psstop .psbk button.psbkd{padding-left:0}
+  .d3 .pstrip .psstops .psstop .psbk button.psbkd small,.d3 .pstrip .psstops .psstop .psbk .psbkfiles,.d3 .pstrip .psstops .psstop .psbk .psbkok,.d3 .pstrip .psstops .psstop .psbk .psbkup{display:none}
+  .d3 .pstrip .psstops .psstop>.psstb>:not(.psst2h):not(.psbk3){height:auto}
+}
+@media (max-width:760px){.d3 .pstrip .psstops .psstop .psbk{grid-template-columns:136px minmax(0,1fr) 84px}.d3 .pstrip .psstops .psstop .psbk button.psbkd b{font-size:13px}}
+@media (min-width:761px) and (max-width:1180px){.d3 .pstrip .psstops .psstop .psbk{grid-template-columns:150px minmax(0,1fr) 90px;grid-template-areas:"h d c"}.d3 .pstrip .psstops .psstop .psbk .psbkfiles,.d3 .pstrip .psstops .psstop .psbk button.psbkd small{display:none}}
+@media (min-width:761px){.d3 .pstrip .psstops .psstop .psst2h{display:flex;flex-wrap:nowrap;align-items:center;gap:8px;overflow:hidden;white-space:nowrap}.d3 .pstrip .psstops .psstop .psst2h>.mut{min-width:0;overflow:hidden;text-overflow:ellipsis}.d3 .pstrip .psstops .psstop .psst2h .psstc{margin-left:auto;flex:none}}
+@media (min-width:761px) and (max-width:1180px){.d3 .pstrip .psstops .psstop .psbk .psbkok,.d3 .pstrip .psstops .psstop .psbk .psbkup{display:none}.d3 .pstrip .psstops .psstop .psbk{grid-template-columns:140px minmax(0,1fr) 90px}}
