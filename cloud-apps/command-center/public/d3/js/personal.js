@@ -754,8 +754,16 @@ export function placeTrip(T, i, yr, sea) {
 const lockBtn = (x, i) => `<button type="button" class="pstlock${x.lock ? ' on' : ''}" data-pslock="${i}" aria-pressed="${!!x.lock}" title="${x.lock ? 'Locked: click to let it move' : 'Lock it where it is'}">${x.lock ? '🔒 Locked' : '🔓'}</button>`;
 // A trip's card: the photo, its name and dates, a season pill (tap to switch) and the lock. Short trips are smaller.
 const seaPill = (x, i) => { const k = tripSlot(x).sea; return `<button type="button" class="pstpill ${k}" data-psseason="${i}" title="${x.lock ? 'Locked' : 'Tap to move it'}"${x.lock ? ' disabled' : ''}>${k === 'fall' ? 'Fall escape' : 'Snowbird'}</button>`; };
+// A trip's photo shows the new place: "UK & Malta" shows Malta, since a Fall escape starts in the UK every year.
+export function tripPic(x) {
+  const parts = String(x.name || '').split(/[/,&+]|and/).map((y) => y.trim()).filter(Boolean);
+  const st = x.stops || []; const s = st.length > 1 && /^(uk|united kingdom|england|london)$/i.test(placeKey(st[0].place)) ? st[1] : st[0];
+  if (parts.length > 1 && !st.length) return { name: parts[parts.length - 1], img: x.img };
+  return { name: s?.place || x.name, img: x.img || s?.img };
+}
 function tripCard(x, i) {
-  return `<a class="pscard pstcard${x.lock ? ' locked' : ''}${x.mini ? ' mini' : ''}" href="#personal/trips/${i}" draggable="${!x.lock}" data-pstcard="${i}">${photoHtml(x.stops[0]?.place || x.name, x.img || x.stops[0]?.img)}${seaPill(x, i)}${lockBtn(x, i)}<div class="pstcb"><b>${esc(x.name)}</b><em>${esc(tripDates(x))}</em></div></a>`;
+  const pic = tripPic(x);
+  return `<a class="pscard pstcard${x.lock ? ' locked' : ''}${x.mini ? ' mini' : ''}" href="#personal/trips/${i}" draggable="${!x.lock}" data-pstcard="${i}">${photoHtml(pic.name, pic.img)}${seaPill(x, i)}${lockBtn(x, i)}<div class="pstcb"><b>${esc(x.name)}</b><em>${esc(tripDates(x))}</em></div></a>`;
 }
 // Trips by year (Jon, 2026-11-14): the year, then its trips in one row, Snowbird first. Drag a card to another year;
 // its pill says the season.

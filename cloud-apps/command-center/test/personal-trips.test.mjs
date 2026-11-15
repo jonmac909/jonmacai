@@ -307,3 +307,10 @@ test('meals: a recipe in parts lists each part under its own heading; "UK & Malt
   assert.deepEqual(ps.map((x) => [x.t, x.lines.length]), [['Branzino', 2], ['Rice', 2]]);
   assert.equal(placeKey('UK & Malta'), 'UK'); assert.equal(placeKey('Estoril/Cascais'), 'Estoril');
 });
+
+test('trips: the card photo is the new place, not the UK', async () => {
+  const { tripPic } = await import('../public/d3/js/personal.js');
+  assert.equal(tripPic({ name: 'UK & Malta', stops: [] }).name, 'Malta');
+  assert.equal(tripPic({ name: 'UK & Scotland', stops: [{ place: 'UK' }, { place: 'Scotland', img: 'x' }] }).img, 'x');
+  assert.equal(tripPic({ name: 'Portugal', stops: [{ place: 'Lisbon' }] }).name, 'Lisbon');
+});
