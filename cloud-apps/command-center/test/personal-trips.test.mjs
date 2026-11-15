@@ -328,12 +328,12 @@ test('trips: misspelt places take the right spelling; places get a category', as
   assert.equal(guessCat('Jerónimos Monastery', false), 'Sights');
 });
 
-test('meals: a meal dragged onto another day swaps with the one there', async () => {
+test('meals: drag a meal from the list onto a day, onto another day, or back to the list', async () => {
   const { moveMeal, mealDays } = await import('../public/d3/js/personal.js');
   const ms = Array.from({ length: 7 }, (_, i) => ({ n: `m${i}` }));
-  assert.deepEqual(mealDays(ms), [0, 1, 2, 3, 4, 5, 6]);
-  assert.equal(moveMeal(ms, 0, 4), true);
-  assert.deepEqual(mealDays(ms), [4, 1, 2, 3, 0, 5, 6]);
-  assert.equal(moveMeal(ms, 0, 4), false);
-  assert.deepEqual(mealDays([{ dw: 2 }, { dw: 2 }, {}, {}, {}, {}, {}]), [0, 1, 2, 3, 4, 5, 6]);
+  assert.deepEqual(mealDays(ms), [null, null, null, null, null, null, null]);
+  assert.equal(moveMeal(ms, 0, 4), true); assert.equal(mealDays(ms)[0], 4);
+  assert.equal(moveMeal(ms, 1, 4), true); assert.deepEqual(mealDays(ms).slice(0, 2), [null, 4]);
+  assert.equal(moveMeal(ms, 1, null), true); assert.equal(mealDays(ms)[1], null);
+  assert.deepEqual(mealDays([{ dw: 2 }, { dw: 2 }]), [2, null]);
 });

@@ -122,15 +122,17 @@ const COSTCO = /ribeye|steelhead|chicken/i;
 export const aisle = (k) => (COSTCO.test(k) ? 'Costco' : (AISLES.find((a) => a[1].test(k)) || ['Produce'])[0]);
 const AORDER = ['Costco', 'Meat & fish', 'Produce', 'Dairy', 'Carbs', 'Pantry'];
 // Each meal is on a day of the meal week (0 Mon .. 6 Sun). Meal i starts on day i; drag it to another day and the two swap.
-export const mealDays = (meals) => { const d = meals.map((m, i) => (Number.isInteger(m?.dw) && m.dw >= 0 && m.dw < 7 ? m.dw : i)); return new Set(d).size === d.length ? d : meals.map((_, i) => i); };
+// A meal's day this week (0 Mon .. 6 Sun), or null while it is still in the Meals list. One meal a day.
+export const mealDays = (meals) => { const seen = new Set(); return meals.map((m) => { const d = Number.isInteger(m?.dw) && m.dw >= 0 && m.dw < 7 && !seen.has(m.dw) ? m.dw : null; if (d != null) seen.add(d); return d; }); };
+// Drag meal `from` onto a day (null: back to the list). A meal already on that day takes the dragged one's old place.
 export function moveMeal(meals, from, day) {
-  const d = mealDays(meals); if (!(from >= 0 && from < meals.length) || !(day >= 0 && day < 7) || d[from] === day) return false;
-  const k = d.indexOf(day); if (k >= 0) meals[k].dw = d[from];
-  meals[from].dw = day; meals.forEach((m, i) => { if (m.dw == null) m.dw = d[i]; });
+  const d = mealDays(meals); if (!(from >= 0 && from < meals.length) || (day != null && !(day >= 0 && day < 7)) || d[from] === day) return false;
+  if (day != null) { const k = d.indexOf(day); if (k >= 0) meals[k].dw = d[from]; }
+  meals[from].dw = day;
   return true;
 }
 // Monday's shop buys for Mon to Thu, Thursday's for Fri to Sun.
-const shopOf = (meals, mon) => mealDays(meals).map((d, i) => [d, i]).filter(([d]) => (mon ? d < 4 : d >= 4)).map(([, i]) => i);
+const shopOf = (meals, mon) => mealDays(meals).map((d, i) => [d ?? (i < 4 ? 0 : 4), i]).filter(([d]) => (mon ? d < 4 : d >= 4)).map(([, i]) => i);
 // One grocery list: the ticked ingredients of its meals, merged, in store order.
 export function groc(meals, idxs, P = {}) {
   const items = new Map();
@@ -402,7 +404,7 @@ function overview(S, now) {
   const plan = task(H, 'r-meals');
   return `<div class="psgrid">
 ${budget}
-${card('meals', 'Meals', next >= 0 ? 'Next up' : 'This week', next >= 0 ? esc(meals[next].n) : 'No meals yet', next >= 0 ? `${DAYS[mealDays(meals)[next]]} · 2 portions` : 'Add 7 meals on Sunday', `${nM} of 7 planned`, (nM / 7) * 100)}
+${card('meals', 'Meals', next >= 0 ? 'Next up' : 'This week', next >= 0 ? esc(meals[next].n) : 'No meals yet', next >= 0 ? `${mealDays(meals)[next] != null ? DAYS[mealDays(meals)[next]] : `Meal ${next + 1}`} · 2 portions` : 'Add 7 meals on Sunday', `${nM} of 7 planned`, (nM / 7) * 100)}
 ${wo ? card('workouts', 'Workouts', esc(whenText(woNext, wo)), 'Workout', esc(daysText(wo)), `${woDone} of ${woDays.length} this week`, woDays.length ? (woDone / woDays.length) * 100 : 0) : card('workouts', 'Workouts', 'Not on the schedule', 'No workout', '', '', null)}
 ${trip ? card('trips', 'Trips', esc(trip.name), toGo > 0 ? `${toGo} <i>day${toGo === 1 ? '' : 's'} to go</i>` : onDay ? `Day ${onDay} <i>of ${nDays(tsp[0], tsp[1])}</i>` : `${trip.stops.length} <i>stops</i>`, esc(`${tripDates(trip)} · ${trip.stops.length} stop${trip.stops.length === 1 ? '' : 's'}`), esc(`${ta ? (tb ? `${tb} of ${ta} flights and stays booked` : `${ta} flights and stays to book`) : 'Add the stops'}${trip.bud ? ` · ${usd0(trip.bud)} budget` : ''}`), ta ? (tb / ta) * 100 : 0) : card('trips', 'Trips', 'No trips', 'Add a trip', '', '', null)}
 ${dt ? card('date', 'Date night', esc(dtNext ? `${dtNext.i === 0 ? 'Tonight' : dtNext.i === 1 ? 'Tomorrow' : `${DAYS[dow(dtNext.ymd)]} ${fmtD(dtNext.ymd)}`} ${fmtT(dt.start)}–${fmtT(dt.end)}` : ''), 'Book something', esc(dtNext && !dtNext.i ? 'Covers dinner' : 'Pick a spot and book it'), `Every ${DAYL[taskDays(dt)[0]] || ''}`, null) : card('date', 'Date night', '', 'Not on the schedule', '', '', null)}
@@ -414,7 +416,7 @@ function mealsPage(S, now, ui) {
   const P = S.personal; const meals = mealsOf(P); const prices = P?.store?.prices || {};
   const wk = mealWeek(now.ymd); const nM = meals.filter((m) => m.n).length;
   const mon = groc(meals, shopOf(meals, true), prices); const thu = groc(meals, shopOf(meals, false), prices);
-  const days = mealDays(meals); const left = days.map((d, i) => [d, i]).sort((a, b) => a[0] - b[0]).filter(([, i]) => !meals[i].n).map(([d]) => DAYS[d]);
+  const days = mealDays(meals); const left = meals.map((m, i) => (m.n ? '' : `Meal ${i + 1}`)).filter(Boolean);
   const list = (id, g) => {
     let last = '';
     const rows = g.rows.map(([k, x]) => {
@@ -430,8 +432,10 @@ function mealsPage(S, now, ui) {
 <div class="hmw"><small>Meals planned</small><b>${nM} <i>of 7</i></b>${bar((nM / 7) * 100)}<span>${left.length ? esc(`${left.join(', ')} still to add`) : 'All 7 planned'}</span></div>
 </div>
 <div class="psmeals">
-<section class="card pscol pswide"><div class="pshd"><h2>Meals</h2><span class="mut">Week of ${fmtD(wk)} · 2 portions each</span><span class="mut psright">${nM} of 7 added</span></div>
-<div class="psmweek">${[0, 1, 2, 3, 4, 5, 6].map((d) => { const i = days.indexOf(d); const m = meals[i]; return `<div class="psmday${d === 3 || d === 0 ? ' shop' : ''}" data-psmday="${d}"><small>${DAYS[d]} ${fmtD(addD(wk, d)).split(' ')[1]}${d === 0 || d === 3 ? '<i>Shop</i>' : ''}</small><button type="button" class="psmtile${m.n ? '' : ' empty'}" data-psmeal="${i}"${m.n ? ` draggable="true" data-psmdrag="${i}"` : ''}>${m.n && m.imgs?.[0] ? `<img alt="" src="${esc(m.imgs[0])}">` : ''}<b>${m.n ? esc(m.n) : '+ Add recipe'}</b></button></div>`; }).join('')}</div></section>
+<section class="card pscol pswide"><div class="pshd"><h2>Meals</h2><span class="mut">2 portions each</span><span class="mut psright">${nM} of 7 added</span></div>
+<div class="psmlist" data-psmday="">${meals.map((m, i) => (days[i] != null ? '' : `<button type="button" class="psmrow${m.n ? '' : ' empty'}" data-psmeal="${i}"${m.n ? ` draggable="true" data-psmdrag="${i}"` : ''}><b>Meal ${i + 1}</b><span>${m.n ? esc(m.n) : 'Add recipe'}${m.n && m.src ? `<small>${esc(m.src)}</small>` : ''}</span><span class="${m.n ? 'psok' : 'mut'}">${m.n ? '✓' : '›'}</span></button>`)).join('')}</div></section>
+<section class="card pscol pswide"><div class="pshd"><h2>This week</h2><span class="mut">Week of ${fmtD(wk)}</span></div>
+<div class="psmweek">${[0, 1, 2, 3, 4, 5, 6].map((d) => { const i = days.indexOf(d); const m = i >= 0 ? meals[i] : null; return `<div class="psmday" data-psmday="${d}"><small>${DAYS[d]} ${fmtD(addD(wk, d)).split(' ')[1]}${d === 0 || d === 3 ? '<i>Shop</i>' : ''}</small>${m ? `<button type="button" class="psmtile" data-psmeal="${i}" draggable="true" data-psmdrag="${i}">${m.imgs?.[0] ? `<img alt="" src="${esc(m.imgs[0])}">` : ''}<b>${esc(m.n || `Meal ${i + 1}`)}</b></button>` : '<div class="psmtile empty"></div>'}</div>`; }).join('')}</div></section>
 <section class="card pscol"><div class="pshd"><h2>Groceries · Monday</h2><span class="mut">${fmtD(wk)} · 8am · Mon to Thu meals · tap a price to change it</span></div><div class="psglist">${list('mon', mon)}</div></section>
 <section class="card pscol"><div class="pshd"><h2>Groceries · Thursday</h2><span class="mut">${fmtD(addD(wk, 3))} · 8am · Fri to Sun meals</span></div><div class="psglist">${list('thu', thu)}</div></section>
 </div>
@@ -1254,7 +1258,7 @@ export function personalDrag(root, S, on, send, render, reload) {
   // Meals: drag a meal onto another day of the week.
   let meal = null;
   const unmeal = () => root.querySelectorAll('[data-psmday].over, [data-psmdrag].drag').forEach((x) => x.classList.remove('over', 'drag'));
-  const mealOn = (from, z) => { const meals = mealsOf(S.personal); if (moveMeal(meals, Number(from), Number(z.dataset.psmday))) save(S, 'meals', { list: meals }, send, render, reload); };
+  const mealOn = (from, z) => { const meals = mealsOf(S.personal); if (moveMeal(meals, Number(from), z.dataset.psmday === '' ? null : Number(z.dataset.psmday))) save(S, 'meals', { list: meals }, send, render, reload); };
   root.addEventListener('dragstart', (e) => {
     const c = on() && e.target.closest?.('[data-psmdrag]'); if (!c) return;
     meal = c.dataset.psmdrag; S.ui.psDrag = true; c.classList.add('drag');
