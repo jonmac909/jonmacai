@@ -327,3 +327,13 @@ test('trips: misspelt places take the right spelling; places get a category', as
   assert.equal(guessCat('Braga city in Portugal', true), 'Day trip');
   assert.equal(guessCat('Jerónimos Monastery', false), 'Sights');
 });
+
+test('meals: a meal dragged onto another day swaps with the one there', async () => {
+  const { moveMeal, mealDays } = await import('../public/d3/js/personal.js');
+  const ms = Array.from({ length: 7 }, (_, i) => ({ n: `m${i}` }));
+  assert.deepEqual(mealDays(ms), [0, 1, 2, 3, 4, 5, 6]);
+  assert.equal(moveMeal(ms, 0, 4), true);
+  assert.deepEqual(mealDays(ms), [4, 1, 2, 3, 0, 5, 6]);
+  assert.equal(moveMeal(ms, 0, 4), false);
+  assert.deepEqual(mealDays([{ dw: 2 }, { dw: 2 }, {}, {}, {}, {}, {}]), [0, 1, 2, 3, 4, 5, 6]);
+});

@@ -119,8 +119,16 @@ const AISLES = [['Meat & fish', /ribeye|steak|chicken|steelhead|trout|salmon|shr
 const COSTCO = /ribeye|steelhead|chicken/i;
 export const aisle = (k) => (COSTCO.test(k) ? 'Costco' : (AISLES.find((a) => a[1].test(k)) || ['Produce'])[0]);
 const AORDER = ['Costco', 'Meat & fish', 'Produce', 'Dairy', 'Carbs', 'Pantry'];
-const MON = [0, 1, 2, 3];
-const THU = [4, 5, 6];
+// Each meal is on a day of the meal week (0 Mon .. 6 Sun). Meal i starts on day i; drag it to another day and the two swap.
+export const mealDays = (meals) => { const d = meals.map((m, i) => (Number.isInteger(m?.dw) && m.dw >= 0 && m.dw < 7 ? m.dw : i)); return new Set(d).size === d.length ? d : meals.map((_, i) => i); };
+export function moveMeal(meals, from, day) {
+  const d = mealDays(meals); if (!(from >= 0 && from < meals.length) || !(day >= 0 && day < 7) || d[from] === day) return false;
+  const k = d.indexOf(day); if (k >= 0) meals[k].dw = d[from];
+  meals[from].dw = day; meals.forEach((m, i) => { if (m.dw == null) m.dw = d[i]; });
+  return true;
+}
+// Monday's shop buys for Mon to Thu, Thursday's for Fri to Sun.
+const shopOf = (meals, mon) => mealDays(meals).map((d, i) => [d, i]).filter(([d]) => (mon ? d < 4 : d >= 4)).map(([, i]) => i);
 // One grocery list: the ticked ingredients of its meals, merged, in store order.
 export function groc(meals, idxs, P = {}) {
   const items = new Map();
@@ -392,7 +400,7 @@ function overview(S, now) {
   const plan = task(H, 'r-meals');
   return `<div class="psgrid">
 ${budget}
-${card('meals', 'Meals', next >= 0 ? 'Next up' : 'This week', next >= 0 ? esc(meals[next].n) : 'No meals yet', next >= 0 ? `Meal ${next + 1} · 2 portions` : 'Add 7 meals on Sunday', `${nM} of 7 planned`, (nM / 7) * 100)}
+${card('meals', 'Meals', next >= 0 ? 'Next up' : 'This week', next >= 0 ? esc(meals[next].n) : 'No meals yet', next >= 0 ? `${DAYS[mealDays(meals)[next]]} · 2 portions` : 'Add 7 meals on Sunday', `${nM} of 7 planned`, (nM / 7) * 100)}
 ${wo ? card('workouts', 'Workouts', esc(whenText(woNext, wo)), 'Workout', esc(daysText(wo)), `${woDone} of ${woDays.length} this week`, woDays.length ? (woDone / woDays.length) * 100 : 0) : card('workouts', 'Workouts', 'Not on the schedule', 'No workout', '', '', null)}
 ${trip ? card('trips', 'Trips', esc(trip.name), toGo > 0 ? `${toGo} <i>day${toGo === 1 ? '' : 's'} to go</i>` : onDay ? `Day ${onDay} <i>of ${nDays(tsp[0], tsp[1])}</i>` : `${trip.stops.length} <i>stops</i>`, esc(`${tripDates(trip)} · ${trip.stops.length} stop${trip.stops.length === 1 ? '' : 's'}`), esc(`${ta ? (tb ? `${tb} of ${ta} flights and stays booked` : `${ta} flights and stays to book`) : 'Add the stops'}${trip.bud ? ` · ${usd0(trip.bud)} budget` : ''}`), ta ? (tb / ta) * 100 : 0) : card('trips', 'Trips', 'No trips', 'Add a trip', '', '', null)}
 ${dt ? card('date', 'Date night', esc(dtNext ? `${dtNext.i === 0 ? 'Tonight' : dtNext.i === 1 ? 'Tomorrow' : `${DAYS[dow(dtNext.ymd)]} ${fmtD(dtNext.ymd)}`} ${fmtT(dt.start)}–${fmtT(dt.end)}` : ''), 'Book something', esc(dtNext && !dtNext.i ? 'Covers dinner' : 'Pick a spot and book it'), `Every ${DAYL[taskDays(dt)[0]] || ''}`, null) : card('date', 'Date night', '', 'Not on the schedule', '', '', null)}
@@ -403,8 +411,8 @@ ${card('home', 'Home', 'Next', homeNext ? esc(homeNext.t.title) : 'Nothing set',
 function mealsPage(S, now, ui) {
   const P = S.personal; const meals = mealsOf(P); const prices = P?.store?.prices || {};
   const wk = mealWeek(now.ymd); const nM = meals.filter((m) => m.n).length;
-  const mon = groc(meals, MON, prices); const thu = groc(meals, THU, prices);
-  const left = meals.map((m, i) => (m.n ? '' : `Meal ${i + 1}`)).filter(Boolean);
+  const mon = groc(meals, shopOf(meals, true), prices); const thu = groc(meals, shopOf(meals, false), prices);
+  const days = mealDays(meals); const left = days.map((d, i) => [d, i]).sort((a, b) => a[0] - b[0]).filter(([, i]) => !meals[i].n).map(([d]) => DAYS[d]);
   const list = (id, g) => {
     let last = '';
     const rows = g.rows.map(([k, x]) => {
@@ -421,9 +429,9 @@ function mealsPage(S, now, ui) {
 </div>
 <div class="psmeals">
 <section class="card pscol pswide"><div class="pshd"><h2>Meals</h2><span class="mut">Week of ${fmtD(wk)} · 2 portions each</span><span class="mut psright">${nM} of 7 added</span></div>
-<div class="psmlist">${meals.map((m, i) => `<button type="button" class="psmrow${m.n ? '' : ' empty'}" data-psmeal="${i}"><b>Meal ${i + 1}</b><span>${m.n ? esc(m.n) : 'Add recipe'}${m.n && m.src ? `<small>${esc(m.src)}</small>` : ''}</span><span class="${m.n ? 'psok' : 'mut'}">${m.n ? '✓' : '›'}</span></button>`).join('')}</div></section>
-<section class="card pscol"><div class="pshd"><h2>Groceries · Monday</h2><span class="mut">${fmtD(wk)} · 8am · Meals 1–4 · tap a price to change it</span></div><div class="psglist">${list('mon', mon)}</div></section>
-<section class="card pscol"><div class="pshd"><h2>Groceries · Thursday</h2><span class="mut">${fmtD(addD(wk, 3))} · 8am · Meals 5–7</span></div><div class="psglist">${list('thu', thu)}</div></section>
+<div class="psmweek">${[0, 1, 2, 3, 4, 5, 6].map((d) => { const i = days.indexOf(d); const m = meals[i]; return `<div class="psmday${d === 3 || d === 0 ? ' shop' : ''}" data-psmday="${d}"><small>${DAYS[d]} ${fmtD(addD(wk, d)).split(' ')[1]}${d === 0 || d === 3 ? '<i>Shop</i>' : ''}</small><button type="button" class="psmtile${m.n ? '' : ' empty'}" data-psmeal="${i}"${m.n ? ` draggable="true" data-psmdrag="${i}"` : ''}>${m.n && m.imgs?.[0] ? `<img alt="" src="${esc(m.imgs[0])}">` : ''}<b>${m.n ? esc(m.n) : '+ Add recipe'}</b></button></div>`; }).join('')}</div></section>
+<section class="card pscol"><div class="pshd"><h2>Groceries · Monday</h2><span class="mut">${fmtD(wk)} · 8am · Mon to Thu meals · tap a price to change it</span></div><div class="psglist">${list('mon', mon)}</div></section>
+<section class="card pscol"><div class="pshd"><h2>Groceries · Thursday</h2><span class="mut">${fmtD(addD(wk, 3))} · 8am · Fri to Sun meals</span></div><div class="psglist">${list('thu', thu)}</div></section>
 </div>
 ${ui.psMeal ? mealModal(ui.psMeal) : ''}`;
 }
@@ -969,7 +977,7 @@ async function saveMeal(S, send, render, reload, close) {
   const d = S.ui.psMeal;
   const meals = mealsOf(S.personal);
   const keep = new Set(parseIng(splitR(d.r).ing).map((x) => x.key));
-  meals[d.i] = { n: d.n.trim(), r: d.r.trim(), on: d.on.filter((k) => keep.has(k)), src: d.src || (d.r.trim() ? (d.imgs.length ? 'photo' : 'typed') : ''), imgs: d.imgs };
+  meals[d.i] = { ...meals[d.i], n: d.n.trim(), r: d.r.trim(), on: d.on.filter((k) => keep.has(k)), src: d.src || (d.r.trim() ? (d.imgs.length ? 'photo' : 'typed') : ''), imgs: d.imgs };
   if (close) S.ui.psMeal = null;
   await save(S, 'meals', { list: meals }, send, render, reload);
 }
@@ -1006,7 +1014,7 @@ export function personalClick(e, S, render, send, reload, sendHome) {
   if (d && t.closest('[data-psaddsel]')) { d.sel.forEach((k) => { if (!d.on.includes(k)) d.on.push(k); }); d.sel = []; saveMeal(S, send, render, reload, false); return true; }
   const grm = t.closest('[data-psgrm]');
   if (grm) {
-    const meals = mealsOf(S.personal); (grm.dataset.psgl === 'mon' ? MON : THU).forEach((i) => { meals[i].on = meals[i].on.filter((k) => k !== grm.dataset.psgrm); });
+    const meals = mealsOf(S.personal); shopOf(meals, grm.dataset.psgl === 'mon').forEach((i) => { meals[i].on = meals[i].on.filter((k) => k !== grm.dataset.psgrm); });
     save(S, 'meals', { list: meals }, send, render, reload); return true;
   }
   const fl = t.closest('[data-psfilter]');
@@ -1241,11 +1249,30 @@ export function personalDrag(root, S, on, send, render, reload) {
     e.preventDefault(); const src = plan; plan = null; S.ui.psDrag = false; unday(); dropOn(src, z);
   });
   root.addEventListener('dragend', () => { plan = null; S.ui.psDrag = false; unday(); });
+  // Meals: drag a meal onto another day of the week.
+  let meal = null;
+  const unmeal = () => root.querySelectorAll('[data-psmday].over, [data-psmdrag].drag').forEach((x) => x.classList.remove('over', 'drag'));
+  const mealOn = (from, z) => { const meals = mealsOf(S.personal); if (moveMeal(meals, Number(from), Number(z.dataset.psmday))) save(S, 'meals', { list: meals }, send, render, reload); };
+  root.addEventListener('dragstart', (e) => {
+    const c = on() && e.target.closest?.('[data-psmdrag]'); if (!c) return;
+    meal = c.dataset.psmdrag; S.ui.psDrag = true; c.classList.add('drag');
+    e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', meal);
+  });
+  root.addEventListener('dragover', (e) => {
+    const z = meal != null && e.target.closest?.('[data-psmday]'); if (!z) return;
+    e.preventDefault(); e.dataTransfer.dropEffect = 'move';
+    root.querySelectorAll('[data-psmday].over').forEach((x) => { if (x !== z) x.classList.remove('over'); }); z.classList.add('over');
+  });
+  root.addEventListener('drop', (e) => {
+    const z = meal != null && e.target.closest?.('[data-psmday]'); if (!z) return;
+    e.preventDefault(); const f = meal; meal = null; S.ui.psDrag = false; unmeal(); mealOn(f, z);
+  });
+  root.addEventListener('dragend', () => { meal = null; S.ui.psDrag = false; unmeal(); });
   // Phones have no drag and drop: press and hold a tile, then slide it onto a day (the page scrolls near the edges).
   let tt = null;
-  const tEnd = () => { if (!tt) return; clearTimeout(tt.timer); cancelAnimationFrame(tt.raf); tt.ghost?.remove(); unday(); S.ui.psDrag = false; tt = null; };
+  const tEnd = () => { if (!tt) return; clearTimeout(tt.timer); cancelAnimationFrame(tt.raf); tt.ghost?.remove(); unday(); unmeal(); S.ui.psDrag = false; tt = null; };
   root.addEventListener('touchstart', (e) => {
-    const c = on() && e.target.closest?.('[data-psdragp]'); if (!c || e.touches.length > 1) return;
+    const c = on() && e.target.closest?.('[data-psdragp], [data-psmdrag]'); if (!c || e.touches.length > 1) return;
     const p0 = e.touches[0];
     tt = { c, x: p0.clientX, y: p0.clientY, live: false, z: null };
     tt.timer = setTimeout(() => {
@@ -1260,7 +1287,7 @@ export function personalDrag(root, S, on, send, render, reload) {
   }, { passive: true });
   const move = () => { if (tt?.ghost) tt.ghost.style.transform = `translate(${tt.x - tt.ox}px, ${tt.y - tt.oy}px)`; };
   const pick = () => {
-    const el = document.elementFromPoint(tt.x, tt.y); const z = el?.closest?.('[data-psdropday]') || null;
+    const el = document.elementFromPoint(tt.x, tt.y); const z = el?.closest?.(tt.c.dataset.psmdrag != null ? '[data-psmday]' : '[data-psdropday]') || null;
     if (z !== tt.z) { tt.z?.classList.remove('over'); z?.classList.add('over'); tt.z = z; }
   };
   root.addEventListener('touchmove', (e) => {
@@ -1270,10 +1297,10 @@ export function personalDrag(root, S, on, send, render, reload) {
   }, { passive: false });
   root.addEventListener('touchend', (e) => {
     if (!tt) return; const { live, z, c } = tt;
-    if (live) { e.preventDefault(); const src = c.dataset.psdragp; tEnd(); if (z) dropOn(src, z); } else tEnd();
+    if (live) { e.preventDefault(); const src = c.dataset.psdragp; const ml = c.dataset.psmdrag; tEnd(); if (z && ml != null) mealOn(ml, z); else if (z) dropOn(src, z); } else tEnd();
   });
   root.addEventListener('touchcancel', tEnd);
-  root.addEventListener('contextmenu', (e) => { if (e.target.closest?.('[data-psdragp]')) e.preventDefault(); });
+  root.addEventListener('contextmenu', (e) => { if (e.target.closest?.('[data-psdragp], [data-psmdrag]')) e.preventDefault(); });
   let card = null;
   const unmark = () => root.querySelectorAll('.pstsea.over, [data-pstcard].drag').forEach((x) => x.classList.remove('over', 'drag'));
   root.addEventListener('dragstart', (e) => {
