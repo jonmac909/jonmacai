@@ -416,7 +416,7 @@ function mealsPage(S, now, ui) {
   const P = S.personal; const meals = mealsOf(P); const prices = P?.store?.prices || {};
   const wk = mealWeek(now.ymd); const nM = meals.filter((m) => m.n).length;
   const mon = groc(meals, shopOf(meals, true), prices); const thu = groc(meals, shopOf(meals, false), prices);
-  const days = mealDays(meals); const left = meals.map((m, i) => (m.n ? '' : `Meal ${i + 1}`)).filter(Boolean);
+  const days = mealDays(meals); const free = meals.findIndex((m, i) => !m.n && days[i] == null); const left = meals.map((m, i) => (m.n ? '' : `Meal ${i + 1}`)).filter(Boolean);
   const list = (id, g) => {
     let last = '';
     const rows = g.rows.map(([k, x]) => {
@@ -435,7 +435,7 @@ function mealsPage(S, now, ui) {
 <section class="card pscol pswide"><div class="pshd"><h2>Meals</h2><span class="mut">2 portions each</span><span class="mut psright">${nM} of 7 added</span></div>
 <div class="psmlist" data-psmday="">${meals.map((m, i) => (days[i] != null ? '' : `<button type="button" class="psmrow${m.n ? '' : ' empty'}" data-psmeal="${i}"${m.n ? ` draggable="true" data-psmdrag="${i}"` : ''}><b>Meal ${i + 1}</b><span>${m.n ? esc(m.n) : 'Add recipe'}${m.n && m.src ? `<small>${esc(m.src)}</small>` : ''}</span><span class="${m.n ? 'psok' : 'mut'}">${m.n ? '✓' : '›'}</span></button>`)).join('')}</div></section>
 <section class="card pscol pswide"><div class="pshd"><h2>This week</h2><span class="mut">Week of ${fmtD(wk)}</span></div>
-<div class="psmweek">${[0, 1, 2, 3, 4, 5, 6].map((d) => { const i = days.indexOf(d); const m = i >= 0 ? meals[i] : null; return `<div class="psmday" data-psmday="${d}"><small>${DAYS[d]} ${fmtD(addD(wk, d)).split(' ')[1]}${d === 0 || d === 3 ? '<i>Shop</i>' : ''}</small>${m ? `<button type="button" class="psmtile" data-psmeal="${i}" draggable="true" data-psmdrag="${i}">${m.imgs?.[0] ? `<img alt="" src="${esc(m.imgs[0])}">` : ''}<b>${esc(m.n || `Meal ${i + 1}`)}</b></button>` : '<div class="psmtile empty"></div>'}</div>`; }).join('')}</div></section>
+<div class="pscal pscitycal psmcal"><div class="pscalh">${DAYS.map((x) => `<span>${x}</span>`).join('')}</div>${[0, 1, 2, 3, 4, 5, 6].map((d) => { const i = days.indexOf(d); const m = i >= 0 ? meals[i] : null; return `<div class="pscday" data-psmday="${d}"><small><span class="pscdw">${DAYS[d]} </span>${fmtD(addD(wk, d))}</small>${m ? `<div class="pscnames"><button type="button" class="psmchip" data-psmeal="${i}" draggable="true" data-psmdrag="${i}">${esc(m.n || `Meal ${i + 1}`)}</button></div>` : free >= 0 ? `<div class="pscthumbs"><button type="button" class="psctadd" data-psmadd="${d}" aria-label="Add a meal on ${DAYS[d]}">+</button></div>` : ''}</div>`; }).join('')}</div></section>
 <section class="card pscol"><div class="pshd"><h2>Groceries · Monday</h2><span class="mut">${fmtD(wk)} · 8am · Mon to Thu meals · tap a price to change it</span></div><div class="psglist">${list('mon', mon)}</div></section>
 <section class="card pscol"><div class="pshd"><h2>Groceries · Thursday</h2><span class="mut">${fmtD(addD(wk, 3))} · 8am · Fri to Sun meals</span></div><div class="psglist">${list('thu', thu)}</div></section>
 </div>
@@ -983,7 +983,7 @@ async function saveMeal(S, send, render, reload, close) {
   const d = S.ui.psMeal;
   const meals = mealsOf(S.personal);
   const keep = new Set(parseIng(splitR(d.r).ing).map((x) => x.key));
-  meals[d.i] = { ...meals[d.i], n: d.n.trim(), r: d.r.trim(), on: d.on.filter((k) => keep.has(k)), src: d.src || (d.r.trim() ? (d.imgs.length ? 'photo' : 'typed') : ''), imgs: d.imgs };
+  meals[d.i] = { ...meals[d.i], ...(d.dw != null && d.n.trim() && !mealDays(meals).includes(d.dw) ? { dw: d.dw } : {}), n: d.n.trim(), r: d.r.trim(), on: d.on.filter((k) => keep.has(k)), src: d.src || (d.r.trim() ? (d.imgs.length ? 'photo' : 'typed') : ''), imgs: d.imgs };
   if (close) S.ui.psMeal = null;
   await save(S, 'meals', { list: meals }, send, render, reload);
 }
@@ -1011,6 +1011,8 @@ export function personalPaste(e, ui, render) {
 export function personalClick(e, S, render, send, reload, sendHome) {
   const ui = S.ui; const t = e.target;
   if (t.closest('[data-psx]') || (t.matches?.('[data-psback]'))) { ui.psMeal = null; ui.psPop = null; render(); return true; }
+  const ma = t.closest('[data-psmadd]');
+  if (ma) { const ms = mealsOf(S.personal); const dd = mealDays(ms); const i = ms.findIndex((x, k) => !x.n && dd[k] == null); if (i < 0) return true; const d = draftOf(ms[i], i); d.dw = Number(ma.dataset.psmadd); ui.psMeal = d; render(); return true; }
   const m = t.closest('[data-psmeal]');
   if (m) { const i = Number(m.dataset.psmeal); const d = draftOf(mealsOf(S.personal)[i], i); if (d.view === 'split') toSplit(d); ui.psMeal = d; render(); return true; }
   const d = ui.psMeal;

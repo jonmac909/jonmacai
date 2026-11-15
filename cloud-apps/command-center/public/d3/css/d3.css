@@ -1223,3 +1223,7 @@ html[data-theme="dark"] body{background:#0b0b0c}
 .d3 .psmrow[draggable="true"]{cursor:grab}
 .d3 div.psmtile.empty{min-height:120px;border:1px dashed var(--line);background:transparent}
 @media (max-width:900px){.d3 div.psmtile.empty{min-height:48px}}
+/* Meals week uses the trip calendar's day boxes. */
+.d3 .psmcal{margin:14px 20px 18px}
+.d3 .psmcal .pscday{min-height:96px}
+.d3 .psmchip{display:block;width:100%;padding:0;border:0;background:none;font:inherit;font-size:13px;font-weight:600;color:var(--ink);text-align:left;cursor:grab;overflow-wrap:break-word}
