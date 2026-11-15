@@ -1129,3 +1129,4 @@ html[data-theme="dark"] body{background:#0b0b0c}
 .d3 .pstminis .pstpill{transform:scale(.8);transform-origin:top left}.d3 .pstminis .pstlock{transform:scale(.8);transform-origin:top right}
 @media (max-width:760px){.d3 .pstminis{grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}}
 .d3 .pstyh .pslnk{font-size:14px;font-weight:600}
+.d3 .psedr select{width:100%;min-width:0}

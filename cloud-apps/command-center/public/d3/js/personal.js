@@ -205,13 +205,33 @@ const budLine = (t) => (t.bud ? `${usd0(tripCost(t))} of ${usd0(t.bud)} budget` 
 // crests), looked up once per name while the page is open and dropped into the picture when it arrives.
 const WIKI = {};
 // Not scenic: flags, maps, crests, logos, portraits, and pictures taken from space.
-const NOT_PHOTO = /flag|map|coat|locat|logo|emblem|seal|arms|atlas|diagram|portrait|satellite|landsat|sentinel|nasa|iss0|from_space|topograph|relief|terra|modis|casino|hotel|resort|airport|stadium|interior|station|hospital|building|street|sign/i;
+const NOT_PHOTO = /bus_|routemaster|train|tram_|locomotiv|aircraft|airport|station|metro|underground|taxi|flag|map|coat|locat|logo|emblem|seal|arms|atlas|diagram|portrait|satellite|landsat|sentinel|nasa|iss0|from_space|topograph|relief|terra|modis|casino|hotel|resort|airport|stadium|interior|station|hospital|building|street|sign/i;
 // Scenic first: a view, a beach, the water, the old town (Jon, 2026-11-14: "a casino??").
 const SCENIC = /panoram|view|beach|praia|playa|bay|baia|coast|harbou?r|marina|port_|skyline|sunset|dune|old.?town|river|cliff|lagoon|island|landscape/i;
 // "Estoril/Cascais" or "Foz do Douro, Porto" looks up its first place.
 export const placeKey = (name) => String(name || '').split(/[/,(]/)[0].trim();
+// A place's photo: Wikivoyage's lead photo first (picked for travellers: the marina, the old town, the skyline),
+// then the first real photo on its Wikipedia page.
+export const PIC_V = 3;
+// A country or region shows its capital ("UK" shows London), from Wikidata's capital field.
+async function capitalOf(k) {
+  try {
+    const w = 'https://www.wikidata.org/w/api.php?action=wbgetentities&format=json&origin=*';
+    const e = Object.values((await (await fetch(`${w}&sites=enwiki&normalize=1&props=claims&titles=${encodeURIComponent(k)}`)).json())?.entities || {})[0];
+    const id = e?.claims?.P36?.find((c) => c.rank === 'preferred')?.mainsnak?.datavalue?.value?.id || e?.claims?.P36?.[0]?.mainsnak?.datavalue?.value?.id;
+    if (!id) return '';
+    const c = (await (await fetch(`${w}&ids=${id}&props=sitelinks&sitefilter=enwiki`)).json())?.entities?.[id];
+    return c?.sitelinks?.enwiki?.title || '';
+  } catch { return ''; }
+}
 export async function placePic(name) {
-  const k = placeKey(name); if (!k) return '';
+  let k = placeKey(name); if (!k) return '';
+  k = (await capitalOf(k)) || k;
+  try {
+    const r = await fetch(`https://en.wikivoyage.org/w/api.php?action=query&format=json&origin=*&redirects=1&prop=pageimages&piprop=thumbnail&pithumbsize=1600&titles=${encodeURIComponent(k)}`);
+    const pg = r.ok ? Object.values((await r.json())?.query?.pages || {})[0] : null; const src = pg?.thumbnail?.source || '';
+    if (/\.jpe?g/i.test(src) && !NOT_PHOTO.test(decodeURIComponent(src.split('/').pop()))) return src;
+  } catch { /* try Wikipedia */ }
   try {
     const r = await fetch(`https://en.wikipedia.org/api/rest_v1/page/media-list/${encodeURIComponent(k.replace(/ /g, '_'))}`);
     const b = r.ok ? await r.json() : null;
@@ -580,7 +600,9 @@ async function findSpots(S, n, j, send, render, reload) {
   const where = (...a) => a.filter(Boolean).join(', ');
   let pics = false;
   for (const s of (j == null ? t.stops : [t.stops[j]])) {
-    if (s && !s.img && s.place) { const src = WIKI[placeKey(s.place)] || await placePic(s.place); if (src) { s.img = src; pics = true; } }
+    // no photo yet, or one picked the old way (Jon's own uploads aren't on Wikimedia, so they're kept)
+    const stale = s?.img && s.imgv !== PIC_V && /upload\.wikimedia\.org/.test(s.img);
+    if (s && s.place && (!s.img || stale)) { const src = WIKI[placeKey(s.place)] || await placePic(s.place); if (src) { s.img = src; s.imgv = PIC_V; pics = true; } else if (stale) { s.imgv = PIC_V; pics = true; } }
   }
   (j == null ? t.stops : [t.stops[j]]).forEach((s) => {
     if (!s) return;
@@ -790,7 +812,7 @@ function popHtml(p, T) {
   const body = s
     ? `<label>Where<input name="place" value="${esc(s.place)}" placeholder="Lisbon"></label><div class="pstf2"><label>Arrive<input type="date" name="from" value="${esc(s.from)}"></label><label>Leave<input type="date" name="to" value="${esc(s.to)}"></label></div>
 <label>Notes<textarea name="notes" rows="3" placeholder="Address, check-in time, who's coming">${esc(s.notes || '')}</textarea></label><label>Link<input name="link" inputmode="url" value="${esc(s.link || '')}" placeholder="booking.com/..."></label>
-<div class="psedbk">${(s.items || []).map((x, k) => `<div class="psedr"><input name="k${k}" value="${esc(bkName(x.k))}" aria-label="Booking ${k + 1}"><span class="pscost">$<input type="number" min="0" step="10" name="c${k}" value="${esc(x.cost)}" placeholder="cost" aria-label="${esc(x.k)} cost"></span><label class="psedok"><input type="checkbox" name="o${k}"${x.ok ? ' checked' : ''}> Booked</label></div>`).join('')}</div>`
+<div class="psedbk">${(s.items || []).map((x, k) => `<div class="psedr"><select name="k${k}" aria-label="Booking ${k + 1}">${[...new Set([...MODES, 'Accommodation', 'Car', bkName(x.k)])].map((o) => `<option${bkName(x.k) === o ? ' selected' : ''}>${esc(o)}</option>`).join('')}</select><span class="pscost">$<input type="number" min="0" step="10" name="c${k}" value="${esc(x.cost)}" placeholder="cost" aria-label="${esc(x.k)} cost"></span><label class="psedok"><input type="checkbox" name="o${k}"${x.ok ? ' checked' : ''}> Booked</label></div>`).join('')}</div>`
     : `<label>Where<input name="name" value="${p.kind === 'edit' && t ? esc(t.name) : ''}" placeholder="Portugal"></label><label>Budget $<input type="number" min="0" step="100" name="bud" value="${p.kind === 'edit' && t?.bud ? t.bud : ''}" placeholder="5000"></label>`;
   const title = ed ? `Edit ${s.place || 'stop'}` : p.kind === 'stop' ? `Add a stop to ${t?.name || 'the trip'}` : p.kind === 'edit' ? 'Edit trip' : 'New trip';
   return `<div class="hmhost" data-psback><form class="hmed pspop" data-psform="pop"><div class="hmedh"><b class="hmedt">${esc(title)}</b><button type="button" class="btn sm" data-psx aria-label="Close">✕</button></div>
