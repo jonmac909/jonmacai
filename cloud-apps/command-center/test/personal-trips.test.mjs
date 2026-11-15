@@ -65,7 +65,7 @@ test('Trips: editing a stop saves every field and the rest of the trip is kept',
   assert.match(dlg, /name="place" value="Sintra palaces"/);
   assert.match(dlg, /name="to" value="2026-12-06"/);
   assert.match(dlg, /<textarea name="notes"[^>]*>Pena first, 9:30 tickets<\/textarea>/);
-  assert.match(dlg, /name="k0" value="Train"/);
+  assert.match(dlg, /<select name="k0" aria-label="Booking 1">.*?<option selected>Train<\/option>/);
   assert.match(dlg, /name="o0" checked/);
   assert.match(dlg, />Save<\/button>/);
   // bad input is refused and nothing changes
