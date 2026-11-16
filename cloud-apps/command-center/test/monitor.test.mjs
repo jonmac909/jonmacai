@@ -58,8 +58,10 @@ test('data needs a session; signed-in page sees a live machine after a push', as
   const d = await res.json();
   assert.equal(d.machines.gpu1.online, true);
   assert.equal(d.machines.gpu1.sample.gpu.util, 42);
+  assert.equal(d.machines.gpu1.state, 'live');
   assert.equal(d.machines.gpu2.online, false);
-  assert.equal(d.machines.gpu2.offline_since_text, 'never seen');
+  assert.equal(d.machines.gpu2.state, 'waiting');
+  assert.equal(d.machines.gpu2.offline_since_text, null);
 });
 
 test('planted stale sample: machine shows offline since its last sample, in Kelowna time (UTC-7)', async () => {
@@ -181,7 +183,40 @@ test('page never judges live/offline or formats a time itself', () => {
   const page = readFileSync(new URL('../public/monitor/index.html', import.meta.url), 'utf8');
   assert.doesNotMatch(page, /Intl\.|new Date|Date\.now|toLocale|stale_after|age_s|last_seen/);
   assert.match(page, /d\.updated_text/);
-  assert.match(page, /m\.online \?/);
+  assert.match(page, /m\.state === 'live'/);
   assert.match(page, /<span id="updated">Loading\.\.\.<\/span>/, 'no machine panel before the first data');
   assert.match(page, /<main id="panels"><\/main>/);
+  assert.match(page, /\|\| \{ state: 'waiting' \}/, 'a machine missing from the data is waiting, not offline');
+  assert.match(page, /catch \(e\) \{\s*panels\.classList\.add\('stale'\)/, 'a failed poll dims the old panels');
+  assert.doesNotMatch(page, /no data yet|never seen/);
+});
+
+test('planted empty storage: a machine that never sent data is waiting, with no Offline text', async () => {
+  const { env } = makeEnv();
+  const d = await (await call(env, '/monitor/api/data', { headers: { Cookie: await cookie() } })).json();
+  for (const m of ['gpu1', 'gpu2']) {
+    assert.equal(d.machines[m].state, 'waiting', m);
+    assert.equal(d.machines[m].offline_since_text, null, m);
+    assert.doesNotMatch(JSON.stringify(d.machines[m]), /offline since|never seen/i, m);
+  }
+});
+
+test('planted failed save: the next push retries the save instead of waiting PERSIST_MS', async () => {
+  let fail = true;
+  const store = new Map();
+  const instance = new GpuMonitor({ storage: { get: async (k) => store.get(k), put: async (k, v) => { if (fail) throw new Error('storage down'); store.set(k, v); } } });
+  const push = () => instance.fetch(new Request('https://monitor/push', { method: 'POST', body: JSON.stringify({ gpu1: sample }) }));
+  await assert.rejects(push());
+  fail = false;
+  await push();
+  assert.ok(store.get('gpu1'), 'saved on the very next push');
+});
+
+test('Kelowna time ignores the runtime tzdata from Nov 2026 (a runtime still on PST would say 8 a.m.)', () => {
+  const real = Intl.DateTimeFormat.prototype.formatToParts;
+  Intl.DateTimeFormat.prototype.formatToParts = () => { throw new Error('zone rules used'); }; // planted: no tzdata at all
+  try {
+    assert.equal(kelownaTime(Date.UTC(2026, 11, 20, 16, 0, 5)).text, 'Dec 20, 9:00:05 a.m.');
+    assert.equal(kelownaTime(Date.UTC(2027, 0, 1, 6, 59, 59)).text, 'Dec 31, 11:59:59 p.m.');
+  } finally { Intl.DateTimeFormat.prototype.formatToParts = real; }
 });

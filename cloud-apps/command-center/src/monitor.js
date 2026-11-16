@@ -82,10 +82,12 @@ export function lastSeen(entry) {
 
 // What the page gets: per machine the latest sample, or offline with the time it was last seen.
 export function machineView(entry, now) {
-  if (!entry || !num(entry.received_at)) return { online: false, offline_since: null, offline_since_text: 'never seen', sample: null };
+  // 'waiting': no sample has ever arrived, so the page shows a neutral "Waiting for data", never Offline.
+  if (!entry || !num(entry.received_at)) return { state: 'waiting', online: false, offline_since: null, offline_since_text: null, sample: null };
   const seen = lastSeen(entry);
   const online = now - seen <= STALE_MS;
   return {
+    state: online ? 'live' : 'offline',
     online,
     last_seen: new Date(seen).toISOString(),
     age_s: Math.max(0, Math.round((now - seen) / 1000)),
@@ -119,8 +121,8 @@ export class GpuMonitor {
         if (!body[m]) continue;
         this.latest[m] = { received_at: now, sample: body[m] };
         if (!this.persistedAt[m] || now - this.persistedAt[m] >= PERSIST_MS) {
-          this.persistedAt[m] = now;
           await this.ctx.storage.put(m, this.latest[m]);
+          this.persistedAt[m] = now; // only after the save worked, so a failed put is retried on the next push
         }
       }
       return json({ ok: true });

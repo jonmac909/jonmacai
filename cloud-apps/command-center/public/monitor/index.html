@@ -22,6 +22,7 @@ main{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,520px),1
 .pill{font-size:12px;font-weight:600;padding:3px 10px;border-radius:999px;border:1px solid}
 .pill.ok{background:var(--ok-bg);color:var(--ok-ink);border-color:var(--ok-line)}
 .pill.off{background:var(--crit-bg);color:var(--crit-ink);border-color:var(--crit-line)}
+.pill.wait{background:var(--idle-bg);color:var(--idle-ink);border-color:var(--idle-line)}
 .off-note{padding:14px;border-radius:12px;background:var(--crit-bg);color:var(--crit-ink);border:1px solid var(--crit-line);font-weight:600;margin-bottom:12px}
 .stale{opacity:.45}
 .tiles{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
@@ -75,11 +76,12 @@ h3{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.04
     const title = $('div');
     title.append($('h2', null, NAMES[key] + (s && s.gpu && s.gpu.name ? ' · ' + s.gpu.name : '')));
     if (s && s.gpu && s.gpu.driver) title.append($('div', 'sub', 'Driver ' + s.gpu.driver));
-    head.append(title, m.online ? $('span', 'pill ok', 'Live') : $('span', 'pill off', 'Offline'));
+    const live = m.state === 'live', off = m.state === 'offline';
+    head.append(title, live ? $('span', 'pill ok', 'Live') : off ? $('span', 'pill off', 'Offline') : $('span', 'pill wait', 'Waiting for data'));
     p.append(head);
-    if (!m.online) p.append($('div', 'off-note', m.offline_since_text && m.offline_since_text !== 'never seen' ? 'Offline since ' + m.offline_since_text : 'Offline: no data yet'));
+    if (off) p.append($('div', 'off-note', 'Offline since ' + m.offline_since_text));
     if (!s) return p;
-    const body = $('div', m.online ? '' : 'stale');
+    const body = $('div', live ? '' : 'stale');
     const g = s.gpu || {}, h = s.host || {};
     const vramPct = n(g.vram_used) && g.vram_total ? g.vram_used / g.vram_total * 100 : null;
     const powPct = n(g.power_w) && g.power_limit_w ? g.power_w / g.power_limit_w * 100 : null;
@@ -125,16 +127,19 @@ h3{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.04
   }
 
   const err = document.getElementById('err');
+  const panels = document.getElementById('panels');
   async function tick() {
     try {
       const res = await fetch('api/data', { cache: 'no-store', credentials: 'same-origin' });
       if (res.status === 401) { location.reload(); return; }
       if (!res.ok) throw new Error('Monitor answered ' + res.status);
       const d = await res.json();
-      document.getElementById('panels').replaceChildren(...['gpu1', 'gpu2'].map((k) => panel(k, d.machines[k] || { online: false })));
+      panels.replaceChildren(...['gpu1', 'gpu2'].map((k) => panel(k, d.machines[k] || { state: 'waiting' })));
+      panels.classList.remove('stale');
       document.getElementById('updated').textContent = d.updated_text || '';
       err.style.display = 'none';
     } catch (e) {
+      panels.classList.add('stale'); // old Live pills must not look current while the monitor can't be reached
       err.textContent = 'Could not reach the monitor: ' + e.message + '. Retrying.';
       err.style.display = 'block';
     } finally {
