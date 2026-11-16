@@ -1,14 +1,18 @@
 // Live GPU Monitor web page (jonmac.ai/monitor). GPU1's pusher (D:\gpu-monitor\monitor_push.py) posts the latest
 // sample of GPU1 and GPU2 every ~3 s; the GpuMonitor Durable Object keeps only the latest one per machine.
 // The page polls /monitor/api/data with a dashboard session. A machine whose last sample is older than
-// STALE_MS shows "offline since <last seen>" (America/Vancouver).
+// STALE_MS shows "offline since <last seen>". The worker alone decides live/offline (its own clock) and formats
+// every time in Kelowna time (pacific(): UTC-7 all year from Nov 2026); the page only displays what it gets.
 import { readSession, timingSafeEqualString } from './auth.js';
+import { pacific } from './channels.js';
 
 export const MONITOR = '/monitor';
-export const STALE_MS = 15 * 1000;
+export const STALE_MS = 30 * 1000; // pusher sends every ~3 s; a push can take up to 8 s plus GPU2's 1.5 s read
 export const MAX_PUSH_BYTES = 64 * 1024;
 export const MACHINES = ['gpu1', 'gpu2'];
-const PERSIST_MS = 30 * 1000; // memory holds the live sample and exact last-seen; storage is only read on a cold start
+// Memory holds the live sample and exact last-seen; storage is only read on a cold start (deploy or eviction).
+// Persisting every 10 s keeps a cold-start copy well inside STALE_MS, so a restart never flashes a live machine offline.
+const PERSIST_MS = 10 * 1000;
 const NO_STORE = { 'Cache-Control': 'private, no-store', 'X-Robots-Tag': 'noindex, nofollow' };
 
 const json = (body, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json', ...NO_STORE } });
@@ -57,10 +61,16 @@ export function shapeSample(s) {
   };
 }
 
-export function vancouverTime(ms) {
-  return new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'America/Vancouver', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', second: '2-digit', hour12: true,
-  }).format(new Date(ms));
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+// A moment as Kelowna text, e.g. { date: 'Nov 16', clock: '9:46:58 a.m.' }. Day and minute come from pacific();
+// seconds are the same in every whole-hour zone.
+export function kelownaTime(ms) {
+  const { day, time } = pacific(ms);
+  const [, mo, d] = day.split('-').map(Number);
+  const [h, mi] = time.split(':');
+  const sec = String(new Date(ms).getUTCSeconds()).padStart(2, '0');
+  const clock = `${Number(h) % 12 || 12}:${mi}:${sec} ${Number(h) < 12 ? 'a.m.' : 'p.m.'}`;
+  return { date: `${MONTHS[mo - 1]} ${d}`, clock, text: `${MONTHS[mo - 1]} ${d}, ${clock}` };
 }
 
 // Last time the machine was really seen: when its sample arrived, or when the sample was taken if that is older
@@ -80,7 +90,7 @@ export function machineView(entry, now) {
     last_seen: new Date(seen).toISOString(),
     age_s: Math.max(0, Math.round((now - seen) / 1000)),
     offline_since: online ? null : new Date(seen).toISOString(),
-    offline_since_text: online ? null : vancouverTime(seen),
+    offline_since_text: online ? null : kelownaTime(seen).text,
     sample: entry.sample || null,
   };
 }
@@ -118,7 +128,7 @@ export class GpuMonitor {
     if (url.pathname === '/data' && request.method === 'GET') {
       const machines = {};
       for (const m of MACHINES) machines[m] = machineView(await this.entry(m), now);
-      return json({ now: new Date(now).toISOString(), stale_after_s: STALE_MS / 1000, machines });
+      return json({ now: new Date(now).toISOString(), updated_text: `Updated ${kelownaTime(now).clock} (Kelowna)`, stale_after_s: STALE_MS / 1000, machines });
     }
     return text('Not found', 404);
   }

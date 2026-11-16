@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import worker from '../src/worker.js';
 import { readFileSync } from 'node:fs';
-import { GpuMonitor, shapeSample, machineView, scrub, STALE_MS, MAX_PUSH_BYTES } from '../src/monitor.js';
+import { GpuMonitor, shapeSample, machineView, scrub, kelownaTime, STALE_MS, MAX_PUSH_BYTES } from '../src/monitor.js';
 import { signSession, COOKIE } from '../src/auth.js';
 
 const SECRET = 's'.repeat(40);
@@ -62,17 +62,17 @@ test('data needs a session; signed-in page sees a live machine after a push', as
   assert.equal(d.machines.gpu2.offline_since_text, 'never seen');
 });
 
-test('planted stale sample: machine shows offline since its last sample, in Vancouver time', async () => {
+test('planted stale sample: machine shows offline since its last sample, in Kelowna time (UTC-7)', async () => {
   const { env, instance } = makeEnv();
   await call(env, '/monitor/api/push', pushInit({ gpu1: sample, gpu2: sample }));
-  const last = Date.UTC(2025, 10, 15, 20, 5, 9); // 12:05:09 p.m. in Vancouver (PST)
+  const last = Date.UTC(2026, 10, 15, 19, 5, 9); // 12:05:09 p.m. Nov 15 in Kelowna (UTC-7; US Pacific would say 11:05)
   instance.latest.gpu2.received_at = last;
   instance.latest.gpu1.received_at = Date.now() - (STALE_MS + 5000);
   const d = await (await call(env, '/monitor/api/data', { headers: { Cookie: await cookie() } })).json();
   assert.equal(d.machines.gpu1.online, false);
   assert.equal(d.machines.gpu2.online, false);
   assert.equal(d.machines.gpu2.offline_since, new Date(last).toISOString());
-  assert.match(d.machines.gpu2.offline_since_text, /^Nov\.? 15, 12:05:09\s?p\.?m\.?$/i);
+  assert.equal(d.machines.gpu2.offline_since_text, 'Nov 15, 12:05:09 p.m.');
   const fresh = machineView({ received_at: 1000, sample: {} }, 1000 + STALE_MS);
   assert.equal(fresh.online, true);
 });
@@ -138,4 +138,50 @@ test('monitor page file is never served as a plain static asset', async () => {
     const res = await call(env, p);
     assert.notEqual(await res.text(), 'asset:/monitor/index.html', p);
   }
+});
+
+test('Kelowna time: Updated stamp and offline stamp agree for a Nov 16 2026 sample, both UTC-7', async () => {
+  const at = Date.UTC(2026, 10, 16, 16, 46, 58); // 9:46:58 a.m. in Kelowna
+  assert.deepEqual(kelownaTime(at), { date: 'Nov 16', clock: '9:46:58 a.m.', text: 'Nov 16, 9:46:58 a.m.' });
+  assert.equal(kelownaTime(Date.UTC(2026, 10, 17, 6, 59, 1)).text, 'Nov 16, 11:59:01 p.m.', 'the Kelowna day, not UTC');
+  assert.equal(kelownaTime(Date.UTC(2026, 10, 16, 7, 0, 0)).text, 'Nov 16, 12:00:00 a.m.');
+  const instance = new GpuMonitor({ storage: { get: async () => undefined, put: async () => {} } });
+  instance.latest.gpu1 = { received_at: at, sample: {} };
+  const realNow = Date.now;
+  Date.now = () => at + 40e3; // 9:47:38, gpu1 silent for 40 s
+  try {
+    const d = await (await instance.fetch(new Request('https://monitor/data'))).json();
+    assert.equal(d.updated_text, 'Updated 9:47:38 a.m. (Kelowna)');
+    assert.equal(d.machines.gpu1.offline_since_text, 'Nov 16, 9:46:58 a.m.');
+    assert.equal(d.updated_text.match(/(\d+):\d\d:\d\d [ap]\.m\./)[1], d.machines.gpu1.offline_since_text.match(/(\d+):\d\d:\d\d [ap]\.m\./)[1], 'same hour');
+  } finally { Date.now = realNow; }
+});
+
+test('planted cold start: a live machine never flashes offline after the Durable Object restarts', async () => {
+  const { env, store } = makeEnv();
+  const realNow = Date.now;
+  let t = Date.UTC(2026, 10, 16, 16, 47, 0);
+  Date.now = () => t;
+  try {
+    for (let i = 0; i < 20; i++) { // pushes every 3 s for a minute; only some are persisted
+      await call(env, '/monitor/api/push', pushInit({ gpu1: { ...sample, sampled_at: t / 1000 } }));
+      t += 3000;
+    }
+    const lag = t - 3000 - store.get('gpu1').received_at;
+    assert.ok(lag < STALE_MS / 2, `stored copy lags ${lag} ms`);
+    const restarted = new GpuMonitor({ storage: { get: async (k) => store.get(k), put: async () => {} } }); // deploy or eviction
+    const d = await (await restarted.fetch(new Request('https://monitor/data'))).json();
+    assert.equal(d.machines.gpu1.online, true, 'first read after a restart');
+    assert.equal(d.machines.gpu1.offline_since_text, null);
+  } finally { Date.now = realNow; }
+  assert.ok(STALE_MS >= 30e3, 'threshold covers a slow push (8 s timeout) plus the 3 s interval');
+});
+
+test('page never judges live/offline or formats a time itself', () => {
+  const page = readFileSync(new URL('../public/monitor/index.html', import.meta.url), 'utf8');
+  assert.doesNotMatch(page, /Intl\.|new Date|Date\.now|toLocale|stale_after|age_s|last_seen/);
+  assert.match(page, /d\.updated_text/);
+  assert.match(page, /m\.online \?/);
+  assert.match(page, /<span id="updated">Loading\.\.\.<\/span>/, 'no machine panel before the first data');
+  assert.match(page, /<main id="panels"><\/main>/);
 });

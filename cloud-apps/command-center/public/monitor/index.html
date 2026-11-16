@@ -58,7 +58,7 @@ h3{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.04
   const gb = (b) => n(b) ? (b / 1e9 >= 100 ? (b / 1e9).toFixed(0) : (b / 1e9).toFixed(1)) : '-';
   const pct = (v) => n(v) ? Math.round(v) + '%' : '-';
   const level = (p, warn, crit) => p >= crit ? 'crit' : p >= warn ? 'risk' : '';
-  const tz = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Vancouver', hour: 'numeric', minute: '2-digit', second: '2-digit', hour12: true });
+  // Live/offline and every time shown come from the worker (its clock, Kelowna time); the page never judges or formats them.
 
   function tile(k, v, s, p, warn = 80, crit = 95) {
     const t = $('div', 'tile');
@@ -132,7 +132,7 @@ h3{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.04
       if (!res.ok) throw new Error('Monitor answered ' + res.status);
       const d = await res.json();
       document.getElementById('panels').replaceChildren(...['gpu1', 'gpu2'].map((k) => panel(k, d.machines[k] || { online: false })));
-      document.getElementById('updated').textContent = 'Updated ' + tz.format(new Date(d.now)) + ' (Kelowna)';
+      document.getElementById('updated').textContent = d.updated_text || '';
       err.style.display = 'none';
     } catch (e) {
       err.textContent = 'Could not reach the monitor: ' + e.message + '. Retrying.';
