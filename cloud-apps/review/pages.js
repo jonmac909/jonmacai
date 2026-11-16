@@ -155,6 +155,33 @@ const ours = (video) => `<div class="stage frame"${frameStyle(video.video_w, vid
 
 const qcOnlyNote = (gate, attrs = "") => gate.qcOnly ? `<p class="error" role="status" ${attrs}>${gate.qcUnknown ? "QC results could not be read from the dashboard. " : ""}QC only: this version is hidden from Jon's list and can't be approved until QC passes its dashboard proof.</p>` : "";
 
+// One video of a review group, as on the single page (Jon, 2026-11-16): the original beside ours. An original video is a
+// muted second player (.group-source) with its own shape; a text-only Skool lesson shows its original text. Each box
+// takes its own video's shape. A video with no original attached shows ours alone.
+const groupDuo = (video) => {
+  const ourPlayer = `<div class="frame"${frameStyle(video.video_w, video.video_h)}><video class="group-player" controls playsinline webkit-playsinline preload="none" src="${escapeHtml(video.video_url)}" aria-label="${escapeHtml(video.title)}"></video></div>`;
+  if (video.source_url) {
+    return `<div class="duo group-duo">
+      <figure class="pane"><figcaption>Source <span class="muted">muted</span></figcaption>
+        <div class="frame"${frameStyle(video.source_w, video.source_h)}><video class="group-source" controls playsinline webkit-playsinline muted preload="none" src="${escapeHtml(video.source_url)}" aria-label="Source video: ${escapeHtml(video.title)}"></video></div></figure>
+      <figure class="pane"><figcaption>Ours</figcaption>${ourPlayer}</figure>
+    </div>
+    <div class="transport group-transport">
+      <button type="button" data-both="play">Play both</button>
+      <button type="button" data-both="pause">Pause both</button>
+    </div>`;
+  }
+  const sourceText = video.source_text ? sanitizeSourceHtml(video.source_text) : "";
+  if (sourceText) {
+    return `<div class="duo group-duo">
+      <figure class="pane"><figcaption>Source (Skool text lesson)</figcaption>
+        <div class="frame source-frame"${frameStyle(video.video_w, video.video_h)}><article class="source-text" tabindex="0" aria-label="Original lesson text">${sourceText}</article></div></figure>
+      <figure class="pane"><figcaption>Ours</figcaption>${ourPlayer}</figure>
+    </div>`;
+  }
+  return ourPlayer;
+};
+
 // A review group (/review/g/<name>): one player per video, stacked in the group's order, each with its own note,
 // Submit changes and Approve (public/group.js), sent to the same endpoints as the single page. preload="none" keeps a
 // long batch light on a phone. items: [{ video, gate }] or [{ slug, missing: true }].
@@ -164,10 +191,10 @@ export function renderGroup(group, items, prefix = "") {
     if (item.missing) return `<section class="group-item" data-missing="${escapeHtml(item.slug)}"><h2>${i + 1}. ${escapeHtml(item.slug)}</h2>
     <p class="muted">Not published yet.</p></section>`;
     const { video, gate } = item;
-    return `<section class="group-item" data-slug="${escapeHtml(video.slug)}" aria-label="${escapeHtml(video.title)}">
+    return `<section class="group-item" data-slug="${escapeHtml(video.slug)}" data-sync="${escapeHtml(JSON.stringify(video.source_url ? video.sync || [] : []))}" aria-label="${escapeHtml(video.title)}">
     <h2>${i + 1}. ${escapeHtml(video.title)} <span class="muted">${escapeHtml(video.version)}</span> ${chip(video.status)}</h2>
     ${qcOnlyNote(gate)}
-    <div class="frame"${frameStyle(video.video_w, video.video_h)}><video class="group-player" controls playsinline webkit-playsinline preload="none" src="${escapeHtml(video.video_url)}" aria-label="${escapeHtml(video.title)}"></video></div>
+    ${groupDuo(video)}
     <p class="muted"><a href="${prefix}/review/${escapeHtml(video.slug)}">Open the full page</a> (side by side, drawing, voice notes)</p>
     <textarea class="group-note" rows="2" maxlength="4000" placeholder="What should change? Pause the video first: the note gets that time."></textarea>
     <div class="send-btns">
@@ -189,13 +216,12 @@ export function renderGroup(group, items, prefix = "") {
 }
 
 // Back / Next through the slug's review group (gate.nav: {label, prev, next}); Left / Right arrows do the same (app.js).
-// A neighbour with no QC-passed version yet shows as a greyed button (nav-wait), so Back / Next are always on the page.
 const groupNav = (nav, prefix) => `<nav class="group-nav" aria-label="${escapeHtml(nav.label)}">
     ${nav.prev ? `<a class="nav-btn" id="nav-prev" rel="prev" href="${prefix}/review/${escapeHtml(nav.prev)}">&larr; Back</a>`
-      : nav.prevWait ? '<span class="nav-btn nav-wait" id="nav-prev-wait" aria-disabled="true" title="Not through QC yet">&larr; Back <small>in QC</small></span>' : '<span class="nav-gap"></span>'}
+      : '<span class="nav-gap"></span>'}
     <span class="nav-pos">${escapeHtml(nav.label)}</span>
     ${nav.next ? `<a class="nav-btn" id="nav-next" rel="next" href="${prefix}/review/${escapeHtml(nav.next)}">Next &rarr;</a>`
-      : nav.nextWait ? '<span class="nav-btn nav-wait" id="nav-next-wait" aria-disabled="true" title="Not through QC yet">Next <small>in QC</small> &rarr;</span>' : '<span class="nav-gap"></span>'}
+      : '<span class="nav-gap"></span>'}
   </nav>`;
 
 // gate.qcOnly: QC hasn't passed this version, so the page says so and has no Approve and no status buttons.

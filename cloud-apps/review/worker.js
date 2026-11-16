@@ -485,14 +485,13 @@ async function pages(request, env, url) {
   const page = { ...publicVideo(row, who.prefix), source_text: row.source_text || null };
   if (!seen(slug) && page.status === "needs_review") page.status = "qc_only";
   return html(renderVideo(page, versions.filter((v) => v.slug === slug || seen(v.slug)), channel?.name || row.channel, submissions,
-    who.prefix, { qcOnly: !seen(slug), qcUnknown: visible === null, nav: inGroup && groupNav(inGroup, slug, seen, visible !== null) }));
+    who.prefix, { qcOnly: !seen(slug), qcUnknown: visible === null, nav: inGroup && groupNav(inGroup, slug) }));
 }
 
 // Back / Next on a single page whose video is in a review group (Jon, 2026-11-16). A group slot means a video, not one
 // version: a slot holding ig-reel-1-v1 stands for the newest version of ig-reel-1, so a v3 replaces v2 in Back / Next
-// (and a v2 page is in the group) with nobody editing the group. A page Jon sees links the newest QC-passed version of
-// each neighbour; a neighbour with none yet gets a greyed button instead (QC-only pages are never linked to him). A slug
-// in several groups uses the newest group.
+// (and a v2 page is in the group) with nobody editing the group. Back / Next link the newest published version of each
+// neighbour, QC-passed or not (QC only gates Approve). A slug in several groups uses the newest group.
 const slotStem = (slot) => stem(slot);
 async function slugGroup(env, slug) {
   const s = stem(slug);
@@ -517,13 +516,13 @@ async function slotRows(env, slugs) {
   const want = new Set(stems);
   return results.filter((r) => want.has(stem(r.slug)));
 }
-function groupNav(group, slug, seen, qcKnown = true) {
+function groupNav(group, slug) {
   const s = stem(slug);
   const slots = group.slugs.map(slotStem);
   const i = slots.indexOf(s);
-  // The version a neighbour slot links: a page Jon sees links only QC-passed versions, a QC-only page (only QC sees it)
-  // any published one. When the QC read failed (qcKnown false) nothing is linked, so nothing QC-only is linked by accident.
-  const pick = (slot) => qcKnown ? group.rows.find((r) => stem(r.slug) === slot && (seen(slug) ? seen(r.slug) : true))?.slug || null : null;
+  // Jon, 2026-11-16: Back / Next go to the newest published version of each neighbour, through QC or not, and never a
+  // greyed button. A slot with no published version at all is skipped (its page would 404).
+  const pick = (slot) => group.rows.find((r) => stem(r.slug) === slot)?.slug || null;
   const noun = /reel/i.test(`${group.name} ${group.title || ""}`) ? "Reel"
     : /course|lesson/i.test(`${group.name} ${group.title || ""}`) ? "Lesson" : "";
   const before = slots.slice(0, i).reverse(), after = slots.slice(i + 1);
@@ -531,8 +530,6 @@ function groupNav(group, slug, seen, qcKnown = true) {
   return {
     label: `${noun ? `${noun} ` : ""}${i + 1} of ${slots.length}`,
     prev, next,
-    prevWait: !prev && before.length > 0, // slots before this one, none through QC yet: a greyed Back
-    nextWait: !next && after.length > 0,
   };
 }
 
@@ -561,7 +558,7 @@ async function groupPage(env, name, prefix) {
     const row = newest.get(slotStem(listed));
     const slug = row?.slug ?? listed;
     if (!row) return { slug, missing: true };
-    const video = publicVideo(row, prefix);
+    const video = { ...publicVideo(row, prefix), source_text: row.source_text || null };
     const qcOnly = !visible?.has(slug);
     if (qcOnly && video.status === "needs_review") video.status = "qc_only";
     return { video, gate: { qcOnly, qcUnknown: visible === null } };

@@ -60,7 +60,7 @@ test("last page: Back to the second, no Next", async () => {
   assert.match(text, /Lesson 3 of 3/);
 });
 
-test("QC gate: a page Jon sees skips QC-only and unpublished neighbours; a QC-only page links the plain neighbours", async () => {
+test("QC does not gate Back / Next: a neighbour still in QC is linked, only an unpublished one is skipped", async () => {
   // Group = [x, held, missing, y, z]; only "held" is QC-only, "missing" is not published.
   const hold = await fetchApp(`/api/review/groups/gate-bn`, { method: "PUT", headers: agent,
     body: JSON.stringify({ slugs: [SLUGS[0], "bn-held-v1", "bn-missing-v1", SLUGS[1], SLUGS[2]] }) });
@@ -68,9 +68,9 @@ test("QC gate: a page Jon sees skips QC-only and unpublished neighbours; a QC-on
   passes.delete("bn-held-v1");
   try {
     let text = await page(SLUGS[0]); // newest group is gate-bn
-    assert.equal(href(text, "nav-next"), `/review/${SLUGS[1]}`); // skips the QC-only and unpublished ones
+    assert.equal(href(text, "nav-next"), "/review/bn-held-v1"); // in QC, still linked (Jon, 2026-11-16: "the Next in QC button doesnt work")
     text = await page(SLUGS[1]);
-    assert.equal(href(text, "nav-prev"), `/review/${SLUGS[0]}`);
+    assert.equal(href(text, "nav-prev"), "/review/bn-held-v1");
     assert.equal(href(text, "nav-next"), `/review/${SLUGS[2]}`);
     text = await page("bn-held-v1"); // QC-only: published neighbours, QC-only or not
     assert.match(text, /QC only/);
@@ -87,15 +87,14 @@ test("a slug in no group has no Back / Next", async () => {
   assert.doesNotMatch(text, /group-nav|nav-prev|nav-next/);
 });
 
-test("dashboard QC read down: position and greyed Back / Next, nothing linked", async () => {
+test("dashboard QC read down: Back / Next still linked", async () => {
   down = true;
   try {
     const text = await page(SLUGS[1]);
     assert.match(text, /class="nav-pos">Lesson 2 of 3</);
-    assert.equal(href(text, "nav-prev"), null);
-    assert.equal(href(text, "nav-next"), null);
-    assert.match(text, /id="nav-prev-wait"/);
-    assert.match(text, /id="nav-next-wait"/);
+    assert.equal(href(text, "nav-prev"), `/review/${SLUGS[0]}`);
+    assert.equal(href(text, "nav-next"), `/review/${SLUGS[2]}`);
+    assert.doesNotMatch(text, /nav-wait/);
   } finally { down = false; }
 });
 
@@ -148,7 +147,6 @@ for (const route of Object.keys(ROUTES)) {
     try {
       let text = await pageOn(route, order[0]);
       assert.equal(href(text, "nav-prev"), null);
-      assert.doesNotMatch(text, /nav-prev-wait/);
       const seen = [order[0]];
       for (let i = 1; i < 3; i++) { // Next, Next
         const next = href(text, "nav-next");
@@ -158,7 +156,6 @@ for (const route of Object.keys(ROUTES)) {
         assert.match(text, new RegExp(`class="nav-pos">Lesson ${i + 1} of 3<`));
       }
       assert.equal(href(text, "nav-next"), null); // last
-      assert.doesNotMatch(text, /nav-next-wait/);
       for (let i = 1; i >= 0; i--) { // Back, Back
         const back = href(text, "nav-prev");
         assert.equal(back, `${prefix}/review/${order[i]}`);
@@ -170,7 +167,7 @@ for (const route of Object.keys(ROUTES)) {
     } finally { await putGroup(`walk-${route}`, []); }
   });
 
-  test(`${route} route: a neighbour not through QC shows a greyed button, never a link`, async () => {
+  test(`${route} route: a neighbour still in QC is a real link, never a greyed button`, async () => {
     const order = ["gw-a-v1", "gw-b-v1", "gw-c-v1"];
     for (const s of order) await publish(s);
     passes.add("gw-a-v1"); // only the first is QC-passed, like the live course
@@ -178,10 +175,13 @@ for (const route of Object.keys(ROUTES)) {
     try {
       const text = await pageOn(route, order[0]);
       assert.match(text, /class="nav-pos">Lesson 1 of 3</);
-      assert.equal(href(text, "nav-next"), null);
-      assert.match(text, /id="nav-next-wait"[^>]*aria-disabled="true"/);
-      assert.doesNotMatch(text, /gw-b-v1|gw-c-v1/); // not even linked
-      assert.doesNotMatch(text, /nav-prev/);
+      assert.equal(href(text, "nav-next"), `${prefix}/review/gw-b-v1`); // gw-b is not QC-passed: linked anyway
+      assert.doesNotMatch(text, /nav-wait|aria-disabled/);
+      assert.doesNotMatch(text, /nav-prev/); // first one: no Back
+      const mid = await pageOn(route, "gw-b-v1"); // the QC-only page links both ways
+      assert.equal(href(mid, "nav-prev"), `${prefix}/review/gw-a-v1`);
+      assert.equal(href(mid, "nav-next"), `${prefix}/review/gw-c-v1`);
+      assert.equal(href(await pageOn(route, "gw-c-v1"), "nav-prev"), `${prefix}/review/gw-b-v1`);
     } finally { await putGroup(`grey-${route}`, []); }
   });
 
@@ -191,22 +191,21 @@ for (const route of Object.keys(ROUTES)) {
     for (const s of order) { passes.add(s); await publish(s); }
     await putGroup(`follow-${route}`, order, "Course follow");
     try {
-      // v2 of the middle video exists but QC has not passed it: Jon is still sent to v1, and v2's page has the nav too.
+      // v2 of the middle video exists, QC has not passed it: Next goes to the newest version anyway.
       await publish(`${fw}-b-v2`);
       let text = await pageOn(route, `${fw}-a-v1`);
-      assert.equal(href(text, "nav-next"), `${prefix}/review/${fw}-b-v1`);
+      assert.equal(href(text, "nav-next"), `${prefix}/review/${fw}-b-v2`);
       text = await pageOn(route, `${fw}-b-v2`);
       assert.equal(href(text, "nav-prev"), `${prefix}/review/${fw}-a-v1`);
       assert.equal(href(text, "nav-next"), `${prefix}/review/${fw}-c-v1`);
       assert.match(text, /Lesson 2 of 3/);
-      // QC passes v2: the group follows it from the neighbours, and from the old v1 page.
+      // QC passes v2: nothing changes, the group follows it from the neighbours, and from the old v1 page.
       passes.add(`${fw}-b-v2`);
       assert.equal(href(await pageOn(route, `${fw}-a-v1`), "nav-next"), `${prefix}/review/${fw}-b-v2`);
       assert.equal(href(await pageOn(route, `${fw}-c-v1`), "nav-prev"), `${prefix}/review/${fw}-b-v2`);
       assert.match(await pageOn(route, `${fw}-b-v1`), /id="nav-next"/); // the old version's page is still in the group
-      // v3 of the first video (the list names v1): newest wins, the group still says v1.
+      // v3 of the first video (the list names v1): newest wins even before QC passes it, the group still says v1.
       await publish(`${fw}-a-v3`);
-      passes.add(`${fw}-a-v3`);
       assert.equal(href(await pageOn(route, `${fw}-b-v2`), "nav-prev"), `${prefix}/review/${fw}-a-v3`);
       assert.equal(href(await pageOn(route, `${fw}-a-v3`), "nav-next"), `${prefix}/review/${fw}-b-v2`);
       const stored = await (await fetchApp("/api/review/groups/follow-" + route, { headers: agent })).json();
