@@ -499,7 +499,8 @@ async function slugGroup(env, slug) {
 }
 function groupNav(group, slug, seen) {
   const i = group.slugs.indexOf(slug);
-  const ok = (s) => s !== slug && seen(s);
+  // A QC-only page (only QC sees it) links the plain neighbours; a page Jon can see skips QC-only and unpublished ones.
+  const ok = seen(slug) ? (s) => s !== slug && seen(s) : () => true;
   const noun = /reel/i.test(`${group.name} ${group.title || ""}`) ? "Reel"
     : /course|lesson/i.test(`${group.name} ${group.title || ""}`) ? "Lesson" : "";
   return {
