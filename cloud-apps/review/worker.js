@@ -183,6 +183,7 @@ async function readForm(request, max) {
   return new Response(bytes, { headers: { "Content-Type": request.headers.get("Content-Type") } }).formData().catch(() => undefined);
 }
 
+const TITLE_MAX = 200;
 const text = (value, max) => typeof value === "string" ? value.trim().slice(0, max) : "";
 const pixels = (n) => Number.isInteger(n) && n >= 16 && n <= 16384 ? n : null; // a video's width or height; a bad one is "unknown"
 const sourceText = (value) => typeof value === "string" ? sanitizeSourceHtml(value).trim() || null : null;
@@ -969,7 +970,7 @@ async function publishApi(request, env, url, slug, resource, uploadId, action) {
   }
 
   // Adds or fixes the extras of a published version without touching its video: the original lesson text of a text-only
-  // lesson (source_text, sanitized), the caption notes, and the pixel sizes the page sizes its players from. Only the
+  // lesson (source_text, sanitized), the page title, the caption notes, and the pixel sizes the page sizes its players from. Only the
   // fields sent change; null clears one. Nothing else on the row (file, QC, status, comments) is touched.
   if (resource === "meta" && uploadId === undefined && method === "POST") {
     const body = await readJson(request);
@@ -978,6 +979,11 @@ async function publishApi(request, env, url, slug, resource, uploadId, action) {
     if ("source_text" in body) {
       if (body.source_text !== null && typeof body.source_text !== "string") return fail(400, "source_text must be a string or null");
       sets.push("source_text = ?"); binds.push(sourceText(body.source_text));
+    }
+    if ("title" in body) {
+      const title = typeof body.title === "string" ? body.title.trim() : "";
+      if (!title || title.length > TITLE_MAX) return fail(400, `title must be a non-empty string of at most ${TITLE_MAX} characters`);
+      sets.push("title = ?"); binds.push(title);
     }
     if ("notes" in body) {
       if (body.notes !== null && typeof body.notes !== "string") return fail(400, "notes must be a string or null");
@@ -988,7 +994,7 @@ async function publishApi(request, env, url, slug, resource, uploadId, action) {
       if (body[k] !== null && pixels(body[k]) === null) return fail(400, `${k} must be a whole number of pixels or null`);
       sets.push(`${k} = ?`); binds.push(body[k]);
     }
-    if (!sets.length) return fail(400, "send source_text, notes, video_w, video_h, source_w or source_h");
+    if (!sets.length) return fail(400, "send source_text, title, notes, video_w, video_h, source_w or source_h");
     const saved = await env.DB.prepare(`UPDATE videos SET ${sets.join(", ")}, updated_at = ? WHERE slug = ?`).bind(...binds, now(), slug).run();
     if (!saved.meta.changes) return fail(404, "video_not_found");
     return json({ video: await gatedVideo(env, await getVideo(env, slug), url.origin) });
@@ -1009,7 +1015,7 @@ async function publishApi(request, env, url, slug, resource, uploadId, action) {
     const channel = text(body.channel, 40).toLowerCase();
     const video = text(body.video, 80).toLowerCase();
     const version = text(body.version, 40);
-    const title = text(body.title, 200);
+    const title = text(body.title, TITLE_MAX);
     // A fix carries Jon's approval: "approved" keeps it off his review list for good, and its note says what it fixed.
     const status = fix ? "approved" : body.status === undefined ? "needs_review" : body.status;
     const approvedAs = fix && ((await env.DB.prepare("SELECT version FROM videos WHERE slug = ?").bind(approval.slug).first())?.version || approval.slug);
