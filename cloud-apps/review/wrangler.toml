@@ -39,3 +39,30 @@ bucket_name = "jonmac-review-media"
 [[services]]
 binding = "DASHBOARD"
 service = "jonmac-command-center"
+
+# Preview: own Worker on workers.dev (no jonmac.ai routes), own D1 and R2, wired to the dashboard preview.
+# Preview-only secrets (never prod values): D:\AgentTeam\secrets\review-preview.env.
+# Deploy: npx --yes wrangler@4.160.0 deploy --env preview --tag <sha>
+[env.preview]
+name = "jonmac-review-preview"
+workers_dev = true
+preview_urls = false
+routes = []
+vars = { PREVIEW = "1" }
+
+[env.preview.version_metadata]
+binding = "REVIEW_VERSION"
+
+[[env.preview.d1_databases]]
+binding = "DB"
+database_name = "jonmac-review-preview"
+database_id = "b79434f1-f704-4326-aee8-746c9e6a0abd"
+migrations_dir = "migrations"
+
+[[env.preview.r2_buckets]]
+binding = "MEDIA"
+bucket_name = "jonmac-review-media-preview"
+
+[[env.preview.services]]
+binding = "DASHBOARD"
+service = "jonmac-command-center-preview"
