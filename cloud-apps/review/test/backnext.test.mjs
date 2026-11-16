@@ -8,6 +8,7 @@ import { SECRETS, startRuntime } from "./harness.mjs";
 const agent = { Authorization: `Bearer ${SECRETS.REVIEW_API_TOKEN}`, "Content-Type": "application/json" };
 const SLUGS = ["bn-lesson-c-v1", "bn-lesson-a-v1", "bn-lesson-b-v1"]; // group order is not alphabetical
 const LONE = "bn-lone-v1";
+let down = false; // the dashboard QC read fails
 const passes = new Set([...SLUGS, LONE, "bn-held-v1"]); // QC-passed slugs; a test drops one
 let runtime, cookie;
 
@@ -20,7 +21,7 @@ const page = async (slug) => {
 const href = (text, id) => new RegExp(`id="${id}"[^>]*href="([^"]+)"`).exec(text)?.[1] ?? null;
 
 before(async () => {
-  runtime = await startRuntime({ dashboard: async () => new MFResponse(JSON.stringify({ ok: true,
+  runtime = await startRuntime({ dashboard: async () => down ? new MFResponse("down", { status: 503 }) : new MFResponse(JSON.stringify({ ok: true,
     passes: Object.fromEntries([...passes].map((s) => [s, "9999-12-31T00:00:00.000Z"])) }), { headers: { "Content-Type": "application/json" } }) });
   for (const slug of [...SLUGS, LONE, "bn-held-v1"]) {
     const key = `review/${slug}/video-test.mp4`;
@@ -60,21 +61,21 @@ test("last page: Back to the second, no Next", async () => {
 });
 
 test("QC gate: a page Jon sees skips QC-only and unpublished neighbours; a QC-only page links the plain neighbours", async () => {
-  // Group g = [x, held, y, missing, z]; only "held" is QC-only, "missing" is not published.
+  // Group = [x, held, missing, y, z]; only "held" is QC-only, "missing" is not published.
   const hold = await fetchApp(`/api/review/groups/gate-bn`, { method: "PUT", headers: agent,
-    body: JSON.stringify({ slugs: [SLUGS[0], "bn-held-v1", SLUGS[1], "bn-missing-v1", SLUGS[2]] }) });
+    body: JSON.stringify({ slugs: [SLUGS[0], "bn-held-v1", "bn-missing-v1", SLUGS[1], SLUGS[2]] }) });
   assert.equal(hold.status, 200, await hold.text());
   passes.delete("bn-held-v1");
   try {
     let text = await page(SLUGS[0]); // newest group is gate-bn
-    assert.equal(href(text, "nav-next"), `/review/${SLUGS[1]}`); // skips the QC-only one
+    assert.equal(href(text, "nav-next"), `/review/${SLUGS[1]}`); // skips the QC-only and unpublished ones
     text = await page(SLUGS[1]);
     assert.equal(href(text, "nav-prev"), `/review/${SLUGS[0]}`);
-    assert.equal(href(text, "nav-next"), `/review/${SLUGS[2]}`); // skips the unpublished one
-    text = await page("bn-held-v1"); // QC-only: plain neighbours
+    assert.equal(href(text, "nav-next"), `/review/${SLUGS[2]}`);
+    text = await page("bn-held-v1"); // QC-only: published neighbours, QC-only or not
     assert.match(text, /QC only/);
     assert.equal(href(text, "nav-prev"), `/review/${SLUGS[0]}`);
-    assert.equal(href(text, "nav-next"), `/review/${SLUGS[1]}`);
+    assert.equal(href(text, "nav-next"), `/review/${SLUGS[1]}`); // skips the unpublished one (it would 404)
     assert.match(text, /2 of 5/);
   } finally {
     await fetchApp(`/api/review/groups/gate-bn`, { method: "PUT", headers: agent, body: JSON.stringify({ slugs: [] }) });
@@ -84,4 +85,25 @@ test("QC gate: a page Jon sees skips QC-only and unpublished neighbours; a QC-on
 test("a slug in no group has no Back / Next", async () => {
   const text = await page(LONE);
   assert.doesNotMatch(text, /group-nav|nav-prev|nav-next/);
+});
+
+test("dashboard QC read down: no nav", async () => {
+  down = true;
+  try { assert.doesNotMatch(await page(SLUGS[1]), /group-nav|nav-prev|nav-next/); } finally { down = false; }
+});
+
+test("a malformed group row does not break pages", async () => {
+  await runtime.db.prepare("INSERT INTO review_groups (name, title, slugs, created_at, updated_at) VALUES ('bad-bn', NULL, 'not json', '9999', '9999')").run();
+  try {
+    const text = await page(SLUGS[0]); // page() asserts 200
+    assert.match(text, /class="nav-pos">Lesson 1 of 3</); // nav from the valid group, none from the bad row
+  } finally { await runtime.db.prepare("DELETE FROM review_groups WHERE name = 'bad-bn'").run(); }
+});
+
+test("reel groups say Reel N of M", async () => {
+  const put = await fetchApp("/api/review/groups/ig-reels-bn", { method: "PUT", headers: agent, body: JSON.stringify({ slugs: [LONE, SLUGS[0]] }) });
+  assert.equal(put.status, 200, await put.text());
+  const text = await page(LONE);
+  assert.match(text, /class="nav-pos">Reel 1 of 2</);
+  assert.equal(href(text, "nav-next"), `/review/${SLUGS[0]}`);
 });

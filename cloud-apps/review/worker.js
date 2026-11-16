@@ -481,14 +481,14 @@ async function pages(request, env, url) {
   const page = publicVideo(row, who.prefix);
   if (!seen(slug) && page.status === "needs_review") page.status = "qc_only";
   return html(renderVideo(page, versions.filter((v) => v.slug === slug || seen(v.slug)), channel?.name || row.channel, submissions,
-    who.prefix, { qcOnly: !seen(slug), qcUnknown: visible === null, nav: inGroup && groupNav(inGroup, slug, seen) }));
+    who.prefix, { qcOnly: !seen(slug), qcUnknown: visible === null, nav: inGroup && visible !== null && groupNav(inGroup, slug, seen) }));
 }
 
 // Back / Next on a single page whose slug is in a review group (Jon, 2026-11-16): the group's stored order, skipping
 // slugs not published or not QC-passed. A slug in several groups uses the newest group.
 async function slugGroup(env, slug) {
   const row = await env.DB.prepare(`SELECT name, title, slugs FROM review_groups
-    WHERE EXISTS (SELECT 1 FROM json_each(review_groups.slugs) WHERE value = ?) ORDER BY created_at DESC, name LIMIT 1`).bind(slug).first();
+    WHERE json_valid(review_groups.slugs) AND EXISTS (SELECT 1 FROM json_each(review_groups.slugs) WHERE value = ?) ORDER BY created_at DESC, name LIMIT 1`).bind(slug).first();
   if (!row) return null;
   let slugs = [];
   try { slugs = JSON.parse(row.slugs); } catch {}
@@ -499,8 +499,10 @@ async function slugGroup(env, slug) {
 }
 function groupNav(group, slug, seen) {
   const i = group.slugs.indexOf(slug);
-  // A QC-only page (only QC sees it) links the plain neighbours; a page Jon can see skips QC-only and unpublished ones.
-  const ok = seen(slug) ? (s) => s !== slug && seen(s) : () => true;
+  // A QC-only page (only QC sees it) links the published neighbours; a page Jon can see also skips QC-only ones.
+  // No nav when the QC read failed (visible null), so nothing QC-only is linked by accident.
+  const published = new Set(group.rows.map((r) => r.slug));
+  const ok = (s) => s !== slug && (seen(slug) ? seen(s) : published.has(s));
   const noun = /reel/i.test(`${group.name} ${group.title || ""}`) ? "Reel"
     : /course|lesson/i.test(`${group.name} ${group.title || ""}`) ? "Lesson" : "";
   return {
