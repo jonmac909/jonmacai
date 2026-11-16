@@ -220,3 +220,19 @@ test('Kelowna time ignores the runtime tzdata from Nov 2026 (a runtime still on 
     assert.equal(kelownaTime(Date.UTC(2027, 0, 1, 6, 59, 59)).text, 'Dec 31, 11:59:59 p.m.');
   } finally { Intl.DateTimeFormat.prototype.formatToParts = real; }
 });
+
+test('status: bearer-only summary of live/offline per machine, no samples (for the pusher watchdog)', async () => {
+  const { env } = makeEnv();
+  assert.equal((await call(env, '/monitor/api/status')).status, 401);
+  assert.equal((await call(env, '/monitor/api/status', { headers: { Cookie: await cookie() } })).status, 401);
+  assert.equal((await call(env, '/monitor/api/status', { method: 'POST', headers: { Authorization: `Bearer ${SECRET}` } })).status, 405);
+  await call(env, '/monitor/api/push', pushInit({ gpu1: sample }));
+  const res = await call(env, '/monitor/api/status', { headers: { Authorization: `Bearer ${SECRET}` } });
+  assert.equal(res.status, 200);
+  const d = await res.json();
+  assert.equal(d.machines.gpu1.state, 'live');
+  assert.equal(d.machines.gpu2.state, 'waiting');
+  assert.ok(d.machines.gpu1.age_s <= 2);
+  assert.equal(d.machines.gpu1.sample, undefined);
+  assert.ok(!JSON.stringify(d).includes('RTX'));
+});

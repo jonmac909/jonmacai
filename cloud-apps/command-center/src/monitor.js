@@ -165,6 +165,22 @@ async function data(request, env) {
   return stub(env).fetch(new Request('https://monitor/data'));
 }
 
+// Read-only summary for the pusher's own watchdog and for checks without a browser: per machine only live/offline,
+// last seen and age (no samples). Same bearer secret as the push, so it is never open to the public.
+async function status(request, env) {
+  const secret = env.MONITOR_PUSH_SECRET || '';
+  const auth = request.headers.get('Authorization') || '';
+  if (secret.length < 32 || !timingSafeEqualString(auth, `Bearer ${secret}`)) return text('Unauthorized', 401);
+  if (request.method !== 'GET') return text('Method not allowed', 405);
+  if (!env.GPU_MONITOR) return text('Monitor is not set up', 503);
+  const res = await stub(env).fetch(new Request('https://monitor/data'));
+  const full = await res.json();
+  const machines = Object.fromEntries(Object.entries(full.machines || {}).map(([m, v]) => [m, {
+    state: v.state, online: v.online, last_seen: v.last_seen || null, age_s: v.age_s ?? null,
+  }]));
+  return json({ now: full.now, stale_after_s: full.stale_after_s, machines });
+}
+
 // Everything under /monitor. `asset(request, env, path)` is the worker's static-file helper.
 export async function handleMonitor(request, env, asset) {
   const url = new URL(request.url);
@@ -175,6 +191,7 @@ export async function handleMonitor(request, env, asset) {
   }
   if (path === '/api/push') return push(request, env);
   if (path === '/api/data') return data(request, env);
+  if (path === '/api/status') return status(request, env);
   if (request.method !== 'GET' && request.method !== 'HEAD') return text('Not found', 404);
   if (path === '/' || path === '/index.html') {
     const page = (await readSession(request, env)) ? '/monitor/index.html' : '/login.html';
