@@ -4,7 +4,7 @@
 // jonmac.ai/dashboard/review serves these same pages under the dashboard sign-in (see caller()).
 // DASHBOARD (service binding to the dashboard Worker, same REVIEW_API_TOKEN) posts Jon's Approve and Submit changes to the
 // video's card and reads which versions QC passed (cloud-apps/command-center/src/reviewhook.js).
-import { INK, openVideos, renderGate, renderIndex, renderVideo, stem } from "./pages.js";
+import { INK, openVideos, renderGate, renderGroup, renderIndex, renderVideo, stem } from "./pages.js";
 
 export const STATUSES = ["needs_review", "changes_requested", "approved"];
 const SECRETS = ["REVIEW_SHARE_KEY", "REVIEW_PASSCODE", "REVIEW_SESSION_SECRET", "REVIEW_API_TOKEN"];
@@ -14,7 +14,7 @@ const DASHBOARD_COOKIE = "__Host-cc_session"; // cloud-apps/command-center/src/a
 const SESSION_DAYS = 30;
 const LINK_DAYS = 30;
 const SLUG = /^[a-z0-9](?:[a-z0-9-]{0,78}[a-z0-9])?$/;
-const RESERVED = new Set(["login", "media", "api", "submissions", "videos", "jon-list"]);
+const RESERVED = new Set(["login", "media", "api", "submissions", "videos", "jon-list", "g", "groups"]);
 const KINDS = { changes: "changes_requested", approve: "approved" };
 const TOOLS = ["pen", "arrow", "box"];
 // Voice notes as MediaRecorder makes them (iPhone Safari mp4/AAC, Chrome webm/Opus, Firefox ogg/Opus),
@@ -398,7 +398,7 @@ async function streamMedia(request, env, key, type) {
   return new Response(object.body, { status: range ? 206 : 200, headers });
 }
 
-const safeNext = (value) => /^\/review(\/[a-z0-9-]{1,80})?$/.test(value || "") ? value : "/review";
+const safeNext = (value) => /^\/review(\/(g\/)?[a-z0-9-]{1,80})?$/.test(value || "") ? value : "/review";
 const redirect = (location, headers = {}) =>
   new Response(null, { status: 303, headers: { Location: location, "Cache-Control": "no-store", ...headers } });
 
@@ -446,17 +446,20 @@ async function pages(request, env, url) {
     return row ? streamMedia(request, env, row[`${media[2]}_key`], "video/mp4") : notFound();
   }
 
-  const slug = path === "/review" ? null : path.slice("/review/".length);
+  const group = /^\/review\/g\/([^/]+)$/.exec(path);
+  const slug = path === "/review" || group ? null : path.slice("/review/".length);
   if (!who.reviewer) {
     // The dashboard sign-in opens these same pages with no passcode, so QC bots never meet the passcode box, where
     // OpenBot can freeze them on a person-waiting card. Presence is enough: the dashboard Worker checks the session,
     // and it strips this cookie when it calls us, so this cannot loop.
-    if (cookies(request)[DASHBOARD_COOKIE]) return redirect(`/dashboard${safeNext(path)}`);
+    // The dashboard proxy serves single pages only, so a group page always goes to the passcode page.
+    if (!group && cookies(request)[DASHBOARD_COOKIE]) return redirect(`/dashboard${safeNext(path)}`);
     return loginRedirect(path, url.searchParams.get("k"));
   }
   if (slug !== null && !validSlug(slug)) return notFound();
   // Signed in: drop the share key from the address bar.
   if (url.searchParams.has("k")) return redirect(who.prefix + path);
+  if (group) return groupPage(env, group[1], who.prefix);
 
   const index = async () => {
     const list = await listVideos(env);
@@ -477,6 +480,62 @@ async function pages(request, env, url) {
   if (!seen(slug) && page.status === "needs_review") page.status = "qc_only";
   return html(renderVideo(page, versions.filter((v) => v.slug === slug || seen(v.slug)), channel?.name || row.channel, submissions,
     who.prefix, { qcOnly: !seen(slug), qcUnknown: visible === null }));
+}
+
+// Review groups (Jon, 2026-11-16): an ordered slug list shown as one page, /review/g/<name>, one player per video.
+// Each video keeps the single page's QC gate: a QC-only video has no Approve, exactly as on /review/<slug>.
+const getGroup = async (env, name) => {
+  const row = await env.DB.prepare("SELECT name, title, slugs, created_at, updated_at FROM review_groups WHERE name = ?").bind(name).first();
+  if (!row) return null;
+  let slugs = [];
+  try { slugs = JSON.parse(row.slugs); } catch {}
+  return { ...row, slugs: Array.isArray(slugs) ? slugs : [] };
+};
+async function groupPage(env, name, prefix) {
+  if (!SLUG.test(name)) return notFound();
+  const group = await getGroup(env, name);
+  if (!group) return html(renderIndex(await listVideos(env).then(async (l) => ({ ...l, passed: await visibleSlugs(env, l.videos) })),
+    `No review group called “${name}”.`, prefix), 404);
+  const rows = group.slugs.length ? (await env.DB.prepare(`${VIDEO_LIST} WHERE v.slug IN (SELECT value FROM json_each(?))`)
+    .bind(JSON.stringify(group.slugs)).all()).results : [];
+  const visible = await visibleSlugs(env, rows);
+  const bySlug = new Map(rows.map((r) => [r.slug, r]));
+  const items = group.slugs.map((slug) => {
+    const row = bySlug.get(slug);
+    if (!row) return { slug, missing: true };
+    const video = publicVideo(row, prefix);
+    const qcOnly = !visible?.has(slug);
+    if (qcOnly && video.status === "needs_review") video.status = "qc_only";
+    return { video, gate: { qcOnly, qcUnknown: visible === null } };
+  });
+  return html(renderGroup(group, items, prefix));
+}
+const groupSlugs = (body) => Array.isArray(body?.slugs) && body.slugs.length <= 200 && body.slugs.every(validSlug) ? [...new Set(body.slugs)] : null;
+// GET /api/review/groups/<name> (agent or reviewer); PUT {title?, slugs[]} sets the list; POST .../append {title?, slugs[]}
+// adds the slugs not already in it, at the end, in order (idempotent). Writes need the agent token.
+async function groupApi(request, env, agent, [name, action, extra]) {
+  if (!SLUG.test(name || "") || extra !== undefined || (action !== undefined && action !== "append")) return fail(404, "not_found");
+  const method = request.method;
+  if (method === "GET" && action === undefined) {
+    const group = await getGroup(env, name);
+    return group ? json({ group }) : fail(404, "group_not_found");
+  }
+  const write = (method === "PUT" && action === undefined) || (method === "POST" && action === "append");
+  if (!write) return fail(405, "method_not_allowed");
+  if (!agent) return fail(403, "agent_token_required");
+  const body = await readJson(request);
+  const slugs = groupSlugs(body);
+  if (!slugs) return fail(400, "slugs must be a list of video slugs (at most 200)");
+  if (body.title !== undefined && (typeof body.title !== "string" || body.title.length > 200)) return fail(400, "bad_title");
+  const old = await getGroup(env, name);
+  const list = action === "append" ? [...(old?.slugs || []), ...slugs.filter((s) => !old?.slugs.includes(s))] : slugs;
+  if (list.length > 200) return fail(400, "a group holds at most 200 videos");
+  const now = new Date().toISOString();
+  const title = body.title ?? old?.title ?? null;
+  await env.DB.prepare(`INSERT INTO review_groups (name, title, slugs, created_at, updated_at) VALUES (?, ?, ?, ?, ?)
+    ON CONFLICT(name) DO UPDATE SET title = excluded.title, slugs = excluded.slugs, updated_at = excluded.updated_at`)
+    .bind(name, title, JSON.stringify(list), now, now).run();
+  return json({ group: await getGroup(env, name), page_url: `${new URL(request.url).origin}/review/g/${name}` });
 }
 
 async function api(request, env, url) {
@@ -508,6 +567,7 @@ async function api(request, env, url) {
     if (!agent) return fail(403, "agent_token_required");
     return routerApi(request, env, url, parts.slice(1));
   }
+  if (parts[0] === "groups") return groupApi(request, env, agent, parts.slice(1));
   const [slug, resource, id, action, extra] = parts;
   if (!validSlug(slug) || extra !== undefined) return fail(404, "not_found");
 
@@ -912,7 +972,7 @@ async function publishApi(request, env, url, slug, resource, uploadId, action) {
 
 async function asset(request, env, url) {
   const name = url.pathname.slice("/review/_/".length);
-  if (!["app.js", "app.css", "geist.woff2"].includes(name)) return notFound();
+  if (!["app.js", "group.js", "app.css", "geist.woff2"].includes(name)) return notFound();
   const response = await env.ASSETS.fetch(new Request(new URL(`/${name}`, url), { method: request.method }));
   const headers = new Headers(response.headers);
   headers.set("Cache-Control", "no-cache");

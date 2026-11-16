@@ -24,7 +24,7 @@ const layout = (title, body, { script = false, prefix = "" } = {}) => `<!doctype
 <title>${escapeHtml(title)}</title>
 <link rel="icon" href="data:,">
 <link rel="stylesheet" href="${prefix}/review/_/app.css">
-${script ? `<script src="${prefix}/review/_/app.js" defer></script>\n` : ""}</head>
+${script ? `<script src="${prefix}/review/_/${script === true ? "app.js" : script}" defer></script>\n` : ""}</head>
 <body>
 ${body}
 </body>
@@ -102,6 +102,41 @@ const extra = (id, label, url) => url ? `<details class="extra" id="${id}"><summ
 const ours = (video) => `<div class="stage"><video id="player" controls playsinline webkit-playsinline preload="metadata"
     src="${escapeHtml(video.video_url)}#t=0.001" aria-label="Our video"></video><canvas id="ink" class="ink" aria-hidden="true"></canvas></div>`;
 
+const qcOnlyNote = (gate, attrs = "") => gate.qcOnly ? `<p class="error" role="status" ${attrs}>${gate.qcUnknown ? "QC results could not be read from the dashboard. " : ""}QC only: this version is hidden from Jon's list and can't be approved until QC passes its dashboard proof.</p>` : "";
+
+// A review group (/review/g/<name>): one player per video, stacked in the group's order, each with its own note,
+// Submit changes and Approve (public/group.js), sent to the same endpoints as the single page. preload="none" keeps a
+// long batch light on a phone. items: [{ video, gate }] or [{ slug, missing: true }].
+export function renderGroup(group, items, prefix = "") {
+  const data = JSON.stringify({ api: `${prefix}/api/review` }).replace(/</g, "\\u003c");
+  const blocks = items.map((item, i) => {
+    if (item.missing) return `<section class="group-item" data-missing="${escapeHtml(item.slug)}"><h2>${i + 1}. ${escapeHtml(item.slug)}</h2>
+    <p class="muted">Not published yet.</p></section>`;
+    const { video, gate } = item;
+    return `<section class="group-item" data-slug="${escapeHtml(video.slug)}" aria-label="${escapeHtml(video.title)}">
+    <h2>${i + 1}. ${escapeHtml(video.title)} <span class="muted">${escapeHtml(video.version)}</span> ${chip(video.status)}</h2>
+    ${qcOnlyNote(gate)}
+    <video class="group-player" controls playsinline webkit-playsinline preload="none" src="${escapeHtml(video.video_url)}" aria-label="${escapeHtml(video.title)}"></video>
+    <p class="muted"><a href="${prefix}/review/${escapeHtml(video.slug)}">Open the full page</a> (side by side, drawing, voice notes)</p>
+    <textarea class="group-note" rows="2" maxlength="4000" placeholder="What should change? Pause the video first: the note gets that time."></textarea>
+    <div class="send-btns">
+      <button type="button" class="primary" data-act="changes">Submit changes</button>
+      ${gate.qcOnly ? "" : '<button type="button" class="approve" data-act="approve">Approve</button>'}
+    </div>
+    <p class="muted group-status" role="status"></p>
+  </section>`;
+  }).join("\n  ");
+  const title = group.title || group.name;
+  return layout(title, `<main class="group">
+  <p class="crumbs"><a href="${prefix}/review">All videos</a> / Group</p>
+  <header class="top"><h1>${escapeHtml(title)} <span class="muted">${items.length} video${items.length === 1 ? "" : "s"}</span></h1></header>
+  <div class="who"><label for="author">Your name</label>
+    <input id="author" maxlength="60" autocomplete="name" placeholder="Shown next to your notes"></div>
+  ${blocks || '<p class="muted">This group has no videos yet.</p>'}
+  <script type="application/json" id="group-data">${data}</script>
+</main>`, { script: "group.js", prefix });
+}
+
 // gate.qcOnly: QC hasn't passed this version, so the page says so and has no Approve and no status buttons.
 export function renderVideo(video, versions, channelName, submissions = [], prefix = "", gate = {}) {
   const data = JSON.stringify({ slug: video.slug, duration: video.duration, chapters: video.chapters, status: video.status, sync: video.sync, submissions, qcOnly: Boolean(gate.qcOnly),
@@ -119,7 +154,7 @@ export function renderVideo(video, versions, channelName, submissions = [], pref
     <h1>${escapeHtml(video.title)} <span class="muted">${escapeHtml(video.version)}</span></h1>
     ${versionLinks}
   </header>
-  ${gate.qcOnly ? `<p class="error" role="status" id="qc-only">${gate.qcUnknown ? "QC results could not be read from the dashboard. " : ""}QC only: this version is hidden from Jon's list and can't be approved until QC passes its dashboard proof.</p>` : ""}
+  ${qcOnlyNote(gate, 'id="qc-only"')}
   ${video.source_url ? `<div class="duo" id="duo">
     <figure class="pane"><figcaption>Source <span class="muted" id="source-audio">muted</span></figcaption>
       <video id="source-player" controls playsinline webkit-playsinline muted preload="metadata"

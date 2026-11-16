@@ -21,6 +21,9 @@
 // [seconds, label] pairs, or a GPU1 versions.json ({"chapters": {"<file name>": [...]}}).
 // --sync (defaults to the --chapters versions.json) reads the ours-to-source cut map: "timemap"
 // [ours, source, length] per file, or visual_intervals/cut_intervals/map for the current version.
+// --group <name> [--group-title "Course 1"]: after publishing, add this slug to the review group /review/g/<name> (at the end,
+// once; republishing never duplicates it). With --slugs a,b,c and no --file it sets the group to exactly that list, in order,
+// nothing uploaded; with --slug and no --file it only appends that published slug.
 import { createHash, randomUUID } from "node:crypto";
 import { createReadStream, createWriteStream, existsSync, openSync, readFileSync, readSync, closeSync, statSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
@@ -204,7 +207,7 @@ async function verify(url, token, size) {
 async function main() {
   const args = parseArgs(process.argv.slice(2));
   if (args.help) {
-    console.log(readFileSync(new URL(import.meta.url), "utf8").split("\n").slice(1, 21).join("\n").replace(/^\/\/ ?/gm, ""));
+    console.log(readFileSync(new URL(import.meta.url), "utf8").split("\n").slice(1, 26).join("\n").replace(/^\/\/ ?/gm, ""));
     return;
   }
   loadEnvFile(args["env-file"] || join(homedir(), ".jonmac-review.env"));
@@ -219,6 +222,17 @@ async function main() {
     const done = await qcPass(client(base, token));
     console.log(JSON.stringify({ ok: true, slug: args.slug, qc_pass: done.qc_pass, qc_only: done.qc_only, approvable: done.approvable,
       status: done.video?.status, page_url: done.video?.page_url }, null, 2));
+    return;
+  }
+  if (args.group !== undefined && !slugOk(args.group || "")) throw new Error("--group must be lowercase letters, digits and dashes");
+  const groupTitle = args["group-title"] !== undefined ? { title: args["group-title"] } : {};
+  const addToGroup = (call) => call(`groups/${args.group}/append`, { method: "POST", body: { slugs: [args.slug], ...groupTitle } });
+  if (args.group && !args.file) { // set or extend a review group from published slugs, nothing uploaded
+    if (!token) throw new Error("REVIEW_API_TOKEN is not set (env or ~/.jonmac-review.env)");
+    const slugs = args.slugs !== undefined ? String(args.slugs).split(",").map((s) => s.trim()).filter(Boolean) : null;
+    if (slugs ? !slugs.length || !slugs.every(slugOk) : !slugOk(args.slug || "")) throw new Error("--group without --file needs --slugs a,b,c (sets the list) or --slug (appends one)");
+    const done = slugs ? await client(base, token)(`groups/${args.group}`, { method: "PUT", body: { slugs, ...groupTitle } }) : await addToGroup(client(base, token));
+    console.log(JSON.stringify({ ok: true, group: done.group.name, slugs: done.group.slugs, page_url: done.page_url }, null, 2));
     return;
   }
   for (const name of ["slug", "channel", "video", "version", "title", "file"]) {
@@ -258,12 +272,14 @@ async function main() {
     ? (await call(`${args.replaces}/next`, { method: "POST", body: { result_slug: args.slug } })).submission
     : null;
   const passed = args["qc-passed"] ? await qcPass(call) : null;
+  const grouped = args.group ? await addToGroup(call) : null;
   console.log(JSON.stringify({ ok: true, qc_only: passed ? passed.qc_only : true,
     jon_sees_it: passed ? (passed.qc_only ? "not yet: the QC pass did not open it" : "now: marked QC-passed") : "only after QC passes its dashboard proof",
     ...(passed ? { qc_pass: passed.qc_pass, approvable: passed.approvable } : {}),
     page_url: published.page_url, video_url: published.video_url,
     size: video.size, sha256: video.sha256, duration: video.duration, status: passed?.video?.status || published.status,
-    ...(linked ? { replaces: args.replaces, linked_submission: linked.id } : {}) }, null, 2));
+    ...(linked ? { replaces: args.replaces, linked_submission: linked.id } : {}),
+    ...(grouped ? { group: grouped.group.name, group_url: grouped.page_url } : {}) }, null, 2));
 }
 
 if (process.argv[1] && basename(process.argv[1]) === basename(new URL(import.meta.url).pathname)) {
