@@ -114,3 +114,10 @@ button.approve { border-color: var(--green); color: var(--green); }
 .submissions .ready { color: var(--green); }
 .comment .sent { color: var(--amber); }
 @media (max-width: 520px) { .send-btns { grid-template-columns: 1fr; } }
+
+/* Review group page (/review/g/<name>): one player per video, stacked. */
+.group .group-item { margin: 1.5rem 0; padding-top: 1rem; border-top: 1px solid rgba(127,127,127,.3); }
+.group .group-item h2 { font-size: 1.05rem; margin: 0 0 .5rem; }
+.group .group-player { display: block; width: 100%; max-height: 75vh; background: #000; border-radius: 8px; }
+.group .group-note { width: 100%; box-sizing: border-box; margin: .5rem 0; }
+
