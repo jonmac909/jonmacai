@@ -121,11 +121,13 @@ button.approve { border-color: var(--green); color: var(--green); }
   border: 1px solid var(--accent); border-radius: 10px; background: var(--panel); color: var(--accent);
   font-size: 18px; font-weight: 700; text-decoration: none; }
 .group-nav #nav-next { background: var(--accent); color: var(--on-accent); }
+.group-nav .nav-wait { border-style: dashed; border-color: var(--line); background: transparent; color: var(--muted); cursor: default; gap: 6px; }
+.group-nav .nav-wait small { font-size: 12px; font-weight: 600; }
 .group-nav .nav-pos { font-weight: 600; color: var(--muted); text-align: center; white-space: nowrap; }
 @media (max-width: 520px) {
   .group-nav { grid-template-columns: 1fr 1fr; }
   .group-nav .nav-pos { grid-column: 1 / -1; order: -1; }
-  .group-nav #nav-next { grid-column: 2; }
+  .group-nav #nav-next, .group-nav #nav-next-wait { grid-column: 2; }
 }
 
 /* Review group page (/review/g/<name>): one player per video, stacked. */
