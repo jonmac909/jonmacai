@@ -244,7 +244,7 @@ test("adding a source: page goes side by side, status, comments and media kept, 
   const stream = await fetchApp(new URL(after.source_url).pathname + new URL(after.source_url).search, { headers: { ...agent, Range: "bytes=0-9" } });
   assert.equal(stream.status, 206);
   await stream.arrayBuffer();
-  const sideBySide = /<div class="duo" id="duo">[\s\S]*?<\/div>/.exec(await page())[0];
+  const sideBySide = /<div class="duo" id="duo">[\s\S]*?<\/figure>\s*<\/div>/.exec(await page())[0];
   assert.match(sideBySide, /<video id="source-player"[^>]*src="\/dashboard\/review\/media\/mina-3-v1\/source\.mp4\?v=/);
   assert.match(sideBySide, /<video id="player"/);
 
@@ -354,7 +354,7 @@ test("video page: source left and ours right with transport controls, muted coll
   const player = /<video id="player"[^>]*>/.exec(body)[0];
   assert.match(player, /playsinline/);
   assert.doesNotMatch(player, /autoplay/);
-  const duo = /<div class="duo" id="duo">[\s\S]*?<\/div>/.exec(body)[0];
+  const duo = /<div class="duo" id="duo">[\s\S]*?<\/figure>\s*<\/div>/.exec(body)[0];
   assert.ok(duo.indexOf('id="source-player"') < duo.indexOf('id="player"'), "source left, ours right");
   const sourceTag = /<video id="source-player"[^>]*>/.exec(body)[0];
   assert.match(sourceTag, /muted[^>]*preload="metadata"/);

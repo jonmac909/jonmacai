@@ -7,6 +7,17 @@
   const player = $("player");
   const api = `${data.api || "/api/review"}/${encodeURIComponent(data.slug)}`;
   const NAME_KEY = "review.author";
+  // Each player box takes its own video's shape: --ar comes from the stored size, and is corrected here from the file itself.
+  // The text original of a text-only lesson (.source-frame, no video) follows our player's shape.
+  for (const video of document.querySelectorAll(".frame > video")) {
+    const fit = () => {
+      if (!video.videoWidth || !video.videoHeight) return;
+      const ar = (Math.round(video.videoWidth / video.videoHeight * 1e5) / 1e5).toString();
+      for (const frame of [video.parentElement, ...(video.id === "player" ? document.querySelectorAll(".source-frame") : [])]) frame.style.setProperty("--ar", ar);
+    };
+    video.addEventListener("loadedmetadata", fit);
+    if (video.readyState >= 1) fit();
+  }
   let stamp = 0;
   let comments = [];
   let submissions = Array.isArray(data.submissions) ? data.submissions : [];
