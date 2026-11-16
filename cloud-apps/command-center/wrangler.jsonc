@@ -63,6 +63,9 @@
     // Dashboard 3 (docs/dashboard-3.md).
     { "pattern": "jonmac.ai/dash", "zone_name": "jonmac.ai" },
     { "pattern": "jonmac.ai/dash/*", "zone_name": "jonmac.ai" },
+    // Private script review pages from R2 private/scripts/, signed in only (src/worker.js).
+    { "pattern": "jonmac.ai/scripts", "zone_name": "jonmac.ai" },
+    { "pattern": "jonmac.ai/scripts/*", "zone_name": "jonmac.ai" },
     // Tracked video links (src/track.js).
     { "pattern": "jonmac.ai/v/*", "zone_name": "jonmac.ai" }
   ],

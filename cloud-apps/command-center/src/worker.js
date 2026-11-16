@@ -31,6 +31,22 @@ function assetTarget(p) {
 // Dashboards 2 and 3 serve their two pages and their own css and js, nothing else.
 const D2_FILE = /^\/(login\.html|css\/[\w-]+\.css|js\/(?:[\w-]+\/)*[\w-]+\.js|img\/bots\/[a-z]+\.webp)$/;
 
+// /scripts: Jon's private script review pages. Kept out of git (paid course text): they live in R2
+// under private/scripts/ and are served only with a dashboard session. Allowlist names only, so no listing or traversal.
+const SCRIPTS = '/scripts';
+const SCRIPTS_FILE = /^\/(index\.html|course-\d{1,2}\.html|counts\.json)$/;
+const PRIVATE_HEADERS = { 'Cache-Control': 'private, no-store', 'X-Robots-Tag': 'noindex, nofollow' };
+async function serveScripts(request, env, path) {
+  if (!(await readSession(request, env))) {
+    return new Response(null, { status: 302, headers: { Location: new URL('/dash/', request.url).toString(), ...PRIVATE_HEADERS } });
+  }
+  if (path === '/') path = '/index.html';
+  const obj = SCRIPTS_FILE.test(path) ? await env.UPLOADS.get(`private/scripts${path}`) : null;
+  if (!obj) return new Response('Not found', { status: 404, headers: PRIVATE_HEADERS });
+  const type = path.endsWith('.json') ? 'application/json' : 'text/html; charset=utf-8';
+  return new Response(obj.body, { headers: { 'Content-Type': type, ...PRIVATE_HEADERS } });
+}
+
 // {commit, deployedAt} from the version metadata the deploy sets. Nothing else is exposed.
 function versionResponse(env) {
   const m = env.CF_VERSION_METADATA || {};
@@ -72,6 +88,11 @@ export default {
       if (path === '/' || path === '/index.html') return asset(request, env, (await readSession(request, env)) ? '/d3/index.html' : '/d3/login.html');
       return D2_FILE.test(path) ? asset(request, env, `/d3${path}`) : notFound();
     }
+    if (url.pathname === SCRIPTS) {
+      url.pathname = `${SCRIPTS}/`;
+      return new Response(null, { status: 308, headers: { Location: url.toString(), ...PRIVATE_HEADERS } });
+    }
+    if (url.pathname.startsWith(`${SCRIPTS}/`)) return serveScripts(request, env, url.pathname.slice(SCRIPTS.length));
     if (url.pathname === PREFIX) {
       url.pathname = `${PREFIX}/`;
       return Response.redirect(url.toString(), 308);
