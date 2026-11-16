@@ -101,6 +101,26 @@ test("the meta call is agent-only, rejects bad input and changes only what was s
   assert.equal(after.source_w, 640);
 });
 
+test("the meta call sets the page title (trimmed, bounded) and leaves everything else alone", async () => {
+  await publish("ot-title-v1", { source_text: "<p>Keep me</p>", notes: "keep notes" });
+  const before = (await (await fetchApp("/api/review/ot-title-v1", { headers: agent })).json()).video;
+  const name = "Edit by Prompt: AI Video Editing and Motion Graphics with Claude, lesson 04: How it works";
+  const set = await meta("ot-title-v1", { title: `  ${name}  ` });
+  assert.equal(set.status, 200, "title is accepted by the meta call");
+  const after = (await set.json()).video;
+  assert.equal(after.title, name, "trimmed and saved");
+  for (const k of ["video_url", "status", "version", "created_at", "source_url", "has_source_text", "notes", "chapters"]) assert.deepEqual(after[k], before[k], k);
+  const page = await dashboardPage("ot-title-v1");
+  assert.ok(page.includes(`<h1>${name.replace("&", "&amp;")} `), "the page h1 shows the new title");
+  const list = (await (await fetchApp("/api/review/videos", { headers: agent })).json()).videos.find((v) => v.slug === "ot-title-v1");
+  assert.equal(list.title, name, "the list shows it too");
+  assert.equal((await meta("ot-title-v1", { title: "x".repeat(200) })).status, 200, "200 characters is the limit (as on publish)");
+  for (const bad of ["", "   ", 5, null, "x".repeat(201)]) assert.equal((await meta("ot-title-v1", { title: bad })).status, 400, `rejects ${JSON.stringify(bad)?.slice(0, 20)}`);
+  assert.equal((await meta("ot-title-v1", { title: "Nope" }, { Cookie: cookie, "Content-Type": "application/json" })).status, 403, "agent-only");
+  assert.equal((await meta("ot-title-nothing-v1", { title: "Nope" })).status, 404);
+  assert.equal((await (await fetchApp("/api/review/ot-title-v1", { headers: agent })).json()).video.title, "x".repeat(200), "a rejected title changes nothing");
+});
+
 test("a recut that sends no text keeps the text; a video with a source video shows the video, not the text", async () => {
   await publish("ot-lesson-v1", {});
   assert.equal((await (await fetchApp("/api/review/ot-lesson-v1", { headers: agent })).json()).video.has_source_text, true);
