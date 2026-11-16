@@ -115,6 +115,19 @@ button.approve { border-color: var(--green); color: var(--green); }
 .comment .sent { color: var(--amber); }
 @media (max-width: 520px) { .send-btns { grid-template-columns: 1fr; } }
 
+/* Back / Next on a single page in a review group: thumb-sized, the label between them (above them on a phone). */
+.group-nav { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 10px; margin: 12px 0; }
+.group-nav .nav-btn { display: flex; align-items: center; justify-content: center; min-height: 52px; padding: 0 18px;
+  border: 1px solid var(--accent); border-radius: 10px; background: var(--panel); color: var(--accent);
+  font-size: 18px; font-weight: 700; text-decoration: none; }
+.group-nav #nav-next { background: var(--accent); color: var(--on-accent); }
+.group-nav .nav-pos { font-weight: 600; color: var(--muted); text-align: center; white-space: nowrap; }
+@media (max-width: 520px) {
+  .group-nav { grid-template-columns: 1fr 1fr; }
+  .group-nav .nav-pos { grid-column: 1 / -1; order: -1; }
+  .group-nav #nav-next { grid-column: 2; }
+}
+
 /* Review group page (/review/g/<name>): one player per video, stacked. */
 .group .group-item { margin: 1.5rem 0; padding-top: 1rem; border-top: 1px solid rgba(127,127,127,.3); }
 .group .group-item h2 { font-size: 1.05rem; margin: 0 0 .5rem; }
