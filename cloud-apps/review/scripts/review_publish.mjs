@@ -7,6 +7,7 @@
 //     --title "Mina: AI shorts tutorial" --file mina01_v9.mp4 [--source source_h264.mp4] \
 //     [--compare first60_side_by_side.mp4] [--chapters versions.json] [--sync versions.json]
 //     [--notes "what changed"] [--replaces mina-1-v8] [--task t_0123456789abcdef] [--dry-run]
+//     [--source-text lesson.html]   the original of a text-only lesson, shown left of ours (no source video)
 //
 // --task <dashboard task id>: the video's card, so Jon's Approve and Submit changes land on it (else matched by title).
 // After Jon approves a version, publishing a new one is refused (409) until he asks for changes, except
@@ -96,7 +97,7 @@ export function topLevelBoxes(path) {
 }
 
 function probe(path) {
-  const result = spawnSync("ffprobe", ["-v", "error", "-show_entries", "format=duration:stream=codec_type,codec_name",
+  const result = spawnSync("ffprobe", ["-v", "error", "-show_entries", "format=duration:stream=codec_type,codec_name,width,height",
     "-of", "json", path], { encoding: "utf8" });
   if (result.status !== 0) return null;
   try { return JSON.parse(result.stdout); } catch { return null; }
@@ -117,7 +118,8 @@ async function inspect(path, label) {
   if (videoCodec && videoCodec !== "h264") warnings.push(`${label} video codec is ${videoCodec}; iPhone-safe review copies should be H.264`);
   if (audioCodec && audioCodec !== "aac") warnings.push(`${label} audio codec is ${audioCodec}; use AAC`);
   const duration = Number(info?.format?.duration) || null;
-  return { path, size, sha256: await sha256(path), duration, videoCodec, audioCodec, warnings };
+  const picture = streams.find((s) => s.codec_type === "video"); // pixel size: the page sizes each player to its own video
+  return { path, size, sha256: await sha256(path), duration, videoCodec, audioCodec, width: picture?.width || null, height: picture?.height || null, warnings };
 }
 
 function chaptersFrom(path, file) {
@@ -263,6 +265,8 @@ async function main() {
       channel: args.channel, channel_name: args["channel-name"], video: args.video, version: args.version,
       title: args.title, status: args.status, notes: args.notes, fix: args.fix, chapters, sync, task_id: args.task,
       video_key: videoKey, video_sha256: video.sha256, source_key: sourceKey, compare_key: compareKey, duration: video.duration,
+      video_w: video.width, video_h: video.height, source_w: source?.width, source_h: source?.height,
+      source_text: args["source-text"] ? readFileSync(args["source-text"], "utf8") : undefined, // the original of a text-only lesson (HTML, sanitized by the Worker)
     },
   });
   await verify(published.video_url, token, video.size);

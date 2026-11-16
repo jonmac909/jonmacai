@@ -4,7 +4,7 @@
 // jonmac.ai/dashboard/review serves these same pages under the dashboard sign-in (see caller()).
 // DASHBOARD (service binding to the dashboard Worker, same REVIEW_API_TOKEN) posts Jon's Approve and Submit changes to the
 // video's card and reads which versions QC passed (cloud-apps/command-center/src/reviewhook.js).
-import { INK, openVideos, renderGate, renderGroup, renderIndex, renderVideo, stem } from "./pages.js";
+import { INK, openVideos, renderGate, renderGroup, renderIndex, renderVideo, sanitizeSourceHtml, stem } from "./pages.js";
 
 export const STATUSES = ["needs_review", "changes_requested", "approved"];
 const SECRETS = ["REVIEW_SHARE_KEY", "REVIEW_PASSCODE", "REVIEW_SESSION_SECRET", "REVIEW_API_TOKEN"];
@@ -184,6 +184,8 @@ async function readForm(request, max) {
 }
 
 const text = (value, max) => typeof value === "string" ? value.trim().slice(0, max) : "";
+const pixels = (n) => Number.isInteger(n) && n >= 16 && n <= 16384 ? n : null; // a video's width or height; a bad one is "unknown"
+const sourceText = (value) => typeof value === "string" ? sanitizeSourceHtml(value).trim() || null : null;
 const now = () => new Date().toISOString();
 
 function publicComment(row, base) {
@@ -224,6 +226,8 @@ function publicVideo(row, origin) {
     source_url: row.source_key ? `${origin}/review/media/${row.slug}/source.mp4?v=${mediaTag(row.source_key)}` : null,
     compare_url: row.compare_key ? `${origin}/review/media/${row.slug}/compare.mp4?v=${mediaTag(row.compare_key)}` : null,
     video_size: row.video_size, video_sha256: row.video_sha256,
+    video_w: row.video_w || null, video_h: row.video_h || null, source_w: row.source_w || null, source_h: row.source_h || null,
+    has_source_text: Boolean(row.source_text),
     open_comments: row.open_count ?? undefined, total_comments: row.total_count ?? undefined,
     created_at: row.created_at, updated_at: row.updated_at,
   };
@@ -478,7 +482,7 @@ async function pages(request, env, url) {
   const visible = await visibleSlugs(env, [...versions, ...(inGroup?.rows || [])]);
   const seen = (s) => Boolean(s && visible?.has(s));
   const submissions = (await slugSubmissions(env, slug, 10)).results.map((s) => publicSubmission(seen(s.result_slug) ? s : { ...s, result_slug: null }, who.prefix));
-  const page = publicVideo(row, who.prefix);
+  const page = { ...publicVideo(row, who.prefix), source_text: row.source_text || null };
   if (!seen(slug) && page.status === "needs_review") page.status = "qc_only";
   return html(renderVideo(page, versions.filter((v) => v.slug === slug || seen(v.slug)), channel?.name || row.channel, submissions,
     who.prefix, { qcOnly: !seen(slug), qcUnknown: visible === null, nav: inGroup && groupNav(inGroup, slug, seen, visible !== null) }));
@@ -635,7 +639,7 @@ async function api(request, env, url) {
   const [slug, resource, id, action, extra] = parts;
   if (!validSlug(slug) || extra !== undefined) return fail(404, "not_found");
 
-  if (resource === "uploads" || resource === "publish" || resource === "source") {
+  if (resource === "uploads" || resource === "publish" || resource === "source" || resource === "meta") {
     if (!agent) return fail(403, "agent_token_required");
     return publishApi(request, env, url, slug, resource, id, action);
   }
@@ -967,6 +971,32 @@ async function publishApi(request, env, url, slug, resource, uploadId, action) {
     return json({ video: await gatedVideo(env, await getVideo(env, slug), url.origin) });
   }
 
+  // Adds or fixes the extras of a published version without touching its video: the original lesson text of a text-only
+  // lesson (source_text, sanitized), the caption notes, and the pixel sizes the page sizes its players from. Only the
+  // fields sent change; null clears one. Nothing else on the row (file, QC, status, comments) is touched.
+  if (resource === "meta" && uploadId === undefined && method === "POST") {
+    const body = await readJson(request);
+    if (!body) return fail(400, "send JSON");
+    const sets = [], binds = [];
+    if ("source_text" in body) {
+      if (body.source_text !== null && typeof body.source_text !== "string") return fail(400, "source_text must be a string or null");
+      sets.push("source_text = ?"); binds.push(sourceText(body.source_text));
+    }
+    if ("notes" in body) {
+      if (body.notes !== null && typeof body.notes !== "string") return fail(400, "notes must be a string or null");
+      sets.push("notes = ?"); binds.push(text(body.notes, 2000) || null);
+    }
+    for (const k of ["video_w", "video_h", "source_w", "source_h"]) {
+      if (!(k in body)) continue;
+      if (body[k] !== null && pixels(body[k]) === null) return fail(400, `${k} must be a whole number of pixels or null`);
+      sets.push(`${k} = ?`); binds.push(body[k]);
+    }
+    if (!sets.length) return fail(400, "send source_text, notes, video_w, video_h, source_w or source_h");
+    const saved = await env.DB.prepare(`UPDATE videos SET ${sets.join(", ")}, updated_at = ? WHERE slug = ?`).bind(...binds, now(), slug).run();
+    if (!saved.meta.changes) return fail(404, "video_not_found");
+    return json({ video: await gatedVideo(env, await getVideo(env, slug), url.origin) });
+  }
+
   if (resource === "publish" && uploadId === undefined && method === "POST") {
     const body = await readJson(request);
     if (!body) return fail(400, "send JSON metadata");
@@ -974,7 +1004,7 @@ async function publishApi(request, env, url, slug, resource, uploadId, action) {
     const fix = text(body.fix, 300);
     if (approval && !fix) return approvalLock(approval);
     if (fix && !approval) return fail(409, "Jon has no standing approval on this video, so there is nothing to fix on top of. Publish it as a normal version, without a fix note.");
-    const previous = await env.DB.prepare("SELECT video_key, source_key, compare_key, created_at FROM videos WHERE slug = ?").bind(slug).first();
+    const previous = await env.DB.prepare("SELECT video_key, source_key, compare_key, created_at, source_w, source_h FROM videos WHERE slug = ?").bind(slug).first();
     // A fix is a new version: it never overwrites the approved file or any version that existed when Jon approved.
     if (fix && previous && previous.created_at <= approval.created_at) return fail(409, `${slug} existed when Jon approved ${approval.slug}. Publish the fix under a new version slug.`);
     const taskId = body.task_id == null || body.task_id === "" ? null : String(body.task_id);
@@ -1002,21 +1032,27 @@ async function publishApi(request, env, url, slug, resource, uploadId, action) {
     const syncMap = Array.isArray(body.sync) && body.sync.length && body.sync.length <= 5000 && body.sync.every(syncOk)
       ? JSON.stringify(body.sync.map((s) => s.map((n) => Math.round(n * 1000) / 1000))) : null;
     const sourceKey = body.source_key || previous?.source_key || null; // a recut of the same video keeps its original
+    // Pixel sizes: ours from the body; the source's from the body, else the kept original's own.
+    const videoW = pixels(body.video_w), videoH = pixels(body.video_h);
+    const keepsSource = !body.source_key && previous?.source_key;
+    const sourceW = pixels(body.source_w) ?? (keepsSource ? previous.source_w : null), sourceH = pixels(body.source_h) ?? (keepsSource ? previous.source_h : null);
     const stamp = now();
     await env.DB.batch([
       env.DB.prepare("INSERT OR IGNORE INTO channels (slug, name, sort) VALUES (?, ?, 100)")
         .bind(channel, text(body.channel_name, 60) || channel.charAt(0).toUpperCase() + channel.slice(1)),
       env.DB.prepare(`INSERT INTO videos (slug, channel, video, version, title, status, video_key, video_size, video_sha256,
-          source_key, compare_key, duration, chapters, sync_map, notes, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          source_key, compare_key, duration, chapters, sync_map, notes, created_at, updated_at, source_text, video_w, video_h, source_w, source_h)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(slug) DO UPDATE SET channel = excluded.channel, video = excluded.video, version = excluded.version,
           title = excluded.title, status = excluded.status, video_key = excluded.video_key, video_size = excluded.video_size,
           video_sha256 = excluded.video_sha256, source_key = excluded.source_key, compare_key = excluded.compare_key, duration = excluded.duration,
-          chapters = excluded.chapters, sync_map = excluded.sync_map, notes = excluded.notes, updated_at = excluded.updated_at`)
+          chapters = excluded.chapters, sync_map = excluded.sync_map, notes = excluded.notes, updated_at = excluded.updated_at,
+          source_text = COALESCE(excluded.source_text, source_text), video_w = excluded.video_w, video_h = excluded.video_h,
+          source_w = excluded.source_w, source_h = excluded.source_h`)
         .bind(slug, channel, video, version, title, status, body.video_key, videoInfo.size,
           /^[a-f0-9]{64}$/.test(body.video_sha256 || "") ? body.video_sha256 : null,
           sourceKey, body.compare_key || null, Number.isFinite(duration) && duration > 0 ? duration : null,
-          chapters, syncMap, notes || null, stamp, stamp),
+          chapters, syncMap, notes || null, stamp, stamp, sourceText(body.source_text), videoW, videoH, sourceW, sourceH),
       ...(taskId ? [env.DB.prepare("INSERT OR IGNORE INTO video_tasks (slug, task_id, created_at) VALUES (?, ?, ?)").bind(slug, taskId, stamp)] : []),
       // The QC gate: this file is QC-only until QC passes its dashboard proof (a recut of a passed version is held again).
       env.DB.prepare("INSERT OR IGNORE INTO qc_holds (slug, video_key, created_at) VALUES (?, ?, ?)").bind(slug, body.video_key, stamp),

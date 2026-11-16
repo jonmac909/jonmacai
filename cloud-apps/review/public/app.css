@@ -46,11 +46,15 @@ input, textarea { width: 100%; background: var(--panel); border: 1px solid var(-
 .version-nav { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
 .version-nav a, .version-nav .current { border: 1px solid var(--line); border-radius: 6px; padding: 4px 10px; text-decoration: none; }
 .version-nav .current { background: var(--accent); color: var(--on-accent); border-color: var(--accent); font-weight: 700; }
-video { display: block; width: 100%; max-height: 70vh; background: #000; border-radius: 10px; border: 1px solid var(--line); }
+video { display: block; width: 100%; background: #000; border-radius: 10px; border: 1px solid var(--line); }
+/* Every player box has its own video's shape (--ar = width / height, set by the page, corrected from the file's own size by
+   app.js): a 9:16 reel is a tall narrow player, a 16:9 video stays 16:9, no black bars. Height is capped at about 80vh and
+   the box is centred; the width follows from the ratio. */
+.frame { --ar: 1.77778; position: relative; width: min(100%, calc(80vh * var(--ar))); width: min(100%, calc(80dvh * var(--ar))); aspect-ratio: var(--ar); margin: 0 auto; }
+.frame > video { width: 100%; height: 100%; object-fit: contain; }
 .duo { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .pane { margin: 0; min-width: 0; }
 .pane figcaption { font-weight: 700; margin-bottom: 6px; }
-.pane video { aspect-ratio: 16 / 9; }
 .pane-error { color: var(--red); margin: 6px 0 0; }
 .transport { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; margin-top: 10px; }
 .toggle, .audio-switch { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
@@ -67,9 +71,22 @@ video { display: block; width: 100%; max-height: 70vh; background: #000; border-
 .notes { color: var(--muted); white-space: pre-wrap; }
 .extra { margin: 10px 0 16px; border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; background: var(--panel); }
 .extra summary { cursor: pointer; color: var(--muted); }
-.extra video { margin-top: 10px; }
+.extra .frame { margin-top: 10px; }
 
-.stage { position: relative; }
+/* The original of a text-only lesson, in the same box as our player. */
+.source-text { position: absolute; inset: 0; overflow: auto; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; line-height: 1.5; overflow-wrap: anywhere; }
+.source-text > :first-child { margin-top: 0; }
+.source-text h1, .source-text h2, .source-text h3, .source-text h4 { margin: 1.1em 0 .4em; line-height: 1.25; }
+.source-text h1 { font-size: 1.35em; } .source-text h2 { font-size: 1.2em; } .source-text h3, .source-text h4 { font-size: 1.05em; }
+.source-text p { margin: .6em 0; }
+.source-text ul, .source-text ol { margin: .6em 0; padding-left: 1.4em; }
+.source-text li > p { margin: .2em 0; }
+.source-text blockquote { margin: .8em 0; padding: .1em 12px; border-left: 3px solid var(--accent); color: var(--muted); }
+.source-text pre { overflow: auto; margin: .8em 0; padding: 10px 12px; border-radius: 6px; background: var(--bg); border: 1px solid var(--line); white-space: pre-wrap; }
+.source-text code { font-family: ui-monospace, Consolas, monospace; font-size: .92em; background: var(--bg); border-radius: 4px; padding: 0 .25em; }
+.source-text pre code { background: none; padding: 0; }
+.source-text hr { border: 0; border-top: 1px solid var(--line); margin: 1em 0; }
+@media (max-width: 760px) { .source-frame { aspect-ratio: auto; width: 100%; height: min(60vh, 520px); } }
 .ink { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; border-radius: 10px; }
 .ink.on { pointer-events: auto; touch-action: none; cursor: crosshair; outline: 2px solid var(--accent); outline-offset: -2px; }
 .tools, .ink-tools, .seg { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
@@ -133,6 +150,6 @@ button.approve { border-color: var(--green); color: var(--green); }
 /* Review group page (/review/g/<name>): one player per video, stacked. */
 .group .group-item { margin: 1.5rem 0; padding-top: 1rem; border-top: 1px solid rgba(127,127,127,.3); }
 .group .group-item h2 { font-size: 1.05rem; margin: 0 0 .5rem; }
-.group .group-player { display: block; width: 100%; max-height: 75vh; background: #000; border-radius: 8px; }
+.group .group-player { display: block; border-radius: 8px; }
 .group .group-note { width: 100%; box-sizing: border-box; margin: .5rem 0; }
 

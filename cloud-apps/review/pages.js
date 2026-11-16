@@ -13,6 +13,57 @@ export function formatTime(seconds) {
   return `${h ? `${h}:` : ""}${mm}:${String(sec).padStart(2, "0")}`;
 }
 
+// The original lesson text of a text-only Skool lesson (videos.source_text). Only these tags survive, with no attributes
+// except an https/http/mailto href on <a>; everything else (scripts, styles, event handlers, images, iframes, unknown tags)
+// is dropped and stray < & > are escaped. It runs when the text is stored and again when the page renders.
+const TEXT_TAGS = new Set(["h1", "h2", "h3", "h4", "p", "ul", "ol", "li", "strong", "b", "em", "i", "u", "s", "code", "pre", "blockquote", "br", "hr", "a"]);
+const VOID_TAGS = new Set(["br", "hr"]);
+const DROP_WITH_CONTENT = /<(script|style|iframe|object|embed|noscript|template|textarea|svg|math|head|title|form|select|button)\b[\s\S]*?(?:<\/\1\s*>|$)/gi;
+const escapeText = (t) => t.replace(/&(?!(?:amp|lt|gt|quot|#39|#\d{1,6}|#x[0-9a-f]{1,6});)/gi, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+const decodeBasic = (t) => t.replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&amp;/g, "&");
+export function sanitizeSourceHtml(input, max = 200000) {
+  const src = String(input ?? "").slice(0, max).replace(/<!--[\s\S]*?(?:-->|$)/g, "").replace(DROP_WITH_CONTENT, "");
+  const tag = /<(\/?)([a-zA-Z][a-zA-Z0-9]*)((?:"[^"]*"|'[^']*'|[^'">])*)>/g;
+  const stack = []; // {name, emitted}
+  let out = "", last = 0, m;
+  const close = (name) => {
+    const at = stack.map((e) => e.name).lastIndexOf(name);
+    if (at < 0) return;
+    for (const e of stack.splice(at).reverse()) if (e.emitted) out += `</${e.name}>`;
+  };
+  while ((m = tag.exec(src))) {
+    out += escapeText(src.slice(last, m.index));
+    last = tag.lastIndex;
+    const name = m[2].toLowerCase();
+    if (!TEXT_TAGS.has(name)) continue;
+    if (m[1]) { close(name); continue; }
+    if (VOID_TAGS.has(name)) { out += `<${name}>`; continue; }
+    if (name === "a") {
+      const h = /\shref\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'>]+))/i.exec(m[3]);
+      const href = decodeBasic((h && (h[1] ?? h[2] ?? h[3])) || "").trim();
+      if (/^(?:https?:\/\/|mailto:)[^\s<>"']+$/i.test(href)) {
+        stack.push({ name, emitted: true });
+        out += `<a href="${escapeHtml(href)}" target="_blank" rel="noopener noreferrer nofollow">`;
+      } else stack.push({ name, emitted: false });
+      continue;
+    }
+    stack.push({ name, emitted: true });
+    out += `<${name}>`;
+  }
+  out += escapeText(src.slice(last));
+  while (stack.length) { const e = stack.pop(); if (e.emitted) out += `</${e.name}>`; }
+  return out;
+}
+
+// A player box takes its video's own shape (Jon, 2026-11-16: "always make sure the video player is same sizing as the video
+// itself"): --ar is width / height as a number, from the stored size or 16:9 until the file's metadata says otherwise
+// (public/app.js). CSS caps the box at about 80vh and centres it; the width follows from the ratio.
+export const arOf = (w, h) => {
+  const n = Number(w) / Number(h);
+  return Number.isFinite(n) && n > 0.05 && n < 20 ? String(Math.round(n * 1e5) / 1e5) : "1.77778";
+};
+const frameStyle = (w, h) => ` style="--ar:${arOf(w, h)}"${Number(w) > 0 && Number(h) > 0 ? ' data-known="1"' : ""}`;
+
 // `prefix` is "" on jonmac.ai/review and "/dashboard" when the dashboard serves the same pages.
 const layout = (title, body, { script = false, prefix = "" } = {}) => `<!doctype html>
 <html lang="en">
@@ -95,11 +146,11 @@ export function renderIndex({ channels, videos, passed }, message = "", prefix =
 
 // Secondary player (first-60 clip): collapsed, muted, never preloaded or autoplayed.
 const extra = (id, label, url) => url ? `<details class="extra" id="${id}"><summary>${label}</summary>
-    <video id="${id}-player" class="extra-player" controls playsinline webkit-playsinline muted preload="none" src="${escapeHtml(url)}" aria-label="${label}"></video>
+    <div class="frame"${frameStyle()}><video id="${id}-player" class="extra-player" controls playsinline webkit-playsinline muted preload="none" src="${escapeHtml(url)}" aria-label="${label}"></video></div>
   </details>` : "";
 
 // Ours, with the drawing canvas laid over it (public/app.js).
-const ours = (video) => `<div class="stage"><video id="player" controls playsinline webkit-playsinline preload="metadata"
+const ours = (video) => `<div class="stage frame"${frameStyle(video.video_w, video.video_h)}><video id="player" controls playsinline webkit-playsinline preload="metadata"
     src="${escapeHtml(video.video_url)}#t=0.001" aria-label="Our video"></video><canvas id="ink" class="ink" aria-hidden="true"></canvas></div>`;
 
 const qcOnlyNote = (gate, attrs = "") => gate.qcOnly ? `<p class="error" role="status" ${attrs}>${gate.qcUnknown ? "QC results could not be read from the dashboard. " : ""}QC only: this version is hidden from Jon's list and can't be approved until QC passes its dashboard proof.</p>` : "";
@@ -116,7 +167,7 @@ export function renderGroup(group, items, prefix = "") {
     return `<section class="group-item" data-slug="${escapeHtml(video.slug)}" aria-label="${escapeHtml(video.title)}">
     <h2>${i + 1}. ${escapeHtml(video.title)} <span class="muted">${escapeHtml(video.version)}</span> ${chip(video.status)}</h2>
     ${qcOnlyNote(gate)}
-    <video class="group-player" controls playsinline webkit-playsinline preload="none" src="${escapeHtml(video.video_url)}" aria-label="${escapeHtml(video.title)}"></video>
+    <div class="frame"${frameStyle(video.video_w, video.video_h)}><video class="group-player" controls playsinline webkit-playsinline preload="none" src="${escapeHtml(video.video_url)}" aria-label="${escapeHtml(video.title)}"></video></div>
     <p class="muted"><a href="${prefix}/review/${escapeHtml(video.slug)}">Open the full page</a> (side by side, drawing, voice notes)</p>
     <textarea class="group-note" rows="2" maxlength="4000" placeholder="What should change? Pause the video first: the note gets that time."></textarea>
     <div class="send-btns">
@@ -157,6 +208,7 @@ export function renderVideo(video, versions, channelName, submissions = [], pref
     v.slug === video.slug
       ? `<span class="current">${escapeHtml(v.version)}</span>`
       : `<a href="${prefix}/review/${escapeHtml(v.slug)}">${escapeHtml(v.version)}</a>`).join("")}</nav>` : "";
+  const sourceText = video.source_url || !video.source_text ? "" : sanitizeSourceHtml(video.source_text);
   const statusButtons = Object.entries(STATUS_LABEL).map(([value, label]) =>
     `<button type="button" class="status-btn" data-status="${value}" aria-pressed="${video.status === value}">${label}</button>`).join("");
   return layout(`${channelName} · ${video.title} ${video.version}`, `<main class="watch">
@@ -168,8 +220,8 @@ export function renderVideo(video, versions, channelName, submissions = [], pref
   ${qcOnlyNote(gate, 'id="qc-only"')}
   ${video.source_url ? `<div class="duo" id="duo">
     <figure class="pane"><figcaption>Source <span class="muted" id="source-audio">muted</span></figcaption>
-      <video id="source-player" controls playsinline webkit-playsinline muted preload="metadata"
-        src="${escapeHtml(video.source_url)}#t=0.001" aria-label="Source video"></video>
+      <div class="frame"${frameStyle(video.source_w, video.source_h)}><video id="source-player" controls playsinline webkit-playsinline muted preload="metadata"
+        src="${escapeHtml(video.source_url)}#t=0.001" aria-label="Source video"></video></div>
       <p class="pane-error" id="source-error" hidden>The source video did not load. Ours still plays.</p></figure>
     <figure class="pane"><figcaption>Ours <span class="muted" id="ours-audio">sound on</span></figcaption>
       ${ours(video)}</figure>
@@ -183,6 +235,11 @@ export function renderVideo(video, versions, channelName, submissions = [], pref
     <span class="audio-switch" role="radiogroup" aria-label="Sound from">Sound:
       <label><input type="radio" name="audio" value="ours" checked> Ours</label>
       <label><input type="radio" name="audio" value="source"> Source</label></span>
+  </div>` : sourceText ? `<div class="duo" id="duo">
+    <figure class="pane"><figcaption>Source (Skool text lesson)</figcaption>
+      <div class="frame source-frame"${frameStyle(video.video_w, video.video_h)}><article class="source-text" id="source-text" tabindex="0" aria-label="Original lesson text">${sourceText}</article></div></figure>
+    <figure class="pane"><figcaption>Ours</figcaption>
+      ${ours(video)}</figure>
   </div>` : ours(video)}
   ${gate.nav ? groupNav(gate.nav, prefix) : ""}
   ${video.chapters.length ? `<div class="chapters" id="chapters">${video.chapters.map(([t, label]) =>

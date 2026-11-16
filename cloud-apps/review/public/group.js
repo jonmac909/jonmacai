@@ -3,6 +3,16 @@
 (() => {
   const data = JSON.parse(document.getElementById("group-data").textContent);
   const NAME_KEY = "review.author";
+  // Each player box takes its own video's shape: --ar comes from the stored size, and is corrected here from the file itself.
+  for (const video of document.querySelectorAll(".frame > video")) {
+    const fit = () => {
+      if (!video.videoWidth || !video.videoHeight) return;
+      const ar = (Math.round(video.videoWidth / video.videoHeight * 1e5) / 1e5).toString();
+      video.parentElement.style.setProperty("--ar", ar);
+    };
+    video.addEventListener("loadedmetadata", fit);
+    if (video.readyState >= 1) fit();
+  }
   const nameInput = document.getElementById("author");
   try { nameInput.value = localStorage.getItem(NAME_KEY) || ""; } catch {}
   nameInput.addEventListener("change", () => { try { localStorage.setItem(NAME_KEY, nameInput.value.trim()); } catch {} });
