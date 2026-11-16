@@ -481,34 +481,54 @@ async function pages(request, env, url) {
   const page = publicVideo(row, who.prefix);
   if (!seen(slug) && page.status === "needs_review") page.status = "qc_only";
   return html(renderVideo(page, versions.filter((v) => v.slug === slug || seen(v.slug)), channel?.name || row.channel, submissions,
-    who.prefix, { qcOnly: !seen(slug), qcUnknown: visible === null, nav: inGroup && visible !== null && groupNav(inGroup, slug, seen) }));
+    who.prefix, { qcOnly: !seen(slug), qcUnknown: visible === null, nav: inGroup && groupNav(inGroup, slug, seen, visible !== null) }));
 }
 
-// Back / Next on a single page whose slug is in a review group (Jon, 2026-11-16): the group's stored order, skipping
-// slugs not published or not QC-passed. A slug in several groups uses the newest group.
+// Back / Next on a single page whose video is in a review group (Jon, 2026-11-16). A group slot means a video, not one
+// version: a slot holding ig-reel-1-v1 stands for the newest version of ig-reel-1, so a v3 replaces v2 in Back / Next
+// (and a v2 page is in the group) with nobody editing the group. A page Jon sees links the newest QC-passed version of
+// each neighbour; a neighbour with none yet gets a greyed button instead (QC-only pages are never linked to him). A slug
+// in several groups uses the newest group.
+const slotStem = (slot) => stem(slot);
 async function slugGroup(env, slug) {
-  const row = await env.DB.prepare(`SELECT name, title, slugs FROM review_groups
-    WHERE json_valid(review_groups.slugs) AND EXISTS (SELECT 1 FROM json_each(review_groups.slugs) WHERE value = ?) ORDER BY created_at DESC, name LIMIT 1`).bind(slug).first();
-  if (!row) return null;
-  let slugs = [];
-  try { slugs = JSON.parse(row.slugs); } catch {}
-  if (!Array.isArray(slugs)) return null;
-  const rows = (await env.DB.prepare("SELECT slug, video_key FROM videos WHERE slug IN (SELECT value FROM json_each(?))")
-    .bind(JSON.stringify(slugs)).all()).results;
-  return { ...row, slugs, rows };
+  const s = stem(slug);
+  const { results } = await env.DB.prepare(`SELECT name, title, slugs FROM review_groups
+    WHERE json_valid(slugs) AND (slugs LIKE ? OR slugs LIKE ?) ORDER BY created_at DESC, name`).bind(`%"${s}"%`, `%"${s}-v%`).all();
+  for (const row of results) {
+    let slugs = [];
+    try { slugs = JSON.parse(row.slugs); } catch {}
+    if (!Array.isArray(slugs) || !slugs.some((x) => typeof x === "string" && slotStem(x) === s)) continue;
+    const rows = await slotRows(env, slugs);
+    return { ...row, slugs, rows };
+  }
+  return null;
 }
-function groupNav(group, slug, seen) {
-  const i = group.slugs.indexOf(slug);
-  // A QC-only page (only QC sees it) links the published neighbours; a page Jon can see also skips QC-only ones.
-  // No nav when the QC read failed (visible null), so nothing QC-only is linked by accident.
-  const published = new Set(group.rows.map((r) => r.slug));
-  const ok = (s) => s !== slug && (seen(slug) ? seen(s) : published.has(s));
+// Every published version of every video in the slots, newest first.
+async function slotRows(env, slugs) {
+  const stems = [...new Set(slugs.filter((x) => typeof x === "string").map(slotStem))];
+  if (!stems.length) return [];
+  const { results } = await env.DB.prepare(`SELECT v.slug, v.video_key, v.created_at FROM videos v
+    WHERE EXISTS (SELECT 1 FROM json_each(?) j WHERE v.slug = j.value OR v.slug LIKE j.value || '-v%') ORDER BY v.created_at DESC`)
+    .bind(JSON.stringify(stems)).all();
+  const want = new Set(stems);
+  return results.filter((r) => want.has(stem(r.slug)));
+}
+function groupNav(group, slug, seen, qcKnown = true) {
+  const s = stem(slug);
+  const slots = group.slugs.map(slotStem);
+  const i = slots.indexOf(s);
+  // The version a neighbour slot links: a page Jon sees links only QC-passed versions, a QC-only page (only QC sees it)
+  // any published one. When the QC read failed (qcKnown false) nothing is linked, so nothing QC-only is linked by accident.
+  const pick = (slot) => qcKnown ? group.rows.find((r) => stem(r.slug) === slot && (seen(slug) ? seen(r.slug) : true))?.slug || null : null;
   const noun = /reel/i.test(`${group.name} ${group.title || ""}`) ? "Reel"
     : /course|lesson/i.test(`${group.name} ${group.title || ""}`) ? "Lesson" : "";
+  const before = slots.slice(0, i).reverse(), after = slots.slice(i + 1);
+  const prev = before.map(pick).find(Boolean) || null, next = after.map(pick).find(Boolean) || null;
   return {
-    label: `${noun ? `${noun} ` : ""}${i + 1} of ${group.slugs.length}`,
-    prev: group.slugs.slice(0, i).reverse().find(ok) || null,
-    next: group.slugs.slice(i + 1).find(ok) || null,
+    label: `${noun ? `${noun} ` : ""}${i + 1} of ${slots.length}`,
+    prev, next,
+    prevWait: !prev && before.length > 0, // slots before this one, none through QC yet: a greyed Back
+    nextWait: !next && after.length > 0,
   };
 }
 
@@ -526,12 +546,16 @@ async function groupPage(env, name, prefix) {
   const group = await getGroup(env, name);
   if (!group) return html(renderIndex(await listVideos(env).then(async (l) => ({ ...l, passed: await visibleSlugs(env, l.videos) })),
     `No review group called “${name}”.`, prefix), 404);
-  const rows = group.slugs.length ? (await env.DB.prepare(`${VIDEO_LIST} WHERE v.slug IN (SELECT value FROM json_each(?))`)
-    .bind(JSON.stringify(group.slugs)).all()).results : [];
+  // A slot is a video: it shows the newest published version of it (ig-reel-1-v1 in the list shows ig-reel-1-v2).
+  const stems = [...new Set(group.slugs.map(slotStem))];
+  const rows = stems.length ? (await env.DB.prepare(`${VIDEO_LIST} WHERE EXISTS (SELECT 1 FROM json_each(?) j WHERE v.slug = j.value OR v.slug LIKE j.value || '-v%') ORDER BY v.created_at DESC`)
+    .bind(JSON.stringify(stems)).all()).results.filter((r) => stems.includes(stem(r.slug))) : [];
   const visible = await visibleSlugs(env, rows);
-  const bySlug = new Map(rows.map((r) => [r.slug, r]));
-  const items = group.slugs.map((slug) => {
-    const row = bySlug.get(slug);
+  const newest = new Map();
+  for (const r of rows) if (!newest.has(stem(r.slug))) newest.set(stem(r.slug), r);
+  const items = group.slugs.map((listed) => {
+    const row = newest.get(slotStem(listed));
+    const slug = row?.slug ?? listed;
     if (!row) return { slug, missing: true };
     const video = publicVideo(row, prefix);
     const qcOnly = !visible?.has(slug);
@@ -539,6 +563,15 @@ async function groupPage(env, name, prefix) {
     return { video, gate: { qcOnly, qcUnknown: visible === null } };
   });
   return html(renderGroup(group, items, prefix));
+}
+function appendSlugs(list, add) {
+  const out = [...list];
+  for (const slug of add) {
+    const at = out.findIndex((x) => slotStem(x) === slotStem(slug));
+    if (at < 0) out.push(slug);
+    else if (out[at] !== slug) out[at] = slug;
+  }
+  return out;
 }
 const groupSlugs = (body) => Array.isArray(body?.slugs) && body.slugs.length <= 200 && body.slugs.every(validSlug) ? [...new Set(body.slugs)] : null;
 // GET /api/review/groups/<name> (agent or reviewer); PUT {title?, slugs[]} sets the list; POST .../append {title?, slugs[]}
@@ -558,7 +591,8 @@ async function groupApi(request, env, agent, [name, action, extra]) {
   if (!slugs) return fail(400, "slugs must be a list of video slugs (at most 200)");
   if (body.title !== undefined && (typeof body.title !== "string" || body.title.length > 200)) return fail(400, "bad_title");
   const old = await getGroup(env, name);
-  const list = action === "append" ? [...(old?.slugs || []), ...slugs.filter((s) => !old?.slugs.includes(s))] : slugs;
+  // A new version of a video already in the list takes its place (ig-reel-1-v3 replaces ig-reel-1-v2 where it stands).
+  const list = action === "append" ? appendSlugs(old?.slugs || [], slugs) : slugs;
   if (list.length > 200) return fail(400, "a group holds at most 200 videos");
   const now = new Date().toISOString();
   const title = body.title ?? old?.title ?? null;

@@ -87,9 +87,16 @@ test("a slug in no group has no Back / Next", async () => {
   assert.doesNotMatch(text, /group-nav|nav-prev|nav-next/);
 });
 
-test("dashboard QC read down: no nav", async () => {
+test("dashboard QC read down: position and greyed Back / Next, nothing linked", async () => {
   down = true;
-  try { assert.doesNotMatch(await page(SLUGS[1]), /group-nav|nav-prev|nav-next/); } finally { down = false; }
+  try {
+    const text = await page(SLUGS[1]);
+    assert.match(text, /class="nav-pos">Lesson 2 of 3</);
+    assert.equal(href(text, "nav-prev"), null);
+    assert.equal(href(text, "nav-next"), null);
+    assert.match(text, /id="nav-prev-wait"/);
+    assert.match(text, /id="nav-next-wait"/);
+  } finally { down = false; }
 });
 
 test("a malformed group row does not break pages", async () => {
@@ -106,4 +113,123 @@ test("reel groups say Reel N of M", async () => {
   const text = await page(LONE);
   assert.match(text, /class="nav-pos">Reel 1 of 2</);
   assert.equal(href(text, "nav-next"), `/review/${SLUGS[0]}`);
+});
+
+// Both routes Jon opens: the passcode page (/review/<slug>, signed in with his cookie) and the dashboard page
+// (/dashboard/review/<slug>: the dashboard Worker forwards with the agent token and X-Review-Via: dashboard).
+const ROUTES = {
+  passcode: { prefix: "", headers: () => ({ Cookie: cookie }) },
+  dashboard: { prefix: "/dashboard", headers: () => ({ Authorization: agent.Authorization, "X-Review-Via": "dashboard" }) },
+};
+const pageOn = async (route, slug) => {
+  const res = await fetchApp(`/review/${slug}`, { headers: ROUTES[route].headers() });
+  assert.equal(res.status, 200, `${route} ${slug}`);
+  return res.text();
+};
+const publish = async (slug) => {
+  const key = `review/${slug}/video-test.mp4`;
+  await runtime.bucket.put(key, new Uint8Array([0, 0, 0, 24]));
+  const [, video, version] = /^(.*)-(v\d+)$/.exec(slug);
+  const res = await fetchApp(`/api/review/${slug}/publish`, { method: "POST", headers: agent,
+    body: JSON.stringify({ channel: "test", video, version, title: `Title ${slug}`, video_key: key }) });
+  assert.ok([200, 201].includes(res.status), await res.text()); // 200: published before by the other route
+};
+const putGroup = async (name, slugs, title) => {
+  const res = await fetchApp(`/api/review/groups/${name}`, { method: "PUT", headers: agent, body: JSON.stringify({ title, slugs }) });
+  assert.equal(res.status, 200, await res.text());
+};
+
+for (const route of Object.keys(ROUTES)) {
+  const { prefix } = ROUTES[route];
+  test(`${route} route: walk 1 -> 2 -> 3 and back; first has no Back, last has no Next`, async () => {
+    const order = ["wk-a-v1", "wk-b-v1", "wk-c-v1"];
+    for (const s of order) { passes.add(s); await publish(s); }
+    await putGroup(`walk-${route}`, order, "Course walk");
+    try {
+      let text = await pageOn(route, order[0]);
+      assert.equal(href(text, "nav-prev"), null);
+      assert.doesNotMatch(text, /nav-prev-wait/);
+      const seen = [order[0]];
+      for (let i = 1; i < 3; i++) { // Next, Next
+        const next = href(text, "nav-next");
+        assert.equal(next, `${prefix}/review/${order[i]}`);
+        text = await pageOn(route, next.split("/review/")[1]);
+        seen.push(order[i]);
+        assert.match(text, new RegExp(`class="nav-pos">Lesson ${i + 1} of 3<`));
+      }
+      assert.equal(href(text, "nav-next"), null); // last
+      assert.doesNotMatch(text, /nav-next-wait/);
+      for (let i = 1; i >= 0; i--) { // Back, Back
+        const back = href(text, "nav-prev");
+        assert.equal(back, `${prefix}/review/${order[i]}`);
+        text = await pageOn(route, back.split("/review/")[1]);
+      }
+      assert.equal(href(text, "nav-prev"), null); // first again
+      assert.deepEqual(seen, order);
+      assert.match(text, /class="group-nav"/);
+    } finally { await putGroup(`walk-${route}`, []); }
+  });
+
+  test(`${route} route: a neighbour not through QC shows a greyed button, never a link`, async () => {
+    const order = ["gw-a-v1", "gw-b-v1", "gw-c-v1"];
+    for (const s of order) await publish(s);
+    passes.add("gw-a-v1"); // only the first is QC-passed, like the live course
+    await putGroup(`grey-${route}`, order, "Course grey");
+    try {
+      const text = await pageOn(route, order[0]);
+      assert.match(text, /class="nav-pos">Lesson 1 of 3</);
+      assert.equal(href(text, "nav-next"), null);
+      assert.match(text, /id="nav-next-wait"[^>]*aria-disabled="true"/);
+      assert.doesNotMatch(text, /gw-b-v1|gw-c-v1/); // not even linked
+      assert.doesNotMatch(text, /nav-prev/);
+    } finally { await putGroup(`grey-${route}`, []); }
+  });
+
+  test(`${route} route: the group follows the newest version, with no edit to the group`, async () => {
+    const fw = `fw${route}`;
+    const order = [`${fw}-a-v1`, `${fw}-b-v1`, `${fw}-c-v1`];
+    for (const s of order) { passes.add(s); await publish(s); }
+    await putGroup(`follow-${route}`, order, "Course follow");
+    try {
+      // v2 of the middle video exists but QC has not passed it: Jon is still sent to v1, and v2's page has the nav too.
+      await publish(`${fw}-b-v2`);
+      let text = await pageOn(route, `${fw}-a-v1`);
+      assert.equal(href(text, "nav-next"), `${prefix}/review/${fw}-b-v1`);
+      text = await pageOn(route, `${fw}-b-v2`);
+      assert.equal(href(text, "nav-prev"), `${prefix}/review/${fw}-a-v1`);
+      assert.equal(href(text, "nav-next"), `${prefix}/review/${fw}-c-v1`);
+      assert.match(text, /Lesson 2 of 3/);
+      // QC passes v2: the group follows it from the neighbours, and from the old v1 page.
+      passes.add(`${fw}-b-v2`);
+      assert.equal(href(await pageOn(route, `${fw}-a-v1`), "nav-next"), `${prefix}/review/${fw}-b-v2`);
+      assert.equal(href(await pageOn(route, `${fw}-c-v1`), "nav-prev"), `${prefix}/review/${fw}-b-v2`);
+      assert.match(await pageOn(route, `${fw}-b-v1`), /id="nav-next"/); // the old version's page is still in the group
+      // v3 of the first video (the list names v1): newest wins, the group still says v1.
+      await publish(`${fw}-a-v3`);
+      passes.add(`${fw}-a-v3`);
+      assert.equal(href(await pageOn(route, `${fw}-b-v2`), "nav-prev"), `${prefix}/review/${fw}-a-v3`);
+      assert.equal(href(await pageOn(route, `${fw}-a-v3`), "nav-next"), `${prefix}/review/${fw}-b-v2`);
+      const stored = await (await fetchApp("/api/review/groups/follow-" + route, { headers: agent })).json();
+      assert.deepEqual(stored.group.slugs, order); // never edited
+    } finally { await putGroup(`follow-${route}`, []); }
+  });
+}
+
+test("publishing --group append puts a newer version in the old version's place", async () => {
+  await putGroup("append-bn", ["ap-a-v1", "ap-b-v2", "ap-c-v1"]);
+  try {
+    const res = await fetchApp("/api/review/groups/append-bn/append", { method: "POST", headers: agent, body: JSON.stringify({ slugs: ["ap-b-v3", "ap-d-v1"] }) });
+    assert.deepEqual((await res.json()).group.slugs, ["ap-a-v1", "ap-b-v3", "ap-c-v1", "ap-d-v1"]);
+  } finally { await putGroup("append-bn", []); }
+});
+
+test("group page shows the newest version of each video", async () => {
+  const order = ["gp-a-v1", "gp-b-v1"];
+  for (const s of [...order, "gp-b-v2"]) { passes.add(s); await publish(s); }
+  await putGroup("pageview-bn", order);
+  try {
+    const res = await fetchApp("/review/g/pageview-bn", { headers: { Cookie: cookie } });
+    const body = await res.text();
+    assert.deepEqual([...body.matchAll(/<section class="group-item" data-slug="([^"]+)"/g)].map((m) => m[1]), ["gp-a-v1", "gp-b-v2"]);
+  } finally { await putGroup("pageview-bn", []); }
 });

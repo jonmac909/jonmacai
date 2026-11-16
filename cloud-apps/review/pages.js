@@ -138,10 +138,13 @@ export function renderGroup(group, items, prefix = "") {
 }
 
 // Back / Next through the slug's review group (gate.nav: {label, prev, next}); Left / Right arrows do the same (app.js).
+// A neighbour with no QC-passed version yet shows as a greyed button (nav-wait), so Back / Next are always on the page.
 const groupNav = (nav, prefix) => `<nav class="group-nav" aria-label="${escapeHtml(nav.label)}">
-    ${nav.prev ? `<a class="nav-btn" id="nav-prev" rel="prev" href="${prefix}/review/${escapeHtml(nav.prev)}">&larr; Back</a>` : '<span class="nav-gap"></span>'}
+    ${nav.prev ? `<a class="nav-btn" id="nav-prev" rel="prev" href="${prefix}/review/${escapeHtml(nav.prev)}">&larr; Back</a>`
+      : nav.prevWait ? '<span class="nav-btn nav-wait" id="nav-prev-wait" aria-disabled="true" title="Not through QC yet">&larr; Back <small>in QC</small></span>' : '<span class="nav-gap"></span>'}
     <span class="nav-pos">${escapeHtml(nav.label)}</span>
-    ${nav.next ? `<a class="nav-btn" id="nav-next" rel="next" href="${prefix}/review/${escapeHtml(nav.next)}">Next &rarr;</a>` : '<span class="nav-gap"></span>'}
+    ${nav.next ? `<a class="nav-btn" id="nav-next" rel="next" href="${prefix}/review/${escapeHtml(nav.next)}">Next &rarr;</a>`
+      : nav.nextWait ? '<span class="nav-btn nav-wait" id="nav-next-wait" aria-disabled="true" title="Not through QC yet">Next <small>in QC</small> &rarr;</span>' : '<span class="nav-gap"></span>'}
   </nav>`;
 
 // gate.qcOnly: QC hasn't passed this version, so the page says so and has no Approve and no status buttons.
