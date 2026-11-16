@@ -6,8 +6,10 @@ import { reviewProxy } from './videoreview.js';
 import { reviewHook } from './reviewhook.js';
 import { trackRedirect } from './track.js';
 import { FILE_PREFIX, serveProofFile, uploadProofFile } from './prooffiles.js';
+import { MONITOR, handleMonitor } from './monitor.js';
 
 export { CallRelay } from './call.js';
+export { GpuMonitor } from './monitor.js';
 
 const PREFIX = '/dashboard';
 const D2 = '/dashboard-2';
@@ -88,6 +90,8 @@ export default {
       if (path === '/' || path === '/index.html') return asset(request, env, (await readSession(request, env)) ? '/d3/index.html' : '/d3/login.html');
       return D2_FILE.test(path) ? asset(request, env, `/d3${path}`) : notFound();
     }
+    // Live GPU Monitor (src/monitor.js): signed-in page and data, pusher-only POST.
+    if (url.pathname === MONITOR || url.pathname.startsWith(`${MONITOR}/`)) return handleMonitor(request, env, asset);
     if (url.pathname === SCRIPTS) {
       url.pathname = `${SCRIPTS}/`;
       return new Response(null, { status: 308, headers: { Location: url.toString(), ...PRIVATE_HEADERS } });
@@ -110,7 +114,7 @@ export default {
     if (url.pathname.startsWith(`${PREFIX}/api/`)) return handleApi(request, env, ctx);
 
     let assetPath = url.pathname.slice(PREFIX.length) || '/';
-    if (/^\/d[23](\/|$)/i.test(assetTarget(assetPath))) return notFound(); // Dashboard 2's and 3's files only behind /dashboard-2 and /dash
+    if (/^\/(d[23]|monitor)(\/|$)/i.test(assetTarget(assetPath))) return notFound(); // Dashboard 2's and 3's files only behind /dashboard-2 and /dash, the monitor's behind /monitor
     if (assetPath === '/') assetPath = '/index.html';
     if (assetPath === '/call') assetPath = '/call.html';
     if (assetPath === '/privacy') assetPath = '/privacy.html'; // public: Google's consent screen links here

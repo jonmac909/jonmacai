@@ -51,9 +51,16 @@
   // Phone calls to Ana (src/call.js): GPU1 and Jon's phone meet in one Durable Object.
   // Secret CALL_RELAY_SECRET = D:\AgentTeam\secrets\call-relay.secret on GPU1.
   "durable_objects": {
-    "bindings": [{ "name": "CALL_RELAY", "class_name": "CallRelay" }]
+    "bindings": [
+      { "name": "CALL_RELAY", "class_name": "CallRelay" },
+      // Live GPU Monitor (src/monitor.js): latest GPU1/GPU2 sample. Secret MONITOR_PUSH_SECRET = D:\AgentTeam\secrets\monitor-push.secret.
+      { "name": "GPU_MONITOR", "class_name": "GpuMonitor" }
+    ]
   },
-  "migrations": [{ "tag": "call-relay-v1", "new_sqlite_classes": ["CallRelay"] }],
+  "migrations": [
+    { "tag": "call-relay-v1", "new_sqlite_classes": ["CallRelay"] },
+    { "tag": "gpu-monitor-v1", "new_sqlite_classes": ["GpuMonitor"] }
+  ],
   "routes": [
     { "pattern": "jonmac.ai/dashboard", "zone_name": "jonmac.ai" },
     { "pattern": "jonmac.ai/dashboard/*", "zone_name": "jonmac.ai" },
@@ -67,7 +74,10 @@
     { "pattern": "jonmac.ai/scripts", "zone_name": "jonmac.ai" },
     { "pattern": "jonmac.ai/scripts/*", "zone_name": "jonmac.ai" },
     // Tracked video links (src/track.js).
-    { "pattern": "jonmac.ai/v/*", "zone_name": "jonmac.ai" }
+    { "pattern": "jonmac.ai/v/*", "zone_name": "jonmac.ai" },
+    // Live GPU Monitor (src/monitor.js).
+    { "pattern": "jonmac.ai/monitor", "zone_name": "jonmac.ai" },
+    { "pattern": "jonmac.ai/monitor/*", "zone_name": "jonmac.ai" }
   ],
   // Preview: `wrangler deploy --env preview`. Separate Worker on workers.dev with its own D1,
   // no routes, no cron, no review/funnel D1s, no production R2 and no production secrets (only a
@@ -83,7 +93,10 @@
       "vars": { "PREVIEW": "1" },
       "version_metadata": { "binding": "CF_VERSION_METADATA" },
       "durable_objects": {
-        "bindings": [{ "name": "CALL_RELAY", "class_name": "CallRelay" }]
+        "bindings": [
+          { "name": "CALL_RELAY", "class_name": "CallRelay" },
+          { "name": "GPU_MONITOR", "class_name": "GpuMonitor" }
+        ]
       },
       "d1_databases": [
         {

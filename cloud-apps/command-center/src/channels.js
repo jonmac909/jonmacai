@@ -103,8 +103,17 @@ export function timeLabel(hhmm) {
 const PACIFIC = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Vancouver', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
 
 // A moment as the calendar's own Pacific day and time: the one zone for the Calendar's dates, times and "today".
+// From 2 am Nov 1 2026 (09:00 UTC) the offset is a fixed UTC-7, computed here so a runtime with older tzdata
+// (which would still fall back to UTC-8) can't put Kelowna an hour behind. Earlier moments use the zone rules.
+const KELOWNA_FIXED_FROM = Date.UTC(2026, 10, 1, 9);
+const pad2 = (v) => String(v).padStart(2, '0');
 export function pacific(iso) {
-  const p = Object.fromEntries(PACIFIC.formatToParts(new Date(iso)).map((x) => [x.type, x.value]));
+  const ms = new Date(iso).getTime();
+  if (ms >= KELOWNA_FIXED_FROM) {
+    const k = new Date(ms - 7 * 3600e3);
+    return { day: `${k.getUTCFullYear()}-${pad2(k.getUTCMonth() + 1)}-${pad2(k.getUTCDate())}`, time: `${pad2(k.getUTCHours())}:${pad2(k.getUTCMinutes())}` };
+  }
+  const p =Object.fromEntries(PACIFIC.formatToParts(new Date(iso)).map((x) => [x.type, x.value]));
   return { day: `${p.year}-${p.month}-${p.day}`, time: `${p.hour}:${p.minute}` };
 }
 
