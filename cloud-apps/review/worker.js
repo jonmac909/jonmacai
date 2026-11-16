@@ -472,14 +472,41 @@ async function pages(request, env, url) {
     "SELECT slug, version, status, created_at, video_key FROM videos WHERE channel = ? AND video = ? ORDER BY created_at DESC",
   ).bind(row.channel, row.video).all()).results;
   const channel = await env.DB.prepare("SELECT name FROM channels WHERE slug = ?").bind(row.channel).first();
-  // A QC-only version is never linked from a page Jon can open: not in the version nav, not as "New version ready".
-  const visible = await visibleSlugs(env, versions);
+  const inGroup = await slugGroup(env, slug);
+  // A QC-only version is never linked from a page Jon can open: not in the version nav, not as "New version ready",
+  // not as Back / Next. One dashboard read covers the versions and the group.
+  const visible = await visibleSlugs(env, [...versions, ...(inGroup?.rows || [])]);
   const seen = (s) => Boolean(s && visible?.has(s));
   const submissions = (await slugSubmissions(env, slug, 10)).results.map((s) => publicSubmission(seen(s.result_slug) ? s : { ...s, result_slug: null }, who.prefix));
   const page = publicVideo(row, who.prefix);
   if (!seen(slug) && page.status === "needs_review") page.status = "qc_only";
   return html(renderVideo(page, versions.filter((v) => v.slug === slug || seen(v.slug)), channel?.name || row.channel, submissions,
-    who.prefix, { qcOnly: !seen(slug), qcUnknown: visible === null }));
+    who.prefix, { qcOnly: !seen(slug), qcUnknown: visible === null, nav: inGroup && groupNav(inGroup, slug, seen) }));
+}
+
+// Back / Next on a single page whose slug is in a review group (Jon, 2026-11-16): the group's stored order, skipping
+// slugs not published or not QC-passed. A slug in several groups uses the newest group.
+async function slugGroup(env, slug) {
+  const row = await env.DB.prepare(`SELECT name, title, slugs FROM review_groups
+    WHERE EXISTS (SELECT 1 FROM json_each(review_groups.slugs) WHERE value = ?) ORDER BY created_at DESC, name LIMIT 1`).bind(slug).first();
+  if (!row) return null;
+  let slugs = [];
+  try { slugs = JSON.parse(row.slugs); } catch {}
+  if (!Array.isArray(slugs)) return null;
+  const rows = (await env.DB.prepare("SELECT slug, video_key FROM videos WHERE slug IN (SELECT value FROM json_each(?))")
+    .bind(JSON.stringify(slugs)).all()).results;
+  return { ...row, slugs, rows };
+}
+function groupNav(group, slug, seen) {
+  const i = group.slugs.indexOf(slug);
+  const ok = (s) => s !== slug && seen(s);
+  const noun = /reel/i.test(`${group.name} ${group.title || ""}`) ? "Reel"
+    : /course|lesson/i.test(`${group.name} ${group.title || ""}`) ? "Lesson" : "";
+  return {
+    label: `${noun ? `${noun} ` : ""}${i + 1} of ${group.slugs.length}`,
+    prev: group.slugs.slice(0, i).reverse().find(ok) || null,
+    next: group.slugs.slice(i + 1).find(ok) || null,
+  };
 }
 
 // Review groups (Jon, 2026-11-16): an ordered slug list shown as one page, /review/g/<name>, one player per video.

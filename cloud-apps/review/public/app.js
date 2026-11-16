@@ -11,6 +11,14 @@
   let comments = [];
   let submissions = Array.isArray(data.submissions) ? data.submissions : [];
 
+  // Left / Right go Back / Next in the review group, except while typing or with the player focused (it seeks).
+  document.addEventListener("keydown", (event) => {
+    if (event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+    if (event.target.closest?.("input, textarea, select, video, [contenteditable]")) return;
+    const link = event.key === "ArrowLeft" ? $("nav-prev") : event.key === "ArrowRight" ? $("nav-next") : null;
+    if (link) location.href = link.href;
+  });
+
   const store = {
     get() { try { return localStorage.getItem(NAME_KEY) || ""; } catch { return ""; } },
     set(value) { try { localStorage.setItem(NAME_KEY, value); } catch {} },

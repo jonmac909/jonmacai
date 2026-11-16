@@ -137,7 +137,15 @@ export function renderGroup(group, items, prefix = "") {
 </main>`, { script: "group.js", prefix });
 }
 
+// Back / Next through the slug's review group (gate.nav: {label, prev, next}); Left / Right arrows do the same (app.js).
+const groupNav = (nav, prefix) => `<nav class="group-nav" aria-label="${escapeHtml(nav.label)}">
+    ${nav.prev ? `<a class="nav-btn" id="nav-prev" rel="prev" href="${prefix}/review/${escapeHtml(nav.prev)}">&larr; Back</a>` : '<span class="nav-gap"></span>'}
+    <span class="nav-pos">${escapeHtml(nav.label)}</span>
+    ${nav.next ? `<a class="nav-btn" id="nav-next" rel="next" href="${prefix}/review/${escapeHtml(nav.next)}">Next &rarr;</a>` : '<span class="nav-gap"></span>'}
+  </nav>`;
+
 // gate.qcOnly: QC hasn't passed this version, so the page says so and has no Approve and no status buttons.
+// gate.nav: Back / Next when the slug is in a review group.
 export function renderVideo(video, versions, channelName, submissions = [], prefix = "", gate = {}) {
   const data = JSON.stringify({ slug: video.slug, duration: video.duration, chapters: video.chapters, status: video.status, sync: video.sync, submissions, qcOnly: Boolean(gate.qcOnly),
     base: `${prefix}/review`, api: `${prefix}/api/review`, dashboard: Boolean(prefix) })
@@ -173,6 +181,7 @@ export function renderVideo(video, versions, channelName, submissions = [], pref
       <label><input type="radio" name="audio" value="ours" checked> Ours</label>
       <label><input type="radio" name="audio" value="source"> Source</label></span>
   </div>` : ours(video)}
+  ${gate.nav ? groupNav(gate.nav, prefix) : ""}
   ${video.chapters.length ? `<div class="chapters" id="chapters">${video.chapters.map(([t, label]) =>
     `<button type="button" data-t="${Number(t)}">${formatTime(t)} ${escapeHtml(label)}</button>`).join("")}</div>` : ""}
   ${gate.qcOnly ? "" : `<div class="status-row"><span class="muted">Status</span><div class="status-btns" id="status">${statusButtons}</div></div>`}
