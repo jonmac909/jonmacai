@@ -27,12 +27,34 @@
     return result;
   }
 
-  const players = [...document.querySelectorAll(".group-player")];
-  for (const p of players) p.addEventListener("play", () => { for (const o of players) if (o !== p) o.pause(); });
+  // Playing one video pauses every other player on the page, except the original paired with it (Play both).
+  const players = [...document.querySelectorAll(".group-player, .group-source")];
+  const pair = (p) => { const item = p.closest(".group-item"); return item ? [...item.querySelectorAll(".group-player, .group-source")] : [p]; };
+  for (const p of players) p.addEventListener("play", () => { const mine = pair(p); for (const o of players) if (!mine.includes(o)) o.pause(); });
+
+  // Our time to the original's time with the cut map ([ours_start, ours_end, source_start, source_end]), as on the single page.
+  function toSource(sync, t) {
+    const hit = sync.find((s) => t >= s[0] && t < s[1]);
+    if (hit) return hit[2] + (t - hit[0]) * (hit[1] > hit[0] ? (hit[3] - hit[2]) / (hit[1] - hit[0]) : 0);
+    let before = null;
+    for (const s of sync) if (s[0] <= t && (!before || s[0] > before[0])) before = s;
+    return before ? Math.max(0, before[2] + (t - before[0])) : t;
+  }
+  for (const block of document.querySelectorAll(".group-item[data-slug]")) {
+    const ours = block.querySelector(".group-player"), source = block.querySelector(".group-source");
+    if (!source) continue;
+    let sync = [];
+    try { sync = JSON.parse(block.dataset.sync || "[]"); } catch {}
+    const align = () => { source.currentTime = toSource(sync, ours.currentTime); };
+    const play = (m) => m.play().catch(() => {});
+    block.querySelector('[data-both="play"]').addEventListener("click", () => { align(); play(source); play(ours); });
+    block.querySelector('[data-both="pause"]').addEventListener("click", () => { ours.pause(); source.pause(); });
+    ours.addEventListener("seeked", () => { if (!source.paused) align(); });
+  }
 
   for (const block of document.querySelectorAll(".group-item[data-slug]")) {
     const slug = block.dataset.slug;
-    const player = block.querySelector("video");
+    const player = block.querySelector(".group-player");
     const note = block.querySelector(".group-note");
     const status = block.querySelector(".group-status");
     const buttons = [...block.querySelectorAll("button[data-act]")];
