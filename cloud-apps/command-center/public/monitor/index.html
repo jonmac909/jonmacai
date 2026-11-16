@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>GPU Monitor</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="css/tokens.css">
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:var(--page-bg);color:var(--ink);font:14px/1.4 Geist,system-ui,-apple-system,Segoe UI,sans-serif;min-height:100vh}
+header{display:flex;align-items:baseline;justify-content:space-between;gap:12px;padding:16px 20px 4px;flex-wrap:wrap}
+h1{font-size:20px;margin:0;font-weight:700}
+#updated{color:var(--muted);font-size:12px}
+#err{margin:8px 20px 0;padding:8px 12px;border-radius:10px;background:var(--crit-bg);color:var(--crit-ink);border:1px solid var(--crit-line);display:none}
+main{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,520px),1fr));gap:16px;padding:12px 20px 24px}
+.panel{background:var(--card-bg);border:1px solid var(--line);border-radius:16px;padding:16px;box-shadow:var(--shadow);min-width:0}
+.ph{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+.ph h2{font-size:17px;margin:0}
+.ph .sub{color:var(--muted);font-size:12px}
+.pill{font-size:12px;font-weight:600;padding:3px 10px;border-radius:999px;border:1px solid}
+.pill.ok{background:var(--ok-bg);color:var(--ok-ink);border-color:var(--ok-line)}
+.pill.off{background:var(--crit-bg);color:var(--crit-ink);border-color:var(--crit-line)}
+.off-note{padding:14px;border-radius:12px;background:var(--crit-bg);color:var(--crit-ink);border:1px solid var(--crit-line);font-weight:600;margin-bottom:12px}
+.stale{opacity:.45}
+.tiles{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+@media (max-width:560px){.tiles{grid-template-columns:repeat(2,minmax(0,1fr))}header,main{padding-left:12px;padding-right:12px}}
+.tile{background:var(--soft);border:1px solid var(--line);border-radius:12px;padding:8px 10px;min-width:0}
+.tile .k{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.04em}
+.tile .v{font-size:18px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tile .s{color:var(--muted);font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bar{height:4px;border-radius:2px;background:var(--line);margin-top:6px;overflow:hidden}
+.bar i{display:block;height:100%;background:var(--bar-ok)}
+.bar i.risk{background:var(--bar-risk)}.bar i.crit{background:var(--bar-crit)}
+h3{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin:14px 0 6px}
+.lines{white-space:pre-wrap;word-break:break-word;font-size:13px;background:var(--soft);border:1px solid var(--line);border-radius:10px;padding:8px 10px}
+.row{display:flex;justify-content:space-between;gap:8px;padding:3px 0;border-bottom:1px solid var(--line);font-size:13px}
+.row:last-child{border-bottom:0}
+.row span:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.row span:last-child{color:var(--ink-2);white-space:nowrap}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{font-size:12px;padding:2px 8px;border-radius:999px;background:var(--idle-bg);color:var(--idle-ink);border:1px solid var(--idle-line)}
+.chip.running{background:var(--ok-bg);color:var(--ok-ink);border-color:var(--ok-line)}
+.chip.error{background:var(--crit-bg);color:var(--crit-ink);border-color:var(--crit-line)}
+</style>
+</head>
+<body>
+<header><h1>GPU Monitor</h1><span id="updated">Loading...</span></header>
+<div id="err"></div>
+<main id="panels"></main>
+<script>
+(() => {
+  const NAMES = { gpu1: 'GPU1', gpu2: 'GPU2' };
+  const POLL_MS = 3000;
+  const $ = (tag, cls, txt) => { const e = document.createElement(tag); if (cls) e.className = cls; if (txt != null) e.textContent = txt; return e; };
+  const n = (v) => typeof v === 'number' && isFinite(v);
+  const gb = (b) => n(b) ? (b / 1e9 >= 100 ? (b / 1e9).toFixed(0) : (b / 1e9).toFixed(1)) : '-';
+  const pct = (v) => n(v) ? Math.round(v) + '%' : '-';
+  const level = (p, warn, crit) => p >= crit ? 'crit' : p >= warn ? 'risk' : '';
+  const tz = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Vancouver', hour: 'numeric', minute: '2-digit', second: '2-digit', hour12: true });
+
+  function tile(k, v, s, p, warn = 80, crit = 95) {
+    const t = $('div', 'tile');
+    t.append($('div', 'k', k), $('div', 'v', v));
+    if (s) t.append($('div', 's', s));
+    if (n(p)) { const b = $('div', 'bar'); const i = $('i', level(p, warn, crit)); i.style.width = Math.max(0, Math.min(100, p)) + '%'; b.append(i); t.append(b); }
+    return t;
+  }
+
+  function panel(key, m) {
+    const p = $('section', 'panel');
+    const s = m.sample;
+    const head = $('div', 'ph');
+    const title = $('div');
+    title.append($('h2', null, NAMES[key] + (s && s.gpu && s.gpu.name ? ' · ' + s.gpu.name : '')));
+    if (s && s.gpu && s.gpu.driver) title.append($('div', 'sub', 'Driver ' + s.gpu.driver));
+    head.append(title, m.online ? $('span', 'pill ok', 'Live') : $('span', 'pill off', 'Offline'));
+    p.append(head);
+    if (!m.online) p.append($('div', 'off-note', m.offline_since_text && m.offline_since_text !== 'never seen' ? 'Offline since ' + m.offline_since_text : 'Offline: no data yet'));
+    if (!s) return p;
+    const body = $('div', m.online ? '' : 'stale');
+    const g = s.gpu || {}, h = s.host || {};
+    const vramPct = n(g.vram_used) && g.vram_total ? g.vram_used / g.vram_total * 100 : null;
+    const powPct = n(g.power_w) && g.power_limit_w ? g.power_w / g.power_limit_w * 100 : null;
+    const tiles = $('div', 'tiles');
+    tiles.append(
+      tile('GPU', pct(g.util), n(g.mem_util) ? 'mem ' + pct(g.mem_util) : '', g.util, 101, 101),
+      tile('VRAM', gb(g.vram_used) + ' GB', 'of ' + gb(g.vram_total) + ' GB', vramPct, 85, 95),
+      tile('Temp', n(g.temp) ? Math.round(g.temp) + '°C' : '-', '', g.temp, 75, 85),
+      tile('Power', n(g.power_w) ? Math.round(g.power_w) + ' W' : '-', n(g.power_limit_w) ? 'of ' + Math.round(g.power_limit_w) + ' W' : '', powPct, 90, 98),
+      tile('Fan', pct(g.fan), '', g.fan, 80, 95),
+      tile('Clock', n(g.core_mhz) ? g.core_mhz + ' MHz' : '-', n(g.mem_mhz) ? 'mem ' + g.mem_mhz + ' MHz' : ''),
+      tile('CPU', pct(h.cpu), '', h.cpu, 85, 95),
+      tile('RAM', gb(h.ram_used) + ' GB', 'of ' + gb(h.ram_total) + ' GB', h.ram_pct, 85, 95),
+    );
+    body.append(tiles);
+    const jobs = [s.jobs, s.queued, s.loaded ? 'Loaded: ' + s.loaded : ''].map((x) => (x || '').trim()).filter(Boolean);
+    body.append($('h3', null, 'Jobs'), $('div', 'lines', jobs.length ? jobs.join('\n') : 'Idle'));
+    if (s.services && s.services.length) {
+      const c = $('div', 'chips');
+      for (const v of s.services) c.append($('span', 'chip ' + (v.state === 'running' ? 'running' : v.state === 'error' ? 'error' : ''), v.name + ': ' + v.state));
+      body.append($('h3', null, 'Services'), c);
+    }
+    if (s.disks && s.disks.length) {
+      const d = $('div');
+      for (const k of s.disks) {
+        const r = $('div', 'row');
+        r.append($('span', null, k.label), $('span', null, gb(k.free) + ' GB free of ' + gb(k.total) + ' GB'));
+        d.append(r);
+      }
+      body.append($('h3', null, 'Disks'), d);
+    }
+    if (s.processes && s.processes.length) {
+      const d = $('div');
+      for (const k of s.processes) {
+        const r = $('div', 'row');
+        r.append($('span', null, k.name + (k.type ? ' (' + k.type + ')' : '')), $('span', null, n(k.vram) && k.vram > 0 ? gb(k.vram) + ' GB' : '-'));
+        d.append(r);
+      }
+      body.append($('h3', null, 'GPU processes'), d);
+    }
+    p.append(body);
+    return p;
+  }
+
+  const err = document.getElementById('err');
+  async function tick() {
+    try {
+      const res = await fetch('api/data', { cache: 'no-store', credentials: 'same-origin' });
+      if (res.status === 401) { location.reload(); return; }
+      if (!res.ok) throw new Error('Monitor answered ' + res.status);
+      const d = await res.json();
+      document.getElementById('panels').replaceChildren(...['gpu1', 'gpu2'].map((k) => panel(k, d.machines[k] || { online: false })));
+      document.getElementById('updated').textContent = 'Updated ' + tz.format(new Date(d.now)) + ' (Kelowna)';
+      err.style.display = 'none';
+    } catch (e) {
+      err.textContent = 'Could not reach the monitor: ' + e.message + '. Retrying.';
+      err.style.display = 'block';
+    } finally {
+      setTimeout(tick, POLL_MS);
+    }
+  }
+  tick();
+})();
+</script>
+</body>
+</html>
