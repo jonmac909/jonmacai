@@ -233,7 +233,7 @@ test('Jon\'s own PATCH tick (owner jon) and approve still work as before', async
 
 test('the migration is additive: three nullable columns on bot_tasks, nothing else', async () => {
   const { readFileSync } = await import('node:fs');
-  const sql = readFileSync(new URL('../migrations/0032_card_delete_tick.sql', import.meta.url), 'utf8').replace(/--.*$/gm, '');
+  const sql = readFileSync(new URL('../migrations/0035_card_delete_tick.sql', import.meta.url), 'utf8').replace(/--.*$/gm, '');
   const stmts = sql.split(';').map((s) => s.trim()).filter(Boolean);
   assert.deepEqual(stmts, ['ALTER TABLE bot_tasks ADD COLUMN tick_prev TEXT', 'ALTER TABLE bot_tasks ADD COLUMN deleted_prev TEXT', 'ALTER TABLE bot_tasks ADD COLUMN deleted_at TEXT']);
 });
