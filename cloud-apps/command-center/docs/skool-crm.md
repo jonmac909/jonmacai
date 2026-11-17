@@ -19,7 +19,7 @@ Zapier's sale zap may send `amount`; it is stored when present.
 `skool_sequence_on` in `skool_settings` is the master switch: OFF unless Jon clicks On (on `/track` or `/track/emails`; session + `X-CC`).
 The cron `*/15 * * * *` (`SEQ_CRON`) sends at most 8 emails per run: day 0 right after the email is entered, each next day 24 hours after the previous one was sent.
 One row per email + day in `skool_seq_sends` is claimed before the send (no double sends); a failed send is retried up to 3 times.
-It stops for an email that is in `skool_sales`, in `skool_seq_stops` (unsubscribed, bounced, complained). Leads whose check is `suggested`, and leads older than 30 days when the sequence is on, are not enrolled.
+It stops for an email that is in `skool_sales`, in `skool_seq_stops` (unsubscribed, bounced, complained). Only leads whose check is `valid` or `risky` are enrolled (a kept typo, and leads captured before the check existed, get nothing), and only leads from the last 7 days (day 0 says "you came over from my video").
 Unsubscribe: `/track/unsub?e=<email>&t=<hmac>` (GET or the one-click POST) stops all mail to that address.
 Resend webhook: `POST /track/api/resend` (Svix signature, secret `RESEND_WEBHOOK_SECRET`): opened, bounced (not Transient), complained. Only emails sent by this sequence are acted on.
 `/track/emails` shows all 7 emails as they will look and has the "Send me a test" button: all seven to jon@thejonmac.com only, `[TEST day N of 6]` in the subject, at most once per 2 minutes.

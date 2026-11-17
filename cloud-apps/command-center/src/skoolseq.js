@@ -5,7 +5,8 @@
 //  - Real sends wait until the mailing address is real (env.SKOOL_ADDRESS, not the [ADDRESS] placeholder).
 //  - One row per email + day (skool_seq_sends primary key) is claimed before sending: no double sends, even with overlapping crons.
 //  - A lead stops getting mail the moment they buy (their email is in skool_sales), unsubscribe, bounce or complain.
-//  - Leads whose check is "suggested" (they kept a likely typo) get nothing: the address probably bounces.
+//  - Only leads the email check passed (valid or risky) are enrolled: a kept typo ("suggested") and leads captured before the check existed get nothing.
+//  - Finished leads and leads given up on are left out of the query, so a long list never crowds out new leads.
 //  - The test send goes to TEST_TO only.
 import { hmacHex, timingSafeEqualString } from './auth.js';
 import { renderEmail, SEQUENCE_DAYS } from './skoolmail.js';
@@ -16,7 +17,7 @@ export const DEFAULT_REPLY_TO = 'jon@thejonmac.com';
 export const DEFAULT_BUSINESS = 'Ecomm House Inc.'; // from rules/facts/people.md; override with SKOOL_BUSINESS
 export const ADDRESS_PLACEHOLDER = '[ADDRESS]'; // Jon's mailing address is not in rules/facts; set the SKOOL_ADDRESS var
 export const GAP_MS = 24 * 3600e3; // the next email goes out 24 hours after the last one
-export const MAX_AGE_MS = 30 * 864e5; // a lead older than this when the sequence is on is not enrolled
+export const MAX_AGE_MS = 7 * 864e5; // a lead older than this when the sequence runs is not enrolled: day 0 says "you came over from my video"
 export const MAX_PER_RUN = 8;
 export const SEQ_CRON = '*/15 * * * *'; // must match wrangler.jsonc triggers.crons
 const ORIGIN = 'https://jonmac.ai';
@@ -98,8 +99,10 @@ export async function runSequence(env, nowMs = Date.now(), fetchImpl = fetch) {
     const rows = (await env.DB.prepare(`SELECT l.email AS email, MIN(l.at) AS first_at FROM skool_leads l
       WHERE NOT EXISTS (SELECT 1 FROM skool_seq_stops s WHERE s.email = l.email)
         AND NOT EXISTS (SELECT 1 FROM skool_sales b WHERE b.email = l.email)
-        AND COALESCE(l.email_check, 'valid') != 'suggested'
-      GROUP BY l.email HAVING MIN(l.at) >= ? ORDER BY MIN(l.at) LIMIT 500`).bind(iso(nowMs - MAX_AGE_MS)).all()).results || [];
+        AND l.email_check IN ('valid', 'risky')
+        AND (SELECT COUNT(*) FROM skool_seq_sends q WHERE q.email = l.email AND q.status IN ('sent', 'sending')) < ${SEQUENCE_DAYS}
+        AND NOT EXISTS (SELECT 1 FROM skool_seq_sends q WHERE q.email = l.email AND q.status = 'failed' AND q.attempts >= 3)
+      GROUP BY l.email HAVING MIN(l.at) >= ? ORDER BY MIN(l.at) LIMIT 2000`).bind(iso(nowMs - MAX_AGE_MS)).all()).results || [];
     if (!rows.length) return out;
     const sends = new Map(); // email -> day -> row
     for (const r of (await env.DB.prepare('SELECT email, day, status, attempts, sent_at FROM skool_seq_sends').all()).results || []) {

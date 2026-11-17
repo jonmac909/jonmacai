@@ -55,6 +55,7 @@ export async function leadsData(db, { q = '', f = 'all' } = {}) {
     else if (sale) label = 'finished (bought)';
     else if (check === 'suggested' && day < 0) label = 'not sent: typo kept';
     else if (failed) label = `day ${failed.day} failed`;
+    else if (mine.some((m) => m.status === 'sending')) label = `day ${mine.find((m) => m.status === 'sending').day} unconfirmed (check Resend)`;
     else if (day === SEQUENCE_DAYS - 1) label = 'finished';
     else if (day >= 0) label = `day ${day} sent`;
     else label = 'not started';

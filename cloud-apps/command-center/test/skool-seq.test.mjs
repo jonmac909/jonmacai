@@ -208,10 +208,11 @@ test('a failed send is retried up to 3 times, then given up on; nothing is sent 
   assert.deepEqual(await sends(e2), [{ email: 'sam@gmail.com', day: 0, status: 'sent', attempts: 2, resend_id: 're-1' }]);
 });
 
-test('who is not enrolled: a kept typo, a lead older than 30 days', async () => {
+test('who is not enrolled: a kept typo, a lead with no check, a lead older than 7 days; finished leads never crowd out new ones', async () => {
   const e = mkenv(); const fx = resendMock();
   await addLead(e, 'typo@gmial.com', { check: 'suggested' });
-  await addLead(e, 'old@gmail.com', { at: T0 - 40 * 864e5 });
+  await addLead(e, 'old@gmail.com', { at: T0 - 9 * 864e5 });
+  await addLead(e, 'nocheck@gmail.com', { check: null });
   await addLead(e, 'risky@aonly.test', { check: 'risky' });
   await on(e);
   await runSequence(e, T0 + 60e3, fx);
@@ -362,4 +363,32 @@ test('per-video table shows lead counts; sale intake keeps the amount', async ()
   const html = await (await go(e, '/track', { jon: true })).text();
   assert.match(html, /<th class="n">Leads<\/th>/);
   assert.match(html, /<td class="n">0<\/td><td class="n">0<\/td><td class="n">0<\/td><td class="n">2<\/td>/);
+});
+
+test('signed out, no method reaches a /track page: POST and PUT go to sign-in, and signed in only GET and HEAD read them', async () => {
+  const e = mkenv();
+  await addLead(e, 'secret@gmail.com');
+  for (const path of ['/track', '/track/leads', '/track/leads.csv', '/track/emails']) {
+    for (const method of ['GET', 'POST', 'PUT', 'DELETE']) {
+      const r = await go(e, path, { method });
+      assert.equal(r.status, 302, `${method} ${path}`);
+      assert.doesNotMatch(await r.text(), /secret@gmail\.com/);
+    }
+    assert.equal((await go(e, path, { method: 'POST', jon: true })).status, 405, `signed-in POST ${path}`);
+  }
+});
+
+test('finished leads never crowd out new ones: 600 finished leads, and a new lead still gets day 0', async () => {
+  const e = mkenv(); const fx = resendMock();
+  await on(e);
+  e.DB.sqlite.exec('BEGIN');
+  for (let i = 0; i < 600; i++) {
+    const a = `done${i}@gmail.com`;
+    e.DB.sqlite.prepare('INSERT INTO skool_leads (slug, email, at, last_at, email_check) VALUES (?, ?, ?, ?, ?)').run('vid-one', a, iso(T0 + i), iso(T0 + i), 'valid');
+    for (let d = 0; d < 7; d++) e.DB.sqlite.prepare("INSERT INTO skool_seq_sends (email, day, slug, status, sent_at) VALUES (?, ?, 'vid-one', 'sent', ?)").run(a, d, iso(T0));
+  }
+  e.DB.sqlite.exec('COMMIT');
+  await addLead(e, 'newest@gmail.com', { at: T0 + 2 * H });
+  await runSequence(e, T0 + 3 * H, fx);
+  assert.deepEqual(fx.calls.map((c) => c.body.to[0]), ['newest@gmail.com']);
 });

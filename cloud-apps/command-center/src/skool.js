@@ -284,8 +284,11 @@ export async function handleTracker(request, env) {
   if (p === '/track/api/resend' && request.method === 'POST') return handleResendWebhook(request, env, nowMs);
   const signedIn = await readSession(request, env);
   const html = (body) => new Response(body, { headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'private, no-store', 'X-Robots-Tag': 'noindex, nofollow' } });
-  const isPage = request.method === 'GET' && ['/track', '/track/', '/track/leads', '/track/leads.csv', '/track/emails'].includes(p);
-  if (isPage && !signedIn) return new Response(null, { status: 302, headers: { Location: `${url.origin}/dash/`, ...NO_STORE } });
+  // The pages are chosen by path, whatever the method: signed out always goes to the sign-in, and only GET and HEAD read them.
+  if (['/track', '/track/', '/track/leads', '/track/leads.csv', '/track/emails'].includes(p)) {
+    if (!signedIn) return new Response(null, { status: 302, headers: { Location: `${url.origin}/dash/`, ...NO_STORE } });
+    if (!['GET', 'HEAD'].includes(request.method)) return json({ error: 'Method not allowed' }, 405);
+  }
   if (p === '/track' || p === '/track/') {
     const data = await trackerData(env.DB, nowMs);
     data.seq = await seqStatus(env);
