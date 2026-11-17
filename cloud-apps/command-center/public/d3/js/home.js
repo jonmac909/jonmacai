@@ -100,6 +100,10 @@ export function scheduleOf(d2resp, d3resp, P = periodOf(d2resp), home = null, no
 
 const PENCIL = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>';
 const spanOf = (x) => `${clockOf(x.s)}–${clockOf(x.e)}`;
+// A checklist has no hour ruler to say which half of the day: "3:00–3:30 PM", or "11:30 AM–1:00 PM" across noon.
+const mer = (h) => (Math.floor(h) % 24 < 12 ? 'AM' : 'PM');
+const spanAp = (x) => (x.e >= 24 ? `${clockOf(x.s)} ${mer(x.s)}–12:00 AM` : mer(x.s) === mer(x.e) ? `${clockOf(x.s)}–${clockOf(x.e)} ${mer(x.s)}` : `${clockOf(x.s)} ${mer(x.s)}–${clockOf(x.e)} ${mer(x.e)}`);
+const NEEDS_SHOWN = 5; // "Needs you" can run long: the first few, then Show all
 
 // ---- Today: this one day's own checklist (Jon, 2026-11-16) ----
 // Meetings (his Google Calendar events that start today, Vancouver), his own cards due today, what waits on him (cards in
@@ -123,14 +127,14 @@ export function todayList(sch, d3resp, ymd) {
 }
 
 const TYPEN = { card: 'Card', question: 'Question', approval: 'Approval' };
-const secHtml = (title, rows, empty) => `<h3 class="hmsh">${title}${rows.length ? ` <small>${rows.length}</small>` : ''}</h3>${rows.join('') || `<p class="mut hmnone">${empty}</p>`}`;
+const secHtml = (title, rows, empty, n = rows.length) => `<h3 class="hmsh">${title}${n ? ` <small>${n}</small>` : ''}</h3>${rows.join('') || `<p class="mut hmnone">${empty}</p>`}`;
 function todayHtml(L, now, home, ui, d3resp) {
   const meet = L.meetings.map((x) => {
     const cur = x.s <= now.h && x.e > now.h;
-    return `<div class="hmrow meet${cur ? ' now' : ''}"><span class="hmnb" aria-hidden="true"></span><span class="hmtm">${spanOf(x)}</span><i class="hmcd" style="--c: var(--c-meeting)"></i><span class="hmwhat">${esc(x.w)}</span><span class="hmtag">Meeting</span></div>`;
+    return `<div class="hmrow meet${cur ? ' now' : ''}"><span class="hmnb" aria-hidden="true"></span><span class="hmtm">${spanAp(x)}</span><i class="hmcd" style="--c: var(--c-meeting)"></i><span class="hmwhat">${esc(x.w)}</span><span class="hmtag">Meeting</span></div>`;
   });
   const due = (L.cards || []).map((c) => `<div class="hmrow"><span class="hmnb" aria-hidden="true"></span><span class="hmwhat">${esc(c.title)}</span>${c.project ? `<span class="hmtag">${esc(c.project)}</span>` : ''}${cardLink(c.id)}</div>`);
-  const needs = (L.needs || []).map((n) => {
+  const needs = (L.needs || []).slice(0, ui.hmNeedsAll ? undefined : NEEDS_SHOWN).map((n) => {
     const open = n.review ? `<a class="btn sm" href="#review" data-rvgo="${esc(n.id)}">Open in Review</a>` : cardLink(n.card);
     const sub = [n.owner, n.age].filter(Boolean).join(' · ');
     return `<div class="hmrow"><span class="hmnb" aria-hidden="true"></span><span class="hmwhat">${esc(n.title)}</span><span class="hmtag">${TYPEN[n.type] || 'Card'}</span>${sub ? `<span class="mut hmsub">${esc(sub)}</span>` : ''}${open}</div>`;
@@ -138,7 +142,7 @@ function todayHtml(L, now, home, ui, d3resp) {
   const rout = L.routines.map((x) => {
     const k = esc(x.k);
     const cur = x.s <= now.h && x.e > now.h && !x.done;
-    return `<div class="hmrow${x.done ? ' done' : ''}${cur ? ' now' : ''}"><input type="checkbox" data-hmtick="${k}"${x.done ? ' checked' : ''} aria-label="${esc(x.w)}: ${x.done ? 'done' : 'not done'}"><button type="button" class="hmtm hmlink" data-hmit="${k}">${spanOf(x)}</button><i class="hmcd" style="--c: var(--c-${x.c})"></i><button type="button" class="hmwhat hmlink" data-hmit="${k}">${esc(x.w)}</button><button type="button" class="hmedb" data-hmit="${k}" aria-label="Edit ${esc(x.w)}" title="Edit">${PENCIL}</button></div>`;
+    return `<div class="hmrow${x.done ? ' done' : ''}${cur ? ' now' : ''}"><input type="checkbox" data-hmtick="${k}"${x.done ? ' checked' : ''} aria-label="${esc(x.w)}: ${x.done ? 'done' : 'not done'}"><button type="button" class="hmtm hmlink" data-hmit="${k}">${spanAp(x)}</button><i class="hmcd" style="--c: var(--c-${x.c})"></i><button type="button" class="hmwhat hmlink" data-hmit="${k}">${esc(x.w)}</button><button type="button" class="hmedb" data-hmit="${k}" aria-label="Edit ${esc(x.w)}" title="Edit">${PENCIL}</button></div>`;
   });
   const legend = CATS.map(([k, l, def]) => `<label><input type="color" data-hmcol="${k}" value="${esc(ui.hmCols?.[k] || def)}" aria-label="${l} colour">${l}</label>`).join('');
   const src = L.cal === 'google' ? 'Meetings come from your Google Calendar.'
@@ -148,10 +152,13 @@ function todayHtml(L, now, home, ui, d3resp) {
   if (!L.ready) body = '<p class="mut">Loading the new day.</p>';
   else {
     const feedless = (what) => `<p class="mut hmnone">No feed: ${what} could not be read.</p>`;
+    const total = (L.needs || []).length;
+    const moreBtn = total > NEEDS_SHOWN ? `<button type="button" class="btn sm hmmore" data-hmneeds aria-expanded="${!!ui.hmNeedsAll}">${ui.hmNeedsAll ? 'Show fewer ▴' : `Show all ${total} ▾`}</button>` : '';
+    // The short sections first and the long one (Needs you) last, so nothing is buried under it.
     body = `${secHtml('Meetings', meet, 'No meetings today.')}
 ${L.cards ? secHtml('Due today', due, 'None of your cards are due today.') : `<h3 class="hmsh">Due today</h3>${feedless('your cards')}`}
-${L.needs ? secHtml('Needs you', needs, 'Nothing is waiting on you.') : `<h3 class="hmsh">Needs you</h3>${feedless('the cards, questions and approvals waiting on you')}`}
-${home ? secHtml('Daily checklist', rout, 'Nothing on your checklist today.') : '<h3 class="hmsh">Daily checklist</h3><p class="mut hmnone">Your saved tasks could not be loaded. They show again on the next refresh.</p>'}`;
+${home ? secHtml('Daily checklist', rout, 'Nothing on your checklist today.') : '<h3 class="hmsh">Daily checklist</h3><p class="mut hmnone">Your saved tasks could not be loaded. They show again on the next refresh.</p>'}
+${L.needs ? `${secHtml('Needs you', needs, 'Nothing is waiting on you.', total)}${moreBtn}` : `<h3 class="hmsh">Needs you</h3>${feedless('the cards, questions and approvals waiting on you')}`}`;
   }
   return `<section class="card hmsch" aria-label="Schedule">
 <div class="hd"><h2>Today</h2><span class="mut">${esc(dayLabel(L.ymd))}</span><button type="button" class="btn sm sp" data-hmadd${home ? '' : ' disabled'}>+ <span class="hmlg">Add </span>task</button></div>
@@ -730,6 +737,7 @@ export function homeClick(e, ui, render, S = null, api = null, reload = null) {
   }
   if (t.closest('[data-hmform]')) return true;
 
+  if (t.closest('[data-hmneeds]')) { ui.hmNeedsAll = !ui.hmNeedsAll; render(); return true; }
   const per = t.closest('button[data-hmper]');
   if (per) { ui.hmPer = per.dataset.hmper; ui.hmOpen = null; ui.hmGDel = null; render(); return true; }
   const more = t.closest('.hmmh');

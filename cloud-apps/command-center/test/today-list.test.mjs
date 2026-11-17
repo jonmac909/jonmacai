@@ -109,7 +109,9 @@ test('page: Today shows meetings from today only, due cards, what waits on Jon, 
   const card = cardOf(renderHome(SAMPLE(), d3With(TODAY), {}, NOW, home));
   assert.match(card, /<h2>Today<\/h2><span class="mut">Sun 8<\/span>/);
   const at = (s) => { const i = card.indexOf(s); assert.notEqual(i, -1, s); return i; };
-  assert.ok(at('>Meetings') < at('>Due today') && at('>Due today') < at('>Needs you') && at('>Needs you') < at('>Daily checklist'));
+  assert.ok(at('>Meetings') < at('>Due today') && at('>Due today') < at('>Daily checklist') && at('>Daily checklist') < at('>Needs you')); // the long list last
+  assert.match(card, /10:00–11:00 AM<\/span>.*Ines call/); // AM or PM is always said
+  assert.match(card, />3:00–3:30 PM<\/button>.*File the receipts/);
   // meetings: today's only
   assert.match(card, /Ines call/);
   assert.doesNotMatch(card, /Yesterday standup|Tomorrow standup/);
@@ -130,6 +132,20 @@ test('page: Today shows meetings from today only, due cards, what waits on Jon, 
   const L = todayList(sch, d3With(TODAY), '2026-11-08');
   assert.deepEqual(L.routines.map((x) => x.id).sort(), ['daily1', 'once-t']);
   assert.deepEqual(L.meetings.map((x) => x.w), ['Ines call']);
+});
+
+test('page: Needs you shows the first five and Show all opens the rest', () => {
+  const many = { ...TODAY, needs: Array.from({ length: 8 }, (_, i) => ({ id: `t:t_${String(i).padStart(16, '0')}`, type: 'card', title: `Waiting ${i}`, owner: 'Elle', age: '1d', card: `t_${String(i).padStart(16, '0')}`, review: false, why: '' })) };
+  const ui = {};
+  const short = cardOf(renderHome(SAMPLE(), d3With(many), ui, NOW, HOME()));
+  assert.match(short, />Needs you <small>8<\/small>/); // the count is all of them
+  assert.equal((short.match(/Waiting \d/g) || []).length, 5);
+  assert.match(short, /data-hmneeds aria-expanded="false">Show all 8 ▾/);
+  assert.equal(homeClick({ target: { closest: (s) => (s === '[data-hmneeds]' ? {} : null), matches: () => false } }, ui, () => {}), true);
+  const all = cardOf(renderHome(SAMPLE(), d3With(many), ui, NOW, HOME()));
+  assert.equal((all.match(/Waiting \d/g) || []).length, 8);
+  assert.match(all, /Show fewer ▴/);
+  assert.doesNotMatch(cardOf(renderHome(SAMPLE(), d3With(TODAY), {}, NOW, HOME())), /data-hmneeds/); // two rows: no button
 });
 
 test('page: empty sections say so; a missing feed says No feed, never an empty all-clear', () => {

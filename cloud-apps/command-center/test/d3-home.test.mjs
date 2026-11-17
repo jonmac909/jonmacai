@@ -207,7 +207,7 @@ test('Schedule: the week, meetings from the feed or from Google Calendar, the em
   // Today shows this day only: the workout carried over from Friday (Late) is in the data for the week, not on the card
   assert.ok(sch.days.find((d) => d.today).items.some((x) => x.late));
   assert.doesNotMatch(list, /from Fri|hmtag late|>Late</);
-  assert.match(list, /<span class="hmnb" aria-hidden="true"><\/span><span class="hmtm">3:00–3:30<\/span>.*Call with Poppy<\/span><span class="hmtag">Meeting<\/span><\/div>/);
+  assert.match(list, /<span class="hmnb" aria-hidden="true"><\/span><span class="hmtm">3:00–3:30 PM<\/span>.*Call with Poppy<\/span><span class="hmtag">Meeting<\/span><\/div>/);
   assert.equal(ui.hmItems['r-dinner|2026-11-08|2026-11-08|'].w, 'Dinner');
   assert.match(list, /until Google Calendar is connected/);
   assert.match(renderHome(SAMPLE(), d3Sample(), {}, NOW, { ...home, calendar: { connected: false, canConnect: true, events: [] } }), /<a href="\/dashboard\/api\/google\/start">connect Google Calendar<\/a>/);
