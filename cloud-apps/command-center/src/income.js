@@ -34,14 +34,15 @@ const KNOWN = [
   [/in\s?video/i, 'InVideo'],
   [/commas|divisible/i, 'Commas/DIVISIBLE'],
 ];
-const BOILER = /\b(funds transfer credit|incoming wire( transfer)?|wire (transfer )?(credit|in)|electronic funds transfer|tt)\b/gi;
+const BOILER = /\b(funds transfer credit|incoming wire( transfer)?|wire (transfer )?(credit|in)|electronic funds transfer|payment|tt)\b/gi;
 const SUFFIX = /\b(pte|ltd|inc|llc|corp|co|limited|gmbh|pty)\b\.?/gi;
 export function cleanPayer(raw) {
   const text = String(raw || '');
   for (const [re, name] of KNOWN) if (re.test(text)) return name;
   const base = text.replace(BOILER, ' ').replace(/\d+\s*\//g, ' ').replace(/[#*]?\d{4,}/g, ' ').replace(SUFFIX, ' ')
     .replace(/[^A-Za-z0-9&'.\- ]+/g, ' ').replace(/\s+/g, ' ').trim();
-  if (!base) return 'Unnamed payer';
+  // The bank sometimes names no one ("Incoming wire payment"): say so rather than show a stray word or guess a payer.
+  if (!base) return /wire/i.test(text) ? 'Incoming wire (payer not named)' : 'Deposit (payer not named)';
   // All caps from the bank reads as a name once cased; mixed case is already a clean name (the hand-kept ledger).
   const words = /[a-z]/.test(base) ? base : base.toLowerCase().replace(/(^|[ \-'])([a-z])/g, (_, a, b) => a + b.toUpperCase());
   return words.slice(0, 40);

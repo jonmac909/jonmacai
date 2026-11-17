@@ -169,8 +169,9 @@ test('payer names are cleaned', () => {
     'DIVISIBLE': 'Commas/DIVISIBLE',
     'Funds transfer credit TT SCHALUMOV': 'Schalumov',
     'Arcads': 'Arcads',
-    '': 'Unnamed payer',
-    'Funds transfer credit 123456': 'Unnamed payer',
+    '': 'Deposit (payer not named)',
+    'Funds transfer credit 123456': 'Deposit (payer not named)',
+    'Incoming wire payment': 'Incoming wire (payer not named)',
   };
   for (const [raw, want] of Object.entries(cases)) assert.equal(cleanPayer(raw), want, raw);
 });
