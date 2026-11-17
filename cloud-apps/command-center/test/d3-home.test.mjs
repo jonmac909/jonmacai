@@ -45,16 +45,10 @@ test('Home is the default page and is called Goals in the menu; Personal sits be
   const index = read('../public/d3/index.html');
   const nav = [...index.matchAll(/<a href="#([a-z]+)" data-nav="([a-z]+)">/g)].map((m) => { assert.equal(m[1], m[2]); return m[1]; });
   assert.deepEqual(nav, ['home', 'factory', 'track', 'review', 'hyper', 'personal', 'money', 'bluesky']); // Team, Blockers, Scripts and System are gone (Jon, 2026-11-16)
-  for (const gone of ['team', 'blockers', 'scripts', 'system']) {
-    assert.doesNotMatch(index, new RegExp(`#${gone}|data-nav="${gone}"|id="n[A-Z][a-z]+"[^>]*>${gone}`, 'i'), gone);
-    assert.doesNotMatch(app, new RegExp(`${gone}: '`), gone); // not a route, so its hash draws Home
-  }
-  assert.doesNotMatch(index, /nBlockers/);
-  assert.match(index, /id="nReview"/);
   assert.match(index, /data-nav="home">.*<\/svg>Goals<\/a>/);
 });
 
-test('Shell: no hash and #goals both draw Home (the Goals page); a removed page hash (#team, #blockers, #scripts, #system) draws Home too', async () => {
+test('Shell: no hash and #goals both draw Home (the Goals page); See more starts closed', async () => {
   const settle = async () => { for (let i = 0; i < 30; i++) await new Promise((r) => setImmediate(r)); };
   const store = () => { const m = new Map(); return { getItem: (k) => m.get(k) ?? null, setItem: (k, v) => m.set(k, String(v)), removeItem: (k) => m.delete(k) }; };
   const realInterval = globalThis.setInterval;
@@ -74,15 +68,10 @@ test('Shell: no hash and #goals both draw Home (the Goals page); a removed page 
   assert.match(home.html, /<div class="hm"/);
   assert.match(home.html, /aria-label="Schedule"/);
   assert.equal(home.title, 'Goals · Jon Mac');
+  assert.match(home.html, /data-hmmore aria-expanded="false">See more/);
   assert.match(home.html, /class="psmnav"/);
   const goals = await open('#goals', 2);
   assert.match(goals.html, /<div class="hm"/);
-  let n = 2;
-  for (const gone of ['#team', '#blockers', '#scripts', '#system']) {
-    const r = await open(gone, ++n);
-    assert.match(r.html, /<div class="hm"/, gone); // the old address opens Home, not a blank or broken page
-    assert.equal(r.title, 'Goals · Jon Mac', gone);
-  }
 });
 
 test('Home: widgets, Schedule, then Progress as four category cards; no retired agent names, no mockup sample numbers', () => {
@@ -94,11 +83,11 @@ test('Home: widgets, Schedule, then Progress as four category cards; no retired 
   assert.match(html, /<b class="hmclock">\d{1,2}:05 PM<\/b>/);
   assert.match(html, /Day 7 <i>of 7<\/i><\/b><div class="hmwbar"><u style="width: 100%">/);
   assert.match(html, /Day 8 <i>of 30<\/i><\/b><div class="hmwbar"><u style="width: 27%">/);
-  // the Schedule is today's checklist only: no List | Calendar switch, no week, no See more; Progress keeps its own switch
-  assert.match(html, /<h2>Today<\/h2>/);
-  assert.doesNotMatch(html, /data-hmview|data-hmmore|class="hmcal"|class="hmday|data-hmscroll="cal"/);
+  // the two switches are independent, each with its own pressed button
+  assert.match(html, /data-hmview="list" aria-pressed="true">List<\/button><button type="button" data-hmview="cal" aria-pressed="false">/);
   assert.match(html, /data-hmper="today" aria-pressed="true"/);
-  const week = renderHome(SAMPLE(), d3Sample(), { hmPer: 'week' }, NOW);
+  const week = renderHome(SAMPLE(), d3Sample(), { hmPer: 'week', hmView: 'list' }, NOW);
+  assert.match(week, /data-hmview="list" aria-pressed="true"/);
   assert.match(week, /data-hmper="week" aria-pressed="true"/);
   for (const bad of ['Florence', 'Elle', 'Arcads', 'peony', 'Omnirogue', '$7,006', '$9,172', 'jonCatColours']) assert.equal(html.includes(bad) || week.includes(bad), false, bad);
   // without the saved tasks the page says so and offers nothing that would save
@@ -204,13 +193,17 @@ test('Schedule: the week, meetings from the feed or from Google Calendar, the em
   assert.doesNotMatch(list, /type="checkbox"[^>]*disabled/);
   assert.match(list, /<button type="button" class="hmwhat hmlink" data-hmit="r-dinner\|2026-11-08\|2026-11-08\|">Dinner<\/button>/);
   assert.match(list, /class="hmedb" data-hmit="r-dinner\|2026-11-08\|2026-11-08\|" aria-label="Edit Dinner"/);
-  // Today shows this day only: the workout carried over from Friday (Late) is in the data for the week, not on the card
-  assert.ok(sch.days.find((d) => d.today).items.some((x) => x.late));
-  assert.doesNotMatch(list, /from Fri|hmtag late|>Late</);
-  assert.match(list, /<span class="hmnb" aria-hidden="true"><\/span><span class="hmtm">3:00–3:30 PM<\/span>.*Call with Poppy<\/span><span class="hmtag">Meeting<\/span><\/div>/);
+  assert.match(list, /Workout · from Fri<\/button><span class="hmtag late">Late<\/span>/);
+  assert.match(list, /<span class="hmnb" aria-hidden="true"><\/span><span class="hmtm">3:00–3:30<\/span>.*Call with Poppy<\/span><span class="hmtag">Meeting<\/span><\/div>/);
   assert.equal(ui.hmItems['r-dinner|2026-11-08|2026-11-08|'].w, 'Dinner');
   assert.match(list, /until Google Calendar is connected/);
   assert.match(renderHome(SAMPLE(), d3Sample(), {}, NOW, { ...home, calendar: { connected: false, canConnect: true, events: [] } }), /<a href="\/dashboard\/api\/google\/start">connect Google Calendar<\/a>/);
+  const cal = renderHome(SAMPLE(), d3Sample(), { hmView: 'cal' }, NOW, home);
+  assert.match(cal, /class="hmday today hmwk hmph"><div class="hmdh"><small>Sun<\/small><b>8<\/b><\/div><div class="hmcol" data-ymd="2026-11-08">/);
+  assert.match(cal, /class="hmnow" style="top: \d+px"/);
+  assert.match(cal, /class="hmev sm m" style="[^"]*" title="3:00–3:30 Call with Poppy"/); // a meeting cannot be dragged or opened
+  assert.match(cal, /class="hmev" data-hmit="r-dinner\|2026-11-08\|2026-11-08\|" role="button" tabindex="0"/);
+  assert.match(cal, /Drag a block to move it/);
 });
 
 test('Task pop-up: its fields, the summary line, and what Save, Delete and a tick send', async () => {
@@ -449,23 +442,24 @@ test('Progress rows: status shows on the dot only, a row opens to its detail and
   assert.match(renderHome(SAMPLE(), d3Sample(), { hmPer: 'week', hmOpen: 'personal.workouts', confirmLog: 'workout' }, NOW), /class="btn sm primary" data-log="workout">Confirm log\?/);
 });
 
-test('Home clicks: the Progress switch and a row each change only their own state; the removed List | Calendar switch and See more do nothing', () => {
-  const ui = { hmPer: 'today', hmOpen: null };
+test('Home clicks: the two switches, See more and a row each change only their own state', () => {
+  const ui = { hmView: 'list', hmPer: 'today', hmOpen: null, hmMore: false };
   let draws = 0;
   const click = (sel, dataset) => homeClick({ target: { closest: (s) => (s === sel ? { dataset } : null), matches: () => false } }, ui, () => { draws += 1; });
-  assert.equal(click('[data-hmview]', { hmview: 'cal' }), false);
-  assert.equal(click('[data-hmmore]', {}), false);
-  assert.equal(draws, 0);
+  assert.equal(click('[data-hmview]', { hmview: 'cal' }), true);
+  assert.deepEqual([ui.hmView, ui.hmPer], ['cal', 'today']);
   assert.equal(click('button[data-hmper]', { hmper: 'month' }), true);
-  assert.equal(ui.hmPer, 'month');
+  assert.deepEqual([ui.hmView, ui.hmPer], ['cal', 'month']);
+  assert.equal(click('[data-hmmore]', {}), true);
+  assert.equal(ui.hmMore, true);
   assert.equal(click('[data-hmrow]', { hmrow: 'pnl.profit' }), true);
   assert.equal(ui.hmOpen, 'pnl.profit');
   assert.equal(click('[data-hmrow]', { hmrow: 'pnl.profit' }), true);
   assert.equal(ui.hmOpen, null);
-  assert.equal(draws, 3);
+  assert.equal(draws, 5);
   assert.equal(click('[data-log]', { log: 'workout' }), false); // left for the shell
   assert.equal(click('[data-hmit]', { hmit: 'x' }), false); // what saves needs the shell's state
-  assert.equal(draws, 3);
+  assert.equal(draws, 5);
 });
 
 test('d3.css: Home uses the dashboard tokens (light and dark follow the theme) and keeps its layout on a phone', () => {
