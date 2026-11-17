@@ -92,6 +92,10 @@ function render() {
     S.cards = undefined;
     loadCards().then(() => { if (page() === 'cards') render(); });
   }
+  if (p === 'money' && S.ui.lastPage !== 'money' && !S.signedOut) { // Income this month: each open reads this month afresh
+    S.ui.incMonth = null;
+    loadIncome().then(() => { if (page() === 'money') render(); });
+  }
   if (p !== 'money' && S.ui.lastPage === 'money') S.ui.dealSel = null; // leaving Money clears the picked deal's outline
   S.ui.lastPage = p;
   // The Factory page counts "updated N s ago" on the server's clock: its time at the last load plus the time since.
@@ -179,6 +183,16 @@ async function loadTrack() {
   }
 }
 
+// Money's "Income this month" (GET /dashboard/api/money-income?month=YYYY-MM): this month, or the one picked with the switcher.
+async function loadIncome() {
+  try {
+    const r = await getJson(`/dashboard/api/money-income${S.ui.incMonth ? `?month=${encodeURIComponent(S.ui.incMonth)}` : ''}`);
+    if (!r.signedOut) S.ui.income = r.body?.income || { error: 'the income could not be read.' };
+  } catch (err) {
+    if (!S.ui.income?.month) S.ui.income = { error: err.message };
+  }
+}
+
 // The Cards page's list (GET /dashboard/api/cards): every open card and the last 7 days of done ones. A failed read says so.
 async function loadCards() {
   try {
@@ -243,6 +257,7 @@ async function load() {
   }
   if (page() === 'review' && !S.signedOut) await loadThreads();
   if (page() === 'cards' && !S.signedOut) await loadCards();
+  if (page() === 'money' && !S.signedOut && S.ui.lastPage === 'money') await loadIncome(); // the 60 s refresh; the first read is in render()
   rail();
   // Don't redraw under Jon's typing (a Review answer, send-back note or draft edit); the next load or click redraws.
   if (document.activeElement?.closest?.('#main textarea, #main input') || popOpen()) return;
@@ -263,6 +278,14 @@ main.addEventListener('click', async (e) => {
     if (e.target.closest('a')) return; // a Connect link opens on its own
     const go = e.target.closest('[data-page]');
     if (go && /^track(\/|$)/.test(go.dataset.page)) { location.hash = go.dataset.page; return; }
+    return;
+  }
+  const incGo = page() === 'money' ? e.target.closest('[data-incmonth]') : null; // Money: the income month switcher
+  if (incGo) {
+    if (incGo.disabled || !incGo.dataset.incmonth) return;
+    S.ui.incMonth = incGo.dataset.incmonth;
+    await loadIncome();
+    render();
     return;
   }
   if ((page() === 'personal' || page() === 'money') && personalClick(e, S, render, send, reloadPersonal, send)) return; // Personal page, and the Money page's expense list
