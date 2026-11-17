@@ -30,9 +30,13 @@ export function easternTime(at, dayOffset, hour) {
 // 90 minutes into the session. Anyone who pays after that gets the recording and a refund offer (L1)
 // instead of reminders. Anyone who pays while the session is live gets the join link at once (E6).
 // Buyers already booked keep their stored session_at; changing these never re-plans their emails.
-export const SESSION_AT = Date.UTC(2026, 10, 13, 0, 0, 0);
-export const SALES_CLOSE = Date.UTC(2026, 10, 13, 1, 30, 0);
-export const salesClosed = (at = Date.now()) => at >= SALES_CLOSE;
+// THE ONE SWITCH (Jon, Nov 16): NEXT_SESSION is the next live session start in UTC ms, e.g. Date.UTC(2026, 11, 3, 0, 0, 0),
+// or null while there is no date yet. null = the page only collects emails and nothing sells.
+// Set the same value in public/schedule.js. Sales then run until 90 minutes into that session as before.
+export const NEXT_SESSION = null;
+export const SESSION_AT = NEXT_SESSION ?? Date.UTC(2026, 10, 13, 0, 0, 0); // fallback only keeps old buyers' math valid
+export const SALES_CLOSE = SESSION_AT + 90 * 60 * 1000;
+export const salesClosed = (at = Date.now()) => NEXT_SESSION === null || at >= SALES_CLOSE;
 // Late is judged against the buyer's own stored session, so a later date move never turns an
 // old late buyer (L1 only) into an on-time one on webhook redelivery or cron recovery.
 export const lateBuyer = ({ purchased_at, session_at }) => purchased_at >= Date.parse(session_at) + (SALES_CLOSE - SESSION_AT);

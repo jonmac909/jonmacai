@@ -36,7 +36,7 @@ function mockResend(url) {
 }
 test('one live session: Thu Nov 12 7 PM ET, sales close 5:30 PM PT (8:30 PM ET), no rollover and no recurring calendar', () => {
   const scope = { Intl, Date }; vm.createContext(scope);
-  vm.runInContext(readFileSync(new URL('../public/schedule.js', import.meta.url), 'utf8'), scope);
+  vm.runInContext(readFileSync(new URL('../public/schedule.js', import.meta.url), 'utf8').replace('var NEXT_SESSION = null;', 'var NEXT_SESSION = Date.UTC(2026, 10, 13, 0, 0, 0);'), scope);
   const s = scope.CloneSchedule;
   for (const now of ['2026-10-09T22:59:59Z', '2026-11-13T00:00:01Z', '2026-11-16T01:00:00Z', '2027-01-01T00:00:01Z']) {
     assert.equal(s.nextSession(new Date(now)).toISOString(), '2026-11-13T00:00:00.000Z', now);

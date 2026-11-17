@@ -8,7 +8,7 @@ import { sandboxSettings, sandboxIds } from './sandbox-fixture.mjs';
 import { assignSession, reminderPlan, SESSION_AT, SALES_CLOSE } from '../src/reminder-plan.js';
 import { retryReminders } from '../src/reminders.js';
 import { sandboxEnv } from '../src/sandbox.js';
-import '../public/schedule.js';
+import './schedule-dated.mjs';
 
 // One live session only: Thu Nov 12 2026, 4 PM PT / 7 PM ET. Sales close at 5:30 PM PT / 8:30 PM ET.
 const SESSION = '2026-11-13T00:00:00.000Z';
@@ -189,7 +189,7 @@ test('sandbox: a payment made at 8:29 PM ET but delivered after close still gets
   assert.equal(JSON.parse(leads.get('sandbox:lead:launch@example.test')).late, undefined);
 });
 
-test('after sales close: no checkout session and no sign-ups (no waitlist)', async t => {
+test('after sales close: no checkout session, but sign-ups are still accepted', async t => {
   const sent = mockResend(t);
   const origin = 'https://jonmac.ai';
   const lead = email => new Request(origin + '/clone/api/lead', { method: 'POST',
@@ -208,8 +208,7 @@ test('after sales close: no checkout session and no sign-ups (no waitlist)', asy
   assert.deepEqual(await checkout.json(), { ok: false, error: 'sales_closed' });
   sent.length = 0;
   const late = await worker.fetch(lead('late@example.test'), env);
-  assert.equal(late.status, 410);
-  assert.deepEqual(await late.json(), { ok: false, error: 'sales_closed' });
-  assert.deepEqual(sent, [], 'no audience, seat email or lead automation after close');
-  assert.equal(leads.get('lead:late@example.test'), undefined);
+  assert.equal(late.status, 200, 'leads are always accepted (Jon, Nov 16)');
+  assert.deepEqual(await late.json(), { ok: true });
+  assert.ok(leads.get('lead:late@example.test'), 'late lead is stored');
 });
