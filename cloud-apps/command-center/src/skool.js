@@ -160,12 +160,24 @@ export function matchAnswer(answer, links) {
   return null;
 }
 
+// "Reset stats" (Jon, 2026-11-17): nothing is deleted. The time of the latest reset is one row in skool_settings; /track counts
+// only clicks, leads and sales at or after it. Undo deletes the row, so every past count comes back. /track/leads is not
+// filtered: it lists every lead ever captured and has no counters of its own that the reset touches.
+const RESET_KEY = 'skool_stats_reset_at';
+export async function statsResetAt(db) {
+  try {
+    const v = (await db.prepare('SELECT value FROM skool_settings WHERE key = ?').bind(RESET_KEY).first())?.value;
+    return v && Number.isFinite(Date.parse(v)) ? v : null;
+  } catch { return null; } // skool_settings missing (before migration 0031): no reset
+}
+
 export async function trackerData(db, nowMs = Date.now()) {
   const d7 = iso(nowMs - 7 * 864e5), d30 = iso(nowMs - 30 * 864e5);
+  const since = await statsResetAt(db), from = since || ''; // ISO strings sort as text; '' is before everything
   const [links, clicks, sales, answers, leads] = await Promise.all([
     db.prepare('SELECT slug, title, youtube_url, created_at, capture FROM skool_links ORDER BY created_at DESC').all(),
-    db.prepare(`SELECT slug, COUNT(*) AS total, SUM(at >= ?) AS d7, SUM(at >= ?) AS d30 FROM skool_clicks GROUP BY slug`).bind(d7, d30).all(),
-    db.prepare('SELECT id, email, name, at FROM skool_sales ORDER BY at DESC LIMIT 2000').all(),
+    db.prepare(`SELECT slug, COUNT(*) AS total, SUM(at >= ?) AS d7, SUM(at >= ?) AS d30 FROM skool_clicks WHERE at >= ? GROUP BY slug`).bind(d7, d30, from).all(),
+    db.prepare('SELECT id, email, name, at FROM skool_sales WHERE at >= ? ORDER BY at DESC LIMIT 2000').bind(from).all(),
     db.prepare('SELECT email, answer FROM skool_answers').all(),
     db.prepare('SELECT slug, email, at FROM skool_leads ORDER BY at DESC LIMIT 50000').all(),
   ]);
@@ -177,7 +189,7 @@ export async function trackerData(db, nowMs = Date.now()) {
   const captured = new Map(); // slug -> emails captured
   for (const x of leads.results || []) {
     if (!known.has(x.slug)) continue;
-    captured.set(x.slug, (captured.get(x.slug) || 0) + 1);
+    if (x.at >= from) captured.set(x.slug, (captured.get(x.slug) || 0) + 1); // every lead still matches its sale; only the count is cut
     if (!byEmail.has(x.email)) byEmail.set(x.email, []);
     byEmail.get(x.email).push(x);
   }
@@ -204,7 +216,7 @@ export async function trackerData(db, nowMs = Date.now()) {
     return { ...l, capture: l.capture === 1, emails: captured.get(l.slug) || 0, clicks: { d7: c.d7 || 0, d30: c.d30 || 0, all: c.total || 0 },
       sales: sure, estimated: est, conversion: c.total ? (sure + est) / c.total : null };
   });
-  return { rows, sales: list, unattributed: list.filter((x) => !x.slug).length };
+  return { rows, sales: list, unattributed: list.filter((x) => !x.slug).length, since };
 }
 
 async function addLink(request, env, nowMs) {
@@ -232,6 +244,22 @@ async function setCapture(request, env) {
   return json({ ok: true, slug, capture: on });
 }
 
+// POST /track/api/reset {undo?: true}: signed-in only (the caller checks), same-origin, X-CC like the other /track POSTs.
+async function resetStats(request, env, nowMs) {
+  if (request.headers.get('X-CC') !== '1') return json({ error: 'Missing header' }, 403);
+  const origin = request.headers.get('Origin');
+  if (origin && origin !== new URL(request.url).origin) return json({ error: 'Wrong origin' }, 403);
+  const b = await body(request);
+  if (b.undo === true || b.undo === 1 || b.undo === 'true' || b.undo === '1') {
+    await env.DB.prepare('DELETE FROM skool_settings WHERE key = ?').bind(RESET_KEY).run();
+    return json({ ok: true, since: null });
+  }
+  const at = iso(nowMs);
+  await env.DB.prepare('INSERT INTO skool_settings (key, value, updated_at) VALUES (?1, ?2, ?2) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at')
+    .bind(RESET_KEY, at).run();
+  return json({ ok: true, since: at });
+}
+
 const pct = (x) => (x == null ? '–' : `${(x * 100).toFixed(1)}%`);
 const HOW = { email: 'email match (exact)', answer: 'their answer (exact)', estimate: 'estimate: last click within 24 h', none: 'unknown' };
 
@@ -245,7 +273,9 @@ export function trackerPage(data, origin) {
 <td>${esc(s.slug || '–')}</td><td>${esc(HOW[s.how])}</td><td>${esc(s.answer || '')}</td></tr>`).join('');
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="robots" content="noindex,nofollow"><title>Skool tracker</title><style>${BASE_CSS}</style></head><body>${nav('videos')}
-<h1>Skool tracker</h1><p>Every short link forwards to skool.com/ai-ugc. Sales come from Zapier. Exact = the buyer's email was captured on the link, or they named the video in their answer; "est." means neither, so the sale goes to the last link clicked in the 24 hours before it.</p>
+<h1>Skool tracker</h1>
+<div class="row"><button class="cap" id="reset" type="button">Reset stats</button><span id="since">${data.since ? `Since ${esc(data.since.slice(0, 16).replace('T', ' '))} UTC. <a href="#" id="undo">Undo reset</a>` : 'Showing all stats since the start.'}</span></div>
+<p>Every short link forwards to skool.com/ai-ugc. Sales come from Zapier. Exact = the buyer's email was captured on the link, or they named the video in their answer; "est." means neither, so the sale goes to the last link clicked in the 24 hours before it.</p>
 <div class="wrap"><table><thead><tr><th>Video</th><th>Slug</th><th>Short link</th><th class="n">Clicks 7d</th><th class="n">30d</th><th class="n">All</th><th class="n">Leads</th><th class="n">Sales</th><th class="n">Conversion</th><th>Email step</th></tr></thead>
 <tbody>${rows || '<tr><td colspan="10">No links yet. Add one below.</td></tr>'}</tbody></table></div>
 <p>Email step: when On, the short link first asks for an email in a pop-over, then forwards to Skool. On for every new link.</p>
@@ -263,6 +293,10 @@ document.querySelectorAll('.cap').forEach((b)=>b.onclick=async()=>{const on=b.da
 if(on&&!confirm('Turn the email step ON for '+b.dataset.slug+'? Visitors will be asked for an email before they reach Skool.'))return;
 const r=await fetch('/track/api/capture',{method:'POST',headers:{'Content-Type':'application/json','X-CC':'1'},body:JSON.stringify({slug:b.dataset.slug,capture:on})});
 if(r.ok){b.dataset.on=on?'1':'0';b.setAttribute('aria-pressed',on);b.textContent=on?'On':'Off'}else{alert('Could not save')}});
+const resetCall=async(undo)=>{const r=await fetch('/track/api/reset',{method:'POST',headers:{'Content-Type':'application/json','X-CC':'1'},body:JSON.stringify(undo?{undo:true}:{})});
+if(r.ok){location.reload()}else{alert('Could not save')}};
+document.getElementById('reset').onclick=()=>{if(confirm('Reset all stats on this page to zero? Past data is kept and can be restored.'))resetCall(false)};
+const undo=document.getElementById('undo');if(undo)undo.onclick=(e)=>{e.preventDefault();resetCall(true)};
 document.getElementById('seq').onclick=async(e)=>{const b=e.currentTarget,on=b.dataset.on!=='1';
 if(on&&!confirm('Turn the sequence ON? Real leads will start getting the 7 emails.'))return;
 const r=await fetch('/track/api/sequence',{method:'POST',headers:{'Content-Type':'application/json','X-CC':'1'},body:JSON.stringify({on})});
@@ -308,6 +342,7 @@ export async function handleTracker(request, env) {
   if (!signedIn) return json({ error: 'Sign in' }, 401);
   if (p === '/track/api/links' && request.method === 'POST') return addLink(request, env, nowMs);
   if (p === '/track/api/capture' && request.method === 'POST') return setCapture(request, env);
+  if (p === '/track/api/reset' && request.method === 'POST') return resetStats(request, env, nowMs);
   if (p === '/track/api/sequence' && request.method === 'POST') return setSequence(request, env, nowMs);
   if (p === '/track/api/sequence/test' && request.method === 'POST') {
     if (request.headers.get('X-CC') !== '1') return json({ error: 'Missing header' }, 403);
