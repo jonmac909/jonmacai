@@ -3,11 +3,15 @@
 // src/reminder-plan.js uses the same times.
 (function (root) {
   'use strict';
-  var SESSION = Date.UTC(2026, 10, 13, 0, 0, 0);    // Thu Nov 12 2026, 4 PM PST / 7 PM EST
-  var SALES_CLOSE = Date.UTC(2026, 10, 13, 1, 30, 0); // Thu Nov 12 5:30 PM PST / 8:30 PM EST
+  // THE ONE SWITCH: next live session start in UTC ms (e.g. Date.UTC(2026, 11, 3, 0, 0, 0)), or null while there is no date.
+  // null = emails only, nothing sells, no date shown. Keep equal to NEXT_SESSION in src/reminder-plan.js.
+  var NEXT_SESSION = null;
+  var SESSION = NEXT_SESSION === null ? Date.UTC(2026, 10, 13, 0, 0, 0) : NEXT_SESSION; // fallback only for old buyers' math
+  var SALES_CLOSE = SESSION + 90 * 60000;
   var SESSION_END = SESSION + 2 * 3600000;          // 9 PM EST
   function nextSession() { return new Date(SESSION); }
-  function isClosed(now) { return (now || new Date()).getTime() >= SALES_CLOSE; }
+  function isClosed(now) { return NEXT_SESSION === null || (now || new Date()).getTime() >= SALES_CLOSE; } // i.e. not selling
+  function hasDate() { return NEXT_SESSION !== null; }
   function phase(now) {
     var t = (now || new Date()).getTime();
     return t < SESSION ? 'before' : t < SESSION_END ? 'live' : 'ended';
@@ -21,6 +25,6 @@
     var day = part('year') + part('month') + part('day');
     return day + 'T190000/' + day + 'T210000';
   }
-  root.CloneSchedule = { nextSession: nextSession, isClosed: isClosed, phase: phase, calendarDates: calendarDates,
+  root.CloneSchedule = { nextSession: nextSession, hasDate: hasDate, isClosed: isClosed, phase: phase, calendarDates: calendarDates,
     session: new Date(SESSION), salesClose: new Date(SALES_CLOSE), sessionEnd: new Date(SESSION_END) };
 })(globalThis);

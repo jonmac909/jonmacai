@@ -78,26 +78,25 @@ unchanged by JON-15. CI additionally runs `npm run test:readiness:browser`, usin
 the actual Worker/KV/D1 with mocked external resources and no message/payment
 submission. Mobile screenshots are saved in the OS temp directory.
 
-## Sales close (Thu Nov 12, 5:30 PM PT / 8:30 PM ET)
+## Next live session switch (Nov 16)
 
-The one live session moved from Oct 29 to Thursday, November 12, 2026, 4 PM PT / 7 PM ET
-(`SESSION` 2026-11-13T00:00:00Z, after daylight saving ends; Jon, Oct 30). Buyers already booked keep
-their stored session; only new purchases get Nov 12.
-`SALES_CLOSE` is 2026-11-13T01:30:00Z, 90 minutes into the 7 PM ET session, after the pitch. Buyers who
-pay while the session is live get the join link at once (reminder E6). After `SALES_CLOSE` the Worker returns 410 `sales_closed` from `/api/lead`, `/api/checkout-session`
-and `/api/upsell` for any visitor without a verified purchase (no hosted checkout URL either).
-A buyer verified before the cutoff can still finish the funnel. `public/closed-gate.js` shows
-"Registration Closed" on welcome, survey, software, audit and vault to browsers with no verified
-purchase. Tests: `npm test` shifts `Date` to Nov 11 once the real clock passes the cutoff
-(`test/clock-setup.mjs`); browser scripts fix the page clock (`test/clock.mjs`); the live sandbox
-runner switches to closed-state checks after the cutoff.
+`NEXT_SESSION` is the one switch. It is `null` today (no live date): the lander never says "Registration Closed",
+every CTA opens the step-1 email pop-over, `/api/lead` always accepts and stores leads, step 2 reads
+"Thanks, you're on the list. We'll email you the next live date.", the page shows "Next live session: date coming
+soon", and `/api/checkout-session`, `/clone/seat` and unverified `/api/upsell` do not sell. To sell again, set the
+session start (UTC ms, e.g. `Date.UTC(2026, 11, 3, 0, 0, 0)`) in BOTH `src/reminder-plan.js` and `public/schedule.js`
+and deploy. Sales then close 90 minutes into that session (`SALES_CLOSE = NEXT_SESSION + 90 min`), after the pitch.
+Buyers who pay while the session is live get the join link at once (reminder E6). Buyers already booked keep
+their stored session. `public/closed-gate.js` no longer blocks any page; it only shares `CloneGate.verify()`.
+Tests: `npm test` loads a dated session (Nov 12) through `test/next-session-loader.mjs` / `test/schedule-dated.mjs`
+and shifts `Date` to Nov 11 once the real clock passes it (`test/clock-setup.mjs`); `test/no-session.test.mjs` runs the
+shipped `null` (set `CLONE_TEST_CHROMIUM` to a Chromium path if Playwright's own build is not installed).
 
 ## Email seat link, offer price and the nurture emails (Oct 30)
 
 **Seat link.** Every seat button in an email points at `https://jonmac.ai/clone/seat`. Before
 `SALES_CLOSE` it redirects (302, no-store) to `CHECKOUT_URL`, the live $47 Commas checkout, keeping
-only `utm_*` tags plus `lp=clone`. After the close it goes to `/clone/`, which shows "Registration
-Closed". The Worker's own "seat isn't saved" lead email uses it. Never link emails straight at Commas:
+only `utm_*` tags plus `lp=clone`. While nothing is on sale it goes to `/clone/` (email opt-in). The Worker's own "seat isn't saved" lead email uses it. Never link emails straight at Commas:
 the hosted checkout ignores the close.
 
 **Offer price.** `src/offer.js` `OFFER_PRICE_USD` is the one place the webinar offer's price lives

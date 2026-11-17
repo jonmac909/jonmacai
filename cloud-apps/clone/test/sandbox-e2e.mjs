@@ -190,13 +190,15 @@ export async function runSandbox(options = {}) {
   }
   try {
     if (salesClosed(options.now)) {
-      // After the Nov 12 5:30 PM PT cutoff the funnel cannot sell, so the live run checks the closed state instead.
+      // With no live date (NEXT_SESSION null) or after the sales close the funnel cannot sell, so the live run checks that instead.
       stage = 'sales closed checks';
       const context = await browser.newContext({ serviceWorkers: 'block', ignoreHTTPSErrors: ['localhost', '127.0.0.1'].includes(base.hostname) });
       try {
         await login(context);
         const send = (route, data) => context.request.post(apiUrl(route), { headers: { origin: base.origin, ...(versionHeader || {}) }, data });
-        for (const [route, data] of [['checkout-session', {}], ['lead', { name: 'Closed Check', email: 'closed-check@example.test' }],
+        const lead = await send('lead', { name: 'Closed Check', email: 'closed-check@example.test' });
+        assert.equal(lead.status(), 200, 'leads are always accepted'); // sandbox lead key, no real data
+        for (const [route, data] of [['checkout-session', {}],
           ...Object.keys(OFFERS).map(offer => ['upsell', { offer }])]) {
           const r = await send(route, data), body = await r.json();
           assert.equal(r.status(), 410, route); assert.equal(body.error, 'sales_closed'); assert.equal(body.checkoutUrl, undefined);

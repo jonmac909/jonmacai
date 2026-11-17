@@ -59,8 +59,8 @@ try {
   assert.equal(calendar.searchParams.get('recur'), null, 'One live session: no recurring calendar');
   assert.equal(calendar.searchParams.get('ctz'), 'America/New_York');
   assert.equal(calendar.searchParams.get('dates'), '20261112T190000/20261112T210000');
-  // The Worker's own clock decides sales; a real post-close run cannot take new leads.
-  if (!realClosed) {
+  // Leads are always accepted (Jon, Nov 16); only the checkout flow depends on NEXT_SESSION.
+  {
     await page.goto(new URL('/clone/?wacid=campaign&wasid=adset&waid=ad', base).toString());
     await page.locator('a.cta').first().click();
     await page.locator('#lead_name').fill('Fixture Buyer'); await page.locator('#lead_email').fill('fixture@example.test');
@@ -73,7 +73,7 @@ try {
     assert.equal(serverEvents[0].user.anonymous_id, 'wuid_browser_fixture');
     assert.equal(serverEvents[0].context.ad_id, 'ad');
     console.log('PASS: opt-in browser/server IDs match, with _wuid and Whop ad attribution; no email dispatch');
-  } else console.log('SKIP: opt-in lead flow needs the Worker clock before the Nov 12 5:30 PM PT close; unit tests cover it with a shifted clock');
+  }
   // Lead events (Whop lead + complete_registration, Meta Lead) wait for a 2xx from /api/lead.
   for (const [label, status, fires] of [['accepted 200', 200, true], ['closed 410', 410, false], ['server error 500', 500, false], ['network failure', 0, false]]) {
     const fresh = await browser.newContext(); await fresh.route('**/*', proxy);
@@ -107,42 +107,31 @@ try {
   assert.equal(hosted.searchParams.get('whop_anonymous_id'), 'wuid_browser_fixture');
   assert.equal(hosted.searchParams.get('waid'), 'ad');
   console.log('PASS: hosted upsell fallback carries retained _wuid and Whop campaign parameters');
-  // After sales close (5:30 PM PT Nov 12) sales are closed: no popup, no checkout, no Lead or cart event.
-  const closed = await context.newPage(); closed.on('pageerror', error => errors.push(closed.url() + ' ' + error.stack));
-  await closed.clock.install({ time: new Date('2026-11-13T01:35:00Z') });
-  const apiCalls = []; closed.on('request', r => { if (/\/clone\/api\/(checkout-session|lead)/.test(r.url())) apiCalls.push(r.url()); });
-  await closed.goto(new URL('/clone/', base).toString());
-  await closed.waitForFunction(() => document.documentElement.classList.contains('sales-closed'));
-  const cta = closed.locator('a.cta').first();
-  assert.equal(await cta.innerText(), 'Registration Closed');
-  assert.equal(await cta.getAttribute('href'), null);
-  await cta.dispatchEvent('click');
-  assert.equal(await closed.locator('#lead').evaluate(el => el.classList.contains('show')), false, 'No sign-up popup after close');
-  assert.ok(!(await closed.locator('body').innerText()).match(/waitlist/i), 'No waitlist copy');
-  assert.deepEqual(await closed.evaluate(() => window.whop.q.map(e => e[1]).filter(e => ['lead', 'complete_registration', 'add_to_cart'].includes(e))), []);
-  assert.deepEqual(apiCalls, [], 'No checkout or lead call after close');
-  console.log('PASS: after sales close the lander shows Registration Closed, with no popup, checkout or Lead event');
-  // Post-purchase pages after close: unverified visitors see Registration Closed, verified buyers keep the page.
+  // NEXT_SESSION is null (no live date): no closed message, CTAs open the pop-over, step 2 is the thank-you, no checkout or cart event.
+  const dateless = await context.newPage(); dateless.on('pageerror', error => errors.push(dateless.url() + ' ' + error.stack));
+  const apiCalls = []; dateless.on('request', r => { if (/\/clone\/api\/checkout-session/.test(r.url())) apiCalls.push(r.url()); });
+  await dateless.goto(new URL('/clone/', base).toString());
+  assert.ok(!(await dateless.locator('body').innerText()).match(/Registration Closed/i), 'No closed text');
+  await dateless.locator('a.cta').first().click();
+  assert.equal(await dateless.locator('#lead').evaluate(el => el.classList.contains('show')), true, 'CTA opens the sign-up pop-over');
+  await dateless.locator('#lead_name').fill('Fixture Buyer'); await dateless.locator('#lead_email').fill('dateless@example.test');
+  await dateless.locator('#leadf').evaluate(form => form.requestSubmit());
+  await dateless.locator('.lead-thanks').waitFor();
+  assert.deepEqual(apiCalls, [], 'No checkout call without a live date');
+  console.log('PASS: with no live date the lander opens the pop-over, shows the thank-you and never starts a checkout');
+  // Post-purchase pages are open to every visitor, verified buyer or not.
   for (const buyer of [false, true]) {
     const fresh = await browser.newContext(); await fresh.route('**/*', proxy);
     if (buyer) await fresh.route('**/clone/api/buyer-session', route => route.fulfill({ contentType: 'application/json', body: '{"ok":true}' }));
     const gated = await fresh.newPage(); gated.on('pageerror', error => errors.push(gated.url() + ' ' + error.stack));
-    await gated.clock.install({ time: new Date('2026-11-13T01:35:00Z') });
     for (const name of ['welcome', 'survey', 'software', 'audit', 'vault']) {
       await gated.goto(new URL('/clone/' + name + '.html', base).toString());
-      if (buyer) {
-        await gated.waitForFunction(() => !document.documentElement.classList.contains('jm-gate-pending'));
-        assert.equal(await gated.locator('#jm-closed').count(), 0, name + ' stays open for a verified buyer');
-        assert.notEqual(await gated.evaluate(() => getComputedStyle(document.body).display), 'none');
-      } else {
-        await gated.locator('#jm-closed').waitFor();
-        assert.equal(await gated.locator('#jm-closed h1').innerText(), 'Registration Closed');
-        assert.equal(await gated.evaluate(() => getComputedStyle(document.body).display), 'none');
-        assert.equal(await gated.locator('#jm-closed').evaluate(el => el.querySelectorAll('a[href]').length), 0, 'No checkout link');
-      }
+      assert.equal(await gated.locator('#jm-closed').count(), 0, name + ' has no closed panel');
+      assert.notEqual(await gated.evaluate(() => getComputedStyle(document.body).display), 'none');
+      assert.ok(!(await gated.locator('body').innerText()).match(/Registration Closed/i), name);
     }
     await fresh.close();
-    console.log('PASS: after sales close the five buyer pages ' + (buyer ? 'stay open for a verified buyer' : 'show Registration Closed to an unverified visitor'));
+    console.log('PASS: the five buyer pages are open to ' + (buyer ? 'a verified buyer' : 'an unverified visitor'));
   }
   {
     // A remembered browser whose session lapsed still cannot reach a checkout: the Worker answers 410.
@@ -151,16 +140,16 @@ try {
     await fresh.route('**/clone/api/buyer-session', route => route.fulfill({ status: 401, contentType: 'application/json', body: '{"ok":false,"fallback":true}' }));
     await fresh.route('**/clone/api/upsell', route => route.fulfill({ status: 410, contentType: 'application/json',
       body: '{"ok":false,"error":"sales_closed","closed":true,"message":"Registration is closed for this session."}' }));
-    const lapsed = await fresh.newPage(); await lapsed.clock.install({ time: new Date('2026-11-13T01:35:00Z') });
+    const lapsed = await fresh.newPage();
     const hostedHits = []; lapsed.on('request', r => { if (r.url().includes('commas.com/checkout')) hostedHits.push(r.url()); });
     await lapsed.goto(new URL('/clone/software.html', base).toString());
     await lapsed.locator('[data-upsell="software"]').first().click();
     await lapsed.locator('.upsell-result').waitFor();
     assert.match(await lapsed.locator('.upsell-result').innerText(), /closed/i);
     assert.equal(await lapsed.locator('.upsell-result a').count(), 0);
-    assert.deepEqual(hostedHits, [], 'No hosted checkout after close');
+    assert.deepEqual(hostedHits, [], 'No hosted checkout without a verified buyer');
     await fresh.close();
-    console.log('PASS: after sales close an upsell click shows the closed message and never opens checkout');
+    console.log('PASS: an unverified upsell click shows the closed message and never opens checkout');
   }
   assert.deepEqual(errors, []);
   console.log('PASS: no browser runtime errors');

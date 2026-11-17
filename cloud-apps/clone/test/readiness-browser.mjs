@@ -52,11 +52,11 @@ try {
   await Promise.all([page.waitForResponse(response => response.url().endsWith('/clone/api/visit')), page.goto('https://jonmac.ai/clone/')]);
   await Promise.all([page.waitForResponse(response => response.url().endsWith('/clone/api/visit')), page.reload()]);
   assert.equal((await db.prepare("SELECT COUNT(*) n FROM clone_session_events WHERE kind='visit'").first()).n, 1);
-  // The Worker's own clock decides sales; after the Nov 12 5:30 PM PT close it answers 410 to every lead.
+  // While nothing is on sale (no NEXT_SESSION, or past the close) leads are still accepted and the checkout flow is skipped.
   if (realClosed) {
-    const closedLead = await page.evaluate(() => fetch('/clone/api/lead', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' }).then(r => r.status));
-    assert.equal(closedLead, 410);
-    console.log('PASS: sales closed, lead API answers 410 (lead and consent flow skipped; unit tests cover it with a shifted clock)');
+    const openLead = await page.evaluate(() => fetch('/clone/api/lead', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ name: 'Fixture', email: 'no-sale@example.test' }) }).then(r => r.status));
+    assert.equal(openLead, 200);
+    console.log('PASS: nothing on sale, lead API still answers 200 (checkout flow skipped; unit tests cover it with a dated session)');
   } else {
     await page.locator('a.cta').first().click();
     // SMS is disabled, so the checkout must not offer or collect text consent.

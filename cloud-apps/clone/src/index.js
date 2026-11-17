@@ -14,7 +14,7 @@ import { OFFER_PLAN, OFFER_PRICE } from './offer.js';
 const CSP = "script-src 'self' 'unsafe-inline' https://t.whop.tw https://cdn.embedded.fanbasis.io https://connect.facebook.net https://www.googletagmanager.com";
 
 // Seat button for emails (Jon, Oct 30): the live checkout while sales are open, the
-// "Registration Closed" lander after the close. Only utm_* tags pass through to checkout.
+// lander when nothing is on sale. Only utm_* tags pass through to checkout.
 function seatRedirect(url, env) {
   let target = url.origin + '/clone/';
   if (!salesClosed()) {
@@ -118,7 +118,6 @@ export default {
 };
 
 async function handleLead(request, env) {
-  if (salesClosed()) return json({ ok: false, error: 'sales_closed' }, 410);
   let data;
   try {
     data = await request.json();

@@ -2,7 +2,9 @@
 // Loaded with node --import. Once the real clock reaches the cutoff, shift Date so the
 // suite still sees a pre-close "now" (it keeps ticking, so elapsed-time checks hold).
 // Tests that need a post-close time set Date.now themselves, as reminders.test.mjs does.
-import { SALES_CLOSE } from '../src/reminder-plan.js';
+import { register } from 'node:module';
+register('./next-session-loader.mjs', import.meta.url); // dated session for the sales-flow tests
+const { SALES_CLOSE } = await import('../src/reminder-plan.js');
 
 const RealDate = Date, PRE_CLOSE = RealDate.UTC(2026, 10, 11, 17, 0, 0);
 const shift = RealDate.now() >= SALES_CLOSE - 86400000 ? RealDate.now() - PRE_CLOSE : 0;
