@@ -147,6 +147,12 @@ html[data-theme="dark"] body{background:#0b0b0c}
 .d3 .nav a{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
 .d3 .nav a.navdrag{background:var(--card2);box-shadow:0 2px 10px rgba(0,0,0,.18);cursor:grabbing;position:relative;z-index:2}
 .d3 .nav.navdragging{touch-action:none}
+.d3 a.dealcard{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
+.d3 a.dealcard[data-dealid]{cursor:grab}
+.d3 a.dealcard.dealdrag{position:relative;z-index:5;cursor:grabbing;box-shadow:0 4px 14px rgba(0,0,0,.25);opacity:.95}
+.d3 .dealdragging{touch-action:none;-webkit-user-select:none;user-select:none}
+.d3 .stage.stagedrop{border-color:var(--fill);box-shadow:inset 0 0 0 2px var(--fill)}
+.d3 .dealnone[hidden],.d3 #dealErr[hidden]{display:none}
 .d3 .navreset{align-self:flex-start;margin:4px 12px 0;padding:2px 0;border:0;background:none;color:var(--muted);font:inherit;font-size:12px;text-decoration:underline;cursor:pointer}
 .d3 .navreset[hidden]{display:none}
 .d3 .nf{color:var(--muted);font-weight:400}

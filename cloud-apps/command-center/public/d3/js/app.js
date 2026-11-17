@@ -13,6 +13,7 @@ import { renderHyper, openHyper } from './hyper.js';
 import { renderBluesky } from './bluesky.js';
 import { renderCards, cardsClick, cardsToggle } from './cards.js';
 import { applyOrder, cachedOrder, cacheOrder, navDrag } from './navorder.js';
+import { dealDrag, dealDragging } from './dealdrag.js';
 import { renderPersonal, mnavHtml, moneyBizHtml, personalClick, personalChange, personalInput, personalSubmit, personalPaste, personalKey, personalPopOpen, personalDrag, personalAfter, nowParts } from './personal.js';
 import { renderFactory, syncFactory } from './factory.js';
 import { renderTrack, trackSub } from './track.js';
@@ -246,6 +247,25 @@ async function send(method, path, body) {
 }
 const reloadHome = async () => { await loadHome(); render(); };
 const reloadCards = async () => { await loadCards(); render(); };
+// Money: drag a deal card to another stage column (src/api.js POST /dashboard/api/deals/move). The card moves on the screen at
+// once (dealdrag.js); a refused save puts it back and shows the error. After a save the numbers are read again, so the stage
+// counts, Agreed tile and Home's Money owed / Deals to close follow the new stage.
+async function moveDeal(id, stage) {
+  const r = await send('POST', '/deals/move', { id, stage });
+  if (!r.ok) throw new Error(r.error || 'no answer');
+  await load();
+  return true;
+}
+let dealErrTimer = 0;
+function showDealErr(text) {
+  const el = document.getElementById('dealErr');
+  if (!el) return;
+  el.textContent = text;
+  el.hidden = false;
+  clearTimeout(dealErrTimer);
+  dealErrTimer = setTimeout(() => { el.hidden = true; }, 7000);
+}
+dealDrag(main, moveDeal, () => !S.signedOut && page() === 'money' && !S.ui.deal, showDealErr);
 // The Personal page's saved meals, prices, trips, rules and expense tags, and MoneyClaw's spending (src/personal.js).
 async function loadPersonal() {
   try {
@@ -284,7 +304,7 @@ async function load() {
   if (page() === 'money' && !S.signedOut && S.ui.lastPage === 'money') await loadIncome(); // the 60 s refresh; the first read is in render()
   rail();
   // Don't redraw under Jon's typing (a Review answer, send-back note or draft edit); the next load or click redraws.
-  if (document.activeElement?.closest?.('#main textarea, #main input') || popOpen()) return;
+  if (document.activeElement?.closest?.('#main textarea, #main input') || popOpen() || dealDragging()) return;
   render();
 }
 

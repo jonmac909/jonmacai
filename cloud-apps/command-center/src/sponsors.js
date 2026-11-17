@@ -105,7 +105,7 @@ export function withDeals(data, overrides = {}, deals = {}) {
   }))];
   return cards.map((c) => {
     let out = c;
-    if (overrides[c.id]) out = { ...out, stage: overrides[c.id], moved: !LOW_STAGES.has(overrides[c.id]) };
+    if (overrides[c.id]) out = { ...out, stage: overrides[c.id], moved: !LOW_STAGES.has(overrides[c.id]) || !!deals?.[c.id]?.held }; // held: dragged to Lead on the Money board, so it stays
     const set = Number(deals?.[c.id]?.amountSet);
     if (set > 0) out = { ...out, amountSet: set };
     const brand = deals?.[c.id]?.brand; // set_amount's optional brand fixes a mangled name in the source snapshot

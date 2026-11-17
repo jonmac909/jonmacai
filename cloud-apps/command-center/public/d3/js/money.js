@@ -26,6 +26,8 @@ export const DEAL_STAGES = [
   ['In production', ['Deposit Paid', 'Video Production', 'Video Approved', 'Video Live']],
   ['Invoiced', ['Deposit Invoice', 'Balance Invoice']], ['Paid', ['Paid & Done']],
 ];
+// The board stage a card dropped on each column is saved as (the same field dash.py deal-set --stage writes).
+export const DROP_ON = { Lead: 'new-lead', Negotiating: 'negotiating', Agreed: 'contract-brief', 'In production': 'production', Invoiced: 'invoice-sent', Paid: 'paid' };
 const TONE = { crit: 'r', risk: 'y', warn: 'y', ok: 'g' };
 
 export function dealStages(d2resp) {
@@ -33,7 +35,7 @@ export function dealStages(d2resp) {
   if (!Array.isArray(cols)) return null;
   return DEAL_STAGES.map(([name, from]) => {
     const deals = cols.filter((c) => !c.archived && from.includes(c.title)).flatMap((c) => (c.cards || []).map((k) => ({
-      id: dealKey(k.id, k.name), name: k.name || 'Sponsor', amt: num(k.amt) && k.amt > 0 ? k.amt : null, draft: !!k.draft,
+      id: dealKey(k.id, k.name), raw: k.id ? String(k.id) : '', name: k.name || 'Sponsor', amt: num(k.amt) && k.amt > 0 ? k.amt : null, draft: !!k.draft,
       note: k.draft ? 'your send' : k.pill || '', tone: k.draft ? 'y' : TONE[k.pillCls] || '',
       stage: name, column: c.title, status: k.status || '', subject: k.detail || '', threadId: k.threadId || '',
       blocker: typeof k.blocker === 'string' ? k.blocker : null, next: typeof k.next === 'string' ? k.next : null,
@@ -199,15 +201,15 @@ function dealsHtml(d2resp, ui = {}) {
     const shown = s.deals.slice(0, all ? s.deals.length : 8);
     const pick = s.deals.find((d) => d.id === ui.dealSel);
     if (pick && !shown.includes(pick)) shown.push(pick);
-    const cards = shown.map((d) => `<a class="vcard dealcard" href="${esc(dealHref(d.id))}" id="deal-${esc(d.id)}" style="gap: 4px${d.id === ui.dealSel ? '; outline: 2px solid #2563eb; outline-offset: 2px' : ''}"><span style="font-weight: 500; overflow-wrap: anywhere">${esc(d.name)}</span>${d.amt ? `<span class="krv" style="font-size: 15px">${esc(usd(d.amt))}</span>` : ''}${d.note ? `<span class="hd mut" style="gap: 6px; font-size: 12px"><span class="dot ${d.tone}" style="width: 7px; height: 7px"></span>${esc(d.note)}</span>` : ''}</a>`).join('');
+    const cards = shown.map((d) => `<a class="vcard dealcard" href="${esc(dealHref(d.id))}"${d.raw ? ` data-dealid="${esc(d.raw)}"` : ''} id="deal-${esc(d.id)}" style="gap: 4px${d.id === ui.dealSel ? '; outline: 2px solid #2563eb; outline-offset: 2px' : ''}"><span style="font-weight: 500; overflow-wrap: anywhere">${esc(d.name)}</span>${d.amt ? `<span class="krv" style="font-size: 15px">${esc(usd(d.amt))}</span>` : ''}${d.note ? `<span class="hd mut" style="gap: 6px; font-size: 12px"><span class="dot ${d.tone}" style="width: 7px; height: 7px"></span>${esc(d.note)}</span>` : ''}</a>`).join('');
     const more = s.deals.length > 8 ? `<button type="button" class="mut dealmore" data-dealmore="${esc(s.name)}">${all ? 'Show fewer' : `+${s.deals.length - shown.length} more`}</button>` : '';
-    return `<div class="stage">
-<div class="hd" style="justify-content: space-between; gap: 4px"><b class="ell" style="font-size: 13px">${esc(s.name)}</b><span class="krv">${s.deals.length}</span></div>
-${cards}${more}${s.deals.length ? '' : '<span class="mut" style="font-size: 12px">None yet</span>'}
+    return `<div class="stage" data-stage="${esc(s.name)}" data-drop="${esc(DROP_ON[s.name])}">
+<div class="hd" style="justify-content: space-between; gap: 4px"><b class="ell" style="font-size: 13px">${esc(s.name)}</b><span class="krv" data-stagecount>${s.deals.length}</span></div>
+${cards}${more}<span class="mut dealnone" style="font-size: 12px"${s.deals.length ? ' hidden' : ''}>None yet</span>
 </div>`;
   }).join('\n');
   return `<section class="card">
-<div class="hd cardhd"><span class="chip">${icon('board')}</span><h2>Sponsor deals</h2><span class="mut">by stage</span>${sends ? `<span class="pill warn sp">${sends} need${sends === 1 ? 's' : ''} your send</span>` : ''}</div>
+<div class="hd cardhd"><span class="chip">${icon('board')}</span><h2>Sponsor deals</h2><span class="mut">by stage · drag a card to move it</span><span class="pill bad sp" id="dealErr" role="alert" hidden></span>${sends ? `<span class="pill warn sp">${sends} need${sends === 1 ? 's' : ''} your send</span>` : ''}</div>
 <div class="board" style="grid-template-columns: repeat(6, minmax(0, 1fr))">
 ${cols}
 </div>

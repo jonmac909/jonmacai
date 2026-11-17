@@ -362,6 +362,8 @@ function boardDeals(d2) {
   }));
 }
 
+// The board stage each of the Money page's six columns drops a card on: Lead, Negotiating, Agreed, In production, Invoiced, Paid.
+const DROP_STAGES = new Set(['new-lead', 'negotiating', 'contract-brief', 'production', 'invoice-sent', 'paid']);
 const KNOWN_STAGES = new Set(['drafts', 'new-lead', 'negotiating', 'contract-brief', 'invoice-sent', 'deposit-paid', 'script-approval', 'production', 'video-approval', 'publishing', 'balance-invoice', 'paid', 'done', 'archived']);
 function asBoardStage(stage) {
   const s = String(stage || '');
@@ -623,6 +625,26 @@ export async function handleApi(request, env, ctx) {
   if (rest === '/youtube/connect' && method === 'GET') return youtubeConnect(request, env);
 
   if (rest === '/actions' && method === 'POST') return postAction(request, env);
+  // Drag a deal card to another stage on the Money page (Jon, 2026-11-17). The same sponsor.move_stage handler dash.py deal-set --stage
+  // reaches; the id must be a card on the board now and the stage one of the six the board's columns drop on.
+  if (rest === '/deals/move' && method === 'POST') {
+    const b = await request.json().catch(() => null);
+    const id = b && typeof b === 'object' ? String(b.id ?? '') : '';
+    const stage = b && typeof b === 'object' ? String(b.stage ?? '') : '';
+    if (!id || id.length > 200) return json({ ok: false, error: 'give the deal id' }, 400);
+    if (!DROP_STAGES.has(stage)) return json({ ok: false, error: `stage must be one of: ${[...DROP_STAGES].join(', ')}` }, 400);
+    if (!env.DB) return json({ ok: false, error: 'No database' }, 503);
+    if (!boardDeals((await d2Build(env, Date.now())).d2).some((d) => d.id === id && d.stage !== 'Archived')) return json({ ok: false, error: 'No deal with that id on the Sponsors board' }, 404);
+    // A card dropped on Lead is hand-placed: flag it so the board's Lead rule (a bare lead with no draft or sheet row is junk) keeps it.
+    if (stage === 'new-lead') {
+      const now = new Date().toISOString();
+      const deals = await getSponsorDeals(env.DB);
+      deals[id] = { ...(deals[id] || {}), id, held: true, updatedAt: now };
+      await putSponsorDeals(env.DB, deals, now);
+    }
+    const res = await postAction(request, env, { kind: 'sponsor.move_stage', payload: { id, stage }, idemKey: `move:${crypto.randomUUID()}` });
+    return res.status === 200 ? json({ ok: true, id, stage }) : json({ ok: false, error: 'The move was refused' }, res.status);
+  }
   const one = rest.match(/^\/actions\/([^/]+)$/);
   if (one && method === 'GET') {
     if (!env.DB) return json({ id: one[1], status: 'done', result: 'Done' });
