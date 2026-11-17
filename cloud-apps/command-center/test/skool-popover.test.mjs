@@ -5,6 +5,7 @@ import { readFileSync, existsSync } from 'node:fs';
 import worker from '../src/worker.js';
 import { signSession, COOKIE } from '../src/auth.js';
 import { sqliteD1 } from './sqlited1.mjs';
+import './dnsstub.mjs';
 
 const SECRET = 'test-session-secret-32-bytes-ok!';
 const JPEG = readFileSync(new URL('../public/skool/about-desktop.jpg', import.meta.url));

@@ -5,6 +5,7 @@ import worker from '../src/worker.js';
 import { trackerData } from '../src/skool.js';
 import { signSession, COOKIE } from '../src/auth.js';
 import { sqliteD1 } from './sqlited1.mjs';
+import './dnsstub.mjs';
 
 const SECRET = 'test-session-secret-32-bytes-ok!';
 const TOKEN = 'zap-token-for-tests';
@@ -94,7 +95,7 @@ test('a captured email beats the answer and the estimate; page columns and count
   assert.deepEqual([by.gated.sales, by.gated.estimated, by.gated.emails, by.gated.capture], [1, 0, 1, true]);
   assert.deepEqual([by.other.sales, by.other.estimated, by.other.emails, by.other.capture], [0, 1, 0, false]);
   const html = await (await go(e, '/track', { jon: true })).text();
-  assert.match(html, /<th class="n">Emails<\/th>/);
+  assert.match(html, /<th class="n">Leads<\/th>/);
   assert.match(html, /email match \(exact\)/);
   assert.doesNotMatch(html, /buyer@example\.com/); // captured emails never appear on the page
 });
