@@ -24,7 +24,7 @@ const forward = (to) => new Response(null, { status: 302, headers: { Location: t
 export async function skoolRedirect(request, env, ctx) {
   const url = new URL(request.url);
   const slug = url.pathname.slice('/s/'.length).toLowerCase();
-  if (BG[slug]) return backdrop(request, env, slug); // the pop-over's screenshot backdrop (a slug has no dot, so no clash)
+  if (BG.has(slug)) return backdrop(request, env, slug); // the pop-over's screenshot backdrop (a slug has no dot, so no clash)
   const to = new URL(SKOOL);
   if (!SLUG_RE.test(slug) || !['GET', 'HEAD', 'POST'].includes(request.method)) return forward(to);
   to.searchParams.set('utm_source', 'youtube');
@@ -66,9 +66,9 @@ export async function skoolRedirect(request, env, ctx) {
 // The email step looks like the Skool about page with the email box as a pop-over. www.skool.com sends
 // X-Frame-Options: SAMEORIGIN (checked 2026-11-16), so it cannot be framed: the backdrop is a screenshot of
 // skool.com/ai-ugc/about (public/skool/about-*.jpg, refreshed by hand with web_look.py --shot), blurred and dimmed.
-const BG = { 'about-desktop.jpg': 1, 'about-mobile.jpg': 1 };
+const BG = new Set(['about-desktop.jpg', 'about-mobile.jpg']);
 async function backdrop(request, env, name) {
-  if (!env.ASSETS || request.method === 'POST' || !BG[name]) return new Response('Not found', { status: 404 });
+  if (!env.ASSETS || request.method === 'POST' || !BG.has(name)) return new Response('Not found', { status: 404 });
   const u = new URL(request.url);
   u.pathname = `/skool/${name}`; u.search = '';
   const r = await env.ASSETS.fetch(new Request(u, { method: 'GET' }));
@@ -83,8 +83,8 @@ html,body{height:100%;margin:0}body{font-family:system-ui,-apple-system,"Segoe U
 .bg{position:fixed;inset:-12px;background:#f5f5f5 url(/s/about-desktop.jpg) center top/cover no-repeat;filter:blur(5px)}
 @media (max-width:640px){.bg{background-image:url(/s/about-mobile.jpg)}}
 .dim{position:fixed;inset:0;background:rgba(0,0,0,.45)}
-.wrap{position:fixed;inset:0;display:grid;place-items:center;padding:1rem}
-.box{box-sizing:border-box;width:min(26rem,100%);background:#fff;border-radius:12px;padding:1.75rem 1.5rem 1.25rem;box-shadow:0 12px 48px rgba(0,0,0,.35)}
+.wrap{position:fixed;inset:0;display:flex;overflow:auto;padding:1rem;box-sizing:border-box}
+.box{margin:auto;box-sizing:border-box;width:min(26rem,100%);background:#fff;border-radius:12px;padding:1.75rem 1.5rem 1.25rem;box-shadow:0 12px 48px rgba(0,0,0,.35)}
 h1{font-size:1.3rem;margin:0 0 1rem;line-height:1.3}form{display:grid;gap:.75rem}
 input{font:inherit;padding:.75rem .9rem;border-radius:8px;border:1px solid #c9c9c9;background:#fff;color:#1f1f1f}
 input:focus{outline:2px solid #f8d481;outline-offset:1px;border-color:#b58a1c}

@@ -85,3 +85,15 @@ test('backdrop image route: serves only the two screenshots, GET only, no click,
   assert.deepEqual(assetCalls, []);
   assert.equal((await go({ DB: e.DB, SESSION_SECRET: SECRET }, '/s/about-desktop.jpg')).status, 404); // no asset binding: 404, no crash
 });
+
+test('slug "constructor" is an ordinary link, not the image route; the box scrolls on short screens', async () => {
+  const e = env();
+  assert.equal((await go(e, '/s/constructor')).status, 302); // unknown slug forwards, as before
+  await go(e, '/track/api/links', { method: 'POST', jon: true, body: { slug: 'constructor', title: 'C' } });
+  await go(e, '/track/api/capture', { method: 'POST', jon: true, body: { slug: 'constructor', capture: true } });
+  const g = await go(e, '/s/constructor');
+  assert.equal(g.status, 200);
+  const html = await g.text();
+  assert.match(html, /\.wrap\{[^}]*overflow:auto/);
+  assert.match(html, /\.box\{margin:auto/);
+});
