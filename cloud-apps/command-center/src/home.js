@@ -35,6 +35,13 @@ const goalOut = (r) => {
   };
 };
 
+// The saved sidebar order: a list of page ids (lower-case words), or null when none is saved or the row is damaged.
+const NAV_ID = /^[a-z][a-z0-9-]{0,23}$/;
+export const navClean = (v) => (Array.isArray(v) ? [...new Set(v.filter((x) => typeof x === 'string' && NAV_ID.test(x)))].slice(0, 40) : null);
+function navOf(raw) {
+  try { const l = navClean(JSON.parse(raw)); return l && l.length ? l : null; } catch { return null; }
+}
+
 // A timed Google event as { title, start, end } (ISO); all-day events carry a bare date and are left out.
 const timed = (e) => typeof e?.start === 'string' && e.start.includes('T') && Number.isFinite(Date.parse(e.start));
 
@@ -43,7 +50,7 @@ export async function homeData(env, nowMs = Date.now()) {
   const from = shift(today, -WINDOW);
   const to = shift(today, WINDOW);
   const all = async (sql, ...args) => (await env.DB.prepare(sql).bind(...args).all()).results || [];
-  const [tasks, days, habits, cal, goals, logs] = await Promise.all([
+  const [tasks, days, habits, cal, goals, logs, meetDone, navRow] = await Promise.all([
     all('SELECT * FROM home_tasks WHERE deleted = 0 ORDER BY start_min, id'),
     all('SELECT * FROM home_task_days WHERE (day >= ? AND day <= ?) OR (move_day >= ? AND move_day <= ?) OR (done_on >= ? AND done_on <= ?)', from, to, from, to, from, to),
     all("SELECT day, kind, done FROM habits WHERE kind IN ('workout', 'date_night') AND day >= ? AND day <= ?", from, to),
@@ -51,6 +58,9 @@ export async function homeData(env, nowMs = Date.now()) {
     all('SELECT * FROM home_goals WHERE deleted = 0 ORDER BY created_at, id'),
     // the last 40 days cover this week and this month; "do once" and checklist marks never reset
     all("SELECT l.goal_id, l.day, l.step, l.value FROM home_goal_logs l JOIN home_goals g ON g.id = l.goal_id WHERE g.deleted = 0 AND (l.day >= ? OR l.day = '0000-00-00')", shift(today, -40)),
+    // meeting ticks and the saved sidebar order (migration 0032); a missing table reads as nothing ticked and the built-in order
+    all('SELECT event_id, day FROM home_meeting_ticks WHERE done = 1 AND day >= ? AND day <= ?', from, to).catch(() => []),
+    all("SELECT value FROM dash_settings WHERE key = 'nav_order'").catch(() => []),
   ]);
   const fx = await readFx(env).catch(() => null);
   let snap = null;
@@ -63,12 +73,14 @@ export async function homeData(env, nowMs = Date.now()) {
     goals: goals.map(goalOut),
     logs: logs.map((l) => ({ id: l.goal_id, day: l.day, step: l.step, value: l.value })),
     habits: habits.filter((h) => Number(h.done)).map((h) => ({ day: h.day, kind: h.kind })),
+    meetDone: meetDone.map((m) => ({ id: m.event_id, day: m.day })),
+    navOrder: navOf(navRow[0]?.value),
     calendar: {
       connected: !!snap?.connected,
       // Connecting needs the Google sign-in key on the Worker; without it the link would only answer 501.
       canConnect: !!(gClientId(env) && gClientSecret(env) && env.SESSION_SECRET),
       at: cal[0]?.received_at || null,
-      events: (snap?.events || []).filter(timed).map((e) => ({ title: String(e.title || 'Busy').slice(0, 200), start: e.start, end: e.end || e.start })),
+      events: (snap?.events || []).filter(timed).map((e) => ({ ...(typeof e.id === 'string' && e.id ? { id: e.id.slice(0, 300) } : {}), title: String(e.title || 'Busy').slice(0, 200), start: e.start, end: e.end || e.start })),
     },
   };
 }
@@ -109,6 +121,8 @@ async function putDay(db, id, day, patch, now) {
 //   PATCH  /home/tasks/:id              change it: every time, or { scope: 'once', occ } for one day (the usual time stays)
 //   DELETE /home/tasks/:id              remove it: every time, or ?scope=once&occ=YYYY-MM-DD for one day
 //   POST   /home/tasks/:id/day          { day, done, on? }: tick or untick one day's occurrence
+//   POST   /home/meetings/tick          { id, day, done }: tick or untick a calendar meeting on one day (home_meeting_ticks)
+//   POST   /home/nav-order              { order: [page ids] } saves the sidebar order; { reset: true } goes back to the built-in one
 //   POST   /home/goals                  a goal of Jon's own ("+ Add goal")
 //   DELETE /home/goals/:id              remove it
 //   POST   /home/goals/:id/log          log against it
@@ -123,6 +137,22 @@ export async function homeWrite(env, method, rest, body, query, nowMs = Date.now
     await db.prepare('INSERT INTO home_tasks (id, title, cat, start_min, end_min, rep, days, day, from_day, miss, retry_min, rem, text_me, note, kind, deleted, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)')
       .bind(id, f.title, f.cat, f.start, f.end, f.rep, f.days.join(''), f.day, f.rep === 'none' ? f.day : today, f.miss, f.retry, f.rem, f.text ? 1 : 0, f.note, '', now, now).run();
     return good({ task: taskOut(await getTask(db, id)) });
+  }
+  if (rest === '/meetings/tick' && method === 'POST') {
+    const id = body.id;
+    if (typeof id !== 'string' || !id || id.length > 400 || !isYmd(body.day) || typeof body.done !== 'boolean') return bad('Needs the meeting, the day and done');
+    await db.prepare('INSERT OR REPLACE INTO home_meeting_ticks (event_id, day, done, updated_at) VALUES (?, ?, ?, ?)').bind(id, body.day, body.done ? 1 : 0, now).run();
+    return good();
+  }
+  if (rest === '/nav-order' && method === 'POST') {
+    if (body.reset === true) {
+      await db.prepare("DELETE FROM dash_settings WHERE key = 'nav_order'").run();
+      return good({ order: null });
+    }
+    const order = navClean(body.order);
+    if (!order || !order.length || order.length !== body.order.length) return bad('Needs the list of page ids, each once');
+    await db.prepare("INSERT OR REPLACE INTO dash_settings (key, value, updated_at) VALUES ('nav_order', ?, ?)").bind(JSON.stringify(order), now).run();
+    return good({ order });
   }
   if (rest === '/goals' && method === 'POST') {
     const name = String(body.name ?? '').trim();

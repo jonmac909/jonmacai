@@ -194,7 +194,7 @@ test('Schedule: the week, meetings from the feed or from Google Calendar, the em
   assert.match(list, /<button type="button" class="hmwhat hmlink" data-hmit="r-dinner\|2026-11-08\|2026-11-08\|">Dinner<\/button>/);
   assert.match(list, /class="hmedb" data-hmit="r-dinner\|2026-11-08\|2026-11-08\|" aria-label="Edit Dinner"/);
   assert.match(list, /Workout · from Fri<\/button><span class="hmtag late">Late<\/span>/);
-  assert.match(list, /<span class="hmnb" aria-hidden="true"><\/span><span class="hmtm">3:00–3:30<\/span>.*Call with Poppy<\/span><span class="hmtag">Meeting<\/span><\/div>/);
+  assert.match(list, /<input type="checkbox" data-hmmeet="m\|2026-11-08\|\d+" aria-label="Call with Poppy: not done"><span class="hmtm">3:00–3:30<\/span>.*Call with Poppy<\/span><span class="hmtag">Meeting<\/span><\/div>/); // a meeting has the same tick box, left of the time, and no pencil
   assert.equal(ui.hmItems['r-dinner|2026-11-08|2026-11-08|'].w, 'Dinner');
   assert.match(list, /until Google Calendar is connected/);
   assert.match(renderHome(SAMPLE(), d3Sample(), {}, NOW, { ...home, calendar: { connected: false, canConnect: true, events: [] } }), /<a href="\/dashboard\/api\/google\/start">connect Google Calendar<\/a>/);
