@@ -14,8 +14,8 @@ export async function pendingData(db) {
   try {
     const [cards, questions] = await Promise.all([
       // Cancelled cards are not pending. Newest update first, so a cap drops the oldest.
-      db.prepare("SELECT id, title, owner, status, note, due, updated_at, done_at FROM bot_tasks WHERE status != 'cancelled' AND title LIKE '%Jon_s ask%' ORDER BY updated_at DESC LIMIT 501").all(),
-      db.prepare("SELECT task_id, asked_by, question FROM bot_questions WHERE status = 'open' AND task_id IS NOT NULL").all(),
+      db.prepare("SELECT id, title, owner, status, note, due, updated_at, done_at FROM bot_tasks WHERE status NOT IN ('cancelled', 'deleted') AND title LIKE '%Jon_s ask%' ORDER BY updated_at DESC LIMIT 501").all(),
+      db.prepare("SELECT task_id, asked_by, question FROM bot_questions WHERE status = 'open' AND task_id IS NOT NULL AND task_id NOT IN (SELECT id FROM bot_tasks WHERE status = 'deleted')").all(),
     ]);
     return { cards: cards.results || [], questions: questions.results || [] };
   } catch (err) {

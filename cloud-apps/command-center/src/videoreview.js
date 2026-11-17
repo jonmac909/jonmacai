@@ -37,7 +37,7 @@ export const reviewSlug = (link) => REVIEW_LINK.exec(String(link || ''))?.[1].to
 // A Coding card that cites the page as a test of the tool isn't the video's card, so it never takes its notes or Approve.
 export async function linkedTask(db, slug) {
   const { results } = await db.prepare(`SELECT t.*, p.link AS review_link FROM bot_proofs p JOIN bot_tasks t ON t.id = p.task_id
-    WHERE (p.link LIKE ? OR p.link LIKE ? OR p.link LIKE ? OR p.link LIKE ?) AND t.status != 'cancelled' AND t.project IS NOT 'coding'
+    WHERE (p.link LIKE ? OR p.link LIKE ? OR p.link LIKE ? OR p.link LIKE ?) AND t.status NOT IN ('cancelled', 'deleted') AND t.project IS NOT 'coding'
     ORDER BY t.status = 'review' DESC, p.created_at DESC LIMIT 20`).bind(...['', '/%', '?%', '#%'].map((end) => `%/review/${slug}${end}`)).all();
   return (results || []).find((r) => reviewSlug(r.review_link) === slug) || null;
 }
