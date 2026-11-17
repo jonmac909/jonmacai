@@ -75,6 +75,10 @@
     { "pattern": "jonmac.ai/scripts/*", "zone_name": "jonmac.ai" },
     // Tracked video links (src/track.js).
     { "pattern": "jonmac.ai/v/*", "zone_name": "jonmac.ai" },
+    // Skool short links and tracker (src/skool.js). Secret SKOOL_ZAP_TOKEN = D:\AgentTeam\secrets\skool-zap.token.
+    { "pattern": "jonmac.ai/s/*", "zone_name": "jonmac.ai" },
+    { "pattern": "jonmac.ai/track", "zone_name": "jonmac.ai" },
+    { "pattern": "jonmac.ai/track/*", "zone_name": "jonmac.ai" },
     // Live GPU Monitor (src/monitor.js).
     { "pattern": "jonmac.ai/monitor", "zone_name": "jonmac.ai" },
     { "pattern": "jonmac.ai/monitor/*", "zone_name": "jonmac.ai" }

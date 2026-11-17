@@ -5,6 +5,7 @@ import { handleCall } from './call.js';
 import { reviewProxy } from './videoreview.js';
 import { reviewHook } from './reviewhook.js';
 import { trackRedirect } from './track.js';
+import { skoolRedirect, handleTracker } from './skool.js';
 import { FILE_PREFIX, serveProofFile, uploadProofFile } from './prooffiles.js';
 import { MONITOR, handleMonitor } from './monitor.js';
 
@@ -67,6 +68,9 @@ export default {
     // Only the separate preview Worker (wrangler --env preview, its own D1) answers on workers.dev.
     if (url.hostname.endsWith('.workers.dev') && env.PREVIEW !== '1') return new Response('Not found', { status: 404 });
     if (url.pathname.startsWith('/v/')) return trackRedirect(request, env, ctx);
+    // Skool short links and the /track page (src/skool.js).
+    if (url.pathname.startsWith('/s/')) return skoolRedirect(request, env, ctx);
+    if (url.pathname === '/track' || url.pathname.startsWith('/track/')) return handleTracker(request, env);
     // Dashboard 2 (docs/dashboard-2.md): its own pages under public/d2; data comes from /dashboard/api/d2.
     if (url.pathname === D2) {
       url.pathname = `${D2}/`;
