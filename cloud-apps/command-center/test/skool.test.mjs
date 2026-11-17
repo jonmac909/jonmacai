@@ -42,7 +42,8 @@ test('sale intake needs the token', async () => {
   assert.equal((await go(e, '/track/api/sale', { method: 'POST', body: { email: 'a@b.co' } })).status, 401);
   assert.equal((await go(e, '/track/api/sale?token=wrong', { method: 'POST', body: { email: 'a@b.co' } })).status, 401);
   assert.equal((await go({ ...e, SKOOL_ZAP_TOKEN: undefined }, '/track/api/sale?token=', { method: 'POST', body: { email: 'a@b.co' } })).status, 401);
-  assert.equal((await go(e, `/track/api/sale?token=${TOKEN}`, { method: 'POST', body: { email: 'a@b.co', transaction_id: 't1' } })).status, 200);
+  assert.equal((await go(e, `/track/api/sale?token=${TOKEN}`, { method: 'POST', body: { email: 'a@b.co', transaction_id: 't1' } })).status, 401); // URL tokens refused
+  assert.equal((await go(e, '/track/api/sale', { method: 'POST', headers: { 'X-Track-Token': TOKEN }, body: { email: 'a@b.co', transaction_id: 't1' } })).status, 200);
   assert.equal((await go(e, '/track/api/sale', { method: 'POST', headers: { 'X-Track-Token': TOKEN }, body: { email: 'a@b.co', transaction_id: 't1' } })).status, 200);
   assert.equal((await e.DB.prepare('SELECT COUNT(*) AS n FROM skool_sales').first()).n, 1); // same transaction once
 });
@@ -52,10 +53,10 @@ test('a sale goes to the video the answer names, else to the last click as an es
   await addLink(e, 'astra', 'GPT-6 Astra + Seedance 2.5', 'https://youtu.be/lmajeGL-1B8');
   await addLink(e, 'tiktok-shop', 'How to Find Winning TikTok Shop Products');
   await go(e, '/s/tiktok-shop');
-  const tok = `/track/api/answer?token=${TOKEN}`;
-  await go(e, tok, { method: 'POST', body: { email: 'X@Y.co', answer: 'the gpt-6 astra + seedance 2.5 one' } });
-  await go(e, `/track/api/sale?token=${TOKEN}`, { method: 'POST', body: { email: 'x@y.co', first_name: 'Ann', transaction_id: 's1' } });
-  await go(e, `/track/api/sale?token=${TOKEN}`, { method: 'POST', body: { email: 'z@y.co', transaction_id: 's2' } });
+  const H = { 'X-Track-Token': TOKEN };
+  await go(e, '/track/api/answer', { method: 'POST', headers: H, body: { email: 'X@Y.co', answer: 'the gpt-6 astra + seedance 2.5 one' } });
+  await go(e, '/track/api/sale', { method: 'POST', headers: H, body: { email: 'x@y.co', first_name: 'Ann', transaction_id: 's1' } });
+  await go(e, '/track/api/sale', { method: 'POST', headers: H, body: { email: 'z@y.co', transaction_id: 's2' } });
   const d = await trackerData(e.DB);
   const by = Object.fromEntries(d.rows.map((r) => [r.slug, r]));
   assert.equal(by.astra.sales, 1);
@@ -70,6 +71,7 @@ test('answers match by slug, YouTube ID or title', () => {
   assert.equal(matchAnswer('https://www.youtube.com/watch?v=lmajeGL-1B8', links), 'astra');
   assert.equal(matchAnswer('GPT 6 Astra Seedance 2.5', links), 'astra');
   assert.equal(matchAnswer('a friend told me', links), null);
+  assert.equal(matchAnswer('your ai ugc video', [{ slug: 'ai', title: 'Something else entirely' }]), null); // short slugs never match as a word
 });
 
 test('/track needs a session; adding a link needs the session and X-CC', async () => {

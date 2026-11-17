@@ -50,7 +50,7 @@ function when(s, nowMs) {
 // POST /track/api/sale and /track/api/answer from Zapier. Token in the X-Track-Token header or ?token=.
 async function zapIntake(request, env, kind, nowMs) {
   const url = new URL(request.url);
-  const given = request.headers.get('X-Track-Token') || url.searchParams.get('token') || '';
+  const given = request.headers.get('X-Track-Token') || ''; // header only: a token in the URL ends up in logs
   if (!env.SKOOL_ZAP_TOKEN || !given || !timingSafeEqualString(given, env.SKOOL_ZAP_TOKEN)) return json({ error: 'Bad token' }, 401);
   const b = await body(request);
   const email = field(b, 'email', 'subscription_email', 'Email').toLowerCase().slice(0, 200);
@@ -78,7 +78,7 @@ export function matchAnswer(answer, links) {
   const raw = String(answer).toLowerCase();
   for (const l of links) {
     const id = YT_RE.exec(l.youtube_url || '')?.[4];
-    if (raw.includes(`/s/${l.slug}`) || (id && String(answer).includes(id)) || ` ${a} `.includes(` ${norm(l.slug)} `)) return l.slug;
+    if (raw.includes(`/s/${l.slug}`) || (id && String(answer).includes(id)) || (l.slug.length >= 6 && ` ${a} `.includes(` ${norm(l.slug)} `))) return l.slug; // short slugs like "ai" match too much
   }
   for (const l of links) {
     const t = norm(l.title);
@@ -98,17 +98,20 @@ export async function trackerData(db, nowMs = Date.now()) {
   const L = links.results || [];
   const C = new Map((clicks.results || []).map((c) => [c.slug, c]));
   const A = new Map((answers.results || []).map((x) => [x.email, x.answer]));
-  const list = [];
-  for (const s of sales.results || []) {
+  // The clicks any estimate could use, read once (newest first): from 24 h before the oldest sale to the newest sale.
+  const S = sales.results || [];
+  const win = S.length ? (await db.prepare('SELECT slug, at FROM skool_clicks WHERE at >= ? AND at <= ? ORDER BY at DESC LIMIT 50000')
+    .bind(iso(Date.parse(S[S.length - 1].at) - ESTIMATE_HOURS * 3600e3), S[0].at).all()).results || [] : [];
+  const list = S.map((s) => {
     const answer = s.email ? A.get(s.email) ?? null : null;
     let slug = answer ? matchAnswer(answer, L) : null, how = slug ? 'answer' : 'none';
     if (!slug) {
       const from = iso(Date.parse(s.at) - ESTIMATE_HOURS * 3600e3);
-      const last = await db.prepare('SELECT slug FROM skool_clicks WHERE at <= ? AND at >= ? ORDER BY at DESC LIMIT 1').bind(s.at, from).first();
+      const last = win.find((c) => c.at <= s.at && c.at >= from);
       if (last) { slug = last.slug; how = 'estimate'; }
     }
-    list.push({ at: s.at, name: s.name, slug, how, answer });
-  }
+    return { at: s.at, name: s.name, slug, how, answer };
+  });
   const rows = L.map((l) => {
     const c = C.get(l.slug) || {};
     const mine = list.filter((x) => x.slug === l.slug);
