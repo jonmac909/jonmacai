@@ -4,6 +4,7 @@ import worker from '../src/worker.js';
 import { matchAnswer, trackerData } from '../src/skool.js';
 import { signSession, COOKIE } from '../src/auth.js';
 import { sqliteD1 } from './sqlited1.mjs';
+import './dnsstub.mjs';
 
 const SECRET = 'test-session-secret-32-bytes-ok!';
 const TOKEN = 'zap-token-for-tests';

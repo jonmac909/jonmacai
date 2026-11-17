@@ -5,12 +5,12 @@
 // optional email step, off by default, switched per link on /track), else the member's answer names a video, else
 // an estimate: the last click in the 24 hours before it.
 import { readSession, timingSafeEqualString } from './auth.js';
+import { checkEmail } from './skoolcheck.js';
 
 export const SKOOL = 'https://www.skool.com/ai-ugc';
 export const ESTIMATE_HOURS = 24;
 const SLUG_RE = /^[a-z0-9][a-z0-9-]{0,38}[a-z0-9]$/;
 const YT_RE = /^https:\/\/(www\.|m\.)?(youtube\.com\/(watch\?v=|shorts\/|live\/)|youtu\.be\/)([\w-]{11})/i;
-const EMAIL_RE = /^[^\s@<>"']{1,64}@[^\s@<>"']{1,190}\.[^\s@<>"']{2,24}$/;
 const MAX_LEADS_PER_10_MIN = 60; // per link: stops a script from filling the table
 const NO_STORE = { 'Cache-Control': 'no-store', 'X-Robots-Tag': 'noindex, nofollow' };
 const json = (data, status = 200) => new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json', ...NO_STORE } });
@@ -40,15 +40,23 @@ export async function skoolRedirect(request, env, ctx) {
   const capture = link.capture === 1;
   if (request.method === 'POST') {
     if (!capture) return forward(to);
-    const email = field(await body(request), 'email').toLowerCase();
-    if (email.length > 254 || !EMAIL_RE.test(email)) return capturePage(slug, 'Please enter a valid email address.', 400);
+    const b = await body(request);
+    const pick = field(b, 'pick'); // 'fix' = take the "Did you mean" address, 'keep' = keep what was typed
+    const typed = field(b, 'email').toLowerCase();
+    const email = pick === 'fix' && field(b, 'suggest') ? field(b, 'suggest').toLowerCase() : typed;
+    const res = await checkEmail(email, { keepTypo: pick === 'keep' });
+    if (!res.ok) {
+      return capturePage(slug, res.message, 400, res.reason === 'typo' ? { typed: email, suggestion: res.suggestion } : { typed: res.reason === 'syntax' ? typed.slice(0, 254) : email });
+    }
     // Never log the email: a failure prints the slug only.
     try {
       const now = Date.now();
       const recent = await env.DB.prepare('SELECT COUNT(*) AS n FROM skool_leads WHERE slug = ? AND at >= ?').bind(slug, iso(now - 600e3)).first();
       if ((recent?.n || 0) < MAX_LEADS_PER_10_MIN) {
-        await env.DB.prepare('INSERT INTO skool_leads (slug, email, at) VALUES (?, ?, ?) ON CONFLICT(slug, email) DO NOTHING') // keep the first capture time: a later visit must not move it past an earlier sale
-          .bind(slug, email, iso(now)).run();
+        // at = the first capture time (a later visit must not move it past an earlier sale); last_at and the check follow the newest visit.
+        await env.DB.prepare(`INSERT INTO skool_leads (slug, email, at, email_check, last_at) VALUES (?, ?, ?, ?, ?)
+          ON CONFLICT(slug, email) DO UPDATE SET last_at = excluded.last_at, email_check = excluded.email_check`)
+          .bind(slug, res.email, iso(now), res.check, iso(now)).run();
       }
     } catch { console.error('skool lead save failed', slug); }
     return forward(to);
@@ -76,7 +84,7 @@ async function backdrop(request, env, name) {
   return new Response(r.body, { status: 200, headers: { 'Content-Type': 'image/jpeg', 'Cache-Control': 'public, max-age=3600', 'X-Robots-Tag': 'noindex, nofollow' } });
 }
 
-function capturePage(slug, error, status) {
+function capturePage(slug, error, status, { typed = '', suggestion = '' } = {}) {
   const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="robots" content="noindex,nofollow"><meta name="referrer" content="no-referrer"><title>AI Video Lab on Skool</title><style>
 html,body{height:100%;margin:0}body{font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:#1f1f1f;background:#f5f5f5;overflow:hidden}
@@ -89,12 +97,12 @@ h1{font-size:1.3rem;margin:0 0 1rem;line-height:1.3}form{display:grid;gap:.75rem
 input{font:inherit;padding:.75rem .9rem;border-radius:8px;border:1px solid #c9c9c9;background:#fff;color:#1f1f1f}
 input:focus{outline:2px solid #f8d481;outline-offset:1px;border-color:#b58a1c}
 button{font:inherit;font-weight:700;cursor:pointer;border:0;border-radius:8px;padding:.8rem 1rem;background:#f8d481;color:#202124}
-button:hover{background:#f5c961}.err{color:#b3261e;margin:0 0 .75rem}.note{color:#6b6b6b;font-size:.85rem;margin:1rem 0 0}</style></head><body>
+button:hover{background:#f5c961}button.alt{background:#eee;font-weight:500}button.alt:hover{background:#e3e3e3}.err{color:#b3261e;margin:0 0 .75rem}.note{color:#6b6b6b;font-size:.85rem;margin:1rem 0 0}</style></head><body>
 <div class="bg" aria-hidden="true"></div><div class="dim" aria-hidden="true"></div>
 <div class="wrap"><main class="box" role="dialog" aria-modal="true" aria-labelledby="t">
 <h1 id="t">Enter your email to get access</h1>${error ? `<p class="err" role="alert">${esc(error)}</p>` : ''}
-<form method="post" action="/s/${esc(slug)}"><input type="email" name="email" placeholder="you@example.com" autocomplete="email" aria-label="Email" required autofocus maxlength="254">
-<button type="submit">Continue</button></form></main></div></body></html>`;
+<form method="post" action="/s/${esc(slug)}"><input type="email" name="email" placeholder="you@example.com" autocomplete="email" aria-label="Email" required autofocus maxlength="254" value="${esc(typed)}">
+${suggestion ? `<input type="hidden" name="suggest" value="${esc(suggestion)}"><button type="submit" name="pick" value="fix">Yes, use ${esc(suggestion)}</button><button type="submit" name="pick" value="keep" class="alt">No, keep what I typed</button>` : '<button type="submit">Continue</button>'}</form></main></div></body></html>`;
   return new Response(html, { status, headers: { 'Content-Type': 'text/html; charset=utf-8', ...NO_STORE } });
 }
 
