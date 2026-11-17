@@ -97,6 +97,18 @@ h3{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.04
       tile('RAM', gb(h.ram_used) + ' GB', 'of ' + gb(h.ram_total) + ' GB', h.ram_pct, 85, 95),
     );
     body.append(tiles);
+    const tasks = s.tasks || {};
+    for (const [title, rows, gpu] of [['GPU tasks', tasks.gpu, true], ['CPU tasks', tasks.cpu, false]]) {
+      const d = $('div');
+      if (!rows || !rows.length) d.append($('div', 'row', 'None running'));
+      for (const t of rows || []) {
+        const r = $('div', 'row');
+        const bits = [gpu && n(t.vram) ? gb(t.vram) + ' GB GPU' : '', n(t.cpu) ? t.cpu + '% CPU' : '', t.started_text ? 'since ' + t.started_text + (t.running_text ? ' (' + t.running_text + ')' : '') : ''].filter(Boolean);
+        r.append($('span', null, t.name), $('span', null, bits.join(' · ')));
+        d.append(r);
+      }
+      body.append($('h3', null, title), d);
+    }
     const jobs = [s.jobs, s.queued, s.loaded ? 'Loaded: ' + s.loaded : ''].map((x) => (x || '').trim()).filter(Boolean);
     body.append($('h3', null, 'Jobs'), $('div', 'lines', jobs.length ? jobs.join('\n') : 'Idle'));
     if (s.services && s.services.length) {
