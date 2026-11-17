@@ -119,7 +119,10 @@ export async function d3Data(env, nowMs) {
     q("SELECT data, created_at FROM bot_feed_entries WHERE name = 'video_line' ORDER BY created_at DESC LIMIT 1"),
     q('SELECT id, label, note, sort, visible FROM factory_channels ORDER BY sort, id'),
   ]);
+  // Review items Jon discarded that no card, question or approval status hides on its own (sponsor drafts); null when the table isn't there yet.
+  const discards = await q("SELECT item FROM review_discards WHERE status = 'discarded' AND kind = 'd' LIMIT 2000");
   return {
+    discards,
     youtube, review, approvals, questions, usage, lastUsage: lastUsage && (lastUsage[0] || undefined), open, proofs, habits, calendar: calendar && parse(calendar[0]?.data), charges,
     tasks, finished, stuck, failsToday, runs, runBots, later, scripts, scoreProofs, staged, apCards, apEvents, ytLive, today0, nowMs,
     live: live && (live[0] ? { d: parse(live[0].data), at: live[0].created_at } : undefined),
@@ -803,6 +806,7 @@ export function buildD3(D) {
     },
     review: reviewOf(D),
     queue: queueOf(D),
+    discarded: D.discards ? D.discards.map((r) => r.item) : [],
     team: teamOf(D, P.today),
     blockers,
     today: todayOf(D, P.today, blockers),

@@ -180,3 +180,9 @@ Built to match the handover mockup (home-mockup.html). Before this, Home was rea
 - `/dash/cards` (and `/dash/cards/`) is the plain address: 302 to `/dash/` when signed out, 302 to `/dash/#cards` when signed in.
 - MacFrames: its work is tracked as ordinary dashboard cards, so nothing else is read. The local MacFrames studio projects (`packages/studio/data/projects`) are not pushed to the dashboard.
 - Tests: `test/cards.test.mjs`.
+
+## Review: Discard (Jon, 2026-11-17)
+- A red-outline **Discard** button sits after Send back (or after the last button) on every Review item: cards, dev cards, videos (beside the link to their review page), approvals, questions and sponsor email drafts. It asks "Discard this? It leaves the review list. Files are kept.", then `POST /dashboard/api/v1/review/discard {item}` (Jon's session and `X-CC` only; signed out is 401, a bot token 403). A toast with **Undo** stays for 10 seconds (`POST /dashboard/api/v1/review/undo {item}`).
+- Nothing is deleted. A card in Review goes to `cancelled` (updated by jon, so bots cannot reopen it and the dispatcher, which restarts only `doing` cards, leaves it) with the note "Discarded by Jon on Review" above its old note; its open questions and pending approvals close with it, as with Close card. A question is closed, an approval cancelled; a question or approval on a card leaves the card alone. A sponsor email draft is only hidden (`d3.discarded`).
+- Table `review_discards` (migration 0034, additive): one row per discarded item, status `discarded` or `restored`, plus what Undo needs (old note, old `updated_at`, the asks that closed). Undo puts the card back in Review as it was; it refuses if something else changed the card since.
+- Not changed: the separate jonmac.ai/review video pages (their own Worker and database).
