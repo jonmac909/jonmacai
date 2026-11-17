@@ -872,6 +872,100 @@ async function needsAct(db, env, ctx, id, verb, now) {
   return res;
 }
 
+// ---- Review "Discard" (Jon, 2026-11-17): an item leaves the Review list, nothing is deleted ----
+// Jon only. A card in Review goes to cancelled (updated_by jon, so no bot can reopen it and the dispatcher, which only
+// restarts cards in doing, leaves it) with the note "Discarded by Jon on Review"; its open questions and pending approvals
+// close with it, as with Close card. A question closes, an approval is cancelled, a sponsor draft is only hidden.
+// review_discards keeps the item with status 'discarded', and what Undo needs to put it all back exactly.
+export const DISCARD_NOTE = 'Discarded by Jon on Review';
+const DISCARD_ITEM = /^(?:[tqa]:[tqa]_[0-9a-f]{16}|d:[A-Za-z0-9_.:-]{1,120})$/;
+const validItem = (item) => DISCARD_ITEM.test(item) && (item[0] === 'd' || item[2] === item[0]);
+const REVIEW_TABLE_GONE = "Discard isn't set up yet";
+
+async function reviewDiscard(db, body, now) {
+  const item = typeof body?.item === 'string' ? body.item : '';
+  if (!validItem(item)) throw new Bad(400, 'item must be a Review item id like t:t_0123456789abcdef');
+  const kind = item[0];
+  const id = item.slice(2);
+  let prior;
+  try {
+    prior = await db.prepare('SELECT status FROM review_discards WHERE item = ?').bind(item).first();
+  } catch (err) {
+    if (/no such table/i.test(String(err?.message))) throw new Bad(503, REVIEW_TABLE_GONE);
+    throw err;
+  }
+  if (prior?.status === 'discarded') return json({ ok: true, item, already: true });
+  let cardId = null;
+  const undo = {};
+  if (kind === 't') {
+    const row = await taskRow(db, id);
+    if (!row) throw new Bad(404, 'Card not found');
+    if (row.status !== 'review') throw new Bad(409, `Card is ${row.status.replace(/_/g, ' ')}; only a card in Review can be discarded`);
+    const qs = ((await db.prepare("SELECT id FROM bot_questions WHERE task_id = ? AND status = 'open'").bind(id).all()).results || []).map((r) => r.id);
+    const as = ((await db.prepare("SELECT id FROM bot_approvals WHERE task_id = ? AND status = 'pending'").bind(id).all()).results || []).map((r) => r.id);
+    const note = row.note ? `${DISCARD_NOTE}\n\n${row.note}` : DISCARD_NOTE;
+    const r = await db.prepare("UPDATE bot_tasks SET status = 'cancelled', note = ?, done_at = NULL, updated_by = 'jon', updated_at = ? WHERE id = ? AND status = 'review'")
+      .bind(note.slice(0, 4000), now, id).run();
+    if (!changed(r)) throw new Bad(409, 'This card left Review just now');
+    Object.assign(undo, { note: row.note ?? null, updatedAt: row.updated_at, questions: qs, approvals: as });
+    for (const q of qs) await db.prepare("UPDATE bot_questions SET status = 'closed', closed_by = 'jon', closed_at = ?, updated_at = ? WHERE id = ? AND status = 'open'").bind(now, now, q).run();
+    for (const a of as) await db.prepare("UPDATE bot_approvals SET status = 'cancelled', done_by = 'jon', done_at = ?, done_note = ?, updated_at = ? WHERE id = ? AND status = 'pending'").bind(now, DISCARD_NOTE, now, a).run();
+    await logEvent(db, id, now, 'jon', 'status', 'status review → cancelled (discarded by Jon on Review)');
+    cardId = id;
+  } else if (kind === 'q') {
+    const r = await db.prepare("UPDATE bot_questions SET status = 'closed', closed_by = 'jon', closed_at = ?, updated_at = ? WHERE id = ? AND status = 'open'").bind(now, now, id).run();
+    const row = await questionRow(db, id);
+    if (!row) throw new Bad(404, 'Question not found');
+    if (!changed(r)) throw new Bad(409, `Question is already ${row.status}`);
+    if (row.task_id) await logEvent(db, row.task_id, now, 'jon', 'needs', `question discarded by Jon on Review: ${String(row.question).slice(0, 120)}`);
+  } else if (kind === 'a') {
+    const r = await db.prepare("UPDATE bot_approvals SET status = 'cancelled', done_by = 'jon', done_at = ?, done_note = ?, updated_at = ? WHERE id = ? AND status = 'pending'").bind(now, DISCARD_NOTE, now, id).run();
+    const row = await approvalRow(db, id);
+    if (!row) throw new Bad(404, 'Approval not found');
+    if (!changed(r)) throw new Bad(409, `Approval is already ${row.status}`);
+    if (row.task_id) await logEvent(db, row.task_id, now, 'jon', 'needs', `approval discarded by Jon on Review: ${String(row.title).slice(0, 120)}`);
+  }
+  await db.prepare(`INSERT INTO review_discards (item, kind, status, card_id, undo, discarded_by, discarded_at, restored_at) VALUES (?, ?, 'discarded', ?, ?, 'jon', ?, NULL)
+    ON CONFLICT(item) DO UPDATE SET status = 'discarded', card_id = excluded.card_id, undo = excluded.undo, discarded_at = excluded.discarded_at, restored_at = NULL`)
+    .bind(item, kind, cardId, JSON.stringify(undo), now).run();
+  return json({ ok: true, item, card: cardId });
+}
+
+// Undo: the item comes back as it was. A card back to Review with its old note and waiting time; the questions and approvals
+// that closed with it open again. Refused if something else moved the card meanwhile.
+async function reviewUndo(db, body, now) {
+  const item = typeof body?.item === 'string' ? body.item : '';
+  if (!validItem(item)) throw new Bad(400, 'item must be a Review item id like t:t_0123456789abcdef');
+  const kind = item[0];
+  const id = item.slice(2);
+  let rec;
+  try {
+    rec = await db.prepare('SELECT * FROM review_discards WHERE item = ?').bind(item).first();
+  } catch (err) {
+    if (/no such table/i.test(String(err?.message))) throw new Bad(503, REVIEW_TABLE_GONE);
+    throw err;
+  }
+  if (!rec) throw new Bad(404, 'Not discarded');
+  if (rec.status !== 'discarded') return json({ ok: true, item, already: true });
+  const undo = (() => { try { return JSON.parse(rec.undo || '{}'); } catch { return {}; } })();
+  if (kind === 't') {
+    const r = await db.prepare("UPDATE bot_tasks SET status = 'review', note = ?, done_at = NULL, updated_by = 'jon', updated_at = ? WHERE id = ? AND status = 'cancelled' AND updated_by = 'jon'")
+      .bind(undo.note ?? null, undo.updatedAt || now, id).run();
+    if (!changed(r)) throw new Bad(409, 'This card changed since it was discarded, so it was not restored');
+    for (const q of undo.questions || []) await db.prepare("UPDATE bot_questions SET status = 'open', closed_by = NULL, closed_at = NULL, updated_at = ? WHERE id = ? AND status = 'closed' AND closed_by = 'jon' AND closed_at = ?").bind(now, q, rec.discarded_at).run();
+    for (const a of undo.approvals || []) await db.prepare("UPDATE bot_approvals SET status = 'pending', done_by = NULL, done_at = NULL, done_note = NULL, updated_at = ? WHERE id = ? AND status = 'cancelled' AND done_by = 'jon' AND done_note = ?").bind(now, a, DISCARD_NOTE).run();
+    await logEvent(db, id, now, 'jon', 'status', 'status cancelled → review (discard undone by Jon on Review)');
+  } else if (kind === 'q') {
+    const r = await db.prepare("UPDATE bot_questions SET status = 'open', closed_by = NULL, closed_at = NULL, updated_at = ? WHERE id = ? AND status = 'closed' AND closed_by = 'jon' AND closed_at = ?").bind(now, id, rec.discarded_at).run();
+    if (!changed(r)) throw new Bad(409, 'This question changed since it was discarded, so it was not restored');
+  } else if (kind === 'a') {
+    const r = await db.prepare("UPDATE bot_approvals SET status = 'pending', done_by = NULL, done_at = NULL, done_note = NULL, updated_at = ? WHERE id = ? AND status = 'cancelled' AND done_by = 'jon' AND done_note = ?").bind(now, id, DISCARD_NOTE).run();
+    if (!changed(r)) throw new Bad(409, 'This approval changed since it was discarded, so it was not restored');
+  }
+  await db.prepare("UPDATE review_discards SET status = 'restored', restored_at = ? WHERE item = ?").bind(now, item).run();
+  return json({ ok: true, item });
+}
+
 // ---- runs ----
 
 async function reportRun(db, who, body, now) {
@@ -1857,6 +1951,10 @@ async function route(request, db, who, rest, env, ctx) {
     if (method === 'POST' && rawId === 'stats' && !verb) return postLinkStats(db, who, await readBody(request), now);
     if (method === 'PUT' && rawId && !verb) return setLinkLanding(db, who, rawId, await readBody(request));
     throw new Bad(404, 'Not found');
+  }
+  if (kind === 'review' && method === 'POST' && (rawId === 'discard' || rawId === 'undo') && !verb) {
+    needJon(who);
+    return rawId === 'discard' ? reviewDiscard(db, await readBody(request), now) : reviewUndo(db, await readBody(request), now);
   }
   if (kind === 'periods' && !verb) {
     if (method === 'GET' && !rawId) return getPeriods(db, now);

@@ -10,7 +10,10 @@
 //   email     Send = POST /dashboard/api/actions {kind: the draft's sendKind}; Edit first edits the draft in place
 //             Above the draft sits the Gmail thread it replies to (GET /dashboard/api/sponsor-threads, read only, found by
 //             the card's Gmail thread id): messages oldest first, the newest two open, older ones folded, then "Your reply".
-// Undo has nothing to call yet, so it shows disabled.
+// Discard (Jon, 2026-11-17) sits after the other buttons on every item: POST /dashboard/api/v1/review/discard after a confirm.
+// The item leaves the list (its card, question or approval is closed on the server, nothing is deleted) and a toast
+// offers Undo for 10 seconds (POST .../review/undo).
+// Undo on a finished row has nothing to call yet, so it shows disabled.
 import { esc, icon, draftsOf } from './util.js';
 import { headerOnly } from './goals.js';
 
@@ -27,7 +30,8 @@ const safeHref = (h) => (/^(https?:\/\/|\/(?![/\\]))/i.test(String(h || '')) ? S
 // null when neither source could be read.
 export function reviewItems(d2resp, d3resp) {
   const live = d3resp?.d3?.queue;
-  const drafts = draftsOf(d2resp);
+  const gone = new Set(d3resp?.d3?.discarded || []);
+  const drafts = draftsOf(d2resp)?.filter((k) => !gone.has(`d:${k.id}`));
   if (!Array.isArray(live) && !drafts) return null;
   const mail = (drafts || []).map((k) => ({
     id: `d:${k.id}`, type: 'email', group: 'other', kind: 'Sponsor email', name: k.name || 'Sponsor', head: `Reply to ${k.name || 'sponsor'}`,
@@ -57,7 +61,7 @@ const reviewPage = (c) => c.type === 'video' && /\/dashboard\/review\//i.test(sa
 const OTHER = /^other\s*\(type/i; // "Other (type your own)": opens the typed box, never sent as the answer
 export const OTHER_PICK = '\u0000other'; // the pick that means "the typed box", never equal to a real option
 // Which buttons each item type takes; a click on any other is ignored.
-const ALLOWED = { card: ['approve', 'open-back', 'cancel', 'back', 'done'], approval: ['yes', 'no'], question: ['pick', 'other', 'answer'], email: ['send', 'edit'] };
+const ALLOWED = { card: ['approve', 'open-back', 'cancel', 'back', 'done', 'discard'], approval: ['yes', 'no', 'discard'], question: ['pick', 'other', 'answer', 'discard'], email: ['send', 'edit', 'discard'] };
 
 function buttons(c, ui) {
   const busy = ui.busy ? ' disabled' : '';
@@ -69,13 +73,14 @@ function buttons(c, ui) {
   const btn = (rv, label, pri, extra = '') => `<button type="button" class="btn${pri ? ' pri' : ''} lg" data-rv="${rv}" data-id="${esc(c.id)}"${extra}${busy}>${esc(label)}</button>`;
   const box = (ph, label) => `<div class="stack" style="flex: 1 1 100%; gap: 8px"><textarea class="rvtext" rows="3" maxlength="4000" placeholder="${esc(ph)}" aria-label="${esc(ph)}">${esc(ui.rvText || '')}</textarea>
 <div class="hd" style="gap: 10px; flex-wrap: wrap">${label === 'Send back' ? `${btn('back', 'Send back', true)}${btn('cancel', 'Cancel')}` : btn('answer', label, true)}</div></div>`;
+  const drop = btn('discard', 'Discard', false, ' title="Leaves the review list. Files are kept."').replace('class="btn lg"', 'class="btn lg dis"');
   if (a.type === 'card') {
-    if (reviewPage(c)) return `<a class="btn pri lg" href="${esc(safeHref(c.link))}" target="_blank" rel="noopener">Approve or send back on the review page</a>`;
+    if (reviewPage(c)) return `<a class="btn pri lg" href="${esc(safeHref(c.link))}" target="_blank" rel="noopener">Approve or send back on the review page</a>${drop}`;
     if (ui.rvBack === c.id) return box('What should change', 'Send back');
-    if (isDevCard(c)) return `${btn('done', 'Done', true)}${btn('open-back', 'Send back')}`;
-    return `${btn('approve', 'Approve', true)}${btn('open-back', 'Send back')}`;
+    if (isDevCard(c)) return `${btn('done', 'Done', true)}${btn('open-back', 'Send back')}${drop}`;
+    return `${btn('approve', 'Approve', true)}${btn('open-back', 'Send back')}${drop}`;
   }
-  if (a.type === 'approval') return `${btn('yes', 'Approve', true)}${btn('no', 'Reject')}`;
+  if (a.type === 'approval') return `${btn('yes', 'Approve', true)}${btn('no', 'Reject')}${drop}`;
   if (a.type === 'question') {
     // Pick one option (the bot's order, recommended first) or "Other (type your own)", then one Submit.
     // A question with no options shows only the box. The pick belongs to this item, so paging away drops it.
@@ -87,9 +92,9 @@ function buttons(c, ui) {
       ? `<div class="hd" role="group" aria-label="Answers" style="gap: 10px; flex-wrap: wrap; flex: 1 1 100%">${opts.map((o) => choice('pick', o, pick === o, ` data-opt="${esc(o)}"`)).join('')}${choice('other', 'Other (type your own)', other)}</div>`
       : '';
     const typed = other ? `<textarea class="rvtext" rows="3" maxlength="4000" placeholder="Type your answer" aria-label="Type your answer" style="flex: 1 1 100%">${esc(ui.rvText || '')}</textarea>` : '';
-    return `${choices}${typed}${btn('answer', 'Submit', true)}`;
+    return `${choices}${typed}${btn('answer', 'Submit', true)}${drop}`;
   }
-  if (a.type === 'email') return `${btn('send', 'Send', true)}${btn('edit', 'Edit first', false, ` aria-pressed="${ui.rvEdit === c.id}"`)}`;
+  if (a.type === 'email') return `${btn('send', 'Send', true)}${btn('edit', 'Edit first', false, ` aria-pressed="${ui.rvEdit === c.id}"`)}${drop}`;
   return '';
 }
 
@@ -243,12 +248,13 @@ export async function reviewClick(e, S, render, reload) {
   if (!c) { ui.rvErr = 'This item changed since it was shown. Check it again.'; render(); await reload(); return true; }
   if (ui.rvDone?.[c.id]) return true;
   const what = b.dataset.rv;
-  if (!(ALLOWED[c.act?.type] || []).includes(what) || reviewPage(c) || (what === 'done' && !isDevCard(c))) return true;
+  if (!(ALLOWED[c.act?.type] || []).includes(what) || (reviewPage(c) && what !== 'discard') || (what === 'done' && !isDevCard(c))) return true;
   const text = () => document.querySelector('#main .rvtext')?.value.trim() || '';
   if (what === 'open-back') { Object.assign(ui, { rvBack: c.id, rvText: '', rvErr: '' }); render(); return true; }
   if (what === 'cancel') { Object.assign(ui, { rvBack: null, rvText: '', rvErr: '' }); render(); return true; }
   if (what === 'edit') { ui.rvEdit = ui.rvEdit === c.id ? null : c.id; ui.rvDraft = {}; ui.rvErr = ''; render(); return true; }
   if (what === 'pick' || what === 'other') { ui.rvPick = { id: c.id, v: what === 'pick' ? b.dataset.opt : OTHER_PICK }; ui.rvErr = ''; render(); return true; }
+  if (what === 'discard') return discardItem(c, q, ui, render, reload);
   let call;
   let label;
   const a = c.act;
@@ -307,6 +313,62 @@ export async function reviewClick(e, S, render, reload) {
     }
   } catch (err) {
     ui.rvErr = `Could not save: ${err.message}`;
+  }
+  ui.busy = false;
+  await reload();
+  return true;
+}
+
+// ---- Discard and Undo ----
+export const UNDO_MS = 10000;
+const DISCARD_API = '/dashboard/api/v1/review';
+
+// The Undo toast: outside #main so a refresh of the page doesn't remove it; it removes itself after UNDO_MS.
+function undoToast(c, reload) {
+  document.querySelector('#rvtoast')?.remove();
+  const box = document.createElement('div');
+  box.id = 'rvtoast';
+  box.setAttribute('role', 'status');
+  box.style.cssText = 'position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); z-index: 50; display: flex; align-items: center; gap: 12px; padding: 10px 14px; border-radius: 12px; border: 1px solid var(--line, #888); background: var(--card, #fff); color: var(--ink, #000); box-shadow: 0 4px 16px rgba(0,0,0,.25); max-width: min(92vw, 520px)';
+  const text = document.createElement('span');
+  text.textContent = `Discarded "${String(c.head || c.name || 'item').slice(0, 60)}".`;
+  const undo = document.createElement('button');
+  undo.type = 'button';
+  undo.className = 'btn sm';
+  undo.textContent = 'Undo';
+  undo.dataset.rvundo = c.id;
+  const timer = setTimeout(() => box.remove(), UNDO_MS);
+  undo.addEventListener('click', async () => {
+    undo.disabled = true;
+    try {
+      await send(`${DISCARD_API}/undo`, 'POST', { item: c.id });
+      clearTimeout(timer);
+      box.remove();
+      await reload();
+    } catch (err) {
+      text.textContent = `Could not undo: ${err.message}`;
+    }
+  });
+  box.append(text, undo);
+  document.body.append(box);
+}
+
+async function discardItem(c, q, ui, render, reload) {
+  if (!window.confirm('Discard this? It leaves the review list. Files are kept.')) return true;
+  ui.busy = true;
+  ui.rvErr = '';
+  render();
+  try {
+    await send(`${DISCARD_API}/discard`, 'POST', { item: c.id });
+    const open = q[Math.max(0, q.findIndex((x) => x.id === ui.rvSel))]?.id;
+    if (open && open !== c.id) ui.rvSel = open;
+    else {
+      const next = q.find((x) => x.id !== c.id && !ui.rvDone?.[x.id]);
+      Object.assign(ui, { rvSel: next ? next.id : '', rvBack: null, rvEdit: null, rvDraft: {}, rvPick: null, rvText: '' });
+    }
+    undoToast(c, reload);
+  } catch (err) {
+    ui.rvErr = `Could not discard: ${err.message}`;
   }
   ui.busy = false;
   await reload();
