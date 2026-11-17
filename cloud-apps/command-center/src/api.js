@@ -24,6 +24,7 @@ import { monthWindow } from './today.js';
 import { buildD2, d2Data } from './d2.js';
 import { funnelsData } from './funnels.js';
 import { buildD3, d3Data, factoryData } from './d3.js';
+import { cardsData } from './cards.js';
 import { buildPending, pendingData } from './pending.js';
 import { hyperEntry, hyperTicketOk } from './hyper.js';
 
@@ -466,6 +467,15 @@ export async function handleApi(request, env, ctx) {
     if (denied) return denied;
     const now = Date.now();
     return json({ ok: true, build: env.CF_VERSION_METADATA?.id ?? null, asOf: new Date(now).toISOString(), d3: buildD3(await d3Data(env, now)) });
+  }
+  // Dashboard 3 Cards page: every open card and the last 7 days of done ones, read only (src/cards.js).
+  if (rest === '/cards' && method === 'GET') {
+    const denied = await needSession(request, env);
+    if (denied) return denied;
+    const now = Date.now();
+    const cards = await cardsData(env, now);
+    if (!cards) return json({ ok: false, error: 'Could not read the cards' }, 503);
+    return json({ ok: true, asOf: new Date(now).toISOString(), cards });
   }
   // Dashboard 3 Factory page: only the video program's newest board, read every 3 s while that page is open.
   if (rest === '/d3/factory' && method === 'GET') {

@@ -164,3 +164,12 @@ Built to match the handover mockup (home-mockup.html). Before this, Home was rea
 - Progress cards (Jon, 2026-11-12): PnL, Sponsors, Factory, Personal, in that order. Under every period PnL shows Revenue this month (sponsor cash, USD), Expenses this month (RBC business spending, CAD) and Profit this month in USD at the Bank of Canada's daily USD/CAD rate (`src/fx.js`, pulled by the cron at most every 6 hours, served as `home.fx`); Profit reads No data when any part is missing. Sponsors shows Money owed and Deals to close in dollars under every period. Money owed = deposit paid, balance still owed (Deposit Paid through Balance Invoice, plus money-owed rows); Deals to close = price confirmed, no deposit yet (Deals, Deposit Invoice), priced deals only; Leads and Negotiations count in neither (Jon, 2026-11-13).
 - Not built yet: sending reminders or texts (saved only), the 8am text and Friday review message, writing tasks into Google Calendar, drag on touch screens (a tap opens the pop-up).
 - Tests: `test/home.test.mjs` (server, real SQLite) and `test/d3-home.test.mjs` (page).
+
+## Cards page (2026-11-17)
+
+- Route `#cards`, the last menu item "Cards" (`public/d3/js/cards.js`, pure `renderCards(d2, resp)`). A view-only checklist: one row per open card (To do, Doing, Waiting on Jon, QC, Review) of every owner, with a drawn box (empty = open, ticked = done), the title, the owner and the status. Grouped by owner (biggest group first); the cards that name MacFrames (title, note or project: "MacFrames" or "Mac Frames") sit in a MacFrames group on top and carry a MacFrames tag; the cards done in the last 7 days are ticked in the last group (folded). Nothing older than 7 days, and cancelled cards never show.
+- The box is not a form control and the page has no button, link, input or write call: it cannot change a card.
+- `GET /dashboard/api/cards`: Jon's session, `Cache-Control: no-store`, one read of `bot_tasks` (`src/cards.js`, open cards capped at 3000, done at 500; `cut: true` when a cap is hit). `{ ok, asOf, cards: { open, done, counts: { open, done, macframesOpen, macframesDone }, cut } }`; 503 when the table can't be read. Read on each open of the page and on the 60 s reload.
+- `/dash/cards` (and `/dash/cards/`) is the plain address: 302 to `/dash/` when signed out, 302 to `/dash/#cards` when signed in.
+- MacFrames: its work is tracked as ordinary dashboard cards, so nothing else is read. The local MacFrames studio projects (`packages/studio/data/projects`) are not pushed to the dashboard.
+- Tests: `test/cards.test.mjs`.
