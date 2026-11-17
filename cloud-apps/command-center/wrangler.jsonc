@@ -45,7 +45,7 @@
     { "binding": "REVIEW", "service": "jonmac-review" }
   ],
   "triggers": {
-    "crons": ["*/10 * * * *"]
+    "crons": ["*/10 * * * *", "*/15 * * * *"]
   },
   "version_metadata": { "binding": "CF_VERSION_METADATA" },
   // Phone calls to Ana (src/call.js): GPU1 and Jon's phone meet in one Durable Object.
@@ -76,6 +76,8 @@
     // Tracked video links (src/track.js).
     { "pattern": "jonmac.ai/v/*", "zone_name": "jonmac.ai" },
     // Skool short links and tracker (src/skool.js). Secret SKOOL_ZAP_TOKEN = D:\AgentTeam\secrets\skool-zap.token.
+    // Skool email sequence (src/skoolseq.js, off until Jon switches it on): secrets RESEND_API_KEY and RESEND_WEBHOOK_SECRET (Resend webhook to https://jonmac.ai/track/api/resend);
+    // optional vars SKOOL_FROM, SKOOL_REPLY_TO, SKOOL_BUSINESS and SKOOL_ADDRESS (the real mailing address: real sends stay paused while it is unset).
     { "pattern": "jonmac.ai/s/*", "zone_name": "jonmac.ai" },
     { "pattern": "jonmac.ai/track", "zone_name": "jonmac.ai" },
     { "pattern": "jonmac.ai/track/*", "zone_name": "jonmac.ai" },

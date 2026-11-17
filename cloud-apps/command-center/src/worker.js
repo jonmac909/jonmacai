@@ -6,6 +6,7 @@ import { reviewProxy } from './videoreview.js';
 import { reviewHook } from './reviewhook.js';
 import { trackRedirect } from './track.js';
 import { skoolRedirect, handleTracker } from './skool.js';
+import { runSequence, SEQ_CRON } from './skoolseq.js';
 import { FILE_PREFIX, serveProofFile, uploadProofFile } from './prooffiles.js';
 import { MONITOR, handleMonitor } from './monitor.js';
 
@@ -129,7 +130,9 @@ export default {
     }
     return asset(request, env, assetPath);
   },
-  async scheduled(_event, env, ctx) {
-    ctx.waitUntil(handleCron(env));
+  async scheduled(event, env, ctx) {
+    // The Skool email sequence has its own 15-minute trigger (src/skoolseq.js); everything else runs on the 10-minute one.
+    if (event?.cron === SEQ_CRON) ctx.waitUntil(runSequence(env));
+    else ctx.waitUntil(handleCron(env));
   },
 };

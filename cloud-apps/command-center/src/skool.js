@@ -6,6 +6,8 @@
 // an estimate: the last click in the 24 hours before it.
 import { readSession, timingSafeEqualString } from './auth.js';
 import { checkEmail } from './skoolcheck.js';
+import { handleUnsub, handleResendWebhook, seqOn, setSeqOn, sendTest, addressIsPlaceholder, DEFAULT_BUSINESS } from './skoolseq.js';
+import { leadsData, leadsCsv, leadsPage, emailsPage, nav, BASE_CSS, FILTERS } from './skoolcrm.js';
 
 export const SKOOL = 'https://www.skool.com/ai-ugc';
 export const ESTIMATE_HOURS = 24;
@@ -135,8 +137,9 @@ async function zapIntake(request, env, kind, nowMs) {
   const name = [field(b, 'first_name', 'First Name'), field(b, 'last_name', 'Last Name')].filter(Boolean).join(' ') || field(b, 'name');
   const id = (field(b, 'transaction_id', 'id', 'Transaction ID') || (email && `${email}|${at.slice(0, 10)}`)).slice(0, 200);
   if (!id) return json({ error: 'transaction_id or email is required' }, 400);
-  await env.DB.prepare('INSERT OR IGNORE INTO skool_sales (id, email, name, at, created_at) VALUES (?, ?, ?, ?, ?)')
-    .bind(id, email || null, name.slice(0, 120) || null, at, iso(nowMs)).run();
+  const amt = Number(String(field(b, 'amount', 'price', 'Amount')).replace(/[^0-9.]/g, ''));
+  await env.DB.prepare('INSERT OR IGNORE INTO skool_sales (id, email, name, at, created_at, amount) VALUES (?, ?, ?, ?, ?, ?)')
+    .bind(id, email || null, name.slice(0, 120) || null, at, iso(nowMs), Number.isFinite(amt) && amt > 0 && amt < 1e6 ? amt : null).run();
   return json({ ok: true, id });
 }
 
@@ -241,20 +244,14 @@ export function trackerPage(data, origin) {
   const sales = data.sales.slice(0, 50).map((s) => `<tr><td>${esc(s.at.slice(0, 16).replace('T', ' '))} UTC</td><td>${esc(s.name || '')}</td>
 <td>${esc(s.slug || '–')}</td><td>${esc(HOW[s.how])}</td><td>${esc(s.answer || '')}</td></tr>`).join('');
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="robots" content="noindex,nofollow"><title>Skool tracker</title><style>
-body{font-family:system-ui,-apple-system,"Segoe UI",sans-serif;margin:0;padding:1.25rem;background:#0f1115;color:#e8e8ea}
-h1{font-size:1.3rem;margin:0 0 .25rem}h2{font-size:1.05rem;margin:1.75rem 0 .5rem}p{color:#a0a3ab;margin:.25rem 0 1rem}
-.wrap{overflow-x:auto}table{border-collapse:collapse;width:100%;font-size:.92rem}th,td{padding:.5rem .6rem;border-bottom:1px solid #262a33;text-align:left;vertical-align:top}
-th{color:#a0a3ab;font-weight:600}.n{text-align:right;white-space:nowrap}a{color:#8ab4ff}.est{color:#e0b060;font-size:.85em}
-button{font:inherit;cursor:pointer;border-radius:.5rem}.copy,.cap{background:#1b1f27;color:#e8e8ea;border:1px solid #303644;padding:.25rem .5rem;white-space:nowrap}
-.cap[aria-pressed=true]{background:#1f6b3a;border-color:#2a8a4c}
-form{display:grid;gap:.5rem;max-width:34rem}input{font:inherit;padding:.55rem .7rem;border-radius:.5rem;border:1px solid #303644;background:#161a21;color:#e8e8ea}
-.go{background:#3b6cff;color:#fff;border:0;padding:.6rem 1rem;font-weight:600}#msg{min-height:1.2em;color:#a0a3ab}</style></head><body>
+<meta name="robots" content="noindex,nofollow"><title>Skool tracker</title><style>${BASE_CSS}</style></head><body>${nav('videos')}
 <h1>Skool tracker</h1><p>Every short link forwards to skool.com/ai-ugc. Sales come from Zapier. Exact = the buyer's email was captured on the link, or they named the video in their answer; "est." means neither, so the sale goes to the last link clicked in the 24 hours before it.</p>
-<div class="wrap"><table><thead><tr><th>Video</th><th>Slug</th><th>Short link</th><th class="n">Clicks 7d</th><th class="n">30d</th><th class="n">All</th><th class="n">Emails</th><th class="n">Sales</th><th class="n">Conversion</th><th>Email step</th></tr></thead>
+<div class="wrap"><table><thead><tr><th>Video</th><th>Slug</th><th>Short link</th><th class="n">Clicks 7d</th><th class="n">30d</th><th class="n">All</th><th class="n">Leads</th><th class="n">Sales</th><th class="n">Conversion</th><th>Email step</th></tr></thead>
 <tbody>${rows || '<tr><td colspan="10">No links yet. Add one below.</td></tr>'}</tbody></table></div>
 <p>Email step: when On, the short link first asks for an email in a pop-over, then forwards to Skool. On for every new link.</p>
 <p>Sales not tied to any video: ${data.unattributed}</p>
+<div class="panel"><strong>Email sequence</strong> <button class="cap" id="seq" data-on="${data.seq?.on ? 1 : 0}" aria-pressed="${!!data.seq?.on}">${data.seq?.on ? 'On' : 'Off'}</button>
+<p>${data.seq?.on ? 'ON: leads get the 7-day emails as they come due.' : 'OFF: nothing is sent to anyone.'} <a href="/track/emails">Read the 7 emails and send yourself a test</a>. ${data.seq && !data.seq.key ? 'Blocked: Resend key is missing.' : ''}</p></div>
 <h2>Add a link</h2><form id="add"><input name="slug" placeholder="slug, e.g. seedance-ugc" required pattern="[a-z0-9][a-z0-9-]{0,38}[a-z0-9]">
 <input name="title" placeholder="Video title" required><input name="youtube_url" placeholder="YouTube URL (optional)" type="url">
 <button class="go" type="submit">Add link</button><div id="msg"></div></form>
@@ -266,6 +263,10 @@ document.querySelectorAll('.cap').forEach((b)=>b.onclick=async()=>{const on=b.da
 if(on&&!confirm('Turn the email step ON for '+b.dataset.slug+'? Visitors will be asked for an email before they reach Skool.'))return;
 const r=await fetch('/track/api/capture',{method:'POST',headers:{'Content-Type':'application/json','X-CC':'1'},body:JSON.stringify({slug:b.dataset.slug,capture:on})});
 if(r.ok){b.dataset.on=on?'1':'0';b.setAttribute('aria-pressed',on);b.textContent=on?'On':'Off'}else{alert('Could not save')}});
+document.getElementById('seq').onclick=async(e)=>{const b=e.currentTarget,on=b.dataset.on!=='1';
+if(on&&!confirm('Turn the sequence ON? Real leads will start getting the 7 emails.'))return;
+const r=await fetch('/track/api/sequence',{method:'POST',headers:{'Content-Type':'application/json','X-CC':'1'},body:JSON.stringify({on})});
+if(r.ok){location.reload()}else{alert('Could not save')}};
 document.getElementById('add').onsubmit=async(e)=>{e.preventDefault();const m=document.getElementById('msg');m.textContent='Saving...';
 const r=await fetch('/track/api/links',{method:'POST',headers:{'Content-Type':'application/json','X-CC':'1'},body:JSON.stringify(Object.fromEntries(new FormData(e.target)))});
 const j=await r.json().catch(()=>({}));if(r.ok){location.reload()}else{m.textContent=j.error||'Could not save'}};
@@ -278,15 +279,51 @@ export async function handleTracker(request, env) {
   const nowMs = Date.now();
   const p = url.pathname;
   if (request.method === 'POST' && (p === '/track/api/sale' || p === '/track/api/answer')) return zapIntake(request, env, p.endsWith('sale') ? 'sale' : 'answer', nowMs);
+  // Public: the unsubscribe link in every email (the signed token is the proof) and Resend's webhook (Svix-signed).
+  if (p === '/track/unsub' && ['GET', 'POST'].includes(request.method)) return handleUnsub(request, env, nowMs);
+  if (p === '/track/api/resend' && request.method === 'POST') return handleResendWebhook(request, env, nowMs);
   const signedIn = await readSession(request, env);
+  const html = (body) => new Response(body, { headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'private, no-store', 'X-Robots-Tag': 'noindex, nofollow' } });
+  const isPage = request.method === 'GET' && ['/track', '/track/', '/track/leads', '/track/leads.csv', '/track/emails'].includes(p);
+  if (isPage && !signedIn) return new Response(null, { status: 302, headers: { Location: `${url.origin}/dash/`, ...NO_STORE } });
   if (p === '/track' || p === '/track/') {
-    if (!signedIn) return new Response(null, { status: 302, headers: { Location: `${url.origin}/dash/`, ...NO_STORE } });
-    const html = trackerPage(await trackerData(env.DB, nowMs), url.origin);
-    return new Response(html, { headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'private, no-store', 'X-Robots-Tag': 'noindex, nofollow' } });
+    const data = await trackerData(env.DB, nowMs);
+    data.seq = await seqStatus(env);
+    return html(trackerPage(data, url.origin));
+  }
+  if (p === '/track/leads' || p === '/track/leads.csv') {
+    const q = (url.searchParams.get('q') || '').slice(0, 100), f = FILTERS.some(([k]) => k === url.searchParams.get('f')) ? url.searchParams.get('f') : 'all';
+    const data = await leadsData(env.DB, { q, f });
+    if (p.endsWith('.csv')) return new Response(leadsCsv(data.rows), { headers: { 'Content-Type': 'text/csv; charset=utf-8', 'Content-Disposition': 'attachment; filename="skool-leads.csv"', ...NO_STORE } });
+    return html(leadsPage(data, { q, f }));
+  }
+  if (p === '/track/emails') {
+    const st = await seqStatus(env);
+    const link = await env.DB.prepare('SELECT slug, title FROM skool_links ORDER BY created_at DESC LIMIT 1').first();
+    return html(emailsPage({ on: st.on, keySet: st.key, addressSet: st.address, business: env.SKOOL_BUSINESS || DEFAULT_BUSINESS, sample: { title: link?.title || 'Your video title', slug: link?.slug || 'your-video' }, origin: url.origin }));
   }
   if (!signedIn) return json({ error: 'Sign in' }, 401);
   if (p === '/track/api/links' && request.method === 'POST') return addLink(request, env, nowMs);
   if (p === '/track/api/capture' && request.method === 'POST') return setCapture(request, env);
+  if (p === '/track/api/sequence' && request.method === 'POST') return setSequence(request, env, nowMs);
+  if (p === '/track/api/sequence/test' && request.method === 'POST') {
+    if (request.headers.get('X-CC') !== '1') return json({ error: 'Missing header' }, 403);
+    const r = await sendTest(env, nowMs);
+    return json(r.body, r.status);
+  }
   if (p === '/track/api/data' && request.method === 'GET') return json(await trackerData(env.DB, nowMs));
   return json({ error: 'Not found' }, 404);
+}
+
+export async function seqStatus(env) {
+  return { on: await seqOn(env.DB), key: !!env.RESEND_API_KEY, address: !addressIsPlaceholder(env) };
+}
+
+// The master switch. Off unless Jon's own signed-in click turns it on.
+async function setSequence(request, env, nowMs) {
+  if (request.headers.get('X-CC') !== '1') return json({ error: 'Missing header' }, 403);
+  const b = await body(request);
+  const on = b.on === true || b.on === 1 || b.on === 'true' || b.on === '1';
+  await setSeqOn(env.DB, on, nowMs);
+  return json({ ok: true, on });
 }
