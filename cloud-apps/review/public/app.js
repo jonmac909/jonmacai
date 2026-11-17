@@ -413,7 +413,17 @@
       }
       list.append(item);
     }
+    syncApprove();
     schedulePoll();
+  }
+
+  // The newest submission is an approval: the button says so, on reload too (a later Send back puts it back).
+  function syncApprove() {
+    const button = $("approve");
+    if (!button) return;
+    const done = submissions[0]?.kind === "approve";
+    button.textContent = done ? `Approved ${clock(submissions[0].created_at)}` : "Approve";
+    button.disabled = done;
   }
 
   // While a submission waits for the router, check every 20 s so "Sent to …" appears by itself.
@@ -440,8 +450,9 @@
       $("note").focus();
       return;
     }
-    const ask = data.dashboard ? "Approve this version? Its dashboard task moves to Done."
-      : "Approve this version? The agent will mark it approved and start this channel's next video.";
+    const ask = (data.dashboard ? "Approve this version? Its dashboard task moves to Done."
+      : "Approve this version? The agent will mark it approved and start this channel's next video.")
+      + (data.qcOnly ? " QC has not passed it yet; its card is told it still needs QC." : "");
     if (kind === "approve" && !window.confirm(ask)) return;
     for (const b of [$("send-changes"), $("approve")].filter(Boolean)) b.disabled = true;
     status.textContent = "Sending…";
@@ -458,7 +469,8 @@
     } catch (error) {
       status.textContent = error.message;
     } finally {
-      for (const b of [$("send-changes"), $("approve")].filter(Boolean)) b.disabled = false;
+      $("send-changes").disabled = false;
+      syncApprove();
     }
   }
   $("send-changes").addEventListener("click", (event) => send("changes", event.currentTarget));

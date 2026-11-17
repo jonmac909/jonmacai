@@ -153,7 +153,7 @@ const extra = (id, label, url) => url ? `<details class="extra" id="${id}"><summ
 const ours = (video) => `<div class="stage frame"${frameStyle(video.video_w, video.video_h)}><video id="player" controls playsinline webkit-playsinline preload="metadata"
     src="${escapeHtml(video.video_url)}#t=0.001" aria-label="Our video"></video><canvas id="ink" class="ink" aria-hidden="true"></canvas></div>`;
 
-const qcOnlyNote = (gate, attrs = "") => gate.qcOnly ? `<p class="error" role="status" ${attrs}>${gate.qcUnknown ? "QC results could not be read from the dashboard. " : ""}QC only: this version is hidden from Jon's list and can't be approved until QC passes its dashboard proof.</p>` : "";
+const qcOnlyNote = (gate, attrs = "") => gate.qcOnly ? `<p class="error" role="status" ${attrs}>${gate.qcUnknown ? "QC results could not be read from the dashboard. " : ""}QC only: this version is hidden from Jon's list until QC passes its dashboard proof. Approve still works: its card is told it still needs QC.</p>` : "";
 
 // One video of a review group, as on the single page (Jon, 2026-11-16): the original beside ours. An original video is a
 // muted second player (.group-source) with its own shape; a text-only Skool lesson shows its original text. Each box
@@ -199,7 +199,7 @@ export function renderGroup(group, items, prefix = "") {
     <textarea class="group-note" rows="2" maxlength="4000" placeholder="What should change? Pause the video first: the note gets that time."></textarea>
     <div class="send-btns">
       <button type="button" class="primary" data-act="changes">Submit changes</button>
-      ${gate.qcOnly ? "" : '<button type="button" class="approve" data-act="approve">Approve</button>'}
+      <button type="button" class="approve" data-act="approve"${video.status === "approved" ? " disabled" : ""}>${video.status === "approved" ? "Approved" : "Approve"}</button>
     </div>
     <p class="muted group-status" role="status"></p>
   </section>`;
@@ -224,7 +224,7 @@ const groupNav = (nav, prefix) => `<nav class="group-nav" aria-label="${escapeHt
       : '<span class="nav-gap"></span>'}
   </nav>`;
 
-// gate.qcOnly: QC hasn't passed this version, so the page says so and has no Approve and no status buttons.
+// gate.qcOnly: QC hasn't passed this version, so the page says so and has no status buttons. Approve stays (Jon, 2026-11-17: Approve on every review page).
 // gate.nav: Back / Next when the slug is in a review group.
 export function renderVideo(video, versions, channelName, submissions = [], prefix = "", gate = {}) {
   const data = JSON.stringify({ slug: video.slug, duration: video.duration, chapters: video.chapters, status: video.status, sync: video.sync, submissions, qcOnly: Boolean(gate.qcOnly),
@@ -304,7 +304,7 @@ export function renderVideo(video, versions, channelName, submissions = [], pref
   <section class="send" id="send" aria-label="Send to the agent">
     <div class="send-btns">
       <button type="button" class="primary big" id="send-changes">${prefix ? "Send back" : "Submit changes"}</button>
-      ${gate.qcOnly ? "" : '<button type="button" class="big approve" id="approve">Approve</button>'}
+      <button type="button" class="big approve" id="approve">Approve</button>
     </div>
     <p class="send-hint muted" id="send-status" role="status">${prefix
       ? "When you are done commenting, press Send back: its task goes back to Doing with your open comments. Approve moves the task to Done."
