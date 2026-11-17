@@ -19,6 +19,7 @@ const SOON = 'abcdefghijl';
 
 async function setup(secrets = true) {
   const db = sqliteD1();
+  db.sqlite.exec('DELETE FROM factory_channels'); // these tests read every channel; test/track-4ch.test.mjs covers the channel filter
   await db.prepare('INSERT INTO bot_tokens (token_hash, bot, created_at) VALUES (?, ?, ?)').bind(await sha256Hex(BOT), 'developer', 'x').run();
   const env = { DB: db, SESSION_SECRET: SECRET, ...(secrets ? { YT_CLIENT_ID: 'cid', YT_CLIENT_SECRET: 'csecret', YT_TOKEN_KEY: KEY } : {}) };
   return { db, env };

@@ -18,6 +18,7 @@ const YT = 'abcdefghijk';
 
 async function setup() {
   const db = sqliteD1();
+  db.sqlite.exec('DELETE FROM factory_channels'); // these tests read every channel; test/track-4ch.test.mjs covers the channel filter
   for (const [bot, t] of Object.entries(TOK)) {
     await db.prepare('INSERT INTO bot_tokens (token_hash, bot, created_at) VALUES (?, ?, ?)').bind(await sha256Hex(t), bot, 'x').run();
   }
