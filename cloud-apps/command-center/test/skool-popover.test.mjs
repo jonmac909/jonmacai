@@ -63,6 +63,7 @@ test('email step on: pop-over over a blurred Skool backdrop, no iframe, same for
 test('email step off: no pop-over, straight 302 as before', async () => {
   const e = env();
   await go(e, '/track/api/links', { method: 'POST', jon: true, body: { slug: 'off', title: 'Off' } });
+  e.DB.sqlite.exec('UPDATE skool_links SET capture = 0');
   const r = await go(e, '/s/off');
   assert.equal(r.status, 302);
   assert.match(r.headers.get('Location'), /utm_campaign=off$/);
