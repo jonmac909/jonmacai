@@ -24,6 +24,7 @@ const forward = (to) => new Response(null, { status: 302, headers: { Location: t
 export async function skoolRedirect(request, env, ctx) {
   const url = new URL(request.url);
   const slug = url.pathname.slice('/s/'.length).toLowerCase();
+  if (BG[slug]) return backdrop(request, env, slug); // the pop-over's screenshot backdrop (a slug has no dot, so no clash)
   const to = new URL(SKOOL);
   if (!SLUG_RE.test(slug) || !['GET', 'HEAD', 'POST'].includes(request.method)) return forward(to);
   to.searchParams.set('utm_source', 'youtube');
@@ -62,18 +63,39 @@ export async function skoolRedirect(request, env, ctx) {
   return capture ? capturePage(slug, '', 200) : forward(to);
 }
 
+// The email step looks like the Skool about page with the email box as a pop-over. www.skool.com sends
+// X-Frame-Options: SAMEORIGIN (checked 2026-11-16), so it cannot be framed: the backdrop is a screenshot of
+// skool.com/ai-ugc/about (public/skool/about-*.jpg, refreshed by hand with web_look.py --shot), blurred and dimmed.
+const BG = { 'about-desktop.jpg': 1, 'about-mobile.jpg': 1 };
+async function backdrop(request, env, name) {
+  if (!env.ASSETS || request.method === 'POST' || !BG[name]) return new Response('Not found', { status: 404 });
+  const u = new URL(request.url);
+  u.pathname = `/skool/${name}`; u.search = '';
+  const r = await env.ASSETS.fetch(new Request(u, { method: 'GET' }));
+  if (!r.ok) return new Response('Not found', { status: 404 });
+  return new Response(r.body, { status: 200, headers: { 'Content-Type': 'image/jpeg', 'Cache-Control': 'public, max-age=3600', 'X-Robots-Tag': 'noindex, nofollow' } });
+}
+
 function capturePage(slug, error, status) {
   const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="robots" content="noindex,nofollow"><meta name="referrer" content="no-referrer"><title>Get access</title><style>
-body{font-family:system-ui,-apple-system,"Segoe UI",sans-serif;margin:0;min-height:100vh;display:grid;place-items:center;background:#0f1115;color:#e8e8ea}
-main{width:min(26rem,90vw)}h1{font-size:1.4rem;margin:0 0 1rem}form{display:grid;gap:.75rem}
-input{font:inherit;padding:.75rem .9rem;border-radius:.6rem;border:1px solid #303644;background:#161a21;color:#e8e8ea}
-button{font:inherit;font-weight:600;cursor:pointer;border:0;border-radius:.6rem;padding:.75rem 1rem;background:#3b6cff;color:#fff}
-.err{color:#ff8a8a;margin:0 0 .75rem}.note{color:#a0a3ab;font-size:.85rem;margin:1rem 0 0}</style></head><body><main>
-<h1>Enter your email to get access</h1>${error ? `<p class="err">${esc(error)}</p>` : ''}
-<form method="post" action="/s/${esc(slug)}"><input type="email" name="email" placeholder="you@example.com" autocomplete="email" required autofocus maxlength="254">
+<meta name="robots" content="noindex,nofollow"><meta name="referrer" content="no-referrer"><title>AI Video Lab on Skool</title><style>
+html,body{height:100%;margin:0}body{font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:#1f1f1f;background:#f5f5f5;overflow:hidden}
+.bg{position:fixed;inset:-12px;background:#f5f5f5 url(/s/about-desktop.jpg) center top/cover no-repeat;filter:blur(5px)}
+@media (max-width:640px){.bg{background-image:url(/s/about-mobile.jpg)}}
+.dim{position:fixed;inset:0;background:rgba(0,0,0,.45)}
+.wrap{position:fixed;inset:0;display:grid;place-items:center;padding:1rem}
+.box{box-sizing:border-box;width:min(26rem,100%);background:#fff;border-radius:12px;padding:1.75rem 1.5rem 1.25rem;box-shadow:0 12px 48px rgba(0,0,0,.35)}
+h1{font-size:1.3rem;margin:0 0 1rem;line-height:1.3}form{display:grid;gap:.75rem}
+input{font:inherit;padding:.75rem .9rem;border-radius:8px;border:1px solid #c9c9c9;background:#fff;color:#1f1f1f}
+input:focus{outline:2px solid #f8d481;outline-offset:1px;border-color:#b58a1c}
+button{font:inherit;font-weight:700;cursor:pointer;border:0;border-radius:8px;padding:.8rem 1rem;background:#f8d481;color:#202124}
+button:hover{background:#f5c961}.err{color:#b3261e;margin:0 0 .75rem}.note{color:#6b6b6b;font-size:.85rem;margin:1rem 0 0}</style></head><body>
+<div class="bg" aria-hidden="true"></div><div class="dim" aria-hidden="true"></div>
+<div class="wrap"><main class="box" role="dialog" aria-modal="true" aria-labelledby="t">
+<h1 id="t">Enter your email to get access</h1>${error ? `<p class="err" role="alert">${esc(error)}</p>` : ''}
+<form method="post" action="/s/${esc(slug)}"><input type="email" name="email" placeholder="you@example.com" autocomplete="email" aria-label="Email" required autofocus maxlength="254">
 <button type="submit">Continue</button></form>
-<p class="note">We use your email only to see which video sent you; it stays on jonmac.ai.</p></main></body></html>`;
+<p class="note">We use your email only to see which video sent you; it stays on jonmac.ai.</p></main></div></body></html>`;
   return new Response(html, { status, headers: { 'Content-Type': 'text/html; charset=utf-8', ...NO_STORE } });
 }
 
