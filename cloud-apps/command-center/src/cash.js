@@ -15,7 +15,7 @@ export const FEED_STALE_DAYS = 2;
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
 const DAY_MS = 86400000;
 // A real calendar day: '2026-02-30' fails the round trip and '2026-04-99' fails Date.parse.
-const isDay = (s) => {
+export const isDay = (s) => {
   if (typeof s !== 'string' || !DAY.test(s)) return false;
   const ms = Date.parse(`${s}T12:00:00Z`);
   return Number.isFinite(ms) && new Date(ms).toISOString().slice(0, 10) === s;
@@ -43,7 +43,7 @@ export function usd(n) {
 
 const cents = (n) => Math.round((Number(n) || 0) * 100) / 100;
 
-function vanDate(ms) {
+export function vanDate(ms) {
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Vancouver', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(ms));
 }
 
@@ -58,7 +58,10 @@ function payer(description) {
 
 // MoneyClaw `income`: { since, asOf, deposits: [{ date, amount, description }] }, RBC USD credits only.
 // `since` and `asOf` bound the dates the feed vouches for. Without both, the feed is ignored.
-function bankFeed(moneyRow, nowMs) {
+// Optional per-deposit fields (docs/money-income.md): currency (default USD), account ('business-usd' | 'business-cad' |
+// 'personal'), type ('income' by default), kind ('transfer' | 'card_payment' | 'refund' | 'reversal'), isTransfer, amountCad.
+// A deposit that names none of them is the RBC USD business account feed, as before.
+export function bankFeed(moneyRow, nowMs) {
   const inc = moneyRow ? parse(moneyRow.data).income : null;
   if (!inc || !Array.isArray(inc.deposits) || !isDay(inc.since) || !isDay(inc.asOf)) return null;
   // A feed cannot vouch for days that have not happened (clock skew, a UTC date): clamp to today.
@@ -67,21 +70,41 @@ function bankFeed(moneyRow, nowMs) {
   if (inc.since > asOf) return null;
   const deposits = inc.deposits
     .filter((d) => isDay(d?.date) && d.date >= inc.since && d.date <= asOf && Number(d.amount) > 0 && !EXCLUDED_SPONSORS.test(String(d.description || '')))
-    .map((d) => ({ date: d.date, sponsor: payer(d.description), usd: cents(d.amount) }));
+    .map((d) => {
+      const currency = /^[A-Za-z]{3}$/.test(String(d.currency || '')) ? String(d.currency).toUpperCase() : 'USD';
+      return {
+        date: d.date, sponsor: payer(d.description), usd: cents(d.amount), src: 'bank', raw: String(d.description || ''),
+        currency, account: typeof d.account === 'string' ? d.account.slice(0, 20) : null, type: typeof d.type === 'string' ? d.type : 'income',
+        kind: typeof d.kind === 'string' ? d.kind : '', isTransfer: d.isTransfer === true,
+        amountCad: Number(d.amountCad) > 0 ? cents(d.amountCad) : null,
+      };
+    });
   const asOfAge = (Date.parse(`${today}T12:00:00Z`) - Date.parse(`${asOf}T12:00:00Z`)) / DAY_MS;
   const rowAge = nowMs - Date.parse(moneyRow.collected_at);
   const stale = asOfAge > FEED_STALE_DAYS || !(rowAge <= FEED_STALE_DAYS * DAY_MS);
   return { since: inc.since, asOf, asOfMs: Date.parse(`${asOf}T12:00:00Z`), deposits, stale };
 }
 
+// income | excluded | other. Only the bank feed marks things: a ledger row is hand-kept income. MoneyClaw already drops own
+// transfers, refunds and conversions from the USD feed; these rules cover rows a wider feed marks, and anything unmarked
+// that reads like one goes to "other" (shown, never counted) rather than silently counting or vanishing.
+const EXCLUDED_KINDS = /^(transfer|own_transfer|card_payment|refund|reversal|conversion)$/i;
+const UNSURE_TEXT = /refund|reversal|interest|own account|ecomm house|card payment/i;
+export function classify(r) {
+  if (r?.src !== 'bank') return 'income';
+  if (r.isTransfer || EXCLUDED_KINDS.test(String(r.kind || ''))) return 'excluded';
+  if (String(r.type || 'income') !== 'income' || UNSURE_TEXT.test(String(r.raw || ''))) return 'other';
+  return 'income';
+}
+
 // The feed sees RBC only. A ledger row it can never see (another bank, or Reported = not seen in RBC)
 // stays inside the feed window; an Observed RBC row there is dropped so the feed doesn't count it twice.
 const outsideRbc = (r) => r.nonRbc === true || /^reported$/i.test(String(r.status || '').trim());
 
-function mergeDeposits(ledger, feed) {
+export function mergeDeposits(ledger, feed) {
   const rows = ledger.filter((r) => isDay(r?.date));
   const kept = feed ? rows.filter((r) => r.date < feed.since || r.date > feed.asOf || outsideRbc(r)) : rows;
-  const merged = kept.map((r) => ({ date: r.date, sponsor: r.sponsor, usd: r.usd })).concat(feed ? feed.deposits : []);
+  const merged = kept.map((r) => ({ date: r.date, sponsor: r.sponsor, usd: r.usd, src: 'ledger', status: String(r.status || ''), nonRbc: r.nonRbc === true })).concat(feed ? feed.deposits : []);
   return merged.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
 }
 
@@ -93,7 +116,7 @@ function ledgerStatus(editedAt, nowMs) {
 }
 
 // `monthStart` lets the bank-feed case warn only when the ledger still supplies part of this month.
-function sourceOf(feed, editedAt, nowMs, monthStart, hasLedger) {
+export function sourceOf(feed, editedAt, nowMs, monthStart, hasLedger) {
   const led = ledgerStatus(editedAt, nowMs);
   if (feed) {
     const day = shortDay(feed.asOfMs);
@@ -141,7 +164,8 @@ export function buildCash(cashRow, sponsorsRow, nowMs, moneyRow = null) {
   // it must not override the hand-recorded totals on the Sponsors page.
   const ledger = d?.ok !== false && Array.isArray(d?.rows) && d.rows.length ? d.rows : null;
   const feed = bankFeed(moneyRow, nowMs);
-  const rows = ledger || feed ? mergeDeposits(ledger || [], feed) : null;
+  // `usd` is dollars: a CAD or other-currency deposit a future feed adds never counts in the USD totals.
+  const rows = ledger || feed ? mergeDeposits(ledger || [], feed).filter((r) => (!r.currency || r.currency === 'USD') && classify(r) === 'income').map(({ date, sponsor, usd }) => ({ date, sponsor, usd })) : null;
   const today = vanDate(nowMs);
   const month = today.slice(0, 7);
   const since = vanDate(nowMs - 90 * DAY_MS);

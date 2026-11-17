@@ -6,6 +6,7 @@
 //   weekly tokens                    d3 rail tokens and goals.tokenWeeks
 //   one deal (#money/<deal id>)      that board card's amount, stage, status, blocker, next step and Gmail thread
 //                                    (ui.rvThreads, GET /dashboard/api/sponsor-threads; see thread.js)
+//   income this month                GET /dashboard/api/money-income (src/income.js, docs/money-income.md), ui.income
 // Team cost, expenses, profit, YouTube ads, affiliates and forecast have no feed yet and read "No feed".
 import { esc, usd, toneOf, icon } from './util.js';
 import { headerOnly, periodOf, dealKey } from './goals.js';
@@ -244,6 +245,44 @@ ${box('Per project', 'needs tokens saved on every run')}
 </section>`;
 }
 
+// ---- Income this month (GET /dashboard/api/money-income, src/income.js): every incoming payment of one month, newest first ----
+const money = (n, cur) => `${new Intl.NumberFormat('en-US', { style: 'currency', currencyDisplay: 'narrowSymbol', currency: /^[A-Z]{3}$/.test(cur) ? cur : 'USD', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n)} ${cur}`;
+const monthShort = (key) => `${MONTHS[Number(key.slice(5, 7)) - 1]} ${key.slice(0, 4)}`;
+
+// ui.income: the API's `income` (or { error } / undefined while loading). The switcher buttons carry data-incmonth.
+export function incomeListHtml(inc) {
+  const head = (title, extra = '') => `<div class="hd cardhd" style="flex-wrap: wrap"><span class="chip">${icon('money')}</span><h2>${esc(title)}</h2>${extra}</div>`;
+  if (!inc) return `<section class="card" aria-label="Income this month">${head('Income this month')}<p class="mut">Loading</p></section>`;
+  if (inc.error || !inc.month) return `<section class="card" aria-label="Income this month">${head('Income this month')}<p class="mut">No feed: ${esc(inc?.error || 'the income could not be read.')}</p></section>`;
+  const m = inc.month;
+  const nav = `<span class="sp" style="display: inline-flex; gap: 6px; align-items: center">
+<button type="button" class="btn sm" data-incmonth="${esc(inc.prev)}" aria-label="Previous month">‹ ${esc(monthShort(inc.prev))}</button>
+<b class="mut" style="font-size: 12px">${esc(monthShort(m.key))}</b>
+<button type="button" class="btn sm" data-incmonth="${esc(inc.next || '')}" aria-label="Next month"${inc.next ? '' : ' disabled'}>${inc.next ? `${esc(monthShort(inc.next))} ›` : 'Next ›'}</button>
+</span>`;
+  const totals = (inc.totals || []).length
+    ? inc.totals.map((t) => `<div class="stack" data-inctotal="${esc(t.currency)}"><span class="mut">Total ${esc(t.currency)} · ${t.count} payment${t.count === 1 ? '' : 's'}</span><b class="num" style="font-size: 28px">${esc(money(t.amount, t.currency))}</b>${t.cadEquivalent ? `<span class="mut" style="font-size: 12px">${esc(money(t.cadEquivalent, 'CAD'))} equivalent</span>` : ''}</div>`).join('')
+    : `<div class="stack"><span class="mut">Total</span><b class="num" style="font-size: 28px">No income yet</b></div>`;
+  const line = (r) => `<div class="hrow" data-incrow style="gap: 12px; flex-wrap: wrap; border-top: 1px solid var(--line); padding: 6px 0">
+<span class="mut" style="width: 56px; flex: none">${esc(r.date ? shortDay(r.date) : '')}</span>
+<span class="ell" style="flex: 1 1 140px; min-width: 0"><b style="font-weight: 500">${esc(r.payer)}</b>${r.note ? ` <span class="pill warn sp">${esc(r.note)}</span>` : ''}</span>
+<span class="mut" style="flex: 0 1 150px">${esc(r.accountLabel)}</span>
+<b style="margin-left: auto">${r.amount == null ? '<span class="nf">no amount</span>' : esc(money(r.amount, r.currency))}${r.cad ? ` <span class="mut" style="font-weight: 400">(${esc(money(r.cad, 'CAD'))})</span>` : ''}</b>
+</div>`;
+  const rows = (inc.rows || []).length ? inc.rows.map(line).join('\n') : `<p class="mut">No income payments in ${esc(m.label)} yet.</p>`;
+  const other = (inc.other || []).length
+    ? `<div class="stack" style="gap: 0"><b style="font-size: 13px; margin-top: 8px">Other credits <span class="mut" style="font-weight: 400">· not counted in the totals</span></b>${inc.other.map(line).join('\n')}</div>` : '';
+  const notes = (inc.notes || []).map((n) => `<p class="mut" style="font-size: 12px; margin: 0">${esc(n)}</p>`).join('');
+  const stale = inc.source?.stale ? '<span class="pill warn sp">may be missing deposits</span>' : '';
+  return `<section class="card" aria-label="Income this month" data-income="${esc(m.key)}">
+${head(m.current ? 'Income this month' : `Income · ${m.label}`, `${stale}${nav}`)}
+<div class="hd" style="gap: 28px; flex-wrap: wrap; align-items: flex-end">${totals}</div>
+<div class="stack" style="gap: 0">${rows}</div>
+${other}
+${notes}
+</section>`;
+}
+
 // `top`: the business budget and tagged business expenses (personal.js moneyBizHtml), drawn first.
 export function renderMoney(d2resp, d3resp, ui = {}, top = '') {
   const P = periodOf(d2resp);
@@ -271,6 +310,7 @@ ${tile('Agreed, not invoiced', agreed ? (priced.length ? priced.map((d) => d.nam
 ${tile('Viral View', hasValue(vv) ? `MRR${vv.sub ? ` · ${vv.sub}` : ''}` : 'MRR', hasValue(vv) ? vv.value : null)}
 ${tile('Team cost', `${P.monthShort} 1–${P.day}`, null)}
 </div>
+${incomeListHtml(ui.income)}
 <div class="row">
 ${revenueHtml(d2resp, P)}
 ${incomeHtml(d2resp, P, !!bank?.source?.stale)}

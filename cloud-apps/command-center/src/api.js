@@ -25,6 +25,8 @@ import { buildD2, d2Data } from './d2.js';
 import { funnelsData } from './funnels.js';
 import { buildD3, d3Data, factoryData } from './d3.js';
 import { cardsData } from './cards.js';
+import { buildIncome } from './income.js';
+import { withoutExcluded } from './cash.js';
 import { buildPending, pendingData } from './pending.js';
 import { hyperEntry, hyperTicketOk } from './hyper.js';
 
@@ -476,6 +478,19 @@ export async function handleApi(request, env, ctx) {
     const cards = await cardsData(env, now);
     if (!cards) return json({ ok: false, error: 'Could not read the cards' }, 503);
     return json({ ok: true, asOf: new Date(now).toISOString(), cards });
+  }
+  // Dashboard 3 Money page "Income this month": one calendar month of incoming payments from the stored deposit feeds
+  // (src/income.js). Read only; ?month=YYYY-MM, anything else is this month.
+  if (rest === '/money-income' && method === 'GET') {
+    const denied = await needSession(request, env);
+    if (denied) return denied;
+    if (!env.DB) return json({ ok: false, error: 'No database' }, 503);
+    const now = Date.now();
+    try {
+      const [cash, money] = await Promise.all([getSnapshot(env.DB, 'sponsors_cash'), getSnapshot(env.DB, 'moneyclaw')]);
+      const income = buildIncome(cash ? { ...cash, data: withoutExcluded('sponsors_cash', cash.data) } : null, money, now, new URL(request.url).searchParams.get('month'));
+      return json({ ok: true, asOf: new Date(now).toISOString(), income });
+    } catch (err) { console.error('money income', err); return json({ ok: false, error: 'Could not read the income' }, 503); }
   }
   // Dashboard 3 Factory page: only the video program's newest board, read every 3 s while that page is open.
   if (rest === '/d3/factory' && method === 'GET') {
