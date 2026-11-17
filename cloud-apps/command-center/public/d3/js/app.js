@@ -11,6 +11,7 @@ import { renderMoney } from './money.js';
 import { threadClick } from './thread.js';
 import { renderHyper, openHyper } from './hyper.js';
 import { renderBluesky } from './bluesky.js';
+import { renderCards } from './cards.js';
 import { renderPersonal, mnavHtml, moneyBizHtml, personalClick, personalChange, personalInput, personalSubmit, personalPaste, personalKey, personalPopOpen, personalDrag, personalAfter, nowParts } from './personal.js';
 import { renderFactory, syncFactory } from './factory.js';
 import { renderTrack, trackSub } from './track.js';
@@ -21,12 +22,12 @@ let oldTrack = null;
 
 // Home is the Goals page (Jacqueline's handover): #goals and any unknown hash draw it.
 // Team, Blockers, Scripts and System were removed from the menu and the routes (Jon, 2026-11-16): their hashes now draw Home. Their data and APIs are untouched.
-const PAGES = { home: 'Goals', factory: 'Factory', track: 'Track', review: 'Review', hyper: 'Hyper', personal: 'Personal', money: 'Money', bluesky: 'Bluesky' };
+const PAGES = { home: 'Goals', factory: 'Factory', track: 'Track', review: 'Review', hyper: 'Hyper', personal: 'Personal', money: 'Money', bluesky: 'Bluesky', cards: 'Cards' };
 const SIGNIN = 'd3-signin';
 const main = document.getElementById('main');
 // Review state that belongs to one item: cleared when the item or the page changes.
 const RV_CLEAR = { rvBack: null, rvEdit: null, rvDraft: {}, rvPick: null, rvText: '', rvErr: '' };
-const S = { d2: null, d3: null, track: null, error: '', signedOut: false, ui: { openKr: null, hgpOpen: false, busy: false, openBot: null, openBl: null, blFilter: 'all', rvSel: null, rvDone: {}, rvKept: {}, rvBack: null, rvEdit: null, rvDraft: {}, rvPick: null, rvText: '', rvErr: '', bsTab: 'vision', syTab: 'map', sySel: 'sponsors', syCat: 'card', hmView: 'list', hmPer: 'today', hmOpen: null, hmMore: false, hmCols: savedColours() } };
+const S = { d2: null, d3: null, track: null, cards: undefined, error: '', signedOut: false, ui: { openKr: null, hgpOpen: false, busy: false, openBot: null, openBl: null, blFilter: 'all', rvSel: null, rvDone: {}, rvKept: {}, rvBack: null, rvEdit: null, rvDraft: {}, rvPick: null, rvText: '', rvErr: '', bsTab: 'vision', syTab: 'map', sySel: 'sponsors', syCat: 'card', hmView: 'list', hmPer: 'today', hmOpen: null, hmMore: false, hmCols: savedColours() } };
 
 // ---- theme (the inline script in index.html applies the saved one before paint) ----
 function setTheme(t) {
@@ -87,10 +88,18 @@ function render() {
     S.track = null;
     loadTrack().then(() => { if (page() === 'track') render(); });
   }
+  if (p === 'cards' && S.ui.lastPage !== 'cards' && !S.signedOut) { // each open starts with a fresh read
+    S.cards = undefined;
+    loadCards().then(() => { if (page() === 'cards') render(); });
+  }
   if (p !== 'money' && S.ui.lastPage === 'money') S.ui.dealSel = null; // leaving Money clears the picked deal's outline
   S.ui.lastPage = p;
   // The Factory page counts "updated N s ago" on the server's clock: its time at the last load plus the time since.
   S.ui.now = S.d3 ? Date.parse(S.d3.asOf) + (Date.now() - (S.d3Got || Date.now())) : null;
+  if (p === 'cards') { // view only: nothing here writes
+    main.innerHTML = `${note}${renderCards(S.d2, S.cards)}`;
+    return;
+  }
   if (p === 'track') { main.innerHTML = `${note}${renderTrack(S.track, trackSub(location.hash), oldTrack?.track)}`; return; }
   if (p === 'hyper') { // drawn once: a redraw would reload the app in its frame
     if (S.signedOut) { main.innerHTML = `${headerOnly(S.d2, 'Hyper')}${note}`; return; }
@@ -170,6 +179,14 @@ async function loadTrack() {
   }
 }
 
+// The Cards page's list (GET /dashboard/api/cards): every open card and the last 7 days of done ones. A failed read says so.
+async function loadCards() {
+  try {
+    const c = await getJson('/dashboard/api/cards');
+    S.cards = c.signedOut ? null : c.body || null;
+  } catch { S.cards = null; }
+}
+
 // Home's saved tasks, Jon's own goals and his calendar week. A failed read keeps the last ones; the page says so when there are none.
 async function loadHome() {
   try {
@@ -225,6 +242,7 @@ async function load() {
     S.error = `Could not load the numbers (${err.message}). Showing the last ones loaded.`;
   }
   if (page() === 'review' && !S.signedOut) await loadThreads();
+  if (page() === 'cards' && !S.signedOut) await loadCards();
   rail();
   // Don't redraw under Jon's typing (a Review answer, send-back note or draft edit); the next load or click redraws.
   if (document.activeElement?.closest?.('#main textarea, #main input') || popOpen()) return;

@@ -41,10 +41,10 @@ const rowOf = (cats, key, per, k) => rowsOf(cats, key, per).find((r) => r.k === 
 test('Home is the default page and is called Goals in the menu; Personal sits between Hyper and Money', () => {
   const app = read('../public/d3/js/app.js');
   assert.match(app, /return PAGES\[k\] \? k : 'home';/);
-  assert.match(app, /const PAGES = \{ home: 'Goals', factory: 'Factory', track: 'Track', review: 'Review', hyper: 'Hyper', personal: 'Personal', money: 'Money', bluesky: 'Bluesky' \};/);
+  assert.match(app, /const PAGES = \{ home: 'Goals', factory: 'Factory', track: 'Track', review: 'Review', hyper: 'Hyper', personal: 'Personal', money: 'Money', bluesky: 'Bluesky', cards: 'Cards' \};/);
   const index = read('../public/d3/index.html');
   const nav = [...index.matchAll(/<a href="#([a-z]+)" data-nav="([a-z]+)">/g)].map((m) => { assert.equal(m[1], m[2]); return m[1]; });
-  assert.deepEqual(nav, ['home', 'factory', 'track', 'review', 'hyper', 'personal', 'money', 'bluesky']); // Team, Blockers, Scripts and System are gone (Jon, 2026-11-16)
+  assert.deepEqual(nav, ['home', 'factory', 'track', 'review', 'hyper', 'personal', 'money', 'bluesky', 'cards']); // Team, Blockers, Scripts and System are gone (Jon, 2026-11-16)
   assert.match(index, /data-nav="home">.*<\/svg>Goals<\/a>/);
 });
 

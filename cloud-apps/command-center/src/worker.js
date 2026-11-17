@@ -92,6 +92,11 @@ export default {
     }
     if (url.pathname.startsWith(`${D3}/`)) {
       const path = url.pathname.slice(D3.length);
+      // The Cards page is a hash route inside Dashboard 3; /dash/cards is its plain address: signed out goes to sign-in, signed in to the page.
+      if (path === '/cards' || path === '/cards/') {
+        const to = (await readSession(request, env)) ? `${D3}/#cards` : `${D3}/`;
+        return new Response(null, { status: 302, headers: { Location: new URL(to, request.url).toString(), ...PRIVATE_HEADERS } });
+      }
       if (path === '/' || path === '/index.html') return asset(request, env, (await readSession(request, env)) ? '/d3/index.html' : '/d3/login.html');
       return D2_FILE.test(path) ? asset(request, env, `/d3${path}`) : notFound();
     }
