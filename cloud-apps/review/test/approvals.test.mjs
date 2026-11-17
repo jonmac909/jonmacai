@@ -401,4 +401,21 @@ test("Approve on every page (Jon, 2026-11-17): only signed-in Jon, QC-only too, 
   assert.match(page, /id="approve"/);
   assert.match(page, /"status":"approved"/);
   assert.equal((await approve(asJon())).body.duplicate, true, "a second press is the same approval");
+  // Approve, Send back, Approve again with no new comment: a new approval that reaches the card again.
+  await call(`/api/review/${slug}/comments`, jsonInit("POST", { author: "Jon", t: 1, text: "Trim the intro" }, asJon()));
+  assert.equal((await call(`/api/review/${slug}/submit`, jsonInit("POST", { kind: "changes" }, asJon()))).status, 201);
+  assert.equal((await status())[0].kind, "changes", "the button is back to Approve");
+  const again = await approve(asJon());
+  assert.deepEqual([again.status, again.body.duplicate, again.body.card], [201, false, "posted"]);
+  assert.equal((await status())[0].kind, "approve");
+  assert.equal((await approve(asJon())).body.duplicate, true, "and a double tap on it is still one approval");
+
+  // A recut of a QC-passed version is QC-only again: the card is told it still needs QC, not "final".
+  assert.equal((await publish("apall-2-v1")).status, 201);
+  await qcPass("apall-2-v1");
+  const key = "review/apall-2-v1/video-recut.mp4";
+  await runtime.bucket.put(key, new Uint8Array([0, 0, 0, 24]));
+  assert.equal((await call("/api/review/apall-2-v1/publish", jsonInit("POST", { channel: "test", video: "apall-2", version: "v1", title: TITLE, video_key: key }))).status, 200);
+  assert.equal((await call("/api/review/apall-2-v1/submit", jsonInit("POST", { kind: "approve" }, asJon()))).status, 201);
+  assert.match((await cardComments(CARD)).at(-1).body, /It hadn't passed QC yet/);
 });

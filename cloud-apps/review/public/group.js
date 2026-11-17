@@ -72,7 +72,7 @@
             note.value = "";
           }
           const result = await call(slug, "/submit", { kind });
-          if (kind === "approve") button.textContent = "Approved";
+          for (const b of buttons) if (b.dataset.act === "approve") b.textContent = kind === "approve" ? "Approved" : "Approve";
           status.textContent = (kind === "approve" ? "Approved." : "Submitted. The agent that made this video gets your note.") +
             (result.cardNote ? ` ${result.cardNote}` : "");
         } catch (error) {

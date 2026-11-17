@@ -98,7 +98,7 @@ function payloadOf(body) {
   })) : [];
   const at = typeof body.at === 'string' && !Number.isNaN(Date.parse(body.at)) ? new Date(body.at).toISOString() : null;
   return { kind: body.kind, slug: body.slug, title: str(body.title, 300) || body.slug, version: str(body.version, 40) || 'this version',
-    task_id: str(body.task_id, 40), submission_id: str(body.submission_id, 80), comments, at, backfill: body.backfill === true };
+    task_id: str(body.task_id, 40), submission_id: str(body.submission_id, 80), comments, at, backfill: body.backfill === true, qc_passed: body.qc_passed !== false };
 }
 
 async function submission(request, env, ctx) {
@@ -109,7 +109,7 @@ async function submission(request, env, ctx) {
   const { task, by } = await findCard(env.DB, p);
   // The backfill only fills in cards that are still open, and wakes no one for a video without a card.
   if (p.backfill && (!task || task.status === 'done')) return json({ ok: true, result: task ? 'skipped' : 'no_card', task, matched_by: by });
-  const body = commentOf(p, now, p.kind !== 'approve' || Boolean((await passesOf(env.DB))[p.slug.toLowerCase()]));
+  const body = commentOf(p, now, p.kind !== 'approve' || (p.qc_passed && Boolean((await passesOf(env.DB))[p.slug.toLowerCase()])));
   const review = { slug: p.slug, kind: p.kind, submission: p.submission_id || null };
   if (!task) { // like a review comment on a video no card links to yet (videoreview.js wakeForComment)
     const wake = wakeOwner(env, { id: null, title: p.title, project: null, owner: NO_TASK_OWNER }, { id: p.submission_id || `review-${p.slug}-${now}`, body },

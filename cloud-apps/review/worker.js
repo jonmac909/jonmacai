@@ -352,6 +352,8 @@ async function tellCard(env, submission, video, backfill = false) {
         body: JSON.stringify({
           kind: submission.kind, slug: video.slug, title: video.title, version: video.version, channel: video.channel,
           task_id: stored?.task_id || null, submission_id: submission.id, at: submission.created_at, backfill,
+          // An approve of a version QC has not passed (a recut counts): the card says it still needs QC.
+          ...(submission.kind === "approve" ? { qc_passed: Boolean((await visibleSlugs(env, [video]))?.has(video.slug)) } : {}),
           comments: sent.map((c) => ({ t: c.t, text: c.text, transcript: c.transcript, voice: Boolean(c.audio_key), drawing: Boolean(c.drawing) })),
         }),
       }));
@@ -784,7 +786,9 @@ async function submit(request, env, base, row, who = {}) {
   ).bind(row.slug).all();
   const ids = open.results.map((c) => c.id);
   if (kind === "changes" && !ids.length) return fail(400, "Add a comment first");
-  const dedupe = `${row.slug}|${kind}|${[...ids].sort().join(",")}`;
+  // An approve after a Send back is a new approval (keyed by that Send back); a double tap is the same one.
+  const lastChanges = kind === "approve" ? await env.DB.prepare("SELECT id FROM submissions WHERE slug = ? AND kind = 'changes' ORDER BY created_at DESC LIMIT 1").bind(row.slug).first() : null;
+  const dedupe = `${row.slug}|${kind}|${[...ids].sort().join(",")}${lastChanges ? `|after:${lastChanges.id}` : ""}`;
   const id = crypto.randomUUID();
   const stamp = now();
   // The dashboard already tells the owner of this Send back (its card wake): stored as delivered, the GPU2 router skips it.
