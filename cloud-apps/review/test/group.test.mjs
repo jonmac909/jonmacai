@@ -63,7 +63,7 @@ test("group API: writes need the agent token, append is idempotent and keeps ord
   assert.equal((await call("/api/review/groups/nope", { headers: agent })).status, 404);
 });
 
-test("3-slug group shows 3 players in group order, preload none, QC-hidden one has no Approve", async () => {
+test("3-slug group shows 3 players in group order, preload none, QC-hidden one still has Approve", async () => {
   const { status, text } = await page("/review/g/course");
   assert.equal(status, 200);
   const players = [...text.matchAll(/<video class="group-player"[^>]*src="\/review\/media\/([a-z0-9-]+)\/video\.mp4/g)].map((m) => m[1]);
@@ -75,15 +75,15 @@ test("3-slug group shows 3 players in group order, preload none, QC-hidden one h
   for (const slug of SLUGS) {
     assert.match(blocks[slug], /data-act="changes"/);
     if (slug === HIDDEN) {
-      assert.doesNotMatch(blocks[slug], /data-act="approve"|>Approve</);
+      assert.match(blocks[slug], /data-act="approve"[^>]*>Approve</, "Approve on QC-only too (Jon, 2026-11-17)");
       assert.match(blocks[slug], /QC only/);
     } else {
       assert.match(blocks[slug], /data-act="approve"/);
     }
   }
-  // The same gate as the single page, and the server refuses an approve of the hidden one either way.
-  assert.doesNotMatch((await page(`/review/${HIDDEN}`)).text, /id="approve"/);
-  assert.equal((await call(`/api/review/${HIDDEN}/submit`, jsonInit("POST", { kind: "approve" }, { Cookie: cookie }))).status, 409);
+  // Same on the single page; nobody but Jon's session approves.
+  assert.match((await page(`/review/${HIDDEN}`)).text, /id="approve"/);
+  assert.equal((await call(`/api/review/${HIDDEN}/submit`, jsonInit("POST", { kind: "approve" }, agent))).status, 403);
 });
 
 test("missing slug and unknown group", async () => {

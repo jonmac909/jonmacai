@@ -535,7 +535,7 @@ function groupNav(group, slug) {
 }
 
 // Review groups (Jon, 2026-11-16): an ordered slug list shown as one page, /review/g/<name>, one player per video.
-// Each video keeps the single page's QC gate: a QC-only video has no Approve, exactly as on /review/<slug>.
+// Each video keeps the single page's QC gate: a QC-only video has no status buttons but still has Approve, exactly as on /review/<slug>.
 const getGroup = async (env, name) => {
   const row = await env.DB.prepare("SELECT name, title, slugs, created_at, updated_at FROM review_groups WHERE name = ?").bind(name).first();
   if (!row) return null;
@@ -778,11 +778,7 @@ async function submit(request, env, base, row, who = {}) {
   const kind = body.kind === undefined ? "changes" : body.kind;
   if (!Object.hasOwn(KINDS, kind)) return fail(400, "kind must be changes or approve");
   if (kind === "approve" && who.agent) return fail(403, "only_a_reviewer_can_approve"); // Approve finishes the card; only Jon does that
-  if (kind === "approve") { // the QC gate: only a version QC passed can be approved
-    const visible = await visibleSlugs(env, [row]);
-    if (!visible) return fail(503, "QC results could not be read from the dashboard, so this version can't be approved yet. Try again in a minute.");
-    if (!visible.has(row.slug)) return fail(409, "QC has not passed this version yet, so it can't be approved. It shows on Jon's list once QC passes it.");
-  }
+  // No QC check on Approve (Jon, 2026-11-17: Approve on every review page): the card is told when QC had not passed it (reviewhook commentOf).
   const open = await env.DB.prepare(
     "SELECT id FROM comments WHERE slug = ? AND resolved = 0 AND submission_id IS NULL ORDER BY t, created_at",
   ).bind(row.slug).all();

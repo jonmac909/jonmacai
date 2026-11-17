@@ -72,12 +72,13 @@
             note.value = "";
           }
           const result = await call(slug, "/submit", { kind });
+          if (kind === "approve") button.textContent = "Approved";
           status.textContent = (kind === "approve" ? "Approved." : "Submitted. The agent that made this video gets your note.") +
             (result.cardNote ? ` ${result.cardNote}` : "");
         } catch (error) {
           status.textContent = error.message;
         } finally {
-          for (const b of buttons) b.disabled = false;
+          for (const b of buttons) b.disabled = b.textContent === "Approved";
         }
       });
     }

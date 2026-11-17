@@ -233,12 +233,10 @@ test("Jon's list shows only each video's newest QC-passed version; nothing is de
   dashboardDown = true;
   const fallback = await listed();
   const jonList = (await call("/api/review/jon-list", { headers: agent })).body;
-  const approve = await submit("qcvid-1-v2", "approve");
   dashboardDown = false;
   assert.deepEqual(fallback.slugs, []);
   assert.match(fallback.page, /QC results could not be read from the dashboard, so no video is shown/);
   assert.deepEqual(jonList, { qc_read: false, slugs: [] });
-  assert.equal(approve.status, 503);
   assert.deepEqual(openVideos([{ slug: "a-1-v1", status: "needs_review", created_at: "2026-11-09" }], null), []);
 });
 
@@ -254,12 +252,10 @@ test("QC gate: a new version is QC-only (off Jon's list, no Approve, no link to 
   assert.equal(await onIndex("gate-1-v1"), false);
   assert.equal((await jonList()).includes("gate-1-v1"), false);
   const held = await page("gate-1-v1");
-  assert.match(held, /QC only: this version is hidden from Jon's list and can't be approved/);
+  assert.match(held, /QC only: this version is hidden from Jon's list/);
   assert.match(held, /<video id="player"/, "QC can still open and play it");
-  assert.doesNotMatch(held, /id="approve"|id="status"/);
-  const refused = await submit("gate-1-v1", "approve");
-  assert.equal(refused.status, 409);
-  assert.match(refused.body.error, /^QC has not passed this version yet/);
+  assert.match(held, /id="approve"/, "Approve is on every page, QC-only too (Jon, 2026-11-17)");
+  assert.doesNotMatch(held, /id="status"/);
   assert.equal((await call("/api/review/gate-1-v1/status", jsonInit("POST", { status: "approved" }, asJon()))).status, 409);
   assert.equal((await call("/api/review/videos", { headers: asJon() })).body.videos.some((v) => v.slug === "gate-1-v1"), false, "not in a reviewer's JSON list");
   assert.ok((await call("/api/review/videos", { headers: agent })).body.videos.some((v) => v.slug === "gate-1-v1"), "agents still list it");
@@ -344,7 +340,6 @@ test("the Factory marks its own version QC-passed (Jon, 2026-11-12): on Jon's li
   assert.equal((await pass("factory-1-v1", undefined, { ...asJon(), Origin: "https://evil.example" })).status, 403);
   assert.equal((await pass("factory-1-v1", { by: "factory" })).status, 400, "a pass needs its note");
   assert.equal((await pass("factory-9-v1")).status, 404);
-  assert.equal((await submit("factory-1-v1", "approve")).status, 409, "still QC-only");
   dashboardDown = true;
   const down = await pass("factory-1-v1");
   dashboardDown = false;
@@ -381,4 +376,29 @@ test("the Factory marks its own version QC-passed (Jon, 2026-11-12): on Jon's li
   await runtime.bucket.put(key, new Uint8Array([0, 0, 0, 24]));
   assert.equal((await call("/api/review/factory-2-v1/publish", jsonInit("POST", { channel: "test", video: "factory-2", version: "v1", title: TITLE, video_key: key }))).status, 200);
   assert.equal((await jonList()).includes("factory-2-v1"), false, "the recut is QC-only again");
+});
+
+test("Approve on every page (Jon, 2026-11-17): only signed-in Jon, QC-only too, it persists and the card hears it", { skip }, async () => {
+  const slug = "apall-1-v1";
+  assert.equal((await publish(slug)).status, 201); // QC has not passed it
+  const approve = (headers) => call(`/api/review/${slug}/submit`, jsonInit("POST", { kind: "approve" }, headers));
+  const status = async () => (await call(`/api/review/${slug}/submissions`, { headers: asJon() })).body.submissions;
+  // Refused: no sign-in at all, a bot's token, and a signed-in cookie from another site.
+  assert.equal((await approve({})).status, 401);
+  assert.equal((await approve(agent)).status, 403);
+  assert.equal((await approve({ ...asJon(), Origin: "https://evil.example" })).status, 403);
+  assert.deepEqual(await status(), [], "nothing recorded by the refused calls");
+  // Jon: recorded with its time, and the card is told it still needs QC.
+  const done = await approve(asJon());
+  assert.equal(done.status, 201);
+  assert.equal(done.body.status, "approved");
+  assert.equal(done.body.card, "posted");
+  assert.match((await cardComments(CARD)).at(-1).body, /^Jon approved v1 of .+ It hadn't passed QC yet: get this version through QC first.+\nhttps:\/\/jonmac\.ai\/review\/apall-1-v1$/s);
+  // It persists: a reload lists the approval first (the button reads "Approved <time>" from it) and the video stays approved.
+  const [first] = await status();
+  assert.deepEqual([first.kind, first.created_at === done.body.submission.created_at], ["approve", true]);
+  const page = await (await fetchApp(`/review/${slug}`, { headers: asJon() })).text();
+  assert.match(page, /id="approve"/);
+  assert.match(page, /"status":"approved"/);
+  assert.equal((await approve(asJon())).body.duplicate, true, "a second press is the same approval");
 });
