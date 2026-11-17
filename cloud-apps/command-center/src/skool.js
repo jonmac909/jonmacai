@@ -31,7 +31,10 @@ export async function skoolRedirect(request, env, ctx) {
   to.searchParams.set('utm_campaign', slug);
   if (!env.DB) return forward(to);
   let link = null;
-  try { link = await env.DB.prepare('SELECT capture FROM skool_links WHERE slug = ?').bind(slug).first(); } catch (err) { console.error('skool link', err); }
+  try { link = await env.DB.prepare('SELECT capture FROM skool_links WHERE slug = ?').bind(slug).first(); } catch (err) {
+    console.error('skool link', err); // e.g. the capture column is missing before migration 0030: keep counting clicks, no email step
+    try { link = await env.DB.prepare('SELECT slug FROM skool_links WHERE slug = ?').bind(slug).first(); } catch { /* unknown */ }
+  }
   if (!link) return forward(to); // unknown slug: forward, count nothing
   const capture = link.capture === 1;
   if (request.method === 'POST') {
@@ -43,7 +46,7 @@ export async function skoolRedirect(request, env, ctx) {
       const now = Date.now();
       const recent = await env.DB.prepare('SELECT COUNT(*) AS n FROM skool_leads WHERE slug = ? AND at >= ?').bind(slug, iso(now - 600e3)).first();
       if ((recent?.n || 0) < MAX_LEADS_PER_10_MIN) {
-        await env.DB.prepare('INSERT INTO skool_leads (slug, email, at) VALUES (?, ?, ?) ON CONFLICT(slug, email) DO UPDATE SET at = excluded.at')
+        await env.DB.prepare('INSERT INTO skool_leads (slug, email, at) VALUES (?, ?, ?) ON CONFLICT(slug, email) DO NOTHING') // keep the first capture time: a later visit must not move it past an earlier sale
           .bind(slug, email, iso(now)).run();
       }
     } catch { console.error('skool lead save failed', slug); }
@@ -82,7 +85,7 @@ async function body(request) {
 }
 const field = (b, ...names) => { for (const n of names) if (b[n] != null && String(b[n]).trim()) return String(b[n]).trim(); return ''; };
 function when(s, nowMs) {
-  const t = s ? Date.parse(s) : NaN;
+  const t = s ? Date.parse(/^\d{4}-\d{2}-\d{2}$/.test(s) ? `${s}T23:59:59Z` : s) : NaN; // a bare date means the end of that day
   return iso(Number.isFinite(t) && t <= nowMs + 3600e3 ? t : nowMs);
 }
 

@@ -135,3 +135,39 @@ test('a script cannot flood one link with emails', async () => {
   for (let i = 0; i < 65; i++) await go(e, '/s/flood', { method: 'POST', body: { email: `u${i}@example.com` } });
   assert.equal((await leads(e)).length, 60);
 });
+
+test('a repeat visit does not move the capture time past an earlier sale', async () => {
+  const e = env();
+  await addLink(e, 'again', 'Again');
+  await toggle(e, 'again', true);
+  await go(e, '/s/again', { method: 'POST', body: { email: 'rep@example.com' } });
+  const first = (await e.DB.prepare('SELECT at FROM skool_leads').first()).at;
+  await new Promise((r) => setTimeout(r, 15));
+  await go(e, '/s/again', { method: 'POST', body: { email: 'rep@example.com' } });
+  assert.equal((await e.DB.prepare('SELECT at FROM skool_leads').first()).at, first);
+});
+
+test('before migration 0030 a link still forwards and counts the click', async () => {
+  const e = env();
+  await addLink(e, 'old-schema', 'Old');
+  e.DB.sqlite.exec('ALTER TABLE skool_links DROP COLUMN capture');
+  const origError = console.error;
+  console.error = () => {};
+  try {
+    const r = await go(e, '/s/old-schema');
+    assert.equal(r.status, 302);
+  } finally { console.error = origError; }
+  assert.equal((await e.DB.prepare('SELECT COUNT(*) AS n FROM skool_clicks').first()).n, 1);
+});
+
+test('a sale dated with a bare day matches an email captured earlier that day', async () => {
+  const e = env();
+  await addLink(e, 'day-vid', 'Day');
+  const today = new Date().toISOString().slice(0, 10);
+  await e.DB.prepare('INSERT INTO skool_leads (slug, email, at) VALUES (?, ?, ?)').bind('day-vid', 'd@x.co', `${today}T00:00:01.000Z`).run();
+  await sale(e, { email: 'd@x.co', transaction_id: 'bare', first_name: 'Bare', date: '2000-01-01' }); // old date: lead is later, no match
+  await sale(e, { email: 'd@x.co', transaction_id: 'bare2', first_name: 'Today', date: today });
+  const d = await trackerData(e.DB);
+  assert.equal(d.sales.find((s) => s.name === 'Today').how, 'email');
+  assert.notEqual(d.sales.find((s) => s.name === 'Bare').how, 'email');
+});
