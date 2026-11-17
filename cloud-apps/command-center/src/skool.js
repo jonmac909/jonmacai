@@ -94,8 +94,7 @@ button:hover{background:#f5c961}.err{color:#b3261e;margin:0 0 .75rem}.note{color
 <div class="wrap"><main class="box" role="dialog" aria-modal="true" aria-labelledby="t">
 <h1 id="t">Enter your email to get access</h1>${error ? `<p class="err" role="alert">${esc(error)}</p>` : ''}
 <form method="post" action="/s/${esc(slug)}"><input type="email" name="email" placeholder="you@example.com" autocomplete="email" aria-label="Email" required autofocus maxlength="254">
-<button type="submit">Continue</button></form>
-<p class="note">We use your email only to see which video sent you; it stays on jonmac.ai.</p></main></div></body></html>`;
+<button type="submit">Continue</button></form></main></div></body></html>`;
   return new Response(html, { status, headers: { 'Content-Type': 'text/html; charset=utf-8', ...NO_STORE } });
 }
 
@@ -246,7 +245,7 @@ form{display:grid;gap:.5rem;max-width:34rem}input{font:inherit;padding:.55rem .7
 <h1>Skool tracker</h1><p>Every short link forwards to skool.com/ai-ugc. Sales come from Zapier. Exact = the buyer's email was captured on the link, or they named the video in their answer; "est." means neither, so the sale goes to the last link clicked in the 24 hours before it.</p>
 <div class="wrap"><table><thead><tr><th>Video</th><th>Slug</th><th>Short link</th><th class="n">Clicks 7d</th><th class="n">30d</th><th class="n">All</th><th class="n">Emails</th><th class="n">Sales</th><th class="n">Conversion</th><th>Email step</th></tr></thead>
 <tbody>${rows || '<tr><td colspan="10">No links yet. Add one below.</td></tr>'}</tbody></table></div>
-<p>Email step: when On, the short link first asks for an email ("We use your email only to see which video sent you; it stays on jonmac.ai."), then forwards to Skool. Off for every new link.</p>
+<p>Email step: when On, the short link first asks for an email in a pop-over, then forwards to Skool. On for every new link.</p>
 <p>Sales not tied to any video: ${data.unattributed}</p>
 <h2>Add a link</h2><form id="add"><input name="slug" placeholder="slug, e.g. seedance-ugc" required pattern="[a-z0-9][a-z0-9-]{0,38}[a-z0-9]">
 <input name="title" placeholder="Video title" required><input name="youtube_url" placeholder="YouTube URL (optional)" type="url">
