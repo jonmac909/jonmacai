@@ -195,7 +195,7 @@ test('the section: total on top per currency, a row per payment, switcher, nothi
 });
 
 // ---- the API ----
-const cookie = async () => `${COOKIE}=${await signSession(SECRET, Math.floor(NOW / 1000) + 3600)}`;
+const cookie = async () => `${COOKIE}=${await signSession(SECRET, Math.floor(NOW / 1000) + 10 * 365 * 86400)}`; // far-future expiry: the real clock moves past NOW+1h and a fixed 1 h cookie made these tests fail after 21:00Z on 2026-11-17
 const withNow = async (fn) => { const real = Date.now; Date.now = () => NOW; try { return await fn(); } finally { Date.now = real; } };
 async function seeded() {
   const db = sqliteD1();
