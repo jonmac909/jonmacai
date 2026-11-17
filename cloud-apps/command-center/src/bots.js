@@ -1134,7 +1134,7 @@ export const FEEDS = {
     },
   },
   // The dispatcher's live state (tools/dash_live_feed.py, every 2 min): beat, weekly limit, running runs,
-  // tokens, ok/failed runs and fails per bot today, approved videos waiting. Only 2 days are kept.
+  // tokens, ok/failed runs and fails per bot today, approved videos waiting, running helper jobs. Only 2 days are kept.
   dispatch_live: {
     writers: ['developer', 'ana'],
     keepDays: 2,
@@ -1160,6 +1160,8 @@ export const FEEDS = {
       return {
         at: isoOf(b.at, 'at'), beat: b.beat ? isoOf(b.beat, 'beat') : null, week,
         running: list('running', 60), fails: list('fails', 80),
+        // Helper jobs running now (tools/dash_live_feed.py reads helper_job.py's state): {name, bot, title, card, started, updated}. Read by the Cards page.
+        jobs: list('jobs', 30),
         tokens: map('tokens', whole), runs: map('runs', (x) => ({ ok: whole(x?.ok ?? 0), failed: whole(x?.failed ?? 0) })),
         approved, heygen,
       };

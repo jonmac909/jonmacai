@@ -44,11 +44,15 @@ const toast = (t) => (t ? `<div class="cktoast" role="status"><span>${esc(t.kind
 // "Working now" (Jon, 2026-11-17): one row per card that is really being worked on (cards.active from src/cards.js: a run going now, or
 // its owner updated it in the last hour): the member's name, the card as a link that opens the card's own page the way a title in the
 // lists below does, and "running now" or "updated N min ago". The count is the number of rows. No one active: one line saying so.
-export function activeBlock(active) {
+// Background jobs (cards.jobs: helper jobs the live feed lists as running) are rows too: the bot's name, the job's title, "running Nm" and the
+// card as a link when it names one. They count in the header number.
+export function activeBlock(active, jobs) {
   if (!Array.isArray(active)) return '';
-  if (!active.length) return '<section class="card ckactive" aria-label="Working now"><p class="mut ckidle">Nobody is working on a card right now.</p></section>';
+  const js = Array.isArray(jobs) ? jobs : [];
+  if (!active.length && !js.length) return '<section class="card ckactive" aria-label="Working now"><p class="mut ckidle">Nobody is working on a card right now.</p></section>';
   const rows = active.map((c) => `<div class="ckact" data-ckwho="${esc(c.owner)}"><b class="ckname">${esc(c.names?.length ? c.names.join(', ') : ownerName(c.owner))}</b><span class="ckacs"><span class="ckac"><button type="button" class="ckt cklink" data-ck-open="${esc(c.id)}">${esc(c.title)}</button> <span class="ckm"><span class="ckrun">${c.running ? 'running now' : `updated ${esc(c.age)}`}</span></span></span></span></div>`).join('');
-  return `<section class="card ckactive" aria-label="Working now"><p class="ckactt"><b>Working now</b> <span class="mut">${active.length}</span></p>${rows}</section>`;
+  const jobRows = js.map((j) => `<div class="ckact ckjob" data-ckwho="${esc(j.owner)}"><b class="ckname">${esc(j.names?.length ? j.names.join(', ') : ownerName(j.owner))}</b><span class="ckacs"><span class="ckac"><span class="ckt" title="${esc(j.name)}">${esc(j.title)}</span> <span class="ckm"><span class="ckrun">running ${esc(j.mins)}m</span></span>${j.card ? ` <button type="button" class="ckt cklink" data-ck-open="${esc(j.card)}">${esc(j.cardTitle || 'card')}</button>` : ''}</span></span></div>`).join('');
+  return `<section class="card ckactive" aria-label="Working now"><p class="ckactt"><b>Working now</b> <span class="mut">${active.length + js.length}</span></p>${rows}${jobRows}</section>`;
 }
 
 const when = (iso) => (iso ? String(iso).replace('T', ' ').slice(0, 16) : '');
@@ -87,7 +91,7 @@ export function renderCards(d2resp, resp, ui = {}) {
   const groups = [...owners.entries()].sort((a, b) => b[1].length - a[1].length || ownerName(a[0]).localeCompare(ownerName(b[0])))
     .map(([o, list]) => group(ownerName(o), list.sort(byStatus), ui));
   const parts = [];
-  parts.push(activeBlock(cards.active));
+  parts.push(activeBlock(cards.active, cards.jobs));
   parts.push(`<section class="card ckhead"><p><b>${open.length}</b> open cards · <b>${everyOwner.size}</b> owners · <b>${mf.length}</b> MacFrames</p>${cards.cut ? '<p class="mut">The list is cut: it shows the newest cards only.</p>' : ''}</section>`);
   parts.push(mf.length ? group('MacFrames', mf, ui) : '<section class="card"><p class="mut">No open MacFrames cards.</p></section>');
   parts.push(...groups);
