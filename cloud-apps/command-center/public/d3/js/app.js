@@ -1,32 +1,27 @@
-// Dashboard 3 shell (docs/dashboard-3.md): theme switch, hash routes, data load every 60 s (the Factory page reads its board every 3 s), and the Home (the default page, home.js), Goals, Team,
-// Factory, Track, Blockers, Review, Money, Bluesky and System pages (the last two are fixed text and need only the date),
+// Dashboard 3 shell (docs/dashboard-3.md): theme switch, hash routes, data load every 60 s (the Factory page reads its board every 3 s), and the Home (the default page, home.js), Goals,
+// Factory, Track, Review, Money and Bluesky pages (Bluesky is fixed text and needs only the date),
 // and the Hyper page, which frames the HyperFrames app (hyper.js).
 // Data: GET /dashboard/api/d2 and /dashboard/api/d3 (session cookie). Writes: "+ Log" on Workouts and Date nights
 // (POST /dashboard/api/habits) and the Review page's buttons (existing writes only, see review.js).
 import { esc } from './util.js';
 import { statHtml, railCounts } from './rail.js';
 import { renderGoals, headerOnly } from './goals.js';
-import { renderTeam } from './team.js';
-import { renderBlockers } from './blockers.js';
-import { needsClick } from './needs.js';
 import { renderReview, reviewClick } from './review.js';
 import { renderMoney } from './money.js';
 import { threadClick } from './thread.js';
-import { renderScripts } from './scripts.js';
 import { renderHyper, openHyper } from './hyper.js';
 import { renderBluesky } from './bluesky.js';
-import { renderSystem } from './system.js';
-import { sourcesCard } from './sources.js';
 import { renderPersonal, mnavHtml, moneyBizHtml, personalClick, personalChange, personalInput, personalSubmit, personalPaste, personalKey, personalPopOpen, personalDrag, personalAfter, nowParts } from './personal.js';
 import { renderFactory, syncFactory } from './factory.js';
 import { renderTrack, trackSub } from './track.js';
-import { renderHome, homeClick, homeChange, homeInput, homeSubmit, homeDrag, homeKeep, homeAfter, homeHints, setColour, savedColours } from './home.js';
+import { renderHome, homeClick, homeChange, homeInput, homeSubmit, homeKeep, homeAfter, homeHints, setColour, savedColours, nowOf } from './home.js';
 // The old Track page's own renderer and sort state, loaded from /dashboard (as Dashboard 2 does) the first time Track opens.
 const OLD_TRACK = '/dashboard/js/pages/track.js';
 let oldTrack = null;
 
 // Home is the Goals page (Jacqueline's handover): #goals and any unknown hash draw it.
-const PAGES = { home: 'Goals', team: 'Team', factory: 'Factory', track: 'Track', blockers: 'Blockers', review: 'Review', scripts: 'Scripts', hyper: 'Hyper', personal: 'Personal', money: 'Money', bluesky: 'Bluesky', system: 'System' };
+// Team, Blockers, Scripts and System were removed from the menu and the routes (Jon, 2026-11-16): their hashes now draw Home. Their data and APIs are untouched.
+const PAGES = { home: 'Goals', factory: 'Factory', track: 'Track', review: 'Review', hyper: 'Hyper', personal: 'Personal', money: 'Money', bluesky: 'Bluesky' };
 const SIGNIN = 'd3-signin';
 const main = document.getElementById('main');
 // Review state that belongs to one item: cleared when the item or the page changes.
@@ -112,7 +107,7 @@ function render() {
   }
   S.fyNote = null;
   if (p === 'personal') { main.innerHTML = `${note}${renderPersonal(S, route().slice(1), S.ui)}`; personalAfter(main, S, send, render, reloadPersonal); return; }
-  const live = { team: renderTeam, blockers: renderBlockers, review: renderReview, scripts: renderScripts, money: renderMoney }[p];
+  const live = { review: renderReview, money: renderMoney }[p];
   if (live) {
     const top = p === 'money' ? mnavHtml('money') : '';
     main.innerHTML = S.d3 ? `${top}${note}${p === 'money' ? renderMoney(S.d2, S.d3, S.ui, S.ui.deal ? '' : moneyBizHtml(S.personal, S.ui, S.home?.today || nowParts().ymd)) : live(S.d2, S.d3, S.ui)}` : `${headerOnly(S.d2, PAGES[p])}${note || '<section class="card"><p class="mut">Loading</p></section>'}`;
@@ -122,8 +117,7 @@ function render() {
     }
     return;
   }
-  const fixed = { bluesky: renderBluesky, system: renderSystem }[p];
-  if (fixed) { main.innerHTML = `${note}${fixed(S.d2, S.ui)}${p === 'system' && S.d3 ? sourcesCard(S.d3) : ''}`; return; }
+  if (p === 'bluesky') { main.innerHTML = `${note}${renderBluesky(S.d2, S.ui)}`; return; }
   if (!S.d2) {
     main.innerHTML = `${headerOnly(null, PAGES[p])}${note || '<section class="card"><p class="mut">Loading</p></section>'}`;
     return;
@@ -140,8 +134,9 @@ function render() {
 function rail() {
   document.getElementById('stat').innerHTML = statHtml(S.d3);
   const c = railCounts(S.d2, S.d3);
-  for (const [id, n] of [['nBlockers', c.blockers], ['nReview', c.review]]) {
+  for (const [id, n] of [['nReview', c.review]]) {
     const el = document.getElementById(id);
+    if (!el) continue;
     el.textContent = n ? String(n) : '';
     el.hidden = !n;
   }
@@ -207,7 +202,7 @@ const reloadPersonal = async () => { await loadPersonal(); render(); };
 S.rerender = () => render();
 S.reloadAll = async () => { await Promise.all([loadHome(), loadPersonal()]); render(); };
 // a Home or Personal pop-up, or a drag: no redraw underneath it
-const popOpen = () => !!(S.ui.hmEd || S.ui.hmGoal || S.ui.hmDrag || personalPopOpen(S.ui));
+const popOpen = () => !!(S.ui.hmEd || S.ui.hmGoal || personalPopOpen(S.ui));
 
 async function load() {
   try {
@@ -255,36 +250,15 @@ main.addEventListener('click', async (e) => {
   if ((page() === 'personal' || page() === 'money') && personalClick(e, S, render, send, reloadPersonal, send)) return; // Personal page, and the Money page's expense list
   if (page() === 'home' && homeClick(e, S.ui, render, S, send, reloadHome)) return; // Home's switches and rows; its "+ Log" falls through to the log below
   if (page() === 'review' && await reviewClick(e, S, render, load)) return;
-  if (page() === 'blockers' && await needsClick(e, S, render, load)) return;
   if (threadClick(e, S.ui, render)) return; // open or fold one message of a Money deal's email thread
   const more = e.target.closest('[data-dealmore]'); // Money: show every deal in a stage, or the first 8 again
   if (more) { S.ui.dealsAll = { ...(S.ui.dealsAll || {}), [more.dataset.dealmore]: !S.ui.dealsAll?.[more.dataset.dealmore] }; render(); return; }
   const bst = e.target.closest('[data-bstab]');
   if (bst) { S.ui.bsTab = bst.dataset.bstab; render(); return; }
-  const syt = e.target.closest('[data-sytab]');
-  if (syt) { S.ui.syTab = syt.dataset.sytab; render(); return; }
-  const sys = e.target.closest('[data-sysel]');
-  if (sys) { S.ui.sySel = sys.dataset.sysel; S.ui.syCat = sys.dataset.sycat || 'card'; render(); return; }
-  const rvgo = e.target.closest('[data-rvgo]'); // Blockers "Open in Review": the link changes the page, this picks the item
+  const rvgo = e.target.closest('[data-rvgo]'); // a Today row's "Open in Review": the link changes the page, this picks the item
   if (rvgo) { Object.assign(S.ui, RV_CLEAR, { rvSel: rvgo.dataset.rvgo }); return; }
   const deal = e.target.closest('[data-deal]'); // Pipeline revenue row: the link opens Money, this picks the deal
   if (deal) { Object.assign(S.ui, { dealSel: deal.dataset.deal, dealDone: false }); return; }
-  const tm = e.target.closest('[data-tm]'); // Team: a bot chip (or All)
-  if (tm) { S.ui.teamBot = tm.dataset.tm === 'all' ? null : tm.dataset.tm; S.ui.teamCol = null; render(); return; }
-  const tmc = e.target.closest('[data-tmcol]'); // Team All view: a count opens that bot's column
-  if (tmc) {
-    const [slug, col] = tmc.dataset.tmcol.split('|');
-    Object.assign(S.ui, { teamBot: slug, teamCol: col });
-    render();
-    main.querySelector(`[data-tmk="${col}"]`)?.scrollIntoView({ block: 'nearest', inline: 'start' });
-    return;
-  }
-  const bot = e.target.closest('[data-bot]');
-  if (bot) { S.ui.openBot = S.ui.openBot === bot.dataset.bot ? null : bot.dataset.bot; render(); return; }
-  const bl = e.target.closest('[data-bl]');
-  if (bl) { S.ui.openBl = S.ui.openBl === bl.dataset.bl ? null : bl.dataset.bl; render(); return; }
-  const blf = e.target.closest('[data-blf]');
-  if (blf) { S.ui.blFilter = blf.dataset.blf; S.ui.openBl = null; render(); return; }
   const kr = e.target.closest('[data-kr]');
   if (kr) { S.ui.openKr = S.ui.openKr === kr.dataset.kr ? null : kr.dataset.kr; render(); return; }
   if (e.target.closest('[data-hgp]')) { S.ui.hgpOpen = !S.ui.hgpOpen; render(); return; }
@@ -331,7 +305,7 @@ main.addEventListener('input', (e) => {
   else if (e.target.matches('.rvin')) S.ui.rvDraft = { ...S.ui.rvDraft, [e.target.name]: e.target.value };
   else if (e.target.matches('[data-hmcol]')) setColour(e.target, S.ui); // Home: a category's colour
 });
-// Home: a task's tick box, a goal's step and the pop-ups' fields; Save in a pop-up; Esc closes one; Enter opens a calendar block.
+// Home: a task's tick box, a goal's step and the pop-ups' fields; Save in a pop-up; Esc closes one.
 main.addEventListener('change', (e) => {
   if (page() === 'home') homeChange(e, S, render, send, reloadHome);
   else if (page() === 'personal' || page() === 'money') personalChange(e, S, render, send, reloadPersonal, send);
@@ -346,9 +320,7 @@ document.addEventListener('keydown', (e) => {
   if (page() === 'personal' && personalKey(e, S.ui, render)) return;
   if (page() !== 'home') return;
   if (e.key === 'Escape' && (S.ui.hmEd || S.ui.hmGoal)) { S.ui.hmEd = null; S.ui.hmGoal = null; render(); }
-  else if (e.key === 'Enter' && e.target.matches?.('.hmev[data-hmit]')) e.target.click();
 });
-homeDrag(main, S, send, reloadHome);
 personalDrag(main, S, () => page() === 'personal', send, render, reloadPersonal); // Trips: drag a stop by its handle
 // Home: the "N more" hint under a category card follows its scroll.
 main.addEventListener('scroll', (e) => { if (e.target.classList?.contains('hmpc')) homeHints(main); }, true);
@@ -374,7 +346,13 @@ async function loadFactory() {
   } catch { /* keep what is shown; the 60 s load reports errors */ } finally { fastBusy = false; }
 }
 // Home's clock, "now" line and current task: a redraw every 15 s while it is open (not under an open colour picker).
-setInterval(() => { if (S.d2 && !S.signedOut && page() === 'home' && document.visibilityState === 'visible' && !document.activeElement?.closest?.('#main input') && !popOpen()) render(); }, 15000);
+setInterval(() => {
+  if (!S.d2 || S.signedOut || page() !== 'home' || document.visibilityState !== 'visible') return;
+  // Midnight (Vancouver): Today is for one day, so read the new day's data at once instead of waiting for the next 60 s load.
+  const ymd = S.d3?.d3?.today?.ymd;
+  if (ymd && ymd !== nowOf(S.ui.now ?? undefined).ymd && !S.rolling) { S.rolling = true; load().finally(() => { S.rolling = false; }); }
+  if (!document.activeElement?.closest?.('#main input') && !popOpen()) render();
+}, 15000);
 setInterval(loadFactory, 3000);
 setInterval(() => { if (S.d3 && !S.signedOut && page() === 'factory' && document.visibilityState === 'visible') render(); }, 1000);
 setInterval(() => { if (document.visibilityState === 'visible') load(); }, 60000);

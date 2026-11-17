@@ -93,7 +93,7 @@ test('Scripts page: Doc links open in a new tab, No Doc, status pills, escaped, 
   const empty = renderScripts(null, { d3: { scripts: [] } });
   assert.match(empty, /No open @JonMacAI video cards/);
   const index = readFileSync(new URL('../public/d3/index.html', import.meta.url), 'utf8');
-  assert.match(index, /<a href="#scripts" data-nav="scripts">/);
+  assert.doesNotMatch(index, /#scripts|data-nav="scripts"/); // the page left the menu and the routes (Jon, 2026-11-16); its data and this renderer stay
   const app = readFileSync(new URL('../public/d3/js/app.js', import.meta.url), 'utf8');
-  assert.match(app, /scripts: renderScripts/);
+  assert.doesNotMatch(app, /renderScripts|scripts: 'Scripts'/);
 });

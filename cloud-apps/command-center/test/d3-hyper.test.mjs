@@ -51,9 +51,9 @@ test('GET /dashboard/api/hyper/check: refuses anything that is not a live ticket
   assert.equal((await api('/hyper/check')).status, 401);
 });
 
-test('Hyper page: in the menu after Scripts, drawn once with a hidden frame, opened with the ticket address', async () => {
+test('Hyper page: in the menu after Review, drawn once with a hidden frame, opened with the ticket address', async () => {
   const index = readFileSync(new URL('../public/d3/index.html', import.meta.url), 'utf8');
-  assert.match(index, /Scripts<\/a>\n<a href="#hyper" data-nav="hyper">.*Hyper<\/a>\n<a href="#personal"/);
+  assert.match(index, /Review<span class="badge blue sp" id="nReview" hidden><\/span><\/a>\n<a href="#hyper" data-nav="hyper">.*Hyper<\/a>\n<a href="#personal"/);
   const app = readFileSync(new URL('../public/d3/js/app.js', import.meta.url), 'utf8');
   assert.match(app, /hyper: 'Hyper'/);
   assert.match(app, /if \(!main\.querySelector\?\.\('#hyFrame'\)\)/); // a data reload must not restart the app

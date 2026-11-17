@@ -670,6 +670,23 @@ function blockersOf(D, putOff = []) {
   return out;
 }
 
+// ---- Home "Today" checklist: what Jon himself has to do today (Jon, 2026-11-16) ----
+// `due`: Jon-owned open cards whose due date is today (Vancouver). `needs`: the rows Jon is waiting on himself for: cards in
+// Waiting on you, open questions and open approvals (the blockers' you rows, so "Not now" items stay out), minus any card
+// already listed under `due`. `ymd` is the day it was built for: the page shows it only on that day and re-reads after midnight.
+// null when the cards or the approvals could not be read.
+export function todayOf(D, today, blockers) {
+  if (!D.tasks || !blockers) return null;
+  const due = D.tasks.filter((t) => t.owner === 'jon' && String(t.due || '').slice(0, 10) === today)
+    .sort((a, b) => String(a.title).localeCompare(String(b.title)))
+    .map((t) => ({ id: t.id, title: t.title, status: t.status, project: PROJECT_LABEL.get(t.project) || (t.project ? String(t.project) : '') }));
+  const dueIds = new Set(due.map((c) => c.id));
+  const kinds = { t: 'card', q: 'question', a: 'approval' };
+  const needs = blockers.filter((b) => b.you && !dueIds.has(b.card))
+    .map((b) => ({ id: b.id, type: kinds[b.id.slice(0, 1)] || 'card', title: b.title, owner: b.owner || '', age: b.age || '', card: b.card || null, review: !!b.review, why: b.blocks || '' }));
+  return { ymd: today, due, needs };
+}
+
 // ---- Sources: every feed and snapshot behind the numbers, with who posts it and when it last reported ----
 // Real rows only: a name appears once something has been posted under it. The dispatcher's live feed turns stale after
 // 10 minutes, the video program's board after 3, everything else after 24 hours (sourceOf). Unknown names are listed as they are, never hidden.
@@ -735,6 +752,7 @@ export function buildD3(D) {
   const daysInMonth = Math.round((win.end - win.start) / DAY);
   const ws = weekStart(nowMs);
   const putOff = [];
+  const blockers = blockersOf(D, putOff);
   const P = {
     today: vanYmd(nowMs), ws, first, last: addDays(first, daysInMonth - 1), elapsed: win.elapsed,
     weekShare: clamp((nowMs - midnight(ws)) / (7 * DAY)),
@@ -750,7 +768,8 @@ export function buildD3(D) {
     review: reviewOf(D),
     queue: queueOf(D),
     team: teamOf(D, P.today),
-    blockers: blockersOf(D, putOff),
+    blockers,
+    today: todayOf(D, P.today, blockers),
     notNow: D.later ? putOff.length : null, // Needs you items put off with "Not now"; null when needs_later can't be read
     scripts: scriptsOf(D),
     sources: sourcesOf(D),

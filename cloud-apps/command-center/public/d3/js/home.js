@@ -8,16 +8,13 @@
 // the handover's (BUDGET). A goal with no source reads "No feed" with a grey dot.
 // What saves: ticks, the task pop-up (add, change, delete), dragging a calendar block, Add goal and its logs
 // (src/home.js), and "+ Log" on workouts and date nights (the Goals page's own write).
-import { esc, usd, toneOf } from './util.js';
+import { esc, usd, toneOf, cardLink } from './util.js';
 import { periodOf, pipelineOf, dueOf } from './goals.js';
 import { reviewItems } from './review.js';
 import { dealStages } from './money.js';
 import { DAYS, addDays, wdOf, dayItems, zoned, goalState } from './sched.js';
 
 const TZ = 'America/Vancouver';
-const START = 8; // the calendar's first hour (8am, so the home routines fit)
-const END = 21;
-const H = 64; // px per hour
 const num = (x) => typeof x === 'number' && Number.isFinite(x);
 const one = (v) => (Array.isArray(v) ? v[0] : v) || null;
 const pctOf = (a, b) => Math.max(0, Math.min(100, Math.round((a / b) * 100)));
@@ -56,7 +53,8 @@ export function nowOf(ms) {
   const d = new Date(Number.isFinite(ms) ? ms : Date.now());
   const p = Object.fromEntries(new Intl.DateTimeFormat('en-GB', { timeZone: TZ, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
     .formatToParts(d).filter((x) => x.type !== 'literal').map((x) => [x.type, Number(x.value)]));
-  return { h: (p.hour || 0) + (p.minute || 0) / 60, clock: new Intl.DateTimeFormat('en-US', { timeZone: TZ, hour: 'numeric', minute: '2-digit' }).format(d) };
+  const ymd = new Intl.DateTimeFormat('en-CA', { timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit' }).format(d); // the Vancouver date, YYYY-MM-DD
+  return { h: (p.hour || 0) + (p.minute || 0) / 60, ymd, clock: new Intl.DateTimeFormat('en-US', { timeZone: TZ, hour: 'numeric', minute: '2-digit' }).format(d) };
 }
 
 // ---- schedule ----
@@ -102,54 +100,64 @@ export function scheduleOf(d2resp, d3resp, P = periodOf(d2resp), home = null, no
 
 const PENCIL = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>';
 const spanOf = (x) => `${clockOf(x.s)}–${clockOf(x.e)}`;
-function listHtml(day, now, ui) {
-  if (!day) return '<p class="mut">No feed: today\'s date could not be read.</p>';
-  const next = day.items.find((x) => x.e > now.h && !x.ghost);
-  return day.items.map((x) => {
-    const cur = x.s <= now.h && x.e > now.h && !x.ghost && !x.done;
-    const tag = x.meet ? '<span class="hmtag">Meeting</span>' : x.tag ? `<span class="hmtag${x.late && !x.done ? ' late' : ''}">${x.tag}</span>` : '';
-    const cls = `hmrow${x.done ? ' done' : ''}${x.missed ? ' miss' : ''}${x.meet ? ' meet' : ''}${cur ? ' now' : ''}`;
-    if (x.meet) return `<div class="${cls}"${x === next ? ' data-hmnow' : ''}><span class="hmnb" aria-hidden="true"></span><span class="hmtm">${spanOf(x)}</span><i class="hmcd" style="--c: var(--c-${x.c})"></i><span class="hmwhat">${esc(x.w)}</span>${tag}</div>`;
+
+// ---- Today: this one day's own checklist (Jon, 2026-11-16) ----
+// Meetings (his Google Calendar events that start today, Vancouver), his own cards due today, what waits on him (cards in
+// Waiting on you, open questions, open approvals) and his daily checklist (his saved tasks that fall today). Nothing from
+// another day: no carried-over "Late" rows, no faded "Moved" or "Missed" slots, no make-ups moved in from another day, no week.
+// Midnight rolls it over: the list is for `ymd` (the Vancouver date on the clock) and says so until the page has data for that day.
+// -> { ymd, ready (the data is for this day), meetings, routines, cards (null = no feed), needs (null = no feed), cal }
+export function todayList(sch, d3resp, ymd) {
+  const day = sch?.days?.find((d) => d.ymd === ymd) || null;
+  const t = d3resp?.d3?.today;
+  const fresh = !!day && (!t || t.ymd === ymd);
+  const items = fresh ? day.items : [];
+  return {
+    ymd, ready: fresh,
+    meetings: items.filter((x) => x.meet && x.on === ymd),
+    routines: items.filter((x) => !x.meet && !x.ghost && !x.late && x.day === ymd && x.on === ymd),
+    cards: fresh && t ? t.due : null,
+    needs: fresh && t ? t.needs : null,
+    cal: sch?.cal || 'none',
+  };
+}
+
+const TYPEN = { card: 'Card', question: 'Question', approval: 'Approval' };
+const secHtml = (title, rows, empty) => `<h3 class="hmsh">${title}${rows.length ? ` <small>${rows.length}</small>` : ''}</h3>${rows.join('') || `<p class="mut hmnone">${empty}</p>`}`;
+function todayHtml(L, now, home, ui, d3resp) {
+  const meet = L.meetings.map((x) => {
+    const cur = x.s <= now.h && x.e > now.h;
+    return `<div class="hmrow meet${cur ? ' now' : ''}"><span class="hmnb" aria-hidden="true"></span><span class="hmtm">${spanOf(x)}</span><i class="hmcd" style="--c: var(--c-meeting)"></i><span class="hmwhat">${esc(x.w)}</span><span class="hmtag">Meeting</span></div>`;
+  });
+  const due = (L.cards || []).map((c) => `<div class="hmrow"><span class="hmnb" aria-hidden="true"></span><span class="hmwhat">${esc(c.title)}</span>${c.project ? `<span class="hmtag">${esc(c.project)}</span>` : ''}${cardLink(c.id)}</div>`);
+  const needs = (L.needs || []).map((n) => {
+    const open = n.review ? `<a class="btn sm" href="#review" data-rvgo="${esc(n.id)}">Open in Review</a>` : cardLink(n.card);
+    const sub = [n.owner, n.age].filter(Boolean).join(' · ');
+    return `<div class="hmrow"><span class="hmnb" aria-hidden="true"></span><span class="hmwhat">${esc(n.title)}</span><span class="hmtag">${TYPEN[n.type] || 'Card'}</span>${sub ? `<span class="mut hmsub">${esc(sub)}</span>` : ''}${open}</div>`;
+  });
+  const rout = L.routines.map((x) => {
     const k = esc(x.k);
-    const box = x.ghost ? '<span class="hmnb" aria-hidden="true"></span>'
-      : `<input type="checkbox" data-hmtick="${k}"${x.done ? ' checked' : ''} aria-label="${esc(x.w)}: ${x.done ? 'done' : 'not done'}">`;
-    return `<div class="${cls}"${x === next ? ' data-hmnow' : ''}>${box}<button type="button" class="hmtm hmlink" data-hmit="${k}">${spanOf(x)}</button><i class="hmcd" style="--c: var(--c-${x.c})"></i><button type="button" class="hmwhat hmlink" data-hmit="${k}">${esc(x.w)}</button>${tag}<button type="button" class="hmedb" data-hmit="${k}" aria-label="Edit ${esc(x.w)}" title="Edit">${PENCIL}</button></div>`;
-  }).join('') || '<p class="mut">Nothing planned today.</p>';
-}
-
-function calHtml(days, now) {
-  const top = (h) => Math.round((Math.max(START, Math.min(END, h)) - START) * H);
-  const hours = Array.from({ length: END - START }, (_, i) => {
-    const h = START + i;
-    return `<span style="top: ${i * H}px">${i ? `${((h + 11) % 12) + 1} ${h < 12 ? 'AM' : 'PM'}` : ''}</span>`;
-  }).join('');
-  const cols = days.map((d) => {
-    const evs = d.items.filter((x) => x.e > START && x.s < END).map((x) => {
-      const small = x.e - x.s < 0.75;
-      const t = `${spanOf(x)} ${x.w}`;
-      return `<div class="hmev${small ? ' sm' : ''}${x.meet ? ' m' : ''}${x.done ? ' done' : ''}${x.missed ? ' miss' : ''}"${x.meet ? '' : ` data-hmit="${esc(x.k)}" role="button" tabindex="0"`} style="top: ${top(x.s)}px; height: ${Math.max(14, top(x.e) - top(x.s) - 2)}px; --c: var(--c-${x.c})" title="${esc(t)}">${small ? `<b>${clockOf(x.s)} ${esc(x.w)}</b>` : `<b>${esc(x.w)}</b><span>${spanOf(x)}</span>`}</div>`;
-    }).join('');
-    return `<div class="hmday${d.today ? ' today' : ''}${d.week ? ' hmwk' : ''}${d.phone ? ' hmph' : ''}"><div class="hmdh"><small>${d.name}</small><b>${d.n}</b></div><div class="hmcol" data-ymd="${d.ymd}">${d.today ? `<div class="hmnow" style="top: ${top(now.h)}px"></div>` : ''}${evs}</div></div>`;
-  }).join('');
-  return `<div class="hmcal"><div class="hmhrs"><div class="hmdh"></div><div class="hmhb">${hours}</div></div>${cols}</div>`;
-}
-
-function scheduleHtml(sch, now, ui, home) {
-  const view = ui.hmView === 'cal' ? 'cal' : 'list';
-  const seg = [['list', 'List'], ['cal', 'Calendar']].map(([k, l]) => `<button type="button" data-hmview="${k}" aria-pressed="${view === k}">${l}</button>`).join('');
+    const cur = x.s <= now.h && x.e > now.h && !x.done;
+    return `<div class="hmrow${x.done ? ' done' : ''}${cur ? ' now' : ''}"><input type="checkbox" data-hmtick="${k}"${x.done ? ' checked' : ''} aria-label="${esc(x.w)}: ${x.done ? 'done' : 'not done'}"><button type="button" class="hmtm hmlink" data-hmit="${k}">${spanOf(x)}</button><i class="hmcd" style="--c: var(--c-${x.c})"></i><button type="button" class="hmwhat hmlink" data-hmit="${k}">${esc(x.w)}</button><button type="button" class="hmedb" data-hmit="${k}" aria-label="Edit ${esc(x.w)}" title="Edit">${PENCIL}</button></div>`;
+  });
   const legend = CATS.map(([k, l, def]) => `<label><input type="color" data-hmcol="${k}" value="${esc(ui.hmCols?.[k] || def)}" aria-label="${l} colour">${l}</label>`).join('');
-  const today = sch.days.find((d) => d.today);
-  const body = !home ? '<p class="mut">Your saved tasks could not be loaded. They show again on the next refresh.</p>' : view === 'cal' ? calHtml(sch.days, now) : listHtml(today, now, ui);
-  const meet = sch.cal === 'google' ? 'Meetings come from your Google Calendar.'
-    : sch.cal === 'ready' ? 'Meetings are only today\'s, from Ana\'s feed: <a href="/dashboard/api/google/start">connect Google Calendar</a> to see the week.'
+  const src = L.cal === 'google' ? 'Meetings come from your Google Calendar.'
+    : L.cal === 'ready' ? 'Meetings are only today\'s, from Ana\'s feed: <a href="/dashboard/api/google/start">connect Google Calendar</a>.'
       : 'Meetings are only today\'s, from Ana\'s feed, until Google Calendar is connected.';
-  return `<section class="card hmsch${ui.hmMore ? ' hmexp' : ''}" aria-label="Schedule">
-<div class="hd"><h2>Schedule</h2><button type="button" class="btn sm sp" data-hmadd${home ? '' : ' disabled'}>+ <span class="hmlg">Add </span>task</button><div class="hmseg" role="group" aria-label="Schedule view">${seg}</div></div>
+  let body;
+  if (!L.ready) body = '<p class="mut">Loading the new day.</p>';
+  else {
+    const feedless = (what) => `<p class="mut hmnone">No feed: ${what} could not be read.</p>`;
+    body = `${secHtml('Meetings', meet, 'No meetings today.')}
+${L.cards ? secHtml('Due today', due, 'None of your cards are due today.') : `<h3 class="hmsh">Due today</h3>${feedless('your cards')}`}
+${L.needs ? secHtml('Needs you', needs, 'Nothing is waiting on you.') : `<h3 class="hmsh">Needs you</h3>${feedless('the cards, questions and approvals waiting on you')}`}
+${home ? secHtml('Daily checklist', rout, 'Nothing on your checklist today.') : '<h3 class="hmsh">Daily checklist</h3><p class="mut hmnone">Your saved tasks could not be loaded. They show again on the next refresh.</p>'}`;
+  }
+  return `<section class="card hmsch" aria-label="Schedule">
+<div class="hd"><h2>Today</h2><span class="mut">${esc(dayLabel(L.ymd))}</span><button type="button" class="btn sm sp" data-hmadd${home ? '' : ' disabled'}>+ <span class="hmlg">Add </span>task</button></div>
 <div class="hmleg">${legend}</div>
-<p class="hmex"><span class="hmlg">Tick a task when it is done. Click any task to change its name, day or time. ${meet} Click a colour to change it.</span><span class="hmsm">Tap a task to edit · tap a colour to change it</span></p>
-<div class="hmbox" data-hmscroll="${view}" data-hmtop="${Math.max(0, Math.round((now.h - START) * H) - 40)}">${body}</div>
-${view === 'cal' && home ? '<p class="hmex hmlg">Drag a block to move it. Click it to change the time. A repeating task moves for that day only; its usual time stays.</p>' : ''}
-<button type="button" class="btn sm hmmore" data-hmmore aria-expanded="${ui.hmMore ? 'true' : 'false'}">${ui.hmMore ? 'See less ▴' : 'See more ▾'}</button>
+<p class="hmex">${src} Tick a daily item when it is done; click one to change it.</p>
+<div class="hmbox hmtoday" data-hmscroll="today">${body}</div>
 </section>`;
 }
 
@@ -535,6 +543,7 @@ export function renderHome(d2resp, d3resp, ui = {}, nowMs, home = null) {
   const now = nowOf(nowMs);
   const sch = scheduleOf(d2resp, d3resp, P, home, now);
   ui.hmItems = Object.fromEntries(sch.days.flatMap((d) => d.items.filter((x) => !x.meet).map((x) => [x.k, x]))); // what a click on a task opens
+  const L = todayList(sch, d3resp, now.ymd); // the clock's Vancouver date: Today rolls over at midnight even before the next data load
   const today = sch.days.find((d) => d.today);
   const live = (today?.items || []).filter((x) => !x.missed && !x.done);
   const cur = live.find((x) => x.s <= now.h && x.e > now.h);
@@ -551,7 +560,7 @@ export function renderHome(d2resp, d3resp, ui = {}, nowMs, home = null) {
 <div class="hmw"><small><span class="hmlg">This </span>week</small><b>${P.ymd ? `Day ${wkDay} <i>of 7</i>` : 'No data'}</b><div class="hmwbar"><u style="width: ${P.ymd ? pctOf(wkDay, 7) : 0}%"></u></div></div>
 <div class="hmw"><small><span class="hmlg">This </span>month</small><b>${P.ymd ? `Day ${esc(P.day)} <i>of ${esc(P.daysInMonth)}</i>` : 'No data'}</b><div class="hmwbar"><u style="width: ${P.ymd ? pctOf(P.day, P.daysInMonth) : 0}%"></u></div></div>
 </div>
-${scheduleHtml(sch, now, ui, home)}
+${todayHtml(L, now, home, ui, d3resp)}
 ${progressHtml(homeGoals(d2resp, d3resp, P, now, home), P, ui, home)}
 ${pop}</div>`;
 }
@@ -563,7 +572,7 @@ export function homeKeep(main) {
   if (!box) return null;
   const cats = {};
   for (const c of main.querySelectorAll('.hmpc')) cats[c.dataset.hmcat] = c.scrollTop;
-  return { view: box.dataset.hmscroll, box: box.scrollTop, per: main.querySelector('.hmsecs')?.dataset.hmper, cats, pop: main.querySelector('.hmed')?.scrollTop || 0 };
+  return { box: box.scrollTop, per: main.querySelector('.hmsecs')?.dataset.hmper, cats, pop: main.querySelector('.hmed')?.scrollTop || 0 };
 }
 
 // "▾ N more" at the foot of a category card when rows sit below the fold.
@@ -583,12 +592,7 @@ export function homeHints(main) {
 export function homeAfter(main, keep) {
   const box = main.querySelector?.('.hmbox');
   if (!box) return;
-  if (keep && keep.view === box.dataset.hmscroll) box.scrollTop = keep.box;
-  else if (box.dataset.hmscroll === 'cal') box.scrollTop = Number(box.dataset.hmtop) || 0;
-  else {
-    const cur = box.querySelector('[data-hmnow]');
-    if (cur) box.scrollTop = Math.max(0, cur.offsetTop - 4);
-  }
+  if (keep) box.scrollTop = keep.box;
   if (keep && keep.per === main.querySelector('.hmsecs')?.dataset.hmper) {
     for (const c of main.querySelectorAll('.hmpc')) c.scrollTop = keep.cats[c.dataset.hmcat] || 0;
   }
@@ -726,11 +730,8 @@ export function homeClick(e, ui, render, S = null, api = null, reload = null) {
   }
   if (t.closest('[data-hmform]')) return true;
 
-  const view = t.closest('[data-hmview]');
-  if (view) { ui.hmView = view.dataset.hmview; render(); return true; }
   const per = t.closest('button[data-hmper]');
   if (per) { ui.hmPer = per.dataset.hmper; ui.hmOpen = null; ui.hmGDel = null; render(); return true; }
-  if (t.closest('[data-hmmore]')) { ui.hmMore = !ui.hmMore; render(); return true; }
   const more = t.closest('.hmmh');
   if (more) { const c = more.closest('.hmpc'); c?.scrollBy?.({ top: c.clientHeight - 80, behavior: 'smooth' }); return true; }
   const r = t.closest('[data-hmrow]');
@@ -745,7 +746,6 @@ export function homeClick(e, ui, render, S = null, api = null, reload = null) {
   }
   const item = t.closest('[data-hmit]');
   if (item) {
-    if (Date.now() - (ui.hmDragged || 0) < 400) return true; // the click that ends a drag
     const it = ui.hmItems?.[item.dataset.hmit];
     const ed = it && editorOf(it, S.home, P, now);
     if (ed) { ui.hmEd = ed; render(); focus('.hmedt'); }
@@ -782,44 +782,4 @@ export function homeClick(e, ui, render, S = null, api = null, reload = null) {
     return goalCall(`/home/goals/${id}`, undefined, 'delete the goal', 'DELETE');
   }
   return false;
-}
-
-// Calendar blocks: drag one with the mouse to a new time or day (15-minute snap). A touch only taps, so the page still scrolls.
-export function homeDrag(main, S, api, reload) {
-  let d = null;
-  main.addEventListener('pointerdown', (e) => {
-    const el = e.target.closest?.('.hmev[data-hmit]');
-    const it = el && S.ui.hmItems?.[el.dataset.hmit];
-    if (!it || e.button || e.pointerType !== 'mouse' || S.ui.hmEd || S.ui.hmGoal) return;
-    d = { el, it, x0: e.clientX, y0: e.clientY, moved: false, ns: null, nd: it.on };
-    el.setPointerCapture?.(e.pointerId);
-  });
-  main.addEventListener('pointermove', (e) => {
-    if (!d) return;
-    const dx = e.clientX - d.x0;
-    const dy = e.clientY - d.y0;
-    if (!d.moved && Math.abs(dx) + Math.abs(dy) <= 4) return;
-    d.moved = true;
-    S.ui.hmDrag = true; // holds the page's own redraws until the drop
-    const dur = d.it.e - d.it.s;
-    d.ns = Math.max(START, Math.min(END - dur, Math.round((d.it.s + dy / H) * 4) / 4));
-    Object.assign(d.el.style, { top: `${(d.ns - START) * H}px`, transform: `translateX(${dx}px)`, zIndex: 5, opacity: 0.85 });
-    const col = [...main.querySelectorAll('.hmcol[data-ymd]')].find((c) => { const r = c.getBoundingClientRect(); return r.width > 0 && e.clientX >= r.left && e.clientX < r.right; });
-    d.nd = col ? col.dataset.ymd : d.it.on;
-  });
-  const drop = () => {
-    if (!d) return;
-    const { it, moved, ns, nd } = d;
-    d = null;
-    S.ui.hmDrag = false;
-    if (!moved || ns == null) return; // a plain click: homeClick opens the pop-up
-    S.ui.hmDragged = Date.now();
-    const start = Math.round(ns * 60);
-    const end = start + Math.round((it.e - it.s) * 60);
-    if (nd === it.on && start === Math.round(it.s * 60)) { reload(); return; }
-    const body = it.rep === 'none' ? { day: nd, start, end } : { scope: 'once', occ: it.day, day: nd, start, end };
-    api('PATCH', `/home/tasks/${it.id}`, body).then((r) => { if (!r.ok) failed(S, 'move the task', r); return reload(); });
-  };
-  main.addEventListener('pointerup', drop);
-  main.addEventListener('pointercancel', drop);
 }

@@ -930,7 +930,7 @@ export function expensesCard(kind, P, ui, today) {
   const html = groups.map((g) => {
     const items = g.items.filter((x) => F === 'all' || tagOf(P, x.id) === F);
     if (F !== 'all' && !items.length) return '';
-    const key = `${kind}.${g.name}`; const open = F !== 'all' || !ui.exShut?.[key];
+    const key = `${kind}.${g.name}`; const open = F !== 'all' || !!ui.exOpen?.[key]; // categories load closed (Jon, 2026-11-16); a tag filter opens them so the matches show
     const count = g.count != null ? `${g.count} this month` : `${g.items.length} listed`;
     return `<div class="psexg"><button type="button" class="psexh" data-psexh="${esc(key)}" aria-expanded="${open}"><span>${open ? '▾' : '▸'} ${esc(g.name)}<small>${count}</small></span><span>${money(Number(g.total.toFixed(2)))}</span></button>${open ? (items.length ? items.map((x) => `<div class="psexr"><span class="mut">${esc(fmtD(x.date))}</span><span>${esc(x.what)}${x.pending ? ' <small class="mut">pending</small>' : ''}</span><span class="psamt">${money(x.amount)}</span><select class="pstag st-${tagOf(P, x.id)}" data-pstag="${esc(x.id)}" aria-label="Tag">${Object.entries(TAGN).map(([k, l]) => opt(k, l, tagOf(P, x.id))).join('')}</select></div>`).join('') : '<p class="mut psexnone">No recent charges listed in this category.</p>') : ''}</div>`;
   }).join('');
@@ -1028,7 +1028,7 @@ export function personalClick(e, S, render, send, reload, sendHome) {
   const fl = t.closest('[data-psfilter]');
   if (fl) { const [kind, f] = fl.dataset.psfilter.split('.'); ui.exF = { ...(ui.exF || {}), [kind]: f }; render(); return true; }
   const exh = t.closest('[data-psexh]');
-  if (exh) { const k = exh.dataset.psexh; ui.exShut = { ...(ui.exShut || {}), [k]: !ui.exShut?.[k] }; render(); return true; }
+  if (exh) { const k = exh.dataset.psexh; ui.exOpen = { ...(ui.exOpen || {}), [k]: !ui.exOpen?.[k] }; render(); return true; }
   const day = t.closest('[data-psday]');
   if (day) { workoutDays(S, Number(day.dataset.psday), sendHome); return true; }
   const lk = t.closest('[data-pslock]');

@@ -272,7 +272,7 @@ test('Factory page: feed text is escaped everywhere', () => {
 
 test('Factory and Track: together on the rail, in the shell (3 s board read, 1 s clock, no-jump refresh), files served', async () => {
   const index = readFileSync(new URL('../public/d3/index.html', import.meta.url), 'utf8');
-  assert.match(index, /<a href="#team" data-nav="team">.*\n<a href="#factory" data-nav="factory">.*Factory<\/a>\n<a href="#track" data-nav="track">.*Track<\/a>\n<a href="#blockers"/);
+  assert.match(index, /<a href="#home" data-nav="home">.*Goals<\/a>\n<a href="#factory" data-nav="factory">.*Factory<\/a>\n<a href="#track" data-nav="track">.*Track<\/a>\n<a href="#review"/);
   const app = readFileSync(new URL('../public/d3/js/app.js', import.meta.url), 'utf8');
   assert.match(app, /factory: 'Factory', track: 'Track'/);
   assert.match(app, /const html = renderFactory\(S\.d3, S\.ui\);\s*if \(S\.fyNote !== note \|\| !syncFactory\(main, html\)\) main\.innerHTML/);
