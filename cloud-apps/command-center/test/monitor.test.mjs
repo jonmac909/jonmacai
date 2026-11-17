@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import worker from '../src/worker.js';
 import { readFileSync } from 'node:fs';
-import { GpuMonitor, shapeSample, machineView, scrub, kelownaTime, STALE_MS, MAX_PUSH_BYTES } from '../src/monitor.js';
+import { GpuMonitor, shapeSample, withTimes, machineView, scrub, kelownaTime, STALE_MS, MAX_PUSH_BYTES } from '../src/monitor.js';
 import { signSession, COOKIE } from '../src/auth.js';
 
 const SECRET = 's'.repeat(40);
@@ -235,4 +235,20 @@ test('status: bearer-only summary of live/offline per machine, no samples (for t
   assert.ok(d.machines.gpu1.age_s <= 2);
   assert.equal(d.machines.gpu1.sample, undefined);
   assert.ok(!JSON.stringify(d).includes('RTX'));
+});
+
+test('tasks are kept as GPU and CPU lists, scrubbed, capped and given Kelowna start times', () => {
+  const s = shapeSample({ tasks: {
+    gpu: [{ name: 'Hyperframes render naomi-japan-12', cpu: 3.2, vram: 4e9, started: 1000, pid: 7 }, { name: '' }],
+    cpu: [{ name: 'ffmpeg scan C:\\secret\\x token=abc123 Bearer zzz', cpu: 'x', started: 'no' }, ...Array(20).fill({ name: 'n' })],
+  } });
+  assert.deepEqual(s.tasks.gpu, [{ name: 'Hyperframes render naomi-japan-12', cpu: 3.2, vram: 4e9, started: 1000 }]);
+  assert.equal(s.tasks.cpu.length, 10);
+  assert.ok(!/secret|abc123|zzz/.test(s.tasks.cpu[0].name), s.tasks.cpu[0].name);
+  assert.equal(s.tasks.cpu[0].cpu, null);
+  assert.deepEqual(shapeSample({}).tasks, { gpu: [], cpu: [] });
+  const t = withTimes(s, 1000 * 1000 + 75 * 60000).tasks.gpu[0];
+  assert.equal(t.running_text, '1 h 15 min');
+  assert.match(t.started_text, /^\d+:\d\d:\d\d (a|p)\.m\.$/);
+  assert.equal(withTimes({ gpu: {} }, 1).tasks, undefined); // an older stored sample has no tasks: left alone
 });

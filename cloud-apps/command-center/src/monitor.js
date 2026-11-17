@@ -40,6 +40,8 @@ export function scrub(v, n = 120) {
   for (const [re, to] of SCRUB) t = t.replace(re, to);
   return t.trim().slice(0, n);
 }
+// Per machine the running tasks, split into GPU and CPU: friendly name, CPU %, GPU memory, start time (seconds).
+const task = (t) => ({ name: scrub(obj(t).name, 80), cpu: num(obj(t).cpu), vram: num(obj(t).vram), started: num(obj(t).started) });
 export function shapeSample(s) {
   s = obj(s);
   const g = obj(s.gpu);
@@ -52,6 +54,7 @@ export function shapeSample(s) {
     },
     host: pick(h, ['cpu', 'ram_used', 'ram_total', 'ram_pct']),
     disks: arr(s.disks, 12).map((d) => ({ label: str(obj(d).label, 12), free: num(obj(d).free), total: num(obj(d).total) })),
+    tasks: { gpu: arr(obj(s.tasks).gpu, 10).map(task).filter((t) => t.name), cpu: arr(obj(s.tasks).cpu, 10).map(task).filter((t) => t.name) },
     processes: arr(s.processes, 10).map((p) => ({ name: scrub(obj(p).name, 60), type: scrub(obj(p).type, 12), vram: num(obj(p).vram) })),
     services: arr(s.services, 12).map((v) => ({ name: scrub(obj(v).name, 40), state: scrub(obj(v).state, 20) })),
     jobs: scrub(s.jobs, 400),
@@ -80,6 +83,17 @@ export function lastSeen(entry) {
   return sampled ? Math.min(entry.received_at, sampled * 1000) : entry.received_at;
 }
 
+// Tasks get their Kelowna start time and how long they have run (the page never does time maths).
+export function withTimes(sample, now) {
+  if (!sample || !sample.tasks) return sample;
+  const add = (t) => {
+    if (!num(t.started)) return t;
+    const mins = Math.max(0, Math.floor((now - t.started * 1000) / 60000));
+    return { ...t, started_text: kelownaTime(t.started * 1000).clock, running_text: mins >= 60 ? `${Math.floor(mins / 60)} h ${mins % 60} min` : `${mins} min` };
+  };
+  return { ...sample, tasks: { gpu: sample.tasks.gpu.map(add), cpu: sample.tasks.cpu.map(add) } };
+}
+
 // What the page gets: per machine the latest sample, or offline with the time it was last seen.
 export function machineView(entry, now) {
   // 'waiting': no sample has ever arrived, so the page shows a neutral "Waiting for data", never Offline.
@@ -93,7 +107,7 @@ export function machineView(entry, now) {
     age_s: Math.max(0, Math.round((now - seen) / 1000)),
     offline_since: online ? null : new Date(seen).toISOString(),
     offline_since_text: online ? null : kelownaTime(seen).text,
-    sample: entry.sample || null,
+    sample: withTimes(entry.sample, now) || null,
   };
 }
 
