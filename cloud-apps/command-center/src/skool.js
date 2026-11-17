@@ -204,7 +204,8 @@ async function addLink(request, env, nowMs) {
   if (!SLUG_RE.test(slug)) return json({ error: 'Slug: 2 to 40 lower-case letters, numbers or dashes' }, 400);
   if (!title) return json({ error: 'Title is required' }, 400);
   if (yt && !YT_RE.test(yt)) return json({ error: 'YouTube URL must be a youtube.com or youtu.be video link' }, 400);
-  const r = await env.DB.prepare('INSERT OR IGNORE INTO skool_links (slug, title, youtube_url, created_at) VALUES (?, ?, ?, ?)')
+  // Email step on by default (Jon approved the pop-over, 2026-11-16); switch it off per link on /track.
+  const r = await env.DB.prepare('INSERT OR IGNORE INTO skool_links (slug, title, youtube_url, created_at, capture) VALUES (?, ?, ?, ?, 1)')
     .bind(slug, title, yt || null, iso(nowMs)).run();
   if (!r.meta?.changes) return json({ error: 'That slug is taken' }, 409);
   return json({ ok: true, url: `${new URL(request.url).origin}/s/${slug}` }, 201);

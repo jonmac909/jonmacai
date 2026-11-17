@@ -24,9 +24,12 @@ const toggle = (e, slug, capture, jon = true) => go(e, '/track/api/capture', { m
 const leads = async (e) => (await e.DB.prepare('SELECT slug, email FROM skool_leads ORDER BY id').all()).results;
 const sale = (e, b) => go(e, '/track/api/sale', { method: 'POST', headers: H, body: b });
 
-test('email step is off for every new link: the link forwards straight away', async () => {
+test('email step is on for every new link; switched off, the link forwards straight away', async () => {
   const e = env();
   await addLink(e, 'plain-link', 'Plain');
+  assert.equal((await e.DB.prepare('SELECT capture FROM skool_links').first()).capture, 1);
+  assert.equal((await go(e, '/s/plain-link')).status, 200); // new link shows the pop-over
+  assert.equal((await toggle(e, 'plain-link', false)).status, 200);
   assert.equal((await e.DB.prepare('SELECT capture FROM skool_links').first()).capture, 0);
   const r = await go(e, '/s/plain-link');
   assert.equal(r.status, 302);
@@ -69,16 +72,16 @@ test('the email step switch needs the session and the X-CC header', async () => 
   const cookie = `${COOKIE}=${await signSession(SECRET, Math.floor(Date.now() / 1000) + 3600)}`;
   const noHeader = new Request('https://jonmac.ai/track/api/capture', { method: 'POST', headers: { Cookie: cookie, 'Content-Type': 'application/json' }, body: JSON.stringify({ slug: 'locked', capture: true }) });
   assert.equal((await worker.fetch(noHeader, e, { waitUntil() {} })).status, 403);
-  assert.equal((await e.DB.prepare('SELECT capture FROM skool_links').first()).capture, 0); // refused calls changed nothing
-  assert.equal((await toggle(e, 'locked', true)).status, 200);
-  assert.equal((await e.DB.prepare('SELECT capture FROM skool_links').first()).capture, 1);
+  assert.equal((await e.DB.prepare('SELECT capture FROM skool_links').first()).capture, 1); // refused calls changed nothing
+  assert.equal((await toggle(e, 'locked', false)).status, 200);
+  assert.equal((await e.DB.prepare('SELECT capture FROM skool_links').first()).capture, 0);
 });
 
 test('a captured email beats the answer and the estimate; page columns and counts add up', async () => {
   const e = env();
   await addLink(e, 'gated', 'Gated video');
   await addLink(e, 'other', 'Other video');
-  await toggle(e, 'gated', true);
+  await toggle(e, 'other', false);
   await go(e, '/s/gated', { method: 'POST', body: { email: 'buyer@example.com' } });
   await go(e, '/s/other'); // latest click is on "other", so an estimate would pick it
   await go(e, '/track/api/answer', { method: 'POST', headers: H, body: { email: 'buyer@example.com', answer: 'Other video' } }); // answer disagrees: email wins

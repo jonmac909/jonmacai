@@ -22,6 +22,7 @@ const addLink = (e, slug, title, youtube_url) => go(e, '/track/api/links', { met
 test('a short link counts the click and forwards to Skool with UTM tags, never ?ref', async () => {
   const e = env();
   assert.equal((await addLink(e, 'seedance-ugc', 'Seedance UGC', 'https://www.youtube.com/watch?v=jiwzKmYi4NU')).status, 201);
+  e.DB.sqlite.exec('UPDATE skool_links SET capture = 0'); // email step off: straight forward
   const r = await go(e, '/s/seedance-ugc', { headers: { Referer: 'https://www.youtube.com/watch?v=jiwzKmYi4NU' } });
   assert.equal(r.status, 302);
   const to = new URL(r.headers.get('Location'));
