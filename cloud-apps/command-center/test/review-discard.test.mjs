@@ -1,6 +1,6 @@
 // Review "Discard" (Jon, 2026-11-17): the button on every Review item, POST /dashboard/api/v1/review/discard and /undo,
 // the list and the sidebar count, the linked card (cancelled, never restarted), the Undo toast, and signed-out refusal.
-import test, { mock } from 'node:test';
+import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { sqliteD1 } from './sqlited1.mjs';
@@ -8,7 +8,7 @@ import { handleApi } from '../src/api.js';
 import { sha256Hex, DISCARD_NOTE } from '../src/bots.js';
 import { signSession, COOKIE } from '../src/auth.js';
 import { railCounts } from '../public/d3/js/rail.js';
-import { reviewItems, renderReview, reviewClick, UNDO_MS } from '../public/d3/js/review.js';
+import { reviewItems, renderReview, reviewClick } from '../public/d3/js/review.js';
 
 const SECRET = 'test-session-secret-32-bytes-ok!';
 const NOW = Date.parse('2026-11-17T19:00:00Z');
@@ -241,63 +241,33 @@ test('the Discard button is on every kind of Review item, after Send back, with 
   assert.doesNotMatch(renderReview(d2, d3, { rvSel: `t:${T.plain}`, rvDone: { [`t:${T.plain}`]: 'Approved' } }), /data-rv="discard"/);
 });
 
-test('clicking Discard: confirm text, one POST, item leaves, Undo toast for 10 seconds restores it', async () => {
+test('clicking Discard: no confirm, one POST, item leaves, no Undo toast (Jon, 2026-11-17)', async () => {
   const { env } = await setup();
   const d2 = SAMPLE();
   const d3 = await d3Of(env);
   const real = { fetch: globalThis.fetch, window: globalThis.window, document: globalThis.document };
-  mock.timers.enable({ apis: ['setTimeout'] });
   const calls = [];
   const asked = [];
-  let yes = true;
   globalThis.fetch = async (url, o) => { calls.push([url, o.method, JSON.parse(o.body)]); return new Response('{"ok":true}', { status: 200 }); };
-  globalThis.window = { confirm: (m) => { asked.push(m); return yes; } };
-  // a small stand-in for the page: a body that takes the toast, and the toast's own pieces
-  const made = [];
-  const node = (tag) => {
-    const n = { tag, style: {}, dataset: {}, listeners: {}, removed: false, children: [], disabled: false,
-      setAttribute() {}, append(...c) { n.children.push(...c); }, addEventListener(t, f) { n.listeners[t] = f; }, remove() { n.removed = true; } };
-    made.push(n);
-    return n;
-  };
+  globalThis.window = { confirm: (m) => { asked.push(m); return true; } };
   const body = { children: [], append(n) { this.children.push(n); } };
-  globalThis.document = { createElement: node, body, querySelector: () => null };
+  globalThis.document = { createElement: () => ({}), body, querySelector: () => null };
   const el = (attrs) => ({ dataset: attrs, disabled: false });
   const ev = (attrs) => ({ target: { closest: (sel) => (sel === '[data-rv]' ? el(attrs) : null) } });
   let reloads = 0;
   const S = { d2, d3, ui: { rvSel: `t:${T.plain}` } };
   try {
-    yes = false;
     await reviewClick(ev({ rv: 'discard', id: `t:${T.plain}` }), S, () => {}, async () => { reloads += 1; });
-    assert.deepEqual(asked, ['Discard this? It leaves the review list. Files are kept.']);
-    assert.equal(calls.length, 0); // No: nothing sent
-    yes = true;
-    await reviewClick(ev({ rv: 'discard', id: `t:${T.plain}` }), S, () => {}, async () => { reloads += 1; });
+    assert.deepEqual(asked, []); // no confirm pop-up
     assert.deepEqual(calls, [['/dashboard/api/v1/review/discard', 'POST', { item: `t:${T.plain}` }]]);
     assert.equal(reloads, 1);
     assert.notEqual(S.ui.rvSel, `t:${T.plain}`); // moved on to another item
     assert.ok(!S.ui.rvDone?.[`t:${T.plain}`]); // it is gone, not kept as a done row
-    // the toast, with an Undo button
-    assert.equal(body.children.length, 1);
-    const toast = body.children[0];
-    const undoBtn = toast.children.find((c) => c.tag === 'button');
-    assert.equal(undoBtn.textContent, 'Undo');
-    assert.equal(UNDO_MS, 10000);
-    await undoBtn.listeners.click();
-    assert.deepEqual(calls[1], ['/dashboard/api/v1/review/undo', 'POST', { item: `t:${T.plain}` }]);
-    assert.equal(toast.removed, true);
-    assert.equal(reloads, 2);
-    // Left alone, the toast goes away after 10 seconds
-    await reviewClick(ev({ rv: 'discard', id: `t:${T.video}` }), S, () => {}, async () => {});
-    const second = body.children[1];
-    mock.timers.tick(UNDO_MS - 1);
-    assert.equal(second.removed, false);
-    mock.timers.tick(1);
-    assert.equal(second.removed, true);
+    assert.equal(body.children.length, 0); // no Undo toast
     // a video with a review page can be discarded from the page (its other buttons stay link-only)
+    await reviewClick(ev({ rv: 'discard', id: `t:${T.video}` }), S, () => {}, async () => {});
     assert.equal(calls.at(-1)[2].item, `t:${T.video}`);
   } finally {
-    mock.timers.reset();
     Object.assign(globalThis, real);
   }
 });

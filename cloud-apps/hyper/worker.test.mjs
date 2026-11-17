@@ -118,3 +118,35 @@ test('signed in: redirects stay on this host, and a PC that cannot be reached re
   delete unset.env.STUDIO;
   assert.equal((await unset.go('/', { headers: { Cookie: await unset.signIn() } })).status, 502);
 });
+
+test('speed: hashed build files come from the edge cache after the gate, and never to a signed-out visitor', async () => {
+  const store = new Map();
+  globalThis.caches = { default: { match: async (k) => store.get(k.url)?.clone() ?? null, put: async (k, r) => { store.set(k.url, r); } } };
+  try {
+    const { go, seen, signIn } = setup({ studio: async (r) => { seen.app.push(r); return new Response('js', { headers: { 'Cache-Control': 'no-cache' } }); } });
+    // signed out: 401, nothing cached, nothing served from cache
+    assert.equal((await go('/assets/index-BR0s-7rh.js')).status, 401);
+    const cookie = await signIn();
+    const get = (p) => go(p, { headers: { Cookie: cookie } });
+    const first = await get('/assets/index-BR0s-7rh.js?v=1');
+    assert.equal(await first.text(), 'js');
+    assert.equal(first.headers.get('Cache-Control'), 'public, max-age=31536000, immutable');
+    assert.equal(seen.app.length, 1);
+    const again = await get('/assets/index-BR0s-7rh.js');
+    assert.equal(await again.text(), 'js');
+    assert.equal(seen.app.length, 1); // from the cache, not from GPU1
+    // a cached file still needs the cookie
+    assert.equal((await go('/assets/index-BR0s-7rh.js')).status, 401);
+    // hashed desktop sheets are kept too; pages, API answers and unhashed files never are
+    await get('/hf-desktop/src-DTxBBYLF.css');
+    await get('/hf-desktop/src-DTxBBYLF.css');
+    assert.equal(seen.app.length, 2);
+    for (const p of ['/', '/api/projects', '/hf-desktop/data/foryou.json', '/hf-desktop/banners/desktop-script-tab.html', '/styles.css']) {
+      await get(p); await get(p);
+    }
+    assert.equal(seen.app.length, 12);
+    assert.equal(store.size, 2);
+  } finally {
+    delete globalThis.caches;
+  }
+});

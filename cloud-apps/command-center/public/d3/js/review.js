@@ -10,9 +10,8 @@
 //   email     Send = POST /dashboard/api/actions {kind: the draft's sendKind}; Edit first edits the draft in place
 //             Above the draft sits the Gmail thread it replies to (GET /dashboard/api/sponsor-threads, read only, found by
 //             the card's Gmail thread id): messages oldest first, the newest two open, older ones folded, then "Your reply".
-// Discard (Jon, 2026-11-17) sits after the other buttons on every item: POST /dashboard/api/v1/review/discard after a confirm.
-// The item leaves the list (its card, question or approval is closed on the server, nothing is deleted) and a toast
-// offers Undo for 10 seconds (POST .../review/undo).
+// Discard (Jon, 2026-11-17) sits after the other buttons on every item: POST /dashboard/api/v1/review/discard at once,
+// no confirm and no Undo (Jon, 2026-11-17). The item leaves the list (closed on the server, nothing is deleted).
 // Undo on a finished row has nothing to call yet, so it shows disabled.
 import { esc, icon, draftsOf } from './util.js';
 import { headerOnly } from './goals.js';
@@ -319,42 +318,11 @@ export async function reviewClick(e, S, render, reload) {
   return true;
 }
 
-// ---- Discard and Undo ----
-export const UNDO_MS = 10000;
+// ---- Discard ----
+// No confirm and no Undo (Jon, 2026-11-17): one click and the item leaves the list.
 const DISCARD_API = '/dashboard/api/v1/review';
 
-// The Undo toast: outside #main so a refresh of the page doesn't remove it; it removes itself after UNDO_MS.
-function undoToast(c, reload) {
-  document.querySelector('#rvtoast')?.remove();
-  const box = document.createElement('div');
-  box.id = 'rvtoast';
-  box.setAttribute('role', 'status');
-  box.style.cssText = 'position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); z-index: 50; display: flex; align-items: center; gap: 12px; padding: 10px 14px; border-radius: 12px; border: 1px solid var(--line, #888); background: var(--card, #fff); color: var(--ink, #000); box-shadow: 0 4px 16px rgba(0,0,0,.25); max-width: min(92vw, 520px)';
-  const text = document.createElement('span');
-  text.textContent = `Discarded "${String(c.head || c.name || 'item').slice(0, 60)}".`;
-  const undo = document.createElement('button');
-  undo.type = 'button';
-  undo.className = 'btn sm';
-  undo.textContent = 'Undo';
-  undo.dataset.rvundo = c.id;
-  const timer = setTimeout(() => box.remove(), UNDO_MS);
-  undo.addEventListener('click', async () => {
-    undo.disabled = true;
-    try {
-      await send(`${DISCARD_API}/undo`, 'POST', { item: c.id });
-      clearTimeout(timer);
-      box.remove();
-      await reload();
-    } catch (err) {
-      text.textContent = `Could not undo: ${err.message}`;
-    }
-  });
-  box.append(text, undo);
-  document.body.append(box);
-}
-
 async function discardItem(c, q, ui, render, reload) {
-  if (!window.confirm('Discard this? It leaves the review list. Files are kept.')) return true;
   ui.busy = true;
   ui.rvErr = '';
   render();
@@ -366,7 +334,6 @@ async function discardItem(c, q, ui, render, reload) {
       const next = q.find((x) => x.id !== c.id && !ui.rvDone?.[x.id]);
       Object.assign(ui, { rvSel: next ? next.id : '', rvBack: null, rvEdit: null, rvDraft: {}, rvPick: null, rvText: '' });
     }
-    undoToast(c, reload);
   } catch (err) {
     ui.rvErr = `Could not discard: ${err.message}`;
   }
