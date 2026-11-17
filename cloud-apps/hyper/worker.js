@@ -127,6 +127,23 @@ function localHeaders(request) {
   return headers;
 }
 
+// Speed (Jon, 2026-11-17: the Hyper page loaded too slowly). Build files whose names carry a content hash never
+// change, so after the gate passed they come from Cloudflare's cache, not from GPU1 through the tunnel, and the
+// browser keeps them for a year. Only reached after readPass, so a signed-out visitor never gets them.
+export const HASHED = /^\/(assets\/[\w.-]+-[\w-]{8}\.[a-z0-9]+|hf-desktop\/[\w.-]+-[\w-]{8}\.(css|js))$/;
+const KEEP = 'public, max-age=31536000, immutable';
+
+async function passHashed(request, env, url, cache) {
+  const key = new Request(`${url.origin}${url.pathname}`, { method: 'GET' });
+  const hit = await cache.match(key).catch(() => null);
+  if (hit) return hit;
+  const res = await pass(request, env, url);
+  if (res.status !== 200) return res;
+  res.headers.set('Cache-Control', KEEP);
+  await cache.put(key, res.clone()).catch(() => {});
+  return res;
+}
+
 async function pass(request, env, url) {
   if (!env.STUDIO) return offline(request);
   const init = { method: request.method, headers: localHeaders(request), redirect: 'manual' };
@@ -152,6 +169,8 @@ export default {
     if (url.pathname === '/__enter') return enter(request, env, url);
     if (!(await readPass(request, env))) return signedOut(request);
     if (!fromOwnPage(request, url)) return new Response('Forbidden', { status: 403, headers: { 'Cache-Control': 'no-store' } });
+    const cache = globalThis.caches?.default;
+    if (request.method === 'GET' && cache && HASHED.test(url.pathname)) return passHashed(request, env, url, cache);
     return pass(request, env, url);
   },
 };
