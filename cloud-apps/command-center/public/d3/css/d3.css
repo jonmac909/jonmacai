@@ -1296,3 +1296,11 @@ html[data-theme="dark"] body{background:#0b0b0c}
 .d3 .cknote{margin:0;white-space:pre-wrap;overflow-wrap:anywhere}
 .d3 .ckdet h3{margin:6px 0 0;font-size:14px}
 .d3 .ckplain{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:4px;overflow-wrap:anywhere;font-size:13px}
+/* Cards page, "Working now" block at the top (Jon, 2026-11-17): one row per active team member. */
+.d3 .ckactive{padding:14px 16px;gap:8px}
+.d3 .ckactt,.d3 .ckidle{margin:0}
+.d3 .ckact{display:flex;align-items:baseline;gap:10px 14px;flex-wrap:wrap;padding-top:8px;border-top:1px solid var(--line)}
+.d3 .ckname{flex:0 0 96px;font-size:14px;overflow-wrap:anywhere}
+.d3 .ckacs{display:flex;flex-direction:column;gap:4px;min-width:0;flex:1 1 220px}
+.d3 .ckac{display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 8px;min-width:0}
+.d3 button.cklink{color:var(--link)}
