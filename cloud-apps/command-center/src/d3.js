@@ -772,7 +772,7 @@ export function showChannels(F, rows) {
 
 // The Factory page's own light read (GET /dashboard/api/d3/factory, every 3 s while the page is open): two small queries, the
 // same shape as d3.factory (null when nothing was posted). It throws when the board can't be read; a channel list that can't
-// be read (migration 0032 not applied yet) shows the board as posted.
+// be read (migration 0033 not applied yet) shows the board as posted.
 export async function factoryData(env, nowMs) {
   const row = await env.DB.prepare("SELECT data, created_at FROM bot_feed_entries WHERE name = 'video_line' ORDER BY created_at DESC LIMIT 1").first();
   if (!row) return factoryOf({ nowMs, video: null });

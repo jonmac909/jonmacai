@@ -1,5 +1,5 @@
 // Factory page channel list (Jon, 2026-11-17): only Jon Mac, Jon Mac AI, Jon Mac IG, Jon Mac TT, in that order.
-// The rest are hidden by factory_channels.visible = 0 (migration 0032); nothing is deleted.
+// The rest are hidden by factory_channels.visible = 0 (migration 0033); nothing is deleted.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { sqliteD1 } from './sqlited1.mjs';
@@ -31,7 +31,7 @@ const BOARD = () => ({
 });
 
 async function setup() {
-  const db = sqliteD1(); // the real migrations, 0032 included
+  const db = sqliteD1(); // the real migrations, 0033 included
   await db.prepare('INSERT INTO bot_tokens (token_hash, bot, created_at) VALUES (?, ?, ?)').bind(await sha256Hex(DEV), 'developer', 'x').run();
   db.sqlite.prepare("INSERT INTO bot_feed_entries (id, name, bot, data, created_at) VALUES ('v1', 'video_line', 'developer', ?, ?)").run(JSON.stringify(BOARD()), S(10));
   return { db, env: { DB: db, SESSION_SECRET: SECRET } };
