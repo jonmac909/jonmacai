@@ -81,8 +81,9 @@ export function scheduleOf(d2resp, d3resp, P = periodOf(d2resp), home = null, no
   }).filter(Boolean);
   const events = google ? (home.calendar.events || []).map((ev) => {
     const z = zoned(ev.start, ev.end, home.tz);
-    return z ? { ...z, w: ev.title || 'Busy' } : null;
+    return z ? { ...z, w: ev.title || 'Busy', id: ev.id } : null;
   }).filter(Boolean) : feed;
+  const ticked = new Set((home?.meetDone || []).map((m) => `${m.id}|${m.day}`));
   const monday = addDays(P.ymd, -P.weekday);
   const ymds = [0, 1, 2, 3, 4, 5, 6].map((i) => addDays(monday, i));
   for (const d of [1, 2]) if (!ymds.includes(addDays(P.ymd, d))) ymds.push(addDays(P.ymd, d));
@@ -91,7 +92,10 @@ export function scheduleOf(d2resp, d3resp, P = periodOf(d2resp), home = null, no
     const items = dayItems(home, ymd, P.ymd, now.h).map((it) => (it.key === 'emails' && today && mine?.length && !it.ghost ? { ...it, w: `${it.w} · ${mine.length} waiting` } : it));
     // a calendar event with a task's own name (a "Workout" series, say) is that task, not a second row
     const meets = events.filter((ev) => ev.ymd === ymd && !items.some((it) => sameName(it.w.split(' · ')[0], ev.w)))
-      .map((ev, n) => ({ k: `m|${ymd}|${n}`, s: ev.s, e: ev.e, w: ev.w, c: 'meeting', key: '', meet: true, on: ymd }));
+      .map((ev, n) => {
+        const mid = ev.id || `t:${ev.s}-${ev.e}:${ev.w}`.slice(0, 300); // an event with no id (Ana's feed) is known by its time and title
+        return { k: `m|${ymd}|${n}`, s: ev.s, e: ev.e, w: ev.w, c: 'meeting', key: '', meet: true, on: ymd, mid, done: ticked.has(`${mid}|${ymd}`) };
+      });
     items.push(...meets);
     items.sort((a, b) => a.s - b.s || a.e - b.e);
     const diff = Math.round((Date.parse(`${ymd}T12:00:00Z`) - Date.parse(`${P.ymd}T12:00:00Z`)) / 86400000);
@@ -109,7 +113,7 @@ function listHtml(day, now, ui) {
     const cur = x.s <= now.h && x.e > now.h && !x.ghost && !x.done;
     const tag = x.meet ? '<span class="hmtag">Meeting</span>' : x.tag ? `<span class="hmtag${x.late && !x.done ? ' late' : ''}">${x.tag}</span>` : '';
     const cls = `hmrow${x.done ? ' done' : ''}${x.missed ? ' miss' : ''}${x.meet ? ' meet' : ''}${cur ? ' now' : ''}`;
-    if (x.meet) return `<div class="${cls}"${x === next ? ' data-hmnow' : ''}><span class="hmnb" aria-hidden="true"></span><span class="hmtm">${spanOf(x)}</span><i class="hmcd" style="--c: var(--c-${x.c})"></i><span class="hmwhat">${esc(x.w)}</span>${tag}</div>`;
+    if (x.meet) return `<div class="${cls}"${x === next ? ' data-hmnow' : ''}><input type="checkbox" data-hmmeet="${esc(x.k)}"${x.done ? ' checked' : ''} aria-label="${esc(x.w)}: ${x.done ? 'done' : 'not done'}"><span class="hmtm">${spanOf(x)}</span><i class="hmcd" style="--c: var(--c-${x.c})"></i><span class="hmwhat">${esc(x.w)}</span>${tag}</div>`;
     const k = esc(x.k);
     const box = x.ghost ? '<span class="hmnb" aria-hidden="true"></span>'
       : `<input type="checkbox" data-hmtick="${k}"${x.done ? ' checked' : ''} aria-label="${esc(x.w)}: ${x.done ? 'done' : 'not done'}">`;
@@ -535,6 +539,7 @@ export function renderHome(d2resp, d3resp, ui = {}, nowMs, home = null) {
   const now = nowOf(nowMs);
   const sch = scheduleOf(d2resp, d3resp, P, home, now);
   ui.hmItems = Object.fromEntries(sch.days.flatMap((d) => d.items.filter((x) => !x.meet).map((x) => [x.k, x]))); // what a click on a task opens
+  ui.hmMeets = Object.fromEntries(sch.days.flatMap((d) => d.items.filter((x) => x.meet).map((x) => [x.k, x]))); // what a meeting's tick box saves
   const today = sch.days.find((d) => d.today);
   const live = (today?.items || []).filter((x) => !x.missed && !x.done);
   const cur = live.find((x) => x.s <= now.h && x.e > now.h);
@@ -655,6 +660,16 @@ export function homeChange(e, S, render, api, reload) {
     }
     render();
     api('POST', `/home/tasks/${it.id}/day`, { day: it.day, on: it.on, done }).then((r) => { if (!r.ok) failed(S, 'save the tick', r); return reload(); });
+    return true;
+  }
+  if (t.dataset?.hmmeet) {
+    const it = ui.hmMeets?.[t.dataset.hmmeet];
+    if (!it || !S.home) return true;
+    const done = !!t.checked;
+    // show it at once; the reload after the save brings the stored truth
+    S.home.meetDone = [...(S.home.meetDone || []).filter((m) => !(m.id === it.mid && m.day === it.on)), ...(done ? [{ id: it.mid, day: it.on }] : [])];
+    render();
+    api('POST', '/home/meetings/tick', { id: it.mid, day: it.on, done }).then((r) => { if (!r.ok) failed(S, 'save the tick', r); return reload(); });
     return true;
   }
   if (t.dataset?.hmgstep) {

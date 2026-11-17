@@ -12,6 +12,7 @@ import { threadClick } from './thread.js';
 import { renderHyper, openHyper } from './hyper.js';
 import { renderBluesky } from './bluesky.js';
 import { renderCards } from './cards.js';
+import { applyOrder, cachedOrder, cacheOrder, navDrag } from './navorder.js';
 import { renderPersonal, mnavHtml, moneyBizHtml, personalClick, personalChange, personalInput, personalSubmit, personalPaste, personalKey, personalPopOpen, personalDrag, personalAfter, nowParts } from './personal.js';
 import { renderFactory, syncFactory } from './factory.js';
 import { renderTrack, trackSub } from './track.js';
@@ -207,6 +208,27 @@ async function loadHome() {
     const h = await getJson('/dashboard/api/home');
     if (!h.signedOut) S.home = h.body?.home || null;
   } catch { /* keep what is shown */ }
+  showNavOrder();
+}
+// The menu in Jon's saved order (read with Home's data, so it is the same on every device). A drag in progress is left alone;
+// when Home could not be read the menu keeps what it shows.
+const navEl = document.getElementById('nav')?.querySelectorAll ? document.getElementById('nav') : null; // (a bare stand-in page in tests has no links to move)
+function showNavOrder() {
+  if (!navEl || !S.home || navEl.classList.contains('navdragging')) return;
+  cacheOrder(S.home.navOrder || null);
+  applyOrder(navEl, S.home.navOrder);
+}
+async function saveNavOrder(order) {
+  const r = await send('POST', '/home/nav-order', order ? { order } : { reset: true });
+  if (!r.ok) S.error = `Could not save the menu order (${r.error || 'no answer'}).`;
+  else if (S.home) S.home.navOrder = order || null;
+  cacheOrder(order || null);
+  if (!r.ok) { await loadHome(); render(); } else if (!order) applyOrder(navEl, null);
+}
+if (navEl) {
+  applyOrder(navEl, cachedOrder()); // no flash of the built-in order while the server answers
+  navDrag(navEl, saveNavOrder, () => !S.signedOut);
+  document.getElementById('navReset')?.addEventListener('click', () => saveNavOrder(null));
 }
 // A Home write (tick, task, goal): Jon's session plus the X-CC header. -> { ok, error }
 async function send(method, path, body) {
