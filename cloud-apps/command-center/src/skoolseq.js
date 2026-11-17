@@ -17,7 +17,7 @@ export const DEFAULT_BUSINESS = 'Ecomm House Inc.'; // from rules/facts/people.m
 export const ADDRESS_PLACEHOLDER = '[ADDRESS]'; // Jon's mailing address is not in rules/facts; set the SKOOL_ADDRESS var
 export const GAP_MS = 24 * 3600e3; // the next email goes out 24 hours after the last one
 export const MAX_AGE_MS = 30 * 864e5; // a lead older than this when the sequence is on is not enrolled
-export const MAX_PER_RUN = 20;
+export const MAX_PER_RUN = 8;
 export const SEQ_CRON = '*/15 * * * *'; // must match wrangler.jsonc triggers.crons
 const ORIGIN = 'https://jonmac.ai';
 const iso = (ms) => new Date(ms).toISOString();
