@@ -48,7 +48,7 @@ export async function d3Data(env, nowMs) {
   const apSince = new Date(nowMs - 14 * DAY).toISOString();
   const AP_CARDS = `SELECT id FROM bot_tasks WHERE project IN ('home-guide-press', 'jon-mac', 'jonmacai') AND (status IN ${OPEN} OR (status = 'done' AND updated_at >= ?))`;
   const [youtube, review, approvals, questions, usage, lastUsage, open, proofs, habits, calendar, charges,
-    tasks, finished, stuck, failsToday, runs, runBots, later, scripts, scoreProofs, staged, apCards, apEvents, ytLive, live, feedRows, snapRows, video] = await Promise.all([
+    tasks, finished, stuck, failsToday, runs, runBots, later, scripts, scoreProofs, staged, apCards, apEvents, ytLive, live, feedRows, snapRows, video, factoryRows] = await Promise.all([
     q('SELECT channel, sync_error FROM yt_api'),
     // Review cards with their deliverable: the newest web proof link (a video proof first, then a passed one), and up to 6
     // web proof links in all. Local paths (D:\...) are skipped here: they once hid a card's real links and made it an empty "video".
@@ -117,6 +117,7 @@ export async function d3Data(env, nowMs) {
     q('SELECT source AS name, collected_at AS at FROM snapshots'),
     // Factory page: the video program's newest board.
     q("SELECT data, created_at FROM bot_feed_entries WHERE name = 'video_line' ORDER BY created_at DESC LIMIT 1"),
+    q('SELECT id, label, note, sort, visible FROM factory_channels ORDER BY sort, id'),
   ]);
   return {
     youtube, review, approvals, questions, usage, lastUsage: lastUsage && (lastUsage[0] || undefined), open, proofs, habits, calendar: calendar && parse(calendar[0]?.data), charges,
@@ -124,6 +125,7 @@ export async function d3Data(env, nowMs) {
     live: live && (live[0] ? { d: parse(live[0].data), at: live[0].created_at } : undefined),
     feedRows, snapRows,
     video: video && (video[0] ? { d: parse(video[0].data), at: video[0].created_at } : undefined),
+    factoryRows,
   };
 }
 
@@ -735,14 +737,48 @@ function scriptsOf(D) {
 function factoryOf(D) {
   if (!D.video) return null;
   const age = D.nowMs - Date.parse(D.video.at);
-  return { ...D.video.d, at: D.video.at, stale: !(age <= VIDEO_STALE) };
+  return { ...showChannels(D.video.d, D.factoryRows), at: D.video.at, stale: !(age <= VIDEO_STALE) };
 }
 
-// The Factory page's own light read (GET /dashboard/api/d3/factory, every 3 s while the page is open): one query, the
-// same shape as d3.factory (null when nothing was posted). It throws when the table can't be read.
+// Which channels the Factory page shows (Jon, 2026-11-17: only Jon Mac, Jon Mac AI, Jon Mac IG, Jon Mac TT). `rows` are the
+// factory_channels rows (id, label, note, sort, visible); null or no visible row = no filter, the board as posted. Otherwise
+// the board's channel list becomes the visible rows in `sort` order (their label, the row's note else the board's), a
+// channel the board does not list still gets its quiet row, and every video, event and unreadable job of any other channel is
+// left out, so the counts on the page are the visible channels' only. This is a view: the posted entry and the rows stay whole.
+export function showChannels(F, rows) {
+  const shown = (Array.isArray(rows) ? rows : []).filter((r) => Number(r.visible) === 1).sort((a, b) => Number(a.sort) - Number(b.sort) || String(a.id).localeCompare(String(b.id)));
+  if (!shown.length || !F || typeof F !== 'object') return F;
+  const ids = new Set(shown.map((r) => String(r.id)));
+  const board = new Map((Array.isArray(F.channels) ? F.channels : []).filter((c) => c && c.id != null).map((c) => [String(c.id), c]));
+  const channels = shown.map((r) => {
+    const note = String(r.note || '').trim() || String(board.get(String(r.id))?.note || '').trim();
+    return { id: String(r.id), label: String(r.label), ...(note ? { note } : {}) };
+  });
+  const all = Array.isArray(F.jobs) ? F.jobs : [];
+  const jobs = all.filter((j) => j && ids.has(String(j.channel ?? '')));
+  const gone = new Set(all.filter((j) => !jobs.includes(j)).map((j) => String(j?.id ?? '')));
+  const others = [...new Set([...board.keys(), ...(Array.isArray(rows) ? rows : []).map((r) => String(r.id)), ...all.map((j) => String(j?.channel ?? ''))])].filter((c) => c && !ids.has(c));
+  // "2026-11-14T07:35:23Z  naomi-10  plan  failed ...": a line about a left-out video (or a left-out channel's next one) goes.
+  const hidden = (word) => gone.has(word) || others.some((c) => word.startsWith(`${c}-`));
+  const out = { ...F, channels, jobs };
+  if (Array.isArray(F.events)) out.events = F.events.filter((e) => typeof e !== 'string' || !hidden(e.trim().split(/\s+/)[1] || ''));
+  if (Array.isArray(F.unreadable_jobs)) out.unreadable_jobs = F.unreadable_jobs.filter((u) => !hidden(String(u).trim().split(/\s+/)[0] || ''));
+  if (F.counts && typeof F.counts === 'object') {
+    const needs = (j) => !!j.needs_person || /needs a person/i.test(String(j.state || ''));
+    out.counts = { ...F.counts, jobs: jobs.length, done: jobs.filter((j) => j.state === 'done').length, running: jobs.filter((j) => j.state === 'running').length, needs_person: jobs.filter(needs).length };
+  }
+  return out;
+}
+
+// The Factory page's own light read (GET /dashboard/api/d3/factory, every 3 s while the page is open): two small queries, the
+// same shape as d3.factory (null when nothing was posted). It throws when the board can't be read; a channel list that can't
+// be read (migration 0033 not applied yet) shows the board as posted.
 export async function factoryData(env, nowMs) {
   const row = await env.DB.prepare("SELECT data, created_at FROM bot_feed_entries WHERE name = 'video_line' ORDER BY created_at DESC LIMIT 1").first();
-  return factoryOf({ nowMs, video: row ? { d: parse(row.data), at: row.created_at } : null });
+  if (!row) return factoryOf({ nowMs, video: null });
+  let factoryRows = null;
+  try { factoryRows = (await env.DB.prepare('SELECT id, label, note, sort, visible FROM factory_channels ORDER BY sort, id').all()).results || null; } catch (err) { console.error('d3 factory channels', err); }
+  return factoryOf({ nowMs, video: { d: parse(row.data), at: row.created_at }, factoryRows });
 }
 
 export function buildD3(D) {

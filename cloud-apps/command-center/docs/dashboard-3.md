@@ -33,7 +33,7 @@ Jon's session, `Cache-Control: no-store`, read only (`src/d3.js`). Each part is 
 
 ## `GET /dashboard/api/d3/factory`
 
-The Factory page's light read: Jon's session (the same rule as `/dashboard/api/d3`), `Cache-Control: no-store`, read only, one D1 query (the newest `video_line` entry). Answer: `{ ok, asOf, factory }`, where `factory` is exactly `d3.factory` above (`null` when nothing was posted). When the table can't be read it answers 503, so the page keeps what it shows.
+The Factory page's light read: Jon's session (the same rule as `/dashboard/api/d3`), `Cache-Control: no-store`, read only, two small D1 queries (the newest `video_line` entry and the `factory_channels` list). Answer: `{ ok, asOf, factory }`, where `factory` is exactly `d3.factory` above (`null` when nothing was posted). When the table can't be read it answers 503, so the page keeps what it shows.
 
 ## Number map (Goals page)
 
@@ -136,6 +136,13 @@ Stuck leaves out cards in Review on purpose: those passed QC on their newest ver
 - Styles: the `fy*` rules at the end of `css/d3.css`, the old page's sizes on Dashboard 3's theme variables (light and dark).
 - The name: this is Dashboard 3's Factory page. The older Factory page on `/dashboard` (one overwritten row, `tools/factory_publish.py`) is a different source and is unchanged.
 - The System page's Sources list shows the feed as "Video program board", stale after 3 minutes.
+
+
+### Which channels the Factory page shows (2026-11-17)
+
+- Only the channels in table `factory_channels` (migration 0033) with `visible = 1` show, in `sort` order, under their `label`: Jon Mac (`jon-mac`), Jon Mac AI (`jonmacai`), Jon Mac IG (`jon-mac-ig`), Jon Mac TT (`jon-mac-tt`). IG and TT have no videos yet, so they are quiet rows ("Not in the video program yet"). `showChannels` in `src/d3.js` does it on read, for both `d3.factory` and `/d3/factory`: the board's channel list, videos, events, unreadable jobs and counts are cut to those channels. A channel the board posts that has no row in the table is hidden too.
+- Nothing is deleted: the posted `video_line` entries (what bots read from `/v1/feeds/video_line`), the other pages and every other channel list (Calendar, Content, Track, the Pipeline's Factory table) are untouched. No visible row at all, or the table missing, shows the board as posted.
+- Unhide: `UPDATE factory_channels SET visible = 1, sort = 5 WHERE id = 'nora';` (hide again with `visible = 0`). A new channel: `INSERT INTO factory_channels (id, label, sort, visible) VALUES ('<board channel id>', '<name>', 6, 1);`.
 
 ## Track page (2026-11-11)
 

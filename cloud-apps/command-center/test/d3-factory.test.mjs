@@ -39,6 +39,7 @@ const BOARD = () => ({
 
 async function setup() {
   const db = sqliteD1();
+  db.sqlite.exec('DELETE FROM factory_channels'); // these tests read the board as posted; test/factory-4ch.test.mjs covers the channel filter
   for (const [bot, t] of Object.entries(TOK)) {
     await db.prepare('INSERT INTO bot_tokens (token_hash, bot, created_at) VALUES (?, ?, ?)').bind(await sha256Hex(t), bot, 'x').run();
   }
@@ -772,12 +773,14 @@ test('GET /dashboard/api/d3/factory: the board alone, the same shape as d3.facto
     assert.deepEqual([body.factory.at, body.factory.stale, body.factory.counts.jobs, body.factory.channels[0].id], [S(20), false, 5, 'nora']);
     db.sqlite.prepare("DELETE FROM bot_feed_entries WHERE id = 'v2'").run();
     assert.equal((await (await get()).json()).factory.stale, true, 'stale after 3 minutes, as before');
-    // One query, on the feed table only.
+    // Two light queries: the newest board, and the channel list (factory_channels).
+    db.sqlite.prepare("INSERT INTO bot_feed_entries (id, name, bot, data, created_at) VALUES ('v3', 'video_line', 'developer', ?, ?)").run(JSON.stringify(BOARD()), S(10));
     const seen = [];
     const spy = { prepare: (sql) => { seen.push(sql); return db.prepare(sql); } };
     await get({ Cookie: cookie }, { DB: spy, SESSION_SECRET: SECRET });
-    assert.equal(seen.length, 1);
+    assert.equal(seen.length, 2);
     assert.match(seen[0], /FROM bot_feed_entries WHERE name = 'video_line' ORDER BY created_at DESC LIMIT 1/);
+    assert.match(seen[1], /FROM factory_channels/);
     // A table that can't be read is a 503, so the page keeps what it shows (it does not flip to "Not publishing yet").
     const down = await get({ Cookie: cookie }, { DB: { prepare: () => { throw new Error('no table'); } }, SESSION_SECRET: SECRET });
     assert.equal(down.status, 503);
