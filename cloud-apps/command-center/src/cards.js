@@ -19,6 +19,29 @@ export const isMacFrames = (c) => MACFRAMES.test(`${c.title || ''} ${c.note || '
 
 const NAMES = new Map(TEAM.bots.map((b) => [b.slug, b.names]));
 
+// Helper jobs the dispatcher's live feed lists as running now (Jon, 2026-11-17: "how is no one working right now?"): background jobs of a bot,
+// mostly Ana's (tools/helper_job.py). One row each: the bot, the job's title (its brief's first heading), minutes running, and the card when
+// the job names one that is known here. Pure. feed = the parsed dispatch_live data, or null when the feed is stale or unreadable; a job with
+// no readable start time, or one that starts in the future, is dropped. Oldest first.
+export function jobsOf(feed, cards, nowMs) {
+  const byId = new Map((cards || []).map((c) => [c.id, c]));
+  const out = [];
+  for (const j of Array.isArray(feed?.jobs) ? feed.jobs : []) {
+    const start = Date.parse(j?.started);
+    if (!j || typeof j.name !== 'string' || !j.name || !Number.isFinite(start) || start > nowMs + 60000) continue;
+    const owner = /^[a-z][a-z0-9-]{0,39}$/.test(String(j.bot || '').toLowerCase()) ? String(j.bot).toLowerCase() : 'ana';
+    if (owner === 'jon') continue;
+    const card = typeof j.card === 'string' ? byId.get(j.card) : null;
+    out.push({
+      name: j.name.slice(0, 80), owner, names: NAMES.get(owner) || [], title: String(j.title || j.name).slice(0, 140),
+      mins: Math.max(0, Math.floor((nowMs - start) / 60000)), startedAt: new Date(start).toISOString(),
+      updatedAt: Number.isFinite(Date.parse(j.updated)) ? j.updated : null,
+      card: card ? card.id : null, cardTitle: card ? card.title || '' : '',
+    });
+  }
+  return out.sort((a, b) => a.startedAt.localeCompare(b.startedAt) || a.name.localeCompare(b.name)).slice(0, 30);
+}
+
 // "Working now" (Jon, 2026-11-17, tightened the same day), shown at the top of the Cards page. Only real work counts: a card is listed
 // when (a) the dispatcher's live feed (fresh within 10 minutes) shows a run going on it, or (b) its own owner updated it in the last
 // 60 minutes (a note or other edit, a proof, a status change, a comment). Owning a Doing card is not enough, and a script's write
@@ -79,6 +102,7 @@ export async function cardsData(env, nowMs = Date.now()) {
     // The dispatcher's live feed, when fresh: runs going now. A feed that can't be read means no run signal, never an error.
     let runs = [];
     let extra = [];
+    let feed = null;
     let recent = new Map();
     try { recent = await ownerUpdates(db, new Date(nowMs - ACTIVE_WINDOW).toISOString()); } catch { recent = new Map(); }
     try {
@@ -87,6 +111,7 @@ export async function cardsData(env, nowMs = Date.now()) {
       if (row && nowMs - Date.parse(row.created_at) < LIVE_STALE) {
         let d = row.data;
         if (typeof d === 'string') { try { d = JSON.parse(d); } catch { d = {}; } }
+        feed = d && typeof d === 'object' ? d : null;
         runs = (Array.isArray(d?.running) ? d.running : []).filter((r) => r && typeof r.card === 'string' && r.card.length <= 64).slice(0, 50);
         const known = new Set((open.results || []).map((c) => c.id));
         const miss = [...new Set(runs.map((r) => r.card))].filter((id) => !known.has(id));
@@ -95,7 +120,7 @@ export async function cardsData(env, nowMs = Date.now()) {
           extra = q.results || [];
         }
       }
-    } catch { runs = []; }
+    } catch { runs = []; feed = null; }
     const shape = (r) => ({
       id: r.id, title: r.title || '', owner: r.owner || '', status: r.status, project: r.project || null,
       updatedAt: r.done_at || r.updated_at || null, macframes: isMacFrames(r),
@@ -106,6 +131,7 @@ export async function cardsData(env, nowMs = Date.now()) {
       open: o, done: d,
       counts: { open: o.length, done: d.length, macframesOpen: o.filter((c) => c.macframes).length, macframesDone: d.filter((c) => c.macframes).length },
       active: activeOf((open.results || []).slice(0, OPEN_CAP), runs, extra, nowMs, recent),
+      jobs: jobsOf(feed, [...(open.results || []).slice(0, OPEN_CAP), ...(done.results || []).slice(0, DONE_CAP), ...extra], nowMs),
       cut: (open.results || []).length > OPEN_CAP || (done.results || []).length > DONE_CAP,
     };
   } catch (err) {
