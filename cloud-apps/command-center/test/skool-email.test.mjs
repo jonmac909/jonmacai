@@ -46,7 +46,7 @@ test('email step on: form shows and counts the click; POST stores the email and 
   assert.equal(g.status, 200);
   const html = await g.text();
   assert.match(html, /Enter your email to get access/);
-  assert.match(html, /it stays on jonmac\.ai/);
+  assert.doesNotMatch(html, /stays on jonmac\.ai/); // Jon removed the privacy line
   assert.match(html, /<form method="post" action="\/s\/gated">/);
   assert.equal((await e.DB.prepare('SELECT COUNT(*) AS n FROM skool_clicks').first()).n, 1);
   assert.equal((await go(e, '/s/gated', { method: 'POST', body: { email: 'not-an-email' } })).status, 400);
