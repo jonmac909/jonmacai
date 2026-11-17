@@ -41,6 +41,16 @@ function group(title, cards, ui, open = true) {
 
 const toast = (t) => (t ? `<div class="cktoast" role="status"><span>${esc(t.kind === 'delete' ? 'Card deleted' : t.kind === 'untick' ? 'Card unticked' : 'Card ticked off')}: ${esc(String(t.title).slice(0, 80))}</span><button type="button" class="btn sm" data-ck-undo>Undo</button></div>` : '');
 
+// "Working now" (Jon, 2026-11-17): one row per active team member (cards.active from src/cards.js: a card in Doing, or a run going now),
+// each card a link that opens the card's own page, the way a title in the lists below does. No one active: one line saying so.
+export function activeBlock(active) {
+  if (!Array.isArray(active)) return '';
+  if (!active.length) return '<section class="card ckactive" aria-label="Working now"><p class="mut ckidle">Nobody is working on a card right now.</p></section>';
+  const one = (c) => `<span class="ckac"><button type="button" class="ckt cklink" data-ck-open="${esc(c.id)}">${esc(c.title)}</button> <span class="ckm"><span class="ckst s-${esc(c.status)}">${esc(c.running && c.status !== 'doing' ? 'Run going' : statusName(c.status))}</span>${c.age ? ` <span>${c.running ? 'run started' : 'updated'} ${esc(c.age)} ago</span>` : ''}</span></span>`;
+  const rows = active.map((m) => `<div class="ckact" data-ckwho="${esc(m.owner)}"><b class="ckname">${esc(m.names?.length ? m.names.join(', ') : ownerName(m.owner))}</b><span class="ckacs">${(m.cards || []).map(one).join('')}</span></div>`).join('');
+  return `<section class="card ckactive" aria-label="Working now"><p class="ckactt"><b>Working now</b> <span class="mut">${active.length}</span></p>${rows}</section>`;
+}
+
 const when = (iso) => (iso ? String(iso).replace('T', ' ').slice(0, 16) : '');
 
 // One card's own page: facts, note, proof, history, with the same tick box and Delete.
@@ -77,11 +87,12 @@ export function renderCards(d2resp, resp, ui = {}) {
   const groups = [...owners.entries()].sort((a, b) => b[1].length - a[1].length || ownerName(a[0]).localeCompare(ownerName(b[0])))
     .map(([o, list]) => group(ownerName(o), list.sort(byStatus), ui));
   const parts = [];
+  parts.push(activeBlock(cards.active));
   parts.push(`<section class="card ckhead"><p><b>${open.length}</b> open cards · <b>${everyOwner.size}</b> owners · <b>${mf.length}</b> MacFrames</p>${cards.cut ? '<p class="mut">The list is cut: it shows the newest cards only.</p>' : ''}</section>`);
   parts.push(mf.length ? group('MacFrames', mf, ui) : '<section class="card"><p class="mut">No open MacFrames cards.</p></section>');
   parts.push(...groups);
   parts.push(done.length ? group('Done in the last 7 days', done.slice().sort(byStatus), ui, false) : '<section class="card"><p class="mut">Nothing done in the last 7 days.</p></section>');
-  return `<div class="ckpage">${head}${parts.join('')}${toast(ui.ckToast)}</div>`;
+  return `<div class="ckpage">${head}${parts.filter(Boolean).join('')}${toast(ui.ckToast)}</div>`;
 }
 
 // ---- Jon's clicks ----
