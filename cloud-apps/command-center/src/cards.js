@@ -22,7 +22,7 @@ const NAMES = new Map(TEAM.bots.map((b) => [b.slug, b.names]));
 // Jon himself is not a team member here. Members with nothing active are left out. Pure: cards = open cards (raw rows),
 // runs = the feed's running list, titles = card id -> row for run cards that are not in `cards`.
 export function activeOf(cards, runs, extra, nowMs) {
-  const age = (iso) => (Number.isFinite(Date.parse(iso)) ? agoLabel(Math.max(0, nowMs - Date.parse(iso))).replace(/ ago$/, '') : '');
+  const age = (iso) => (Number.isFinite(Date.parse(iso)) ? agoLabel(Math.max(0, nowMs - Date.parse(iso))) : '');
   const by = new Map();
   const add = (owner, c, running, at) => {
     if (!owner || owner === 'jon' || !c?.id) return;

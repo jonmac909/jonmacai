@@ -50,7 +50,7 @@ test('active members and their cards come from Doing cards; several Doing cards 
   assert.deepEqual(by.developer.names, ['Lucy']);
   assert.deepEqual(by.marketing.names, ['Margot', 'Rhea', 'Cleo', 'Vera', 'Tess']);
   assert.deepEqual(by.developer.cards.map((x) => x.id), [ids.lucy2, ids.lucy1]);
-  assert.deepEqual(by.sponsors.cards.map((x) => [x.title, x.status, x.running, x.age]), [['Reply to the Acme sponsor', 'doing', false, '5 min']]);
+  assert.deepEqual(by.sponsors.cards.map((x) => [x.title, x.status, x.running, x.age]), [['Reply to the Acme sponsor', 'doing', false, '5 min ago']]);
 });
 
 test('idle members, Jon, to-do/Review/done/deleted cards are not shown', async () => {
@@ -69,7 +69,7 @@ test('a run going now (fresh dispatcher feed) makes a member active on that card
   const c = await cardsData({ DB: db }, NOW);
   const by = Object.fromEntries(c.active.map((m) => [m.owner, m]));
   assert.deepEqual(by.qc.names, ['Jessica', 'Nina']);
-  assert.deepEqual(by.qc.cards.map((x) => [x.id, x.running, x.age]), [[ids.qcRun, true, '4 min']]);
+  assert.deepEqual(by.qc.cards.map((x) => [x.id, x.running, x.age]), [[ids.qcRun, true, '4 min ago']]);
   assert.equal(by.sponsors.cards.length, 1); // Doing and running: one entry
   assert.equal(by.sponsors.cards[0].running, true);
   assert.ok(!by.ana, 'a run on a card that is not open adds nothing');

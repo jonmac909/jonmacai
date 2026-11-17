@@ -46,7 +46,7 @@ const toast = (t) => (t ? `<div class="cktoast" role="status"><span>${esc(t.kind
 export function activeBlock(active) {
   if (!Array.isArray(active)) return '';
   if (!active.length) return '<section class="card ckactive" aria-label="Working now"><p class="mut ckidle">Nobody is working on a card right now.</p></section>';
-  const one = (c) => `<span class="ckac"><button type="button" class="ckt cklink" data-ck-open="${esc(c.id)}">${esc(c.title)}</button> <span class="ckm"><span class="ckst s-${esc(c.status)}">${esc(c.running && c.status !== 'doing' ? 'Run going' : statusName(c.status))}</span>${c.age ? ` <span>${c.running ? 'run started' : 'updated'} ${esc(c.age)} ago</span>` : ''}</span></span>`;
+  const one = (c) => `<span class="ckac"><button type="button" class="ckt cklink" data-ck-open="${esc(c.id)}">${esc(c.title)}</button> <span class="ckm"><span class="ckst s-${esc(c.status)}">${esc(c.running && c.status !== 'doing' ? 'Run going' : statusName(c.status))}</span>${c.age ? ` <span>${c.running ? 'run started' : 'updated'} ${esc(c.age)}</span>` : ''}</span></span>`;
   const rows = active.map((m) => `<div class="ckact" data-ckwho="${esc(m.owner)}"><b class="ckname">${esc(m.names?.length ? m.names.join(', ') : ownerName(m.owner))}</b><span class="ckacs">${(m.cards || []).map(one).join('')}</span></div>`).join('');
   return `<section class="card ckactive" aria-label="Working now"><p class="ckactt"><b>Working now</b> <span class="mut">${active.length}</span></p>${rows}</section>`;
 }
