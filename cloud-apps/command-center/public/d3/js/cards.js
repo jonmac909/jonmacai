@@ -41,13 +41,13 @@ function group(title, cards, ui, open = true) {
 
 const toast = (t) => (t ? `<div class="cktoast" role="status"><span>${esc(t.kind === 'delete' ? 'Card deleted' : t.kind === 'untick' ? 'Card unticked' : 'Card ticked off')}: ${esc(String(t.title).slice(0, 80))}</span><button type="button" class="btn sm" data-ck-undo>Undo</button></div>` : '');
 
-// "Working now" (Jon, 2026-11-17): one row per active team member (cards.active from src/cards.js: a card in Doing, or a run going now),
-// each card a link that opens the card's own page, the way a title in the lists below does. No one active: one line saying so.
+// "Working now" (Jon, 2026-11-17): one row per card that is really being worked on (cards.active from src/cards.js: a run going now, or
+// its owner updated it in the last hour): the member's name, the card as a link that opens the card's own page the way a title in the
+// lists below does, and "running now" or "updated N min ago". The count is the number of rows. No one active: one line saying so.
 export function activeBlock(active) {
   if (!Array.isArray(active)) return '';
   if (!active.length) return '<section class="card ckactive" aria-label="Working now"><p class="mut ckidle">Nobody is working on a card right now.</p></section>';
-  const one = (c) => `<span class="ckac"><button type="button" class="ckt cklink" data-ck-open="${esc(c.id)}">${esc(c.title)}</button> <span class="ckm"><span class="ckst s-${esc(c.status)}">${esc(c.running && c.status !== 'doing' ? 'Run going' : statusName(c.status))}</span>${c.age ? ` <span>${c.running ? 'run started' : 'updated'} ${esc(c.age)}</span>` : ''}</span></span>`;
-  const rows = active.map((m) => `<div class="ckact" data-ckwho="${esc(m.owner)}"><b class="ckname">${esc(m.names?.length ? m.names.join(', ') : ownerName(m.owner))}</b><span class="ckacs">${(m.cards || []).map(one).join('')}</span></div>`).join('');
+  const rows = active.map((c) => `<div class="ckact" data-ckwho="${esc(c.owner)}"><b class="ckname">${esc(c.names?.length ? c.names.join(', ') : ownerName(c.owner))}</b><span class="ckacs"><span class="ckac"><button type="button" class="ckt cklink" data-ck-open="${esc(c.id)}">${esc(c.title)}</button> <span class="ckm"><span class="ckrun">${c.running ? 'running now' : `updated ${esc(c.age)}`}</span></span></span></span></div>`).join('');
   return `<section class="card ckactive" aria-label="Working now"><p class="ckactt"><b>Working now</b> <span class="mut">${active.length}</span></p>${rows}</section>`;
 }
 
