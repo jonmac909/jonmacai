@@ -106,12 +106,38 @@ async function bookStats(db, hgp) {
   }
 }
 
+// Which channels Track shows (Jon, 2026-11-17: only Jon Mac, Jon Mac AI, Jon Mac IG, Jon Mac TT), from the same table and flag as the
+// Factory page: factory_channels (migration 0033). Track's channel keys are the Calendar slugs; this maps the ones that differ from
+// the factory id. Everything else is the same key (jon-mac, jonmacai, jon-mac-ig, jon-mac-tt), so a slug no row names stays out.
+export const TRACK_TO_FACTORY = { 'naomi-takeda-japan': 'naomi', 'giovanni-moretti': 'giovanni', 'nora-fairweather-cats': 'nora', 'rosas-house-hacks': 'rosa-house' };
+const factoryIdOf = (slug) => TRACK_TO_FACTORY[slug] || slug;
+
+// The channels, videos, totals and book numbers of the visible factory_channels rows only, in their `sort` order, under the row's
+// label. `rows` null or with no visible row = no filter, the page as it was (table missing or emptied). A visible row Track has no
+// channel for (Jon Mac IG and TT are not YouTube channels) still gets its row, with no YouTube login to connect. This is a view:
+// nothing is deleted, a hidden channel's videos, clicks, leads and sales stay in the database and just are not counted here.
+export function showTrackChannels(data, rows) {
+  const shown = (Array.isArray(rows) ? rows : []).filter((r) => Number(r.visible) === 1).sort((a, b) => Number(a.sort) - Number(b.sort) || String(a.id).localeCompare(String(b.id)));
+  if (!shown.length || !data) return data;
+  const ids = new Set(shown.map((r) => String(r.id)));
+  const mine = (slug) => ids.has(factoryIdOf(slug));
+  const channels = shown.map((r) => {
+    const found = data.channels.find((c) => factoryIdOf(c.slug) === String(r.id));
+    return found ? { ...found, label: String(r.label) } : { slug: String(r.id), label: String(r.label), group: "Jon's own", noYoutube: true };
+  });
+  const keep = (obj) => (obj ? Object.fromEntries(Object.entries(obj).filter(([slug]) => mine(slug))) : obj);
+  return { ...data, channels, videos: data.videos.filter((v) => mine(v.channel)), totals: keep(data.totals), books: keep(data.books) };
+}
+
 // Null when the tables can't be read (migration 0017 or 0021 not applied), so the page says so instead of failing.
 export async function trackData(db, origin, nowMs, hgp = null) {
   try {
     const channels = await trackChannels(db);
     const extra = new Set(channels.map((c) => c.slug).filter((s) => !ON_YOUTUBE.has(s))); // registered by a bot, not in the fixed list
-    return { videos: await trackVideos(db, origin, null, nowMs, extra), totals: await channelTotals(db), books: await bookStats(db, hgp), channels };
+    const data = { videos: await trackVideos(db, origin, null, nowMs, extra), totals: await channelTotals(db), books: await bookStats(db, hgp), channels };
+    let rows = null;
+    try { rows = (await db.prepare('SELECT id, label, sort, visible FROM factory_channels ORDER BY sort, id').all()).results || null; } catch (err) { console.error('track factory channels', err); } // migration 0033 not applied: no filter
+    return showTrackChannels(data, rows);
   } catch (err) {
     console.error('trackData', err);
     return null;
@@ -138,7 +164,7 @@ export function buildTrackPage(out, data) {
       // Connect (Jon, 2026-11-11): a channel with no Google login yet gets the link that starts it; Jon does the consent himself.
       const t = data?.totals?.[c.slug];
       const state = !t ? 'none' : /connect (this channel|it) again/i.test(t.error || '') ? 'reconnect' : 'connected';
-      return { ...c, connect: { state, url: `/dashboard/api/youtube/connect?channel=${c.slug}` }, count: mine.length, counts: countsOf(mine), totals: data?.totals?.[c.slug] || null, book: data?.books?.[c.slug] || null };
+      return { ...c, connect: c.noYoutube ? null : { state, url: `/dashboard/api/youtube/connect?channel=${c.slug}` }, count: mine.length, counts: countsOf(mine), totals: data?.totals?.[c.slug] || null, book: data?.books?.[c.slug] || null };
     })],
     videos: list.map((v) => ({ ...v, channelLabel: label.get(v.channel) })),
   };
