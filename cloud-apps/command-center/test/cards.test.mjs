@@ -12,7 +12,7 @@ import { renderCards, ownerName } from '../public/d3/js/cards.js';
 const SECRET = 'test-session-secret-32-bytes-ok!';
 const NOW = Date.parse('2026-11-17T20:00:00Z');
 const assets = { fetch: async (r) => new Response(`asset:${new URL(r.url).pathname}`) };
-const cookie = async () => `${COOKIE}=${await signSession(SECRET, Math.floor(NOW / 1000) + 3600)}`;
+const cookie = async () => `${COOKIE}=${await signSession(SECRET, Math.floor(NOW / 1000) + 10 * 365 * 86400)}`; // far-future expiry: the real clock moves past NOW+1h and a fixed 1 h cookie made these tests fail after 21:00Z on 2026-11-17
 const iso = (offsetDays) => new Date(NOW + offsetDays * 86400000).toISOString();
 
 let n = 0;
