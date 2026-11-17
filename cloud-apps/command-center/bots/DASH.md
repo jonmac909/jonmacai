@@ -43,6 +43,7 @@ dash.py tasks [--owner me|jon|<slug>] [--status todo,doing] [--project ..]      
 - Make the proof link the deliverable itself whenever you can: an https link Jon can open (the review page, the live page, the render). Jon sees it on the Review card. A file path shows only as text.
 - Videos: publish each version to jonmac.ai/review, then add its page as proof: `dash.py proof-add t_… --kind render --link https://jonmac.ai/review/<slug>`. That link is what ties the task to the video. Its Review card then opens the dashboard's Review page, Jon's comments there wake you, and his Send back or Approve there moves the card.
 - `cancelled` needs a `--note` saying why.
+- Jon can tick any card done himself and delete a card on the dashboard's Cards page (2026-11-17). A deleted card is gone from `tasks`, from QC's proof queue and from every board; `dash.py task t_…` on it returns only its id and `status: deleted`, and any update, proof or comment on it is refused (409). Bots never delete a card and cannot set `deleted`.
 - `--key` is your own unique id for the task. Repeating it returns the first task, so a retry never makes a copy.
 
 ## Daily checklist

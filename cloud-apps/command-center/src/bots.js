@@ -16,6 +16,11 @@ import { upsertHabit } from './db.js';
 // closing itself once QC passed it (closeTask).
 export const TASK_STATUSES = ['todo', 'doing', 'waiting_on_jon', 'qc', 'review', 'done', 'cancelled'];
 const OPEN_STATUSES = ['todo', 'doing', 'waiting_on_jon'];
+// Cards page (Jon, 2026-11-17): Jon alone ticks any open card done (and unticks it) and deletes a card. A delete is soft:
+// status 'deleted', the row, proofs and history stay. It is never in TASK_STATUSES, so no bot can set it, list it or filter by it.
+export const DELETED = 'deleted';
+const TICKABLE = [...OPEN_STATUSES, 'qc', 'review'];
+const GONE = 'Jon deleted this card. Add a new task if there is more to do';
 export const PROOF_KINDS = ['render', 'url', 'pdf', 'test'];
 export const QC_BOT = 'qc';
 const QUESTION_STATUSES = ['open', 'answered', 'closed'];
@@ -185,7 +190,8 @@ async function taskRow(db, id) {
 async function linkedTask(db, body) {
   const id = text(body, 'task', 40);
   if (!id) return null;
-  if (!ID_RE.test(id) || !(await taskRow(db, id))) throw new Bad(400, `Unknown task: ${id}`);
+  const row = ID_RE.test(id) ? await taskRow(db, id) : null;
+  if (!row || row.status === DELETED) throw new Bad(400, `Unknown task: ${id}`);
   return id;
 }
 
@@ -292,6 +298,7 @@ const CLOSED = 'Jon closed this task. Add a new task if there is more to do';
 async function updateTask(db, who, id, body, now) {
   const row = await taskRow(db, id);
   if (!row) throw new Bad(404, 'Task not found');
+  if (row.status === DELETED) throw new Bad(409, GONE);
   if (row.status === 'cancelled' && row.updated_by === 'jon') throw new Bad(409, CLOSED);
   const sets = [];
   const args = [];
@@ -336,11 +343,11 @@ async function updateTask(db, who, id, body, now) {
   const moving = 'status' in body && body.status !== row.status ? String(body.status).trim().toLowerCase() : '';
   const guard = moving === 'review' ? ` AND EXISTS (${PASSED_SINCE_SENT_BACK})`
     : moving === 'qc' ? " AND EXISTS (SELECT 1 FROM bot_proofs WHERE task_id = bot_tasks.id AND status != 'failed')" : '';
-  const r = await db.prepare(`UPDATE bot_tasks SET ${sets.join(', ')}, updated_by = ?, updated_at = ? WHERE id = ? AND NOT (status = 'cancelled' AND updated_by IS 'jon')${guard}`)
+  const r = await db.prepare(`UPDATE bot_tasks SET ${sets.join(', ')}, updated_by = ?, updated_at = ? WHERE id = ? AND status != 'deleted' AND NOT (status = 'cancelled' AND updated_by IS 'jon')${guard}`)
     .bind(...args, who.bot, now, id).run();
   if (!changed(r)) {
     const latest = await taskRow(db, id);
-    throw new Bad(409, latest.status === 'cancelled' && latest.updated_by === 'jon' ? CLOSED : 'QC failed the proof just now; add new proof first');
+    throw new Bad(409, latest.status === DELETED ? GONE : latest.status === 'cancelled' && latest.updated_by === 'jon' ? CLOSED : 'QC failed the proof just now; add new proof first');
   }
   for (const [key, value] of Object.entries(next)) {
     if ((row[key] ?? null) !== value) await logEvent(db, id, now, who.bot, key, `${key} ${row[key] ?? 'none'} → ${value ?? 'none'}`);
@@ -377,6 +384,70 @@ export async function tickTask(db, env, ctx, id, body, now, extra = {}) {
   if (!comment) return json({ ok: true, task: taskOut(row) });
   const c = await postComment(db, env, ctx, { jon: true }, row, comment, now, { ...(close ? { closed: true } : { sentBack: true }), ...extra });
   return json({ ok: true, task: taskOut(row), comment: commentOut(c) });
+}
+
+// ---- Cards page (Jon, 2026-11-17): tick any card off, delete a card ----
+// All three are Jon's session only (route: needJon), never a bot's token. They change only the card's status columns
+// (and the history line); proofs, comments, questions and approvals are left as they are, so Undo is exact.
+
+// The status a ticked card goes back to: the one remembered at the tick, else the last "status X -> done" line of its
+// history (a card Jon approved from review or a bot closed), else todo.
+async function statusBeforeDone(db, task) {
+  if (TICKABLE.includes(task.tick_prev)) return task.tick_prev;
+  const { results } = await db.prepare("SELECT detail FROM bot_task_events WHERE task_id = ? AND kind = 'status' AND detail LIKE 'status % → done%' ORDER BY at DESC, rowid DESC LIMIT 1").bind(task.id).all();
+  const m = /^status (todo|doing|waiting_on_jon|qc|review) → done/.exec(results?.[0]?.detail || '');
+  return m ? m[1] : 'todo';
+}
+
+// POST tasks/:id/tick {on: true|false}. on: any open card -> done (done_at set, "Ticked done by Jon"). off: a done card
+// -> the status it had. Asking for the state the card is already in changes nothing and says so (a double click).
+async function tickCard(db, id, body, now) {
+  if (typeof body.on !== 'boolean') throw new Bad(400, 'on must be true or false');
+  const task = await taskRow(db, id);
+  if (!task) throw new Bad(404, 'Task not found');
+  if (task.status === DELETED) throw new Bad(409, 'This card is deleted; restore it first');
+  if (body.on) {
+    if (task.status === 'done') return json({ ok: true, unchanged: true, task: taskOut(task) });
+    if (!TICKABLE.includes(task.status)) throw new Bad(409, `Task is ${task.status}; only an open card can be ticked`);
+    const r = await db.prepare(`UPDATE bot_tasks SET tick_prev = status, status = 'done', done_at = ?, updated_by = 'jon', updated_at = ? WHERE id = ? AND status IN (${TICKABLE.map(() => '?').join(', ')})`)
+      .bind(now, now, id, ...TICKABLE).run();
+    const row = await taskRow(db, id);
+    if (!changed(r)) return json({ ok: false, error: `Task is already ${row.status}`, task: taskOut(row) }, 409);
+    await logEvent(db, id, now, 'jon', 'tick', 'Ticked done by Jon');
+    return json({ ok: true, task: taskOut(row) });
+  }
+  if (task.status !== 'done') return json({ ok: true, unchanged: true, task: taskOut(task) });
+  const back = await statusBeforeDone(db, task);
+  const r = await db.prepare("UPDATE bot_tasks SET status = ?, done_at = NULL, tick_prev = NULL, updated_by = 'jon', updated_at = ? WHERE id = ? AND status = 'done'")
+    .bind(back, now, id).run();
+  const row = await taskRow(db, id);
+  if (!changed(r)) return json({ ok: false, error: `Task is already ${row.status}`, task: taskOut(row) }, 409);
+  await logEvent(db, id, now, 'jon', 'tick', `Unticked by Jon: back to ${back.replace(/_/g, ' ')}`);
+  return json({ ok: true, task: taskOut(row) });
+}
+
+// POST tasks/:id/delete and /undelete. Soft: the card becomes status 'deleted' and every board, list, count and bot
+// query that reads by status drops it; Undo puts the status back. Nothing is removed.
+async function deleteCard(db, id, undo, now) {
+  const task = await taskRow(db, id);
+  if (!task) throw new Bad(404, 'Task not found');
+  if (undo) {
+    if (task.status !== DELETED) return json({ ok: true, unchanged: true, task: taskOut(task) });
+    const back = TASK_STATUSES.includes(task.deleted_prev) ? task.deleted_prev : 'todo';
+    const r = await db.prepare("UPDATE bot_tasks SET status = ?, deleted_prev = NULL, deleted_at = NULL, updated_by = 'jon', updated_at = ? WHERE id = ? AND status = 'deleted'")
+      .bind(back, now, id).run();
+    const row = await taskRow(db, id);
+    if (!changed(r)) return json({ ok: false, error: `Task is already ${row.status}`, task: taskOut(row) }, 409);
+    await logEvent(db, id, now, 'jon', 'delete', `Restored by Jon (undo delete): back to ${back.replace(/_/g, ' ')}`);
+    return json({ ok: true, task: taskOut(row) });
+  }
+  if (task.status === DELETED) return json({ ok: true, unchanged: true, task: taskOut(task) });
+  const r = await db.prepare("UPDATE bot_tasks SET deleted_prev = status, status = 'deleted', deleted_at = ?, updated_by = 'jon', updated_at = ? WHERE id = ? AND status != 'deleted'")
+    .bind(now, now, id).run();
+  const row = await taskRow(db, id);
+  if (!changed(r)) return json({ ok: false, error: `Task is already ${row.status}`, task: taskOut(row) }, 409);
+  await logEvent(db, id, now, 'jon', 'delete', 'Deleted by Jon');
+  return json({ ok: true, task: taskOut(row) });
 }
 
 // ---- live on YouTube (Jon, 2026-11-09): "the daily YouTube sync moves its card to Done" ----
@@ -486,13 +557,16 @@ async function listTasks(db, who, q) {
   if (q.get('owner')) { where.push('owner = ?'); args.push(whoFilter(who, q.get('owner'), 'owner')); }
   projectFilter(where, args, q);
   inList(where, args, 'status', statusList(q.get('status'), TASK_STATUSES));
+  where.push("status != 'deleted'"); // a deleted card is in no list, for Jon's boards and for every bot (dash.py tasks, the dispatcher)
   const rows = await list(db, 'bot_tasks', where, args, 'updated_at DESC', limitOf(q));
   return json({ ok: true, tasks: rows.map(taskOut) });
 }
 
-async function getTask(db, id) {
+async function getTask(db, who, id) {
   const row = await taskRow(db, id);
   if (!row) throw new Bad(404, 'Task not found');
+  // A bot that asks for a deleted card gets only its id and status (the dispatcher's "not doing: skip" rule), never its work.
+  if (row.status === DELETED && !who.jon) return json({ ok: true, task: { id: row.id, status: DELETED, deleted: true } });
   const rows = async (sql) => (await db.prepare(sql).bind(id).all()).results || [];
   const proofs = await rows('SELECT * FROM bot_proofs WHERE task_id = ? ORDER BY created_at');
   const comments = await rows('SELECT * FROM bot_task_comments WHERE task_id = ? ORDER BY created_at, rowid');
@@ -532,6 +606,7 @@ const WAKE_PAUSES = [2000, 4000]; // ms before each retry of a 503 or an unreach
 async function addComment(db, env, ctx, who, taskId, body, now) {
   const task = await taskRow(db, taskId);
   if (!task) throw new Bad(404, 'Task not found');
+  if (task.status === DELETED && !who.jon) throw new Bad(409, GONE);
   const comment = await postComment(db, env, ctx, who, task, text(body, 'body', 4000, true), now);
   return json({ ok: true, comment: commentOut(comment) }, 201);
 }
@@ -603,7 +678,9 @@ export async function wakeOwner(env, task, comment, pauses, extra) {
 // ---- proofs ----
 
 async function addProof(db, who, taskId, body, now) {
-  if (!(await taskRow(db, taskId))) throw new Bad(404, 'Task not found');
+  const task = await taskRow(db, taskId);
+  if (!task) throw new Bad(404, 'Task not found');
+  if (task.status === DELETED) throw new Bad(409, GONE);
   const kind = oneOf(body.kind, PROOF_KINDS, 'kind');
   const link = linkOf(body.link);
   const note = text(body, 'note', 4000);
@@ -625,6 +702,8 @@ async function checkProof(db, who, id, body, now) {
   }
   const result = oneOf(body.result, ['passed', 'failed'], 'result');
   const note = text(body, 'note', 4000);
+  const owner = await db.prepare('SELECT t.status FROM bot_proofs p JOIN bot_tasks t ON t.id = p.task_id WHERE p.id = ?').bind(id).first();
+  if (owner?.status === DELETED) throw new Bad(409, GONE); // QC has nothing to rule on for a deleted card
   const r = await db.prepare('UPDATE bot_proofs SET status = ?, checked_by = ?, checked_at = ?, check_note = ? WHERE id = ?')
     .bind(result, who.bot, now, note, id).run();
   if (!changed(r)) throw new Bad(404, 'Proof not found');
@@ -655,6 +734,7 @@ async function listProofs(db, q) {
   const args = [];
   if (q.get('task')) { where.push('task_id = ?'); args.push(idOf(q.get('task'))); }
   inList(where, args, 'status', statusList(q.get('status'), ['pending', 'passed', 'failed']));
+  where.push("task_id NOT IN (SELECT id FROM bot_tasks WHERE status = 'deleted')"); // QC's queue never holds a deleted card's proof
   const rows = await list(db, 'bot_proofs', where, args, 'created_at DESC', limitOf(q));
   return json({ ok: true, proofs: rows.map(proofOut) });
 }
@@ -1877,8 +1957,8 @@ export async function todayData(db, nowMs, month) {
   if (!db) return null;
   const since = new Date(nowMs - 7 * 86400000).toISOString();
   const [q, a, summary, usage, ebooks, runs, calendar, tasks, daily, ticks] = await Promise.all([
-    tryRead(db.prepare("SELECT * FROM bot_questions WHERE status = 'open' ORDER BY created_at LIMIT 200").all()),
-    tryRead(db.prepare("SELECT * FROM bot_approvals WHERE status = 'pending' ORDER BY created_at LIMIT 200").all()),
+    tryRead(db.prepare("SELECT * FROM bot_questions WHERE status = 'open' AND (task_id IS NULL OR task_id NOT IN (SELECT id FROM bot_tasks WHERE status = 'deleted')) ORDER BY created_at LIMIT 200").all()),
+    tryRead(db.prepare("SELECT * FROM bot_approvals WHERE status = 'pending' AND (task_id IS NULL OR task_id NOT IN (SELECT id FROM bot_tasks WHERE status = 'deleted')) ORDER BY created_at LIMIT 200").all()),
     tryRead(latestFeed(db, 'morning_summary')),
     tryRead(latestFeed(db, 'claude_usage')),
     tryRead(db.prepare("SELECT * FROM bot_feed_entries WHERE name = 'ebook_sales' AND json_extract(data, '$.month') = ? ORDER BY created_at DESC LIMIT 1").bind(month).first()),
@@ -1976,8 +2056,11 @@ async function route(request, db, who, rest, env, ctx) {
     case 'GET me': return json({ ok: true, bot: who.bot || null, jon: !!who.jon });
     case 'GET tasks': return listTasks(db, who, q);
     case 'POST tasks': needBot(who); return createTask(db, who, body, now);
-    case 'GET tasks/:id': return getTask(db, id);
+    case 'GET tasks/:id': return getTask(db, who, id);
     case 'PATCH tasks/:id': return who.jon ? tickTask(db, env, ctx, id, body, now) : updateTask(db, who, id, body, now);
+    case 'POST tasks/:id/tick': needJon(who); return tickCard(db, id, body, now);
+    case 'POST tasks/:id/delete': needJon(who); return deleteCard(db, id, false, now);
+    case 'POST tasks/:id/undelete': needJon(who); return deleteCard(db, id, true, now);
     case 'POST tasks/:id/proofs': needBot(who); return addProof(db, who, id, body, now);
     case 'POST tasks/:id/comments': return addComment(db, env, ctx, who, id, body, now);
     case 'POST tasks/:id/live': needBot(who); return liveDone(db, who, id, body, now);

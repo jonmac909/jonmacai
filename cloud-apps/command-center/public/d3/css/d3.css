@@ -1250,15 +1250,16 @@ html[data-theme="dark"] body{background:#0b0b0c}
 .d3 .psmcal .pscday.over{background:color-mix(in srgb,var(--link) 12%,var(--card2))}
 @media (max-width:760px){.d3 .psmcal{gap:4px}.d3 .psmcal .pscday{min-height:84px;padding:10px 2px;border-radius:10px}.d3 .psmcal .pscday>small{font-size:10px;letter-spacing:.03em}.d3 .psmcal .pscday .psctadd{width:28px;height:28px;font-size:15px}.d3 .psmcal .psmchip{padding:6px 4px;font-size:11px}}
 
-/* Cards page (cards.js): a view-only checklist. The box is a drawn shape, never a form control. */
-.d3 .ckpage{display:flex;flex-direction:column;gap:12px}
+/* Cards page (cards.js): a checklist; the box ticks a card off, the bin deletes it (Jon, 2026-11-17). */
+.d3 .ckpage{display:flex;flex-direction:column;gap:12px;padding-bottom:64px} /* room under the last row for the Undo toast */
 .d3 .ckhead p{margin:0}
 .d3 .ckgroup{padding:0;gap:0}
 .d3 .ckgroup>summary{display:flex;align-items:center;gap:10px;padding:14px 16px;cursor:pointer;list-style:none;font-size:15px}
 .d3 .ckgroup>summary::-webkit-details-marker{display:none}
 .d3 .cklist{list-style:none;margin:0;padding:0 8px 8px}
 .d3 .ckrow{display:flex;align-items:flex-start;gap:12px;padding:9px 8px;border-top:1px solid var(--line)}
-.d3 .ckbox{flex:none;width:20px;height:20px;margin-top:1px;border:2px solid var(--muted);border-radius:6px;display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box}
+.d3 .ckbox{flex:none;width:20px;height:20px;margin-top:1px;padding:0;border:2px solid var(--muted);border-radius:6px;background:transparent;display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box;cursor:pointer}
+.d3 .ckbox:hover{border-color:var(--ink2)}
 .d3 .ckbox.on{background:var(--ok);border-color:var(--ok)}
 .d3 .ckbox svg{width:14px;height:14px;fill:none;stroke:var(--card);stroke-width:3;stroke-linecap:round;stroke-linejoin:round}
 .d3 .cktext{display:flex;flex-direction:column;gap:3px;min-width:0;flex:1}
@@ -1270,3 +1271,22 @@ html[data-theme="dark"] body{background:#0b0b0c}
 .d3 .ckst.s-waiting_on_jon{color:var(--warn-ink)}
 .d3 .ckmf{color:var(--link);font-weight:600}
 .d3 .ckrow .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.d3 button.ckt{border:0;background:transparent;padding:0;margin:0;font:inherit;color:inherit;text-align:left;cursor:pointer}
+.d3 button.ckt:hover{text-decoration:underline}
+.d3 .ckdel{flex:none;width:32px;height:32px;margin:-4px 0;border:0;border-radius:8px;background:transparent;color:var(--muted);display:inline-flex;align-items:center;justify-content:center;cursor:pointer}
+.d3 .ckdel:hover{background:var(--card2);color:var(--bad-ink)}
+.d3 .ckdel .ic{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.d3 .ckask{flex:none;display:inline-flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end;font-size:13px}
+.d3 .ckask .ckyes{background:var(--bad);border-color:var(--bad);color:#ffffff}
+.d3 .cktoast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);z-index:50;display:flex;align-items:center;gap:14px;max-width:calc(100vw - 32px);padding:10px 14px;border-radius:12px;background:var(--ink);color:var(--card);box-shadow:0 6px 24px rgba(0,0,0,.25);font-size:13px}
+.d3 .cktoast .btn{background:transparent;color:inherit;border-color:currentColor}
+.d3 .ckdethead{display:flex;align-items:flex-start;gap:12px}
+.d3 .ckdett{margin:0;flex:1;min-width:0;font-size:18px;overflow-wrap:anywhere}
+.d3 .ckdett.done{color:var(--muted);text-decoration:line-through}
+.d3 .ckfacts{display:flex;flex-wrap:wrap;gap:6px 24px;margin:0}
+.d3 .ckfacts div{display:flex;flex-direction:column;min-width:0}
+.d3 .ckfacts dt{font-size:12px;color:var(--muted)}
+.d3 .ckfacts dd{margin:0;overflow-wrap:anywhere}
+.d3 .cknote{margin:0;white-space:pre-wrap;overflow-wrap:anywhere}
+.d3 .ckdet h3{margin:6px 0 0;font-size:14px}
+.d3 .ckplain{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:4px;overflow-wrap:anywhere;font-size:13px}

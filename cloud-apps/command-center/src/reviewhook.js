@@ -61,9 +61,9 @@ export function cardByTitle(title, tasks) {
 export async function findCard(db, { task_id: id, slug, title }) {
   if (TASK_ID.test(id || '')) {
     const row = await db.prepare('SELECT id, title, owner, status, project, updated_at FROM bot_tasks WHERE id = ?').bind(id).first();
-    if (row && row.status !== 'cancelled') return { task: row, by: 'task_id' };
+    if (row && row.status !== 'cancelled' && row.status !== 'deleted') return { task: row, by: 'task_id' };
   }
-  const { results } = await db.prepare("SELECT id, title, owner, status, project, updated_at FROM bot_tasks WHERE status != 'cancelled' AND project IS NOT 'coding'").all();
+  const { results } = await db.prepare("SELECT id, title, owner, status, project, updated_at FROM bot_tasks WHERE status NOT IN ('cancelled', 'deleted') AND project IS NOT 'coding'").all();
   const named = cardByTitle(title, results || []);
   if (named) return { task: named, by: 'title' };
   const linked = await linkedTask(db, slug);
@@ -127,7 +127,7 @@ async function submission(request, env, ctx) {
 // {slug: newest checked_at} over passed proofs on a review page (a page or its media link), Coding and cancelled cards left out.
 async function passesOf(db) {
   const { results } = await db.prepare(`SELECT p.link, COALESCE(p.checked_at, p.created_at) AS at FROM bot_proofs p JOIN bot_tasks t ON t.id = p.task_id
-    WHERE p.status = 'passed' AND p.link LIKE '%/review/%' AND t.status != 'cancelled' AND t.project IS NOT 'coding'`).all();
+    WHERE p.status = 'passed' AND p.link LIKE '%/review/%' AND t.status NOT IN ('cancelled', 'deleted') AND t.project IS NOT 'coding'`).all();
   const passes = {};
   for (const r of results || []) {
     const slug = REVIEW_PAGE.exec(r.link || '')?.[1]?.toLowerCase();

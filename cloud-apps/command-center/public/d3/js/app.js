@@ -11,7 +11,7 @@ import { renderMoney } from './money.js';
 import { threadClick } from './thread.js';
 import { renderHyper, openHyper } from './hyper.js';
 import { renderBluesky } from './bluesky.js';
-import { renderCards } from './cards.js';
+import { renderCards, cardsClick, cardsToggle } from './cards.js';
 import { applyOrder, cachedOrder, cacheOrder, navDrag } from './navorder.js';
 import { renderPersonal, mnavHtml, moneyBizHtml, personalClick, personalChange, personalInput, personalSubmit, personalPaste, personalKey, personalPopOpen, personalDrag, personalAfter, nowParts } from './personal.js';
 import { renderFactory, syncFactory } from './factory.js';
@@ -91,6 +91,7 @@ function render() {
   }
   if (p === 'cards' && S.ui.lastPage !== 'cards' && !S.signedOut) { // each open starts with a fresh read
     S.cards = undefined;
+    S.ui.ckOpen = null; S.ui.ckDetail = null; S.ui.ckConfirm = null; // coming back lands on the list, not on a card opened last time
     loadCards().then(() => { if (page() === 'cards') render(); });
   }
   if (p === 'money' && S.ui.lastPage !== 'money' && !S.signedOut) { // Income this month: each open reads this month afresh
@@ -101,8 +102,8 @@ function render() {
   S.ui.lastPage = p;
   // The Factory page counts "updated N s ago" on the server's clock: its time at the last load plus the time since.
   S.ui.now = S.d3 ? Date.parse(S.d3.asOf) + (Date.now() - (S.d3Got || Date.now())) : null;
-  if (p === 'cards') { // view only: nothing here writes
-    main.innerHTML = `${note}${renderCards(S.d2, S.cards)}`;
+  if (p === 'cards') { // Jon's tick box and Delete on every card write through cards.js
+    main.innerHTML = `${note}${renderCards(S.d2, S.cards, S.ui)}`;
     return;
   }
   if (p === 'track') { main.innerHTML = `${note}${renderTrack(S.track, trackSub(location.hash), oldTrack?.track)}`; return; }
@@ -244,6 +245,7 @@ async function send(method, path, body) {
   }
 }
 const reloadHome = async () => { await loadHome(); render(); };
+const reloadCards = async () => { await loadCards(); render(); };
 // The Personal page's saved meals, prices, trips, rules and expense tags, and MoneyClaw's spending (src/personal.js).
 async function loadPersonal() {
   try {
@@ -312,6 +314,7 @@ main.addEventListener('click', async (e) => {
   }
   if ((page() === 'personal' || page() === 'money') && personalClick(e, S, render, send, reloadPersonal, send)) return; // Personal page, and the Money page's expense list
   if (page() === 'home' && homeClick(e, S.ui, render, S, send, reloadHome)) return; // Home's switches and rows; its "+ Log" falls through to the log below
+  if (page() === 'cards' && await cardsClick(e, S, render, reloadCards)) return; // tick box, Delete, Undo, a card's detail view
   if (page() === 'review' && await reviewClick(e, S, render, load)) return;
   if (threadClick(e, S.ui, render)) return; // open or fold one message of a Money deal's email thread
   const more = e.target.closest('[data-dealmore]'); // Money: show every deal in a stage, or the first 8 again
@@ -360,6 +363,7 @@ main.addEventListener('click', async (e) => {
   }
 });
 
+main.addEventListener('toggle', (e) => { if (page() === 'cards') cardsToggle(e, S.ui); }, true); // a folded or opened Cards group stays so
 // Typed Review text lives in S.ui, so a redraw keeps it.
 main.addEventListener('input', (e) => {
   if (page() === 'home' && homeInput(e, S.ui)) return; // a Home pop-up's field

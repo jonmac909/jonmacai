@@ -1,4 +1,5 @@
-// Dashboard 3 Cards page: a read-only checklist of open cards (every owner, MacFrames included) and the last 7 days of done ones.
+// Dashboard 3 Cards page: a checklist of open cards (every owner, MacFrames included) and the last 7 days of done ones. The list read is
+// read-only; the tick box and Delete on each card are tested in cards-delete-tick.test.mjs.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -78,13 +79,13 @@ test('GET /dashboard/api/cards: Jon session only, read only, no-store', async ()
 });
 
 test('GET /dashboard/api/cards: 503 when the cards cannot be read', async () => {
-  const res = await handleApi(new Request('https://jonmac.ai/dashboard/api/cards', { headers: { Cookie: await cookie() } }), { SESSION_SECRET: SECRET }, {});
+  const res = await withNow(async () => handleApi(new Request('https://jonmac.ai/dashboard/api/cards', { headers: { Cookie: await cookie() } }), { SESSION_SECRET: SECRET }, {}));
   assert.equal(res.status, 503);
 });
 
 test('/dash/cards: signed out 302 to sign-in, signed in 302 to the page; /dash/ pages are unchanged', async () => {
   const env = { SESSION_SECRET: SECRET, ASSETS: assets, DB: seeded() };
-  const go = (path, headers) => worker.fetch(new Request(`https://jonmac.ai${path}`, { headers, redirect: 'manual' }), env, {});
+  const go = (path, headers) => withNow(() => worker.fetch(new Request(`https://jonmac.ai${path}`, { headers, redirect: 'manual' }), env, {}));
   for (const p of ['/dash/cards', '/dash/cards/']) {
     const out = await go(p);
     assert.equal(out.status, 302, p);
@@ -104,29 +105,30 @@ test('/dash/cards: signed out 302 to sign-in, signed in 302 to the page; /dash/ 
   assert.equal(await (await go('/dash/js/cards.js')).text(), 'asset:/d3/js/cards.js'); // the page's own script, like every other page's
 });
 
-test('Cards page (signed in): a row per open card with an empty box, title, owner and status; MacFrames on top; done ticked at the bottom', async () => {
+test('Cards page (signed in): a row per open card with a tick box, title, owner and status; MacFrames on top; done ticked at the bottom', async () => {
   const cards = await cardsData({ DB: seeded() }, NOW);
   const html = renderCards(null, { ok: true, cards });
   assert.equal((html.match(/<li class="ckrow/g) || []).length, 7); // 5 open + 2 done
   assert.equal((html.match(/class="ckbox"/g) || []).length, 5); // open = empty box
   assert.equal((html.match(/class="ckbox on"/g) || []).length, 2); // done = ticked
+  assert.equal((html.match(/data-ck-del=/g) || []).length, 7); // a Delete on every row
   assert.match(html, /<b>5<\/b> open cards · <b>5<\/b> owners · <b>2<\/b> MacFrames/);
   const mf = html.indexOf('<b>MacFrames</b>');
   assert.ok(mf > 0 && mf < html.indexOf('<b>Sponsors</b>'), 'MacFrames group first');
   assert.ok(html.indexOf('<b>Done in the last 7 days</b>') > html.lastIndexOf('<b>Video Editor</b>'), 'done group last');
-  assert.match(html, /MacFrames audit: Remake, Remix, Sponsor<\/span><span class="ckm"><span class="ckown">Ana<\/span> <span class="ckst s-doing">Doing<\/span> <span class="ckmf">MacFrames<\/span>/);
+  assert.match(html, /MacFrames audit: Remake, Remix, Sponsor<\/button><span class="ckm"><span class="ckown">Ana<\/span> <span class="ckst s-doing">Doing<\/span> <span class="ckmf">MacFrames<\/span>/);
   assert.match(html, /Jon to pick a thumbnail/);
   assert.match(html, /Waiting on Jon/);
-  assert.match(html, /Voice step as a script<\/span><span class="ckm"><span class="ckown">Developer<\/span>/); // the note names Mac Frames, so this one is flagged too
+  assert.match(html, /Voice step as a script<\/button><span class="ckm"><span class="ckown">Developer<\/span>/); // the note names Mac Frames, so this one is flagged too
   assert.doesNotMatch(html, /Old thing nobody wants|a month ago/);
   assert.equal(ownerName('video-editor'), 'Video Editor');
   assert.equal(ownerName('some-new-bot'), 'some-new-bot');
 });
 
-test('Cards page is view only: no input, button, link or form in it, and titles are escaped', () => {
+test('Cards page: titles are escaped, no inline handlers or links in the lists', () => {
   const cards = { open: [{ id: 't_1', title: '<img src=x onerror=alert(1)> & "q"', owner: 'ana', status: 'todo', macframes: false }], done: [], counts: {}, cut: false };
   const html = renderCards(null, { ok: true, cards });
-  assert.doesNotMatch(html, /<(input|button|form|textarea|select|a)\b|data-|onclick|href=/i);
+  assert.doesNotMatch(html, /<(input|form|textarea|select|a)\b|onclick|href=/i);
   assert.doesNotMatch(html, /<img/);
   assert.match(html, /&lt;img src=x onerror=alert\(1\)&gt; &amp; &quot;q&quot;/);
   assert.match(renderCards(null, undefined), /Loading/);
@@ -134,7 +136,7 @@ test('Cards page is view only: no input, button, link or form in it, and titles 
   assert.match(renderCards(null, { ok: true, cards: { open: [], done: [], counts: {}, cut: false } }), /<b>0<\/b> open cards/);
 });
 
-test('Cards page wiring: one new menu item, a Cards route, no write call, the other pages unchanged', () => {
+test('Cards page wiring: one new menu item, a Cards route, writes only through the tick/delete/undelete calls, the other pages unchanged', () => {
   const read = (p) => readFileSync(new URL(p, import.meta.url), 'utf8');
   const index = read('../public/d3/index.html');
   assert.equal((index.match(/data-nav="cards"/g) || []).length, 1);
@@ -142,6 +144,9 @@ test('Cards page wiring: one new menu item, a Cards route, no write call, the ot
   const app = read('../public/d3/js/app.js');
   assert.match(app, /cards: 'Cards' \};/);
   assert.match(app, /GET \/dashboard\/api\/cards/);
-  assert.doesNotMatch(read('../public/d3/js/cards.js'), /fetch\(|method:|POST|PUT|DELETE|addEventListener/);
+  const js = read('../public/d3/js/cards.js');
+  assert.deepEqual([...js.matchAll(/call\('(POST|GET)', `([^`]+)`/g)].map((m) => `${m[1]} ${m[2].replace(/\$\{[^}]+\}/g, ':id')}`).sort(),
+    ['GET /v1/tasks/:id', 'POST /v1/tasks/:id/delete', 'POST /v1/tasks/:id/tick', 'POST /v1/tasks/:id/tick', 'POST /v1/tasks/:id/undelete']);
+  assert.doesNotMatch(js, /'(PUT|PATCH|DELETE)'|addEventListener/);
   assert.doesNotMatch(read('../src/cards.js'), /(INSERT INTO|UPDATE \w+ SET|DELETE FROM|REPLACE INTO)/i);
 });

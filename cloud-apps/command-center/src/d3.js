@@ -60,15 +60,15 @@ export async function d3Data(env, nowMs) {
       -- vproof: a render or review-page proof with a web link, whatever its status (a card in Review with one is a video)
       EXISTS (SELECT 1 FROM bot_proofs p WHERE p.task_id = t.id AND (p.kind = 'render' OR p.link LIKE '%/dashboard/review/%') AND (p.link LIKE 'http://%' OR p.link LIKE 'https://%' OR p.link LIKE '/%')) AS vproof
       FROM bot_tasks t WHERE t.status = 'review' ORDER BY t.updated_at LIMIT 500`),
-    q("SELECT id, title, action, payload, requested_by, task_id, created_at AS at FROM bot_approvals WHERE status = 'pending' ORDER BY created_at LIMIT 500"),
-    q("SELECT id, question, context, options, asked_by, task_id, created_at AS at, idem_key FROM bot_questions WHERE status = 'open' ORDER BY created_at LIMIT 500"),
+    q("SELECT id, title, action, payload, requested_by, task_id, created_at AS at FROM bot_approvals WHERE status = 'pending' AND (task_id IS NULL OR task_id NOT IN (SELECT id FROM bot_tasks WHERE status = 'deleted')) ORDER BY created_at LIMIT 500"),
+    q("SELECT id, question, context, options, asked_by, task_id, created_at AS at, idem_key FROM bot_questions WHERE status = 'open' AND (task_id IS NULL OR task_id NOT IN (SELECT id FROM bot_tasks WHERE status = 'deleted')) ORDER BY created_at LIMIT 500"),
     q("SELECT data, created_at FROM bot_feed_entries WHERE name = 'claude_usage' AND created_at >= ? ORDER BY created_at DESC LIMIT 2000", new Date(win.start - 7 * DAY).toISOString()),
     q("SELECT data, created_at FROM bot_feed_entries WHERE name = 'claude_usage' ORDER BY created_at DESC LIMIT 1"),
     q(`SELECT project, COUNT(*) AS n FROM bot_tasks WHERE status IN ${OPEN} GROUP BY project`),
     // Every QC verdict on a video (a proof linking a review page), for the cards with one this month; the first verdict
     // per card decides "first try".
     q(`SELECT task_id, status, created_at FROM bot_proofs WHERE (link LIKE '%/review/%' OR kind = 'render') AND status IN ('passed', 'failed')
-      AND task_id IN (SELECT task_id FROM bot_proofs WHERE (link LIKE '%/review/%' OR kind = 'render') AND created_at >= ?) ORDER BY created_at, rowid LIMIT 5000`, from),
+      AND task_id IN (SELECT task_id FROM bot_proofs WHERE (link LIKE '%/review/%' OR kind = 'render') AND created_at >= ?) AND task_id NOT IN (SELECT id FROM bot_tasks WHERE status = 'deleted') ORDER BY created_at, rowid LIMIT 5000`, from),
     q("SELECT day, kind, done FROM habits WHERE kind IN ('workout', 'date_night') AND day >= ?", ws < first ? ws : first),
     q("SELECT data FROM snapshots WHERE source = 'calendar'"),
     q("SELECT status FROM bot_questions WHERE idem_key LIKE 'cw:%' AND (status = 'open' OR updated_at >= ?)", from),
@@ -78,9 +78,9 @@ export async function d3Data(env, nowMs) {
     q(`SELECT e.task_id, e.at, t.owner, t.title FROM bot_tasks t CROSS JOIN bot_task_events e ON e.task_id = t.id AND e.at >= ?
       WHERE t.status IN ('todo','doing','waiting_on_jon','qc','review','done','cancelled') AND t.updated_at >= ? AND e.kind = 'status' AND (e.detail LIKE '%→ review%' OR e.detail LIKE '%→ done%') ORDER BY e.at DESC LIMIT 500`, today0, today0),
     q(`SELECT p.task_id, COUNT(*) AS n, MAX(COALESCE(p.checked_at, p.created_at)) AS last FROM bot_proofs p JOIN bot_tasks t ON t.id = p.task_id
-      WHERE p.status = 'failed' AND t.status NOT IN ('done', 'cancelled') GROUP BY p.task_id HAVING COUNT(*) >= 2`),
+      WHERE p.status = 'failed' AND t.status NOT IN ('done', 'cancelled', 'deleted') GROUP BY p.task_id HAVING COUNT(*) >= 2`),
     q(`SELECT p.task_id, t.owner, t.title, COALESCE(p.checked_at, p.created_at) AS at FROM bot_proofs p JOIN bot_tasks t ON t.id = p.task_id
-      WHERE p.status = 'failed' AND COALESCE(p.checked_at, p.created_at) >= ? LIMIT 1000`, today0),
+      WHERE p.status = 'failed' AND t.status != 'deleted' AND COALESCE(p.checked_at, p.created_at) >= ? LIMIT 1000`, today0),
     q('SELECT bot, status, started_at, tokens, task_id, error FROM bot_runs WHERE started_at >= ? ORDER BY started_at LIMIT 2000', new Date(nowMs - DAY).toISOString()),
     // Bots that post runs: only runs from the last 30 days, newest first, bounded.
     q('SELECT DISTINCT bot FROM (SELECT bot FROM bot_runs WHERE started_at >= ? ORDER BY started_at DESC LIMIT 5000)', new Date(nowMs - 30 * DAY).toISOString()),
@@ -100,7 +100,7 @@ export async function d3Data(env, nowMs) {
     // 3-hour clock starts at the card's first stage (a card made ahead of time isn't late), else when it was made.
     q(`SELECT p.task_id, p.link, COALESCE(p.checked_at, p.created_at) AS at, t.title, t.project, t.status, t.created_at, ${STARTED('t')}
       FROM bot_proofs p JOIN bot_tasks t ON t.id = p.task_id
-      WHERE p.kind = 'render' AND p.status = 'passed' AND p.created_at >= ?
+      WHERE p.kind = 'render' AND p.status = 'passed' AND t.status != 'deleted' AND p.created_at >= ?
       ORDER BY p.created_at LIMIT 2000`, new Date(Date.parse(today0) - 7 * DAY).toISOString()),
     q(`SELECT t.id, t.title, t.project, t.status, t.stage, t.stage_since, t.created_at, ${STARTED('t')} FROM bot_tasks t
       WHERE t.status IN ('todo', 'doing', 'waiting_on_jon', 'qc') AND t.stage IN ('brief', 'script', 'pack', 'edit') ORDER BY t.stage_since LIMIT 500`),

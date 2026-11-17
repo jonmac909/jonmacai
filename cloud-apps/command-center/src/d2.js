@@ -86,17 +86,17 @@ export async function d2Data(env, nowMs) {
     q(db, 'SELECT * FROM yt_channels'),
     // Every sponsor card (a deal's first "video N" card can be old), plus short-form cards done since the month's first week began.
     // Newest first, so the cap drops the oldest.
-    q(db, `SELECT id, title, owner, status, project, due, created_at, done_at FROM bot_tasks WHERE status != 'cancelled'
+    q(db, `SELECT id, title, owner, status, project, due, created_at, done_at FROM bot_tasks WHERE status NOT IN ('cancelled', 'deleted')
       AND (project = 'sponsors' OR (project = 'short-form' AND status = 'done' AND done_at >= ?)) ORDER BY created_at DESC, id LIMIT 3000`, at(from)),
     // "One video edited and QC-passed": a Home Guide Press card owned by Olivia (she edits every video) with a proof QC passed today.
     q(db, `SELECT DISTINCT p.task_id FROM bot_proofs p JOIN bot_tasks t ON t.id = p.task_id
-      WHERE p.status = 'passed' AND p.created_at >= ? AND p.checked_at >= ? AND t.project = 'home-guide-press' AND t.owner = 'video-editor'`,
+      WHERE p.status = 'passed' AND p.created_at >= ? AND p.checked_at >= ? AND t.project = 'home-guide-press' AND t.owner = 'video-editor' AND t.status != 'deleted'`,
     new Date(nowMs - 14 * DAY).toISOString(), at(P.today.ymd)),
     q(db, "SELECT id, idem_key FROM bot_questions WHERE status = 'open'"),
     q(db, 'SELECT day, project, item, link, created_at FROM bot_daily_ticks WHERE day >= ?', P.week.start),
     q(db, 'SELECT MAX(day) AS day FROM bot_daily_ticks WHERE project = ? AND item = ?', rbc.project, rbc.items[0]),
     q(db, "SELECT started_at, note FROM bot_runs WHERE bot = ? AND status = 'ok' AND started_at >= ? ORDER BY started_at", hist.bot, at(P.week.start)),
-    q(db, 'SELECT p.link, p.note, p.created_at FROM bot_proofs p JOIN bot_tasks t ON t.id = p.task_id WHERE t.owner = ? AND p.created_at >= ?', hist.bot, at(P.week.start)),
+    q(db, "SELECT p.link, p.note, p.created_at FROM bot_proofs p JOIN bot_tasks t ON t.id = p.task_id WHERE t.owner = ? AND t.status != 'deleted' AND p.created_at >= ?", hist.bot, at(P.week.start)),
     // Paid book orders this month, counted as Track counts Sales (bookStats in src/track.js): tests and refunds out.
     q(env.HGP_DB, 'SELECT slug, created_at FROM orders WHERE is_test = 0 AND revoked_at IS NULL AND created_at >= ? AND created_at < ?',
       new Date(win.start).toISOString(), new Date(win.end).toISOString()),
