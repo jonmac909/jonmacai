@@ -29,3 +29,6 @@ Resend webhook: `POST /track/api/resend` (Svix signature, secret `RESEND_WEBHOOK
 2. Vars: `SKOOL_ADDRESS` (the real mailing address; real sends stay paused while it is unset or `[ADDRESS]`), optional `SKOOL_FROM` (default `Jon Mac <support@viralview.io>`), `SKOOL_BUSINESS` (default Ecomm House Inc.), `SKOOL_REPLY_TO` (default jon@thejonmac.com).
 3. Read the 7 emails on `/track/emails` and check the price line (`PRICE_LINE` in `skoolmail.js`) against the Skool page.
 4. The pop-over does not tell visitors they will get emails. Jon decides whether to add a line (consent rules, for example CASL for Canadians).
+
+## Reset stats (2026-11-17)
+`/track` has a "Reset stats" button. It deletes nothing: it stores the time in `skool_settings` (key `skool_stats_reset_at`, the table from migration 0031, so no new migration), and `/track` then counts only clicks, leads and sales at or after that time. A "Since <date>" line and an "Undo reset" link show after a reset; Undo deletes the row and every old count comes back. `POST /track/api/reset` (`{}` to reset, `{"undo":true}` to undo) needs Jon's session, the `X-CC` header and a same-origin `Origin`; signed out it answers 401. `/track/leads` is not filtered: it lists every lead ever captured.
