@@ -41,9 +41,8 @@ function group(title, cards, ui, open = true) {
 
 const toast = (t) => (t ? `<div class="cktoast" role="status"><span>${esc(t.kind === 'delete' ? 'Card deleted' : t.kind === 'untick' ? 'Card unticked' : 'Card ticked off')}: ${esc(String(t.title).slice(0, 80))}</span><button type="button" class="btn sm" data-ck-undo>Undo</button></div>` : '');
 
-// "Working now" (Jon, 2026-11-17): one row per card that is really being worked on (cards.active from src/cards.js: a run going now, or
-// its owner updated it in the last hour): the member's name, the card as a link that opens the card's own page the way a title in the
-// lists below does, and "running now" or "updated N min ago". The count is the number of rows. No one active: one line saying so.
+// "Working now" (Jon, 2026-11-17): one row per card that is really being worked on (cards.active from src/cards.js: a run going now):
+// the member's name, the card as a link that opens the card's own page the way a title in the lists below does, and "running now". The count is the number of rows. No one active: one line saying so.
 // Background jobs (cards.jobs: helper jobs the live feed lists as running) are rows too: the bot's name, the job's title, "running Nm" and the
 // card as a link when it names one. They count in the header number.
 export function activeBlock(active, jobs) {

@@ -1,6 +1,6 @@
 // Cards page "Working now" block (Jon, 2026-11-17): who is really working, and on which card, at the top of #cards.
-// A card is listed only when the dispatcher's live feed (fresh, 10 min) shows a run on it, or its owner updated it in the last
-// 60 minutes (a script's write, Jon's own action and a nudge do not count). Owning a Doing card is not enough. Read only.
+// A card is listed only when the dispatcher's live feed (fresh, 5 min) shows a run on it. A card its owner only touched
+// lately is not a run (Jon, 2026-11-17 19:42: "7 working" with one job running). Read only.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { sqliteD1 } from './sqlited1.mjs';
@@ -65,59 +65,49 @@ function sample() {
   return { db, ids };
 }
 
-test('stale Doing cards (updated hours ago, no run) are not listed, however many there are', async () => {
+test('planted fault: Doing cards the owner touched lately (note, proof, comment, status) with no run going are NOT listed', async () => {
   const { db, ids } = sample();
   const c = await cardsData({ DB: db }, NOW);
-  const got = new Set(c.active.map((r) => r.id));
-  assert.ok(!got.has(ids.stale));
+  assert.deepEqual(c.active, []); // fresh 20 min update, owner proof, owner comment, stale, nudged, moved: none is a run
   assert.ok(!c.active.some((r) => /^Stale \d+$/.test(r.title)));
-  assert.ok(!got.has(ids.old), 'updated 70 minutes ago is outside the hour');
-  assert.ok(!got.has(ids.nudged), 'a nudge writes nothing to the card');
+  assert.match(blockOf(render(c)), /Nobody is working on a card right now/);
+  for (const k of ['fresh', 'proof', 'say', 'stale', 'old', 'nudged', 'moved', 'movedDev', 'sentBack']) assert.ok(!c.active.some((r) => r.id === ids[k]), k);
 });
 
-test('a card updated 20 min ago by its owner is listed with its age; a proof or a comment by the owner counts too', async () => {
+test('a run going now (fresh feed) is listed even on a card nobody touched for hours, and outside Doing; listed once, oldest first', async () => {
   const { db, ids } = sample();
-  const c = await cardsData({ DB: db }, NOW);
-  const by = Object.fromEntries(c.active.map((r) => [r.id, r]));
-  assert.deepEqual([by[ids.fresh].owner, by[ids.fresh].names, by[ids.fresh].running, by[ids.fresh].age], ['sponsors', ['Florence'], false, '20 min ago']);
-  assert.equal(by[ids.proof].age, '25 min ago');
-  assert.equal(by[ids.say].age, '5 min ago');
-});
-
-test('a run going now (fresh feed) is listed even on a card nobody touched for hours, and outside Doing; listed once', async () => {
-  const { db, ids } = sample();
-  live(db, 2, [{ slot: 1, bot: 'developer', card: ids.run, since: min(4) }, { slot: 2, bot: 'qc', card: ids.qcRun, since: min(3) },
-    { slot: 3, bot: 'sponsors', card: ids.fresh, since: min(1) }, { slot: 4, bot: 'ana', card: 't_nope', since: min(1) }]);
+  live(db, 2, [{ slot: 1, bot: 'developer', card: ids.run, since: min(4) }, { slot: 2, bot: 'qc', card: ids.qcRun, since: min(30) },
+    { slot: 3, bot: 'sponsors', card: ids.fresh, since: min(1) }, { slot: 4, bot: 'ana', card: 't_nope', since: min(1) },
+    { slot: 5, bot: 'developer', card: ids.run, since: min(2) }]);
   const c = await cardsData({ DB: db }, NOW);
   const by = Object.fromEntries(c.active.map((r) => [r.id, r]));
   assert.equal(by[ids.run].running, true);
   assert.equal(by[ids.qcRun].running, true);
   assert.deepEqual(by[ids.qcRun].names, ['Jessica', 'Nina']);
-  assert.equal(by[ids.fresh].running, true); // updated and running: one row
-  assert.equal(c.active.filter((r) => r.id === ids.fresh).length, 1);
+  assert.equal(by[ids.fresh].running, true);
+  assert.equal(c.active.filter((r) => r.id === ids.run).length, 1);
   assert.ok(!c.active.some((r) => r.id === 't_nope'), 'a run on a card that is not open adds nothing');
-  assert.deepEqual(c.active.slice(0, 3).map((r) => r.running), [true, true, true]); // running first
+  assert.deepEqual(c.active.map((r) => r.id), [ids.qcRun, ids.run, ids.fresh]);
+  assert.match(blockOf(render(c)), /<span class="mut">3<\/span>/); // header count = runs listed
 });
 
-test('nudge-only updates do not count: a script move and its "Moved from" comment, Jon sending a card back, a wake that wrote nothing', async () => {
+test('count = runs + jobs only: 2 runs, 1 job, and 6 owner-touched Doing cards show 3', async () => {
   const { db, ids } = sample();
+  live(db, 1, [{ slot: 1, bot: 'developer', card: ids.run, since: min(4) }, { slot: 2, bot: 'qc', card: ids.qcRun, since: min(3) }]);
+  db.sqlite.prepare('UPDATE bot_feed_entries SET data = ? WHERE name = ?').run(JSON.stringify({ beat: min(1), running: [{ slot: 1, bot: 'developer', card: ids.run, since: min(4) }, { slot: 2, bot: 'qc', card: ids.qcRun, since: min(3) }],
+    jobs: [{ name: 'a-job', bot: 'ana', title: 'Do the thing', card: '', started: min(9), updated: min(1) }] }), 'dispatch_live');
   const c = await cardsData({ DB: db }, NOW);
-  const got = new Set(c.active.map((r) => r.id));
-  for (const k of ['moved', 'movedDev', 'sentBack', 'nudged']) assert.ok(!got.has(ids[k]), k);
+  assert.equal(c.active.length + c.jobs.length, 3);
+  assert.match(blockOf(render(c)), /<span class="mut">3<\/span>/);
 });
 
-test('only real work is listed: exactly the 20-min update, the owner proof, the owner comment (no run)', async () => {
+test('planted fault: a stale dispatcher feed (over 5 minutes, even 6) adds no run and no job', async () => {
   const { db, ids } = sample();
+  live(db, 6, [{ slot: 1, bot: 'qc', card: ids.qcRun, since: min(20) }]);
   const c = await cardsData({ DB: db }, NOW);
-  assert.deepEqual(c.active.map((r) => r.id).sort(), [ids.fresh, ids.proof, ids.say].sort());
-  assert.match(blockOf(render(c)), /<span class="mut">3<\/span>/); // header count = cards listed
-});
-
-test('a stale dispatcher feed (over 10 minutes) adds nothing', async () => {
-  const { db, ids } = sample();
-  live(db, 15, [{ slot: 1, bot: 'qc', card: ids.qcRun, since: min(20) }]);
-  const c = await cardsData({ DB: db }, NOW);
-  assert.ok(!c.active.some((r) => r.id === ids.qcRun));
+  assert.deepEqual([c.active, c.jobs], [[], []]);
+  live(db, 4, [{ slot: 1, bot: 'qc', card: ids.qcRun, since: min(20) }]); // a newer 4-minute-old feed is current
+  assert.equal((await cardsData({ DB: db }, NOW)).active.length, 1);
 });
 
 test('Jon, to-do, done and deleted cards are never listed', async () => {
@@ -126,30 +116,30 @@ test('Jon, to-do, done and deleted cards are never listed', async () => {
   assert.doesNotMatch(blockOf(render(c)), /Jon picks|Only a to do|Finished|Deleted doing/);
 });
 
-test('activeOf is pure: unknown owner (retired bot) keeps its slug, empty input gives []', () => {
-  const a = activeOf([{ id: 't_1', title: 'x', owner: 'mila', status: 'doing', updated_at: min(1) }], [], [], NOW, new Map([['t_1', min(1)]]));
-  assert.deepEqual(a.map((m) => [m.owner, m.names, m.age]), [['mila', [], '1 min ago']]);
-  assert.deepEqual(activeOf([], [], [], NOW, new Map()), []);
-  assert.deepEqual(activeOf([{ id: 't_2', title: 'y', owner: 'ana', status: 'doing', updated_at: min(1) }], null, null, NOW), []); // owning a Doing card is not enough
-  assert.deepEqual(activeOf([{ id: 't_3', title: 'z', owner: 'ana', status: 'doing' }], [], [], NOW, new Map([['t_3', min(61)]])), []);
+test('activeOf is pure: unknown owner (retired bot) keeps its slug, empty input gives [], an owner update alone gives nothing', () => {
+  const a = activeOf([{ id: 't_1', title: 'x', owner: 'mila', status: 'doing', updated_at: min(1) }], [{ card: 't_1', bot: 'mila', since: min(2) }], [], NOW);
+  assert.deepEqual(a.map((m) => [m.owner, m.names, m.age, m.running]), [['mila', [], '2 min ago', true]]);
+  assert.deepEqual(activeOf([], [], [], NOW), []);
+  assert.deepEqual(activeOf([{ id: 't_2', title: 'y', owner: 'ana', status: 'doing', updated_at: min(1) }], null, null, NOW), []); // owning or touching a Doing card is not enough
+  assert.deepEqual(activeOf([{ id: 't_3', title: 'z', owner: 'jon', status: 'doing' }], [{ card: 't_3', bot: 'jon', since: min(1) }], [], NOW), []);
 });
 
 test('Working now block: one row per card with name, link and status; titles escaped; above everything', async () => {
   const { db, ids } = sample();
-  live(db, 2, [{ slot: 1, bot: 'developer', card: ids.run, since: min(4) }]);
+  live(db, 2, [{ slot: 1, bot: 'developer', card: ids.run, since: min(4) }, { slot: 2, bot: 'sponsors', card: ids.fresh, since: min(3) }]);
   const c = await cardsData({ DB: db }, NOW);
   const html = render(c);
   const block = blockOf(html);
-  assert.equal((block.match(/class="ckact"/g) || []).length, 4); // the run, the 20-min update, the proof, the comment
-  assert.match(block, /<span class="mut">4<\/span>/);
+  assert.equal((block.match(/class="ckact"/g) || []).length, 2); // the two runs
+  assert.match(block, /<span class="mut">2<\/span>/);
   assert.match(block, /<b class="ckname">Lucy<\/b>/);
   assert.match(block, /<b class="ckname">Florence<\/b>/);
   assert.match(block, new RegExp(`data-ck-open="${ids.fresh}">Updated 20 min ago</button>`));
   assert.match(block, /Run going &lt;b&gt;x&lt;\/b&gt;/);
   assert.doesNotMatch(block, /<b>x<\/b>/);
-  assert.equal((block.match(/running now/g) || []).length, 1);
-  assert.match(block, /updated 20 min ago/);
-  assert.equal((block.match(/data-ck-open=/g) || []).length, 4);
+  assert.equal((block.match(/running now/g) || []).length, 2);
+  assert.doesNotMatch(block, /updated \d+ min ago/);
+  assert.equal((block.match(/data-ck-open=/g) || []).length, 2);
   const at = html.indexOf('ckactive');
   assert.ok(at > 0 && at < html.indexOf('ckhead') && at < html.indexOf('data-ckg=') && at < html.indexOf('<li class="ckrow'));
   // The lists below are the same as before: one row per open card and per done card (deleted left out).
@@ -178,7 +168,7 @@ test('signed out sees nothing: /dashboard/api/cards needs the session, so no nam
     assert.doesNotMatch(await r.text(), /Florence|Lucy|Acme|active/);
   }
   const ok = await (await call({ Cookie: await cookie() })).json();
-  assert.equal(ok.cards.active.length, 3);
+  assert.equal(ok.cards.active.length, 0); // nothing runs in this sample
 });
 
 test('loading and error states show no Working now block', () => {
