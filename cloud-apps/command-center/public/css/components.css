@@ -838,3 +838,21 @@ body:has(.cardmodal[open]){overflow:hidden} /* the page behind stays put */
 .pdhabit{display:flex;align-items:center;gap:.7rem;min-height:2.4rem;cursor:pointer}
 .pdhabit input{width:1.3rem;height:1.3rem;flex:none}
 .pdhabit input:checked+span{color:var(--muted);text-decoration:line-through}
+
+/* EOS page (card t_75395eabd6774bdc): scorecard scrolls sideways on a phone, name column stays put */
+.eostbl table{min-width:62rem}
+.eostbl th,.eostbl td{padding:.55rem .6rem;white-space:nowrap}
+.eostbl .eosnum{position:sticky;left:0;z-index:1;background:var(--card);min-width:11rem;white-space:normal}
+.eostbl th.eoswk.cur{color:var(--ink)}
+.eosv.ok{color:var(--ok-ink)}
+.eosv.off{color:var(--crit-ink);background:var(--crit-bg);font-weight:600}
+.eosv.partial{color:var(--risk-ink);background:var(--risk-bg)}
+.eosv.nodata{font-size:.78rem}
+.eoslegend{font-size:.82rem;margin:0 0 .6rem}
+.eoslegend .eosv{padding:0 .3rem;border-radius:.3rem}
+.eosrow{display:flex;gap:.6rem;justify-content:space-between;align-items:flex-start;flex-wrap:wrap}
+.eosmain{display:flex;flex-direction:column;gap:.15rem;min-width:0;flex:1 1 14rem}
+.eosside{display:flex;gap:.5rem;align-items:center;flex-wrap:wrap}
+.eossum{white-space:pre-line;margin:.4rem 0 0}
+.wrap[data-tab] .cctabs{margin-bottom:.8rem}
+.eosrate{margin:.6rem 0 0;font-size:.88rem;color:var(--muted)}

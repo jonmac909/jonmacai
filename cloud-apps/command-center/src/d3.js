@@ -15,7 +15,7 @@ const OPEN = "('todo', 'doing', 'waiting_on_jon', 'qc', 'review')";
 // Open cards read for Team and Blockers. Past this the Team page says the list is cut (today about 400 are open).
 export const TASK_CAP = 5000;
 // Questions kept out of Jon's queue, as in d2.js: bot health goes to Ana, MoneyClaw's known charges to the expenses review.
-const hidden = (key) => /^team-guard/.test(key || '') || /^cw:/.test(key || '');
+export const hidden = (key) => /^team-guard/.test(key || '') || /^cw:/.test(key || '');
 // A YouTube sync that failed on Google sign-in (src/youtube.js), not on quota or the network.
 const LOGIN_OUT = /connect this channel again|token refresh/i;
 const NO_FEED = { state: 'none', text: 'No feed' };
