@@ -1,6 +1,6 @@
 // Cards page "Working now": background helper jobs (Jon, 2026-11-17: "how is no one working right now?"). The dispatcher's live feed
 // (dispatch_live, posted by tools/dash_live_feed.py) carries a "jobs" list; the block shows each under its bot's name with "running Nm"
-// and the card link when known. A feed older than 10 minutes shows nothing. Read only.
+// and the card link when known. A feed older than 5 minutes shows nothing. Read only.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { sqliteD1 } from './sqlited1.mjs';
@@ -83,14 +83,14 @@ test('the card link shows when the job names a known card, and not when the card
   assert.equal((block.match(/data-ck-open=/g) || []).length, 2);
 });
 
-test('staleness: a feed older than 10 minutes shows no jobs; 9 minutes still shows them', async () => {
+test('staleness: a feed older than 5 minutes shows no jobs; 4 minutes still shows them', async () => {
   const old = sqliteD1();
-  feed(old, 11, { jobs: [job()] });
+  feed(old, 6, { jobs: [job()] });
   const c = await cardsData({ DB: old }, NOW);
   assert.deepEqual(c.jobs, []);
   assert.match(render(c), /Nobody is working on a card right now\./);
   const fresh = sqliteD1();
-  feed(fresh, 9, { jobs: [job()] });
+  feed(fresh, 4, { jobs: [job()] });
   assert.equal((await cardsData({ DB: fresh }, NOW)).jobs.length, 1);
   const none = sqliteD1(); // no feed at all
   assert.deepEqual((await cardsData({ DB: none }, NOW)).jobs, []);
