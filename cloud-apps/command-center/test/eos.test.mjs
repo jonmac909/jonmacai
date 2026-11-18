@@ -247,3 +247,36 @@ test('rocks: any quarter (Rock Q1 to Q4), and the proof link is a QC-passed one 
   assert.deepEqual(got.rocks.map((r) => r.id), ['t_q1', 't_q4']);
   assert.equal(got.rocks[1].proofLink, 'https://jonmac.ai/passed');
 });
+
+// ---- Review 2 fixes (planted: each one failed on c80f39d) ----
+
+test('your queue: a waiting card wins over its linked question, so "Not now" on the card hides both (like Needs you)', async () => {
+  const { db, env } = await setup();
+  const at = '2026-11-10T00:00:00Z';
+  await task(db, 't_w', 'Pick the reel hook', { status: 'waiting_on_jon' });
+  await db.prepare(`INSERT INTO bot_questions (id, asked_by, question, options, status, task_id, created_at, updated_at)
+    VALUES ('q_w', 'ana', 'Which hook?', '[]', 'open', 't_w', ?, ?)`).bind(at, at).run();
+  // not put off: the card row shows, its question does not
+  assert.deepEqual((await call(env, 'GET', '/v1/eos', { jon: true })).body.queue.map((i) => i.id), ['t_w']);
+  // Jon's "Not now" on Needs you is saved against the card: neither shows
+  await db.prepare(`INSERT INTO needs_later (item, until, "by", at) VALUES ('t_w', ?, 'jon', ?)`).bind(new Date(Date.now() + 3600000).toISOString(), at).run();
+  assert.deepEqual((await call(env, 'GET', '/v1/eos', { jon: true })).body.queue.map((i) => i.id), []);
+});
+
+test('your queue: a waiting card is dated by its last update, like Needs you', async () => {
+  const { db, env } = await setup();
+  await db.prepare(`INSERT INTO bot_tasks (id, title, owner, status, created_by, updated_by, created_at, updated_at)
+    VALUES ('t_w', 'Pick the reel hook', 'developer', 'waiting_on_jon', 'ana', 'ana', '2026-11-01T18:00:00Z', '2026-11-12T18:00:00Z')`).run();
+  const q = (await call(env, 'GET', '/v1/eos', { jon: true })).body.queue;
+  assert.equal(q[0].createdAt, '2026-11-12T18:00:00Z');
+  assert.match(queueHtml(q), /since Nov 12/);
+});
+
+test('money: rate-limit, deal with, terms of service, pay attention and cash flow are not money', () => {
+  for (const t of ['Fix the HeyGen rate-limit retry', 'Rate limits on the YouTube API', 'Deal with the backlog', 'Link the terms of service page', 'Pay attention to the hook', 'Cash flow chart', 'Terms of use footer']) {
+    assert.equal(isMoney(t, null, 'developer'), false, `not money: ${t}`);
+  }
+  for (const t of ['Approve Topview deal terms', 'Topview counter-offer 1500 USD', 'Arcads rate for one video', 'New deal with Arcads 2000 USD', 'Sign the contract']) {
+    assert.equal(isMoney(t, null, 'ana'), true, `money: ${t}`);
+  }
+});

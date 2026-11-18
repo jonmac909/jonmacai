@@ -10,8 +10,9 @@ import { hidden } from './d3.js';
 const parse = (raw, fallback) => { try { return raw ? JSON.parse(raw) : fallback; } catch { return fallback; } };
 
 // Sponsor money, invoices and payments go to the top of Jon's queue. Word boundaries keep out MoneyClaw, Cashflow,
-// "Paid promotion", "paid generators" and "wire up"; sponsor deal words (deal, contract, terms, rate, counter-offer) count.
-const MONEY_RE = /\binvoices?\b|\bpayments?\b|\bpay\b|\bpaid\b(?!\s+(?:promotion|generators?))|\brefunds?\b|\bdeposits?\b|\bcash\b|\bmoney\b|\$\s?\d|\d\s?(?:usd|cad)\b|\bgst\b|\bwire (?:transfer|payment|money)\b|\bdeals?\b|\bcontracts?\b|\bterms\b|\brates?\b(?!\s+limit)|\bcounter-?offers?\b/i;
+// "Paid promotion", "paid generators", "wire up", "rate limit", "deal with", "terms of service" and "pay attention";
+// sponsor deal words (deal, contract, terms, rate, counter-offer) count.
+const MONEY_RE = /\binvoices?\b|\bpayments?\b|\bpay\b(?!\s+attention)|\bpaid\b(?!\s+(?:promotion|generators?))|\brefunds?\b|\bdeposits?\b|\bcash\b(?![\s-]*flow)|\bmoney\b|\$\s?\d|\d\s?(?:usd|cad)\b|\bgst\b|\bwire (?:transfer|payment|money)\b|\bdeals?\b(?!\s+with)|\bcontracts?\b|\bterms\b(?!\s+of\s+(?:service|use))|\brates?\b(?![\s-]+limit)|\bcounter-?offers?\b/i;
 // Like Needs you (d3.js blockersOf): anything the Sponsors bot asked for or owns is sponsor money.
 export const isMoney = (text, project, by) => project === 'accounting' || by === 'sponsors' || MONEY_RE.test(text || '');
 
@@ -53,24 +54,25 @@ async function queue(db, now) {
   const [ap, qs, ts, later] = await Promise.all([
     db.prepare(`SELECT id, action, title, project, requested_by, task_id, created_at FROM bot_approvals WHERE status = 'pending' AND ${NOT_DELETED}`).all(),
     db.prepare(`SELECT id, question, project, asked_by, task_id, idem_key, created_at FROM bot_questions WHERE status = 'open' AND ${NOT_DELETED}`).all(),
-    db.prepare("SELECT id, title, project, owner, created_at FROM bot_tasks WHERE status = 'waiting_on_jon'").all(),
+    db.prepare("SELECT id, title, project, owner, created_at, updated_at FROM bot_tasks WHERE status = 'waiting_on_jon'").all(),
     putOff(db, now),
   ]);
-  const linked = new Set();
+  // Same rows as Needs you (d3.js blockersOf): a card waiting on Jon is its own row (dated by its last update) and its
+  // linked question is dropped, so a "Not now" on the card hides both; an approval keeps its own row.
+  const waiting = new Set();
   const items = [];
-  for (const a of ap.results || []) {
-    if (later.has(a.id)) continue;
-    if (a.task_id) linked.add(a.task_id);
-    items.push({ id: a.id, kind: 'approval', title: a.title, createdAt: a.created_at, money: isMoney(`${a.title} ${a.action}`, a.project, a.requested_by), taskId: a.task_id || null });
+  for (const t of ts.results || []) {
+    waiting.add(t.id);
+    if (later.has(t.id)) continue; // put off
+    items.push({ id: t.id, kind: 'card', title: t.title, createdAt: t.updated_at || t.created_at, money: isMoney(t.title, t.project, t.owner), taskId: t.id });
   }
   for (const q of qs.results || []) {
-    if (hidden(q.idem_key) || later.has(q.id)) continue; // bot health goes to Ana, MoneyClaw's charges to the expenses review
-    if (q.task_id) linked.add(q.task_id);
+    if (hidden(q.idem_key) || later.has(q.id) || (q.task_id && waiting.has(q.task_id))) continue; // bot health goes to Ana, MoneyClaw's charges to the expenses review; a waiting card's question rides on the card row
     items.push({ id: q.id, kind: 'question', title: q.question, createdAt: q.created_at, money: isMoney(q.question, q.project, q.asked_by), taskId: q.task_id || null });
   }
-  for (const t of ts.results || []) {
-    if (linked.has(t.id) || later.has(t.id)) continue; // already on the list as its approval or question, or put off
-    items.push({ id: t.id, kind: 'card', title: t.title, createdAt: t.created_at, money: isMoney(t.title, t.project, t.owner), taskId: t.id });
+  for (const a of ap.results || []) {
+    if (later.has(a.id)) continue;
+    items.push({ id: a.id, kind: 'approval', title: a.title, createdAt: a.created_at, money: isMoney(`${a.title} ${a.action}`, a.project, a.requested_by), taskId: a.task_id || null });
   }
   return queueOrder(items);
 }
