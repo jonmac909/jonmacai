@@ -1146,11 +1146,12 @@ export const FEEDS = {
         if (typeof v !== 'string' || !DAY_RE.test(v) || !Number.isFinite(Date.parse(`${v}T12:00:00Z`))) throw new Bad(400, `${k} must look like 2026-11-16`);
         return v;
       };
+      const monday = (v, k) => { day(v, k); if (new Date(`${v}T12:00:00Z`).getUTCDay() !== 1) throw new Bad(400, `${k} must be a Monday`); return v; };
       const obj = (v, k) => { if (!v || typeof v !== 'object' || Array.isArray(v)) throw new Bad(400, `${k} must be an object`); return v; };
       if (!Array.isArray(b.weeks) || !b.weeks.length || b.weeks.length > 13) throw new Bad(400, 'weeks must be a list of 1 to 13 weeks');
       const weeks = b.weeks.map((w, i) => {
         obj(w, `weeks[${i}]`);
-        return { start: day(w.start, `weeks[${i}].start`), end: w.end == null ? null : day(w.end, `weeks[${i}].end`), current: w.current === true };
+        return { start: monday(w.start, `weeks[${i}].start`), end: w.end == null ? null : day(w.end, `weeks[${i}].end`), current: w.current === true };
       });
       if (!Array.isArray(b.numbers) || !b.numbers.length || b.numbers.length > 30) throw new Bad(400, 'numbers must be a list of 1 to 30 numbers');
       const STAT = ['ok', 'off', 'partial', 'nodata'];
@@ -1164,8 +1165,8 @@ export const FEEDS = {
         if (!owner) throw new Bad(400, `${k}.owner is required`);
         const name = cut(n.name, 200);
         if (!name) throw new Bad(400, `${k}.name is required`);
-        const gv = goal.value == null ? null : Number(goal.value);
-        if (gv != null && (typeof goal.value === 'boolean' || !Number.isFinite(gv))) throw new Bad(400, `${k}.goal.value must be a number`);
+        const gv = goal.value == null ? null : goal.value;
+        if (gv != null && (typeof gv !== 'number' || !Number.isFinite(gv))) throw new Bad(400, `${k}.goal.value must be a number`);
         const values = n.values ?? [];
         if (!Array.isArray(values) || values.length > 60) throw new Bad(400, `${k}.values must be a list of at most 60 weeks`);
         const source = cut(n.source, 300);
@@ -1180,7 +1181,7 @@ export const FEEDS = {
             if (!STAT.includes(v.status)) throw new Bad(400, `${vk}.status must be one of ${STAT.join(', ')}`);
             const val = v.value == null || v.value === '' ? null : v.value;
             if (val != null && (typeof val !== 'number' || !Number.isFinite(val))) throw new Bad(400, `${vk}.value must be a number or null`);
-            return { week: day(v.week, `${vk}.week`), value: v.status === 'nodata' ? null : val, status: v.status, note: cut(v.note, 300) };
+            return { week: monday(v.week, `${vk}.week`), value: v.status === 'nodata' ? null : val, status: v.status, note: cut(v.note, 300) };
           }),
         };
       });

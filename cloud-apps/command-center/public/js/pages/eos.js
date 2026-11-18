@@ -11,13 +11,23 @@ const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const STATUS = { todo: 'To do', doing: 'Doing', qc: 'In QC', review: 'In review', done: 'Done', blocked: 'Blocked', waiting_on_jon: 'Waiting on you', cancelled: 'Cancelled' };
 const STATUS_CLS = { done: 'ok', review: 'ok', blocked: 'crit', waiting_on_jon: 'risk' };
-const KIND = { approval: 'Approval', question: 'Question', task: 'Card' };
+const KIND = { approval: 'Approval', question: 'Question', card: 'Card' };
 
 let last = null; // newest GET /v1/eos answer: a tab switch paints it at once, then refetches
 
 // "Nov 16" from YYYY-MM-DD, no time zone shift.
 const md = (ymd) => (/^\d{4}-\d{2}-\d{2}/.test(ymd || '') ? `${MON[+ymd.slice(5, 7) - 1]} ${+ymd.slice(8, 10)}` : esc(ymd));
 const day = (ymd) => (/^\d{4}-\d{2}-\d{2}/.test(ymd || '') ? `${DAYS[new Date(`${ymd.slice(0, 10)}T12:00:00Z`).getUTCDay()]} ${md(ymd)}` : esc(ymd));
+// Jon's time zone (America/Vancouver): the Vancouver day of an instant, its Monday, and "Nov 18 09:00".
+const TZ = 'America/Vancouver';
+const DAY_MS = 86400000;
+const vanYmd = (ms) => new Intl.DateTimeFormat('en-CA', { timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(ms));
+const vanHm = (ms) => new Intl.DateTimeFormat('en-US', { timeZone: TZ, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(new Date(ms));
+const mondayOf = (ms) => { const d = vanYmd(ms); const dow = (new Date(`${d}T12:00:00Z`).getUTCDay() + 6) % 7; return new Date(Date.parse(`${d}T12:00:00Z`) - dow * DAY_MS).toISOString().slice(0, 10); };
+// A stored moment (ISO, usually UTC) as its Vancouver day; a bare YYYY-MM-DD stays as it is.
+const vanDay = (at) => { const s = String(at || ''); if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s; const t = Date.parse(s); return Number.isFinite(t) ? vanYmd(t) : ''; };
+// The 13 Vancouver Monday weeks up to this one, oldest first.
+export const weeks13 = (now = Date.now()) => { const cur = mondayOf(now); return Array.from({ length: 13 }, (_, i) => new Date(Date.parse(`${cur}T12:00:00Z`) - (12 - i) * 7 * DAY_MS).toISOString().slice(0, 10)); };
 const box = (inner) => `<div class="card pad">${inner}</div>`;
 const empty = (text) => box(`<p class="muted">${esc(text)}</p>`);
 const statusPill = (s) => pill(STATUS[s] || String(s || '').replace(/_/g, ' '), STATUS_CLS[s] || '');
@@ -30,9 +40,10 @@ function money(v, unit) {
   return unit && unit !== '#' ? `${s}${unit === '%' ? '%' : ` ${esc(unit)}`}` : s;
 }
 
-export function scorecardHtml(sc) {
+// Always 13 Vancouver Monday weeks, oldest left and this week right; a week the feed has no value for says "no data yet".
+export function scorecardHtml(sc, now = Date.now()) {
   if (!sc || !Array.isArray(sc.weeks) || !Array.isArray(sc.numbers)) return empty('Scorecard: no data yet. The scorecard script has not posted it.');
-  const weeks = [...sc.weeks].sort((a, b) => String(a.start).localeCompare(String(b.start))); // oldest left, this week right
+  const weeks = weeks13(now).map((start, i) => ({ start, current: i === 12 }));
   const head = `<tr><th class="eosnum">Number</th>${weeks.map((w) => `<th class="eoswk${w.current ? ' cur' : ''}">${md(w.start)}</th>`).join('')}</tr>`;
   const rows = sc.numbers.map((n) => {
     const byWeek = new Map((n.values || []).map((v) => [v.week, v]));
@@ -45,7 +56,9 @@ export function scorecardHtml(sc) {
     const hand = n.handKeyed ? ` ${pill('hand-keyed', 'risk')}` : '';
     return `<tr><td class="eosnum"><span>${esc(n.name)}</span>${hand}<small>${esc(n.owner)} · ${esc(n.goal?.text || '')}</small></td>${cells}</tr>`;
   }).join('');
-  const meta = sc.generated ? `Updated ${esc(String(sc.generated).slice(0, 16).replace('T', ' '))}` : '';
+  const gen = Date.parse(sc.generated || sc.postedAt || '');
+  const stale = Number.isFinite(gen) && now - gen > 7 * DAY_MS ? ' · over a week old' : '';
+  const meta = Number.isFinite(gen) ? `Updated ${md(vanYmd(gen))} ${vanHm(gen)}${stale}` : '';
   return `<div class="card pad"><div class="cardhead"><h2>Scorecard</h2><span class="meta">${meta}</span></div>
 <p class="muted eoslegend"><span class="eosv off">red</span> = off goal · <span class="eosv partial">amber</span> = part of the week · hand-keyed = typed in by its owner, not read by a script</p>
 <div class="tblwrap eostbl"><table><thead>${head}</thead><tbody>${rows}</tbody></table></div></div>`;
@@ -56,7 +69,7 @@ function cardRows(list) {
 }
 
 export function rocksHtml(list) {
-  if (!list?.length) return empty('No Rock cards yet. A Rock is a card titled "Rock Q4: ...".');
+  if (!list?.length) return empty('No Rock cards yet. A Rock is a card titled "Rock Q1: ..." to "Rock Q4: ...".');
   return box(`<div class="cardhead"><h2>Rocks</h2><span class="meta">${list.length} this quarter</span></div><div class="pdrows">${cardRows(list)}</div>`);
 }
 
@@ -77,7 +90,7 @@ export function meetingsHtml(list) {
 
 export function queueHtml(list) {
   if (!list?.length) return empty('Nothing waiting on you.');
-  const rows = list.map((i) => `<div class="pdrow eosrow"><div class="eosmain"><b>${esc(i.title)}</b><small class="muted">${esc(KIND[i.kind] || i.kind || '')}${i.createdAt ? ` · since ${md(String(i.createdAt).slice(0, 10))}` : ''}</small></div><div class="eosside">${i.money ? pill('Money', 'crit') : ''}</div></div>`).join('');
+  const rows = list.map((i) => `<div class="pdrow eosrow"><div class="eosmain"><b>${esc(i.title)}</b><small class="muted">${esc(KIND[i.kind] || i.kind || '')}${vanDay(i.createdAt) ? ` · since ${md(vanDay(i.createdAt))}` : ''}</small></div><div class="eosside">${i.money ? pill('Money', 'crit') : ''}</div></div>`).join('');
   return box(`<div class="cardhead"><h2>Your queue</h2><span class="meta">${list.length} waiting · money first, then oldest</span></div><div class="pdrows">${rows}</div>`);
 }
 
