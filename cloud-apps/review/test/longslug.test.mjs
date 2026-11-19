@@ -42,6 +42,10 @@ test("the test slugs are the lengths named", () => {
 });
 
 test("upload init works for a 51 and an 80 character slug (was a 500 from D1's 50-byte LIKE limit)", async () => {
+  // A row in submissions, as live: on an empty table SQLite never runs the LIKE, so the old code would pass here.
+  await publish("other-video-v1");
+  await runtime.db.prepare(`INSERT INTO submissions (id, slug, kind, created_at, comment_ids, dedupe_key) VALUES ('s-other', 'other-video-v1', 'changes', ?, '[]', 'd-other')`)
+    .bind(new Date().toISOString()).run();
   for (const slug of [S51, S80]) {
     const started = await call(`/api/review/${slug}/uploads`, jsonInit("POST", { kind: "video" }));
     assert.equal(started.status, 201, `${slug.length} chars: ${JSON.stringify(started.body)}`);
