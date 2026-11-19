@@ -305,9 +305,10 @@ async function clearAsks(db, id, by, now, note = 'card cancelled') {
 // and the UPDATE guards. The pass must come from QC (or Ana on a proof QC posted), never the proof's poster or the
 // card's owner. Internal cards (the ones /close may close: coding, not video/sponsor/money) skip only the https part:
 // they close by themselves and never wait in Review for Jon.
+// julianday keeps milliseconds, so '...:01.500Z' sorts after '...:01Z' and a pass in the same second as the
+// send-back still counts when it came after it.
 const NEWEST_PROOF = "(SELECT n.id FROM bot_proofs n WHERE n.task_id = bot_tasks.id "
-  + "ORDER BY datetime(n.created_at) DESC, n.created_at DESC, n.rowid DESC LIMIT 1)";
-// julianday keeps milliseconds, so a pass in the same second as the send-back still counts when it came after it.
+  + "ORDER BY julianday(n.created_at) DESC, n.rowid DESC LIMIT 1)";
 const SENT_BACK_AT = "COALESCE((SELECT MAX(julianday(e.at)) FROM bot_task_events e WHERE e.task_id = bot_tasks.id AND e.detail LIKE '%(sent back by Jon)'), 0)";
 const REVIEW_CHECKERS = ['qc', 'ana'];
 const HTTPS_LINK = "lower(p.link) LIKE 'https://_%'";
@@ -332,6 +333,7 @@ async function reviewProblem(db, taskId, internal = INTERNAL_CARD) {
   const no = 'A task goes to review only when its newest proof passed QC and has an https link Jon can open';
   if (!r.status) return `${no}: it has no proof yet`;
   if (r.status !== 'passed') return `${no}: its newest proof is ${r.status}, not passed (an older pass doesn't count)`;
+  if (r.checked == null) return `${no}: its newest proof was not checked by QC`;
   if (!(r.checked > r.sent_back)) return `${no}: its newest proof passed before Jon last sent the card back`;
   if (!REVIEW_CHECKERS.includes(r.checked_by) || r.checked_by === r.created_by || r.checked_by === r.owner) {
     return `${no}: its newest proof was passed by ${r.checked_by ?? 'nobody'}, not by QC`;
@@ -575,11 +577,9 @@ const INTERNAL_PROJECTS = ['coding'];
 const VIDEO_STAGES = ['brief', 'script', 'pack', 'edit', 'publish', 'sponsor review'];
 const IN_LIST = (values) => values.map((v) => `'${v}'`).join(', ');
 const norm = (v) => String(v ?? '').toLowerCase().trim();
-// The card's newest proof is QC-passed, after Jon last sent it back. datetime() drops milliseconds and Z so
-// "10:00:01Z" and "10:00:01.500Z" compare as the same second.
-const NEWEST_PASSED = "EXISTS (SELECT 1 FROM bot_proofs p WHERE p.id = (SELECT n.id FROM bot_proofs n WHERE n.task_id = bot_tasks.id "
-  + "ORDER BY datetime(n.created_at) DESC, n.created_at DESC, n.rowid DESC LIMIT 1) AND p.status = 'passed' AND datetime(p.checked_at) > "
-  + "COALESCE((SELECT MAX(datetime(e.at)) FROM bot_task_events e WHERE e.task_id = bot_tasks.id AND e.detail LIKE '%(sent back by Jon)'), ''))";
+// The card's newest proof is QC-passed, after Jon last sent it back (julianday: milliseconds count, as in the Review rule).
+const NEWEST_PASSED = `EXISTS (SELECT 1 FROM bot_proofs p WHERE p.id = ${NEWEST_PROOF} AND p.status = 'passed'`
+  + ` AND julianday(p.checked_at) > ${SENT_BACK_AT})`;
 const INTERNAL_CARD = `(lower(trim(COALESCE(bot_tasks.project, ''))) IN (${IN_LIST(INTERNAL_PROJECTS)})`
   + ` AND lower(trim(COALESCE(bot_tasks.project, ''))) NOT IN (${IN_LIST(JON_PROJECTS)})`
   + ` AND lower(trim(COALESCE(bot_tasks.owner, ''))) NOT IN (${IN_LIST(JON_OWNERS)})`
@@ -594,6 +594,16 @@ const reviewReady = (internal = INTERNAL_CARD) => `EXISTS (SELECT 1 FROM bot_pro
   + ` AND julianday(p.checked_at) > ${SENT_BACK_AT} AND p.checked_by IN (${IN_LIST(REVIEW_CHECKERS)})`
   + ` AND p.checked_by IS NOT p.created_by AND p.checked_by IS NOT bot_tasks.owner AND (${HTTPS_LINK} OR ${internal}))`;
 const REVIEW_READY = reviewReady();
+// Cards QC may pass on a local-path proof even when they are not internal, because the dispatcher (card_dispatch.py
+// stage_step) takes them on after the pass rather than waking the owner: a stage that hands the card to the next stage
+// (every stage in card_stages.json but each type's last), and a card with no project at a coding stage (the
+// dispatcher makes it a coding card when it closes it). The server sees a card's stage only once the dispatcher has
+// handed it on, so a first stage (video brief, sponsor-video script, coding build) on a non-internal card still needs
+// an https link.
+const HANDOFF_STAGES = ['brief', 'script', 'pack', 'edit', 'sponsor review', 'build'];
+const CODING_STAGES = ['build', 'deploy'];
+const passNeedsHttps = (t) => !isInternal(t) && !HANDOFF_STAGES.includes(norm(t.stage))
+  && !(norm(t.project) === '' && CODING_STAGES.includes(norm(t.stage)));
 
 // POST tasks/:id/close {note?}: review -> done for an internal card whose newest proof QC passed. Everything else is refused.
 async function closeTask(db, who, id, body, now) {
@@ -766,6 +776,15 @@ async function checkProof(db, who, id, body, now) {
   const note = text(body, 'note', 4000);
   const owner = await db.prepare('SELECT t.status FROM bot_proofs p JOIN bot_tasks t ON t.id = p.task_id WHERE p.id = ?').bind(id).first();
   if (owner?.status === DELETED) throw new Bad(409, GONE); // QC has nothing to rule on for a deleted card
+  // A pass on the card's newest proof is what sends it to Review; with no https link it could only sit there unseen
+  // (the dispatcher wakes no owner on a passed proof), so it is refused and QC fails it instead, which wakes the owner.
+  if (result === 'passed') {
+    const t = await db.prepare(`SELECT bot_tasks.*, p.link, ${NEWEST_PROOF} = p.id AS newest
+      FROM bot_proofs p JOIN bot_tasks ON bot_tasks.id = p.task_id WHERE p.id = ?`).bind(id).first();
+    if (t?.newest && passNeedsHttps(t) && !/^https:\/\/./i.test(t.link || '')) {
+      throw new Bad(409, 'Review needs an https link Jon can open; fail this proof with that note so the owner re-posts');
+    }
+  }
   const r = await db.prepare('UPDATE bot_proofs SET status = ?, checked_by = ?, checked_at = ?, check_note = ? WHERE id = ?')
     .bind(result, who.bot, now, note, id).run();
   if (!changed(r)) throw new Bad(404, 'Proof not found');
@@ -773,22 +792,12 @@ async function checkProof(db, who, id, body, now) {
   await logEvent(db, row.task_id, now, who.bot, 'check', `proof ${result}`);
   let task = await taskRow(db, row.task_id);
   // A pass moves a task waiting in qc on to review, for Jon to approve, only under the Review rule (REVIEW_READY):
-  // a pass on an older proof while a newer one waits leaves the card in qc for that one. When the pass is on the
-  // newest proof but the card still can't go to Review (no https link), it goes back to doing so its owner fixes it
-  // instead of sitting in qc with nothing left for QC to check.
+  // a pass on an older proof while a newer one waits leaves the card in qc for that one; a staged card's local-path
+  // pass stays in qc for the dispatcher to hand on.
   if (result === 'passed' && task?.status === 'qc') {
     const moved = await db.prepare(`UPDATE bot_tasks SET status = 'review', updated_by = ?, updated_at = ? WHERE id = ? AND status = 'qc' AND ${REVIEW_READY}`)
       .bind(who.bot, now, task.id).run();
     if (changed(moved)) await logEvent(db, task.id, now, who.bot, 'status', 'status qc → review (QC passed)');
-    else {
-      const newest = await db.prepare(`SELECT ${NEWEST_PROOF} AS id FROM bot_tasks WHERE id = ?`).bind(task.id).first();
-      const why = newest?.id === row.id ? await reviewProblem(db, task.id) : null;
-      if (why) {
-        const back = await db.prepare("UPDATE bot_tasks SET status = 'doing', updated_by = ?, updated_at = ? WHERE id = ? AND status = 'qc'")
-          .bind(who.bot, now, task.id).run();
-        if (changed(back)) await logEvent(db, task.id, now, who.bot, 'status', `status qc → doing (QC passed; not ready for Review: ${why.split(': ').pop()})`);
-      }
-    }
     task = await taskRow(db, task.id);
   }
   // A failed check takes a qc or review task back to doing when no proof still supports it. Done is Jon's

@@ -157,12 +157,66 @@ test('planted faults: a pass from before Jon sent the card back, or no proof at 
   assert.match((await toReview(none.env, none.id, 'developer')).body.error, /no proof yet/);
 });
 
-test('auto move: a pass on the newest proof with no https link sends a non-internal card back to doing, not to Review', async () => {
-  const { env, id } = await seed({
+const localPending = [{ id: 'p_0000000000000001', status: 'pending', by: 'video-editor', at: '2026-11-18T10:00:00.000Z', link: 'D:\\HGP-work\\final.mp4' }];
+const proofStatus = async (db, pid) => (await db.prepare('SELECT status FROM bot_proofs WHERE id = ?').bind(pid).first()).status;
+
+test('planted fault: QC passing the newest proof of a non-internal card with no https link is refused (409); a fail sends it back', async () => {
+  const { db, env, id } = await seed({ owner: 'video-editor', project: 'home-guide-press', status: 'qc', proofs: localPending });
+  const r = await pass(env, 'p_0000000000000001');
+  assert.equal(r.status, 409, JSON.stringify(r.body));
+  assert.match(r.body.error, /https link Jon can open/);
+  assert.equal(await proofStatus(db, 'p_0000000000000001'), 'pending');
+  assert.equal((await card(env, id)).status, 'qc');
+  const f = await call(env, 'POST', '/proofs/p_0000000000000001/check', { bot: 'qc', body: { result: 'failed', note: 'Review needs an https link' } });
+  assert.equal(f.status, 200, JSON.stringify(f.body));
+  assert.equal((await card(env, id)).status, 'doing');
+});
+
+test('stage hand-offs: a local-path pass on a pack stage, or a bare-project deploy stage, is allowed and the card stays in qc', async () => {
+  const pack = await seed({ owner: 'video-editor', project: 'home-guide-press', stage: 'pack', status: 'qc', proofs: localPending });
+  const a = await pass(pack.env, 'p_0000000000000001');
+  assert.deepEqual([a.status, a.body.task?.status], [200, 'qc'], JSON.stringify(a.body));
+  const deploy = await seed({ owner: 'developer', project: null, stage: 'deploy', status: 'qc', proofs: localPending });
+  const b = await pass(deploy.env, 'p_0000000000000001');
+  assert.deepEqual([b.status, b.body.task?.status], [200, 'qc'], JSON.stringify(b.body));
+});
+
+test('a pass on an older local-path proof is allowed (it never sends the card to Review)', async () => {
+  const { env } = await seed({
     owner: 'video-editor', project: 'home-guide-press', status: 'qc',
-    proofs: [{ id: 'p_0000000000000001', status: 'pending', by: 'video-editor', at: '2026-11-18T10:00:00.000Z', link: 'D:\\HGP-work\\final.mp4' }],
+    proofs: [...localPending, { id: 'p_0000000000000002', status: 'pending', by: 'video-editor', at: '2026-11-18T11:00:00.000Z', link: 'https://jonmac.ai/review/x' }],
   });
   const r = await pass(env, 'p_0000000000000001');
-  assert.equal(r.body.task.status, 'doing');
-  assert.ok((await card(env, id)).history.some((h) => /^status qc → doing \(QC passed; not ready for Review: its newest proof has no https link/.test(h.detail)));
+  assert.deepEqual([r.status, r.body.task?.status], [200, 'qc'], JSON.stringify(r.body));
+});
+
+test('race: a QC fail landing between the Review check and the UPDATE is caught by the UPDATE guard', async () => {
+  const { db, env, id } = await seed({
+    owner: 'sponsors', project: 'sponsors', status: 'doing',
+    proofs: [{ id: 'p_0000000000000001', status: 'passed', by: 'sponsors', at: '2026-11-18T10:00:00.000Z', checkedBy: 'qc', checkedAt: '2026-11-18T10:05:00.000Z', link: 'https://jonmac.ai/review/deal-1' }],
+  });
+  const prepare = db.prepare;
+  let fired = false;
+  db.prepare = (sql) => {
+    if (!fired && sql.startsWith('UPDATE bot_tasks SET') && sql.includes('status = ?')) {
+      fired = true;
+      db.sqlite.exec("UPDATE bot_proofs SET status = 'failed' WHERE id = 'p_0000000000000001'");
+    }
+    return prepare(sql);
+  };
+  const r = await toReview(env, id, 'sponsors');
+  assert.ok(fired, 'the UPDATE ran');
+  assert.equal(r.status, 409, JSON.stringify(r.body));
+  db.prepare = prepare;
+  assert.equal((await card(env, id)).status, 'doing');
+});
+
+test('a passed newest proof with no checked_at is refused as not checked by QC', async () => {
+  const { env, id } = await seed({
+    owner: 'sponsors', project: 'sponsors', status: 'doing',
+    proofs: [{ id: 'p_0000000000000001', status: 'passed', by: 'sponsors', at: '2026-11-18T10:00:00.000Z', checkedBy: 'qc', link: 'https://jonmac.ai/review/deal-1' }],
+  });
+  const r = await toReview(env, id, 'sponsors');
+  assert.equal(r.status, 409);
+  assert.match(r.body.error, /not checked by QC/);
 });
