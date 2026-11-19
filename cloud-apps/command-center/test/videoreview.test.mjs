@@ -306,6 +306,11 @@ test('the review link convention: proof links (and only exact slugs) tie a task 
   assert.equal((await linkedTask(db, SLUG)).id, task.id, 'the video card, though the Coding card is newer and in Review');
   await db.prepare('DELETE FROM bot_proofs WHERE task_id = ?').bind(task.id).run();
   assert.equal(await linkedTask(db, SLUG), null, 'a Coding card alone is not the video card');
+  // 2026-11-19: a slug over ~40 characters made a LIKE pattern past D1's 50-byte limit (sqliteD1 enforces it too).
+  const long = `${'long-slug-'.repeat(8)}v1`; // 82 characters
+  const longTask = await videoTask(env, 'doing', `https://jonmac.ai/dashboard/review/${long.toUpperCase()}?k=x`);
+  assert.equal((await linkedTask(db, long)).id, longTask.id, 'a long slug links, any case, with a query');
+  assert.equal(await linkedTask(db, long.slice(0, -1)), null, 'a prefix of it is another video');
 
   assert.equal(deliverableLink({ link: `https://jonmac.ai/review/${SLUG}?k=x`, kind: 'render' }),
     `<a class="pjdeliv" href="/dashboard/review/${SLUG}" target="_blank" rel="noopener">Open review</a>`);

@@ -250,10 +250,12 @@ async function listVideos(env) {
 const getVideo = (env, slug) => env.DB.prepare(`${VIDEO_LIST} WHERE v.slug = ?`).bind(slug).first();
 
 // Rows for every version of a video (the slug stem, as the review list groups them), newest first.
+// No LIKE on a slug anywhere: D1 refuses a LIKE/GLOB pattern over 50 bytes, which a long slug passes (2026-11-19: every
+// upload of a 51+ character slug got a 500). substr / instr / exact compares have no such limit.
 async function stemRows(env, table, columns, slug) {
   const s = stem(slug);
-  const { results } = await env.DB.prepare(`SELECT ${columns} FROM ${table} WHERE slug = ? OR slug LIKE ? ORDER BY created_at DESC LIMIT 500`)
-    .bind(s, `${s}-v%`).all();
+  const { results } = await env.DB.prepare(`SELECT ${columns} FROM ${table} WHERE slug = ?1 OR substr(slug, 1, length(?2)) = ?2 ORDER BY created_at DESC LIMIT 500`)
+    .bind(s, `${s}-v`).all();
   return results.filter((r) => stem(r.slug) === s);
 }
 
@@ -499,7 +501,7 @@ const slotStem = (slot) => stem(slot);
 async function slugGroup(env, slug) {
   const s = stem(slug);
   const { results } = await env.DB.prepare(`SELECT name, title, slugs FROM review_groups
-    WHERE json_valid(slugs) AND (slugs LIKE ? OR slugs LIKE ?) ORDER BY created_at DESC, name`).bind(`%"${s}"%`, `%"${s}-v%`).all();
+    WHERE json_valid(slugs) AND (instr(slugs, ?) > 0 OR instr(slugs, ?) > 0) ORDER BY created_at DESC, name`).bind(`"${s}"`, `"${s}-v`).all();
   for (const row of results) {
     let slugs = [];
     try { slugs = JSON.parse(row.slugs); } catch {}
@@ -509,12 +511,14 @@ async function slugGroup(env, slug) {
   }
   return null;
 }
+// v.slug is the stem j.value or a version of it (j.value-v...), without a LIKE pattern (see stemRows).
+const SLOT_MATCH = "v.slug = j.value OR substr(v.slug, 1, length(j.value) + 2) = j.value || '-v'";
 // Every published version of every video in the slots, newest first.
 async function slotRows(env, slugs) {
   const stems = [...new Set(slugs.filter((x) => typeof x === "string").map(slotStem))];
   if (!stems.length) return [];
   const { results } = await env.DB.prepare(`SELECT v.slug, v.video_key, v.created_at FROM videos v
-    WHERE EXISTS (SELECT 1 FROM json_each(?) j WHERE v.slug = j.value OR v.slug LIKE j.value || '-v%') ORDER BY v.created_at DESC`)
+    WHERE EXISTS (SELECT 1 FROM json_each(?) j WHERE ${SLOT_MATCH}) ORDER BY v.created_at DESC`)
     .bind(JSON.stringify(stems)).all();
   const want = new Set(stems);
   return results.filter((r) => want.has(stem(r.slug)));
@@ -552,7 +556,7 @@ async function groupPage(env, name, prefix) {
     `No review group called “${name}”.`, prefix), 404);
   // A slot is a video: it shows the newest published version of it (ig-reel-1-v1 in the list shows ig-reel-1-v2).
   const stems = [...new Set(group.slugs.map(slotStem))];
-  const rows = stems.length ? (await env.DB.prepare(`${VIDEO_LIST} WHERE EXISTS (SELECT 1 FROM json_each(?) j WHERE v.slug = j.value OR v.slug LIKE j.value || '-v%') ORDER BY v.created_at DESC`)
+  const rows = stems.length ? (await env.DB.prepare(`${VIDEO_LIST} WHERE EXISTS (SELECT 1 FROM json_each(?) j WHERE ${SLOT_MATCH}) ORDER BY v.created_at DESC`)
     .bind(JSON.stringify(stems)).all()).results.filter((r) => stems.includes(stem(r.slug))) : [];
   const visible = await visibleSlugs(env, rows);
   const newest = new Map();

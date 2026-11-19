@@ -35,10 +35,13 @@ export const reviewSlug = (link) => REVIEW_LINK.exec(String(link || ''))?.[1].to
 
 // The task a review video belongs to: one with that review page as proof, a task in review first, then the newest proof.
 // A Coding card that cites the page as a test of the tool isn't the video's card, so it never takes its notes or Approve.
+// The link ends in /review/<slug> or has it followed by / ? or #. No LIKE: D1 refuses a LIKE pattern over 50 bytes, which
+// a long slug passes (2026-11-19); substr / instr have no limit. lower() keeps LIKE's ASCII case-insensitivity.
 export async function linkedTask(db, slug) {
   const { results } = await db.prepare(`SELECT t.*, p.link AS review_link FROM bot_proofs p JOIN bot_tasks t ON t.id = p.task_id
-    WHERE (p.link LIKE ? OR p.link LIKE ? OR p.link LIKE ? OR p.link LIKE ?) AND t.status NOT IN ('cancelled', 'deleted') AND t.project IS NOT 'coding'
-    ORDER BY t.status = 'review' DESC, p.created_at DESC LIMIT 20`).bind(...['', '/%', '?%', '#%'].map((end) => `%/review/${slug}${end}`)).all();
+    WHERE (substr(lower(p.link), -length(?1)) = ?1 OR instr(lower(p.link), ?1 || '/') > 0 OR instr(lower(p.link), ?1 || '?') > 0 OR instr(lower(p.link), ?1 || '#') > 0)
+    AND t.status NOT IN ('cancelled', 'deleted') AND t.project IS NOT 'coding'
+    ORDER BY t.status = 'review' DESC, p.created_at DESC LIMIT 20`).bind(`/review/${String(slug).toLowerCase()}`).all();
   return (results || []).find((r) => reviewSlug(r.review_link) === slug) || null;
 }
 

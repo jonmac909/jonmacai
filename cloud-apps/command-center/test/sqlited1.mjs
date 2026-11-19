@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 const MIGRATIONS = join(dirname(fileURLToPath(import.meta.url)), '..', 'migrations');
 
 export function sqliteD1() {
-  const db = new DatabaseSync(':memory:');
+  const db = new DatabaseSync(':memory:', { limits: { likePatternLength: 50 } }); // D1's own limit: a LIKE/GLOB pattern over 50 bytes fails
   for (const f of readdirSync(MIGRATIONS).filter((n) => n.endsWith('.sql')).sort()) {
     db.exec(readFileSync(join(MIGRATIONS, f), 'utf8'));
   }
