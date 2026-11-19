@@ -280,6 +280,25 @@ export async function logEvent(db, taskId, at, by, kind, detail) {
   }
 }
 
+// A cancelled card takes its asks with it (Jon, 2026-11-19), on every path that cancels one: pending and approved
+// approvals are cancelled and open questions close, so nothing waits on Jon or runs for a dead card. Claimed (running)
+// and finished approvals stay. One history line when anything moved. Returns what moved, for Review's Undo.
+async function clearAsks(db, id, by, now, note = 'card cancelled') {
+  const rows = async (sql) => (await db.prepare(sql).bind(id).all()).results || [];
+  const qs = (await rows("SELECT id FROM bot_questions WHERE task_id = ? AND status = 'open'")).map((r) => r.id);
+  const as = await rows("SELECT id, status, done_note FROM bot_approvals WHERE task_id = ? AND status IN ('pending', 'approved')");
+  let closed = 0;
+  let withdrawn = 0;
+  for (const q of qs) {
+    closed += changed(await db.prepare("UPDATE bot_questions SET status = 'closed', closed_by = ?, closed_at = ?, updated_at = ? WHERE id = ? AND status = 'open'").bind(by, now, now, q).run()) ? 1 : 0;
+  }
+  for (const a of as) {
+    withdrawn += changed(await db.prepare("UPDATE bot_approvals SET status = 'cancelled', done_by = ?, done_at = ?, done_note = ?, updated_at = ? WHERE id = ? AND status = ?").bind(by, now, note, now, a.id, a.status).run()) ? 1 : 0;
+  }
+  if (closed + withdrawn) await logEvent(db, id, now, by, 'status', `card cancelled: withdrew ${withdrawn} approvals, closed ${closed} questions`);
+  return { questions: qs, approvals: as };
+}
+
 // Done means proof: qc needs a proof QC hasn't failed, review and done need one QC passed.
 // A proof that supports a review: QC passed it after Jon last sent the task back (an older pass doesn't count).
 const PASSED_SINCE_SENT_BACK = "SELECT 1 FROM bot_proofs p WHERE p.task_id = bot_tasks.id AND p.status = 'passed' AND p.checked_at > "
@@ -353,6 +372,7 @@ async function updateTask(db, who, id, body, now) {
   for (const [key, value] of Object.entries(next)) {
     if ((row[key] ?? null) !== value) await logEvent(db, id, now, who.bot, key, `${key} ${row[key] ?? 'none'} → ${value ?? 'none'}`);
   }
+  if (next.status === 'cancelled' && row.status !== 'cancelled') await clearAsks(db, id, who.bot, now);
   return json({ ok: true, task: taskOut(await taskRow(db, id)) });
 }
 
@@ -378,10 +398,7 @@ export async function tickTask(db, env, ctx, id, body, now, extra = {}) {
   }
   await logEvent(db, id, now, 'jon', tick ? 'tick' : 'status', tick ? 'ticked done'
     : close ? `status ${task.status} → cancelled (closed by Jon)` : `status review → ${status} (${comment ? 'sent back' : 'approved'} by Jon)`);
-  if (close) { // its open asks go with it, so nothing approves or answers work on a closed card
-    await db.prepare("UPDATE bot_questions SET status = 'closed', closed_by = 'jon', closed_at = ?, updated_at = ? WHERE task_id = ? AND status = 'open'").bind(now, now, id).run();
-    await db.prepare("UPDATE bot_approvals SET status = 'cancelled', done_by = 'jon', done_at = ?, done_note = 'card closed', updated_at = ? WHERE task_id = ? AND status = 'pending'").bind(now, now, id).run();
-  }
+  if (close) await clearAsks(db, id, 'jon', now); // its open asks go with it, so nothing approves or answers work on a closed card
   if (!comment) return json({ ok: true, task: taskOut(row) });
   const c = await postComment(db, env, ctx, { jon: true }, row, comment, now, { ...(close ? { closed: true } : { sentBack: true }), ...extra });
   return json({ ok: true, task: taskOut(row), comment: commentOut(c) });
@@ -955,7 +972,7 @@ async function needsAct(db, env, ctx, id, verb, now) {
 
 // ---- Review "Discard" (Jon, 2026-11-17): an item leaves the Review list, nothing is deleted ----
 // Jon only. A card in Review goes to cancelled (updated_by jon, so no bot can reopen it and the dispatcher, which only
-// restarts cards in doing, leaves it) with the note "Discarded by Jon on Review"; its open questions and pending approvals
+// restarts cards in doing, leaves it) with the note "Discarded by Jon on Review"; its open questions and pending or approved approvals
 // close with it, as with Close card. A question closes, an approval is cancelled, a sponsor draft is only hidden.
 // review_discards keeps the item with status 'discarded', and what Undo needs to put it all back exactly.
 export const DISCARD_NOTE = 'Discarded by Jon on Review';
@@ -982,16 +999,15 @@ async function reviewDiscard(db, body, now) {
     const row = await taskRow(db, id);
     if (!row) throw new Bad(404, 'Card not found');
     if (row.status !== 'review') throw new Bad(409, `Card is ${row.status.replace(/_/g, ' ')}; only a card in Review can be discarded`);
-    const qs = ((await db.prepare("SELECT id FROM bot_questions WHERE task_id = ? AND status = 'open'").bind(id).all()).results || []).map((r) => r.id);
-    const as = ((await db.prepare("SELECT id FROM bot_approvals WHERE task_id = ? AND status = 'pending'").bind(id).all()).results || []).map((r) => r.id);
     const note = row.note ? `${DISCARD_NOTE}\n\n${row.note}` : DISCARD_NOTE;
     const r = await db.prepare("UPDATE bot_tasks SET status = 'cancelled', note = ?, done_at = NULL, updated_by = 'jon', updated_at = ? WHERE id = ? AND status = 'review'")
       .bind(note.slice(0, 4000), now, id).run();
     if (!changed(r)) throw new Bad(409, 'This card left Review just now');
-    Object.assign(undo, { note: row.note ?? null, updatedAt: row.updated_at, questions: qs, approvals: as });
-    for (const q of qs) await db.prepare("UPDATE bot_questions SET status = 'closed', closed_by = 'jon', closed_at = ?, updated_at = ? WHERE id = ? AND status = 'open'").bind(now, now, q).run();
-    for (const a of as) await db.prepare("UPDATE bot_approvals SET status = 'cancelled', done_by = 'jon', done_at = ?, done_note = ?, updated_at = ? WHERE id = ? AND status = 'pending'").bind(now, DISCARD_NOTE, now, a).run();
     await logEvent(db, id, now, 'jon', 'status', 'status review → cancelled (discarded by Jon on Review)');
+    const asks = await clearAsks(db, id, 'jon', now, DISCARD_NOTE);
+    Object.assign(undo, { note: row.note ?? null, updatedAt: row.updated_at, questions: asks.questions,
+      approvals: asks.approvals.filter((a) => a.status === 'pending').map((a) => a.id),
+      approved: asks.approvals.filter((a) => a.status === 'approved').map((a) => ({ id: a.id, note: a.done_note ?? null })) });
     cardId = id;
   } else if (kind === 'q') {
     const r = await db.prepare("UPDATE bot_questions SET status = 'closed', closed_by = 'jon', closed_at = ?, updated_at = ? WHERE id = ? AND status = 'open'").bind(now, now, id).run();
@@ -1035,6 +1051,7 @@ async function reviewUndo(db, body, now) {
     if (!changed(r)) throw new Bad(409, 'This card changed since it was discarded, so it was not restored');
     for (const q of undo.questions || []) await db.prepare("UPDATE bot_questions SET status = 'open', closed_by = NULL, closed_at = NULL, updated_at = ? WHERE id = ? AND status = 'closed' AND closed_by = 'jon' AND closed_at = ?").bind(now, q, rec.discarded_at).run();
     for (const a of undo.approvals || []) await db.prepare("UPDATE bot_approvals SET status = 'pending', done_by = NULL, done_at = NULL, done_note = NULL, updated_at = ? WHERE id = ? AND status = 'cancelled' AND done_by = 'jon' AND done_note = ?").bind(now, a, DISCARD_NOTE).run();
+    for (const a of undo.approved || []) await db.prepare("UPDATE bot_approvals SET status = 'approved', done_by = NULL, done_at = NULL, done_note = ?, updated_at = ? WHERE id = ? AND status = 'cancelled' AND done_by = 'jon' AND done_note = ?").bind(a.note, now, a.id, DISCARD_NOTE).run();
     await logEvent(db, id, now, 'jon', 'status', 'status cancelled → review (discard undone by Jon on Review)');
   } else if (kind === 'q') {
     const r = await db.prepare("UPDATE bot_questions SET status = 'open', closed_by = NULL, closed_at = NULL, updated_at = ? WHERE id = ? AND status = 'closed' AND closed_by = 'jon' AND closed_at = ?").bind(now, id, rec.discarded_at).run();
