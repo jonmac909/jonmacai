@@ -8,6 +8,7 @@ export const SECRETS = {
   REVIEW_PASSCODE: "test-passcode-42",
   REVIEW_SESSION_SECRET: "session-secret-0123456789abcdef0123",
   REVIEW_API_TOKEN: "agent-token-0123456789abcdef01234567",
+  REVIEW_GATE: "off", // the older tests post without gate markers; gate.test.mjs turns it on
 };
 
 const root = new URL("../", import.meta.url);

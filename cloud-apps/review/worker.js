@@ -610,6 +610,28 @@ async function groupApi(request, env, agent, [name, action, extra]) {
   return json({ group: await getGroup(env, name), page_url: `${new URL(request.url).origin}/review/g/${name}` });
 }
 
+// Bot writes to a page go through the gates (card t_857032018ae54620, VIDEO.md review-page rules). /publish must carry
+// tools/review_publish.mjs's publish_gate.py PASS for the very file it publishes (gate.sha256 = video_sha256, no stubs);
+// /meta and /source writes must carry tools/review_edit.mjs's marker, X-Review-Gate: review_edit:<sha256 of the exact body>.
+// Agent token only: Jon's browser and the dashboard's reviewer pages never write these. REVIEW_GATE=off is for local tests.
+const GATED = { publish: ["POST"], meta: ["POST"], source: ["POST", "DELETE"] };
+async function gateRefusal(request, env, resource) {
+  if (env.REVIEW_GATE === "off" || !GATED[resource]?.includes(request.method)) return null;
+  const raw = new Uint8Array(await request.clone().arrayBuffer());
+  if (resource === "publish") {
+    let body = null;
+    try { body = JSON.parse(new TextDecoder().decode(raw)); } catch { /* publishApi answers bad JSON with 400 */ }
+    const gate = body?.gate;
+    const sha = typeof body?.video_sha256 === "string" ? body.video_sha256.toLowerCase() : "";
+    const passed = gate && gate.verdict === "PASS" && /^[0-9a-f]{64}$/.test(sha) && String(gate.sha256 || "").toLowerCase() === sha
+      && (gate.stubbed === undefined || (Array.isArray(gate.stubbed) && !gate.stubbed.length));
+    return passed ? null : fail(403, "publish_gate_required: publish only with tools/review_publish.mjs, which sends publish_gate.py's PASS for this file");
+  }
+  const marker = /^review_edit:([0-9a-f]{64})$/.exec(request.headers.get("X-Review-Gate") || "");
+  const digest = [...new Uint8Array(await crypto.subtle.digest("SHA-256", raw))].map((b) => b.toString(16).padStart(2, "0")).join("");
+  return marker && marker[1] === digest ? null : fail(403, `edit_gate_required: ${resource} edits go only through tools/review_edit.mjs`);
+}
+
 async function api(request, env, url) {
   const who = await caller(request, env);
   const { agent, reviewer } = who;
@@ -645,6 +667,10 @@ async function api(request, env, url) {
 
   if (resource === "uploads" || resource === "publish" || resource === "source" || resource === "meta") {
     if (!agent) return fail(403, "agent_token_required");
+    if (id === undefined) {
+      const refused = await gateRefusal(request, env, resource);
+      if (refused) return refused;
+    }
     return publishApi(request, env, url, slug, resource, id, action);
   }
 
