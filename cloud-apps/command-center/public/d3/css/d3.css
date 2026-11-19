@@ -1324,6 +1324,8 @@ html[data-theme="dark"] body{background:#0b0b0c}
 .d3 .eoslegend .eosv{padding:0 4px;border-radius:4px}
 .d3 .eosrows{display:flex;flex-direction:column}
 .d3 .eosrow{display:flex;gap:10px;justify-content:space-between;flex-wrap:wrap;padding:10px 0;border-top:1px solid var(--line)}
+.d3 .eosrow:first-child{border-top:0}
 .d3 .eosmain{display:flex;flex-direction:column;gap:2px;min-width:0;flex:1 1 14rem;overflow-wrap:anywhere}
 .d3 .eosside{display:flex;gap:8px;align-items:center}
 .d3 .eossum{white-space:pre-line;margin:0 0 6px}
+@media (max-width:760px){.d3 .eostbl .eosnum{min-width:8.5rem}}
