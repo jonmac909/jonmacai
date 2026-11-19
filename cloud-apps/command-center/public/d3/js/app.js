@@ -17,6 +17,7 @@ import { dealDrag, dealDragging } from './dealdrag.js';
 import { renderPersonal, mnavHtml, moneyBizHtml, personalClick, personalChange, personalInput, personalSubmit, personalPaste, personalKey, personalPopOpen, personalDrag, personalAfter, nowParts } from './personal.js';
 import { renderFactory, syncFactory } from './factory.js';
 import { renderTrack, trackSub } from './track.js';
+import { renderEos, eosKeep, eosAfter } from './eos.js';
 import { renderHome, homeClick, homeChange, homeInput, homeSubmit, homeKeep, homeAfter, homeHints, setColour, savedColours, nowOf } from './home.js';
 // The old Track page's own renderer and sort state, loaded from /dashboard (as Dashboard 2 does) the first time Track opens.
 const OLD_TRACK = '/dashboard/js/pages/track.js';
@@ -24,7 +25,7 @@ let oldTrack = null;
 
 // Home is the Goals page (Jacqueline's handover): #goals and any unknown hash draw it.
 // Team, Blockers, Scripts and System were removed from the menu and the routes (Jon, 2026-11-16): their hashes now draw Home. Their data and APIs are untouched.
-const PAGES = { home: 'Goals', factory: 'Factory', track: 'Track', review: 'Review', hyper: 'Hyper', personal: 'Personal', money: 'Money', bluesky: 'Bluesky', cards: 'Cards' };
+const PAGES = { home: 'Goals', factory: 'Factory', track: 'Track', review: 'Review', hyper: 'Hyper', personal: 'Personal', money: 'Money', bluesky: 'Bluesky', cards: 'Cards', eos: 'EOS' };
 const SIGNIN = 'd3-signin';
 const main = document.getElementById('main');
 // Review state that belongs to one item: cleared when the item or the page changes.
@@ -99,6 +100,10 @@ function render() {
     S.ui.incMonth = null;
     loadIncome().then(() => { if (page() === 'money') render(); });
   }
+  if (p === 'eos' && S.ui.lastPage !== 'eos' && !S.signedOut) { // EOS (eos.js): each open starts with a fresh read of GET /dashboard/api/v1/eos
+    S.eos = undefined;
+    loadEos().then(() => { if (page() === 'eos') render(); });
+  }
   if (p !== 'money' && S.ui.lastPage === 'money') S.ui.dealSel = null; // leaving Money clears the picked deal's outline
   S.ui.lastPage = p;
   // The Factory page counts "updated N s ago" on the server's clock: its time at the last load plus the time since.
@@ -107,6 +112,7 @@ function render() {
     main.innerHTML = `${note}${renderCards(S.d2, S.cards, S.ui)}`;
     return;
   }
+  if (p === 'eos') { const keep = eosKeep(main); main.innerHTML = `${note}${renderEos(S.d2, S.eos, route()[1], Date.now())}`; eosAfter(main, keep); return; }
   if (p === 'track') { main.innerHTML = `${note}${renderTrack(S.track, trackSub(location.hash), oldTrack?.track)}`; return; }
   if (p === 'hyper') { // drawn once: a redraw would reload the app in its frame
     if (S.signedOut) { main.innerHTML = `${headerOnly(S.d2, 'Hyper')}${note}`; return; }
@@ -202,6 +208,14 @@ async function loadCards() {
     const c = await getJson('/dashboard/api/cards');
     S.cards = c.signedOut ? null : c.body || null;
   } catch { S.cards = null; }
+}
+
+// The EOS page's tabs (GET /dashboard/api/v1/eos). A failed read keeps the last answer; with none the page says so.
+async function loadEos() {
+  try {
+    const r = await getJson('/dashboard/api/v1/eos');
+    if (!r.signedOut) S.eos = r.body?.ok === false ? (S.eos || null) : r.body || null;
+  } catch { if (!S.eos) S.eos = null; }
 }
 
 // Home's saved tasks, Jon's own goals and his calendar week. A failed read keeps the last ones; the page says so when there are none.
@@ -301,6 +315,7 @@ async function load() {
   }
   if (page() === 'review' && !S.signedOut) await loadThreads();
   if (page() === 'cards' && !S.signedOut) await loadCards();
+  if (page() === 'eos' && !S.signedOut && S.ui.lastPage === 'eos') await loadEos(); // the 60 s refresh; the first read is in render()
   if (page() === 'money' && !S.signedOut && S.ui.lastPage === 'money') await loadIncome(); // the 60 s refresh; the first read is in render()
   rail();
   // Don't redraw under Jon's typing (a Review answer, send-back note or draft edit); the next load or click redraws.

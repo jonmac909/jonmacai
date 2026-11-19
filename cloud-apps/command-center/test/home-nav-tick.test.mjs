@@ -136,7 +136,7 @@ test('clicking a meeting tick shows at once, posts id + day + done, then reloads
 
 // ---------- 2. sidebar order ----------
 
-const NAV = ['home', 'factory', 'track', 'review', 'hyper', 'personal', 'money', 'bluesky', 'cards'];
+const NAV = ['home', 'factory', 'track', 'review', 'hyper', 'personal', 'money', 'bluesky', 'cards', 'eos'];
 
 test('nav order: save, read back, new and removed pages, reset', async () => {
   const { env, w, read } = setup();
@@ -145,9 +145,9 @@ test('nav order: save, read back, new and removed pages, reset', async () => {
   assert.deepEqual(await w('/nav-order', { order: mine }), { status: 200, body: { ok: true, order: mine } });
   assert.deepEqual((await read()).navOrder, mine);
   // what the menu shows: his order, then the pages he never placed in their built-in places
-  assert.deepEqual(orderOf(NAV, mine), ['money', 'home', 'cards', 'factory', 'track', 'review', 'hyper', 'personal', 'bluesky']);
+  assert.deepEqual(orderOf(NAV, mine), ['money', 'home', 'cards', 'factory', 'track', 'review', 'hyper', 'personal', 'bluesky', 'eos']);
   // a page removed since (unknown id) is dropped; a page added later goes last; repeats count once
-  assert.deepEqual(orderOf([...NAV, 'newpage'], ['gone', 'cards', 'cards', 'home']), ['cards', 'home', 'factory', 'track', 'review', 'hyper', 'personal', 'money', 'bluesky', 'newpage']);
+  assert.deepEqual(orderOf([...NAV, 'newpage'], ['gone', 'cards', 'cards', 'home']), ['cards', 'home', 'factory', 'track', 'review', 'hyper', 'personal', 'money', 'bluesky', 'eos', 'newpage']);
   assert.deepEqual(orderOf(NAV, null), NAV);
   assert.deepEqual(orderOf(NAV, 'junk'), NAV);
   // a second save replaces the first (one row)
@@ -204,8 +204,8 @@ const idsOf = (nav) => nav.kids.map((k) => k.dataset.nav);
 
 test('the menu is rearranged to the saved order, a badge moves with its link, the Reset link shows only when the order differs', () => {
   const nav = fakeNav(NAV);
-  assert.deepEqual(applyOrder(nav, ['money', 'review', 'home']), ['money', 'review', 'home', 'factory', 'track', 'hyper', 'personal', 'bluesky', 'cards']);
-  assert.deepEqual(idsOf(nav), ['money', 'review', 'home', 'factory', 'track', 'hyper', 'personal', 'bluesky', 'cards']);
+  assert.deepEqual(applyOrder(nav, ['money', 'review', 'home']), ['money', 'review', 'home', 'factory', 'track', 'hyper', 'personal', 'bluesky', 'cards', 'eos']);
+  assert.deepEqual(idsOf(nav), ['money', 'review', 'home', 'factory', 'track', 'hyper', 'personal', 'bluesky', 'cards', 'eos']);
   assert.equal(nav.kids.find((k) => k.dataset.nav === 'review').badge, 'Review count 3'); // same element, so its badge went with it
   assert.equal(nav.resetBtn.hidden, false);
   applyOrder(nav, null);
@@ -272,7 +272,7 @@ test('a finger drags only after a hold; moving first is a scroll; a cancelled dr
   assert.notDeepEqual(saved[0], NAV);
 });
 
-test('index.html keeps the nine links in the built-in order and has the Reset link; app.js wires the saved order', () => {
+test('index.html keeps the ten links in the built-in order and has the Reset link; app.js wires the saved order', () => {
   const index = readFileSync(new URL('../public/d3/index.html', import.meta.url), 'utf8');
   assert.deepEqual([...index.matchAll(/<a href="#([a-z]+)" data-nav="([a-z]+)">/g)].map((m) => m[1]), NAV);
   assert.match(index, /<\/nav>\n<button type="button" class="navreset" id="navReset" hidden>Reset menu order<\/button>/);
