@@ -1,12 +1,11 @@
 // EOS page (Jon, 2026-11-18; card t_75395eabd6774bdc): Scorecard, Rocks, Issues, Meetings and Your queue, the same
 // tabs as the old /dashboard EOS page (public/js/pages/eos.js), drawn in the Dashboard 3 style. Data: GET /dashboard/api/v1/eos
 // (src/bots.js, src/eos.js); nothing is typed into the page. #eos/<tab> picks the tab, anything else is the Scorecard.
-// Pure functions (tests run them without a browser), plus eosKeep / eosAfter for the scorecard's sideways scroll.
+// Pure functions (tests run them without a browser), plus eosKeep / eosAfter to keep open scorecard lines open on redraw.
 import { esc } from './util.js';
 import { headerOnly } from './goals.js';
 
 export const EOS_TABS = [['scorecard', 'Scorecard'], ['rocks', 'Rocks'], ['issues', 'Issues'], ['meetings', 'Meetings'], ['queue', 'Your queue']];
-const NODATA = '<span class="mut">no data yet</span>';
 const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const STATUS = { todo: 'To do', doing: 'Doing', qc: 'In QC', review: 'In review', done: 'Done', blocked: 'Blocked', waiting_on_jon: 'Waiting on you', cancelled: 'Cancelled' };
@@ -35,34 +34,76 @@ const empty = (text) => `<section class="card"><p class="mut">${esc(text)}</p></
 const statusPill = (s) => pill(STATUS[s] || String(s || '').replace(/_/g, ' '), STATUS_CLS[s] || '');
 const proof = (url) => (/^https:\/\//i.test(url || '') ? `<a href="${esc(url)}" target="_blank" rel="noopener">Proof</a>` : '<span class="mut">No proof yet</span>');
 
-function money(v, unit) {
-  const n = Number(v);
-  if (unit === '$') return `${n < 0 ? '-' : ''}$${Math.abs(n).toLocaleString('en-US', { maximumFractionDigits: 2 })}`;
-  const s = n.toLocaleString('en-US', { maximumFractionDigits: 2 });
-  return unit && unit !== '#' ? `${s}${unit === '%' ? '%' : ` ${esc(unit)}`}` : s;
+// Scorecard colour (Jon, 2026-11-18; card t_e28750c475be4838), one rule for every cell:
+// 'off' red = off goal; 'behind' amber = only this week, under a day behind the pro-rata pace; 'part' grey = the number's
+// oldest data week when it held only part of a week (no verdict); 'nodata' grey = nothing to judge. A lower-is-better
+// number (op '<=') is off once it passes its goal, this week too (73 corrections vs a goal of 10 is red). Past weeks are
+// red or green, never amber. A Rock with a due date is judged at its due date.
+const has = (v) => v !== null && v !== undefined && v !== '' && Number.isFinite(Number(v));
+export function eosTone({ value, op, goal, current = false, elapsed = 7, rate = false, due = '', weekEnd = '', part = false } = {}) {
+  if (!has(value) || !has(goal)) return 'nodata';
+  if (part && !current) return 'part';
+  if (due && weekEnd && weekEnd < due) return 'ok';
+  const v = Number(value);
+  const g = Number(goal);
+  if (op === '<=') return v > g ? 'off' : 'ok';
+  if (!current || rate) return v >= g ? 'ok' : 'off';
+  const d = Math.min(7, Math.max(1, Number(elapsed) || 7));
+  if (v >= (g * d) / 7) return 'ok';
+  return v >= (g * (d - 1)) / 7 ? 'behind' : 'off';
 }
 
-// Always 13 Vancouver Monday weeks, oldest left and this week right; a week the feed has no value for says "no data yet".
+// Plain numbers in chips and tiles (the unit is said once, under the name); 2,000 is 2.0k.
+const num = (v) => { const n = Number(v); const a = Math.abs(n); return a >= 1000 ? `${n < 0 ? '-' : ''}${(a / 1000).toFixed(a >= 10000 ? 0 : 1)}k` : n.toLocaleString('en-US', { maximumFractionDigits: 1 }); };
+const big = (v, unit) => (unit === '$' ? `${Number(v) < 0 ? '-' : ''}$${num(Math.abs(Number(v)))}` : `${num(v)}${unit === '%' ? '%' : ''}`);
+const plusDays = (ymd, n) => new Date(Date.parse(`${ymd}T12:00:00Z`) + n * DAY_MS).toISOString().slice(0, 10);
+const goalShort = (t) => String(t || '').replace(/(\s*\([^()]*\))+\s*$/, '');
+const ORDER = { off: 0, behind: 1, ok: 2, part: 3, nodata: 4 };
+
+// Seat list (mockup A): KPI boxes, then each person's numbers, off-goal lines first. One line per number: last 3 weeks as
+// chips, this week big on the right; tap the line for every week that has data. No 13-column table.
 export function scorecardHtml(sc, now = Date.now()) {
   if (!sc || !Array.isArray(sc.weeks) || !Array.isArray(sc.numbers)) return empty('Scorecard: no data yet. The scorecard script has not posted it.');
-  const weeks = weeks13(now).map((start, i) => ({ start, current: i === 12 }));
-  const head = `<tr><th class="eosnum">Number</th>${weeks.map((w) => `<th class="eoswk${w.current ? ' cur' : ''}">${w.current ? 'This week<br>' : ''}${md(w.start)}</th>`).join('')}</tr>`;
-  const rows = sc.numbers.map((n) => {
-    const byWeek = new Map((n.values || []).map((v) => [v.week, v]));
-    const cells = weeks.map((w) => {
-      const v = byWeek.get(w.start);
-      if (!v || v.status === 'nodata' || v.value === null || v.value === undefined || v.value === '' || !Number.isFinite(Number(v.value))) return `<td class="eosv nodata">${NODATA}</td>`;
-      const cls = ['ok', 'off', 'partial'].includes(v.status) ? v.status : 'ok';
-      return `<td class="eosv ${cls}"${v.note ? ` title="${esc(v.note)}"` : ''}>${money(v.value, n.unit)}</td>`;
-    }).join('');
-    const hand = n.handKeyed ? ` ${pill('hand-keyed', 'warn')}` : '';
-    return `<tr><td class="eosnum"><b>${esc(n.name)}</b>${hand}<small>${esc(n.owner)} · ${esc(n.goal?.text || '')}</small></td>${cells}</tr>`;
-  }).join('');
+  const weeks = weeks13(now);
   const gen = Date.parse(sc.generated || sc.postedAt || '');
+  const at = Number.isFinite(gen) && mondayOf(gen) === weeks[12] ? gen : now;
+  const elapsed = ((new Date(`${vanYmd(at)}T12:00:00Z`).getUTCDay() + 6) % 7) + 1;
+  const rows = sc.numbers.map((n) => {
+    const vals = new Map((n.values || []).filter((v) => v && v.status !== 'nodata' && has(v.value) && weeks.includes(v.week)).map((v) => [v.week, v]));
+    const oldest = [...vals.keys()].sort()[0];
+    const tone = (w, i) => { const v = vals.get(w); return v ? eosTone({ value: v.value, op: n.goal?.op, goal: n.goal?.value, current: i === 12, elapsed, rate: n.unit === '%', due: n.goal?.due, weekEnd: plusDays(w, 6), part: w === oldest && v.status === 'partial' }) : 'nodata'; };
+    return { n, vals, tone, now: tone(weeks[12], 12), person: String(n.owner || 'No owner').split(/[\s(]/)[0] };
+  });
+  const tracked = rows.filter((r) => r.vals.size);
+  const untracked = rows.filter((r) => !r.vals.size);
+  const count = (t, list = tracked) => list.filter((r) => r.now === t).length;
+  const tip = (w, t, v) => ` title="${md(w)}${t === 'part' ? ', part week' : ''}${v.note ? `: ${esc(v.note)}` : ''}"`;
+  const line = (r) => {
+    const { n, vals, tone } = r;
+    const unit = n.unit && !['$', '%', '#'].includes(n.unit) ? ` · ${n.unit}` : '';
+    const hand = n.handKeyed || /^hand-keyed/i.test(n.source || '') ? ', typed in' : '';
+    const chips = [9, 10, 11].map((i) => { const w = weeks[i]; const v = vals.get(w); const t = tone(w, i); return v ? `<i class="eosc ${t}"${tip(w, t, v)}>${num(v.value)}</i>` : `<i class="eosc nodata" title="${md(w)}: no data">-</i>`; }).join('');
+    const cur = vals.get(weeks[12]);
+    const tiles = weeks.map((w, i) => { const v = vals.get(w); if (!v) return ''; const t = tone(w, i); return `<span class="eost ${t}"${tip(w, t, v)}><small>${i === 12 ? 'Now' : md(w)}${t === 'part' ? ' part' : ''}</small><b>${num(v.value)}</b></span>`; }).join('');
+    const def = n.definition ? ` · ${esc(n.definition)}` : '';
+    return `<details class="eosln" data-id="${esc(n.id || n.name)}"><summary><span class="eosnm"><b>${esc(n.name)}</b><small>goal ${esc(goalShort(n.goal?.text))}${esc(unit)}${hand}</small></span><span class="eoschips">${chips}</span><span class="eosnow ${r.now}">${cur ? big(cur.value, n.unit) : '-'}</span></summary><div class="eoshist"><div class="eostiles">${tiles}</div><p class="mut">Goal: ${esc(n.goal?.text || '')}${def}</p></div></details>`;
+  };
+  const people = [...new Set(tracked.map((r) => r.person))];
+  const seats = people.map((p) => {
+    const list = tracked.filter((r) => r.person === p).sort((a, b) => ORDER[a.now] - ORDER[b.now]);
+    const names = [...new Set(list.map((r) => r.n.seat).filter(Boolean))];
+    const off = count('off', list);
+    const behind = count('behind', list);
+    const tag = off ? `<em class="off">${off} off</em>` : behind ? `<em class="behind">${behind} behind</em>` : '<em class="ok">on goal</em>';
+    return `<div class="eosseat"><span>${esc(p)}${names.length ? `, ${esc(names.join(' and '))}` : ''}</span>${tag}</div>${list.map(line).join('')}`;
+  }).join('');
+  const behind = count('behind');
+  const kpi = `<div class="eoskpi"><span class="off"><b>${count('off')}</b>off goal</span>${behind ? `<span class="behind"><b>${behind}</b>behind pace</span>` : ''}<span class="ok"><b>${count('ok')}</b>on goal</span><span class="nodata"><b>${untracked.length}</b>not tracked</span></div>`;
+  const notTracked = untracked.length ? `<details class="eosln eosoff" data-id="_untracked"><summary>Not tracked yet (${untracked.length}): ${untracked.map((r) => esc(r.n.name)).join(', ')}</summary><ul>${untracked.map(({ n }) => `<li><b>${esc(n.name)}</b> · ${esc(n.owner || 'no owner')} · goal ${esc(n.goal?.text || '')}${n.no_data_how ? ` · ${esc(n.no_data_how)}` : ''}</li>`).join('')}</ul></details>` : '';
   const stale = Number.isFinite(gen) && now - gen > 7 * DAY_MS ? ' · over a week old' : '';
   const meta = Number.isFinite(gen) ? `Updated ${md(vanYmd(gen))} ${vanHm(gen)}${stale}` : '';
-  return section('Scorecard', meta, `<p class="mut eoslegend"><span class="eosv off">red</span> = off goal · <span class="eosv partial">amber</span> = part of the week · hand-keyed = typed in by its owner, not read by a script</p>
-<div class="eoswrap"><table class="eostbl"><thead>${head}</thead><tbody>${rows}</tbody></table></div>`);
+  const legend = `<p class="mut eoslegend">Chips: ${[9, 10, 11].map((i) => md(weeks[i])).join(', ')}. Big number: this week, day ${elapsed} of 7. Red = off goal · amber = this week, under a day behind pace · grey = no data or a part week. Off-goal lines sit first in each seat; tap a line for every week.</p>`;
+  return `<section class="card eossc"><div class="hd cardhd"><h2>Scorecard</h2>${meta ? `<span class="mut sp">${meta}</span>` : ''}</div>${kpi}${seats}${notTracked}${legend}</section>`;
 }
 
 function cardRows(list) {
@@ -115,12 +156,14 @@ export function renderEos(d2resp, data, sub, now = Date.now()) {
 <div class="eos" data-tab="${tab}">${body}</div>`;
 }
 
-// The scorecard opens scrolled to this week (right end); a redraw of the same tab keeps where Jon scrolled it.
+// The 60 s redraw keeps the scorecard lines Jon opened open (matched by data-id).
+const openSel = '.eos[data-tab="scorecard"] details';
+const idOf = (d) => d.dataset?.id ?? d.getAttribute?.('data-id');
 export function eosKeep(main) {
-  const wrap = main?.querySelector?.('.eos[data-tab="scorecard"] .eoswrap');
-  return wrap ? wrap.scrollLeft : null;
+  const list = main?.querySelectorAll?.(`${openSel}[open]`);
+  return list ? [...list].map(idOf) : null;
 }
 export function eosAfter(main, keep) {
-  const wrap = main?.querySelector?.('.eos[data-tab="scorecard"] .eoswrap');
-  if (wrap) wrap.scrollLeft = keep ?? wrap.scrollWidth;
+  if (!keep?.length) return;
+  for (const d of main?.querySelectorAll?.(`${openSel}[data-id]`) || []) if (keep.includes(idOf(d))) d.open = true;
 }
