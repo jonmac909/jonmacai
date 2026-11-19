@@ -1304,3 +1304,28 @@ html[data-theme="dark"] body{background:#0b0b0c}
 .d3 .ckacs{display:flex;flex-direction:column;gap:4px;min-width:0;flex:1 1 220px}
 .d3 .ckac{display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 8px;min-width:0}
 .d3 button.cklink{color:var(--link)}
+/* EOS page (Jon, 2026-11-18; js/eos.js): tab links, 13-week scorecard with a sticky number column, Rock / Issue / queue rows. */
+.d3 .eostabs{gap:6px;flex-wrap:wrap;padding:0 4px}
+.d3 .eostabs a[aria-current]{background:var(--ink);border-color:var(--ink);color:var(--card)}
+.d3 .eos{display:flex;flex-direction:column;gap:16px;min-width:0}
+.d3 .eoswrap{overflow-x:auto}
+.d3 .eostbl{border-collapse:collapse;min-width:62rem;font-size:13px}
+.d3 .eostbl th,.d3 .eostbl td{padding:8px 10px;white-space:nowrap;border-bottom:1px solid var(--line);text-align:right}
+.d3 .eostbl th{background:var(--card2);color:var(--muted);font-weight:500;font-size:12px}
+.d3 .eostbl th.eoswk.cur{color:var(--ink);font-weight:600}
+.d3 .eostbl .eosnum{position:sticky;left:0;z-index:1;background:var(--card);min-width:11rem;white-space:normal;text-align:left;box-shadow:1px 0 0 var(--line)}
+.d3 .eostbl th.eosnum{background:var(--card2)}
+.d3 .eosnum small{display:block;color:var(--muted)}
+.d3 .eosv.ok{color:var(--ok-ink)}
+.d3 .eosv.off{color:var(--bad-ink);background:color-mix(in srgb,var(--bad) 12%,transparent);font-weight:600}
+.d3 .eosv.partial{color:var(--warn-ink);background:color-mix(in srgb,var(--warn) 13%,transparent)}
+.d3 .eosv.nodata{font-size:12px}
+.d3 .eoslegend{margin:0 0 8px}
+.d3 .eoslegend .eosv{padding:0 4px;border-radius:4px}
+.d3 .eosrows{display:flex;flex-direction:column}
+.d3 .eosrow{display:flex;gap:10px;justify-content:space-between;flex-wrap:wrap;padding:10px 0;border-top:1px solid var(--line)}
+.d3 .eosrow:first-child{border-top:0}
+.d3 .eosmain{display:flex;flex-direction:column;gap:2px;min-width:0;flex:1 1 14rem;overflow-wrap:anywhere}
+.d3 .eosside{display:flex;gap:8px;align-items:center}
+.d3 .eossum{white-space:pre-line;margin:0 0 6px}
+@media (max-width:760px){.d3 .eostbl .eosnum{min-width:8.5rem}}

@@ -140,9 +140,9 @@ test('Cards page wiring: one new menu item, a Cards route, writes only through t
   const read = (p) => readFileSync(new URL(p, import.meta.url), 'utf8');
   const index = read('../public/d3/index.html');
   assert.equal((index.match(/data-nav="cards"/g) || []).length, 1);
-  assert.match(index, /<a href="#cards" data-nav="cards">.*<\/svg>Cards<\/a>\n<\/nav>/);
+  assert.match(index, /<a href="#cards" data-nav="cards">.*<\/svg>Cards<\/a>\n<a href="#eos" data-nav="eos">/); // EOS (eos.js) is the one link after Cards
   const app = read('../public/d3/js/app.js');
-  assert.match(app, /cards: 'Cards' \};/);
+  assert.match(app, /cards: 'Cards', eos: 'EOS' \};/);
   assert.match(app, /GET \/dashboard\/api\/cards/);
   const js = read('../public/d3/js/cards.js');
   assert.deepEqual([...js.matchAll(/call\('(POST|GET)', `([^`]+)`/g)].map((m) => `${m[1]} ${m[2].replace(/\$\{[^}]+\}/g, ':id')}`).sort(),
