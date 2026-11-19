@@ -181,6 +181,27 @@ test('stage hand-offs: a local-path pass on a pack stage, or a bare-project depl
   assert.deepEqual([b.status, b.body.task?.status], [200, 'qc'], JSON.stringify(b.body));
 });
 
+test("planted fault (Ana): a Jon's ask card with no project in deploy, newest proof local-only, goes back to its owner for https", async () => {
+  for (const title of ["Jon's ask: live GPU Monitor", 'Jon’s ask: curly apostrophe']) {
+    const { db, env, id } = await seed({ title, owner: 'developer', project: null, stage: 'deploy', status: 'qc', proofs: localPending });
+    const r = await pass(env, 'p_0000000000000001');
+    assert.equal(r.status, 409, `${title}: ${JSON.stringify(r.body)}`);
+    assert.match(r.body.error, /https link Jon can open/);
+    assert.equal(await proofStatus(db, 'p_0000000000000001'), 'pending', 'the local-only proof is not passed');
+    assert.equal((await card(env, id)).status, 'qc', 'never moved to Review');
+    const f = await call(env, 'POST', '/proofs/p_0000000000000001/check', { bot: 'qc', body: { result: 'failed', note: 'Review needs an https link' } });
+    assert.equal(f.status, 200, JSON.stringify(f.body));
+    const back = await card(env, id);
+    assert.deepEqual([back.status, back.owner], ['doing', 'developer'], 'back with its owner for an https proof');
+  }
+  // Clean case: the same card with an https proof passes and the dispatcher's --status review move goes through.
+  const ok = await seed({ title: "Jon's ask: live GPU Monitor", owner: 'developer', project: null, stage: 'deploy', status: 'qc',
+    proofs: [{ id: 'p_0000000000000003', status: 'pending', by: 'developer', at: '2026-11-18T10:00:00.000Z', link: 'https://jonmac.ai/monitor' }] });
+  const p = await pass(ok.env, 'p_0000000000000003');
+  assert.equal(p.status, 200, JSON.stringify(p.body));
+  assert.equal((await card(ok.env, ok.id)).status, 'review');
+});
+
 test('a pass on an older local-path proof is allowed (it never sends the card to Review)', async () => {
   const { env } = await seed({
     owner: 'video-editor', project: 'home-guide-press', status: 'qc',

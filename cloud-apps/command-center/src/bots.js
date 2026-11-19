@@ -599,11 +599,15 @@ const REVIEW_READY = reviewReady();
 // (every stage in card_stages.json but each type's last), and a card with no project at a coding stage (the
 // dispatcher makes it a coding card when it closes it). The server sees a card's stage only once the dispatcher has
 // handed it on, so a first stage (video brief, sponsor-video script, coding build) on a non-internal card still needs
-// an https link.
+// an https link. A "Jon's ask" card with no project is the exception (Ana, 2026-11-19): after its last stage passes,
+// the dispatcher leaves it in Review for Jon rather than closing it, so a local-path pass is refused here and QC's fail
+// sends it back to its owner for an https proof, never a failed Review move.
 const HANDOFF_STAGES = ['brief', 'script', 'pack', 'edit', 'sponsor review', 'build'];
 const CODING_STAGES = ['build', 'deploy'];
+// As card_dispatch.py JONS_ASK_RE reads it: the title starts with "Jon's ask" (straight or curly apostrophe).
+const JONS_ASK = /^\s*jon['’]s ask/i;
 const passNeedsHttps = (t) => !isInternal(t) && !HANDOFF_STAGES.includes(norm(t.stage))
-  && !(norm(t.project) === '' && CODING_STAGES.includes(norm(t.stage)));
+  && !(norm(t.project) === '' && CODING_STAGES.includes(norm(t.stage)) && !JONS_ASK.test(String(t.title ?? '')));
 
 // POST tasks/:id/close {note?}: review -> done for an internal card whose newest proof QC passed. Everything else is refused.
 async function closeTask(db, who, id, body, now) {
