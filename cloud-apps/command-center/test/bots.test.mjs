@@ -187,9 +187,10 @@ test('proof: Ana rules only on proof QC posted itself', async () => {
   // 2. Ana is refused on anyone else's proof, and on a missing one.
   assert.equal((await call(env, 'POST', `/proofs/${devProof.id}/check`, { token: ana, body: { result: 'passed' } })).status, 403);
   assert.equal((await call(env, 'POST', '/proofs/p_0000000000000000/check', { token: ana, body: { result: 'passed' } })).status, 403);
-  // 1. Ana passes QC's own proof; the record names Ana.
+  // 1. Ana passes QC's own proof; the record names Ana. The card stays in qc: developer's proof is newer and still
+  // pending, and Review needs the newest proof passed.
   const ok = await call(env, 'POST', `/proofs/${qcProof.id}/check`, { token: ana, body: { result: 'passed', note: 'report reads right' } });
-  assert.deepEqual([ok.status, ok.body.proof.status, ok.body.proof.checkedBy, ok.body.task.status], [200, 'passed', 'ana', 'review']);
+  assert.deepEqual([ok.status, ok.body.proof.status, ok.body.proof.checkedBy, ok.body.task.status], [200, 'passed', 'ana', 'qc']);
   const { history } = (await call(env, 'GET', `/tasks/${task.id}`, { bot: 'qc' })).body.task;
   assert.ok(history.some((e) => e.kind === 'check' && e.by === 'ana' && e.detail === 'proof passed'), 'history shows Ana as checker');
 
