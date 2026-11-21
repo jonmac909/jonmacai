@@ -6,6 +6,7 @@ import { reviewProxy } from './videoreview.js';
 import { reviewHook } from './reviewhook.js';
 import { trackRedirect } from './track.js';
 import { skoolRedirect, handleTracker } from './skool.js';
+import { syncOnNewVersion } from './skoolroutes.js';
 import { runSequence, SEQ_CRON } from './skoolseq.js';
 import { FILE_PREFIX, serveProofFile, uploadProofFile } from './prooffiles.js';
 import { MONITOR, handleMonitor } from './monitor.js';
@@ -66,6 +67,7 @@ function versionResponse(env) {
 
 export default {
   async fetch(request, env, ctx) {
+    syncOnNewVersion(env, ctx); // once per isolate: a new version puts back the Skool slug routes its deploy dropped
     const url = new URL(request.url);
     // Only the separate preview Worker (wrangler --env preview, its own D1) answers on workers.dev.
     if (url.hostname.endsWith('.workers.dev') && env.PREVIEW !== '1') return new Response('Not found', { status: 404 });
