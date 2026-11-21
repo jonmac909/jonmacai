@@ -39,6 +39,9 @@ const RESERVED_PREFIX = ['yt', 'team', 'review', 'tasks', 'agency', 'clone'];
 export const ROUTED_SLUGS = new Set(['ai-agents-hacking', 'astra-seedance', 'astra-ugc-ads', 'astra62-test', 'claude-editing', 'fable52-motion', 'ig',
   'ig-affiliate-page', 'jonmacbiz', 'macframes', 'mythos52', 'popover-test', 'tt']);
 export const slugLive = (env, slug) => env.PREVIEW === '1' || ROUTED_SLUGS.has(slug);
+// The link to hand out: jonmac.ai/<slug> once its route is live, else the old /s/ form, which always reaches this Worker.
+const shortLink = (origin, slug, live) => `${origin}/${live ? '' : 's/'}${slug}`;
+// Note: the "ig*" and "tt*" routes also take main-site paths that start with ig or tt (none exist today; checked 2026-11-21).
 export const reservedSlug = (slug) => RESERVED.has(slug) || RESERVED_PREFIX.some((p) => slug.startsWith(p));
 
 async function findLink(env, slug) {
@@ -76,7 +79,7 @@ export async function skoolRedirect(request, env, ctx) {
   if (!SLUG_RE.test(slug) || !['GET', 'HEAD', 'POST'].includes(request.method)) return forward(new URL(SKOOL));
   const link = await findLink(env, slug);
   if (!link) return forward(skoolTo(slug)); // unknown slug: forward, count nothing
-  if (request.method !== 'POST' && !reservedSlug(slug)) {
+  if (request.method !== 'POST' && !reservedSlug(slug) && slugLive(env, slug)) { // no route yet: /<slug> would hit the main site's 404
     return new Response(null, { status: 301, headers: { Location: `${url.origin}/${slug}${url.search}`, ...NO_STORE } });
   }
   return serveLink(request, env, ctx, slug, link); // POST, or an old slug that is now a route name: served here as before
@@ -278,8 +281,8 @@ async function addLink(request, env, nowMs) {
     .bind(slug, title, yt || null, iso(nowMs)).run();
   if (!r.meta?.changes) return json({ error: 'That slug is taken' }, 409);
   const live = slugLive(env, slug);
-  return json({ ok: true, url: `${new URL(request.url).origin}/${slug}`, live,
-    ...(live ? {} : { note: `Saved. jonmac.ai/${slug} starts working when its route ships with the next dashboard deploy; until then the page shows "not live yet".` }) }, 201);
+  return json({ ok: true, url: shortLink(new URL(request.url).origin, slug, live), live,
+    ...(live ? {} : { note: `Saved. Use jonmac.ai/s/${slug} for now: jonmac.ai/${slug} needs its route added in code (a dashboard card for Lucy). The /s/ link keeps working after that.` }) }, 201);
 }
 
 // Per-link email step switch. Only Jon's session turns it on; every link starts off.
@@ -314,7 +317,7 @@ const HOW = { email: 'email match (exact)', answer: 'their answer (exact)', esti
 
 export function trackerPage(data, origin) {
   const rows = data.rows.map((r) => `<tr><td>${r.youtube_url ? `<a href="${esc(r.youtube_url)}" target="_blank" rel="noopener">${esc(r.title)}</a>` : esc(r.title)}</td>
-<td>${esc(r.slug)}</td><td><button class="copy" data-url="${esc(`${origin}/${r.slug}`)}">${esc(`${origin.replace(/^https?:\/\//, '')}/${r.slug}`)}</button>${r.live === false ? ' <span class="est" title="needs its jonmac.ai route: ships with the next dashboard deploy">not live yet</span>' : ''}</td>
+<td>${esc(r.slug)}</td><td><button class="copy" data-url="${esc(shortLink(origin, r.slug, r.live !== false))}">${esc(shortLink(origin, r.slug, r.live !== false).replace(/^https?:\/\//, ''))}</button>${r.live === false ? ' <span class="est" title="jonmac.ai/' + esc(r.slug) + ' needs its route added in code; this link works now and after">temporary link</span>' : ''}</td>
 <td class="n">${r.clicks.d7}</td><td class="n">${r.clicks.d30}</td><td class="n">${r.clicks.all}</td><td class="n">${r.emails}</td>
 <td class="n">${r.sales}${r.estimated ? ` <span class="est" title="estimated from the last click">+${r.estimated} est.</span>` : ''}</td><td class="n">${pct(r.conversion)}</td>
 <td><button class="cap" data-slug="${esc(r.slug)}" data-on="${r.capture ? 1 : 0}" aria-pressed="${r.capture}">${r.capture ? 'On' : 'Off'}</button></td></tr>`).join('');

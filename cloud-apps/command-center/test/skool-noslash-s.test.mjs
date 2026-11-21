@@ -106,19 +106,26 @@ test('every path this Worker routes, and every slug route in wrangler.jsonc, agr
   for (const s of slugRoutes) assert.equal(reservedSlug(s), false, `route jonmac.ai/${s}* is a reserved name`);
 });
 
-test('a new link without its production route says so on the add reply and on /track; previews need no route', async () => {
+test('a new link without its production route gets the working /s/ link (no 301 to a dead /<slug>); previews need no route', async () => {
   const e = env();
   const r = await add(e, 'brand-new-vid');
   assert.equal(r.status, 201);
   const j = await r.json();
   assert.equal(j.live, false);
-  assert.match(j.note, /next dashboard deploy/);
+  assert.equal(j.url, 'https://jonmac.ai/s/brand-new-vid');
+  assert.match(j.note, /route added in code/);
+  const s = await go(e, '/s/brand-new-vid');
+  assert.notEqual(s.status, 301); // served on /s/ as before: pop-over, one click
+  assert.equal(s.status, 200);
+  assert.equal(await clicks(e), 1);
   await add(e, 'mythos52');
   const html = await (await go(e, '/track', { jon: true })).text();
-  assert.match(html, /jonmac\.ai\/brand-new-vid<\/button> <span class="est"[^>]*>not live yet/);
-  assert.doesNotMatch(html, /jonmac\.ai\/mythos52<\/button> <span/);
+  assert.match(html, /data-url="https:\/\/jonmac\.ai\/s\/brand-new-vid">jonmac\.ai\/s\/brand-new-vid<\/button> <span class="est"[^>]*>temporary link/);
+  assert.match(html, /data-url="https:\/\/jonmac\.ai\/mythos52">jonmac\.ai\/mythos52<\/button><\/td>/);
   const p = { ...e, PREVIEW: '1' };
   const pr = await (await go(p, '/track/api/links', { method: 'POST', jon: true, body: { slug: 'prev-vid', title: 'T' } })).json();
   assert.equal(pr.live, true);
+  assert.equal(pr.url, 'https://jonmac.ai/prev-vid');
   assert.equal(pr.note, undefined);
+  assert.equal((await go(p, '/s/prev-vid')).status, 301);
 });
