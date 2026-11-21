@@ -79,6 +79,19 @@
     // Skool email sequence (src/skoolseq.js, off until Jon switches it on): secrets RESEND_API_KEY and RESEND_WEBHOOK_SECRET (Resend webhook to https://jonmac.ai/track/api/resend);
     // optional vars SKOOL_FROM, SKOOL_REPLY_TO, SKOOL_BUSINESS and SKOOL_ADDRESS (the real mailing address: real sends stay paused while it is unset).
     { "pattern": "jonmac.ai/s/*", "zone_name": "jonmac.ai" },
+    // Skool tracker links at the root (Jon 2026-11-21): one route per slug, the apex site owns every other path
+    { "pattern": "jonmac.ai/ai-agents-hacking", "zone_name": "jonmac.ai" },
+    { "pattern": "jonmac.ai/astra-seedance", "zone_name": "jonmac.ai" },
+    { "pattern": "jonmac.ai/astra-ugc-ads", "zone_name": "jonmac.ai" },
+    { "pattern": "jonmac.ai/astra62-test", "zone_name": "jonmac.ai" },
+    { "pattern": "jonmac.ai/claude-editing", "zone_name": "jonmac.ai" },
+    { "pattern": "jonmac.ai/fable52-motion", "zone_name": "jonmac.ai" },
+    { "pattern": "jonmac.ai/ig", "zone_name": "jonmac.ai" },
+    { "pattern": "jonmac.ai/ig-affiliate-page", "zone_name": "jonmac.ai" },
+    { "pattern": "jonmac.ai/jonmacbiz", "zone_name": "jonmac.ai" },
+    { "pattern": "jonmac.ai/macframes", "zone_name": "jonmac.ai" },
+    { "pattern": "jonmac.ai/mythos52", "zone_name": "jonmac.ai" },
+    { "pattern": "jonmac.ai/tt", "zone_name": "jonmac.ai" },
     { "pattern": "jonmac.ai/track", "zone_name": "jonmac.ai" },
     { "pattern": "jonmac.ai/track/*", "zone_name": "jonmac.ai" },
     // Live GPU Monitor (src/monitor.js).
