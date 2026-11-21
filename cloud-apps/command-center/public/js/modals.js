@@ -75,25 +75,26 @@ export const askModal = (it) => `<ul class="qlist">${needItem(it)}</ul>`;
 
 let shown = null; // the task in the card modal: { id, label }
 
+// Resolves to the loaded task, null if it could not load, false if closed or replaced meanwhile (a question or approval: its item).
 export function openCard(id, page) {
   const dlg = document.getElementById('cardModal');
   const lanes = page?.projects || [];
   // A Feed row's task may be off the board (cancelled, or done over a week ago): its card loads all the same.
   const item = lanes.flatMap((l) => l.columns.flatMap((c) => c.items)).find((i) => i.id === id)
     || (/^t_[0-9a-f]{16}$/.test(id) ? { id, kind: 'task', title: 'Task' } : null);
-  if (!dlg || !item) return;
+  if (!dlg || !item) return null;
   shown = item.kind === 'task' ? { id, label: (slug) => lanes.find((l) => l.slug === (slug || 'unsorted'))?.label || slug } : null;
   dlg.setAttribute('aria-label', item.title);
   dlg.querySelector('.cmbody').innerHTML = shown ? `<h2>${esc(item.title)}</h2><p class="muted cmload">Loading…</p>` : askModal(item);
   if (!dlg.open) dlg.showModal();
-  if (shown) loadTask(dlg);
+  return shown ? loadTask(dlg) : item;
 }
 
 async function loadTask(dlg) {
   const want = shown;
   const res = await fetch(`${PREFIX}/api/v1/tasks/${encodeURIComponent(want.id)}`).catch(() => null);
   const j = res?.ok ? await res.json().catch(() => null) : null;
-  if (shown !== want || !dlg.open) return null; // closed, or another card opened meanwhile
+  if (shown !== want || !dlg.open) return false; // closed, or another card opened meanwhile
   const body = dlg.querySelector('.cmbody');
   if (!j?.task) {
     if (body.querySelector('.cmload')) body.querySelector('.cmload').textContent = 'Could not load this task.';
@@ -158,7 +159,7 @@ async function sendComment(dlg, button, say) {
   }
 }
 
-export function bindModals({ say, act, go }) {
+export function bindModals({ say, act, go, page }) {
   const card = document.getElementById('cardModal');
   card?.addEventListener('input', (e) => { // the comment box grows with what Jon types
     if (!e.target.matches('.cmtext')) return;
@@ -193,8 +194,7 @@ export function bindModals({ say, act, go }) {
     draft.close();
     try {
       await act(kind, payload);
-      const id = (location.hash || '#today').replace(/^#/, '') || 'today';
-      await go(id, { refetch: true });
+      await go(page(), { refetch: true });
     } finally {
       sending = false;
       if (actn === 'send') b.disabled = false;
