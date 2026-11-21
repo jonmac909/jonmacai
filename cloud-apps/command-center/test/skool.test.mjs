@@ -89,6 +89,17 @@ test('/track needs a session; adding a link needs the session and X-CC', async (
   const page = await go(e, '/track', { jon: true });
   assert.equal(page.status, 200);
   const html = await page.text();
-  assert.match(html, /jonmac\.ai\/s\/ok-slug/);
+  assert.match(html, /jonmac\.ai\/ok-slug/);
   assert.match(html, /&lt;b&gt;t&lt;\/b&gt;/);
+});
+
+test('root short links (Jon 2026-11-21): jonmac.ai/<slug> works like /s/<slug>; routes win; unknown paths 404', async () => {
+  const e = env();
+  await go(e, '/track/api/links', { method: 'POST', jon: true, body: { slug: 'root-test', title: 'Root test' } });
+  const r = await go(e, '/root-test');
+  assert.ok([200, 302].includes(r.status), `root slug answered ${r.status}`);
+  assert.ok((await go(e, '/s/root-test')).status !== 404, 'old /s/ link still works');
+  assert.equal((await go(e, '/no-such-slug-here')).status, 404);
+  const add = await go(e, '/track/api/links', { method: 'POST', jon: true, body: { slug: 'root-two', title: 'Two' } });
+  assert.equal((await add.json()).url, 'https://jonmac.ai/root-two');
 });

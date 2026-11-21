@@ -1,4 +1,4 @@
-// Skool tracker (Jon, 2026-11-16): one short link per YouTube video, jonmac.ai/s/<slug>, that counts the click and
+// Skool tracker (Jon, 2026-11-16): one short link per YouTube video, jonmac.ai/<slug> (Jon 2026-11-21: no /s/; old /s/ links still work), that counts the click and
 // forwards to the Skool group. Paid members come in from Jon's Zapier zaps; /track shows clicks and sales per video.
 // Skool has no API or webhooks: Zapier's "New Paid Member" and "Answered Membership Questions" triggers POST here
 // with the SKOOL_ZAP_TOKEN secret. Attribution of a sale, best first: the buyer's email was captured on a link (the
@@ -25,8 +25,9 @@ const forward = (to) => new Response(null, { status: 302, headers: { Location: t
 // A link with the email step on (skool_links.capture = 1) shows a one-field page first; its POST stores the email and forwards.
 export async function skoolRedirect(request, env, ctx) {
   const url = new URL(request.url);
-  const slug = url.pathname.slice('/s/'.length).toLowerCase();
-  if (BG.has(slug)) return backdrop(request, env, slug); // the pop-over's screenshot backdrop (a slug has no dot, so no clash)
+  const old = url.pathname.startsWith('/s/');
+  const slug = url.pathname.slice(old ? 3 : 1).toLowerCase();
+  if (old && BG.has(slug)) return backdrop(request, env, slug); // the pop-over's screenshot backdrop (a slug has no dot, so no clash)
   const to = new URL(SKOOL);
   if (!SLUG_RE.test(slug) || !['GET', 'HEAD', 'POST'].includes(request.method)) return forward(to);
   to.searchParams.set('utm_source', 'youtube');
@@ -103,7 +104,7 @@ button:hover{background:#f5c961}button.alt{background:#eee;font-weight:500}butto
 <div class="bg" aria-hidden="true"></div><div class="dim" aria-hidden="true"></div>
 <div class="wrap"><main class="box" role="dialog" aria-modal="true" aria-labelledby="t">
 <h1 id="t">Enter your email to get access</h1>${error ? `<p class="err" role="alert">${esc(error)}</p>` : ''}
-<form method="post" action="/s/${esc(slug)}"><input type="email" name="email" placeholder="you@example.com" autocomplete="email" aria-label="Email" required autofocus maxlength="254" value="${esc(typed)}">
+<form method="post" action="/${esc(slug)}"><input type="email" name="email" placeholder="you@example.com" autocomplete="email" aria-label="Email" required autofocus maxlength="254" value="${esc(typed)}">
 ${suggestion ? `<input type="hidden" name="suggest" value="${esc(suggestion)}"><button type="submit" name="pick" value="fix">Yes, use ${esc(suggestion)}</button><button type="submit" name="pick" value="keep" class="alt">No, keep what I typed</button>` : '<button type="submit">Continue</button>'}</form></main></div></body></html>`;
   return new Response(html, { status, headers: { 'Content-Type': 'text/html; charset=utf-8', ...NO_STORE } });
 }
@@ -151,7 +152,7 @@ export function matchAnswer(answer, links) {
   const raw = String(answer).toLowerCase();
   for (const l of links) {
     const id = YT_RE.exec(l.youtube_url || '')?.[4];
-    if (raw.includes(`/s/${l.slug}`) || (id && String(answer).includes(id)) || (l.slug.length >= 6 && ` ${a} `.includes(` ${norm(l.slug)} `))) return l.slug; // short slugs like "ai" match too much
+    if (raw.includes(`/s/${l.slug}`) || raw.includes(`jonmac.ai/${l.slug}`) || (id && String(answer).includes(id)) || (l.slug.length >= 6 && ` ${a} `.includes(` ${norm(l.slug)} `))) return l.slug; // short slugs like "ai" match too much
   }
   for (const l of links) {
     const t = norm(l.title);
@@ -230,7 +231,7 @@ async function addLink(request, env, nowMs) {
   const r = await env.DB.prepare('INSERT OR IGNORE INTO skool_links (slug, title, youtube_url, created_at, capture) VALUES (?, ?, ?, ?, 1)')
     .bind(slug, title, yt || null, iso(nowMs)).run();
   if (!r.meta?.changes) return json({ error: 'That slug is taken' }, 409);
-  return json({ ok: true, url: `${new URL(request.url).origin}/s/${slug}` }, 201);
+  return json({ ok: true, url: `${new URL(request.url).origin}/${slug}` }, 201);
 }
 
 // Per-link email step switch. Only Jon's session turns it on; every link starts off.
@@ -265,7 +266,7 @@ const HOW = { email: 'email match (exact)', answer: 'their answer (exact)', esti
 
 export function trackerPage(data, origin) {
   const rows = data.rows.map((r) => `<tr><td>${r.youtube_url ? `<a href="${esc(r.youtube_url)}" target="_blank" rel="noopener">${esc(r.title)}</a>` : esc(r.title)}</td>
-<td>${esc(r.slug)}</td><td><button class="copy" data-url="${esc(`${origin}/s/${r.slug}`)}">${esc(`${origin.replace(/^https?:\/\//, '')}/s/${r.slug}`)}</button></td>
+<td>${esc(r.slug)}</td><td><button class="copy" data-url="${esc(`${origin}/${r.slug}`)}">${esc(`${origin.replace(/^https?:\/\//, '')}/${r.slug}`)}</button></td>
 <td class="n">${r.clicks.d7}</td><td class="n">${r.clicks.d30}</td><td class="n">${r.clicks.all}</td><td class="n">${r.emails}</td>
 <td class="n">${r.sales}${r.estimated ? ` <span class="est" title="estimated from the last click">+${r.estimated} est.</span>` : ''}</td><td class="n">${pct(r.conversion)}</td>
 <td><button class="cap" data-slug="${esc(r.slug)}" data-on="${r.capture ? 1 : 0}" aria-pressed="${r.capture}">${r.capture ? 'On' : 'Off'}</button></td></tr>`).join('');

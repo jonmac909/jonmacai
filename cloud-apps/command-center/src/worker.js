@@ -115,6 +115,13 @@ export default {
       return Response.redirect(url.toString(), 308);
     }
     if (url.pathname !== PREFIX && !url.pathname.startsWith(`${PREFIX}/`)) {
+      // Skool short links at the root, jonmac.ai/<slug> (Jon 2026-11-21): only after every route above, only known slugs.
+      const m = /^\/([a-z0-9][a-z0-9-]{0,38}[a-z0-9])$/i.exec(url.pathname);
+      if (m && env.DB) {
+        let known = null;
+        try { known = await env.DB.prepare('SELECT slug FROM skool_links WHERE slug = ?').bind(m[1].toLowerCase()).first(); } catch { /* table missing: 404 */ }
+        if (known) return skoolRedirect(request, env, ctx);
+      }
       return new Response('Not found', { status: 404 });
     }
     if (url.pathname.startsWith(FILE_PREFIX)) return serveProofFile(request, env);
