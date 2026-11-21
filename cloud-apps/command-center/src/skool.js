@@ -1,4 +1,4 @@
-// Skool tracker (Jon, 2026-11-16): one short link per YouTube video, jonmac.ai/s/<slug>, that counts the click and
+// Skool tracker (Jon, 2026-11-16): one short link per YouTube video, jonmac.ai/<slug>, that counts the click and
 // forwards to the Skool group. Paid members come in from Jon's Zapier zaps; /track shows clicks and sales per video.
 // Skool has no API or webhooks: Zapier's "New Paid Member" and "Answered Membership Questions" triggers POST here
 // with the SKOOL_ZAP_TOKEN secret. Attribution of a sale, best first: the buyer's email was captured on a link (the
@@ -20,25 +20,64 @@ const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '
 const iso = (ms) => new Date(ms).toISOString();
 const forward = (to) => new Response(null, { status: 302, headers: { Location: to.href, ...NO_STORE } });
 
-// GET /s/<slug>: forwards, so a viewer never hits a dead end; only known slugs and real GETs are counted.
+// GET /<slug>: counts the click and forwards (or shows the email pop-over first), so a viewer never hits a dead end.
 // UTM tags ride along (Skool keeps them on its /about page; checked 2026-11-16). Never ?ref=: that is Skool's affiliate tag.
 // A link with the email step on (skool_links.capture = 1) shows a one-field page first; its POST stores the email and forwards.
+// No /s/ in links (Jon, 2026-11-21): jonmac.ai/<slug> is the link. Every route and top-level path wins over a slug (RESERVED),
+// and a path that is no known slug stays a 404. Old jonmac.ai/s/<slug> links answer 301 to /<slug>, so the click counts once there.
+
+// Top-level names a slug can never take: this Worker's paths, every other jonmac.ai Worker route, and the main site's pages.
+export const RESERVED = new Set(['s', 'v', 'track', 'dashboard', 'dashboard-2', 'dash', 'scripts', 'monitor', 'twilio', 'api', 'assets', 'review',
+  'clone', 'agency', 'search', 'yt', 'yt2', 'team', 'tasks', 'batch', 'farm', 'watch', 'frame', 'sign', 'generator', 'www',
+  'agents', 'discover', 'settings', 'templates', 'login', 'logout', 'privacy', 'terms', 'call', 'index', 'favicon', 'robots', 'sitemap', 'cards']);
+// Routes written as "jonmac.ai/<name>*" also take every path that starts with the name (e.g. /clone-x goes to the clone Worker).
+const RESERVED_PREFIX = ['yt', 'team', 'review', 'tasks', 'agency', 'clone'];
+export const reservedSlug = (slug) => RESERVED.has(slug) || RESERVED_PREFIX.some((p) => slug.startsWith(p));
+
+async function findLink(env, slug) {
+  if (!env.DB) return null;
+  try { return await env.DB.prepare('SELECT capture FROM skool_links WHERE slug = ?').bind(slug).first(); } catch (err) {
+    console.error('skool link', err); // e.g. the capture column is missing before migration 0030: keep counting clicks, no email step
+    try { return await env.DB.prepare('SELECT slug FROM skool_links WHERE slug = ?').bind(slug).first(); } catch { return null; }
+  }
+}
+const skoolTo = (slug) => {
+  const to = new URL(SKOOL);
+  to.searchParams.set('utm_source', 'youtube');
+  to.searchParams.set('utm_medium', 'video');
+  to.searchParams.set('utm_campaign', slug);
+  return to;
+};
+
+// /<slug> (worker.js asks after every route): the response, or null when the path is no known slug (the caller 404s).
+export async function skoolSlug(request, env, ctx) {
+  const url = new URL(request.url);
+  const slug = url.pathname.slice(1).toLowerCase();
+  if (!SLUG_RE.test(slug) || reservedSlug(slug)) return null;
+  const link = await findLink(env, slug);
+  if (!link) return null;
+  if (!['GET', 'HEAD', 'POST'].includes(request.method)) return forward(skoolTo(slug));
+  return serveLink(request, env, ctx, slug, link);
+}
+
+// /s/<slug>: old links. A known slug answers 301 to /<slug> (query kept, nothing counted here). A POST from an old open
+// pop-over is still taken here (a 301 would drop the email). Anything else keeps its old answer: forward to Skool, count nothing.
 export async function skoolRedirect(request, env, ctx) {
   const url = new URL(request.url);
   const slug = url.pathname.slice('/s/'.length).toLowerCase();
   if (BG.has(slug)) return backdrop(request, env, slug); // the pop-over's screenshot backdrop (a slug has no dot, so no clash)
-  const to = new URL(SKOOL);
-  if (!SLUG_RE.test(slug) || !['GET', 'HEAD', 'POST'].includes(request.method)) return forward(to);
-  to.searchParams.set('utm_source', 'youtube');
-  to.searchParams.set('utm_medium', 'video');
-  to.searchParams.set('utm_campaign', slug);
-  if (!env.DB) return forward(to);
-  let link = null;
-  try { link = await env.DB.prepare('SELECT capture FROM skool_links WHERE slug = ?').bind(slug).first(); } catch (err) {
-    console.error('skool link', err); // e.g. the capture column is missing before migration 0030: keep counting clicks, no email step
-    try { link = await env.DB.prepare('SELECT slug FROM skool_links WHERE slug = ?').bind(slug).first(); } catch { /* unknown */ }
+  if (!SLUG_RE.test(slug) || !['GET', 'HEAD', 'POST'].includes(request.method)) return forward(new URL(SKOOL));
+  const link = await findLink(env, slug);
+  if (!link) return forward(skoolTo(slug)); // unknown slug: forward, count nothing
+  if (request.method !== 'POST' && !reservedSlug(slug)) {
+    return new Response(null, { status: 301, headers: { Location: `${url.origin}/${slug}${url.search}`, ...NO_STORE } });
   }
-  if (!link) return forward(to); // unknown slug: forward, count nothing
+  return serveLink(request, env, ctx, slug, link); // POST, or an old slug that is now a route name: served here as before
+}
+
+async function serveLink(request, env, ctx, slug, link) {
+  const url = new URL(request.url);
+  const to = skoolTo(slug);
   const capture = link.capture === 1;
   if (request.method === 'POST') {
     if (!capture) return forward(to);
@@ -103,7 +142,7 @@ button:hover{background:#f5c961}button.alt{background:#eee;font-weight:500}butto
 <div class="bg" aria-hidden="true"></div><div class="dim" aria-hidden="true"></div>
 <div class="wrap"><main class="box" role="dialog" aria-modal="true" aria-labelledby="t">
 <h1 id="t">Enter your email to get access</h1>${error ? `<p class="err" role="alert">${esc(error)}</p>` : ''}
-<form method="post" action="/s/${esc(slug)}"><input type="email" name="email" placeholder="you@example.com" autocomplete="email" aria-label="Email" required autofocus maxlength="254" value="${esc(typed)}">
+<form method="post" action="/${esc(slug)}"><input type="email" name="email" placeholder="you@example.com" autocomplete="email" aria-label="Email" required autofocus maxlength="254" value="${esc(typed)}">
 ${suggestion ? `<input type="hidden" name="suggest" value="${esc(suggestion)}"><button type="submit" name="pick" value="fix">Yes, use ${esc(suggestion)}</button><button type="submit" name="pick" value="keep" class="alt">No, keep what I typed</button>` : '<button type="submit">Continue</button>'}</form></main></div></body></html>`;
   return new Response(html, { status, headers: { 'Content-Type': 'text/html; charset=utf-8', ...NO_STORE } });
 }
@@ -151,7 +190,7 @@ export function matchAnswer(answer, links) {
   const raw = String(answer).toLowerCase();
   for (const l of links) {
     const id = YT_RE.exec(l.youtube_url || '')?.[4];
-    if (raw.includes(`/s/${l.slug}`) || (id && String(answer).includes(id)) || (l.slug.length >= 6 && ` ${a} `.includes(` ${norm(l.slug)} `))) return l.slug; // short slugs like "ai" match too much
+    if (new RegExp(`(jonmac\\.ai/(s/)?|/s/)${l.slug}(?![a-z0-9-])`).test(raw) || (id && String(answer).includes(id)) || (l.slug.length >= 6 && ` ${a} `.includes(` ${norm(l.slug)} `))) return l.slug; // short slugs like "ai" match too much
   }
   for (const l of links) {
     const t = norm(l.title);
@@ -224,13 +263,14 @@ async function addLink(request, env, nowMs) {
   const b = await body(request);
   const slug = field(b, 'slug').toLowerCase(), title = field(b, 'title').slice(0, 200), yt = field(b, 'youtube_url');
   if (!SLUG_RE.test(slug)) return json({ error: 'Slug: 2 to 40 lower-case letters, numbers or dashes' }, 400);
+  if (reservedSlug(slug)) return json({ error: `"${slug}" is a site page name, so jonmac.ai/${slug} cannot be a short link. Pick another slug.` }, 400);
   if (!title) return json({ error: 'Title is required' }, 400);
   if (yt && !YT_RE.test(yt)) return json({ error: 'YouTube URL must be a youtube.com or youtu.be video link' }, 400);
   // Email step on by default (Jon approved the pop-over, 2026-11-16); switch it off per link on /track.
   const r = await env.DB.prepare('INSERT OR IGNORE INTO skool_links (slug, title, youtube_url, created_at, capture) VALUES (?, ?, ?, ?, 1)')
     .bind(slug, title, yt || null, iso(nowMs)).run();
   if (!r.meta?.changes) return json({ error: 'That slug is taken' }, 409);
-  return json({ ok: true, url: `${new URL(request.url).origin}/s/${slug}` }, 201);
+  return json({ ok: true, url: `${new URL(request.url).origin}/${slug}` }, 201);
 }
 
 // Per-link email step switch. Only Jon's session turns it on; every link starts off.
@@ -265,7 +305,7 @@ const HOW = { email: 'email match (exact)', answer: 'their answer (exact)', esti
 
 export function trackerPage(data, origin) {
   const rows = data.rows.map((r) => `<tr><td>${r.youtube_url ? `<a href="${esc(r.youtube_url)}" target="_blank" rel="noopener">${esc(r.title)}</a>` : esc(r.title)}</td>
-<td>${esc(r.slug)}</td><td><button class="copy" data-url="${esc(`${origin}/s/${r.slug}`)}">${esc(`${origin.replace(/^https?:\/\//, '')}/s/${r.slug}`)}</button></td>
+<td>${esc(r.slug)}</td><td><button class="copy" data-url="${esc(`${origin}/${r.slug}`)}">${esc(`${origin.replace(/^https?:\/\//, '')}/${r.slug}`)}</button></td>
 <td class="n">${r.clicks.d7}</td><td class="n">${r.clicks.d30}</td><td class="n">${r.clicks.all}</td><td class="n">${r.emails}</td>
 <td class="n">${r.sales}${r.estimated ? ` <span class="est" title="estimated from the last click">+${r.estimated} est.</span>` : ''}</td><td class="n">${pct(r.conversion)}</td>
 <td><button class="cap" data-slug="${esc(r.slug)}" data-on="${r.capture ? 1 : 0}" aria-pressed="${r.capture}">${r.capture ? 'On' : 'Off'}</button></td></tr>`).join('');
@@ -275,7 +315,7 @@ export function trackerPage(data, origin) {
 <meta name="robots" content="noindex,nofollow"><title>Skool tracker</title><style>${BASE_CSS}</style></head><body>${nav('videos')}
 <h1>Skool tracker</h1>
 <div class="row"><button class="cap" id="reset" type="button">Reset stats</button><span id="since">${data.since ? `Since ${esc(data.since.slice(0, 16).replace('T', ' '))} UTC. <a href="#" id="undo">Undo reset</a>` : 'Showing all stats since the start.'}</span></div>
-<p>Every short link forwards to skool.com/ai-ugc. Sales come from Zapier. Exact = the buyer's email was captured on the link, or they named the video in their answer; "est." means neither, so the sale goes to the last link clicked in the 24 hours before it.</p>
+<p>Every short link (jonmac.ai/&lt;slug&gt;) forwards to skool.com/ai-ugc. A slug cannot be a site page name such as track or dash. Sales come from Zapier. Exact = the buyer's email was captured on the link, or they named the video in their answer; "est." means neither, so the sale goes to the last link clicked in the 24 hours before it.</p>
 <div class="wrap"><table><thead><tr><th>Video</th><th>Slug</th><th>Short link</th><th class="n">Clicks 7d</th><th class="n">30d</th><th class="n">All</th><th class="n">Leads</th><th class="n">Sales</th><th class="n">Conversion</th><th>Email step</th></tr></thead>
 <tbody>${rows || '<tr><td colspan="10">No links yet. Add one below.</td></tr>'}</tbody></table></div>
 <p>Email step: when On, the short link first asks for an email in a pop-over, then forwards to Skool. On for every new link.</p>

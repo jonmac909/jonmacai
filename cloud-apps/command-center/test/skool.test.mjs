@@ -24,7 +24,7 @@ test('a short link counts the click and forwards to Skool with UTM tags, never ?
   const e = env();
   assert.equal((await addLink(e, 'seedance-ugc', 'Seedance UGC', 'https://www.youtube.com/watch?v=jiwzKmYi4NU')).status, 201);
   e.DB.sqlite.exec('UPDATE skool_links SET capture = 0'); // email step off: straight forward
-  const r = await go(e, '/s/seedance-ugc', { headers: { Referer: 'https://www.youtube.com/watch?v=jiwzKmYi4NU' } });
+  const r = await go(e, '/seedance-ugc', { headers: { Referer: 'https://www.youtube.com/watch?v=jiwzKmYi4NU' } });
   assert.equal(r.status, 302);
   const to = new URL(r.headers.get('Location'));
   assert.equal(to.origin + to.pathname, 'https://www.skool.com/ai-ugc');
@@ -33,7 +33,7 @@ test('a short link counts the click and forwards to Skool with UTM tags, never ?
   const row = await e.DB.prepare('SELECT * FROM skool_clicks').first();
   assert.equal(row.slug, 'seedance-ugc');
   assert.equal(row.referrer, 'www.youtube.com/watch'); // no query string kept
-  await go(e, '/s/seedance-ugc?qc=1');
+  await go(e, '/seedance-ugc?qc=1');
   await go(e, '/s/unknown-slug');
   assert.equal((await e.DB.prepare('SELECT COUNT(*) AS n FROM skool_clicks').first()).n, 1);
   assert.equal((await go(e, '/s/unknown-slug')).status, 302); // unknown slugs still forward
@@ -54,7 +54,7 @@ test('a sale goes to the video the answer names, else to the last click as an es
   const e = env();
   await addLink(e, 'astra', 'GPT-6 Astra + Seedance 2.5', 'https://youtu.be/lmajeGL-1B8');
   await addLink(e, 'tiktok-shop', 'How to Find Winning TikTok Shop Products');
-  await go(e, '/s/tiktok-shop');
+  await go(e, '/tiktok-shop');
   const H = { 'X-Track-Token': TOKEN };
   await go(e, '/track/api/answer', { method: 'POST', headers: H, body: { email: 'X@Y.co', answer: 'the gpt-6 astra + seedance 2.5 one' } });
   await go(e, '/track/api/sale', { method: 'POST', headers: H, body: { email: 'x@y.co', first_name: 'Ann', transaction_id: 's1' } });
@@ -89,6 +89,6 @@ test('/track needs a session; adding a link needs the session and X-CC', async (
   const page = await go(e, '/track', { jon: true });
   assert.equal(page.status, 200);
   const html = await page.text();
-  assert.match(html, /jonmac\.ai\/s\/ok-slug/);
+  assert.match(html, /jonmac\.ai\/ok-slug/);
   assert.match(html, /&lt;b&gt;t&lt;\/b&gt;/);
 });

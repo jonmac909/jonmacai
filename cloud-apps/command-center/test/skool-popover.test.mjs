@@ -36,13 +36,13 @@ test('email step on: pop-over over a blurred Skool backdrop, no iframe, same for
   const e = env();
   await go(e, '/track/api/links', { method: 'POST', jon: true, body: { slug: 'pop', title: 'Pop' } });
   assert.equal((await go(e, '/track/api/capture', { method: 'POST', jon: true, body: { slug: 'pop', capture: true } })).status, 200);
-  const g = await go(e, '/s/pop');
+  const g = await go(e, '/pop');
   assert.equal(g.status, 200);
   const html = await g.text();
   assert.match(html, /role="dialog" aria-modal="true"/);
   assert.match(html, /Enter your email to get access/);
   assert.doesNotMatch(html, /stays on jonmac\.ai/); // Jon removed the privacy line
-  assert.match(html, /<form method="post" action="\/s\/pop">/);
+  assert.match(html, /<form method="post" action="\/pop">/);
   assert.match(html, /url\(\/s\/about-desktop\.jpg\)/);
   assert.match(html, /url\(\/s\/about-mobile\.jpg\)/);
   assert.match(html, /filter:blur\(/);
@@ -50,12 +50,12 @@ test('email step on: pop-over over a blurred Skool backdrop, no iframe, same for
   assert.doesNotMatch(html, /skool\.com/i); // nothing loads from Skool
   assert.equal((await e.DB.prepare('SELECT COUNT(*) AS n FROM skool_clicks').first()).n, 1); // the click still counts
   // a bad email shows the same pop-over with the error
-  const bad = await go(e, '/s/pop', { method: 'POST', body: { email: 'nope' } });
+  const bad = await go(e, '/pop', { method: 'POST', body: { email: 'nope' } });
   assert.equal(bad.status, 400);
   const bh = await bad.text();
   assert.match(bh, /role="dialog"/); assert.match(bh, /Please enter a valid email address/);
   // a good email still stores lower case and forwards with UTM
-  const ok = await go(e, '/s/pop', { method: 'POST', body: { email: 'Pop@Example.com' } });
+  const ok = await go(e, '/pop', { method: 'POST', body: { email: 'Pop@Example.com' } });
   assert.equal(ok.status, 302);
   assert.match(ok.headers.get('Location'), /^https:\/\/www\.skool\.com\/ai-ugc\?utm_source=youtube&utm_medium=video&utm_campaign=pop$/);
   assert.deepEqual((await e.DB.prepare('SELECT email FROM skool_leads').all()).results, [{ email: 'pop@example.com' }]);
@@ -65,7 +65,7 @@ test('email step off: no pop-over, straight 302 as before', async () => {
   const e = env();
   await go(e, '/track/api/links', { method: 'POST', jon: true, body: { slug: 'off', title: 'Off' } });
   e.DB.sqlite.exec('UPDATE skool_links SET capture = 0');
-  const r = await go(e, '/s/off');
+  const r = await go(e, '/off');
   assert.equal(r.status, 302);
   assert.match(r.headers.get('Location'), /utm_campaign=off$/);
 });
@@ -93,7 +93,7 @@ test('slug "constructor" is an ordinary link, not the image route; the box scrol
   assert.equal((await go(e, '/s/constructor')).status, 302); // unknown slug forwards, as before
   await go(e, '/track/api/links', { method: 'POST', jon: true, body: { slug: 'constructor', title: 'C' } });
   await go(e, '/track/api/capture', { method: 'POST', jon: true, body: { slug: 'constructor', capture: true } });
-  const g = await go(e, '/s/constructor');
+  const g = await go(e, '/constructor');
   assert.equal(g.status, 200);
   const html = await g.text();
   assert.match(html, /\.wrap\{[^}]*overflow:auto/);

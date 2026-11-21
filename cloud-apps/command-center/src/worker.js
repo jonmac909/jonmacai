@@ -5,7 +5,7 @@ import { handleCall } from './call.js';
 import { reviewProxy } from './videoreview.js';
 import { reviewHook } from './reviewhook.js';
 import { trackRedirect } from './track.js';
-import { skoolRedirect, handleTracker } from './skool.js';
+import { skoolRedirect, skoolSlug, handleTracker } from './skool.js';
 import { runSequence, SEQ_CRON } from './skoolseq.js';
 import { FILE_PREFIX, serveProofFile, uploadProofFile } from './prooffiles.js';
 import { MONITOR, handleMonitor } from './monitor.js';
@@ -115,7 +115,8 @@ export default {
       return Response.redirect(url.toString(), 308);
     }
     if (url.pathname !== PREFIX && !url.pathname.startsWith(`${PREFIX}/`)) {
-      return new Response('Not found', { status: 404 });
+      // Skool short links jonmac.ai/<slug> (src/skool.js): asked only after every route above, so a route always wins.
+      return (await skoolSlug(request, env, ctx)) || new Response('Not found', { status: 404 });
     }
     if (url.pathname.startsWith(FILE_PREFIX)) return serveProofFile(request, env);
     if (url.pathname === `${PREFIX}/api/v1/files`) return uploadProofFile(request, env);

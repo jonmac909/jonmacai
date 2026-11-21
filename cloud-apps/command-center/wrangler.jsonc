@@ -79,6 +79,21 @@
     // Skool email sequence (src/skoolseq.js, off until Jon switches it on): secrets RESEND_API_KEY and RESEND_WEBHOOK_SECRET (Resend webhook to https://jonmac.ai/track/api/resend);
     // optional vars SKOOL_FROM, SKOOL_REPLY_TO, SKOOL_BUSINESS and SKOOL_ADDRESS (the real mailing address: real sends stay paused while it is unset).
     { "pattern": "jonmac.ai/s/*", "zone_name": "jonmac.ai" },
+    // Short links jonmac.ai/<slug> (no /s/, Jon 2026-11-21). jonmac.ai/* belongs to the main site (elevateapp), so each live slug
+    // needs its own route; "<slug>*" because an exact route misses "?utm=..." links. A new link on /track needs its route added here.
+    { "pattern": "jonmac.ai/ai-agents-hacking*", "zone_name": "jonmac.ai" },
+    { "pattern": "jonmac.ai/astra-seedance*", "zone_name": "jonmac.ai" },
+    { "pattern": "jonmac.ai/astra-ugc-ads*", "zone_name": "jonmac.ai" },
+    { "pattern": "jonmac.ai/astra62-test*", "zone_name": "jonmac.ai" },
+    { "pattern": "jonmac.ai/claude-editing*", "zone_name": "jonmac.ai" },
+    { "pattern": "jonmac.ai/fable52-motion*", "zone_name": "jonmac.ai" },
+    { "pattern": "jonmac.ai/ig*", "zone_name": "jonmac.ai" },
+    { "pattern": "jonmac.ai/ig-affiliate-page*", "zone_name": "jonmac.ai" },
+    { "pattern": "jonmac.ai/jonmacbiz*", "zone_name": "jonmac.ai" },
+    { "pattern": "jonmac.ai/macframes*", "zone_name": "jonmac.ai" },
+    { "pattern": "jonmac.ai/mythos52*", "zone_name": "jonmac.ai" },
+    { "pattern": "jonmac.ai/popover-test*", "zone_name": "jonmac.ai" },
+    { "pattern": "jonmac.ai/tt*", "zone_name": "jonmac.ai" },
     { "pattern": "jonmac.ai/track", "zone_name": "jonmac.ai" },
     { "pattern": "jonmac.ai/track/*", "zone_name": "jonmac.ai" },
     // Live GPU Monitor (src/monitor.js).

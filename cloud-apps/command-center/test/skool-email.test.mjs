@@ -29,13 +29,13 @@ test('email step is on for every new link; switched off, the link forwards strai
   const e = env();
   await addLink(e, 'plain-link', 'Plain');
   assert.equal((await e.DB.prepare('SELECT capture FROM skool_links').first()).capture, 1);
-  assert.equal((await go(e, '/s/plain-link')).status, 200); // new link shows the pop-over
+  assert.equal((await go(e, '/plain-link')).status, 200); // new link shows the pop-over
   assert.equal((await toggle(e, 'plain-link', false)).status, 200);
   assert.equal((await e.DB.prepare('SELECT capture FROM skool_links').first()).capture, 0);
-  const r = await go(e, '/s/plain-link');
+  const r = await go(e, '/plain-link');
   assert.equal(r.status, 302);
   assert.match(r.headers.get('Location'), /^https:\/\/www\.skool\.com\/ai-ugc\?utm_source=youtube/);
-  assert.equal((await go(e, '/s/plain-link', { method: 'POST', body: { email: 'a@b.co' } })).status, 302); // POST to an off link forwards, stores nothing
+  assert.equal((await go(e, '/plain-link', { method: 'POST', body: { email: 'a@b.co' } })).status, 302); // POST to an off link forwards, stores nothing
   assert.deepEqual(await leads(e), []);
 });
 
@@ -43,26 +43,26 @@ test('email step on: form shows and counts the click; POST stores the email and 
   const e = env();
   await addLink(e, 'gated', 'Gated');
   assert.equal((await toggle(e, 'gated', true)).status, 200);
-  const g = await go(e, '/s/gated');
+  const g = await go(e, '/gated');
   assert.equal(g.status, 200);
   const html = await g.text();
   assert.match(html, /Enter your email to get access/);
   assert.doesNotMatch(html, /stays on jonmac\.ai/); // Jon removed the privacy line
-  assert.match(html, /<form method="post" action="\/s\/gated">/);
+  assert.match(html, /<form method="post" action="\/gated">/);
   assert.equal((await e.DB.prepare('SELECT COUNT(*) AS n FROM skool_clicks').first()).n, 1);
-  assert.equal((await go(e, '/s/gated', { method: 'POST', body: { email: 'not-an-email' } })).status, 400);
+  assert.equal((await go(e, '/gated', { method: 'POST', body: { email: 'not-an-email' } })).status, 400);
   assert.deepEqual(await leads(e), []);
-  const ok = await go(e, '/s/gated', { method: 'POST', body: { email: ' Buyer@Example.COM ' } });
+  const ok = await go(e, '/gated', { method: 'POST', body: { email: ' Buyer@Example.COM ' } });
   assert.equal(ok.status, 302);
   const to = new URL(ok.headers.get('Location'));
   assert.equal(to.origin + to.pathname, 'https://www.skool.com/ai-ugc');
   assert.equal(to.searchParams.get('utm_campaign'), 'gated');
   assert.equal(to.searchParams.has('email'), false); // the email never travels to Skool
   assert.deepEqual(await leads(e), [{ slug: 'gated', email: 'buyer@example.com' }]);
-  await go(e, '/s/gated', { method: 'POST', body: { email: 'buyer@example.com' } }); // same email and link stays one row
+  await go(e, '/gated', { method: 'POST', body: { email: 'buyer@example.com' } }); // same email and link stays one row
   assert.equal((await leads(e)).length, 1);
   assert.equal((await toggle(e, 'gated', false)).status, 200); // switched off, it forwards again
-  assert.equal((await go(e, '/s/gated')).status, 302);
+  assert.equal((await go(e, '/gated')).status, 302);
   assert.equal((await toggle(e, 'nope', true)).status, 404);
 });
 
@@ -83,8 +83,8 @@ test('a captured email beats the answer and the estimate; page columns and count
   await addLink(e, 'gated', 'Gated video');
   await addLink(e, 'other', 'Other video');
   await toggle(e, 'other', false);
-  await go(e, '/s/gated', { method: 'POST', body: { email: 'buyer@example.com' } });
-  await go(e, '/s/other'); // latest click is on "other", so an estimate would pick it
+  await go(e, '/gated', { method: 'POST', body: { email: 'buyer@example.com' } });
+  await go(e, '/other'); // latest click is on "other", so an estimate would pick it
   await go(e, '/track/api/answer', { method: 'POST', headers: H, body: { email: 'buyer@example.com', answer: 'Other video' } }); // answer disagrees: email wins
   await sale(e, { email: 'Buyer@Example.com', first_name: 'Exact', transaction_id: 't-exact' });
   await sale(e, { email: 'stranger@example.com', first_name: 'Guess', transaction_id: 't-est' });
@@ -123,10 +123,10 @@ test('the email is never written to the logs, and a failed save still forwards',
   const real = { log: console.log, error: console.error, warn: console.warn };
   console.log = console.error = console.warn = (...a) => seen.push(a.map(String).join(' '));
   try {
-    await go(e, '/s/quiet', { method: 'POST', body: { email: 'secret@example.com' } });
+    await go(e, '/quiet', { method: 'POST', body: { email: 'secret@example.com' } });
     const real_prepare = e.DB.prepare;
     const broken = { ...e, DB: { prepare: (sql) => (/skool_leads/.test(sql) ? { bind: () => ({ first: async () => { throw new Error('boom'); }, run: async () => { throw new Error('boom'); } }) } : real_prepare(sql)) } };
-    assert.equal((await go(broken, '/s/quiet', { method: 'POST', body: { email: 'secret@example.com' } })).status, 302);
+    assert.equal((await go(broken, '/quiet', { method: 'POST', body: { email: 'secret@example.com' } })).status, 302);
   } finally { Object.assign(console, real); }
   assert.ok(seen.length > 0); // the failure was reported, by slug only
   assert.ok(!seen.join('\n').includes('secret@example.com'));
@@ -136,7 +136,7 @@ test('a script cannot flood one link with emails', async () => {
   const e = env();
   await addLink(e, 'flood', 'Flood');
   await toggle(e, 'flood', true);
-  for (let i = 0; i < 65; i++) await go(e, '/s/flood', { method: 'POST', body: { email: `u${i}@example.com` } });
+  for (let i = 0; i < 65; i++) await go(e, '/flood', { method: 'POST', body: { email: `u${i}@example.com` } });
   assert.equal((await leads(e)).length, 60);
 });
 
@@ -144,10 +144,10 @@ test('a repeat visit does not move the capture time past an earlier sale', async
   const e = env();
   await addLink(e, 'again', 'Again');
   await toggle(e, 'again', true);
-  await go(e, '/s/again', { method: 'POST', body: { email: 'rep@example.com' } });
+  await go(e, '/again', { method: 'POST', body: { email: 'rep@example.com' } });
   const first = (await e.DB.prepare('SELECT at FROM skool_leads').first()).at;
   await new Promise((r) => setTimeout(r, 15));
-  await go(e, '/s/again', { method: 'POST', body: { email: 'rep@example.com' } });
+  await go(e, '/again', { method: 'POST', body: { email: 'rep@example.com' } });
   assert.equal((await e.DB.prepare('SELECT at FROM skool_leads').first()).at, first);
 });
 
@@ -158,7 +158,7 @@ test('before migration 0030 a link still forwards and counts the click', async (
   const origError = console.error;
   console.error = () => {};
   try {
-    const r = await go(e, '/s/old-schema');
+    const r = await go(e, '/old-schema');
     assert.equal(r.status, 302);
   } finally { console.error = origError; }
   assert.equal((await e.DB.prepare('SELECT COUNT(*) AS n FROM skool_clicks').first()).n, 1);

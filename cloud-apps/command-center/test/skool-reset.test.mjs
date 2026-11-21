@@ -54,7 +54,7 @@ test('reset zeroes every count and keeps every row', async () => {
 test('a click, lead and sale after the reset count; older ones stay out', async () => {
   const e = env(); await seed(e);
   await pause(); await reset(e); await pause();
-  assert.equal((await go(e, '/s/vid-one')).status, 302);
+  assert.equal((await go(e, '/vid-one')).status, 302);
   let r = await rowOf(e);
   assert.deepEqual([r.clicks.all, r.clicks.d7, r.clicks.d30], [1, 1, 1]);
   await e.DB.prepare('INSERT INTO skool_leads (slug, email, at, last_at, email_check) VALUES (?, ?, ?, ?, ?)').bind('vid-one', 'c@gmail.com', iso(Date.now()), iso(Date.now()), 'valid').run();
@@ -68,7 +68,7 @@ test('a click, lead and sale after the reset count; older ones stay out', async 
 test('undo brings the old counts back; a new reset works again', async () => {
   const e = env(); await seed(e);
   await pause(); await reset(e); await pause();
-  await go(e, '/s/vid-one');
+  await go(e, '/vid-one');
   assert.equal((await rowOf(e)).clicks.all, 1);
   const u = await reset(e, { undo: true });
   assert.equal(u.status, 200);
