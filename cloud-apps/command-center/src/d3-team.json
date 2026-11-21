@@ -8,11 +8,10 @@
     { "slug": "jon-mac-youtube", "names": ["Sydney"], "role": "Jon Mac YouTube" },
     { "slug": "home-guide-press", "names": ["Elle"], "role": "Home Guide Press" },
     { "slug": "hgp-scripts", "names": ["Gal"], "role": "HGP Scripts" },
-    { "slug": "short-form", "names": ["Samantha"], "role": "Short-form" },
     { "slug": "developer", "names": ["Lucy"], "role": "Developer" },
     { "slug": "qc", "names": ["Jessica", "Nina"], "role": "QC" },
     { "slug": "accounting", "names": ["Elizabeth"], "role": "Accounting" },
     { "slug": "spotify", "names": ["Daisy"], "role": "Spotify" },
-    { "slug": "marketing", "names": ["Margot", "Rhea", "Cleo", "Vera", "Tess"], "role": "Marketing" }
+    { "slug": "marketing", "names": ["Samara"], "role": "Marketing" }
   ]
 }
