@@ -59,7 +59,7 @@ export async function slugRefusal(env, slug, routes) {
   if (clash) return `"${slug}" is taken by another app on jonmac.ai (${clash})`;
   if (!env?.APEX) return live(env) ? 'Could not check the jonmac.ai site (APEX binding missing)' : null;
   try {
-    const r = await env.APEX.fetch(new Request(`https://${patternOf(slug)}`, { redirect: 'manual' }));
+    const r = await env.APEX.fetch(new Request(`https://${patternOf(slug)}`, { redirect: 'manual', signal: AbortSignal.timeout(5000) }));
     if (r.status !== 404) return `jonmac.ai/${slug} is already a page on the site`;
   } catch (err) {
     return 'Could not check the jonmac.ai site, try again';
@@ -104,7 +104,9 @@ export async function syncSlugRoutes(env) {
     if (have.has(patternOf(slug))) continue;
     const why = await slugRefusal(env, slug, routes);
     if (why) { skipped.push(slug); console.error('route sync skipped', slug, why); continue; }
-    await cf(env, '', { method: 'POST', body: JSON.stringify({ pattern: patternOf(slug), script: SCRIPT }) });
+    // One failed create (e.g. a duplicate from a parallel sync) must not stop the rest.
+    try { await cf(env, '', { method: 'POST', body: JSON.stringify({ pattern: patternOf(slug), script: SCRIPT }) }); }
+    catch (err) { skipped.push(slug); console.error('route sync create failed', slug, err.message); continue; }
     created.push(slug);
   }
   return { created, skipped };
