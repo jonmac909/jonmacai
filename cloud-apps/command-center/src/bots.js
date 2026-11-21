@@ -11,6 +11,7 @@ import { trackVideos } from './track.js';
 import { MONTH_HABITS, WEEK_HABITS, monthKey, weekStart } from './periods.js';
 import { upsertHabit } from './db.js';
 import { eosData } from './eos.js';
+import { budgetView } from './budget.js';
 
 // todo/doing → qc (proof) → review (QC passed it) → done (Jon approved it). Only Jon sets done, except the
 // live-YouTube sync for a card whose video the server itself found public (liveDone) and an internal card
@@ -2169,6 +2170,12 @@ async function route(request, db, who, rest, env, ctx) {
   if (seg.length > 3) throw new Bad(404, 'Not found');
   const [kind, rawId, verb] = seg;
   const now = new Date().toISOString();
+  if (kind === 'budget' && !rawId && method === 'GET') { // Budget page and 09:00 brief (src/budget.js): one calculation for both
+    const row = await db.prepare("SELECT data, collected_at FROM snapshots WHERE source = 'moneyclaw'").first();
+    let data = null;
+    try { data = row ? JSON.parse(row.data) : null; } catch { data = null; }
+    return json({ ok: true, collectedAt: row?.collected_at || null, budget: budgetView(data, Date.now()) });
+  }
   if (kind === 'feeds' && rawId && !verb) {
     if (method === 'GET') return getFeed(db, rawId);
     if (method === 'PUT') { needBot(who); return putFeed(db, who, rawId, await readBody(request), now); }

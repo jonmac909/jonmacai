@@ -1,4 +1,4 @@
-// Dashboard 3 Budget, Expenses and P&L pages (Jon, 2026-11-21): MoneyClaw's own pages in a frame, the same pages its
+// Dashboard 3 Expenses and P&L pages (Budget is the dashboard's own page since card t_13a6d327341447f0, budget.js) (Jon, 2026-11-21): MoneyClaw's own pages in a frame, the same pages its
 // main app shows. MoneyClaw (moneyclaw.jonmac.ai) lets only itself and https://jonmac.ai frame /budget/ and /test/, and
 // keeps its own sign-in: when it has expired, the frame says so and offers a sign-in on a new tab. Drawn once per visit
 // (app.js), so the 60 s data reload never reloads the frame; the theme switch is passed in with postMessage.
@@ -8,7 +8,6 @@ export const MC_ORIGIN = 'https://moneyclaw.jonmac.ai';
 
 // page -> title, sub line, the MoneyClaw page it frames, and the same tab in MoneyClaw's own app
 export const MC_PAGES = {
-  budget: { title: 'Budget', sub: 'Business and personal: month, week and day', path: '/budget/', app: 'budget' },
   expenses: { title: 'Expenses', sub: 'Budgets and subscriptions', path: '/test/?tab=budgets', app: 'reports' },
   pnl: { title: 'P&L', sub: 'Monthly profit and loss', path: '/test/?tab=matrix', app: 'pnl' },
 };
