@@ -25,7 +25,7 @@ const hit = (env, path, { method = 'GET', body, token, cookie } = {}) => handleA
 async function setup() {
   const db = sqliteD1();
   const env = { DB: db, SESSION_SECRET: SECRET, MACHINE_TOKEN_GPU1: 'gpu1-token-0123456789', MACHINE_TOKEN_GPU2: 'gpu2-token-0123456789', MACHINE_TOKEN_MAC: 'mac-token-0123456789' };
-  const cookie = `${COOKIE}=${await signSession(SECRET, Math.floor(NOW / 1000) + 3600)}`;
+  const cookie = `${COOKIE}=${await signSession(SECRET, Math.floor(Date.now() / 1000) + 3600)}`;
   return { db, env, cookie };
 }
 
