@@ -272,9 +272,10 @@ test('a finger drags only after a hold; moving first is a scroll; a cancelled dr
   assert.notDeepEqual(saved[0], NAV);
 });
 
-test('index.html keeps the ten links in the built-in order and has the Reset link; app.js wires the saved order', () => {
+test('index.html keeps the links in the built-in order and has the Reset link; app.js wires the saved order', () => {
   const index = readFileSync(new URL('../public/d3/index.html', import.meta.url), 'utf8');
-  assert.deepEqual([...index.matchAll(/<a href="#([a-z]+)" data-nav="([a-z]+)">/g)].map((m) => m[1]), NAV);
+  const MENU = [...NAV.slice(0, 7), 'budget', 'expenses', 'pnl', ...NAV.slice(7)]; // Budget, Expenses and P&L after Money (2026-11-21)
+  assert.deepEqual([...index.matchAll(/<a href="#([a-z]+)" data-nav="([a-z]+)">/g)].map((m) => m[1]), MENU);
   assert.match(index, /<\/nav>\n<button type="button" class="navreset" id="navReset" hidden>Reset menu order<\/button>/);
   const app = readFileSync(new URL('../public/d3/js/app.js', import.meta.url), 'utf8');
   assert.match(app, /navDrag\(navEl, saveNavOrder/);
