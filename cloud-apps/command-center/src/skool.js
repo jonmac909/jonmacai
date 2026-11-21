@@ -8,10 +8,10 @@ import { readSession, timingSafeEqualString } from './auth.js';
 import { checkEmail } from './skoolcheck.js';
 import { handleUnsub, handleResendWebhook, seqOn, setSeqOn, sendTest, addressIsPlaceholder, DEFAULT_BUSINESS } from './skoolseq.js';
 import { leadsData, leadsCsv, leadsPage, emailsPage, nav, BASE_CSS, FILTERS } from './skoolcrm.js';
+import { SLUG_RE, listRoutes, slugRefusal, ensureSlugRoute } from './skoolroutes.js';
 
 export const SKOOL = 'https://www.skool.com/ai-ugc';
 export const ESTIMATE_HOURS = 24;
-const SLUG_RE = /^[a-z0-9][a-z0-9-]{0,38}[a-z0-9]$/;
 const YT_RE = /^https:\/\/(www\.|m\.)?(youtube\.com\/(watch\?v=|shorts\/|live\/)|youtu\.be\/)([\w-]{11})/i;
 const MAX_LEADS_PER_10_MIN = 60; // per link: stops a script from filling the table
 const NO_STORE = { 'Cache-Control': 'no-store', 'X-Robots-Tag': 'noindex, nofollow' };
@@ -227,11 +227,17 @@ async function addLink(request, env, nowMs) {
   if (!SLUG_RE.test(slug)) return json({ error: 'Slug: 2 to 40 lower-case letters, numbers or dashes' }, 400);
   if (!title) return json({ error: 'Title is required' }, 400);
   if (yt && !YT_RE.test(yt)) return json({ error: 'YouTube URL must be a youtube.com or youtu.be video link' }, 400);
+  if (await env.DB.prepare('SELECT 1 FROM skool_links WHERE slug = ?').bind(slug).first()) return json({ error: 'That slug is taken' }, 409);
+  // Root links need their own route (src/skoolroutes.js): refuse dashboard paths, other apps' routes and real site pages.
+  const routes = await listRoutes(env);
+  const why = await slugRefusal(env, slug, routes);
+  if (why) return json({ error: why }, 409);
   // Email step on by default (Jon approved the pop-over, 2026-11-16); switch it off per link on /track.
   const r = await env.DB.prepare('INSERT OR IGNORE INTO skool_links (slug, title, youtube_url, created_at, capture) VALUES (?, ?, ?, ?, 1)')
     .bind(slug, title, yt || null, iso(nowMs)).run();
   if (!r.meta?.changes) return json({ error: 'That slug is taken' }, 409);
-  return json({ ok: true, url: `${new URL(request.url).origin}/${slug}` }, 201);
+  const { route, warning } = await ensureSlugRoute(env, slug, routes);
+  return json({ ok: true, url: `${new URL(request.url).origin}/${slug}`, route, ...(warning ? { warning } : {}) }, 201);
 }
 
 // Per-link email step switch. Only Jon's session turns it on; every link starts off.
@@ -304,7 +310,7 @@ const r=await fetch('/track/api/sequence',{method:'POST',headers:{'Content-Type'
 if(r.ok){location.reload()}else{alert('Could not save')}};
 document.getElementById('add').onsubmit=async(e)=>{e.preventDefault();const m=document.getElementById('msg');m.textContent='Saving...';
 const r=await fetch('/track/api/links',{method:'POST',headers:{'Content-Type':'application/json','X-CC':'1'},body:JSON.stringify(Object.fromEntries(new FormData(e.target)))});
-const j=await r.json().catch(()=>({}));if(r.ok){location.reload()}else{m.textContent=j.error||'Could not save'}};
+const j=await r.json().catch(()=>({}));if(r.ok){if(j.warning)alert('Link saved, but '+j.warning);location.reload()}else{m.textContent=j.error||'Could not save'}};
 </script></body></html>`;
 }
 

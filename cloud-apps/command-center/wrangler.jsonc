@@ -41,9 +41,13 @@
     }
   ],
   // /dashboard/review: Jon's requests go to the review Worker with the REVIEW_API_TOKEN secret (src/videoreview.js).
+  // APEX: the jonmac.ai site worker, asked whether a new Skool slug is already a page (src/skoolroutes.js).
   "services": [
-    { "binding": "REVIEW", "service": "jonmac-review" }
+    { "binding": "REVIEW", "service": "jonmac-review" },
+    { "binding": "APEX", "service": "elevateapp" }
   ],
+  // Skool slug routes (src/skoolroutes.js): written only here (ROUTES_LIVE "1"), with secret CF_ROUTES_TOKEN (Zone > Workers Routes > Edit, jonmac.ai).
+  "vars": { "CF_ZONE_ID": "8f58dee14f7fc0e66494d6278aec53aa", "ROUTES_LIVE": "1" },
   "triggers": {
     "crons": ["*/10 * * * *", "*/15 * * * *"]
   },
@@ -112,6 +116,33 @@
       "routes": [],
       "triggers": { "crons": [] },
       "vars": { "PREVIEW": "1" },
+      "version_metadata": { "binding": "CF_VERSION_METADATA" },
+      "durable_objects": {
+        "bindings": [
+          { "name": "CALL_RELAY", "class_name": "CallRelay" },
+          { "name": "GPU_MONITOR", "class_name": "GpuMonitor" }
+        ]
+      },
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "command_center_preview",
+          "database_id": "cf929245-7de2-4fc6-85bf-e3f02c187e6a"
+        }
+      ],
+      "r2_buckets": [
+        { "binding": "UPLOADS", "bucket_name": "command-center-uploads-preview" }
+      ]
+    },
+    // Per-card preview for Skool slug auto-routes: APEX check is real, route writes dry-run (no ROUTES_LIVE, no token).
+    "preview-track-autoroute": {
+      "name": "jonmac-cc-preview-track-autoroute",
+      "workers_dev": true,
+      "preview_urls": false,
+      "routes": [],
+      "triggers": { "crons": [] },
+      "vars": { "PREVIEW": "1", "CF_ZONE_ID": "8f58dee14f7fc0e66494d6278aec53aa" },
+      "services": [{ "binding": "APEX", "service": "elevateapp" }],
       "version_metadata": { "binding": "CF_VERSION_METADATA" },
       "durable_objects": {
         "bindings": [
