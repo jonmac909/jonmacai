@@ -229,7 +229,10 @@ export function sponsorMemoryHtml(mem, openIds = {}) {
   const today = mem.today || '';
   const list = (title, rows) => (rows.length ? `<div class="stack" style="gap: 2px"><b style="font-size: 12px">${esc(title)}</b>${rows.join('')}</div>` : '');
   const line = (s) => `<span style="font-size: 13px; overflow-wrap: anywhere">${s}</span>`;
-  const cards = mem.sponsors.map((s) => {
+  // Cold pitches nobody answered and lost or closed sponsors with nothing open sit in one folded list, not 200 cards.
+  const quiet = (s) => ['cold', 'closed', 'skip'].includes(s.status) && !s.followups.length && !(s.money?.owed > 0) && !(s.deals || []).length;
+  const idle = mem.sponsors.filter(quiet);
+  const cards = mem.sponsors.filter((s) => !quiet(s)).map((s) => {
     const owed = s.money?.owed > 0 ? `<span class="pill warn sp">${esc(usd(s.money.owed))} owed</span>` : s.money?.paid > 0 ? `<span class="pill ok sp">paid ${esc(usd(s.money.paid))}</span>` : '';
     const nf = s.nextFollowup ? `<span class="pill ${s.nextFollowup <= today ? 'bad' : ''} sp" data-nextfu>${s.nextFollowup <= today ? 'follow up now' : `follow up ${esc(day(s.nextFollowup))}`}</span>` : '';
     const fu = s.followups.map((f) => line(`<span class="pill ${f.due <= today ? 'bad' : ''}">${esc(day(f.due))}</span> ${esc(KIND[f.kind] || f.kind)}: ${esc(f.text)}`));
@@ -240,7 +243,7 @@ export function sponsorMemoryHtml(mem, openIds = {}) {
     const inv = [...(s.money ? [line(`Total ${esc(usd(s.money.total))} · paid ${esc(usd(s.money.paid))} · owed ${esc(usd(s.money.owed))}${s.money.bucket ? ` <span class="mut">${esc(s.money.bucket)}</span>` : ''}`)] : []),
       ...(s.extraInvoices || []).map((i) => line(`${i.no ? `#${esc(i.no)} ` : ''}${i.amount ? esc(usd(i.amount)) : ''} · ${esc(i.state)}${i.date ? ` <span class="mut">${esc(day(i.date))}</span>` : ''}`))];
     const threads = (s.threads || []).slice(0, 12).map((t) => line(`<span class="mut">${esc(day(t.last))}</span> ${esc(t.subject)} <span class="mut">· ${esc(t.us ? 'we wrote last' : t.who)}${t.n ? ` · ${t.n} msg` : ''}</span>${t.summary ? `<br><span class="mut">${esc(t.summary)}</span>` : ''}`));
-    return `<details class="inner" data-sponsor="${esc(s.id)}"${openIds[s.id] ? ' open' : ''} style="padding: 8px 12px">
+    return `<details class="inner" data-sponsor="${esc(s.id)}"${Object.hasOwn(openIds, s.id) && openIds[s.id] ? ' open' : ''} style="padding: 8px 12px">
 <summary class="hd" style="gap: 8px; cursor: pointer; flex-wrap: wrap"><b>${esc(s.name)}</b>${s.status ? `<span class="pill sp">${esc(s.status)}</span>` : ''}${owed}${nf}<span class="mut" style="margin-left: auto; font-size: 12px">${s.lastContact ? `last ${esc(day(s.lastContact))}` : ''}</span></summary>
 <div class="stack" style="gap: 8px; margin-top: 8px">
 ${s.summary ? `<p class="mut" style="margin: 0">${esc(s.summary)}</p>` : ''}
@@ -249,9 +252,11 @@ ${list('Follow-ups', fu)}${list('Contacts', contacts)}${list('Rates quoted', rat
 </details>`;
   }).join('\n');
   const open = mem.open || 0;
+  const idleRows = idle.map((s) => `<div class="hd" data-idle="${esc(s.id)}" style="gap: 8px; font-size: 13px; border-top: 1px solid var(--line); padding: 4px 0"><b style="font-weight: 500">${esc(s.name)}</b><span class="pill sp">${esc(s.status)}</span><span class="mut ell" style="flex: 1; min-width: 0">${esc((s.threads || [])[0]?.subject || s.summary || '')}</span><span class="mut">${s.lastContact ? esc(day(s.lastContact)) : ''}</span></div>`).join('');
+  const idleBox = idle.length ? `<details data-idlelist style="margin-top: 4px"><summary class="mut" style="cursor: pointer">Cold pitches and closed (${idle.length})</summary><div class="stack" style="gap: 0">${idleRows}</div></details>` : '';
   return `<section class="card" aria-label="Sponsor memory" data-sponsormem>
 ${head(`<span class="pill ${open ? 'warn' : 'ok'} sp">${open} follow-up${open === 1 ? '' : 's'} open</span>`)}
-<div class="stack" style="gap: 6px">${cards}</div>
+<div class="stack" style="gap: 6px">${cards}${idleBox}</div>
 </section>`;
 }
 

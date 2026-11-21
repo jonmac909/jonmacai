@@ -7,7 +7,7 @@ import { keepCard, mapColumn, withDeals } from './sponsors.js';
 
 const TZ = 'America/Vancouver';
 const KINDS = new Set(['reply', 'chase', 'promise', 'payment', 'due']);
-const STATUSES = new Set(['', 'lead', 'negotiating', 'active', 'paid', 'closed', 'skip']);
+const STATUSES = new Set(['', 'lead', 'cold', 'negotiating', 'active', 'paid', 'closed', 'skip']); // cold: we pitched, nobody has answered
 const MAX_THREADS = 150; // per ingest call: GPU1 sends the backfill in chunks
 
 export const norm = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, '');
@@ -75,15 +75,21 @@ export async function ingestSponsorMemory(db, body, nowMs = Date.now()) {
       .bind(id, sid, /^[0-9a-f]{6,32}$/i.test(String(f.thread_id || '')) ? f.thread_id : '', f.kind, text(f.text, 200), f.due, now, now));
     out.followups += 1;
   }
+  const closes = new Set();
   for (const c of (Array.isArray(body?.close) ? body.close : []).slice(0, 600)) {
     const id = text(c?.id, 120);
     if (!id) { out.skipped += 1; continue; }
     const by = c.by === 'manual' ? 'manual' : 'auto';
-    stmts.push(db.prepare(`UPDATE sponsor_followups SET status = 'closed', closed_reason = ?, closed_by = ?, closed_at = ?, updated_at = ? WHERE id = ? AND status = 'open'`)
-      .bind(text(c.reason, 120) || 'done', by, now, now, id));
-    out.closed += 1;
+    // An open row closes; a row a scan closed earlier can still be taken over by a manual close, so a later scan never reopens it.
+    stmts.push(db.prepare(`UPDATE sponsor_followups SET status = 'closed', closed_reason = ?, closed_by = ?, closed_at = ?, updated_at = ?
+      WHERE id = ? AND (status = 'open' OR (? = 'manual' AND closed_by = 'auto'))`)
+      .bind(text(c.reason, 120) || 'done', by, now, now, id, by));
+    closes.add(stmts.length - 1);
   }
-  for (let i = 0; i < stmts.length; i += 80) await db.batch(stmts.slice(i, i + 80));
+  for (let i = 0; i < stmts.length; i += 80) {
+    const res = await db.batch(stmts.slice(i, i + 80));
+    res.forEach((r, j) => { if (closes.has(i + j) && Number(r?.meta?.changes) > 0) out.closed += 1; }); // closed = rows that changed, not rows asked for
+  }
   return out;
 }
 
@@ -131,7 +137,6 @@ export async function sponsorCards(db, data, deals = {}, overrides = {}, nowMs =
     by.set(r.id, c);
   }
   for (const r of t.results || []) by.get(r.sponsor_id)?.threads.push({ id: r.thread_id, subject: r.subject, last: r.last_at, who: r.who, us: !!r.last_is_us, n: r.n, summary: r.summary });
-  for (const r of f.results || []) by.get(r.sponsor_id)?.followups.push({ id: r.id, kind: r.kind, text: r.text, due: r.due, thread: r.thread_id });
   // The board and the collections sheet add what the emails don't know: deals with their stage, amounts owed and paid.
   for (const card of board) {
     const c = [...by.values()].find((x) => norm(x.name) === norm(card.sponsor)) || get(card.sponsor);
@@ -141,10 +146,14 @@ export async function sponsorCards(db, data, deals = {}, overrides = {}, nowMs =
   for (const item of items) {
     const c = [...by.values()].find((x) => norm(x.name) === norm(item.sponsor)) || get(item.sponsor);
     if (!c) continue;
-    c.money = { total: Number(item.total) || 0, paid: Number(item.paid) || 0, owed: Number(item.owed) || 0, bucket: item.bucketLabel || item.bucket || '', last: item.lastEmail || '', action: item.action || '', blocker: item.blocker || '' };
+    // Several sheet rows for one sponsor add up; the first row's bucket, next step and blocker stand for the card.
+    const sum = (k) => (c.money?.[k] || 0) + (Number(item[k]) || 0);
+    c.money = { total: sum('total'), paid: sum('paid'), owed: sum('owed'), bucket: c.money?.bucket || item.bucketLabel || item.bucket || '', last: c.money?.last || item.lastEmail || '', action: c.money?.action || item.action || '', blocker: c.money?.blocker || item.blocker || '' };
   }
+  // Follow-ups last, so a sponsor that only the sheet knows (a payment to collect) still shows its follow-up.
+  for (const r of f.results || []) (by.get(r.sponsor_id) || get(r.sponsor_id))?.followups.push({ id: r.id, kind: r.kind, text: r.text, due: r.due, thread: r.thread_id });
   const today = todayYmd(nowMs);
-  const list = [...new Set(by.values())].filter((c) => c.threads.length || c.deals.length || c.money || c.extraDeals.length)
+  const list = [...new Set(by.values())].filter((c) => c.threads.length || c.deals.length || c.money || c.extraDeals.length || c.followups.length)
     .map((c) => ({ ...c, nextFollowup: c.followups[0]?.due || null, overdue: c.followups.filter((x) => x.due < today).length }));
   // Open follow-ups first (soonest), then money owed, then the newest contact.
   list.sort((a, b) => (a.nextFollowup && b.nextFollowup ? a.nextFollowup.localeCompare(b.nextFollowup) : a.nextFollowup ? -1 : b.nextFollowup ? 1 : 0)

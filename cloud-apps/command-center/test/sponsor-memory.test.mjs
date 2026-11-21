@@ -138,6 +138,43 @@ test('cards: board deals and collections items join the card of the same company
   assert.equal(tv.nextFollowup, '2026-11-21');
 });
 
+test('review: closed counts rows that changed, and a manual close takes over a row a scan closed so no scan reopens it', async () => {
+  const { db } = await setup();
+  await ingestSponsorMemory(db, base(), NOW);
+  const id = `reply:${T1}:m9`;
+  assert.equal((await ingestSponsorMemory(db, { close: [{ id: 'no-such-row', reason: 'x', by: 'manual' }] }, NOW)).closed, 0, 'planted fault: counted an id that matched nothing');
+  assert.equal((await ingestSponsorMemory(db, { close: [{ id, reason: 'reply sent' }] }, NOW)).closed, 1);
+  assert.equal((await ingestSponsorMemory(db, { close: [{ id, reason: 'again' }] }, NOW)).closed, 0, 'an auto close of a closed row changes nothing');
+  assert.equal((await ingestSponsorMemory(db, { close: [{ id, reason: 'Jon called them', by: 'manual' }] }, NOW)).closed, 1, 'manual takes over the auto-closed row');
+  await ingestSponsorMemory(db, base(), NOW);
+  assert.equal((await openFollowups(db)).length, 0, 'planted fault: a scan reopened it');
+  const row = await db.prepare('SELECT closed_by, closed_reason FROM sponsor_followups').first();
+  assert.deepEqual({ ...row }, { closed_by: 'manual', closed_reason: 'Jon called them' });
+});
+
+test('review: a sponsor only the sheet knows shows its payment follow-up, and several sheet rows add up on one card', async () => {
+  const { db } = await setup();
+  await ingestSponsorMemory(db, { followups: [{ id: 'payment:arcads:1500', sponsor_id: 'arcads', kind: 'payment', due: '2026-11-21', text: 'Collect $1,500 owed' }] }, NOW);
+  const data = { collections: { items: [
+    { sponsor: 'Arcads', total: 1000, paid: 0, owed: 700, bucket: 'collect-now', bucketLabel: 'Collect now', lastEmail: '', action: 'a', blocker: '' },
+    { sponsor: 'Arcads', total: 2000, paid: 1500, owed: 800, bucket: 'delivery-balance', bucketLabel: 'After posting', lastEmail: '', action: 'b', blocker: '' }] }, cards: [] };
+  const out = await sponsorCards(db, data, {}, {}, NOW);
+  assert.equal(out.sponsors.length, 1);
+  const a = out.sponsors[0];
+  assert.equal(a.followups.length, 1, 'planted fault: follow-ups attached before the sheet card existed');
+  assert.deepEqual([a.money.total, a.money.paid, a.money.owed, a.money.bucket], [3000, 1500, 1500, 'Collect now']);
+  assert.equal(out.open, 1);
+});
+
+test('review: cold and closed sponsors fold into one list, an id like "constructor" does not open a card', () => {
+  const mk = (id, status, extra = {}) => ({ id, name: id, status, lastContact: '2026-11-01T10:00:00Z', nextFollowup: null, contacts: [], rates: [], deals: [], extraDeals: [], extraInvoices: [], followups: [], threads: [{ id: T1, subject: `subj ${id}`, last: '2026-11-01T10:00:00Z', who: 'x', us: true, n: 1, summary: '' }], money: null, ...extra });
+  const html = sponsorMemoryHtml({ today: '2026-11-21', open: 0, sponsors: [mk('constructor', 'active'), mk('coldco', 'cold'), mk('lostco', 'closed'), mk('coldwithmoney', 'cold', { money: { total: 1, paid: 0, owed: 500, bucket: '' } })] }, {});
+  assert.equal((html.match(/data-sponsor="/g) || []).length, 2, 'the active one and the cold one that is owed money');
+  assert.equal((html.match(/data-idle="/g) || []).length, 2);
+  assert.match(html, /Cold pitches and closed \(2\)/);
+  assert.doesNotMatch(html, /data-sponsor="constructor"[^>]* open/);
+});
+
 test('page html: a card per sponsor, owed and follow-up pills, markup in an email subject is escaped', () => {
   const mem = { today: '2026-11-21', open: 1, sponsors: [{
     id: 'topview', name: 'Topview', status: 'active', summary: '', lastContact: '2026-11-20T10:00:00Z', nextFollowup: '2026-11-21',
