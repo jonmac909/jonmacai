@@ -4,7 +4,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import worker from '../src/worker.js';
-import { RESERVED, reservedSlug } from '../src/skool.js';
+import { RESERVED, ROUTED_SLUGS, reservedSlug } from '../src/skool.js';
 import { signSession, COOKIE } from '../src/auth.js';
 import { sqliteD1 } from './sqlited1.mjs';
 import './dnsstub.mjs';
@@ -43,6 +43,8 @@ test('/mythos52 shows the pop-over (form posts to /mythos52) and counts one clic
   assert.equal(off.status, 302); // email step off: straight to Skool, slug case-insensitive as before
   assert.equal(new URL(off.headers.get('Location')).origin, 'https://www.skool.com');
   assert.equal(await clicks(e), 2);
+  assert.equal((await go(e, '/mythos52/')).status, 302); // one trailing slash still works, as /s/<slug>/ did
+  assert.equal(await clicks(e), 3);
 });
 
 test('/s/mythos52 answers 301 to /mythos52 with the query kept and counts nothing; the click counts once on /mythos52', async () => {
@@ -100,6 +102,23 @@ test('every path this Worker routes, and every slug route in wrangler.jsonc, agr
   assert.ok(src.includes("'/s/'") && src.includes("'/v/'"));
   const cfg = readFileSync(new URL('../wrangler.jsonc', import.meta.url), 'utf8');
   const slugRoutes = [...cfg.matchAll(/"pattern": "jonmac\.ai\/([a-z0-9-]+)\*"/g)].map((m) => m[1]);
-  assert.ok(slugRoutes.includes('mythos52'));
+  assert.deepEqual([...slugRoutes].sort(), [...ROUTED_SLUGS].sort()); // every live slug has its route, and only those
   for (const s of slugRoutes) assert.equal(reservedSlug(s), false, `route jonmac.ai/${s}* is a reserved name`);
+});
+
+test('a new link without its production route says so on the add reply and on /track; previews need no route', async () => {
+  const e = env();
+  const r = await add(e, 'brand-new-vid');
+  assert.equal(r.status, 201);
+  const j = await r.json();
+  assert.equal(j.live, false);
+  assert.match(j.note, /next dashboard deploy/);
+  await add(e, 'mythos52');
+  const html = await (await go(e, '/track', { jon: true })).text();
+  assert.match(html, /jonmac\.ai\/brand-new-vid<\/button> <span class="est"[^>]*>not live yet/);
+  assert.doesNotMatch(html, /jonmac\.ai\/mythos52<\/button> <span/);
+  const p = { ...e, PREVIEW: '1' };
+  const pr = await (await go(p, '/track/api/links', { method: 'POST', jon: true, body: { slug: 'prev-vid', title: 'T' } })).json();
+  assert.equal(pr.live, true);
+  assert.equal(pr.note, undefined);
 });

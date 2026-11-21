@@ -27,11 +27,18 @@ const forward = (to) => new Response(null, { status: 302, headers: { Location: t
 // and a path that is no known slug stays a 404. Old jonmac.ai/s/<slug> links answer 301 to /<slug>, so the click counts once there.
 
 // Top-level names a slug can never take: this Worker's paths, every other jonmac.ai Worker route, and the main site's pages.
+// Hand-kept: when a jonmac.ai route or main-site page is added, add its name here too.
 export const RESERVED = new Set(['s', 'v', 'track', 'dashboard', 'dashboard-2', 'dash', 'scripts', 'monitor', 'twilio', 'api', 'assets', 'review',
   'clone', 'agency', 'search', 'yt', 'yt2', 'team', 'tasks', 'batch', 'farm', 'watch', 'frame', 'sign', 'generator', 'www',
   'agents', 'discover', 'settings', 'templates', 'login', 'logout', 'privacy', 'terms', 'call', 'index', 'favicon', 'robots', 'sitemap', 'cards']);
 // Routes written as "jonmac.ai/<name>*" also take every path that starts with the name (e.g. /clone-x goes to the clone Worker).
 const RESERVED_PREFIX = ['yt', 'team', 'review', 'tasks', 'agency', 'clone'];
+// Live in production: jonmac.ai/* is the main site (elevateapp), so each slug needs its own "jonmac.ai/<slug>*" route in
+// wrangler.jsonc (a test keeps this list and those routes equal). A new link works on /track at once but shows "not live yet"
+// until its route ships with the next dashboard deploy. Previews (workers.dev) have no routes, so every slug is live there.
+export const ROUTED_SLUGS = new Set(['ai-agents-hacking', 'astra-seedance', 'astra-ugc-ads', 'astra62-test', 'claude-editing', 'fable52-motion', 'ig',
+  'ig-affiliate-page', 'jonmacbiz', 'macframes', 'mythos52', 'popover-test', 'tt']);
+export const slugLive = (env, slug) => env.PREVIEW === '1' || ROUTED_SLUGS.has(slug);
 export const reservedSlug = (slug) => RESERVED.has(slug) || RESERVED_PREFIX.some((p) => slug.startsWith(p));
 
 async function findLink(env, slug) {
@@ -52,7 +59,7 @@ const skoolTo = (slug) => {
 // /<slug> (worker.js asks after every route): the response, or null when the path is no known slug (the caller 404s).
 export async function skoolSlug(request, env, ctx) {
   const url = new URL(request.url);
-  const slug = url.pathname.slice(1).toLowerCase();
+  const slug = url.pathname.slice(1).replace(/\/$/, '').toLowerCase(); // one trailing slash is fine, as /s/<slug>/ was
   if (!SLUG_RE.test(slug) || reservedSlug(slug)) return null;
   const link = await findLink(env, slug);
   if (!link) return null;
@@ -270,7 +277,9 @@ async function addLink(request, env, nowMs) {
   const r = await env.DB.prepare('INSERT OR IGNORE INTO skool_links (slug, title, youtube_url, created_at, capture) VALUES (?, ?, ?, ?, 1)')
     .bind(slug, title, yt || null, iso(nowMs)).run();
   if (!r.meta?.changes) return json({ error: 'That slug is taken' }, 409);
-  return json({ ok: true, url: `${new URL(request.url).origin}/${slug}` }, 201);
+  const live = slugLive(env, slug);
+  return json({ ok: true, url: `${new URL(request.url).origin}/${slug}`, live,
+    ...(live ? {} : { note: `Saved. jonmac.ai/${slug} starts working when its route ships with the next dashboard deploy; until then the page shows "not live yet".` }) }, 201);
 }
 
 // Per-link email step switch. Only Jon's session turns it on; every link starts off.
@@ -305,7 +314,7 @@ const HOW = { email: 'email match (exact)', answer: 'their answer (exact)', esti
 
 export function trackerPage(data, origin) {
   const rows = data.rows.map((r) => `<tr><td>${r.youtube_url ? `<a href="${esc(r.youtube_url)}" target="_blank" rel="noopener">${esc(r.title)}</a>` : esc(r.title)}</td>
-<td>${esc(r.slug)}</td><td><button class="copy" data-url="${esc(`${origin}/${r.slug}`)}">${esc(`${origin.replace(/^https?:\/\//, '')}/${r.slug}`)}</button></td>
+<td>${esc(r.slug)}</td><td><button class="copy" data-url="${esc(`${origin}/${r.slug}`)}">${esc(`${origin.replace(/^https?:\/\//, '')}/${r.slug}`)}</button>${r.live === false ? ' <span class="est" title="needs its jonmac.ai route: ships with the next dashboard deploy">not live yet</span>' : ''}</td>
 <td class="n">${r.clicks.d7}</td><td class="n">${r.clicks.d30}</td><td class="n">${r.clicks.all}</td><td class="n">${r.emails}</td>
 <td class="n">${r.sales}${r.estimated ? ` <span class="est" title="estimated from the last click">+${r.estimated} est.</span>` : ''}</td><td class="n">${pct(r.conversion)}</td>
 <td><button class="cap" data-slug="${esc(r.slug)}" data-on="${r.capture ? 1 : 0}" aria-pressed="${r.capture}">${r.capture ? 'On' : 'Off'}</button></td></tr>`).join('');
@@ -343,7 +352,7 @@ const r=await fetch('/track/api/sequence',{method:'POST',headers:{'Content-Type'
 if(r.ok){location.reload()}else{alert('Could not save')}};
 document.getElementById('add').onsubmit=async(e)=>{e.preventDefault();const m=document.getElementById('msg');m.textContent='Saving...';
 const r=await fetch('/track/api/links',{method:'POST',headers:{'Content-Type':'application/json','X-CC':'1'},body:JSON.stringify(Object.fromEntries(new FormData(e.target)))});
-const j=await r.json().catch(()=>({}));if(r.ok){location.reload()}else{m.textContent=j.error||'Could not save'}};
+const j=await r.json().catch(()=>({}));if(r.ok){if(j.note)alert(j.note);location.reload()}else{m.textContent=j.error||'Could not save'}};
 </script></body></html>`;
 }
 
@@ -365,6 +374,7 @@ export async function handleTracker(request, env) {
   }
   if (p === '/track' || p === '/track/') {
     const data = await trackerData(env.DB, nowMs);
+    for (const r of data.rows) r.live = slugLive(env, r.slug);
     data.seq = await seqStatus(env);
     return html(trackerPage(data, url.origin));
   }
