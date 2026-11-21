@@ -102,6 +102,7 @@ function render() {
   if (p === 'money' && S.ui.lastPage !== 'money' && !S.signedOut) { // Income this month: each open reads this month afresh
     S.ui.incMonth = null;
     loadIncome().then(() => { if (page() === 'money') render(); });
+    loadSponsorMem().then(() => { if (page() === 'money') render(); });
   }
   if (p === 'eos' && S.ui.lastPage !== 'eos' && !S.signedOut) { // EOS (eos.js): each open starts with a fresh read of GET /dashboard/api/v1/eos
     S.eos = undefined;
@@ -206,6 +207,16 @@ async function loadIncome() {
     if (!r.signedOut) S.ui.income = r.body?.income || { error: 'the income could not be read.' };
   } catch (err) {
     if (!S.ui.income?.month) S.ui.income = { error: err.message };
+  }
+}
+
+// Money's sponsor cards (GET /dashboard/api/sponsor-memory): one per sponsor company, read on each open. A failed read says so.
+async function loadSponsorMem() {
+  try {
+    const r = await getJson('/dashboard/api/sponsor-memory');
+    if (!r.signedOut) S.ui.sponsorMem = r.body?.sponsors ? r.body : { error: 'the sponsor memory could not be read.' };
+  } catch (err) {
+    if (!S.ui.sponsorMem?.sponsors) S.ui.sponsorMem = { error: err.message };
   }
 }
 
@@ -405,7 +416,11 @@ main.addEventListener('click', async (e) => {
   }
 });
 
-main.addEventListener('toggle', (e) => { if (page() === 'cards') cardsToggle(e, S.ui); }, true); // a folded or opened Cards group stays so
+main.addEventListener('toggle', (e) => {
+  if (page() === 'cards') cardsToggle(e, S.ui);
+  const sp = e.target?.dataset?.sponsor; // an opened sponsor card stays open across the 60 s redraw
+  if (page() === 'money' && sp) (S.ui.spOpen ||= {})[sp] = !!e.target.open;
+}, true); // a folded or opened Cards group stays so
 // Typed Review text lives in S.ui, so a redraw keeps it.
 main.addEventListener('input', (e) => {
   if (page() === 'home' && homeInput(e, S.ui)) return; // a Home pop-up's field
