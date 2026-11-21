@@ -216,6 +216,45 @@ ${cols}
 </section>`;
 }
 
+// ---- Sponsor memory (GET /dashboard/api/sponsor-memory, src/sponsormemory.js): one card per sponsor company ----
+const day = (iso) => (iso ? shortDay(String(iso).slice(0, 10)) : '');
+const KIND = { reply: 'Reply', chase: 'Chase', promise: 'Promise', payment: 'Payment', due: 'Due' };
+// ui.sponsorMem: the API answer (or { error } / undefined while loading). Each card is a <details>: the closed line is
+// what Jon scans (name, owed, next follow-up), the open card lists contacts, rates, deals, invoices, threads and follow-ups.
+export function sponsorMemoryHtml(mem, openIds = {}) {
+  const head = (extra = '') => `<div class="hd cardhd" style="flex-wrap: wrap"><span class="chip">${icon('board')}</span><h2>Sponsor memory</h2><span class="mut">one card per sponsor</span>${extra}</div>`;
+  if (!mem) return `<section class="card" aria-label="Sponsor memory">${head()}<p class="mut">Loading</p></section>`;
+  if (mem.error || !Array.isArray(mem.sponsors)) return `<section class="card" aria-label="Sponsor memory">${head()}<p class="mut">No feed: ${esc(mem?.error || 'the sponsor memory could not be read.')}</p></section>`;
+  if (!mem.sponsors.length) return `<section class="card" aria-label="Sponsor memory">${head()}<p class="mut">Nothing filled in yet: the partners@ scan has not run.</p></section>`;
+  const today = mem.today || '';
+  const list = (title, rows) => (rows.length ? `<div class="stack" style="gap: 2px"><b style="font-size: 12px">${esc(title)}</b>${rows.join('')}</div>` : '');
+  const line = (s) => `<span style="font-size: 13px; overflow-wrap: anywhere">${s}</span>`;
+  const cards = mem.sponsors.map((s) => {
+    const owed = s.money?.owed > 0 ? `<span class="pill warn sp">${esc(usd(s.money.owed))} owed</span>` : s.money?.paid > 0 ? `<span class="pill ok sp">paid ${esc(usd(s.money.paid))}</span>` : '';
+    const nf = s.nextFollowup ? `<span class="pill ${s.nextFollowup <= today ? 'bad' : ''} sp" data-nextfu>${s.nextFollowup <= today ? 'follow up now' : `follow up ${esc(day(s.nextFollowup))}`}</span>` : '';
+    const fu = s.followups.map((f) => line(`<span class="pill ${f.due <= today ? 'bad' : ''}">${esc(day(f.due))}</span> ${esc(KIND[f.kind] || f.kind)}: ${esc(f.text)}`));
+    const contacts = (s.contacts || []).map((c) => line(`${esc(c.name || c.email)}${c.name && c.email ? ` <span class="mut">${esc(c.email)}</span>` : ''}`));
+    const rates = (s.rates || []).map((r) => line(`${esc(usd(r.amount))} ${esc(r.what || '')} <span class="mut">${esc(day(r.date))}</span>`));
+    const deals = [...(s.deals || []).map((d) => line(`${esc(d.label)} · ${esc(d.stage || '')}${d.amount ? ` · ${esc(usd(d.amount))}` : ''}${d.next ? ` <span class="mut">next: ${esc(d.next)}</span>` : ''}`)),
+      ...(s.extraDeals || []).map((d) => line(`${esc(d.label)} · ${esc(d.stage || '')}${d.amount ? ` · ${esc(usd(d.amount))}` : ''}${d.date ? ` <span class="mut">${esc(day(d.date))}</span>` : ''}`))];
+    const inv = [...(s.money ? [line(`Total ${esc(usd(s.money.total))} · paid ${esc(usd(s.money.paid))} · owed ${esc(usd(s.money.owed))}${s.money.bucket ? ` <span class="mut">${esc(s.money.bucket)}</span>` : ''}`)] : []),
+      ...(s.extraInvoices || []).map((i) => line(`${i.no ? `#${esc(i.no)} ` : ''}${i.amount ? esc(usd(i.amount)) : ''} · ${esc(i.state)}${i.date ? ` <span class="mut">${esc(day(i.date))}</span>` : ''}`))];
+    const threads = (s.threads || []).slice(0, 12).map((t) => line(`<span class="mut">${esc(day(t.last))}</span> ${esc(t.subject)} <span class="mut">· ${esc(t.us ? 'we wrote last' : t.who)}${t.n ? ` · ${t.n} msg` : ''}</span>${t.summary ? `<br><span class="mut">${esc(t.summary)}</span>` : ''}`));
+    return `<details class="inner" data-sponsor="${esc(s.id)}"${openIds[s.id] ? ' open' : ''} style="padding: 8px 12px">
+<summary class="hd" style="gap: 8px; cursor: pointer; flex-wrap: wrap"><b>${esc(s.name)}</b>${s.status ? `<span class="pill sp">${esc(s.status)}</span>` : ''}${owed}${nf}<span class="mut" style="margin-left: auto; font-size: 12px">${s.lastContact ? `last ${esc(day(s.lastContact))}` : ''}</span></summary>
+<div class="stack" style="gap: 8px; margin-top: 8px">
+${s.summary ? `<p class="mut" style="margin: 0">${esc(s.summary)}</p>` : ''}
+${list('Follow-ups', fu)}${list('Contacts', contacts)}${list('Rates quoted', rates)}${list('Deals', deals)}${list('Invoices and money', inv)}${list('Email threads', threads)}
+</div>
+</details>`;
+  }).join('\n');
+  const open = mem.open || 0;
+  return `<section class="card" aria-label="Sponsor memory" data-sponsormem>
+${head(`<span class="pill ${open ? 'warn' : 'ok'} sp">${open} follow-up${open === 1 ? '' : 's'} open</span>`)}
+<div class="stack" style="gap: 6px">${cards}</div>
+</section>`;
+}
+
 function costHtml(d3resp, P) {
   const d3 = d3resp?.d3 || {};
   const tk = d3.rail?.tokens;
@@ -319,5 +358,6 @@ ${incomeHtml(d2resp, P, !!bank?.source?.stale)}
 </div>
 ${expensesHtml(d2resp)}
 ${dealsHtml(d2resp, ui)}
+${sponsorMemoryHtml(ui.sponsorMem, ui.spOpen)}
 ${costHtml(d3resp, P)}`;
 }

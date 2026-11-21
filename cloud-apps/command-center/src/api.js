@@ -10,6 +10,7 @@ import {
 import { mergeSnapshot } from './snapshot.js';
 import { listFunnel } from './webinar.js';
 import { boardStageFor, dealThreadIds, draftThreadIds } from './sponsors.js';
+import { dealsSource, ingestSponsorMemory, openFollowups, sponsorCards, todayYmd } from './sponsormemory.js';
 import { runMoneyMove } from './money.js';
 import { exchangeGoogleCode, gClientId, googleAuthUrl, pullCalendar, runLife } from './life.js';
 import { homeData, homeWrite } from './home.js';
@@ -519,6 +520,36 @@ export async function handleApi(request, env, ctx) {
     // ...and every deal on the Money page, for its deal view (same stage overrides as the board).
     const deals = dealThreadIds(data, Date.now(), env.DB ? await listDealStages(env.DB) : {}, await getSponsorDeals(env.DB));
     return json({ ok: true, threads: [...new Set([...draftThreadIds(data.cards || []), ...deals])] });
+  }
+
+  // Sponsor memory (src/sponsormemory.js, card t_dd14c08f25ea4179). The Money page reads the cards with the session;
+  // GPU1's tools/sponsor_memory.py and sponsor_followups.py read and write with the machine token (gpu1 only).
+  if (rest === '/sponsor-memory' && method === 'GET') {
+    const denied = await needSession(request, env);
+    if (denied) return denied;
+    if (!env.DB) return json({ ok: true, today: todayYmd(), sponsors: [], open: 0 });
+    try {
+      const row = await getSnapshot(env.DB, 'sponsors');
+      return json({ ok: true, ...(await sponsorCards(env.DB, row ? JSON.parse(row.data || '{}') : {}, await getSponsorDeals(env.DB), await listDealStages(env.DB))) });
+    } catch (err) { console.error('sponsor memory', err); return json({ ok: false, error: 'Could not read the sponsor memory' }, 503); }
+  }
+  if (rest.startsWith('/sponsor-memory/')) {
+    if (machineOf(request, env) !== 'gpu1') return json({ error: 'Unauthorized' }, 401);
+    if (!env.DB) return json({ ok: false, error: 'No database' }, 503);
+    if (rest === '/sponsor-memory/followups' && method === 'GET') {
+      const through = url.searchParams.get('through');
+      return json({ ok: true, today: todayYmd(), followups: await openFollowups(env.DB, /^\d{4}-\d{2}-\d{2}$/.test(through || '') ? through : null) });
+    }
+    if (rest === '/sponsor-memory/source' && method === 'GET') {
+      const row = await getSnapshot(env.DB, 'sponsors');
+      return json({ ok: true, ...dealsSource(row ? JSON.parse(row.data || '{}') : {}, await getSponsorDeals(env.DB), await listDealStages(env.DB)) });
+    }
+    if (rest === '/sponsor-memory/ingest' && method === 'POST') {
+      const body = await request.json().catch(() => null);
+      if (!body || typeof body !== 'object' || Array.isArray(body)) return json({ ok: false, error: 'Bad body' }, 400);
+      return json({ ok: true, ...(await ingestSponsorMemory(env.DB, body)) });
+    }
+    return json({ error: 'Not found' }, 404);
   }
 
   if (rest === '/ingest' && method === 'POST') {
