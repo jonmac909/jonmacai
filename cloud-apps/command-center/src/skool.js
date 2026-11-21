@@ -30,7 +30,8 @@ const forward = (to) => new Response(null, { status: 302, headers: { Location: t
 // Hand-kept: when a jonmac.ai route or main-site page is added, add its name here too.
 export const RESERVED = new Set(['s', 'v', 'track', 'dashboard', 'dashboard-2', 'dash', 'scripts', 'monitor', 'twilio', 'api', 'assets', 'review',
   'clone', 'agency', 'search', 'yt', 'yt2', 'team', 'tasks', 'batch', 'farm', 'watch', 'frame', 'sign', 'generator', 'www',
-  'agents', 'discover', 'settings', 'templates', 'login', 'logout', 'privacy', 'terms', 'call', 'index', 'favicon', 'robots', 'sitemap', 'cards']);
+  'agents', 'discover', 'settings', 'templates', 'login', 'logout', 'privacy', 'terms', 'call', 'index', 'favicon', 'robots', 'sitemap', 'cards',
+  'd2', 'd3', 'css', 'js', 'img', 'data', 'push', 'skool']); // asset and sub-path names the Worker uses inside its routes
 // Routes written as "jonmac.ai/<name>*" also take every path that starts with the name (e.g. /clone-x goes to the clone Worker).
 const RESERVED_PREFIX = ['yt', 'team', 'review', 'tasks', 'agency', 'clone'];
 // Live in production: jonmac.ai/* is the main site (elevateapp), so each slug needs its own "jonmac.ai/<slug>*" route in
@@ -62,7 +63,7 @@ const skoolTo = (slug) => {
 // /<slug> (worker.js asks after every route): the response, or null when the path is no known slug (the caller 404s).
 export async function skoolSlug(request, env, ctx) {
   const url = new URL(request.url);
-  const slug = url.pathname.slice(1).replace(/\/$/, '').toLowerCase(); // one trailing slash is fine, as /s/<slug>/ was
+  const slug = url.pathname.slice(1).replace(/\/$/, '').toLowerCase(); // one trailing slash is fine (the route covers it)
   if (!SLUG_RE.test(slug) || reservedSlug(slug)) return null;
   const link = await findLink(env, slug);
   if (!link) return null;
@@ -88,6 +89,8 @@ export async function skoolRedirect(request, env, ctx) {
 async function serveLink(request, env, ctx, slug, link) {
   const url = new URL(request.url);
   const to = skoolTo(slug);
+  // The form posts back where it was served: /<slug>, or /s/<slug> while a new slug has no route yet (so the post never hits a dead path).
+  const action = `${url.pathname.startsWith('/s/') ? '/s/' : '/'}${slug}`;
   const capture = link.capture === 1;
   if (request.method === 'POST') {
     if (!capture) return forward(to);
@@ -97,7 +100,7 @@ async function serveLink(request, env, ctx, slug, link) {
     const email = pick === 'fix' && field(b, 'suggest') ? field(b, 'suggest').toLowerCase() : typed;
     const res = await checkEmail(email, { keepTypo: pick === 'keep' });
     if (!res.ok) {
-      return capturePage(slug, res.message, 400, res.reason === 'typo' ? { typed: email, suggestion: res.suggestion } : { typed: res.reason === 'syntax' ? typed.slice(0, 254) : email });
+      return capturePage(slug, action, res.message, 400, res.reason === 'typo' ? { typed: email, suggestion: res.suggestion } : { typed: res.reason === 'syntax' ? typed.slice(0, 254) : email });
     }
     // Never log the email: a failure prints the slug only.
     try {
@@ -119,7 +122,7 @@ async function serveLink(request, env, ctx, slug, link) {
     ctx.waitUntil(env.DB.prepare('INSERT INTO skool_clicks (slug, at, referrer, country) VALUES (?, ?, ?, ?)')
       .bind(slug, iso(Date.now()), ref, country).run().catch((err) => console.error('skool click', err)));
   }
-  return capture ? capturePage(slug, '', 200) : forward(to);
+  return capture ? capturePage(slug, action, '', 200) : forward(to);
 }
 
 // The email step looks like the Skool about page with the email box as a pop-over. www.skool.com sends
@@ -135,7 +138,7 @@ async function backdrop(request, env, name) {
   return new Response(r.body, { status: 200, headers: { 'Content-Type': 'image/jpeg', 'Cache-Control': 'public, max-age=3600', 'X-Robots-Tag': 'noindex, nofollow' } });
 }
 
-function capturePage(slug, error, status, { typed = '', suggestion = '' } = {}) {
+function capturePage(slug, action, error, status, { typed = '', suggestion = '' } = {}) {
   const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="robots" content="noindex,nofollow"><meta name="referrer" content="no-referrer"><title>AI Video Lab on Skool</title><style>
 html,body{height:100%;margin:0}body{font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:#1f1f1f;background:#f5f5f5;overflow:hidden}
@@ -152,7 +155,7 @@ button:hover{background:#f5c961}button.alt{background:#eee;font-weight:500}butto
 <div class="bg" aria-hidden="true"></div><div class="dim" aria-hidden="true"></div>
 <div class="wrap"><main class="box" role="dialog" aria-modal="true" aria-labelledby="t">
 <h1 id="t">Enter your email to get access</h1>${error ? `<p class="err" role="alert">${esc(error)}</p>` : ''}
-<form method="post" action="/${esc(slug)}"><input type="email" name="email" placeholder="you@example.com" autocomplete="email" aria-label="Email" required autofocus maxlength="254" value="${esc(typed)}">
+<form method="post" action="${esc(action)}"><input type="email" name="email" placeholder="you@example.com" autocomplete="email" aria-label="Email" required autofocus maxlength="254" value="${esc(typed)}">
 ${suggestion ? `<input type="hidden" name="suggest" value="${esc(suggestion)}"><button type="submit" name="pick" value="fix">Yes, use ${esc(suggestion)}</button><button type="submit" name="pick" value="keep" class="alt">No, keep what I typed</button>` : '<button type="submit">Continue</button>'}</form></main></div></body></html>`;
   return new Response(html, { status, headers: { 'Content-Type': 'text/html; charset=utf-8', ...NO_STORE } });
 }

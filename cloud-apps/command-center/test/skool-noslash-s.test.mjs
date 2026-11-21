@@ -97,9 +97,11 @@ test('the add-link API refuses a route or top-level name as a slug with a clear 
 });
 
 test('every path this Worker routes, and every slug route in wrangler.jsonc, agrees with the reserved list', () => {
-  const src = readFileSync(new URL('../src/worker.js', import.meta.url), 'utf8');
-  for (const seg of ['v', 's', 'track', 'dashboard', 'dashboard-2', 'dash', 'twilio', 'monitor', 'scripts']) assert.ok(RESERVED.has(seg), seg);
-  assert.ok(src.includes("'/s/'") && src.includes("'/v/'"));
+  // Every top-level path named in worker.js and the route modules it uses (string literals and route constants).
+  const src = ['worker.js', 'monitor.js', 'twilioanswer.js', 'prooffiles.js'].map((f) => readFileSync(new URL(`../src/${f}`, import.meta.url), 'utf8')).join('\n');
+  const segs = new Set([...src.matchAll(/['`]\/([a-z0-9][a-z0-9-]*)(?=[\/'`])/g)].map((m) => m[1]));
+  for (const seg of ['s', 'v', 'track', 'dashboard', 'dash', 'monitor', 'scripts', 'twilio']) assert.ok(segs.has(seg), `parser found ${seg}`);
+  for (const seg of segs) assert.ok(RESERVED.has(seg), `worker path /${seg} is not in RESERVED`);
   const cfg = readFileSync(new URL('../wrangler.jsonc', import.meta.url), 'utf8');
   const slugRoutes = [...cfg.matchAll(/"pattern": "jonmac\.ai\/([a-z0-9-]+)\*"/g)].map((m) => m[1]);
   assert.deepEqual([...slugRoutes].sort(), [...ROUTED_SLUGS].sort()); // every live slug has its route, and only those
@@ -117,6 +119,7 @@ test('a new link without its production route gets the working /s/ link (no 301 
   const s = await go(e, '/s/brand-new-vid');
   assert.notEqual(s.status, 301); // served on /s/ as before: pop-over, one click
   assert.equal(s.status, 200);
+  assert.match(await s.text(), /<form method="post" action="\/s\/brand-new-vid">/); // posts back to the path that works
   assert.equal(await clicks(e), 1);
   await add(e, 'mythos52');
   const html = await (await go(e, '/track', { jon: true })).text();
