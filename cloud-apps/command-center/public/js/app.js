@@ -87,7 +87,12 @@ export async function act(kind, payload = {}) {
   return row;
 }
 
+// A card's own link, /dashboard/#t_<id> (Ana's brief links approvals this way): that card's modal
+// over the page underneath. The hash stays while it is open, so refresh and back work.
+const cardHash = () => /^#(t_[0-9a-f]{16})$/i.exec(location.hash || '')?.[1].toLowerCase() || null;
+
 function hashPage() {
+  if (cardHash()) { try { return shownPage || localStorage.getItem('cc-page') || 'today'; } catch { return shownPage || 'today'; } }
   const id = (location.hash || '#today').replace(/^#/, '') || 'today';
   return Object.hasOwn(pages, id.split('/')[0]) ? id : 'today';
 }
@@ -190,7 +195,7 @@ const stale = (d) => {
 export async function go(id, { refetch = false } = {}) {
   if (!Object.hasOwn(pages, id.split('/')[0])) id = 'today';
   const [name, sub] = id.split('/');
-  if (location.hash !== `#${id}`) history.replaceState(null, '', `${PREFIX}/#${id}`);
+  if (location.hash !== `#${id}` && !cardHash()) history.replaceState(null, '', `${PREFIX}/#${id}`);
   if (refetch || name === 'today' || name === 'todo' || name === 'monthly') { // Monthly shows Today's goal tiles
     const snap = await fetch(`${PREFIX}/api/snapshot?v=${Date.now()}`);
     if (snap.ok) data = await snap.json();
@@ -363,9 +368,25 @@ document.addEventListener('click', (e) => {
   }
 });
 
-bindModals({ say, act, go });
+bindModals({ say, act, go, page: hashPage });
 
-window.addEventListener('hashchange', () => go(hashPage()));
+async function openHashCard(id) {
+  const task = await openCard(id, data?.pages?.projects);
+  if (task !== null) return; // shown, or closed / replaced while it loaded
+  document.getElementById('cardModal')?.close(); // its close puts the page's own hash back
+  say('Card not found');
+}
+// Closing a card opened by its link drops the #t_ hash back to the page underneath.
+document.getElementById('cardModal')?.addEventListener('close', () => {
+  if (cardHash()) history.replaceState(null, '', `${PREFIX}/#${hashPage()}`);
+});
+
+window.addEventListener('hashchange', () => {
+  const id = cardHash();
+  if (id) { openHashCard(id); return; }
+  document.getElementById('cardModal')?.close(); // back from a card link closes it
+  go(hashPage());
+});
 
 // Everything the app renders (pages, nav, modals, toasts) gets noLoneWords, in one pass per batch.
 new MutationObserver((ms) => noLoneWords(ms.flatMap((m) => [...m.addedNodes]))).observe(document.body, { childList: true, subtree: true });
@@ -408,6 +429,7 @@ try { if (!location.hash) last = localStorage.getItem('cc-page') || last; } catc
 // ?card=<id> (links from /dash rows and the Team page's cards): open that card's view once the page is up, then drop the query.
 const deepCard = new URLSearchParams(location.search).get('card');
 Promise.resolve(go(last)).then(() => {
+  if (cardHash()) openHashCard(cardHash());
   if (deepCard === null) return;
   history.replaceState(null, '', `${PREFIX}/${location.hash}`);
   if (/^t_[0-9a-f]{16}$/.test(deepCard)) openCard(deepCard, data?.pages?.projects);
