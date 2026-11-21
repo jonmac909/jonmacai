@@ -10,6 +10,7 @@ import { renderReview, reviewClick } from './review.js';
 import { renderMoney } from './money.js';
 import { threadClick } from './thread.js';
 import { renderHyper, openHyper } from './hyper.js';
+import { MC_ORIGIN, isMcPage, renderMc, mcTheme } from './moneyclaw.js';
 import { renderBluesky } from './bluesky.js';
 import { renderCards, cardsClick, cardsToggle } from './cards.js';
 import { applyOrder, cachedOrder, cacheOrder, navDrag } from './navorder.js';
@@ -25,7 +26,8 @@ let oldTrack = null;
 
 // Home is the Goals page (Jacqueline's handover): #goals and any unknown hash draw it.
 // Team, Blockers, Scripts and System were removed from the menu and the routes (Jon, 2026-11-16): their hashes now draw Home. Their data and APIs are untouched.
-const PAGES = { home: 'Goals', factory: 'Factory', track: 'Track', review: 'Review', hyper: 'Hyper', personal: 'Personal', money: 'Money', bluesky: 'Bluesky', cards: 'Cards', eos: 'EOS' };
+// Budget, Expenses and P&L frame MoneyClaw's own pages (moneyclaw.js).
+const PAGES = { home: 'Goals', factory: 'Factory', track: 'Track', review: 'Review', hyper: 'Hyper', personal: 'Personal', money: 'Money', budget: 'Budget', expenses: 'Expenses', pnl: 'P&L', bluesky: 'Bluesky', cards: 'Cards', eos: 'EOS' };
 const SIGNIN = 'd3-signin';
 const main = document.getElementById('main');
 // Review state that belongs to one item: cleared when the item or the page changes.
@@ -38,6 +40,7 @@ function setTheme(t) {
   document.documentElement.setAttribute('data-theme', theme);
   try { localStorage.setItem('d3-theme', theme); } catch { /* private mode */ }
   for (const b of document.querySelectorAll('[data-theme-set]')) b.setAttribute('aria-pressed', String(b.dataset.themeSet === theme));
+  mcTheme(document.getElementById('main'), theme); // an open MoneyClaw page follows the switch
 }
 for (const b of document.querySelectorAll('[data-theme-set]')) b.addEventListener('click', () => setTheme(b.dataset.themeSet));
 setTheme(document.documentElement.getAttribute('data-theme'));
@@ -117,6 +120,10 @@ function render() {
   if (p === 'hyper') { // drawn once: a redraw would reload the app in its frame
     if (S.signedOut) { main.innerHTML = `${headerOnly(S.d2, 'Hyper')}${note}`; return; }
     if (!main.querySelector?.('#hyFrame')) { main.innerHTML = renderHyper(S.d2); openHyper(main, getJson); }
+    return;
+  }
+  if (isMcPage(p)) { // MoneyClaw keeps its own sign-in, so the frame shows even when the dashboard is signed out; drawn once per page
+    if (main.querySelector?.('#mcFrame')?.dataset?.mc !== p) main.innerHTML = renderMc(S.d2, p, document.documentElement.getAttribute('data-theme'));
     return;
   }
   if (p === 'factory') {
@@ -427,6 +434,12 @@ personalDrag(main, S, () => page() === 'personal', send, render, reloadPersonal)
 // Home: the "N more" hint under a category card follows its scroll.
 main.addEventListener('scroll', (e) => { if (e.target.classList?.contains('hmpc')) homeHints(main); }, true);
 
+// MoneyClaw's Budget page asks to open Expenses (its "budgets" link): only a message from MoneyClaw's own address counts.
+window.addEventListener?.('message', (e) => {
+  if (e.origin !== MC_ORIGIN || e.data?.type !== 'moneyclaw:open-tab') return;
+  if (e.data.tab === 'reports') location.hash = 'expenses';
+  else if (e.data.tab === 'pnl') location.hash = 'pnl';
+});
 window.addEventListener('hashchange', () => {
   Object.assign(S.ui, { psMeal: null, psPop: null, psErr: '', hmOpen: null, hmMore: false, hmEd: null, hmGoal: null, hmGDel: null, openKr: null, openBot: null, openBl: null, teamBot: null, teamCol: null, ...RV_CLEAR, rvDone: {}, rvKept: {} });
   render();
