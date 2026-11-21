@@ -42,7 +42,7 @@ test('email step on: pop-over over a blurred Skool backdrop, no iframe, same for
   assert.match(html, /role="dialog" aria-modal="true"/);
   assert.match(html, /Enter your email to get access/);
   assert.doesNotMatch(html, /stays on jonmac\.ai/); // Jon removed the privacy line
-  assert.match(html, /<form method="post" action="\/s\/pop">/);
+  assert.match(html, /<form method="post" action="\/pop">/);
   assert.match(html, /url\(\/s\/about-desktop\.jpg\)/);
   assert.match(html, /url\(\/s\/about-mobile\.jpg\)/);
   assert.match(html, /filter:blur\(/);
