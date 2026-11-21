@@ -43,7 +43,7 @@ test('/mythos52 shows the pop-over (form posts to /mythos52) and counts one clic
   assert.equal(off.status, 302); // email step off: straight to Skool, slug case-insensitive as before
   assert.equal(new URL(off.headers.get('Location')).origin, 'https://www.skool.com');
   assert.equal(await clicks(e), 2);
-  assert.equal((await go(e, '/mythos52/')).status, 302); // one trailing slash still works, as /s/<slug>/ did
+  assert.equal((await go(e, '/mythos52/')).status, 302); // one trailing slash still works
   assert.equal(await clicks(e), 3);
 });
 
