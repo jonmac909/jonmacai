@@ -41,8 +41,47 @@ function feedTotal(expenses, group, key) {
   return n == null ? null : cents(n);
 }
 
+// MoneyClaw's own Budget page view (summary.budgetSimple = its /api/budget-simple, card t_9a6930f719354c07): the same
+// numbers, Travel switch block (withTravel) and per-category rows its /budget page shows, so #budget needs no MoneyClaw
+// sign-in. Its windows: Yesterday, the 7 days ending yesterday, the 1st to yesterday. Card colour = over budget or not.
+const LABELS = { yesterday: 'Yesterday', week: 'Last 7 days', month: 'This month' };
+const txns = (list) => (Array.isArray(list) ? list : []).map(({ date, merchant, amount, category, line, pending, currency }) => ({ date, merchant, amount, category, line, pending: !!pending, currency }));
+function fromSimple(simple, summary) {
+  const groups = {};
+  for (const g of simple.groups || []) {
+    if (!BUDGETS[g?.key]) continue;
+    const periods = {};
+    for (const key of ['yesterday', 'week', 'month']) {
+      const s = g.periods?.[key] || {};
+      const w = s.withTravel || {};
+      const p = {
+        label: LABELS[key], from: s.startDate, to: s.endDate, budget: s.budget, spent: s.spent, over: !!s.over, green: !s.over,
+        count: s.count, transactions: txns(s.txns), categories: Array.isArray(s.categories) ? s.categories : [], excludedTravel: s.excludedTravel ?? 0,
+        withTravel: { spent: w.spent, over: !!w.over, green: !w.over, count: w.count, transactions: txns(w.txns), categories: Array.isArray(w.categories) ? w.categories : [] },
+      };
+      if (key === 'month') {
+        Object.assign(p, { onTrack: !!s.onTrack, paceBudget: s.paceBudget, daysGone: s.daysGone, daysInMonth: s.daysInMonth });
+        p.withTravel.onTrack = !!w.onTrack;
+      }
+      periods[key] = p;
+    }
+    groups[g.key] = { label: g.label || (g.key === 'business' ? 'Business' : 'Personal'), periods };
+  }
+  if (!groups.business || !groups.personal) return null;
+  const m = groups.business.periods.month;
+  return {
+    source: 'moneyclaw', today: simple.today, month: simple.month, tz: 'America/Vancouver', daysElapsed: m.daysGone, daysInMonth: m.daysInMonth,
+    transactionsLoaded: true, note: '', asOf: summary?.asOf || null, latestPostedDate: simple.latestPostedDate || null, excluded: TRAVEL, groups,
+  };
+}
+
 // summary: the stored MoneyClaw dashboard summary (parsed JSON). nowMs: the instant to count from.
+// MoneyClaw's budgetSimple block wins when present (one source with its /budget page); otherwise the older row calculation.
 export function budgetView(summary, nowMs = Date.now()) {
+  if (summary?.budgetSimple && typeof summary.budgetSimple === 'object') {
+    const v = fromSimple(summary.budgetSimple, summary);
+    if (v) return v;
+  }
   const today = vanYmd(nowMs);
   const win = windows(today);
   const raw = Array.isArray(summary?.budgetTransactions) ? summary.budgetTransactions : null;
