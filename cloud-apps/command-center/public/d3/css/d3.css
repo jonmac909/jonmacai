@@ -518,6 +518,17 @@ html[data-theme="dark"] body{background:#0b0b0c}
   .d3 .card.hy.mc{height:calc(100dvh - 150px);min-height:420px;border-radius:14px}
   .d3 .main[data-page="budget"] header.hd,.d3 .main[data-page="expenses"] header.hd,.d3 .main[data-page="pnl"] header.hd{margin-bottom:0}
 }
+/* Phones, jonmac.ai/dash#budget (Jon 21 Nov: "can't scroll down far enough to see all cards"): the frame was a guessed
+   100dvh - 150px, but the top bar plus the page header are taller than 150px, so the bottom of the frame (the last card)
+   sat below the screen. Now the page is a column exactly one screen tall (less the 10px padding top and bottom) and the
+   frame takes whatever is left under the header; the MoneyClaw page scrolls inside it. (Browsers without :has() keep
+   the rule above.) */
+@media (max-width:760px){
+  .d3 .shell:has(.main:is([data-page="budget"],[data-page="expenses"],[data-page="pnl"])){flex-direction:column;flex-wrap:nowrap;min-height:calc(100dvh - 20px)}
+  .d3 .shell:has(.main:is([data-page="budget"],[data-page="expenses"],[data-page="pnl"])) .rail{flex:none}
+  .d3 .shell:has(.main:is([data-page="budget"],[data-page="expenses"],[data-page="pnl"])) .main{flex:1 1 auto;min-height:0;gap:10px}
+  .d3 .shell:has(.main:is([data-page="budget"],[data-page="expenses"],[data-page="pnl"])) .card.hy.mc{flex:1 1 auto;height:auto;min-height:280px}
+}
 /* Home page (home.js; Jacqueline's handover, 12 Nov 2026): four widgets, the Schedule card, Progress as 2 x 2 cards.
    Colours are the dashboard's own tokens, so light and dark follow the theme; the four category colours (--c-*, set on .hm by
    home.js) are Jon's to change. Status shows on the dot only: red off track, amber at risk, grey on track. */
