@@ -12,7 +12,7 @@ import { esc, usd, toneOf } from './util.js';
 import { periodOf, pipelineOf, dueOf } from './goals.js';
 import { reviewItems } from './review.js';
 import { dealStages } from './money.js';
-import { DAYS, addDays, wdOf, dayItems, zoned, goalState } from './sched.js';
+import { DAYS, addDays, wdOf, dayItems, zoned, goalState, reminderItems, upcomingReminders } from './sched.js';
 
 const TZ = 'America/Vancouver';
 const START = 8; // the calendar's first hour (8am, so the home routines fit)
@@ -96,7 +96,7 @@ export function scheduleOf(d2resp, d3resp, P = periodOf(d2resp), home = null, no
         const mid = ev.id || `t:${ev.s}-${ev.e}:${ev.w}`.slice(0, 300); // an event with no id (Ana's feed) is known by its time and title
         return { k: `m|${ymd}|${n}`, s: ev.s, e: ev.e, w: ev.w, c: 'meeting', key: '', meet: true, on: ymd, mid, done: ticked.has(`${mid}|${ymd}`) };
       });
-    items.push(...meets);
+    items.push(...meets, ...reminderItems(home, ymd)); // OpenBot's reminders: marked, no tick box, not editable
     items.sort((a, b) => a.s - b.s || a.e - b.e);
     const diff = Math.round((Date.parse(`${ymd}T12:00:00Z`) - Date.parse(`${P.ymd}T12:00:00Z`)) / 86400000);
     return { ymd, name: DAYS[wdOf(ymd)], n: Number(ymd.slice(8, 10)), today, week: i < 7, phone: diff >= 0 && diff <= 2, items };
@@ -111,8 +111,9 @@ function listHtml(day, now, ui) {
   const next = day.items.find((x) => x.e > now.h && !x.ghost);
   return day.items.map((x) => {
     const cur = x.s <= now.h && x.e > now.h && !x.ghost && !x.done;
-    const tag = x.meet ? '<span class="hmtag">Meeting</span>' : x.tag ? `<span class="hmtag${x.late && !x.done ? ' late' : ''}">${x.tag}</span>` : '';
+    const tag = x.rem ? '<span class="hmtag rem">Reminder</span>' : x.meet ? '<span class="hmtag">Meeting</span>' : x.tag ? `<span class="hmtag${x.late && !x.done ? ' late' : ''}">${x.tag}</span>` : '';
     const cls = `hmrow${x.done ? ' done' : ''}${x.missed ? ' miss' : ''}${x.meet ? ' meet' : ''}${cur ? ' now' : ''}`;
+    if (x.rem) return `<div class="${cls} rem"${x === next ? ' data-hmnow' : ''}><span class="hmnb" aria-hidden="true"></span><span class="hmtm">${clockOf(x.s)}</span><i class="hmcd" style="--c: var(--c-${x.c})"></i><span class="hmwhat">${esc(x.w)}</span>${tag}</div>`;
     if (x.meet) return `<div class="${cls}"${x === next ? ' data-hmnow' : ''}><input type="checkbox" data-hmmeet="${esc(x.k)}"${x.done ? ' checked' : ''} aria-label="${esc(x.w)}: ${x.done ? 'done' : 'not done'}"><span class="hmtm">${spanOf(x)}</span><i class="hmcd" style="--c: var(--c-${x.c})"></i><span class="hmwhat">${esc(x.w)}</span>${tag}</div>`;
     const k = esc(x.k);
     const box = x.ghost ? '<span class="hmnb" aria-hidden="true"></span>'
@@ -121,6 +122,18 @@ function listHtml(day, now, ui) {
   }).join('') || '<p class="mut">Nothing planned today.</p>';
 }
 
+// "Coming up": the next time of each reminder after now, so a far-off one (a yearly bill) shows in the list before its week does.
+function upcomingHtml(home, today, now) {
+  if (!today) return '';
+  const hh = Math.floor(now.h);
+  const wall = `${today.ymd}T${String(hh).padStart(2, '0')}:${String(Math.floor((now.h - hh) * 60)).padStart(2, '0')}`;
+  const rows = upcomingReminders(home, wall).filter((r) => r.at.slice(0, 10) !== today.ymd);
+  if (!rows.length) return '';
+  const li = rows.map((r) => `<div class="hmrow rem"><span class="hmnb" aria-hidden="true"></span><span class="hmtm">${DAYS[wdOf(r.at.slice(0, 10))]} ${Number(r.at.slice(8, 10))} ${MON[Number(r.at.slice(5, 7)) - 1]}</span><i class="hmcd" style="--c: var(--c-reminder)"></i><span class="hmwhat">${esc(r.title)}</span><span class="hmtag rem">${esc(r.repeat || 'Reminder')} · ${esc(clockOf(Number(r.at.slice(11, 13)) + Number(r.at.slice(14, 16)) / 60))}</span></div>`).join('');
+  return `<h3 class="hmup">Reminders coming up</h3>${li}`;
+}
+const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
 function calHtml(days, now) {
   const top = (h) => Math.round((Math.max(START, Math.min(END, h)) - START) * H);
   const hours = Array.from({ length: END - START }, (_, i) => {
@@ -128,10 +141,10 @@ function calHtml(days, now) {
     return `<span style="top: ${i * H}px">${i ? `${((h + 11) % 12) + 1} ${h < 12 ? 'AM' : 'PM'}` : ''}</span>`;
   }).join('');
   const cols = days.map((d) => {
-    const evs = d.items.filter((x) => x.e > START && x.s < END).map((x) => {
+    const evs = d.items.filter((x) => x.rem || (x.e > START && x.s < END)).map((x) => {
       const small = x.e - x.s < 0.75;
       const t = `${spanOf(x)} ${x.w}`;
-      return `<div class="hmev${small ? ' sm' : ''}${x.meet ? ' m' : ''}${x.done ? ' done' : ''}${x.missed ? ' miss' : ''}"${x.meet ? '' : ` data-hmit="${esc(x.k)}" role="button" tabindex="0"`} style="top: ${top(x.s)}px; height: ${Math.max(14, top(x.e) - top(x.s) - 2)}px; --c: var(--c-${x.c})" title="${esc(t)}">${small ? `<b>${clockOf(x.s)} ${esc(x.w)}</b>` : `<b>${esc(x.w)}</b><span>${spanOf(x)}</span>`}</div>`;
+      return `<div class="hmev${small ? ' sm' : ''}${x.meet || x.rem ? ' m' : ''}${x.rem ? ' rem' : ''}${x.done ? ' done' : ''}${x.missed ? ' miss' : ''}"${x.meet || x.rem ? '' : ` data-hmit="${esc(x.k)}" role="button" tabindex="0"`} style="top: ${top(x.s)}px; height: ${Math.max(14, top(x.e) - top(x.s) - 2)}px; --c: var(--c-${x.c})" title="${esc(t)}">${small ? `<b>${clockOf(x.s)} ${esc(x.w)}</b>` : `<b>${esc(x.w)}</b><span>${spanOf(x)}</span>`}</div>`;
     }).join('');
     return `<div class="hmday${d.today ? ' today' : ''}${d.week ? ' hmwk' : ''}${d.phone ? ' hmph' : ''}"><div class="hmdh"><small>${d.name}</small><b>${d.n}</b></div><div class="hmcol" data-ymd="${d.ymd}">${d.today ? `<div class="hmnow" style="top: ${top(now.h)}px"></div>` : ''}${evs}</div></div>`;
   }).join('');
@@ -143,7 +156,7 @@ function scheduleHtml(sch, now, ui, home) {
   const seg = [['list', 'List'], ['cal', 'Calendar']].map(([k, l]) => `<button type="button" data-hmview="${k}" aria-pressed="${view === k}">${l}</button>`).join('');
   const legend = CATS.map(([k, l, def]) => `<label><input type="color" data-hmcol="${k}" value="${esc(ui.hmCols?.[k] || def)}" aria-label="${l} colour">${l}</label>`).join('');
   const today = sch.days.find((d) => d.today);
-  const body = !home ? '<p class="mut">Your saved tasks could not be loaded. They show again on the next refresh.</p>' : view === 'cal' ? calHtml(sch.days, now) : listHtml(today, now, ui);
+  const body = !home ? '<p class="mut">Your saved tasks could not be loaded. They show again on the next refresh.</p>' : view === 'cal' ? calHtml(sch.days, now) : `${listHtml(today, now, ui)}${upcomingHtml(home, today, now)}`;
   const meet = sch.cal === 'google' ? 'Meetings come from your Google Calendar.'
     : sch.cal === 'ready' ? 'Meetings are only today\'s, from Ana\'s feed: <a href="/dashboard/api/google/start">connect Google Calendar</a> to see the week.'
       : 'Meetings are only today\'s, from Ana\'s feed, until Google Calendar is connected.';
@@ -538,7 +551,7 @@ export function renderHome(d2resp, d3resp, ui = {}, nowMs, home = null) {
   const P = periodOf(d2resp);
   const now = nowOf(nowMs);
   const sch = scheduleOf(d2resp, d3resp, P, home, now);
-  ui.hmItems = Object.fromEntries(sch.days.flatMap((d) => d.items.filter((x) => !x.meet).map((x) => [x.k, x]))); // what a click on a task opens
+  ui.hmItems = Object.fromEntries(sch.days.flatMap((d) => d.items.filter((x) => !x.meet && !x.rem).map((x) => [x.k, x]))); // what a click on a task opens
   ui.hmMeets = Object.fromEntries(sch.days.flatMap((d) => d.items.filter((x) => x.meet).map((x) => [x.k, x]))); // what a meeting's tick box saves
   const today = sch.days.find((d) => d.today);
   const live = (today?.items || []).filter((x) => !x.missed && !x.done);

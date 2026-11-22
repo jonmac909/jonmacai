@@ -94,6 +94,34 @@ export function dayItems(home, X, today, nowH) {
   return out.sort((a, b) => a.s - b.s || a.e - b.e);
 }
 
+// ---- OpenBot's reminder routines (home.reminders, from the reminders feed: src/bots.js) ----
+// Each reminder carries its occurrences as Vancouver wall-clock "YYYY-MM-DDTHH:MM" strings, so no time zone is applied here.
+// A reminder has no tick box and no editor: it is a nudge from Ana, shown in the calendar and the day's list marked "Reminder".
+const hoursOf = (hm) => Number(hm.slice(0, 2)) + Number(hm.slice(3, 5)) / 60;
+
+// The reminders on the date X, oldest first: { k, id, on, s, e (hours), w, c: 'reminder', key: '', rep, rem: true, tag: 'Reminder' }.
+export function reminderItems(home, X) {
+  const out = [];
+  for (const r of home?.reminders?.items || []) {
+    for (const at of r.times || []) {
+      if (typeof at !== 'string' || at.slice(0, 10) !== X) continue;
+      const s = hoursOf(at.slice(11));
+      out.push({ k: `rm|${r.id}|${at}`, id: r.id, on: X, s, e: s + 0.25, w: r.title, c: 'reminder', key: '', rep: r.repeat || '', rem: true, tag: 'Reminder' });
+    }
+  }
+  return out.sort((a, b) => a.s - b.s || (a.w < b.w ? -1 : 1));
+}
+
+// What is coming: each reminder's next occurrence strictly after `now` ("YYYY-MM-DDTHH:MM" Vancouver), soonest first, as
+// { id, title, repeat, at }. Uses `next` and the listed times; a reminder with neither is left out.
+export function upcomingReminders(home, nowWall, limit = 8) {
+  const out = [];
+  for (const r of home?.reminders?.items || []) {
+    const at = [r.next, ...(r.times || [])].filter((t) => typeof t === 'string' && t > nowWall).sort()[0];
+    if (at) out.push({ id: r.id, title: r.title, repeat: r.repeat || '', at });
+  }
+  return out.sort((a, b) => (a.at < b.at ? -1 : a.at > b.at ? 1 : a.title < b.title ? -1 : 1)).slice(0, limit);
+}
 // ---- Jon's own goals ("+ Add goal") as numbers for one period ----
 // -> { v (text), st (off | risk | on | none), word?, pct, pace, cur (the number), doneToday, steps? }
 const money = (n) => `$${Math.round(n).toLocaleString('en-US')}`;

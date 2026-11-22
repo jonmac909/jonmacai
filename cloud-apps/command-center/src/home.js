@@ -45,12 +45,21 @@ function navOf(raw) {
 // A timed Google event as { title, start, end } (ISO); all-day events carry a bare date and are left out.
 const timed = (e) => typeof e?.start === 'string' && e.start.includes('T') && Number.isFinite(Date.parse(e.start));
 
+// The reminders feed as Home reads it: { at, items: [{ id, title, repeat, next, times }] }, or null when none was posted or it is damaged.
+export function remindersOf(raw) {
+  try {
+    const d = JSON.parse(raw);
+    if (!d || !Array.isArray(d.reminders)) return null;
+    return { at: typeof d.at === 'string' ? d.at : null, items: d.reminders.filter((r) => r && typeof r.id === 'string' && typeof r.title === 'string' && Array.isArray(r.times)) };
+  } catch { return null; }
+}
+
 export async function homeData(env, nowMs = Date.now()) {
   const today = ymd(nowMs);
   const from = shift(today, -WINDOW);
   const to = shift(today, WINDOW);
   const all = async (sql, ...args) => (await env.DB.prepare(sql).bind(...args).all()).results || [];
-  const [tasks, days, habits, cal, goals, logs, meetDone, navRow] = await Promise.all([
+  const [tasks, days, habits, cal, goals, logs, meetDone, navRow, remRow] = await Promise.all([
     all('SELECT * FROM home_tasks WHERE deleted = 0 ORDER BY start_min, id'),
     all('SELECT * FROM home_task_days WHERE (day >= ? AND day <= ?) OR (move_day >= ? AND move_day <= ?) OR (done_on >= ? AND done_on <= ?)', from, to, from, to, from, to),
     all("SELECT day, kind, done FROM habits WHERE kind IN ('workout', 'date_night') AND day >= ? AND day <= ?", from, to),
@@ -61,6 +70,8 @@ export async function homeData(env, nowMs = Date.now()) {
     // meeting ticks and the saved sidebar order (migration 0032); a missing table reads as nothing ticked and the built-in order
     all('SELECT event_id, day FROM home_meeting_ticks WHERE done = 1 AND day >= ? AND day <= ?', from, to).catch(() => []),
     all("SELECT value FROM dash_settings WHERE key = 'nav_order'").catch(() => []),
+    // OpenBot's reminder routines, the newest post of the reminders feed (src/bots.js); no post yet reads as none
+    all("SELECT data FROM bot_feed_entries WHERE name = 'reminders' ORDER BY created_at DESC LIMIT 1").catch(() => []),
   ]);
   const fx = await readFx(env).catch(() => null);
   let snap = null;
@@ -75,6 +86,7 @@ export async function homeData(env, nowMs = Date.now()) {
     habits: habits.filter((h) => Number(h.done)).map((h) => ({ day: h.day, kind: h.kind })),
     meetDone: meetDone.map((m) => ({ id: m.event_id, day: m.day })),
     navOrder: navOf(navRow[0]?.value),
+    reminders: remindersOf(remRow[0]?.data),
     calendar: {
       connected: !!snap?.connected,
       // Connecting needs the Google sign-in key on the Worker; without it the link would only answer 501.

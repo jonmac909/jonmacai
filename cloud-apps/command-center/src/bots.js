@@ -1209,6 +1209,29 @@ export const FEEDS = {
       return { date: matchOf(b, 'date', DAY_RE, '2026-10-29', true), events };
     },
   },
+  // OpenBot reminder routines on Jon's Home page (tools/reminders_feed.py, run from dash_live_feed.py): the full list every time,
+  // newest wins, so a routine that is gone from OpenBot is gone from Home on the next post.
+  // {at, reminders: [{id, title, repeat, next, times}]}: `times` are Vancouver wall-clock "YYYY-MM-DDTHH:MM" (no zone), the
+  // occurrences from a week ago to six weeks ahead; `next` is the next one, however far off.
+  reminders: {
+    writers: ['developer', 'ana'],
+    keepDays: 2,
+    parse: (b) => {
+      if (!Array.isArray(b.reminders) || b.reminders.length > 60) throw new Bad(400, 'reminders must be a list of at most 60');
+      const WALL = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/;
+      const wall = (v, k) => { if (typeof v !== 'string' || !WALL.test(v) || Number.isNaN(Date.parse(`${v}:00Z`))) throw new Bad(400, `${k} must look like 2026-11-22T09:00`); return v; };
+      const seen = new Set();
+      const reminders = b.reminders.map((r, i) => {
+        if (!r || typeof r !== 'object' || Array.isArray(r)) throw new Bad(400, `reminders[${i}] must be an object`);
+        const id = text(r, 'id', 80, true);
+        if (seen.has(id)) throw new Bad(400, `reminders lists ${id} twice`);
+        seen.add(id);
+        if (!Array.isArray(r.times) || r.times.length > 120) throw new Bad(400, `reminders[${i}].times must be a list of at most 120`);
+        return { id, title: text(r, 'title', 200, true), repeat: text(r, 'repeat', 120) || '', next: r.next == null || r.next === '' ? null : wall(r.next, `reminders[${i}].next`), times: r.times.map((t) => wall(t, `reminders[${i}].times`)) };
+      });
+      return { at: isoOf(b.at, 'at', true), reminders };
+    },
+  },
   claude_usage: {
     writers: ['ana'],
     parse: (b) => ({ weekPct: numberOf(b, 'weekPct', 0, 1000, true), resetsAt: isoOf(b.resetsAt, 'resetsAt'), note: text(b, 'note', 500) }),

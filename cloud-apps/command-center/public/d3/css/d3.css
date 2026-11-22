@@ -566,7 +566,7 @@ html[data-theme="dark"] body{background:#0b0b0c}
 /* Home page (home.js; Jacqueline's handover, 12 Nov 2026): four widgets, the Schedule card, Progress as 2 x 2 cards.
    Colours are the dashboard's own tokens, so light and dark follow the theme; the four category colours (--c-*, set on .hm by
    home.js) are Jon's to change. Status shows on the dot only: red off track, amber at risk, grey on track. */
-.d3 .hm{display:flex;flex-direction:column;gap:16px;min-width:0;--c-meeting:var(--muted)}
+.d3 .hm{display:flex;flex-direction:column;gap:16px;min-width:0;--c-meeting:var(--muted);--c-reminder:var(--warn)}
 .d3 .hmh1{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
 .d3 .hmwid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
 .d3 .hmw{background:var(--card);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);padding:10px 12px;display:grid;gap:4px;align-content:start;min-width:0}
@@ -659,6 +659,11 @@ html[data-theme="dark"] body{background:#0b0b0c}
 .d3 .hmedb{flex:none;display:grid;place-items:center;padding:5px;border:1px solid transparent;border-radius:8px;background:none;color:var(--muted);cursor:pointer}
 .d3 .hmedb:hover{color:var(--link);border-color:var(--line);background:var(--card2)}
 .d3 .hmtag.late{color:var(--bad);border-color:var(--bad)}
+/* OpenBot reminders (Home): amber, dashed so they read as nudges, not tasks */
+.d3 .hmtag.rem{color:var(--ink2);border-style:dashed;border-color:var(--c-reminder)}
+.d3 .hmev.rem{border-left-style:dashed}
+.d3 .hmrow.rem .hmwhat{color:var(--ink2)}
+.d3 .hmup{margin:14px 0 4px;font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
 .d3 .hmex a{color:var(--link)}
 .d3 .hmev[data-hmit]{cursor:grab;user-select:none}
 .d3 .hmupd{margin-left:auto}
