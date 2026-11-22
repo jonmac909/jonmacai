@@ -1,9 +1,9 @@
-// Budget page (card t_13a6d327341447f0): src/budget.js calculation, its API, and the page (public/d3/js/budget.js).
+// Budget (card t_13a6d327341447f0): src/budget.js calculation and its API (GET /dashboard/api/v1/budget, kept for the 09:00 brief). The #budget page itself frames MoneyClaw's /budget page again (moneyclaw.js).
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, existsSync } from 'node:fs';
 import { budgetView, BUDGETS, isTravel, windows } from '../src/budget.js';
-import { renderBudget } from '../public/d3/js/budget.js';
+import { isMcPage, mcUrl } from '../public/d3/js/moneyclaw.js';
 
 const NOW = Date.parse('2026-11-21T19:00:00Z'); // Vancouver 2026-11-21, midday
 const T = (date, merchant, amount, category, group, pending = false) => ({ date, merchant, amount, category, group, pending });
@@ -86,25 +86,21 @@ test('no budgetTransactions: MoneyClaw totals where it has them, lists say not l
   assert.equal(b.groups.business.periods.month.green, null);
   assert.equal(b.groups.personal.periods.week.transactions, null);
   assert.equal(budgetView(null, NOW).groups.personal.periods.month.spent, null);
-  const html = renderBudget(null, { ok: true, budget: b }, 'business/week');
-  assert.match(html, /Transactions not loaded yet\./);
 });
 
-test('page: 2 rows x 3 tap cards, colours, on-track line, opened list, no MoneyClaw frame', () => {
-  const data = { ok: true, budget: budgetView({ budgetTransactions: ROWS }, NOW) };
-  const html = renderBudget(null, data, 'business/week');
-  assert.equal((html.match(/data-bgopen=/g) || []).length, 6);
-  assert.match(html, /<h2>Business<\/h2>[\s\S]*<h2>Personal<\/h2>/);
-  assert.match(html, /class="bgc bad" data-bgopen="personal\/yesterday"/);
-  assert.match(html, /class="bgc ok" data-bgopen="business\/yesterday"/);
-  assert.match(html, /On track for month: yes/);
-  assert.match(html, /Business · Last 7 days[\s\S]*SAMPLE AWS[\s\S]*SAMPLE Mic[\s\S]*SAMPLE Adobe/);
-  assert.doesNotMatch(html, /iframe|Hotel Vancouver/);
-  assert.doesNotMatch(renderBudget(null, data, null), /<table/);
-  const app = readFileSync(new URL('../public/d3/js/app.js', import.meta.url), 'utf8');
-  assert.match(app, /getJson\('\/dashboard\/api\/v1\/budget'\)/);
+test('page: #budget frames MoneyClaw\'s /budget page (not a native view), full-height frame and phone frame-fit CSS', () => {
+  const read = (p) => readFileSync(new URL(p, import.meta.url), 'utf8');
+  const app = read('../public/d3/js/app.js');
+  const css = read('../public/d3/css/d3.css');
+  assert.equal(isMcPage('budget'), true);
+  assert.equal(mcUrl('budget', 'dark'), 'https://moneyclaw.jonmac.ai/budget/?embed=1&host=dash&theme=dark');
+  assert.match(app, /budget: 'Budget'/);
+  assert.doesNotMatch(app, /renderBudget|loadBudget|js\/budget\.js|api\/v1\/budget|bgopen/); // the native view is gone
+  assert.equal(existsSync(new URL('../public/d3/js/budget.js', import.meta.url)), false);
+  assert.match(css, /\.d3 \.shell:has\(\.main\[data-page="budget"\]\),\.d3 \.shell:has\(\.main\[data-page="expenses"\]\)/);
+  assert.match(css, /\.d3 \.shell:has\(\.main:is\(\[data-page="budget"\],\[data-page="expenses"\],\[data-page="pnl"\]\)\)\{flex-direction:column/);
+  assert.doesNotMatch(css, /\.bgc\b|\.bgcards/);
 });
-
 test('API: GET /dashboard/api/v1/budget reads the stored MoneyClaw summary', async () => {
   const bots = readFileSync(new URL('../src/bots.js', import.meta.url), 'utf8');
   assert.match(bots, /kind === 'budget' && !rawId && method === 'GET'/);

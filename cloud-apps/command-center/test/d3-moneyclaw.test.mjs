@@ -1,4 +1,4 @@
-// Dashboard 3 Expenses and P&L pages: MoneyClaw's own pages in a frame (Budget is the dashboard's own page, d3-budget tests) (public/d3/js/moneyclaw.js).
+// Dashboard 3 Budget, Expenses and P&L pages: MoneyClaw's own pages in a frame (public/d3/js/moneyclaw.js).
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -13,16 +13,17 @@ test('menu: Budget, Expenses and P&L follow Money, and each is a route', () => {
   assert.match(app, /budget: 'Budget', expenses: 'Expenses', pnl: 'P&L'/);
   assert.match(app, /if \(main\.querySelector\?\.\('#mcFrame'\)\?\.dataset\?\.mc !== p\)/); // a data reload must not reload the frame
   assert.match(app, /e\.origin !== MC_ORIGIN \|\| e\.data\?\.type !== 'moneyclaw:open-tab'/);
-  for (const p of ['expenses', 'pnl']) assert.equal(isMcPage(p), true);
-  for (const p of ['budget', 'money', 'toString', '__proto__', '']) assert.equal(isMcPage(p), false);
+  for (const p of ['budget', 'expenses', 'pnl']) assert.equal(isMcPage(p), true);
+  for (const p of ['money', 'toString', '__proto__', '']) assert.equal(isMcPage(p), false);
 });
 
 test('frame addresses: MoneyClaw embed mode, shown in /dash, in the dashboard theme', () => {
   assert.equal(MC_ORIGIN, 'https://moneyclaw.jonmac.ai');
+  assert.equal(mcUrl('budget', 'dark'), 'https://moneyclaw.jonmac.ai/budget/?embed=1&host=dash&theme=dark');
   assert.equal(mcUrl('expenses', 'light'), 'https://moneyclaw.jonmac.ai/test/?tab=budgets&embed=1&host=dash&theme=light');
   assert.equal(mcUrl('pnl', 'x'), 'https://moneyclaw.jonmac.ai/test/?tab=matrix&embed=1&host=dash&theme=light');
   assert.equal(mcUrl('nope', 'dark'), '');
-  assert.deepEqual(Object.keys(MC_PAGES), ['expenses', 'pnl']);
+  assert.deepEqual(Object.keys(MC_PAGES), ['budget', 'expenses', 'pnl']);
 });
 
 test('page: header with an Open in MoneyClaw link, and one frame', () => {
@@ -46,15 +47,14 @@ test('theme switch: posted to the open frame, addressed to MoneyClaw only', () =
 
 test('d3.css: the frame fills the window, and the screen on phones', () => {
   const css = read('../public/d3/css/d3.css');
-  assert.match(css, /\.d3 \.shell:has\(\.main\[data-page="expenses"\]\)/);
-  assert.doesNotMatch(css, /data-page="budget"\]\)\{max-width/);
+  assert.match(css, /\.d3 \.shell:has\(\.main\[data-page="budget"\]\)/);
   assert.match(css, /@media \(max-width:760px\)\{\n  \.d3 \.card\.hy\.mc\{height:calc\(100dvh - 150px\)/);
 });
 
 test('d3.css phones: the frame fits the screen under the header (no guessed height), so the last card can be reached', () => {
   const css = read('../public/d3/css/d3.css');
-  const P = '.d3 .shell:has(.main:is([data-page="expenses"],[data-page="pnl"]))';
-  const at = css.indexOf('Phones, jonmac.ai/dash#expenses and #pnl');
+  const P = '.d3 .shell:has(.main:is([data-page="budget"],[data-page="expenses"],[data-page="pnl"]))';
+  const at = css.indexOf('Phones, jonmac.ai/dash#budget');
   assert.ok(at > 0);
   const block = css.slice(at, css.indexOf('/* Home page', at));
   assert.match(block, /@media \(max-width:760px\)\{/);
