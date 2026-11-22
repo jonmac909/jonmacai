@@ -50,3 +50,18 @@ test('d3.css: the frame fills the window, and the screen on phones', () => {
   assert.match(css, /\.d3 \.shell:has\(\.main\[data-page="budget"\]\)/);
   assert.match(css, /@media \(max-width:760px\)\{\n  \.d3 \.card\.hy\.mc\{height:calc\(100dvh - 150px\)/);
 });
+
+test('d3.css phones: the frame fits the screen under the header (no guessed height), so the last card can be reached', () => {
+  const css = read('../public/d3/css/d3.css');
+  const P = '.d3 .shell:has(.main:is([data-page="budget"],[data-page="expenses"],[data-page="pnl"]))';
+  const at = css.indexOf('Phones, jonmac.ai/dash#budget');
+  assert.ok(at > 0);
+  const block = css.slice(at, css.indexOf('/* Home page', at));
+  assert.match(block, /@media \(max-width:760px\)\{/);
+  for (const rule of [
+    `${P}{flex-direction:column;flex-wrap:nowrap;min-height:calc(100dvh - 20px)}`,
+    `${P} .rail{flex:none}`,
+    `${P} .main{flex:1 1 auto;min-height:0;gap:10px}`,
+    `${P} .card.hy.mc{flex:1 1 auto;height:auto;min-height:280px}`,
+  ]) assert.ok(block.includes(rule), rule);
+});
