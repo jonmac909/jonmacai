@@ -1,7 +1,7 @@
 // The gate at hyper.jonmac.ai: who gets in, what the app is sent, and what comes back.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import worker, { readPass } from './worker.js';
+import worker from './worker.js';
 
 const HOST = 'https://hyper.jonmac.ai';
 const GOOD = `${Math.floor(Date.now() / 1000) + 60}.${'a'.repeat(64)}`;
@@ -18,12 +18,15 @@ function setup({ studio } = {}) {
   return { env, seen, go, signIn };
 }
 
-test('no cookie: nothing reaches the app; a page gets a link to the dashboard, anything else a bare 401', async () => {
+test('no cookie: nothing reaches the app; a page goes to the dashboard (302), a framed page gets a link, anything else a 401', async () => {
   const { go, seen } = setup();
   const nav = await go('/', { headers: { Accept: 'text/html' } });
-  assert.equal(nav.status, 401);
-  assert.match(await nav.text(), /href="https:\/\/jonmac\.ai\/dash\/#hyper" target="_top"/);
-  assert.match(nav.headers.get('Content-Security-Policy'), /frame-ancestors https:\/\/jonmac\.ai/);
+  assert.equal(nav.status, 302);
+  assert.equal(nav.headers.get('Location'), 'https://jonmac.ai/dash/#hyper');
+  const framed = await go('/', { headers: { Accept: 'text/html', 'Sec-Fetch-Dest': 'iframe' } });
+  assert.equal(framed.status, 401);
+  assert.match(await framed.text(), /href="https:\/\/jonmac\.ai\/dash\/#hyper" target="_top"/);
+  assert.match(framed.headers.get('Content-Security-Policy'), /frame-ancestors https:\/\/jonmac\.ai/);
   for (const [path, init] of [['/api/projects', {}], ['/shell-api/agent/run', { method: 'POST', body: '{}', headers: { Origin: HOST } }],
     ['/', { headers: { Upgrade: 'websocket', Origin: HOST } }], ['/', { headers: { Cookie: '__Host-hyper=1.2' } }],
     ['/', { headers: { Cookie: `__Host-hyper=${GOOD}` } }], ['/', { headers: { Cookie: `__Host-cc_session=${GOOD}` } }]]) {
@@ -54,17 +57,15 @@ test('/__enter: only a ticket the dashboard confirms sets the cookie; the ticket
   assert.equal((await go(`/__enter?t=${GOOD}`)).status, 401);
 });
 
-test('cookie: valid until it expires, only under this secret', async () => {
+test('cookie: lets the app in only under this secret and only as signed (expiry: renewal.test.mjs)', async () => {
   const { env, signIn } = setup();
   const cookie = await signIn();
-  const req = new Request(HOST, { headers: { Cookie: `other=1; ${cookie}` } });
-  assert.equal(await readPass(req, env), true);
-  assert.equal(await readPass(req, env, Date.now() + 12 * 3600 * 1000 + 1000), false);
-  assert.equal(await readPass(req, { ...env, GATE_SECRET: 'another-secret' }), false);
-  assert.equal(await readPass(req, { ...env, GATE_SECRET: '' }), false);
+  const call = (c, e = env) => worker.fetch(new Request(`${HOST}/api/projects`, { headers: { Cookie: c } }), e);
+  assert.equal((await call(`other=1; ${cookie}`)).status, 200);
+  assert.equal((await call(cookie, { ...env, GATE_SECRET: 'another-secret' })).status, 401);
+  assert.equal((await call(cookie, { ...env, GATE_SECRET: '' })).status, 401);
   const [exp, sig] = cookie.split('=')[1].split('.');
-  const later = new Request(HOST, { headers: { Cookie: `__Host-hyper=${Number(exp) + 9999}.${sig}` } });
-  assert.equal(await readPass(later, env), false);
+  assert.equal((await call(`__Host-hyper=${Number(exp) + 9999}.${sig}`)).status, 401);
 });
 
 test('signed in: the app gets a plain local request, and the answer may only be framed by the dashboard', async () => {

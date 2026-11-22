@@ -11,11 +11,11 @@ The app has no sign-in of its own and it can run an agent on GPU1, so the rules 
 - Answers may be framed only by `https://jonmac.ai` and by the app itself, which frames pages of its own (`Content-Security-Policy: frame-ancestors`).
 - The app is sent a plain local request (`http://localhost:5191/...`): the gate cookie, the visitor headers and `Origin` are removed, which is what the app's own same-site checks expect.
 
-Without the cookie a page request gets a short page with a link to the dashboard (401). When GPU1 is off, or the app or the tunnel is not running, it gets "Hyper is not reachable" (502).
+The cookie slides: a request with under half its 12 hours left gets a fresh one. Without a valid cookie a page request is sent to the dashboard (302 to `https://jonmac.ai/dash/#hyper`, which re-opens the page it was on); a page inside the dashboard frame gets a short link page instead (401), and an API call gets 401 JSON `{"code":"signin_expired","signin":...}`. When GPU1 is off, or the app or the tunnel is not running, it gets "Hyper is not reachable" (502).
 
 ## Files
 
-- `worker.js`: the gate. `worker.test.mjs`: its tests (`node --test cloud-apps/hyper/worker.test.mjs`).
+- `worker.js`: the gate. `worker.test.mjs` and `renewal.test.mjs`: its tests (`node --test cloud-apps/hyper/`).
 - `wrangler.jsonc`: custom domain `hyper.jonmac.ai`, bindings `DASH` and `STUDIO`.
 
 ## One-time setup (run on GPU1, signed in to wrangler)
