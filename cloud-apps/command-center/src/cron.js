@@ -21,13 +21,24 @@ export function sourceCollectedAt(source, data, fetchedAt) {
 }
 
 
+// Returns the stored {data, collectedAt}, or null when the source answered not-OK and nothing was stored.
 async function pull(env, source, url, headers) {
   const res = await fetch(url, { headers });
-  if (!res.ok) return;
+  if (!res.ok) return null;
   const data = await res.json();
-  if (!data || data.success === false) return;
+  if (!data || data.success === false) return null;
   const fetchedAt = new Date().toISOString();
-  await upsertSnapshot(env.DB, source, JSON.stringify(data), sourceCollectedAt(source, data, fetchedAt), fetchedAt);
+  const collectedAt = sourceCollectedAt(source, data, fetchedAt);
+  await upsertSnapshot(env.DB, source, JSON.stringify(data), collectedAt, fetchedAt);
+  return { data, collectedAt };
+}
+
+// The MoneyClaw summary the Budget page reads: the 10-minute cron and POST /v1/budget/refresh (after a bank import).
+export async function pullMoneyClaw(env) {
+  if (!env?.DB || !env.MONEYCLAW_DASHBOARD_TOKEN) return { ok: false, error: 'MONEYCLAW_DASHBOARD_TOKEN not set' };
+  const got = await pull(env, 'moneyclaw', MONEY_URL, { authorization: `Bearer ${env.MONEYCLAW_DASHBOARD_TOKEN}` });
+  if (!got) return { ok: false, error: 'MoneyClaw summary pull failed' };
+  return { ok: true, collectedAt: got.collectedAt, latestPostedDate: got.data?.budgetSimple?.latestPostedDate || null };
 }
 
 // Webinar funnel money this month for the Today page, read every 10 minutes instead of per page load.
@@ -48,11 +59,7 @@ export async function handleCron(env) {
       authorization: `Bearer ${env.VIRALVIEW_SUMMARY_SECRET}`,
     }));
   }
-  if (env.MONEYCLAW_DASHBOARD_TOKEN) {
-    jobs.push(pull(env, 'moneyclaw', MONEY_URL, {
-      authorization: `Bearer ${env.MONEYCLAW_DASHBOARD_TOKEN}`,
-    }));
-  }
+  if (env.MONEYCLAW_DASHBOARD_TOKEN) jobs.push(pullMoneyClaw(env));
   jobs.push(syncChargeWatch(env).catch((err) => console.error('charge watch', err.message))); // new subscriptions and odd charges become Questions
   jobs.push(pullWebinarMonth(env));
   jobs.push(pullCalendar(env));

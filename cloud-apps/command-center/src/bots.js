@@ -12,6 +12,7 @@ import { MONTH_HABITS, WEEK_HABITS, monthKey, weekStart } from './periods.js';
 import { upsertHabit } from './db.js';
 import { eosData } from './eos.js';
 import { budgetView } from './budget.js';
+import { pullMoneyClaw } from './cron.js';
 
 // todo/doing → qc (proof) → review (QC passed it) → done (Jon approved it). Only Jon sets done, except the
 // live-YouTube sync for a card whose video the server itself found public (liveDone) and an internal card
@@ -2198,6 +2199,14 @@ async function route(request, db, who, rest, env, ctx) {
     let data = null;
     try { data = row ? JSON.parse(row.data) : null; } catch { data = null; }
     return json({ ok: true, collectedAt: row?.collected_at || null, budget: budgetView(data, Date.now()) });
+  }
+  if (kind === 'budget' && rawId === 'refresh' && !verb && method === 'POST') { // pull MoneyClaw now, after a bank import (card t_bc95ba79d31048c8)
+    if (!who.jon) needBot(who);
+    if (!env?.MONEYCLAW_DASHBOARD_TOKEN) return json({ ok: false, error: 'MONEYCLAW_DASHBOARD_TOKEN not set' }, 503);
+    let r;
+    try { r = await pullMoneyClaw(env); } catch (err) { r = { ok: false, error: `MoneyClaw summary pull failed: ${err.message}` }; }
+    if (!r.ok) return json({ ok: false, error: r.error }, 502);
+    return json({ ok: true, collectedAt: r.collectedAt, latestPostedDate: r.latestPostedDate });
   }
   if (kind === 'feeds' && rawId && !verb) {
     if (method === 'GET') return getFeed(db, rawId);
