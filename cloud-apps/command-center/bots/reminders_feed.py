@@ -26,6 +26,7 @@ import time
 from contextlib import closing
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
+from urllib.parse import quote
 
 TOOLS = Path(__file__).resolve().parent
 GUARD = Path.home() / '.team-guard'
@@ -174,7 +175,7 @@ QUERY = """select r.routine_id, r.name, r.timezone, t.schedule_json, t.next_run_
 
 
 def read_routines(db_path):
-    with closing(sqlite3.connect('file:%s?mode=ro' % str(db_path).replace('\\', '/'), uri=True, timeout=10)) as con:
+    with closing(sqlite3.connect('file:%s?mode=ro' % quote(str(db_path).replace('\\', '/'), safe='/:'), uri=True, timeout=10)) as con:
         return con.execute(QUERY).fetchall()
 
 
@@ -182,9 +183,9 @@ def build(rows, now):
     """rows from read_routines, now = epoch seconds -> the feed body {at, reminders}. Pure: no files, no network."""
     here = datetime.fromtimestamp(now, VAN).replace(tzinfo=None)
     first, last = here.date() - timedelta(days=PAST_DAYS), here.date() + timedelta(days=AHEAD_DAYS)
-    items = []
+    items, seen = [], set()  # a routine with two triggers comes back twice from the join: one entry per id
     for rid, name, tz, sched, nxt in rows:
-        if not NAME.search(name or ''):
+        if rid in seen or not NAME.search(name or ''):
             continue
         try:
             sch = json.loads(sched)
@@ -202,6 +203,7 @@ def build(rows, now):
             future = later[0] if later else None
         if not times and future is None:
             continue  # a one-off that has already run
+        seen.add(rid)
         items.append({'id': rid, 'title': title_of(name), 'repeat': repeat_text(sch), 'next': wall(future) if future else None, 'times': times})
     items.sort(key=lambda i: ((i['next'] or '9999'), i['title']))
     return {'at': iso(now), 'reminders': items[:MAX_ITEMS]}

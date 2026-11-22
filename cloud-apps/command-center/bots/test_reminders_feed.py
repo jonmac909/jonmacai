@@ -106,5 +106,16 @@ class Reminders(unittest.TestCase):
                 self.assertEqual(rf.main([]), 1)
             ana.report_failure.assert_called_once()
 
+    def test_a_routine_listed_twice_by_the_join_comes_out_once(self):
+        row = ('w1', 'Reminder: Sunday meals', 'America/Vancouver', json.dumps({'kind': 'weekly', 'weekday': 0, 'time': '09:00'}), '2026-11-15T16:00:00.000Z')
+        self.assertEqual([r['id'] for r in rf.build([row, row], NOW)['reminders']], ['w1'])
+
+    def test_a_database_path_with_a_hash_or_space_still_opens(self):
+        src = plant([WEEKLY])
+        odd = Path(tempfile.mkdtemp()) / 'Open Bot #1' / 'openbot.db'
+        odd.parent.mkdir()
+        odd.write_bytes(src.read_bytes())
+        self.assertEqual(len(rf.read_routines(odd)), 1)
+
 if __name__ == '__main__':
     unittest.main()

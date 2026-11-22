@@ -134,3 +134,15 @@ test('a damaged or missing reminders entry reads as none, never as an error', ()
   assert.deepEqual(reminderItems({}, '2026-11-08'), []);
   assert.deepEqual(upcomingReminders(null, '2026-11-08T00:00'), []);
 });
+
+test('a reminder title with HTML in it is shown as text in the calendar, the list and coming up', async () => {
+  const { env } = await dashboard();
+  const home = { ...(await homeData(env, NOW)), reminders: { at: NOW_ISO, items: [
+    { id: 'h1', title: '<img src=x onerror=alert(1)>', repeat: '<b>Every</b> Sunday', next: '2026-11-15T09:00', times: ['2026-11-08T09:00', '2026-11-15T09:00'] },
+  ] } };
+  for (const view of ['cal', 'list']) {
+    const html = pageOf(home, view);
+    assert.doesNotMatch(html, /<img src=x|<b>Every/, view);
+    assert.match(html, /&lt;img src=x onerror=alert\(1\)&gt;/, view);
+  }
+});
