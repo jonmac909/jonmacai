@@ -9,7 +9,7 @@ import { headerOnly } from './goals.js';
 import { MC_ORIGIN } from './moneyclaw.js';
 
 const money = (n) => (n == null ? '-' : `${n < 0 ? '-' : ''}$${Math.abs(Math.round(Number(n))).toLocaleString('en-CA')}`);
-const money2 = (n) => `$${Number(n || 0).toLocaleString('en-CA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+const money2 = (n) => `${Number(n) < -0.005 ? '-' : ''}$${Math.abs(Number(n || 0)).toLocaleString('en-CA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const PERIODS = ['yesterday', 'week', 'month'];
 const TRAVEL_KEY = 'd3-budget-travel';
 
@@ -45,7 +45,7 @@ function card(g, k, p0, travel) {
 
 function basisNote(c) {
   if (c.budget == null) return 'no budget';
-  if (c.basis === 'yearly') return `${money(c.budget)} a year${c.due ? `, due ${esc(c.due)}` : ''}`;
+  if (c.basis === 'yearly') return `${money(c.budget)} a year${c.due ? `, due ${c.due}` : ''}`;
   if (c.basis === 'fixed') return `${money(c.budget)} fixed bill`;
   return `${money2(c.budget)} budget`;
 }
@@ -74,7 +74,7 @@ function drawer(b, open, travel) {
   } else if (open.view === 'cats' && cats.length) {
     sub = `${dates(p)} · ${cats.length} categories · ${total}`;
     body = `<button type="button" class="bgall" data-bgall="1"><span>All ${list.length} transaction${list.length === 1 ? '' : 's'}</span><span aria-hidden="true">›</span></button>`
-      + cats.map((c) => `<button type="button" class="bgcat ${c.budget == null ? 'none' : c.over ? 'bad' : 'ok'}" data-bgcat="${esc(c.name)}"><span><b>${esc(c.name)}</b><i>${c.count} charge${c.count === 1 ? '' : 's'}</i></span><span><strong>${money2(c.spent)}</strong><i>${basisNote(c)}</i></span></button>`).join('');
+      + cats.map((c) => `<button type="button" class="bgcat ${c.budget == null ? 'none' : c.over ? 'bad' : 'ok'}" data-bgcat="${esc(c.name)}"><span><b>${esc(c.name)}</b><i>${c.count} charge${c.count === 1 ? '' : 's'}</i></span><span><strong>${money2(c.spent)}</strong><i>${esc(basisNote(c))}</i></span></button>`).join('');
   } else {
     const line = open.view === 'line' ? open.line : null;
     const c = line ? cats.find((x) => x.name === line) : null;

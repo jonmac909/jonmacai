@@ -354,6 +354,7 @@ async function load() {
   rail();
   // Don't redraw under Jon's typing (a Review answer, send-back note or draft edit); the next load or click redraws.
   if (document.activeElement?.closest?.('#main textarea, #main input') || popOpen() || dealDragging()) return;
+  if (page() === 'budget' && S.ui.bgOpen) return; // Budget: a card's panel is open; a redraw would jump its list back to the top (its data is read on open)
   render();
 }
 
@@ -459,9 +460,9 @@ main.addEventListener('submit', (e) => {
 main.addEventListener('paste', (e) => { if (page() === 'personal') personalPaste(e, S.ui, render); });
 document.addEventListener('keydown', (e) => {
   if (page() === 'personal' && personalKey(e, S.ui, render)) return;
+  if (e.key === 'Escape' && S.ui.bgOpen && page() === 'budget') { S.ui.bgOpen = null; render(); return; } // Budget: Escape closes a card's panel
   if (page() !== 'home') return;
   if (e.key === 'Escape' && (S.ui.hmEd || S.ui.hmGoal)) { S.ui.hmEd = null; S.ui.hmGoal = null; render(); }
-  if (e.key === 'Escape' && S.ui.bgOpen && page() === 'budget') { S.ui.bgOpen = null; render(); }
 });
 personalDrag(main, S, () => page() === 'personal', send, render, reloadPersonal); // Trips: drag a stop by its handle
 // Home: the "N more" hint under a category card follows its scroll.

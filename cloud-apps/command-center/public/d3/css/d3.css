@@ -549,12 +549,12 @@ html[data-theme="dark"] body{background:#0b0b0c}
 .d3 .bgsw u{position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:#fff;transition:left .15s}
 .d3 .bgsw.on i{background:var(--ok)}.d3 .bgsw.on u{left:16px}
 /* A card's panel: categories first, then transactions. Covers the screen on phones; the list scrolls inside it. */
-.d3 .bgd{position:fixed;inset:0;z-index:50;background:rgba(0,0,0,.45);display:flex;align-items:flex-end;justify-content:center}
+.d3 .bgd{position:fixed;inset:0;overscroll-behavior:contain;z-index:50;background:rgba(0,0,0,.45);display:flex;align-items:flex-end;justify-content:center}
 .d3 .bgdp{width:min(640px,100%);max-height:88dvh;display:flex;flex-direction:column;gap:8px;border-radius:16px 16px 0 0;padding:14px;margin:0}
 .d3 .bgdp header{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
 .d3 .bgdp h2{font-size:15px;margin:0}.d3 .bgdp header p{margin:2px 0 0;font-size:12px}
 .d3 .bgdb{display:flex;gap:6px;flex:none}
-.d3 .bgdl{overflow-y:auto;-webkit-overflow-scrolling:touch;min-height:0;display:flex;flex-direction:column;gap:6px}
+.d3 .bgdl{overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;min-height:0;display:flex;flex-direction:column;gap:6px}
 .d3 .bgall,.d3 .bgcat{display:flex;justify-content:space-between;align-items:center;gap:10px;width:100%;text-align:left;background:var(--card2);border:1px solid var(--line);border-left:5px solid var(--line);border-radius:10px;padding:9px 12px;color:var(--ink);font:inherit;cursor:pointer}
 .d3 .bgall{font-weight:600}
 .d3 .bgcat.ok{border-left-color:var(--ok)}.d3 .bgcat.bad{border-left-color:var(--bad)}.d3 .bgcat.bad strong{color:var(--bad-ink)}

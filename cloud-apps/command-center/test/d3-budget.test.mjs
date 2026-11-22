@@ -183,6 +183,17 @@ test('page: 2 rows x 3 cards, Travel switch both ways, categories then transacti
   assert.equal(isMcPage('expenses'), true);
   const css = readFileSync(new URL('../public/d3/css/d3.css', import.meta.url), 'utf8');
   assert.match(css, /\.d3 \.bgdl\{overflow-y:auto/); // category list scrolls on a phone
+  // Escape closes the panel (before the Home-only keys), and the 60 s reload does not redraw an open panel.
+  const esc0 = app.indexOf("if (e.key === 'Escape' && S.ui.bgOpen && page() === 'budget')");
+  assert.ok(esc0 > 0 && esc0 < app.indexOf("if (page() !== 'home') return;", app.indexOf("document.addEventListener('keydown'")), 'Escape for Budget runs before the Home-only return');
+  assert.match(app, /if \(page\(\) === 'budget' && S\.ui\.bgOpen\) return;[^\n]*\n  render\(\);\n\}/);
+  // A tap inside the panel (not a button) does not close it; the backdrop itself does.
+  ui.bgOpen = { g: 'business', k: 'week', view: 'cats', line: null };
+  const backdrop = { tagName: 'DIV' };
+  assert.equal(budgetClick({ target: { closest: (sel) => (sel === '[data-bgclose]' ? backdrop : null) } }, ui), false);
+  assert.ok(ui.bgOpen);
+  assert.equal(budgetClick({ target: Object.assign(backdrop, { closest: (sel) => (sel === '[data-bgclose]' ? backdrop : null) }) }, ui), true);
+  assert.equal(ui.bgOpen, null);
 });
 
 test('API: GET /dashboard/api/v1/budget reads the stored MoneyClaw summary', async () => {
