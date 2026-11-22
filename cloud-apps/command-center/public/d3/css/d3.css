@@ -511,24 +511,58 @@ html[data-theme="dark"] body{background:#0b0b0c}
 .d3 .card.hy p{padding:22px}
 .d3 .card.hy iframe{flex:1;width:100%;min-height:0;border:0;background:var(--card)}
 .d3 .card.hy iframe[hidden]{display:none}
-/* Budget, Expenses and P&L: MoneyClaw's pages in the same full-height frame (moneyclaw.js). On phones the frame fills
+/* Expenses and P&L: MoneyClaw's pages in the same full-height frame (moneyclaw.js). On phones the frame fills
    the screen under the top bar; the page inside scrolls on its own. */
-.d3 .shell:has(.main[data-page="budget"]),.d3 .shell:has(.main[data-page="expenses"]),.d3 .shell:has(.main[data-page="pnl"]){max-width:none}
+.d3 .shell:has(.main[data-page="expenses"]),.d3 .shell:has(.main[data-page="pnl"]){max-width:none}
 @media (max-width:760px){
   .d3 .card.hy.mc{height:calc(100dvh - 150px);min-height:420px;border-radius:14px}
-  .d3 .main[data-page="budget"] header.hd,.d3 .main[data-page="expenses"] header.hd,.d3 .main[data-page="pnl"] header.hd{margin-bottom:0}
+  .d3 .main[data-page="expenses"] header.hd,.d3 .main[data-page="pnl"] header.hd{margin-bottom:0}
 }
-/* Phones, jonmac.ai/dash#budget (Jon 21 Nov: "can't scroll down far enough to see all cards"): the frame was a guessed
+/* Phones, jonmac.ai/dash#expenses and #pnl (first for #budget, Jon 21 Nov, before Budget became its own page: "can't scroll down far enough to see all cards"): the frame was a guessed
    100dvh - 150px, but the top bar plus the page header are taller than 150px, so the bottom of the frame (the last card)
    sat below the screen. Now the page is a column exactly one screen tall (less the 10px padding top and bottom) and the
    frame takes whatever is left under the header; the MoneyClaw page scrolls inside it. (Browsers without :has() keep
    the rule above.) */
 @media (max-width:760px){
-  .d3 .shell:has(.main:is([data-page="budget"],[data-page="expenses"],[data-page="pnl"])){flex-direction:column;flex-wrap:nowrap;min-height:calc(100dvh - 20px)}
-  .d3 .shell:has(.main:is([data-page="budget"],[data-page="expenses"],[data-page="pnl"])) .rail{flex:none}
-  .d3 .shell:has(.main:is([data-page="budget"],[data-page="expenses"],[data-page="pnl"])) .main{flex:1 1 auto;min-height:0;gap:10px}
-  .d3 .shell:has(.main:is([data-page="budget"],[data-page="expenses"],[data-page="pnl"])) .card.hy.mc{flex:1 1 auto;height:auto;min-height:280px}
+  .d3 .shell:has(.main:is([data-page="expenses"],[data-page="pnl"])){flex-direction:column;flex-wrap:nowrap;min-height:calc(100dvh - 20px)}
+  .d3 .shell:has(.main:is([data-page="expenses"],[data-page="pnl"])) .rail{flex:none}
+  .d3 .shell:has(.main:is([data-page="expenses"],[data-page="pnl"])) .main{flex:1 1 auto;min-height:0;gap:10px}
+  .d3 .shell:has(.main:is([data-page="expenses"],[data-page="pnl"])) .card.hy.mc{flex:1 1 auto;height:auto;min-height:280px}
 }
+/* Budget page (budget.js): two rows of three tap cards, green under budget or on track, red over; the tapped card's list below. */
+.d3 .bg{display:flex;flex-direction:column;gap:16px}
+.d3 .bgrow h2{font-size:15px;margin:0 0 8px}
+.d3 .bgcards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.d3 .bgc{display:grid;gap:4px;text-align:left;background:var(--card);border:1px solid var(--line);border-left:6px solid var(--line);border-radius:14px;box-shadow:var(--shadow);padding:12px 14px;cursor:pointer;color:var(--ink);font:inherit;min-width:0}
+.d3 .bgc small{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.d3 .bgc b{font-family:var(--disp);font-size:24px;font-weight:600}
+.d3 .bgc span{font-size:12px;color:var(--ink2)}
+.d3 .bgc.ok{border-left-color:var(--ok)}.d3 .bgc.ok b{color:var(--ok-ink)}
+.d3 .bgc.bad{border-left-color:var(--bad)}.d3 .bgc.bad b{color:var(--bad-ink)}
+.d3 .bgc em{font-style:normal;font-size:11px;color:var(--muted)}
+.d3 .bgc .bgp{display:grid;gap:1px;font-weight:600}.d3 .bgc .bgp.ok{color:var(--ok-ink)}.d3 .bgc .bgp.bad{color:var(--bad-ink)}
+.d3 .bgc .bgp i{font-style:normal;font-weight:400;font-size:11px;color:var(--muted)}
+/* Travel switch (as on MoneyClaw's /budget page) */
+.d3 .bgtools{display:flex;align-items:center;gap:10px}
+.d3 .bgsw{display:inline-flex;align-items:center;gap:8px;background:transparent;border:1px solid var(--line);border-radius:999px;padding:4px 6px 4px 12px;color:var(--ink);font:inherit;font-weight:600;cursor:pointer}
+.d3 .bgsw i{position:relative;width:34px;height:20px;border-radius:999px;background:var(--track)}
+.d3 .bgsw u{position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:#fff;transition:left .15s}
+.d3 .bgsw.on i{background:var(--ok)}.d3 .bgsw.on u{left:16px}
+/* A card's panel: categories first, then transactions. Covers the screen on phones; the list scrolls inside it. */
+.d3 .bgd{position:fixed;inset:0;z-index:50;background:rgba(0,0,0,.45);display:flex;align-items:flex-end;justify-content:center}
+.d3 .bgdp{width:min(640px,100%);max-height:88dvh;display:flex;flex-direction:column;gap:8px;border-radius:16px 16px 0 0;padding:14px;margin:0}
+.d3 .bgdp header{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
+.d3 .bgdp h2{font-size:15px;margin:0}.d3 .bgdp header p{margin:2px 0 0;font-size:12px}
+.d3 .bgdb{display:flex;gap:6px;flex:none}
+.d3 .bgdl{overflow-y:auto;-webkit-overflow-scrolling:touch;min-height:0;display:flex;flex-direction:column;gap:6px}
+.d3 .bgall,.d3 .bgcat{display:flex;justify-content:space-between;align-items:center;gap:10px;width:100%;text-align:left;background:var(--card2);border:1px solid var(--line);border-left:5px solid var(--line);border-radius:10px;padding:9px 12px;color:var(--ink);font:inherit;cursor:pointer}
+.d3 .bgall{font-weight:600}
+.d3 .bgcat.ok{border-left-color:var(--ok)}.d3 .bgcat.bad{border-left-color:var(--bad)}.d3 .bgcat.bad strong{color:var(--bad-ink)}
+.d3 .bgcat span,.d3 .bgt div{display:grid;gap:1px;min-width:0}.d3 .bgcat span:last-child{text-align:right;flex:none}
+.d3 .bgcat i,.d3 .bgt span,.d3 .bgt i{font-style:normal;font-size:11px;color:var(--muted)}
+.d3 .bgt{display:flex;justify-content:space-between;gap:10px;padding:8px 4px;border-bottom:1px solid var(--line)}
+.d3 .bgt b{font-weight:600;overflow-wrap:anywhere}.d3 .bgt strong{white-space:nowrap}
+@media (max-width:760px){.d3 .bgcards{gap:6px}.d3 .bgc{padding:10px 8px}.d3 .bgc b{font-size:18px}.d3 .bgdp{max-height:92dvh;padding:12px}}
 /* Home page (home.js; Jacqueline's handover, 12 Nov 2026): four widgets, the Schedule card, Progress as 2 x 2 cards.
    Colours are the dashboard's own tokens, so light and dark follow the theme; the four category colours (--c-*, set on .hm by
    home.js) are Jon's to change. Status shows on the dot only: red off track, amber at risk, grey on track. */

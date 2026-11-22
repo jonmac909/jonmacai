@@ -12,6 +12,7 @@ import { threadClick } from './thread.js';
 import { renderHyper, openHyper } from './hyper.js';
 import { MC_ORIGIN, isMcPage, renderMc, mcTheme } from './moneyclaw.js';
 import { renderBluesky } from './bluesky.js';
+import { renderBudget, budgetClick, budgetTravel } from './budget.js';
 import { renderCards, cardsClick, cardsToggle } from './cards.js';
 import { applyOrder, cachedOrder, cacheOrder, navDrag } from './navorder.js';
 import { dealDrag, dealDragging } from './dealdrag.js';
@@ -26,7 +27,7 @@ let oldTrack = null;
 
 // Home is the Goals page (Jacqueline's handover): #goals and any unknown hash draw it.
 // Team, Blockers, Scripts and System were removed from the menu and the routes (Jon, 2026-11-16): their hashes now draw Home. Their data and APIs are untouched.
-// Budget, Expenses and P&L frame MoneyClaw's own pages (moneyclaw.js).
+// Expenses and P&L frame MoneyClaw's own pages (moneyclaw.js); Budget is drawn here (budget.js).
 const PAGES = { home: 'Goals', factory: 'Factory', track: 'Track', review: 'Review', hyper: 'Hyper', personal: 'Personal', money: 'Money', budget: 'Budget', expenses: 'Expenses', pnl: 'P&L', bluesky: 'Bluesky', cards: 'Cards', eos: 'EOS' };
 const SIGNIN = 'd3-signin';
 const main = document.getElementById('main');
@@ -108,6 +109,10 @@ function render() {
     S.eos = undefined;
     loadEos().then(() => { if (page() === 'eos') render(); });
   }
+  if (p === 'budget' && S.ui.lastPage !== 'budget' && !S.signedOut) { // Budget (budget.js): each open reads GET /dashboard/api/v1/budget
+    S.budget = null; S.ui.bgOpen = null; S.ui.bgTravel = budgetTravel();
+    loadBudget().then(() => { if (page() === 'budget') render(); });
+  }
   if (p !== 'money' && S.ui.lastPage === 'money') S.ui.dealSel = null; // leaving Money clears the picked deal's outline
   S.ui.lastPage = p;
   // The Factory page counts "updated N s ago" on the server's clock: its time at the last load plus the time since.
@@ -123,6 +128,7 @@ function render() {
     if (!main.querySelector?.('#hyFrame')) { main.innerHTML = renderHyper(S.d2); openHyper(main, getJson); }
     return;
   }
+  if (p === 'budget') { main.innerHTML = S.signedOut ? `${headerOnly(S.d2, 'Budget')}${note}` : `${note}${renderBudget(S.d2, S.budget, S.ui)}`; return; }
   if (isMcPage(p)) { // MoneyClaw keeps its own sign-in, so the frame shows even when the dashboard is signed out; drawn once per page
     if (main.querySelector?.('#mcFrame')?.dataset?.mc !== p) main.innerHTML = renderMc(S.d2, p, document.documentElement.getAttribute('data-theme'));
     return;
@@ -197,6 +203,16 @@ async function loadTrack() {
     S.track = t.signedOut ? { failed: true } : t.body?.pages?.track || {}; // {} reads "Track has no data yet"
   } catch {
     S.track = { failed: true };
+  }
+}
+
+// Budget page: the 6 numbers and their lists (src/budget.js), read on each open.
+async function loadBudget() {
+  try {
+    const r = await getJson('/dashboard/api/v1/budget');
+    if (r.signedOut) S.signedOut = true; else S.budget = r.body?.ok ? r.body : { error: r.body?.error || 'Budget could not be read.' };
+  } catch (err) {
+    S.budget = { error: err.message };
   }
 }
 
@@ -357,6 +373,7 @@ main.addEventListener('click', async (e) => {
     if (go && /^track(\/|$)/.test(go.dataset.page)) { location.hash = go.dataset.page; return; }
     return;
   }
+  if (page() === 'budget' && budgetClick(e, S.ui)) { render(); return; } // Budget: Travel switch, a card's categories and transactions (budget.js)
   const incGo = page() === 'money' ? e.target.closest('[data-incmonth]') : null; // Money: the income month switcher
   if (incGo) {
     if (incGo.disabled || !incGo.dataset.incmonth) return;
@@ -444,6 +461,7 @@ document.addEventListener('keydown', (e) => {
   if (page() === 'personal' && personalKey(e, S.ui, render)) return;
   if (page() !== 'home') return;
   if (e.key === 'Escape' && (S.ui.hmEd || S.ui.hmGoal)) { S.ui.hmEd = null; S.ui.hmGoal = null; render(); }
+  if (e.key === 'Escape' && S.ui.bgOpen && page() === 'budget') { S.ui.bgOpen = null; render(); }
 });
 personalDrag(main, S, () => page() === 'personal', send, render, reloadPersonal); // Trips: drag a stop by its handle
 // Home: the "N more" hint under a category card follows its scroll.
