@@ -563,6 +563,7 @@ html[data-theme="dark"] body{background:#0b0b0c}
 .d3 .bgt{display:flex;justify-content:space-between;gap:10px;padding:8px 4px;border-bottom:1px solid var(--line)}
 .d3 .bgt b{font-weight:600;overflow-wrap:anywhere}.d3 .bgt strong{white-space:nowrap}
 @media (max-width:760px){.d3 .bgcards{gap:6px}.d3 .bgc{padding:10px 8px}.d3 .bgc b{font-size:18px}.d3 .bgdp{max-height:92dvh;padding:12px}}
+@media (min-width:900px){.d3 .bgd{align-items:center;padding:24px}.d3 .bgdp{max-height:80vh;border-radius:16px}} /* desktop: centered modal (t_f6d63d7298324b9c) */
 /* Home page (home.js; Jacqueline's handover, 12 Nov 2026): four widgets, the Schedule card, Progress as 2 x 2 cards.
    Colours are the dashboard's own tokens, so light and dark follow the theme; the four category colours (--c-*, set on .hm by
    home.js) are Jon's to change. Status shows on the dot only: red off track, amber at risk, grey on track. */

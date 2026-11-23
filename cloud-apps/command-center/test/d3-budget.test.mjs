@@ -201,3 +201,11 @@ test('API: GET /dashboard/api/v1/budget reads the stored MoneyClaw summary', asy
   assert.match(bots, /kind === 'budget' && !rawId && method === 'GET'/);
   assert.match(bots, /budget: budgetView\(data, Date\.now\(\)\)/);
 });
+
+test('category panel: centered modal on desktop, bottom sheet on phones (t_f6d63d7298324b9c)', () => {
+  const css = readFileSync(process.env.D3_CSS || new URL('../public/d3/css/d3.css', import.meta.url), 'utf8');
+  assert.match(css, /\.d3 \.bgd\{[^}]*align-items:flex-end/); // phone keeps the bottom sheet
+  const desk = css.split(String.fromCharCode(10)).filter((l) => l.startsWith('@media (min-width:900px){')).join(' ');
+  assert.match(desk, /\.d3 \.bgd\{[^}]*align-items:center/); // desktop centers it
+  assert.match(desk, /\.d3 \.bgdp\{[^}]*max-height:80vh[^}]*border-radius:16px[;}]/); // capped height, rounded all corners
+});
