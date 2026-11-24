@@ -13,7 +13,16 @@ export const SLUG_RE = /^[a-z0-9][a-z0-9-]{0,38}[a-z0-9]$/;
 // This worker's own paths (wrangler.jsonc routes and src/worker.js) plus names that must never become a short link.
 // Social bio links (src/skool.js SOCIAL), built in: wildcard routes in wrangler.jsonc, no slug route.
 export const SOCIAL_SLUGS = ['ig', 'tt', 'x', 'fb', 'li', 'youtube'];
-export const RESERVED = new Set(['dashboard', 'dashboard-2', 'dash', 'scripts', 'v', 's', 'track', 'monitor', 'twilio', 'api', 'www', ...SOCIAL_SLUGS]);
+// One-word video links (Jon 2026-11-24: "remove /s and make the tracking links as short as possible with one word").
+// Built in like the social links: jonmac.ai/<word> shows the email lander, clicks and leads are stored under the word,
+// Skool gets utm_source=youtube&utm_medium=video&utm_campaign=<word> (same tags as a /track video link). No skool_links row
+// needed. To add one: a line here plus a "jonmac.ai/<word>*" route in wrangler.jsonc. title = the video, for /track and the emails.
+export const SHORT_LINKS = {
+  neon: { title: 'Gemini 4 Neon' }, // the live video, was jonmac.ai/s/gemini-4-neon
+};
+export const SHORT_SLUGS = Object.keys(SHORT_LINKS);
+export const BUILT_IN_SLUGS = [...SOCIAL_SLUGS, ...SHORT_SLUGS]; // wildcard routes in wrangler.jsonc, never a slug route
+export const RESERVED = new Set(['dashboard', 'dashboard-2', 'dash', 'scripts', 'v', 's', 'track', 'monitor', 'twilio', 'api', 'www', ...BUILT_IN_SLUGS]);
 // Other workers' routes on the zone (GET /zones/{zone}/workers/routes, 2026-11-21). Used when the live list can't be read,
 // and always alongside it, so a slug is never let through just because the API was down.
 export const OTHER_ROUTES = [
@@ -56,6 +65,7 @@ export function routeClash(routes, slug) {
 // Why the slug can't be a root link, or null. routes = the live zone list (null: the checked-in list only).
 export async function slugRefusal(env, slug, routes) {
   if (!SLUG_RE.test(slug)) return 'Slug: 2 to 40 lower-case letters, numbers or dashes';
+  if (BUILT_IN_SLUGS.includes(slug)) return `jonmac.ai/${slug} is already a built-in short link`;
   if (RESERVED.has(slug)) return `"${slug}" is a dashboard path`;
   const clash = routeClash(OTHER_ROUTES, slug) || routeClash(routes, slug);
   if (clash) return `"${slug}" is taken by another app on jonmac.ai (${clash})`;
@@ -103,7 +113,7 @@ export async function syncSlugRoutes(env) {
   const { results } = await env.DB.prepare('SELECT slug FROM skool_links').all();
   const created = [], skipped = [];
   for (const { slug } of results || []) {
-    if (have.has(patternOf(slug)) || SOCIAL_SLUGS.includes(slug)) continue; // old ig/tt rows: the wildcard route covers them
+    if (have.has(patternOf(slug)) || BUILT_IN_SLUGS.includes(slug)) continue; // old ig/tt rows: the wildcard route covers them
     const why = await slugRefusal(env, slug, routes);
     if (why) { skipped.push(slug); console.error('route sync skipped', slug, why); continue; }
     // One failed create (e.g. a duplicate from a parallel sync) must not stop the rest.

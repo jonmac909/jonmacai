@@ -10,6 +10,7 @@
 //  - The test send goes to TEST_TO only.
 import { hmacHex, timingSafeEqualString } from './auth.js';
 import { renderEmail, SEQUENCE_DAYS } from './skoolmail.js';
+import { SHORT_LINKS } from './skoolroutes.js';
 
 export const TEST_TO = 'jon@thejonmac.com';
 export const DEFAULT_FROM = 'Jon Mac <support@viralview.io>'; // the sender domain the clone app already uses on Resend; override with SKOOL_FROM
@@ -130,7 +131,7 @@ export async function runSequence(env, nowMs = Date.now(), fetchImpl = fetch) {
       // Last look before sending: a sale or stop that landed since the list was read.
       const blocked = await env.DB.prepare('SELECT (SELECT COUNT(*) FROM skool_sales WHERE email = ?1) + (SELECT COUNT(*) FROM skool_seq_stops WHERE email = ?1) AS n').bind(lead.email).first();
       if (blocked?.n) { await env.DB.prepare('DELETE FROM skool_seq_sends WHERE email = ? AND day = ? AND status = ?').bind(lead.email, day, 'sending').run(); continue; }
-      const res = await resendSend(env, await message(env, lead.email, day, first?.title || '', first?.slug || ''), fetchImpl, `skool-seq/${lead.email}/${day}`);
+      const res = await resendSend(env, await message(env, lead.email, day, first?.title || (Object.hasOwn(SHORT_LINKS, first?.slug || '') ? SHORT_LINKS[first.slug].title : ''), first?.slug || ''), fetchImpl, `skool-seq/${lead.email}/${day}`);
       if (res.ok) {
         await env.DB.prepare("UPDATE skool_seq_sends SET status = 'sent', resend_id = ?, sent_at = ? WHERE email = ? AND day = ?").bind(res.id, iso(nowMs), lead.email, day).run();
         out.sent++;

@@ -10,7 +10,7 @@ export const PRICE_LINE = '$9 a month, and you can cancel any time';
 
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 
-import { SOCIAL_SLUGS } from './skoolroutes.js';
+import { SOCIAL_SLUGS, SHORT_SLUGS } from './skoolroutes.js';
 
 export const EMAILS = [
   {
@@ -148,7 +148,8 @@ export function renderEmail(day, { title = '', slug = '', unsubUrl, business, ad
   const social = SOCIAL_SLUGS.includes(slug) || slug === 'yt'; // bio links: no video to name
   const paras = e.paras.map((p) => fill(social ? p.replace('from my video "{{video}}"', 'from my profile') : p, v));
   const ps = e.ps.map((p) => fill(p, v));
-  const why = `You're getting this because you entered your email${slug ? ` on jonmac.ai/${social ? (slug === 'yt' ? 'youtube' : slug) : `s/${slug}`}` : ''} to get to the AI Video Lab on Skool.`;
+  const root = social || SHORT_SLUGS.includes(slug); // built-in links live at the root; any other slug always works under /s/
+  const why = `You're getting this because you entered your email${slug ? ` on jonmac.ai/${root ? (slug === 'yt' ? 'youtube' : slug) : `s/${slug}`}` : ''} to get to the AI Video Lab on Skool.`;
   const text = [...paras, `${e.cta}: ${link}`, 'Jon', ...ps, '--', `${business}\n${address}`, why, `Unsubscribe in one click: ${unsubUrl}`].join('\n\n');
   const para = (p) => {
     const lines = p.split('\n');

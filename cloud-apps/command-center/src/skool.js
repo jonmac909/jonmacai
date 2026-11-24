@@ -8,7 +8,7 @@ import { readSession, timingSafeEqualString } from './auth.js';
 import { checkEmail } from './skoolcheck.js';
 import { handleUnsub, handleResendWebhook, seqOn, setSeqOn, sendTest, addressIsPlaceholder, DEFAULT_BUSINESS } from './skoolseq.js';
 import { leadsData, leadsCsv, leadsPage, emailsPage, nav, BASE_CSS, FILTERS } from './skoolcrm.js';
-import { SLUG_RE, listRoutes, slugRefusal, ensureSlugRoute } from './skoolroutes.js';
+import { SLUG_RE, SHORT_LINKS, listRoutes, slugRefusal, ensureSlugRoute } from './skoolroutes.js';
 
 export const SKOOL = 'https://www.skool.com/ai-ugc';
 export const ESTIMATE_HOURS = 24;
@@ -29,15 +29,20 @@ export const SOCIAL = { ig: 'instagram', tt: 'tiktok', x: 'x', fb: 'facebook', l
 // Old /s/ social links: 301 to the short link, query string kept. /yt is another app, so /s/yt goes to /youtube.
 const OLD_SOCIAL = { ig: 'ig', tt: 'tt', x: 'x', fb: 'fb', li: 'li', yt: 'youtube' };
 const isSocial = (slug) => Object.hasOwn(SOCIAL, slug);
+// One-word video links (src/skoolroutes.js SHORT_LINKS), e.g. jonmac.ai/neon: a video link with no skool_links row.
+export const isShort = (slug) => Object.hasOwn(SHORT_LINKS, slug);
+export const isBuiltIn = (slug) => isSocial(slug) || isShort(slug);
 
 export async function skoolRedirect(request, env, ctx) {
   const url = new URL(request.url);
   const old = url.pathname.startsWith('/s/');
   const raw = url.pathname.slice(old ? 3 : 1).toLowerCase();
-  const slug = !old && isSocial(raw.replace(/\/$/, '')) ? raw.replace(/\/$/, '') : raw; // /ig/ is /ig
+  const slug = !old && isBuiltIn(raw.replace(/\/$/, '')) ? raw.replace(/\/$/, '') : raw; // /ig/ is /ig, /neon/ is /neon
   if (old && BG.has(slug)) return backdrop(request, env, slug); // the pop-over's screenshot backdrop (a slug has no dot, so no clash)
   if (old && Object.hasOwn(OLD_SOCIAL, slug)) return new Response(null, { status: 301, headers: { Location: `/${OLD_SOCIAL[slug]}${url.search}`, ...NO_STORE } });
+  if (old && isShort(slug)) return new Response(null, { status: 301, headers: { Location: `/${slug}${url.search}`, ...NO_STORE } }); // /s/neon is /neon
   const social = !old && isSocial(slug);
+  const short = !old && isShort(slug);
   const to = new URL(SKOOL);
   if (!(social || SLUG_RE.test(slug)) || !['GET', 'HEAD', 'POST'].includes(request.method)) return forward(to);
   to.searchParams.set('utm_source', social ? SOCIAL[slug] : 'youtube');
@@ -45,7 +50,7 @@ export async function skoolRedirect(request, env, ctx) {
   to.searchParams.set('utm_campaign', social ? 'bio' : slug);
   if (!env.DB) return forward(to);
   let link = null;
-  if (social) link = { capture: 1 }; // no skool_links row needed: always the lander
+  if (social || short) link = { capture: 1 }; // no skool_links row needed: always the lander (a /track video link's default)
   else try { link = await env.DB.prepare('SELECT capture FROM skool_links WHERE slug = ?').bind(slug).first(); } catch (err) {
     console.error('skool link', err); // e.g. the capture column is missing before migration 0030: keep counting clicks, no email step
     try { link = await env.DB.prepare('SELECT slug FROM skool_links WHERE slug = ?').bind(slug).first(); } catch { /* unknown */ }
@@ -196,6 +201,10 @@ export async function trackerData(db, nowMs = Date.now()) {
   // The six social bio links count even without a skool_links row; last, so a video link's answer match wins first.
   for (const [slug, platform] of Object.entries(SOCIAL)) {
     if (!L.some((l) => l.slug === slug)) L.push({ slug, title: `${platform} bio link`, youtube_url: null, created_at: '', capture: 1 });
+  }
+  // The one-word video links (SHORT_LINKS) count the same way, under their word.
+  for (const [slug, s] of Object.entries(SHORT_LINKS)) {
+    if (!L.some((l) => l.slug === slug)) L.push({ slug, title: s.title, youtube_url: s.youtube_url || null, created_at: '', capture: 1 });
   }
   const known = new Set(L.map((l) => l.slug));
   const C = new Map((clicks.results || []).map((c) => [c.slug, c]));

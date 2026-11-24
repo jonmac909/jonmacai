@@ -100,6 +100,8 @@
     { "pattern": "jonmac.ai/tt*", "zone_name": "jonmac.ai" },
     { "pattern": "jonmac.ai/x*", "zone_name": "jonmac.ai" },
     { "pattern": "jonmac.ai/youtube*", "zone_name": "jonmac.ai" },
+    // One-word video links (src/skoolroutes.js SHORT_LINKS): wildcard like the social ones; other paths under the word pass to the main site.
+    { "pattern": "jonmac.ai/neon*", "zone_name": "jonmac.ai" },
     { "pattern": "jonmac.ai/track", "zone_name": "jonmac.ai" },
     { "pattern": "jonmac.ai/track/*", "zone_name": "jonmac.ai" },
     // Live GPU Monitor (src/monitor.js).
