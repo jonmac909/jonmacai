@@ -119,3 +119,16 @@ test('welcome email for a bio link does not name a video', async () => {
   }
   assert.match(renderEmail(0, { slug: 'mythos52', title: 'Mythos', unsubUrl: 'u', business: 'B', address: 'A' }).text, /from my video "Mythos"/);
 });
+
+test('review: /ig/ is the lander, a failing main site gives 502, footer names a link that works', async () => {
+  const r = await go({ DB: sqliteD1() }, '/ig/?fbclid=1');
+  assert.equal(r.status, 200);
+  assert.match(await r.text(), /action="\/ig"/);
+  const APEX = { fetch: async () => { throw new Error('down'); } };
+  assert.equal((await go({ DB: sqliteD1(), APEX }, '/library')).status, 502);
+  const { renderEmail } = await import('../src/skoolmail.js');
+  const foot = (slug) => renderEmail(0, { slug, title: 'T', unsubUrl: 'u', business: 'B', address: 'A' }).text;
+  assert.match(foot('yt'), /on jonmac\.ai\/youtube to get/); // old /s/yt leads: /yt is the AIOS app
+  assert.match(foot('yt'), /came over from my profile/);
+  assert.match(foot('mythos52'), /on jonmac\.ai\/s\/mythos52 to get/); // /s/<slug> works even when the root route was refused
+});

@@ -33,7 +33,8 @@ const isSocial = (slug) => Object.hasOwn(SOCIAL, slug);
 export async function skoolRedirect(request, env, ctx) {
   const url = new URL(request.url);
   const old = url.pathname.startsWith('/s/');
-  const slug = url.pathname.slice(old ? 3 : 1).toLowerCase();
+  const raw = url.pathname.slice(old ? 3 : 1).toLowerCase();
+  const slug = !old && isSocial(raw.replace(/\/$/, '')) ? raw.replace(/\/$/, '') : raw; // /ig/ is /ig
   if (old && BG.has(slug)) return backdrop(request, env, slug); // the pop-over's screenshot backdrop (a slug has no dot, so no clash)
   if (old && Object.hasOwn(OLD_SOCIAL, slug)) return new Response(null, { status: 301, headers: { Location: `/${OLD_SOCIAL[slug]}${url.search}`, ...NO_STORE } });
   const social = !old && isSocial(slug);

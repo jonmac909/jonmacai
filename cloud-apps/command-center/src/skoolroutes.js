@@ -11,8 +11,9 @@ export const SCRIPT = 'jonmac-command-center';
 const API = 'https://api.cloudflare.com/client/v4';
 export const SLUG_RE = /^[a-z0-9][a-z0-9-]{0,38}[a-z0-9]$/;
 // This worker's own paths (wrangler.jsonc routes and src/worker.js) plus names that must never become a short link.
-export const RESERVED = new Set(['dashboard', 'dashboard-2', 'dash', 'scripts', 'v', 's', 'track', 'monitor', 'twilio', 'api', 'www',
-  'ig', 'tt', 'x', 'fb', 'li', 'youtube']); // social bio links (src/skool.js SOCIAL), built in
+// Social bio links (src/skool.js SOCIAL), built in: wildcard routes in wrangler.jsonc, no slug route.
+export const SOCIAL_SLUGS = ['ig', 'tt', 'x', 'fb', 'li', 'youtube'];
+export const RESERVED = new Set(['dashboard', 'dashboard-2', 'dash', 'scripts', 'v', 's', 'track', 'monitor', 'twilio', 'api', 'www', ...SOCIAL_SLUGS]);
 // Other workers' routes on the zone (GET /zones/{zone}/workers/routes, 2026-11-21). Used when the live list can't be read,
 // and always alongside it, so a slug is never let through just because the API was down.
 export const OTHER_ROUTES = [
@@ -102,7 +103,7 @@ export async function syncSlugRoutes(env) {
   const { results } = await env.DB.prepare('SELECT slug FROM skool_links').all();
   const created = [], skipped = [];
   for (const { slug } of results || []) {
-    if (have.has(patternOf(slug))) continue;
+    if (have.has(patternOf(slug)) || SOCIAL_SLUGS.includes(slug)) continue; // old ig/tt rows: the wildcard route covers them
     const why = await slugRefusal(env, slug, routes);
     if (why) { skipped.push(slug); console.error('route sync skipped', slug, why); continue; }
     // One failed create (e.g. a duplicate from a parallel sync) must not stop the rest.

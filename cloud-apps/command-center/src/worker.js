@@ -119,14 +119,16 @@ export default {
     if (url.pathname !== PREFIX && !url.pathname.startsWith(`${PREFIX}/`)) {
       // Skool short links at the root, jonmac.ai/<slug> (Jon 2026-11-21): only after every route above, only known slugs.
       const m = /^\/([a-z0-9][a-z0-9-]{0,38}[a-z0-9])$/i.exec(url.pathname);
-      if (Object.hasOwn(SOCIAL, url.pathname.slice(1).toLowerCase())) return skoolRedirect(request, env, ctx); // social bio links, no DB row needed
+      if (Object.hasOwn(SOCIAL, url.pathname.slice(1).replace(/\/$/, '').toLowerCase())) return skoolRedirect(request, env, ctx); // social bio links, no DB row needed
       if (m && env.DB) {
         let known = null;
         try { known = await env.DB.prepare('SELECT slug FROM skool_links WHERE slug = ?').bind(m[1].toLowerCase()).first(); } catch { /* table missing: 404 */ }
         if (known) return skoolRedirect(request, env, ctx);
       }
       // The six social routes are wildcards (jonmac.ai/x* so /x?fbclid=1 reaches us); any other path under them is the main site's, unchanged.
-      if (env.APEX && /^\/(ig|tt|x|fb|li|youtube)/i.test(url.pathname)) return env.APEX.fetch(request);
+      if (env.APEX && /^\/(ig|tt|x|fb|li|youtube)/i.test(url.pathname)) {
+        try { return await env.APEX.fetch(request); } catch (err) { console.error('apex pass-through', err.message); return new Response('Bad gateway', { status: 502 }); }
+      }
       return new Response('Not found', { status: 404 });
     }
     if (url.pathname.startsWith(FILE_PREFIX)) return serveProofFile(request, env);
