@@ -161,7 +161,7 @@ export function matchAnswer(answer, links) {
   const raw = String(answer).toLowerCase();
   for (const l of links) {
     const id = YT_RE.exec(l.youtube_url || '')?.[4];
-    if (raw.includes(`/s/${l.slug}`) || raw.includes(`jonmac.ai/${l.slug}`) || (id && String(answer).includes(id)) || (l.slug.length >= 6 && !isSocial(l.slug) && ` ${a} `.includes(` ${norm(l.slug)} `))) return l.slug; // short slugs like "ai" match too much
+    if (new RegExp(`(/s|jonmac\\.ai)/${l.slug}(?![a-z0-9-])`).test(raw) || (id && String(answer).includes(id)) || (l.slug.length >= 6 && !isSocial(l.slug) && ` ${a} `.includes(` ${norm(l.slug)} `))) return l.slug; // short slugs like "ai" match too much
   }
   for (const l of links) {
     const t = norm(l.title);

@@ -69,4 +69,15 @@ test('/track counts a social link with no skool_links row: its lead credits the 
   assert.equal(fb.sales, 1);
   assert.equal(d.sales[0].how, 'email');
   assert.equal(matchAnswer('found you on youtube', d.rows), null);
+  // A longer slug that only starts with a social one is not that platform (jonmac.ai/xai-tips is not /x).
+  assert.equal(matchAnswer('came from jonmac.ai/xai-tips', d.rows), null);
+  assert.equal(matchAnswer('the /s/live-demo link', d.rows), null);
+  assert.equal(matchAnswer('jonmac.ai/x', d.rows), 'x');
+  assert.equal(matchAnswer('JONMAC.AI/FB?utm=1', d.rows), 'fb');
+});
+
+test('sequence footer names the short link the lead used', async () => {
+  const { renderEmail } = await import('../src/skoolmail.js');
+  const m = renderEmail(0, { slug: 'youtube', unsubUrl: 'https://jonmac.ai/u', business: 'B', address: 'A' });
+  assert.match(m.text, /entered your email on jonmac\.ai\/youtube to get/);
 });

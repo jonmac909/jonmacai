@@ -145,7 +145,7 @@ export function renderEmail(day, { title = '', slug = '', unsubUrl, business, ad
   const link = skoolLink(slug, day);
   const paras = e.paras.map((p) => fill(p, v));
   const ps = e.ps.map((p) => fill(p, v));
-  const why = `You're getting this because you entered your email${slug ? ` on jonmac.ai/s/${slug}` : ''} to get to the AI Video Lab on Skool.`;
+  const why = `You're getting this because you entered your email${slug ? ` on jonmac.ai/${slug}` : ''} to get to the AI Video Lab on Skool.`;
   const text = [...paras, `${e.cta}: ${link}`, 'Jon', ...ps, '--', `${business}\n${address}`, why, `Unsubscribe in one click: ${unsubUrl}`].join('\n\n');
   const para = (p) => {
     const lines = p.split('\n');
