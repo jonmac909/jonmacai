@@ -102,7 +102,7 @@ test('an unlisted guide is live but noindex and absent from /guides; a listed on
   assert.doesNotMatch(lab, /Hidden guide/);
   assert.match(lab, /<h1>Master AI video with Claude \+ all my skills, prompts and files\. Only \$9\. 👉 skool\.com\/ai-ugc<\/h1>/);
   assert.doesNotMatch(lab, /one line, same on/);
-  assert.match(lab, /\[JON: higher tier name and price\]/);
+  assert.match(lab, /Premium: \$39 \/ month/);
   assert.equal((await go(e, '/guides/nope-none')).status, 404);
 });
 
@@ -110,7 +110,7 @@ test('download: stores the email with its consent flags, joins skool_leads, retu
   const e = mkenv();
   await publish(e, 'my-vid', guide());
   const no = await go(e, '/guides/my-vid/download', { method: 'POST', form: { email: 'sam@gmail.com', file: '0' } });
-  assert.equal(no.status, 400); // no Terms tick
+  assert.equal(no.status, 400); // no Privacy tick
   const r = await go(e, '/guides/my-vid/download', { method: 'POST', form: { email: 'Sam@Gmail.com', terms: '1', file: '0' } });
   assert.equal(r.status, 200);
   assert.equal(await r.text(), FILE_TEXT);
@@ -202,7 +202,7 @@ test('CASL: the footer newsletter box stores newsletter consent only and never e
   assert.match(await (await go(e, '/guides/my-vid')).text(), /New guides by email[\s\S]*One email when a new guide is out/);
 });
 
-test('one-click remembered download: works only for an email that already agreed to the Terms, and never adds newsletter consent', async () => {
+test('one-click remembered download: works only for an email that already ticked the Privacy box, and never adds newsletter consent', async () => {
   const e = mkenv();
   await publish(e, 'my-vid', guide());
   const cold = await go(e, '/guides/my-vid/download', { method: 'POST', headers: { 'X-Guide-JS': '1', Cookie: 'jm_email=new%40gmail.com' }, form: { remembered: '1', file: '0' } });
@@ -267,4 +267,32 @@ test('channel: optional, only jonmacai or jon-mac; label on the guide and index 
   assert.match(idx, /<button type="button" class="tag" data-channel="jon-mac" aria-pressed="false">Jon Mac<\/button>/);
   const s = await (await go(e, '/guides/api/main-one/stats', { headers: { Authorization: `Bearer ${TOKEN}` } })).json();
   assert.equal(s.channel, 'jon-mac');
+});
+
+test('no [JON: ...] text on any live page; footer and checkbox point at the privacy page; terms draft is gone', async () => {
+  const e = mkenv();
+  await publish(e, 'open-one', guide({ title: 'Open guide', state: 'listed' }));
+  for (const path of ['/lab', '/guides', '/guides/open-one']) {
+    const t = await (await go(e, path)).text();
+    assert.doesNotMatch(t, /\[JON:/, path);
+    assert.doesNotMatch(t, /class="ph"/, path);
+    assert.doesNotMatch(t, /\/guides\/terms/, path);
+    assert.match(t, /href="\/dashboard\/privacy"/, path);
+  }
+  assert.match(await (await go(e, '/guides/open-one')).text(), /I agree to the <a href="\/dashboard\/privacy"/);
+  const terms = await go(e, '/guides/terms');
+  assert.equal(terms.status, 301);
+  assert.equal(terms.headers.get('Location'), '/dashboard/privacy');
+});
+
+test('/lab: approved text, no Your teacher, guide count only from 5 real guides', async () => {
+  const e = mkenv();
+  const lab0 = await (await go(e, '/lab')).text();
+  for (const t of ['Start Here:', 'Edit Lab:', 'Pipeline Lab:', 'Resource Library:', 'Premium: $39 / month', '1.1k']) assert.ok(lab0.includes(t), t);
+  assert.doesNotMatch(lab0, /Your teacher/);
+  assert.doesNotMatch(lab0, /free guides<\/small>/);
+  for (let i = 1; i <= 4; i++) await publish(e, `g-${i}`, guide({ title: `Guide ${i}`, state: 'listed' }));
+  assert.doesNotMatch(await (await go(e, '/lab')).text(), /free guides<\/small>/);
+  await publish(e, 'g-5', guide({ title: 'Guide 5', state: 'listed' }));
+  assert.match(await (await go(e, '/lab')).text(), /<b>5<\/b><small>free guides<\/small>/);
 });

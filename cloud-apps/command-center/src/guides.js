@@ -4,7 +4,7 @@
 //   GET  /guides                  index of listed guides, newest first
 //   GET  /guides/<slug>           the guide (unlisted: live but noindex and not in the index)
 //   GET  /guides/<slug>/img/<f>   guide images from R2 (UPLOADS, guides/<slug>/img/<f>)
-//   POST /guides/<slug>/download  email (+ Terms tick, optional newsletter tick) -> the file; the email joins skool_leads
+//   POST /guides/<slug>/download  email (+ Privacy tick, optional newsletter tick) -> the file; the email joins skool_leads
 //   POST /guides/newsletter       footer newsletter box
 //   PUT  /guides/api/<slug>       publish from MacFrames: Bearer GUIDES_PUBLISH_TOKEN, JSON {guide, files: {path: base64}}
 //   GET  /guides/api/<slug>/stats counts for one guide (same token)
@@ -22,7 +22,9 @@ const HEADLINE = 'Master AI video with Claude + all my skills, prompts and files
 const TAGLINE = 'Master video production with Claude. Get the exact skills, prompts and files that grow your income.';
 const MEMBERS = { count: '1.1k', asOf: '2026-11-23' }; // read from the Skool about page; update with the date when re-read
 export const POS = new Set(['rail', 'end', 'top', 'home', 'bar']);
-const NOT_SLUGS = new Set(['api', 'terms', 'newsletter']); // /guides/<these> are pages, never guides
+const NOT_SLUGS = new Set(['api', 'terms', 'newsletter']); // 'terms' stays reserved
+const PRIVACY = '/dashboard/privacy'; // the only legal page jonmac.ai has (no terms page, Jon 2026-11-23)
+const MIN_GUIDES_SHOWN = 5; // the home page shows a guide count only from this many real guides // /guides/<these> are pages, never guides
 const FILE_RE = /^(resource|img)\/[A-Za-z0-9][\w.-]{0,99}$/;
 const TYPES = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', webp: 'image/webp', gif: 'image/gif', zip: 'application/zip', md: 'text/markdown; charset=utf-8', txt: 'text/plain; charset=utf-8', pdf: 'application/pdf', json: 'application/json' };
 const MAX_EMAILS_PER_10_MIN = 60; // per guide: stops a script from filling the list
@@ -197,7 +199,7 @@ ${body}
 <footer><div class="in"><div><strong>New guides by email</strong>
 <form class="nl" method="post" action="/guides/newsletter"><input type="hidden" name="from" value="${esc(from)}"><input type="email" name="email" placeholder="you@example.com" aria-label="Email" autocomplete="email" required maxlength="254"><button class="btn dark" type="submit">Subscribe</button></form>
 <small>One email when a new guide is out. Unsubscribe any time.</small></div>
-<div class="links"><a href="/guides">All guides</a><a href="/lab">Home</a><a href="/guides/terms">Terms</a></div></div></footer>
+<div class="links"><a href="/guides">All guides</a><a href="/lab">Home</a><a href="/dashboard/privacy">Privacy</a></div></div></footer>
 ${bar ? `<div class="bar"><a class="btn" href="${skoolHref(from, 'bar')}">Join ${GROUP}, ${PRICE}</a></div>` : ''}
 <script>${SCRIPT}</script></body></html>`;
 }
@@ -222,7 +224,7 @@ export function guidePage(g, origin) {
   const dl = (f, i) => `<details class="dl"><summary class="btn dark">${files.length > 1 ? `Unlock ${esc(f.split('/').pop())}` : 'Unlock the resource'}</summary>
 <div class="box"><form method="post" action="/guides/${slug}/download"><input type="hidden" name="file" value="${i}">
 <strong>Where should we send it?</strong><input type="email" name="email" placeholder="you@example.com" aria-label="Email" autocomplete="email" required maxlength="254">
-<label><input type="checkbox" name="terms" value="1" required> I agree to the <a href="/guides/terms" target="_blank">Terms</a>.</label>
+<label><input type="checkbox" name="terms" value="1" required> I agree to the <a href="/dashboard/privacy" target="_blank">Privacy notice</a>.</label>
 <label><input type="checkbox" name="newsletter" value="1"> Yes, email me new guides from Jon Mac. Optional; unsubscribe any time.</label>
 <p class="err" role="alert"></p><button class="btn" type="submit">Get the file</button></form></div>
 <p class="who" hidden>Downloads go to <b></b>. <a href="#">Not you?</a></p></details>`;
@@ -258,29 +260,21 @@ ${list.length ? `<ul class="cards">${cards}</ul>` : '<p>The first guides are on 
   return page({ title: 'Free guides | Jon Mac', description: `Free written guides from Jon Mac's videos, with the files. ${TAGLINE}`, url: `${origin}/guides`, body });
 }
 
-// The home page (spec 2c): only blocks with real material. [JON: ...] marks what Jon still has to supply.
+// The home page (spec 2c): only blocks with real material. Nothing with a [JON: ...] marker ships here (a test fails on it).
 export function homePage(list, origin) {
-  const ph = (t) => `<span class="ph">[JON: ${esc(t)}]</span>`;
   const guides = list.slice(0, 6);
   const body = `<div class="wrap">
 <section class="hero"><h1>${esc(HEADLINE)}</h1><p>${esc(TAGLINE)}</p>
-<a class="btn" href="${skoolHref('', 'home')}">Join ${GROUP}, ${PRICE}</a><div class="price">${GROUP} on Skool · ${PRICE}</div><div class="price">Higher tier: ${ph('higher tier name and price')}</div></section>
-<section class="blk"><h2>What's inside</h2><p>${ph('the classroom and the files members get, in a few short lines')}</p></section>
-<section class="blk"><h2>Curriculum</h2><p>${ph('the stages, in order')}</p></section>
+<a class="btn" href="${skoolHref('', 'home')}">Join ${GROUP}, ${PRICE}</a><div class="price">${GROUP} on Skool · ${PRICE}</div><div class="price">Premium: $39 / month</div></section>
+<section class="blk"><h2>What's inside</h2><p>Step-by-step courses and the files behind them.</p><ul><li><strong>Start Here:</strong> your first win.</li><li><strong>Edit Lab:</strong> AI video editing and motion graphics with Claude.</li><li><strong>Pipeline Lab:</strong> faceless shorts and long videos from one prompt.</li><li><strong>Resource Library:</strong> prompts, audio and reusable production assets.</li></ul></section>
+<section class="blk"><h2>Curriculum</h2><ol><li>Start Here: your first win (roadmap, goals, levels).</li><li>Edit Lab: AI video editing and motion graphics with Claude.</li><li>Pipeline Lab: faceless shorts and long videos from one prompt.</li></ol></section>
 ${guides.length ? `<section class="blk"><h2>Free guides</h2><ul class="cards">${guides.map((g) => `<li class="card"><a class="t" href="/guides/${g.slug}">${esc(g.title)}</a><p>${esc((Array.isArray(g.summary) ? g.summary[0] : g.summary) || '')}</p></li>`).join('')}</ul><p><a href="/guides">All guides</a></p></section>` : ''}
-<section class="blk"><h2>In numbers</h2><div class="nums"><div><b>${MEMBERS.count}</b><small>members on Skool, ${esc(fmtDate(MEMBERS.asOf))}</small></div>${list.length ? `<div><b>${list.length}</b><small>free guides</small></div>` : ''}</div></section>
-<section class="blk"><h2>Your teacher</h2><p>${ph('who Jon is and his real credentials')}</p></section>
+<section class="blk"><h2>In numbers</h2><div class="nums"><div><b>${MEMBERS.count}</b><small>members on Skool, ${esc(fmtDate(MEMBERS.asOf))}</small></div>${list.length >= MIN_GUIDES_SHOWN ? `<div><b>${list.length}</b><small>free guides</small></div>` : ''}</div></section>
 <section class="blk faq"><h2>Questions</h2><details><summary>How much is it?</summary><p>${PRICE}, paid on Skool.</p></details>
 <details><summary>Where is the group?</summary><p>On Skool: ${GROUP}. The join button takes you to its about page.</p></details></section>
 <section class="blk"><div class="close"><h2>${GROUP}</h2><p>${esc(TAGLINE)}</p><a class="btn" href="${skoolHref('', 'home')}">Join ${GROUP}, ${PRICE}</a></div></section>
 </div>`;
   return page({ title: `${GROUP} | Jon Mac`, description: TAGLINE, url: `${origin}/lab`, body });
-}
-
-function termsPage(origin) {
-  const body = `<div class="wrap"><article><h1>Terms for free downloads</h1><p><span class="ph">[JON: the terms a visitor agrees to when downloading a free file]</span></p>
-<p>We keep your email to send you the file you asked for. We email you new guides only if you ticked that box, and you can unsubscribe any time.</p></article></div>`;
-  return page({ title: 'Terms | Jon Mac', description: 'Terms for free downloads from Jon Mac guides.', url: `${origin}/guides/terms`, noindex: true, body, bar: false });
 }
 
 // ---- Email + file
@@ -338,10 +332,10 @@ async function download(request, env, ctx, slug) {
     if (remembered && !terms) {
       // One click for a returning visitor: only if this email already agreed to the Terms on some guide.
       const seen = await env.DB.prepare('SELECT MAX(terms) AS t, MAX(newsletter) AS n FROM guide_emails WHERE email = ?').bind(email).first().catch(() => null);
-      if (!seen?.t) return formError(js, 400, 'Please enter your email and tick the Terms box.', { need: 'terms' });
+      if (!seen?.t) return formError(js, 400, 'Please enter your email and tick the Privacy box.', { need: 'terms' });
       terms = true; newsletter = false; // a one-click download never adds newsletter consent
     }
-    if (!terms) return formError(js, 400, 'Please tick the Terms box to get the file.');
+    if (!terms) return formError(js, 400, 'Please tick the Privacy box to get the file.');
     const res = await checkEmail(email, { keepTypo: truthy(b.keep) });
     if (!res.ok) return formError(js, 400, res.message, res.reason === 'typo' ? { suggestion: res.suggestion } : {});
     email = res.email;
@@ -471,7 +465,7 @@ export async function handleGuides(request, env, ctx) {
     return json({ error: 'Not found' }, 404);
   }
   if (!parts.length) return ['GET', 'HEAD'].includes(m) ? html(indexPage(await listed(env), origin)) : json({ error: 'Method not allowed' }, 405);
-  if (parts.length === 1 && parts[0] === 'terms') return html(termsPage(origin), { index: false });
+  if (parts.length === 1 && parts[0] === 'terms') return new Response(null, { status: 301, headers: { Location: PRIVACY } });
   if (parts.length === 1 && parts[0] === 'newsletter') return m === 'POST' ? newsletter(request, env) : new Response(null, { status: 302, headers: { Location: '/guides' } });
   const slug = parts[0].toLowerCase();
   if (parts.length === 2 && parts[1] === 'download' && m === 'POST') return download(request, env, ctx, slug);
