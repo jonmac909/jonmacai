@@ -20,7 +20,16 @@ export const SOCIAL_SLUGS = ['ig', 'tt', 'x', 'fb', 'li', 'youtube'];
 export const SHORT_LINKS = {
   neon: { title: 'Gemini 4 Neon' }, // the live video, was jonmac.ai/s/gemini-4-neon
 };
-export const SHORT_SLUGS = Object.keys(SHORT_LINKS);
+// Each platform gets its own link (Jon 2026-11-24: "each platform needs its own tracking link never use the same link"):
+// <word> = YouTube, <word>x = X, <word>li, <word>fb, <word>ig, <word>tt. Skool gets utm_source=<platform>, utm_campaign=<word>.
+export const SHORT_PLATFORMS = { '': ['youtube', 'YouTube'], x: ['x', 'X'], li: ['linkedin', 'LinkedIn'], fb: ['facebook', 'Facebook'], ig: ['instagram', 'Instagram'], tt: ['tiktok', 'TikTok'] };
+// slug -> { word, platform, title (for /track), video (the video's own title, for the emails) }
+export const SHORT_VARIANTS = Object.fromEntries(Object.entries(SHORT_LINKS).flatMap(([word, s]) =>
+  Object.entries(SHORT_PLATFORMS).map(([suffix, [platform, name]]) => [word + suffix, { word, platform, title: `${s.title} - ${name}`, video: s.title }])));
+// A video's six links: { youtube: 'https://jonmac.ai/neon', x: 'https://jonmac.ai/neonx', ... }
+export const videoLinks = (word) => Object.hasOwn(SHORT_LINKS, word)
+  ? Object.fromEntries(Object.entries(SHORT_PLATFORMS).map(([suffix, [platform]]) => [platform, `https://${HOST}/${word}${suffix}`])) : null;
+export const SHORT_SLUGS = Object.keys(SHORT_VARIANTS);
 export const BUILT_IN_SLUGS = [...SOCIAL_SLUGS, ...SHORT_SLUGS]; // wildcard routes in wrangler.jsonc, never a slug route
 export const RESERVED = new Set(['dashboard', 'dashboard-2', 'dash', 'scripts', 'v', 's', 'track', 'monitor', 'twilio', 'api', 'www', ...BUILT_IN_SLUGS]);
 // Other workers' routes on the zone (GET /zones/{zone}/workers/routes, 2026-11-21). Used when the live list can't be read,

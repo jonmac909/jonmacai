@@ -5,12 +5,13 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import worker from '../src/worker.js';
 import { trackerData, matchAnswer } from '../src/skool.js';
-import { SHORT_LINKS, slugRefusal } from '../src/skoolroutes.js';
+import { SHORT_LINKS, SHORT_VARIANTS, SHORT_PLATFORMS, SOCIAL_SLUGS, RESERVED, OTHER_ROUTES, routeClash, videoLinks, slugRefusal } from '../src/skoolroutes.js';
 import { renderEmail } from '../src/skoolmail.js';
 import { sqliteD1 } from './sqlited1.mjs';
 import './dnsstub.mjs';
 
 const WORDS = Object.keys(SHORT_LINKS);
+const SLUGS = Object.keys(SHORT_VARIANTS); // every platform variant of every word
 async function go(e, path, { method = 'GET', form } = {}) {
   const init = { method, redirect: 'manual' };
   if (form) { init.body = new URLSearchParams(form).toString(); init.headers = { 'Content-Type': 'application/x-www-form-urlencoded' }; }
@@ -30,9 +31,11 @@ test('neon is in the table and has a wildcard route', () => {
   }
 });
 
-test('/neon shows the lander, counts the click under neon and forwards with video utm tags', async () => {
+test('each platform link (/neon, /neonx, ...) shows the lander, counts under its own slug and forwards with its utm tags', async () => {
   const e = { DB: sqliteD1() };
-  for (const w of WORDS) {
+  assert.deepEqual(SLUGS.filter((s) => SHORT_VARIANTS[s].word === 'neon'), ['neon', 'neonx', 'neonli', 'neonfb', 'neonig', 'neontt']);
+  for (const w of SLUGS) {
+    const v = SHORT_VARIANTS[w];
     const page = await go(e, `/${w}`);
     assert.equal(page.status, 200, w);
     const html = await page.text();
@@ -44,7 +47,7 @@ test('/neon shows the lander, counts the click under neon and forwards with vide
     assert.equal(r.status, 302);
     const to = new URL(r.headers.get('Location'));
     assert.equal(to.origin + to.pathname, 'https://www.skool.com/ai-ugc');
-    assert.deepEqual(Object.fromEntries(to.searchParams), { utm_source: 'youtube', utm_medium: 'video', utm_campaign: w });
+    assert.deepEqual(Object.fromEntries(to.searchParams), { utm_source: v.platform, utm_medium: 'video', utm_campaign: v.word });
     const lead = await e.DB.prepare('SELECT slug FROM skool_leads WHERE email = ?').bind(`short-${w}@gmail.com`).first();
     assert.equal(lead?.slug, w);
     // Trailing slash and a query string are the same link; ?qc=1 is not counted.
@@ -52,6 +55,28 @@ test('/neon shows the lander, counts the click under neon and forwards with vide
     assert.equal((await go(e, `/${w}?qc=1`)).status, 200);
     assert.equal(await clicks(e, w), 2);
   }
+  const src = Object.fromEntries(SLUGS.map((s) => [s, SHORT_VARIANTS[s].platform]));
+  assert.deepEqual(src, { neon: 'youtube', neonx: 'x', neonli: 'linkedin', neonfb: 'facebook', neonig: 'instagram', neontt: 'tiktok' });
+});
+
+test('every variant is unique and clashes with no social slug, other route or dashboard path', async () => {
+  assert.equal(new Set(SLUGS).size, SLUGS.length);
+  assert.equal(SLUGS.length, WORDS.length * Object.keys(SHORT_PLATFORMS).length);
+  const own = new Set(['dashboard', 'dashboard-2', 'dash', 'scripts', 'v', 's', 'track', 'monitor', 'twilio', 'api', 'www']);
+  for (const s of SLUGS) {
+    assert.ok(!SOCIAL_SLUGS.includes(s), `${s}: a social slug`);
+    assert.ok(!own.has(s), `${s}: a dashboard path`);
+    assert.ok(RESERVED.has(s), `${s}: reserved`);
+    assert.equal(routeClash(OTHER_ROUTES, s), null, `${s}: another worker's route`);
+    assert.match(await slugRefusal({}, s, null), /built-in short link/, s);
+  }
+});
+
+test('videoLinks gives a video its six distinct links', () => {
+  const l = videoLinks('neon');
+  assert.deepEqual(l, { youtube: 'https://jonmac.ai/neon', x: 'https://jonmac.ai/neonx', linkedin: 'https://jonmac.ai/neonli', facebook: 'https://jonmac.ai/neonfb', instagram: 'https://jonmac.ai/neonig', tiktok: 'https://jonmac.ai/neontt' });
+  assert.equal(new Set(Object.values(l)).size, 6);
+  assert.equal(videoLinks('nope'), null);
 });
 
 test('/s/neon 301s to /neon; other /s/<slug> video links behave as before', async () => {
@@ -59,6 +84,11 @@ test('/s/neon 301s to /neon; other /s/<slug> video links behave as before', asyn
   const r = await go(e, '/s/neon?a=1');
   assert.equal(r.status, 301);
   assert.equal(r.headers.get('Location'), '/neon?a=1');
+  for (const v of SLUGS) {
+    const x = await go(e, `/s/${v}`);
+    assert.equal(x.status, 301, v);
+    assert.equal(x.headers.get('Location'), `/${v}`);
+  }
   // Unknown /s/ slug: forwards with its own campaign, counts nothing.
   const u = await go(e, '/s/gemini-4-neon');
   assert.equal(u.status, 302);
@@ -80,15 +110,27 @@ test('other paths under /neon pass to the main site; /track lists neon; neon can
   const e = { DB: sqliteD1() };
   await go(e, '/neon');
   const d = await trackerData(e.DB);
+  await go(e, '/neonx');
+  await go(e, '/neonx');
   const row = d.rows.find((r) => r.slug === 'neon');
-  assert.equal(row.title, SHORT_LINKS.neon.title);
+  assert.equal(row.title, 'Gemini 4 Neon - YouTube');
   assert.equal(row.clicks.all, 1);
+  const d2 = await trackerData(e.DB);
+  const titles = Object.fromEntries(d2.rows.filter((r) => SHORT_VARIANTS[r.slug]).map((r) => [r.slug, r.title]));
+  assert.deepEqual(titles, { neon: 'Gemini 4 Neon - YouTube', neonx: 'Gemini 4 Neon - X', neonli: 'Gemini 4 Neon - LinkedIn', neonfb: 'Gemini 4 Neon - Facebook', neonig: 'Gemini 4 Neon - Instagram', neontt: 'Gemini 4 Neon - TikTok' });
+  assert.equal(d2.rows.find((r) => r.slug === 'neonx').clicks.all, 2);
+  assert.equal(d2.rows.find((r) => r.slug === 'neon').clicks.all, 1);
+  assert.deepEqual(Object.keys(d2.rows[0]).sort(), Object.keys(row).sort()); // same /track row shape
   assert.equal(matchAnswer('from jonmac.ai/neon', d.rows), 'neon');
   assert.match(await slugRefusal({}, 'neon', null), /built-in short link/);
+  assert.equal(matchAnswer('jonmac.ai/neonx', d2.rows), 'neonx');
 });
 
 test('email footer names jonmac.ai/neon, not /s/neon, and the video title', () => {
   const m = renderEmail(0, { slug: 'neon', title: SHORT_LINKS.neon.title, unsubUrl: 'u', business: 'B', address: 'A' });
   assert.match(m.text, /on jonmac\.ai\/neon to get/);
   assert.match(m.text, /my video "Gemini 4 Neon"/);
+  const x = renderEmail(0, { slug: 'neonx', title: SHORT_VARIANTS.neonx.video, unsubUrl: 'u', business: 'B', address: 'A' });
+  assert.match(x.text, /on jonmac\.ai\/neonx to get/);
+  assert.match(x.text, /my video "Gemini 4 Neon"/);
 });

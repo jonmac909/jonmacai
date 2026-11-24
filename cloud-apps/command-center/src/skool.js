@@ -8,7 +8,7 @@ import { readSession, timingSafeEqualString } from './auth.js';
 import { checkEmail } from './skoolcheck.js';
 import { handleUnsub, handleResendWebhook, seqOn, setSeqOn, sendTest, addressIsPlaceholder, DEFAULT_BUSINESS } from './skoolseq.js';
 import { leadsData, leadsCsv, leadsPage, emailsPage, nav, BASE_CSS, FILTERS } from './skoolcrm.js';
-import { SLUG_RE, SHORT_LINKS, listRoutes, slugRefusal, ensureSlugRoute } from './skoolroutes.js';
+import { SLUG_RE, SHORT_LINKS, SHORT_VARIANTS, listRoutes, slugRefusal, ensureSlugRoute } from './skoolroutes.js';
 
 export const SKOOL = 'https://www.skool.com/ai-ugc';
 export const ESTIMATE_HOURS = 24;
@@ -30,7 +30,7 @@ export const SOCIAL = { ig: 'instagram', tt: 'tiktok', x: 'x', fb: 'facebook', l
 const OLD_SOCIAL = { ig: 'ig', tt: 'tt', x: 'x', fb: 'fb', li: 'li', yt: 'youtube' };
 const isSocial = (slug) => Object.hasOwn(SOCIAL, slug);
 // One-word video links (src/skoolroutes.js SHORT_LINKS), e.g. jonmac.ai/neon: a video link with no skool_links row.
-export const isShort = (slug) => Object.hasOwn(SHORT_LINKS, slug);
+export const isShort = (slug) => Object.hasOwn(SHORT_VARIANTS, slug); // every platform variant: neon, neonx, neonli, ...
 export const isBuiltIn = (slug) => isSocial(slug) || isShort(slug);
 
 export async function skoolRedirect(request, env, ctx) {
@@ -45,9 +45,9 @@ export async function skoolRedirect(request, env, ctx) {
   const short = !old && isShort(slug);
   const to = new URL(SKOOL);
   if (!(social || SLUG_RE.test(slug)) || !['GET', 'HEAD', 'POST'].includes(request.method)) return forward(to);
-  to.searchParams.set('utm_source', social ? SOCIAL[slug] : 'youtube');
+  to.searchParams.set('utm_source', social ? SOCIAL[slug] : short ? SHORT_VARIANTS[slug].platform : 'youtube');
   to.searchParams.set('utm_medium', social ? 'social' : 'video');
-  to.searchParams.set('utm_campaign', social ? 'bio' : slug);
+  to.searchParams.set('utm_campaign', social ? 'bio' : short ? SHORT_VARIANTS[slug].word : slug);
   if (!env.DB) return forward(to);
   let link = null;
   if (social || short) link = { capture: 1 }; // no skool_links row needed: always the lander (a /track video link's default)
@@ -203,9 +203,9 @@ export async function trackerData(db, nowMs = Date.now()) {
   for (const [slug, platform] of Object.entries(SOCIAL)) {
     if (!L.some((l) => l.slug === slug)) L.push({ slug, title: `${platform} bio link`, youtube_url: null, created_at: '', capture: 1 });
   }
-  // The one-word video links (SHORT_LINKS) count the same way, under their word.
-  for (const [slug, s] of Object.entries(SHORT_LINKS)) {
-    if (!L.some((l) => l.slug === slug)) L.push({ slug, title: s.title, youtube_url: s.youtube_url || null, created_at: '', capture: 1 });
+  // The one-word video links count the same way, one row per platform variant (neon, neonx, ...), under its own slug.
+  for (const [slug, s] of Object.entries(SHORT_VARIANTS)) {
+    if (!L.some((l) => l.slug === slug)) L.push({ slug, title: s.title, youtube_url: SHORT_LINKS[s.word].youtube_url || null, created_at: '', capture: 1 });
   }
   const known = new Set(L.map((l) => l.slug));
   const C = new Map((clicks.results || []).map((c) => [c.slug, c]));
