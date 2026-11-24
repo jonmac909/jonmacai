@@ -53,7 +53,7 @@ test('old /s/ social links 301 to the short link and keep the query string', asy
 
 test('/yt stays the AIOS app: this worker has no /yt route and does not answer it', async () => {
   const routes = readFileSync(new URL('../wrangler.jsonc', import.meta.url), 'utf8');
-  for (const short of Object.keys(SIX)) assert.match(routes, new RegExp(`"pattern": "jonmac\\.ai/${short}"`), short);
+  for (const short of Object.keys(SIX)) assert.match(routes, new RegExp(`"pattern": "jonmac\\.ai/${short}\\*?"`), short);
   assert.doesNotMatch(routes, /"jonmac\.ai\/yt[^a-z]/);
   assert.equal((await go({ DB: sqliteD1() }, '/yt')).status, 404);
 });
@@ -80,4 +80,42 @@ test('sequence footer names the short link the lead used', async () => {
   const { renderEmail } = await import('../src/skoolmail.js');
   const m = renderEmail(0, { slug: 'youtube', unsubUrl: 'https://jonmac.ai/u', business: 'B', address: 'A' });
   assert.match(m.text, /entered your email on jonmac\.ai\/youtube to get/);
+});
+
+test('query strings: routes are wildcards so /fb?fbclid=1 reaches the worker; lander and 301 keep working', async () => {
+  const routes = readFileSync(new URL('../wrangler.jsonc', import.meta.url), 'utf8');
+  for (const short of Object.keys(SIX)) assert.match(routes, new RegExp(`"pattern": "jonmac\\.ai/${short}\\*"`), `${short}: exact routes miss ?query at the zone`);
+  const e = { DB: sqliteD1() };
+  for (const p of ['/fb?fbclid=1', '/ig?utm_source=foo']) {
+    const r = await go(e, p);
+    assert.equal(r.status, 200, p);
+    assert.match(await r.text(), /<title>AI Video Lab on Skool<\/title>/, p);
+  }
+  const r = await go(e, '/s/x?fbclid=1');
+  assert.equal(r.status, 301);
+  assert.equal(r.headers.get('Location'), '/x?fbclid=1');
+  assert.equal((await go(e, '/x?fbclid=1')).status, 200);
+});
+
+test('other paths under the six prefixes pass through to the main site unchanged', async () => {
+  const seen = [];
+  const APEX = { fetch: async (req) => { seen.push(new URL(req.url).pathname + new URL(req.url).search); return new Response('apex body', { status: 418, headers: { 'X-Apex': '1' } }); } };
+  for (const p of ['/xai-tips', '/ig-something?a=1', '/youtube/foo', '/library']) {
+    const r = await go({ DB: sqliteD1(), APEX }, p);
+    assert.equal(r.status, 418, p);
+    assert.equal(r.headers.get('X-Apex'), '1', p);
+    assert.equal(await r.text(), 'apex body', p);
+  }
+  assert.deepEqual(seen, ['/xai-tips', '/ig-something?a=1', '/youtube/foo', '/library']);
+  assert.equal((await go({ DB: sqliteD1(), APEX }, '/no-such-page')).status, 404); // outside the prefixes: unchanged 404
+});
+
+test('welcome email for a bio link does not name a video', async () => {
+  const { renderEmail } = await import('../src/skoolmail.js');
+  for (const slug of ['ig', 'tt', 'x', 'fb', 'li', 'youtube']) {
+    const m = renderEmail(0, { slug, title: '', unsubUrl: 'https://jonmac.ai/u', business: 'B', address: 'A' });
+    assert.doesNotMatch(m.text, /my video "/, slug);
+    assert.match(m.text, /came over from my profile/, slug);
+  }
+  assert.match(renderEmail(0, { slug: 'mythos52', title: 'Mythos', unsubUrl: 'u', business: 'B', address: 'A' }).text, /from my video "Mythos"/);
 });

@@ -143,7 +143,8 @@ export function renderEmail(day, { title = '', slug = '', unsubUrl, business, ad
   if (!e) throw new Error(`No email for day ${day}`);
   const v = { video: (title || 'my video').trim() };
   const link = skoolLink(slug, day);
-  const paras = e.paras.map((p) => fill(p, v));
+  const social = ['ig', 'tt', 'x', 'fb', 'li', 'youtube'].includes(slug); // bio links: no video to name
+  const paras = e.paras.map((p) => fill(social ? p.replace('from my video "{{video}}"', 'from my profile') : p, v));
   const ps = e.ps.map((p) => fill(p, v));
   const why = `You're getting this because you entered your email${slug ? ` on jonmac.ai/${slug}` : ''} to get to the AI Video Lab on Skool.`;
   const text = [...paras, `${e.cta}: ${link}`, 'Jon', ...ps, '--', `${business}\n${address}`, why, `Unsubscribe in one click: ${unsubUrl}`].join('\n\n');
