@@ -9,6 +9,7 @@ import { checkEmail } from './skoolcheck.js';
 import { handleUnsub, handleResendWebhook, seqOn, setSeqOn, sendTest, addressIsPlaceholder, DEFAULT_BUSINESS } from './skoolseq.js';
 import { leadsData, leadsCsv, leadsPage, emailsPage, nav, BASE_CSS, FILTERS } from './skoolcrm.js';
 import { SLUG_RE, listRoutes, slugRefusal, ensureSlugRoute } from './skoolroutes.js';
+import { guideEntry } from './guides.js';
 
 export const SKOOL = 'https://www.skool.com/ai-ugc';
 export const ESTIMATE_HOURS = 24;
@@ -28,6 +29,8 @@ export async function skoolRedirect(request, env, ctx) {
   const old = url.pathname.startsWith('/s/');
   const slug = url.pathname.slice(old ? 3 : 1).toLowerCase();
   if (old && BG.has(slug)) return backdrop(request, env, slug); // the pop-over's screenshot backdrop (a slug has no dot, so no clash)
+  // Guide site switch (src/guides.js): off or unset keeps /s/ exactly as it was.
+  if (env.GUIDES_S_SWITCH === 'on' && ['GET', 'HEAD'].includes(request.method) && SLUG_RE.test(slug)) return guideEntry(request, env, ctx, slug);
   const to = new URL(SKOOL);
   if (!SLUG_RE.test(slug) || !['GET', 'HEAD', 'POST'].includes(request.method)) return forward(to);
   to.searchParams.set('utm_source', 'youtube');

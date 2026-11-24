@@ -11,7 +11,7 @@ export const SCRIPT = 'jonmac-command-center';
 const API = 'https://api.cloudflare.com/client/v4';
 export const SLUG_RE = /^[a-z0-9][a-z0-9-]{0,38}[a-z0-9]$/;
 // This worker's own paths (wrangler.jsonc routes and src/worker.js) plus names that must never become a short link.
-export const RESERVED = new Set(['dashboard', 'dashboard-2', 'dash', 'scripts', 'v', 's', 'track', 'monitor', 'twilio', 'api', 'www']);
+export const RESERVED = new Set(['dashboard', 'dashboard-2', 'dash', 'scripts', 'v', 's', 'track', 'monitor', 'twilio', 'api', 'www', 'guides', 'go', 'lab']);
 // Other workers' routes on the zone (GET /zones/{zone}/workers/routes, 2026-11-21). Used when the live list can't be read,
 // and always alongside it, so a slug is never let through just because the API was down.
 export const OTHER_ROUTES = [

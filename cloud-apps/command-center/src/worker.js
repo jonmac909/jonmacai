@@ -7,6 +7,7 @@ import { reviewHook } from './reviewhook.js';
 import { trackRedirect } from './track.js';
 import { skoolRedirect, handleTracker } from './skool.js';
 import { syncOnNewVersion } from './skoolroutes.js';
+import { handleGuides, handleGo, handleLab } from './guides.js';
 import { runSequence, SEQ_CRON } from './skoolseq.js';
 import { FILE_PREFIX, serveProofFile, uploadProofFile } from './prooffiles.js';
 import { MONITOR, handleMonitor } from './monitor.js';
@@ -75,6 +76,10 @@ export default {
     // Skool short links and the /track page (src/skool.js).
     if (url.pathname.startsWith('/s/')) return skoolRedirect(request, env, ctx);
     if (url.pathname === '/track' || url.pathname.startsWith('/track/')) return handleTracker(request, env);
+    // Guide site (src/guides.js): open guides, the /lab home page, counted Skool forwards.
+    if (url.pathname === '/guides' || url.pathname.startsWith('/guides/')) return handleGuides(request, env, ctx);
+    if (url.pathname.startsWith('/go/')) return handleGo(request, env, ctx);
+    if (url.pathname === '/lab' || url.pathname === '/lab/') return handleLab(request, env);
     // Dashboard 2 (docs/dashboard-2.md): its own pages under public/d2; data comes from /dashboard/api/d2.
     if (url.pathname === D2) {
       url.pathname = `${D2}/`;
