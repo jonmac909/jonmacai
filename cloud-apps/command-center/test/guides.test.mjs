@@ -167,7 +167,7 @@ test('/s/ with the switch off or unset is exactly what it was; on, it shows the 
   assert.match(await lab.text(), /Curriculum/);
 });
 
-test('CASL: a download-only lead without the newsletter tick never enters the sequence; with the tick it does', async () => {
+test('CASL: guide-page emails (download with or without the newsletter tick) never enter the sequence; /s/ email-box leads do', async () => {
   const e = mkenv({ RESEND_API_KEY: 're_test_key', SKOOL_ADDRESS: '1 Test Street, Kelowna BC' });
   await e.DB.prepare("INSERT INTO skool_settings (key, value, updated_at) VALUES ('skool_sequence_on', '1', ?)").bind(iso(T0)).run();
   const lead = async (email, slug, newsletter) => {
@@ -180,5 +180,91 @@ test('CASL: a download-only lead without the newsletter tick never enters the se
   const to = [];
   const fx = async (url, init) => { to.push(...JSON.parse(init.body).to); return new Response(JSON.stringify({ id: `re-${to.length}` }), { status: 200 }); };
   await runSequence(e, T0 + 60e3, fx);
-  assert.deepEqual(to.sort(), ['capture@gmail.com', 'yes@gmail.com']);
+  assert.deepEqual(to.sort(), ['capture@gmail.com']);
+});
+
+test('CASL: the footer newsletter box stores newsletter consent only and never enters the sequence; an older /s/ lead still does', async () => {
+  const e = mkenv({ RESEND_API_KEY: 're_test_key', SKOOL_ADDRESS: '1 Test Street, Kelowna BC' });
+  await e.DB.prepare("INSERT INTO skool_settings (key, value, updated_at) VALUES ('skool_sequence_on', '1', ?)").bind(iso(T0)).run();
+  await publish(e, 'my-vid', guide());
+  const r = await go(e, '/guides/newsletter', { method: 'POST', headers: { 'X-Guide-JS': '1' }, form: { email: 'reader@gmail.com', from: 'my-vid' } });
+  assert.equal(r.status, 200, await r.clone().text());
+  assert.deepEqual(await rows(e, 'SELECT slug, email, newsletter, terms FROM guide_emails'), [{ slug: 'my-vid', email: 'reader@gmail.com', newsletter: 1, terms: 0 }]);
+  await go(e, '/guides/my-vid/download', { method: 'POST', form: { email: 'both@gmail.com', terms: '1', newsletter: '1', file: '0' } });
+  // An /s/ email-box lead made before the same person downloaded from that guide keeps its sequence.
+  await e.DB.prepare('INSERT INTO skool_leads (slug, email, at, last_at, email_check) VALUES (?, ?, ?, ?, ?)').bind('my-vid', 'early@gmail.com', iso(Date.now() - 3600e3), iso(Date.now() - 3600e3), 'valid').run();
+  await go(e, '/guides/my-vid/download', { method: 'POST', form: { email: 'early@gmail.com', terms: '1', file: '0' } });
+  await e.DB.prepare("UPDATE skool_leads SET email_check = 'valid'").run();
+  const to = [];
+  const fx = async (url, init) => { to.push(...JSON.parse(init.body).to); return new Response(JSON.stringify({ id: `re-${to.length}` }), { status: 200 }); };
+  await runSequence(e, Date.now() + 60e3, fx);
+  assert.deepEqual(to, ['early@gmail.com']);
+  assert.match(await (await go(e, '/guides/my-vid')).text(), /New guides by email[\s\S]*One email when a new guide is out/);
+});
+
+test('one-click remembered download: works only for an email that already agreed to the Terms, and never adds newsletter consent', async () => {
+  const e = mkenv();
+  await publish(e, 'my-vid', guide());
+  const cold = await go(e, '/guides/my-vid/download', { method: 'POST', headers: { 'X-Guide-JS': '1', Cookie: 'jm_email=new%40gmail.com' }, form: { remembered: '1', file: '0' } });
+  assert.equal(cold.status, 400);
+  assert.equal((await cold.json()).need, 'terms');
+  await go(e, '/guides/my-vid/download', { method: 'POST', form: { email: 'sam@gmail.com', terms: '1', file: '0' } });
+  const one = await go(e, '/guides/my-vid/download', { method: 'POST', headers: { 'X-Guide-JS': '1', Cookie: 'jm_email=sam%40gmail.com' }, form: { remembered: '1', newsletter: '1', file: '0' } });
+  assert.equal(one.status, 200);
+  assert.equal(await one.text(), FILE_TEXT);
+  assert.deepEqual(await rows(e, 'SELECT email, newsletter, terms FROM guide_emails ORDER BY id'), [
+    { email: 'sam@gmail.com', newsletter: 0, terms: 1 }, { email: 'sam@gmail.com', newsletter: 0, terms: 1 }]);
+});
+
+test('publish: caps body, file count and file size, and a rejected publish writes nothing to R2', async () => {
+  const e = mkenv();
+  const put = (files, g = guide()) => go(e, '/guides/api/my-vid', { method: 'PUT', headers: { Authorization: `Bearer ${TOKEN}` }, body: { guide: g, files } });
+  const pack = Buffer.from(FILE_TEXT).toString('base64');
+  // the referenced resource is missing: nothing uploaded, not even the image that was sent
+  const miss = await put({ 'img/a.png': 'eA==' }, guide({ sections: [{ heading: 'H', body_md: 'b', image: 'img/a.png' }] }));
+  assert.equal(miss.status, 400);
+  assert.deepEqual((await miss.json()).missing, ['resource/pack.txt']);
+  assert.equal(e.UPLOADS.m.size, 0);
+  const many = Object.fromEntries(Array.from({ length: 21 }, (_, i) => [`img/f${i}.png`, 'eA==']));
+  assert.equal((await put({ ...many, 'resource/pack.txt': pack })).status, 400);
+  assert.equal((await put({ 'resource/pack.txt': Buffer.alloc(10 * 1024 * 1024 + 1).toString('base64') })).status, 413);
+  assert.equal((await put({ 'resource/pack.txt': Buffer.alloc(20 * 1024 * 1024).toString('base64') })).status, 413); // body over 25 MB
+  assert.equal(e.UPLOADS.m.size, 0);
+  assert.deepEqual(await rows(e, 'SELECT slug FROM guides'), []);
+  assert.equal((await put({ 'resource/pack.txt': pack })).status, 200);
+  assert.equal((await put({}, guide({ title: 'Again' }))).status, 200); // files already in R2 from the last publish still count
+});
+
+test('markdown links: protocol-relative and backslash hosts are refused; http(s), mailto, /path and #anchor work', () => {
+  const h = md('[a](//evil.com/x) [b](/\\evil.com) [c](https://ok.com) [d](mailto:a@b.co) [e](/guides/x) [f](#top)');
+  assert.doesNotMatch(h, /href="\/\/|href="\/\\/);
+  for (const x of ['https://ok.com', 'mailto:a@b.co', '/guides/x', '#top']) assert.ok(h.includes(`href="${x}"`), x);
+});
+
+test('download button says "Unlock the resource"; stats without a database is a clean 503', async () => {
+  const e = mkenv();
+  await publish(e, 'my-vid', guide());
+  assert.match(await (await go(e, '/guides/my-vid')).text(), /<summary class="btn dark">Unlock the resource<\/summary>/);
+  const r = await go({ ...e, DB: undefined }, '/guides/api/my-vid/stats', { headers: { Authorization: `Bearer ${TOKEN}` } });
+  assert.equal(r.status, 503);
+  assert.match(r.headers.get('Content-Type'), /application\/json/);
+  assert.ok((await r.json()).error);
+});
+
+test('channel: optional, only jonmacai or jon-mac; label on the guide and index cards, index filter, stats', async () => {
+  const e = mkenv();
+  assert.equal((await publish(e, 'bad-ch', guide({ channel: 'viral-view' }))).status, 400);
+  assert.equal(e.UPLOADS.m.size, 0);
+  assert.equal((await publish(e, 'ai-one', guide({ title: 'AI one', state: 'listed', channel: 'jonmacai' }))).status, 200);
+  assert.equal((await publish(e, 'main-one', guide({ title: 'Main one', state: 'listed', channel: 'jon-mac' }))).status, 200);
+  assert.equal((await publish(e, 'no-ch', guide({ title: 'No channel', state: 'listed' }))).status, 200);
+  assert.match(await (await go(e, '/guides/ai-one')).text(), /<span class="ch">Jon Mac AI<\/span>/);
+  assert.doesNotMatch(await (await go(e, '/guides/no-ch')).text(), /class="ch"/);
+  const idx = await (await go(e, '/guides')).text();
+  assert.match(idx, /data-channel="jonmacai"[\s\S]*<span class="ch">Jon Mac AI<\/span>/);
+  assert.match(idx, /data-channel="jon-mac"/);
+  assert.match(idx, /<button type="button" class="tag" data-channel="jonmacai" aria-pressed="false">Jon Mac AI<\/button>/);
+  assert.match(idx, /<button type="button" class="tag" data-channel="jon-mac" aria-pressed="false">Jon Mac<\/button>/);
+  const s = await (await go(e, '/guides/api/main-one/stats', { headers: { Authorization: `Bearer ${TOKEN}` } })).json();
+  assert.equal(s.channel, 'jon-mac');
 });

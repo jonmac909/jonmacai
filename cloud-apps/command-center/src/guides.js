@@ -27,6 +27,9 @@ const FILE_RE = /^(resource|img)\/[A-Za-z0-9][\w.-]{0,99}$/;
 const TYPES = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', webp: 'image/webp', gif: 'image/gif', zip: 'application/zip', md: 'text/markdown; charset=utf-8', txt: 'text/plain; charset=utf-8', pdf: 'application/pdf', json: 'application/json' };
 const MAX_EMAILS_PER_10_MIN = 60; // per guide: stops a script from filling the list
 const EMAIL_COOKIE = 'jm_email';
+export const CHANNELS = { jonmacai: 'Jon Mac AI', 'jon-mac': 'Jon Mac' }; // guide.json "channel" (optional)
+const MAX_PUBLISH_BYTES = 25 * 1024 * 1024, MAX_FILES = 20, MAX_FILE_BYTES = 10 * 1024 * 1024;
+const chName = (g) => (Object.hasOwn(CHANNELS, g?.channel || '') ? CHANNELS[g.channel] : '');
 
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 const iso = (ms = Date.now()) => new Date(ms).toISOString();
@@ -47,7 +50,7 @@ function inline(text, slug) {
   return esc(text)
     .replace(/`([^`]+)`/g, '<code>$1</code>')
     .replace(/!\[([^\]]*)\]\((img\/[A-Za-z0-9][\w.-]{0,99})\)/g, (_, alt, src) => `<img src="/guides/${slug}/${src}" alt="${alt}" loading="lazy">`)
-    .replace(/\[([^\]]+)\]\(((?:https?:\/\/|\/|#)[^)\s]*)\)/g, (_, t, href) => `<a href="${href}"${href.startsWith('http') ? ' rel="noopener" target="_blank"' : ''}>${t}</a>`)
+    .replace(/\[([^\]]+)\]\(((?:https?:\/\/|mailto:|\/(?![\/\\])|#)[^)\s]*)\)/g, (_, t, href) => `<a href="${href}"${href.startsWith('http') ? ' rel="noopener" target="_blank"' : ''}>${t}</a>`)
     .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
     .replace(/(^|[^*\w])\*([^*\s][^*]*)\*/g, '$1<em>$2</em>');
 }
@@ -114,7 +117,9 @@ export async function guideStats(db, slug) {
     db.prepare('SELECT kind, pos, COUNT(*) AS n FROM guide_events WHERE slug = ? GROUP BY kind, pos').bind(slug).all(),
     db.prepare('SELECT COUNT(DISTINCT email) AS n FROM guide_emails WHERE slug = ?').bind(slug).first(),
   ]);
-  const out = { slug, visits: 0, skool: {}, skool_total: 0, downloads: 0, emails: em?.n || 0 };
+  let channel = null;
+  try { channel = JSON.parse((await db.prepare('SELECT json FROM guides WHERE slug = ?').bind(slug).first())?.json || '{}').channel || null; } catch { /* none */ }
+  const out = { slug, channel, visits: 0, skool: {}, skool_total: 0, downloads: 0, emails: em?.n || 0 };
   for (const r of ev.results || []) {
     if (r.kind === 'visit') out.visits += r.n;
     else if (r.kind === 'download') out.downloads += r.n;
@@ -154,6 +159,7 @@ details.dl{margin-top:.8rem}details.dl summary{list-style:none;display:inline-bl
 @media(min-width:900px){.bar{display:none}}@media(max-width:899px){body.hasbar{padding-bottom:4.6rem}}
 footer{border-top:1px solid #eee;margin-top:2rem;padding:2rem 1.1rem;background:#fafafa}footer .in{max-width:1120px;margin:0 auto;display:grid;gap:1.2rem}
 .nl{display:flex;gap:.5rem;flex-wrap:wrap;max-width:30rem}.nl input[type=email]{flex:1 1 14rem;width:auto}footer .links{display:flex;gap:1.2rem;font-size:.95rem}footer small{color:#777}
+.ch{display:inline-block;font-size:.75rem;font-weight:700;letter-spacing:.03em;background:#eef3fd;color:#0b57d0;border-radius:999px;padding:.1rem .55rem;margin-right:.4rem}
 .ph{background:#fff3cd;border:1px dashed #d4a72c;color:#6b4e00;padding:.05rem .35rem;border-radius:4px;font-weight:600}
 .cards{display:grid;gap:1rem;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));padding:0;list-style:none}.card{border:1px solid #e8e8e8;border-radius:14px;padding:1rem 1.1rem}.card a.t{font-weight:700;color:#111;text-decoration:none;font-size:1.08rem;line-height:1.3;display:block;margin-bottom:.35rem}.card p{margin:.3rem 0;font-size:.93rem;color:#444}
 .tags{display:flex;flex-wrap:wrap;gap:.35rem;margin:.4rem 0}.tag{font-size:.78rem;background:#f1f1f1;border-radius:999px;padding:.12rem .55rem;color:#333;border:1px solid transparent;cursor:pointer;font-family:inherit}.tag[aria-pressed=true]{background:#111;color:#fff}
@@ -176,8 +182,8 @@ d.querySelector('summary').addEventListener('click',function(ev){var v=rem();if(
 f.addEventListener('submit',function(ev){ev.preventDefault();var fd=new FormData(f);if(f.dataset.sug&&fd.get('email')!==f.dataset.sug)fd.set('keep','1');send(f,fd)});
 var no=d.querySelector('.who a');if(no)no.addEventListener('click',function(ev){ev.preventDefault();keep('');paint();d.open=true})});
 document.querySelectorAll('form.nl').forEach(function(f){f.addEventListener('submit',function(ev){ev.preventDefault();fetch(f.action,{method:'POST',body:new FormData(f),headers:{'X-Guide-JS':'1'}}).then(function(r){return r.json().catch(function(){return{}}).then(function(j){f.outerHTML='<p>'+(r.ok?'Thanks, you are on the list.':(j.error||'Something went wrong.'))+'</p>'})})})});
-var q=document.getElementById('q');if(q){var on='';function run(){var s=q.value.trim().toLowerCase();document.querySelectorAll('.cards .card').forEach(function(c){c.hidden=!((!s||c.dataset.text.indexOf(s)>=0)&&(!on||(' '+c.dataset.topic+' ').indexOf(' '+on+' ')>=0))})}
-q.addEventListener('input',run);document.querySelectorAll('.find .tag').forEach(function(t){t.addEventListener('click',function(){on=on===t.dataset.topic?'':t.dataset.topic;document.querySelectorAll('.find .tag').forEach(function(x){x.setAttribute('aria-pressed',String(x.dataset.topic===on))});run()})});document.querySelector('.find').hidden=false}
+var q=document.getElementById('q');if(q){var on='',ch='';function run(){var s=q.value.trim().toLowerCase();document.querySelectorAll('.cards .card').forEach(function(c){c.hidden=!((!s||c.dataset.text.indexOf(s)>=0)&&(!on||(' '+c.dataset.topic+' ').indexOf(' '+on+' ')>=0)&&(!ch||c.dataset.channel===ch))})}
+q.addEventListener('input',run);document.querySelectorAll('.find .tag').forEach(function(t){t.addEventListener('click',function(){if(t.dataset.channel!=null)ch=ch===t.dataset.channel?'':t.dataset.channel;else on=on===t.dataset.topic?'':t.dataset.topic;document.querySelectorAll('.find .tag').forEach(function(x){x.setAttribute('aria-pressed',String(x.dataset.channel!=null?x.dataset.channel===ch:x.dataset.topic===on))});run()})});document.querySelector('.find').hidden=false}
 paint()})();`;
 
 function page({ title, description, url, image, noindex, body, from = '', bar = true }) {
@@ -213,7 +219,7 @@ export function guidePage(g, origin) {
   const firstImg = sections.find((s) => FILE_RE.test(s.image || ''))?.image;
   const image = firstImg ? `${origin}/guides/${slug}/${firstImg}` : yt ? `https://i.ytimg.com/vi/${yt}/hqdefault.jpg` : '';
   const files = res ? res.files.filter((f) => FILE_RE.test(f)) : [];
-  const dl = (f, i) => `<details class="dl"><summary class="btn dark">Download ${esc(files.length > 1 ? f.split('/').pop() : (res.title || 'the file'))}</summary>
+  const dl = (f, i) => `<details class="dl"><summary class="btn dark">${files.length > 1 ? `Unlock ${esc(f.split('/').pop())}` : 'Unlock the resource'}</summary>
 <div class="box"><form method="post" action="/guides/${slug}/download"><input type="hidden" name="file" value="${i}">
 <strong>Where should we send it?</strong><input type="email" name="email" placeholder="you@example.com" aria-label="Email" autocomplete="email" required maxlength="254">
 <label><input type="checkbox" name="terms" value="1" required> I agree to the <a href="/guides/terms" target="_blank">Terms</a>.</label>
@@ -221,7 +227,7 @@ export function guidePage(g, origin) {
 <p class="err" role="alert"></p><button class="btn" type="submit">Get the file</button></form></div>
 <p class="who" hidden>Downloads go to <b></b>. <a href="#">Not you?</a></p></details>`;
   const body = `<div class="wrap g"><article>
-<p class="meta">${esc(g.read_minutes ? `${g.read_minutes} min read` : '')}${g.read_minutes && g.updated ? ' · ' : ''}${esc(fmtDate(g.updated))}</p>
+<p class="meta">${chName(g) ? `<span class="ch">${esc(chName(g))}</span>` : ''}${esc(g.read_minutes ? `${g.read_minutes} min read` : '')}${g.read_minutes && g.updated ? ' · ' : ''}${esc(fmtDate(g.updated))}</p>
 <h1>${esc(g.title)}</h1>
 ${summary.length ? `<div class="sum"><strong>What you get</strong><ul>${summary.map((s) => `<li>${inline(s, slug)}</li>`).join('')}</ul></div>` : ''}
 ${yt ? `<div class="vid"><iframe src="https://www.youtube-nocookie.com/embed/${yt}" title="${esc(g.title)}" loading="lazy" allow="accelerometer; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe></div>` : ''}
@@ -237,16 +243,17 @@ ${faq.length ? `<section class="faq"><h2 id="faq">Common questions</h2>${faq.map
 }
 
 export function indexPage(list, origin) {
+  const chans = Object.keys(CHANNELS).filter((c) => list.some((g) => g.channel === c));
   const topics = [...new Set(list.flatMap((g) => (Array.isArray(g.topic) ? g.topic : [])).filter((t) => /^[\w-]{1,40}$/.test(t)))].sort();
   const cards = list.map((g) => {
     const t = (Array.isArray(g.topic) ? g.topic : []).filter((x) => topics.includes(x));
     const sum = (Array.isArray(g.summary) ? g.summary : [g.summary]).filter(Boolean);
-    return `<li class="card" data-topic="${esc(t.join(' '))}" data-text="${esc(`${g.title} ${sum.join(' ')} ${t.join(' ')}`.toLowerCase())}">
+    return `<li class="card" data-topic="${esc(t.join(' '))}" data-channel="${esc(chName(g) ? g.channel : '')}" data-text="${esc(`${g.title} ${sum.join(' ')} ${t.join(' ')}`.toLowerCase())}">
 <a class="t" href="/guides/${g.slug}">${esc(g.title)}</a><p>${esc(sum[0] || '')}</p>
-<div class="tags">${t.map((x) => `<span class="tag">${esc(x)}</span>`).join('')}</div><p class="meta">${esc(g.read_minutes ? `${g.read_minutes} min read · ` : '')}${esc(fmtDate(g.updated))}</p></li>`;
+<div class="tags">${t.map((x) => `<span class="tag">${esc(x)}</span>`).join('')}</div><p class="meta">${chName(g) ? `<span class="ch">${esc(chName(g))}</span>` : ''}${esc(g.read_minutes ? `${g.read_minutes} min read · ` : '')}${esc(fmtDate(g.updated))}</p></li>`;
   }).join('');
   const body = `<div class="wrap"><div><h1>Free guides</h1><p class="meta">Every guide from Jon's videos, written out with the files. Free to read.</p>
-${list.length > 1 ? `<div class="find" hidden><input id="q" type="search" placeholder="Search guides" aria-label="Search guides">${topics.length ? `<div class="tags">${topics.map((t) => `<button type="button" class="tag" data-topic="${esc(t)}" aria-pressed="false">${esc(t)}</button>`).join('')}</div>` : ''}</div>` : ''}
+${list.length > 1 ? `<div class="find" hidden><input id="q" type="search" placeholder="Search guides" aria-label="Search guides">${chans.length ? `<div class="tags">${chans.map((c) => `<button type="button" class="tag" data-channel="${esc(c)}" aria-pressed="false">${esc(CHANNELS[c])}</button>`).join('')}</div>` : ''}${topics.length ? `<div class="tags">${topics.map((t) => `<button type="button" class="tag" data-topic="${esc(t)}" aria-pressed="false">${esc(t)}</button>`).join('')}</div>` : ''}</div>` : ''}
 ${list.length ? `<ul class="cards">${cards}</ul>` : '<p>The first guides are on their way.</p>'}</div></div>`;
   return page({ title: 'Free guides | Jon Mac', description: `Free written guides from Jon Mac's videos, with the files. ${TAGLINE}`, url: `${origin}/guides`, body });
 }
@@ -376,11 +383,31 @@ function b64bytes(s) {
   for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
   return out;
 }
+// The body as text, or null once it passes max bytes (stops reading there).
+async function readCapped(request, max) {
+  if (Number(request.headers.get('Content-Length') || 0) > max) return null;
+  if (!request.body) return '';
+  const reader = request.body.getReader();
+  const parts = [];
+  let n = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    n += value.byteLength;
+    if (n > max) { reader.cancel().catch(() => {}); return null; }
+    parts.push(value);
+  }
+  const all = new Uint8Array(n);
+  let o = 0;
+  for (const x of parts) { all.set(x, o); o += x.byteLength; }
+  return new TextDecoder().decode(all);
+}
 export function validateGuide(g, slug) {
   if (!g || typeof g !== 'object') return 'guide is required';
   if (g.slug && g.slug !== slug) return 'guide.slug must match the address';
   if (typeof g.title !== 'string' || !g.title.trim() || g.title.length > 200) return 'title is required (200 characters max)';
   if (g.state && !['listed', 'unlisted'].includes(g.state)) return 'state must be listed or unlisted';
+  if (g.channel != null && !Object.hasOwn(CHANNELS, g.channel)) return `channel must be one of: ${Object.keys(CHANNELS).join(', ')}`;
   if (g.youtube_id != null && !/^[\w-]{11}$/.test(g.youtube_id)) return 'youtube_id must be an 11-character video ID or null';
   if (g.updated && !/^\d{4}-\d{2}-\d{2}$/.test(g.updated)) return 'updated must be YYYY-MM-DD';
   if (!Array.isArray(g.sections) || !g.sections.length) return 'sections must be a non-empty list';
@@ -394,21 +421,30 @@ export function validateGuide(g, slug) {
 async function publish(request, env, slug) {
   if (!authed(request, env)) return json({ error: 'Unauthorized' }, 401);
   if (!SLUG_RE.test(slug) || NOT_SLUGS.has(slug)) return json({ error: 'Bad slug' }, 400);
-  const b = await request.json().catch(() => null);
+  const text = await readCapped(request, MAX_PUBLISH_BYTES);
+  if (text == null) return json({ error: `Body over ${MAX_PUBLISH_BYTES / 1048576} MB` }, 413);
+  let b = null;
+  try { b = JSON.parse(text); } catch { /* bad JSON */ }
   const g = b?.guide;
   const why = validateGuide(g, slug);
   if (why) return json({ error: why }, 400);
-  const files = b.files && typeof b.files === 'object' ? b.files : {};
-  for (const [p, data] of Object.entries(files)) {
+  const files = b.files && typeof b.files === 'object' ? Object.entries(b.files) : [];
+  if (files.length > MAX_FILES) return json({ error: `At most ${MAX_FILES} files` }, 400);
+  // Check everything first: a rejected publish writes nothing to R2.
+  const ready = [];
+  for (const [p, data] of files) {
     if (!FILE_RE.test(p)) return json({ error: `Bad file path: ${p}` }, 400);
     let bytes;
     try { bytes = b64bytes(data); } catch { return json({ error: `Not base64: ${p}` }, 400); }
-    await env.UPLOADS.put(`guides/${slug}/${p}`, bytes, { httpMetadata: { contentType: TYPES[ext(p)] || 'application/octet-stream' } });
+    if (bytes.length > MAX_FILE_BYTES) return json({ error: `File over ${MAX_FILE_BYTES / 1048576} MB: ${p}` }, 413);
+    ready.push([p, bytes]);
   }
+  const sent = new Set(ready.map(([p]) => p));
   const needed = [...(g.resource?.files || []), ...g.sections.map((s) => s.image).filter(Boolean)];
   const missing = [];
-  for (const p of needed) if (!(await env.UPLOADS.head(`guides/${slug}/${p}`))) missing.push(p);
+  for (const p of needed) if (!sent.has(p) && !(await env.UPLOADS.head(`guides/${slug}/${p}`))) missing.push(p);
   if (missing.length) return json({ error: 'Files missing', missing }, 400);
+  for (const [p, bytes] of ready) await env.UPLOADS.put(`guides/${slug}/${p}`, bytes, { httpMetadata: { contentType: TYPES[ext(p)] || 'application/octet-stream' } });
   const state = g.state === 'listed' ? 'listed' : 'unlisted';
   const updated = g.updated || iso().slice(0, 10);
   const doc = { ...g, slug, state, updated };
@@ -429,6 +465,7 @@ export async function handleGuides(request, env, ctx) {
     if (parts.length === 2 && m === 'PUT') return publish(request, env, slug);
     if (parts.length === 3 && parts[2] === 'stats' && m === 'GET') {
       if (!authed(request, env)) return json({ error: 'Unauthorized' }, 401);
+      if (!env.DB) return json({ error: 'Stats unavailable: no database' }, 503);
       return json(await guideStats(env.DB, slug));
     }
     return json({ error: 'Not found' }, 404);

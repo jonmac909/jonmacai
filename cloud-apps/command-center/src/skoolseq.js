@@ -100,9 +100,9 @@ export async function runSequence(env, nowMs = Date.now(), fetchImpl = fetch) {
       WHERE NOT EXISTS (SELECT 1 FROM skool_seq_stops s WHERE s.email = l.email)
         AND NOT EXISTS (SELECT 1 FROM skool_sales b WHERE b.email = l.email)
         AND l.email_check IN ('valid', 'risky')
-        -- CASL: a lead row that came from a guide download counts only if this email ticked the newsletter box somewhere.
-        AND NOT (EXISTS (SELECT 1 FROM guide_emails g WHERE g.slug = l.slug AND g.email = l.email)
-          AND NOT EXISTS (SELECT 1 FROM guide_emails g WHERE g.email = l.email AND g.newsletter = 1))
+        -- CASL: a lead row first made by a guide page (download or newsletter box: saved at the same instant as its guide_emails
+        -- row) never counts; that newsletter consent is for new guides only. Only /s/ email-box rows (older than any guide email) count.
+        AND NOT EXISTS (SELECT 1 FROM guide_emails g WHERE g.slug = l.slug AND g.email = l.email AND g.at <= l.at)
         AND (SELECT COUNT(*) FROM skool_seq_sends q WHERE q.email = l.email AND q.status IN ('sent', 'sending')) < ${SEQUENCE_DAYS}
         AND NOT EXISTS (SELECT 1 FROM skool_seq_sends q WHERE q.email = l.email AND q.status = 'failed' AND q.attempts >= 3)
       GROUP BY l.email HAVING MIN(l.at) >= ? ORDER BY MIN(l.at) LIMIT 2000`).bind(iso(nowMs - MAX_AGE_MS)).all()).results || [];
