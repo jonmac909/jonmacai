@@ -18,6 +18,7 @@ import { SLUG_RE } from './skoolroutes.js';
 export const SKOOL_ABOUT = 'https://www.skool.com/ai-ugc/about';
 const GROUP = 'AI Video Lab';
 const PRICE = '$9 / month';
+const HEADLINE = 'Master AI video with Claude + all my skills, prompts and files. Only $9. 👉 skool.com/ai-ugc'; // Jon, 2026-11-23, word for word; same on YouTube, Skool and here
 const TAGLINE = 'Master video production with Claude. Get the exact skills, prompts and files that grow your income.';
 const MEMBERS = { count: '1.1k', asOf: '2026-11-23' }; // read from the Skool about page; update with the date when re-read
 export const POS = new Set(['rail', 'end', 'top', 'home', 'bar']);
@@ -255,8 +256,8 @@ export function homePage(list, origin) {
   const ph = (t) => `<span class="ph">[JON: ${esc(t)}]</span>`;
   const guides = list.slice(0, 6);
   const body = `<div class="wrap">
-<section class="hero"><h1>${ph('one line, same on YouTube, Skool and here')}</h1><p>${esc(TAGLINE)}</p>
-<a class="btn" href="${skoolHref('', 'home')}">Join ${GROUP}, ${PRICE}</a><div class="price">${GROUP} on Skool · ${PRICE}</div></section>
+<section class="hero"><h1>${esc(HEADLINE)}</h1><p>${esc(TAGLINE)}</p>
+<a class="btn" href="${skoolHref('', 'home')}">Join ${GROUP}, ${PRICE}</a><div class="price">${GROUP} on Skool · ${PRICE}</div><div class="price">Higher tier: ${ph('higher tier name and price')}</div></section>
 <section class="blk"><h2>What's inside</h2><p>${ph('the classroom and the files members get, in a few short lines')}</p></section>
 <section class="blk"><h2>Curriculum</h2><p>${ph('the stages, in order')}</p></section>
 ${guides.length ? `<section class="blk"><h2>Free guides</h2><ul class="cards">${guides.map((g) => `<li class="card"><a class="t" href="/guides/${g.slug}">${esc(g.title)}</a><p>${esc((Array.isArray(g.summary) ? g.summary[0] : g.summary) || '')}</p></li>`).join('')}</ul><p><a href="/guides">All guides</a></p></section>` : ''}

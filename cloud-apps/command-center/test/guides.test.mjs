@@ -98,7 +98,11 @@ test('an unlisted guide is live but noindex and absent from /guides; a listed on
   const idx = await (await go(e, '/guides')).text();
   assert.match(idx, /Open guide/);
   assert.doesNotMatch(idx, /Hidden guide|hidden-one/);
-  assert.doesNotMatch(await (await go(e, '/lab')).text(), /Hidden guide/);
+  const lab = await (await go(e, '/lab')).text();
+  assert.doesNotMatch(lab, /Hidden guide/);
+  assert.match(lab, /<h1>Master AI video with Claude \+ all my skills, prompts and files\. Only \$9\. 👉 skool\.com\/ai-ugc<\/h1>/);
+  assert.doesNotMatch(lab, /one line, same on/);
+  assert.match(lab, /\[JON: higher tier name and price\]/);
   assert.equal((await go(e, '/guides/nope-none')).status, 404);
 });
 
