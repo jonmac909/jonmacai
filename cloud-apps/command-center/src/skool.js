@@ -23,19 +23,29 @@ const forward = (to) => new Response(null, { status: 302, headers: { Location: t
 // GET /s/<slug>: forwards, so a viewer never hits a dead end; only known slugs and real GETs are counted.
 // UTM tags ride along (Skool keeps them on its /about page; checked 2026-11-16). Never ?ref=: that is Skool's affiliate tag.
 // A link with the email step on (skool_links.capture = 1) shows a one-field page first; its POST stores the email and forwards.
+// Social bio links (Jon 2026-11-24): jonmac.ai/<short> always shows the email lander; the slug is the platform's record
+// (clicks and leads are stored under it) and Skool gets utm_source=<platform>&utm_medium=social&utm_campaign=bio.
+export const SOCIAL = { ig: 'instagram', tt: 'tiktok', x: 'x', fb: 'facebook', li: 'linkedin', youtube: 'youtube' };
+// Old /s/ social links: 301 to the short link, query string kept. /yt is another app, so /s/yt goes to /youtube.
+const OLD_SOCIAL = { ig: 'ig', tt: 'tt', x: 'x', fb: 'fb', li: 'li', yt: 'youtube' };
+const isSocial = (slug) => Object.hasOwn(SOCIAL, slug);
+
 export async function skoolRedirect(request, env, ctx) {
   const url = new URL(request.url);
   const old = url.pathname.startsWith('/s/');
   const slug = url.pathname.slice(old ? 3 : 1).toLowerCase();
   if (old && BG.has(slug)) return backdrop(request, env, slug); // the pop-over's screenshot backdrop (a slug has no dot, so no clash)
+  if (old && Object.hasOwn(OLD_SOCIAL, slug)) return new Response(null, { status: 301, headers: { Location: `/${OLD_SOCIAL[slug]}${url.search}`, ...NO_STORE } });
+  const social = !old && isSocial(slug);
   const to = new URL(SKOOL);
-  if (!SLUG_RE.test(slug) || !['GET', 'HEAD', 'POST'].includes(request.method)) return forward(to);
-  to.searchParams.set('utm_source', 'youtube');
-  to.searchParams.set('utm_medium', 'video');
-  to.searchParams.set('utm_campaign', slug);
+  if (!(social || SLUG_RE.test(slug)) || !['GET', 'HEAD', 'POST'].includes(request.method)) return forward(to);
+  to.searchParams.set('utm_source', social ? SOCIAL[slug] : 'youtube');
+  to.searchParams.set('utm_medium', social ? 'social' : 'video');
+  to.searchParams.set('utm_campaign', social ? 'bio' : slug);
   if (!env.DB) return forward(to);
   let link = null;
-  try { link = await env.DB.prepare('SELECT capture FROM skool_links WHERE slug = ?').bind(slug).first(); } catch (err) {
+  if (social) link = { capture: 1 }; // no skool_links row needed: always the lander
+  else try { link = await env.DB.prepare('SELECT capture FROM skool_links WHERE slug = ?').bind(slug).first(); } catch (err) {
     console.error('skool link', err); // e.g. the capture column is missing before migration 0030: keep counting clicks, no email step
     try { link = await env.DB.prepare('SELECT slug FROM skool_links WHERE slug = ?').bind(slug).first(); } catch { /* unknown */ }
   }
@@ -91,8 +101,7 @@ function capturePage(slug, error, status, { typed = '', suggestion = '' } = {}) 
   const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="robots" content="noindex,nofollow"><meta name="referrer" content="no-referrer"><title>AI Video Lab on Skool</title><style>
 html,body{height:100%;margin:0}body{font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:#1f1f1f;background:#f5f5f5;overflow:hidden}
-.bg{position:fixed;inset:-12px;background:#f5f5f5 url(/s/about-desktop.jpg) center top/cover no-repeat;filter:blur(5px)}
-@media (max-width:640px){.bg{background-image:url(/s/about-mobile.jpg)}}
+.bg{position:fixed;inset:0;background:#f5f5f5}
 .dim{position:fixed;inset:0;background:rgba(0,0,0,.45)}
 .wrap{position:fixed;inset:0;display:flex;overflow:auto;padding:1rem;box-sizing:border-box}
 .box{margin:auto;box-sizing:border-box;width:min(26rem,100%);background:#fff;border-radius:12px;padding:1.75rem 1.5rem 1.25rem;box-shadow:0 12px 48px rgba(0,0,0,.35)}

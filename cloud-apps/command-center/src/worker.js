@@ -5,7 +5,7 @@ import { handleCall } from './call.js';
 import { reviewProxy } from './videoreview.js';
 import { reviewHook } from './reviewhook.js';
 import { trackRedirect } from './track.js';
-import { skoolRedirect, handleTracker } from './skool.js';
+import { skoolRedirect, handleTracker, SOCIAL } from './skool.js';
 import { syncOnNewVersion } from './skoolroutes.js';
 import { runSequence, SEQ_CRON } from './skoolseq.js';
 import { FILE_PREFIX, serveProofFile, uploadProofFile } from './prooffiles.js';
@@ -119,6 +119,7 @@ export default {
     if (url.pathname !== PREFIX && !url.pathname.startsWith(`${PREFIX}/`)) {
       // Skool short links at the root, jonmac.ai/<slug> (Jon 2026-11-21): only after every route above, only known slugs.
       const m = /^\/([a-z0-9][a-z0-9-]{0,38}[a-z0-9])$/i.exec(url.pathname);
+      if (Object.hasOwn(SOCIAL, url.pathname.slice(1).toLowerCase())) return skoolRedirect(request, env, ctx); // social bio links, no DB row needed
       if (m && env.DB) {
         let known = null;
         try { known = await env.DB.prepare('SELECT slug FROM skool_links WHERE slug = ?').bind(m[1].toLowerCase()).first(); } catch { /* table missing: 404 */ }

@@ -32,7 +32,7 @@ test('the Skool about page cannot be framed, so the backdrop is a stored screens
   }
 });
 
-test('email step on: pop-over over a blurred Skool backdrop, no iframe, same form and privacy line', async () => {
+test('email step on: pop-over on a plain backdrop (no priced Skool screenshot), no iframe, same form and privacy line', async () => {
   const e = env();
   await go(e, '/track/api/links', { method: 'POST', jon: true, body: { slug: 'pop', title: 'Pop' } });
   assert.equal((await go(e, '/track/api/capture', { method: 'POST', jon: true, body: { slug: 'pop', capture: true } })).status, 200);
@@ -43,9 +43,7 @@ test('email step on: pop-over over a blurred Skool backdrop, no iframe, same for
   assert.match(html, /Enter your email to get access/);
   assert.doesNotMatch(html, /stays on jonmac\.ai/); // Jon removed the privacy line
   assert.match(html, /<form method="post" action="\/pop">/);
-  assert.match(html, /url\(\/s\/about-desktop\.jpg\)/);
-  assert.match(html, /url\(\/s\/about-mobile\.jpg\)/);
-  assert.match(html, /filter:blur\(/);
+  assert.doesNotMatch(html, /about-(desktop|mobile)\.jpg/); // the Skool screenshot shows the price (Jon 2026-11-24: no price on the lander)
   assert.doesNotMatch(html, /<iframe/i);
   assert.doesNotMatch(html, /skool\.com/i); // nothing loads from Skool
   assert.equal((await e.DB.prepare('SELECT COUNT(*) AS n FROM skool_clicks').first()).n, 1); // the click still counts
