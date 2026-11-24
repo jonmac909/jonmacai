@@ -4,6 +4,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import worker from '../src/worker.js';
+import { trackerData, matchAnswer } from '../src/skool.js';
 import { sqliteD1 } from './sqlited1.mjs';
 import './dnsstub.mjs';
 
@@ -55,4 +56,17 @@ test('/yt stays the AIOS app: this worker has no /yt route and does not answer i
   for (const short of Object.keys(SIX)) assert.match(routes, new RegExp(`"pattern": "jonmac\\.ai/${short}"`), short);
   assert.doesNotMatch(routes, /"jonmac\.ai\/yt[^a-z]/);
   assert.equal((await go({ DB: sqliteD1() }, '/yt')).status, 404);
+});
+
+test('/track counts a social link with no skool_links row: its lead credits the sale by email; "youtube" in an answer is not a match', async () => {
+  const e = { DB: sqliteD1(), SKOOL_ZAP_TOKEN: 'tok' };
+  await go(e, '/fb', { method: 'POST', form: { email: 'buyer-fb@gmail.com' } });
+  const H = { 'X-Track-Token': 'tok', 'Content-Type': 'application/json' };
+  await worker.fetch(new Request('https://jonmac.ai/track/api/sale', { method: 'POST', headers: H, body: JSON.stringify({ email: 'buyer-fb@gmail.com', transaction_id: 't1' }) }), e, { waitUntil() {} });
+  const d = await trackerData(e.DB);
+  const fb = d.rows.find((r) => r.slug === 'fb');
+  assert.equal(fb.emails, 1);
+  assert.equal(fb.sales, 1);
+  assert.equal(d.sales[0].how, 'email');
+  assert.equal(matchAnswer('found you on youtube', d.rows), null);
 });

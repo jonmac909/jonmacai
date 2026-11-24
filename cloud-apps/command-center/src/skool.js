@@ -161,7 +161,7 @@ export function matchAnswer(answer, links) {
   const raw = String(answer).toLowerCase();
   for (const l of links) {
     const id = YT_RE.exec(l.youtube_url || '')?.[4];
-    if (raw.includes(`/s/${l.slug}`) || raw.includes(`jonmac.ai/${l.slug}`) || (id && String(answer).includes(id)) || (l.slug.length >= 6 && ` ${a} `.includes(` ${norm(l.slug)} `))) return l.slug; // short slugs like "ai" match too much
+    if (raw.includes(`/s/${l.slug}`) || raw.includes(`jonmac.ai/${l.slug}`) || (id && String(answer).includes(id)) || (l.slug.length >= 6 && !isSocial(l.slug) && ` ${a} `.includes(` ${norm(l.slug)} `))) return l.slug; // short slugs like "ai" match too much
   }
   for (const l of links) {
     const t = norm(l.title);
@@ -192,6 +192,10 @@ export async function trackerData(db, nowMs = Date.now()) {
     db.prepare('SELECT slug, email, at FROM skool_leads ORDER BY at DESC LIMIT 50000').all(),
   ]);
   const L = links.results || [];
+  // The six social bio links count even without a skool_links row; last, so a video link's answer match wins first.
+  for (const [slug, platform] of Object.entries(SOCIAL)) {
+    if (!L.some((l) => l.slug === slug)) L.push({ slug, title: `${platform} bio link`, youtube_url: null, created_at: '', capture: 1 });
+  }
   const known = new Set(L.map((l) => l.slug));
   const C = new Map((clicks.results || []).map((c) => [c.slug, c]));
   const A = new Map((answers.results || []).map((x) => [x.email, x.answer]));
