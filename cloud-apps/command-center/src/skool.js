@@ -107,7 +107,8 @@ function capturePage(slug, error, status, { typed = '', suggestion = '' } = {}) 
   const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="robots" content="noindex,nofollow"><meta name="referrer" content="no-referrer"><title>AI Video Lab on Skool</title><style>
 html,body{height:100%;margin:0}body{font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:#1f1f1f;background:#f5f5f5;overflow:hidden}
-.bg{position:fixed;inset:0;background:#f5f5f5}
+.bg{position:fixed;inset:-12px;background:#f5f5f5 url(/s/about-desktop.jpg) center top/cover no-repeat;filter:blur(5px)}
+@media (max-width:640px){.bg{background-image:url(/s/about-mobile.jpg)}}
 .dim{position:fixed;inset:0;background:rgba(0,0,0,.45)}
 .wrap{position:fixed;inset:0;display:flex;overflow:auto;padding:1rem;box-sizing:border-box}
 .box{margin:auto;box-sizing:border-box;width:min(26rem,100%);background:#fff;border-radius:12px;padding:1.75rem 1.5rem 1.25rem;box-shadow:0 12px 48px rgba(0,0,0,.35)}

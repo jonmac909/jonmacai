@@ -32,7 +32,19 @@ test('the Skool about page cannot be framed, so the backdrop is a stored screens
   }
 });
 
-test('email step on: pop-over on a plain backdrop (no priced Skool screenshot), no iframe, same form and privacy line', async () => {
+test('the priced Skool screenshots ($9/month, Regular $99/mo) never ship again (Jon 2026-11-24: no price anywhere)', async () => {
+  const { createHash } = await import('node:crypto');
+  const PRICED = new Set([
+    '99e251c4491b1ae518c1d71e3bdb56e32bd064f68184269adc2429b95da0292c', // about-desktop.jpg before 2026-11-24
+    'a3a6c8d10d5137187697afee3b43d056c899a6ef371910185090a8f8f446ef6d', // about-mobile.jpg before 2026-11-24
+  ]);
+  for (const f of ['about-desktop.jpg', 'about-mobile.jpg']) {
+    const h = createHash('sha256').update(readFileSync(new URL(`../public/skool/${f}`, import.meta.url))).digest('hex');
+    assert.ok(!PRICED.has(h), `${f} is the old screenshot with prices`);
+  }
+});
+
+test('email step on: pop-over over the blurred Skool page (prices taken out of the screenshots), no iframe, same form and privacy line', async () => {
   const e = env();
   await go(e, '/track/api/links', { method: 'POST', jon: true, body: { slug: 'pop', title: 'Pop' } });
   assert.equal((await go(e, '/track/api/capture', { method: 'POST', jon: true, body: { slug: 'pop', capture: true } })).status, 200);
@@ -43,7 +55,9 @@ test('email step on: pop-over on a plain backdrop (no priced Skool screenshot), 
   assert.match(html, /Enter your email to get access/);
   assert.doesNotMatch(html, /stays on jonmac\.ai/); // Jon removed the privacy line
   assert.match(html, /<form method="post" action="\/pop">/);
-  assert.doesNotMatch(html, /about-(desktop|mobile)\.jpg/); // the Skool screenshot shows the price (Jon 2026-11-24: no price on the lander)
+  assert.match(html, /url\(\/s\/about-desktop\.jpg\)/); // the Skool page under the opt-in on every lander (Jon), screenshots with no price (Jon 2026-11-24)
+  assert.match(html, /url\(\/s\/about-mobile\.jpg\)/);
+  assert.match(html, /filter:blur\(/);
   assert.doesNotMatch(html, /<iframe/i);
   assert.doesNotMatch(html, /skool\.com/i); // nothing loads from Skool
   assert.equal((await e.DB.prepare('SELECT COUNT(*) AS n FROM skool_clicks').first()).n, 1); // the click still counts

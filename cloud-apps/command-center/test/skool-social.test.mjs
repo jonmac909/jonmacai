@@ -27,7 +27,7 @@ test('six short links show the lander, record their own platform and forward wit
     const html = await page.text();
     assert.match(html, /<title>AI Video Lab on Skool<\/title>/, short);
     assert.match(html, new RegExp(`action="/${short}"`), short);
-    assert.doesNotMatch(html, /\$\s?\d|\/mo(nth)?\b|about-(desktop|mobile)\.jpg/i, `${short}: no price and no price screenshot`);
+    assert.doesNotMatch(html, /\$\s?\d|\/mo(nth)?\b/i, `${short}: no price (the Skool screenshots under it have the prices taken out)`);
     const r = await go(e, `/${short}`, { method: 'POST', form: { email: `lander-test-${short}@gmail.com` } });
     assert.equal(r.status, 302, short);
     const to = new URL(r.headers.get('Location'));

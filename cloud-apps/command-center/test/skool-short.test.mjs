@@ -38,7 +38,7 @@ test('/neon shows the lander, counts the click under neon and forwards with vide
     const html = await page.text();
     assert.match(html, /Enter your email to get access/);
     assert.match(html, new RegExp(`action="/${w}"`));
-    assert.doesNotMatch(html, /\$\s?\d|\/mo(nth)?\b|about-(desktop|mobile)\.jpg/i, `${w}: no price`);
+    assert.doesNotMatch(html, /\$\s?\d|\/mo(nth)?\b/i, `${w}: no price`);
     assert.equal(await clicks(e, w), 1, `${w}: one click under the word`);
     const r = await go(e, `/${w}`, { method: 'POST', form: { email: `short-${w}@gmail.com` } });
     assert.equal(r.status, 302);
