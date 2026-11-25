@@ -13,4 +13,7 @@ $checkPy = 'D:\AgentTeam\tools\dash_version_check.py'
 if (-not (Get-Command python -ErrorAction SilentlyContinue) -or -not (Test-Path $checkPy)) { throw 'python or dash_version_check.py missing; not deploying' }
 . (Join-Path $PSScriptRoot 'deploy-core.ps1')
 Invoke-WranglerDeploy -Wrangler @('npx', '--yes', 'wrangler@4.160.0') -Base $Base -Sha $sha -Check { param($b, $s) (Invoke-Native @('python', '-I', $checkPy) @($b, $s)).Code }
+# The deploy drops API-made routes and the Worker has no routes token: put every registered word's jonmac.ai/<word>* route back.
+$wordPy = 'D:\AgentTeam\tools\word_routes.py'
+if ($Base -eq 'https://jonmac.ai' -and (Test-Path $wordPy)) { python -I $wordPy; if ($LASTEXITCODE) { Write-Warning 'word routes: some one-word links are not live (see line above)' } }
 
