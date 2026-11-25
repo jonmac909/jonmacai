@@ -16,7 +16,8 @@ export const SOCIAL_SLUGS = ['ig', 'tt', 'x', 'fb', 'li', 'youtube'];
 // One-word video links (Jon 2026-11-24: "remove /s and make the tracking links as short as possible with one word").
 // Built in like the social links: jonmac.ai/<word> shows the email lander, clicks and leads are stored under the word,
 // Skool gets utm_source=youtube&utm_medium=video&utm_campaign=<word> (same tags as a /track video link). No skool_links row
-// needed. To add one: a line here plus a "jonmac.ai/<word>*" route in wrangler.jsonc. title = the video, for /track and the emails.
+// needed. This list is only the seed: new words are registered as data (POST /track/api/words, src/skoolwords.js, D1 skool_words).
+// title = the video, for /track and the emails.
 export const SHORT_LINKS = {
   neon: { title: 'Gemini 4 Neon' }, // the live video, was jonmac.ai/s/gemini-4-neon
 };
@@ -24,11 +25,35 @@ export const SHORT_LINKS = {
 // <word> = YouTube, <word>x = X, <word>li, <word>fb, <word>ig, <word>tt. Skool gets utm_source=<platform>, utm_campaign=<word>.
 export const SHORT_PLATFORMS = { '': ['youtube', 'YouTube'], x: ['x', 'X'], li: ['linkedin', 'LinkedIn'], fb: ['facebook', 'Facebook'], ig: ['instagram', 'Instagram'], tt: ['tiktok', 'TikTok'] };
 // slug -> { word, platform, title (for /track), video (the video's own title, for the emails) }
-export const SHORT_VARIANTS = Object.fromEntries(Object.entries(SHORT_LINKS).flatMap(([word, s]) =>
+export const variantsOf = (words) => Object.fromEntries(Object.entries(words).flatMap(([word, s]) =>
   Object.entries(SHORT_PLATFORMS).map(([suffix, [platform, name]]) => [word + suffix, { word, platform, title: `${s.title} - ${name}`, video: s.title }])));
-// A video's six links: { youtube: 'https://jonmac.ai/neon', x: 'https://jonmac.ai/neonx', ... }
-export const videoLinks = (word) => Object.hasOwn(SHORT_LINKS, word)
+export const SHORT_VARIANTS = variantsOf(SHORT_LINKS);
+// A video's six links: { youtube: 'https://jonmac.ai/neon', x: 'https://jonmac.ai/neonx', ... }. words = the merged list (loadWords).
+export const videoLinks = (word, words = SHORT_LINKS) => Object.hasOwn(words, word)
   ? Object.fromEntries(Object.entries(SHORT_PLATFORMS).map(([suffix, [platform]]) => [platform, `https://${HOST}/${word}${suffix}`])) : null;
+// Words registered through POST /track/api/words (src/skoolwords.js) live in D1 table skool_words; the code seed above is
+// merged in and wins, so neon works with an empty or missing table. { word: { title, youtube_url } }.
+export const WORD_RE = /^[a-z][a-z0-9]{1,30}$/;
+export async function loadWords(db) {
+  const out = {};
+  if (db) {
+    try {
+      const { results } = await db.prepare('SELECT word, title, youtube_url FROM skool_words').all();
+      for (const r of results || []) if (WORD_RE.test(r.word)) out[r.word] = { title: r.title, youtube_url: r.youtube_url || null };
+    } catch { /* table not made yet: the seed only */ }
+  }
+  return { ...out, ...SHORT_LINKS };
+}
+// Per request: the words and their variants, read from D1 once.
+const perRequest = new WeakMap();
+export async function shortWords(request, env) {
+  if (!env?.DB) return { words: SHORT_LINKS, variants: SHORT_VARIANTS };
+  if (request && perRequest.has(request)) return perRequest.get(request);
+  const p = loadWords(env.DB).then((words) => ({ words, variants: variantsOf(words) }));
+  if (request) perRequest.set(request, p);
+  return p;
+}
+export const wordPattern = (word) => `${HOST}/${word}*`; // a word's wildcard route, like jonmac.ai/neon*
 export const SHORT_SLUGS = Object.keys(SHORT_VARIANTS);
 export const BUILT_IN_SLUGS = [...SOCIAL_SLUGS, ...SHORT_SLUGS]; // wildcard routes in wrangler.jsonc, never a slug route
 export const RESERVED = new Set(['dashboard', 'dashboard-2', 'dash', 'scripts', 'v', 's', 'track', 'monitor', 'twilio', 'api', 'www', ...BUILT_IN_SLUGS]);
@@ -89,8 +114,7 @@ export async function slugRefusal(env, slug, routes) {
 }
 
 // Makes the route jonmac.ai/<slug> -> this worker if it isn't there. Never throws: {route, warning?}.
-export async function ensureSlugRoute(env, slug, routes) {
-  const pattern = patternOf(slug);
+export async function ensureSlugRoute(env, slug, routes, pattern = patternOf(slug)) {
   if (!live(env)) return { route: 'dry-run', pattern, warning: 'route not created: dry run (not production)' };
   if (!env.CF_ROUTES_TOKEN || !env.CF_ZONE_ID) return { route: 'none', pattern, warning: 'route not created: token missing' };
   try {
@@ -129,6 +153,18 @@ export async function syncSlugRoutes(env) {
     try { await cf(env, '', { method: 'POST', body: JSON.stringify({ pattern: patternOf(slug), script: SCRIPT }) }); }
     catch (err) { skipped.push(slug); console.error('route sync create failed', slug, err.message); continue; }
     created.push(slug);
+  }
+  // Registered one-word links: their wildcard route (jonmac.ai/<word>*). Seed words are in wrangler.jsonc.
+  let words = [];
+  try { words = (await env.DB.prepare('SELECT word FROM skool_words').all()).results || []; } catch { /* no table yet */ }
+  for (const { word } of words) {
+    const pattern = wordPattern(word);
+    if (!WORD_RE.test(word) || Object.hasOwn(SHORT_LINKS, word) || have.has(pattern)) continue;
+    const clash = routeClash(OTHER_ROUTES, word) || routeClash(routes, word);
+    if (clash) { skipped.push(word); console.error('route sync skipped word', word, clash); continue; }
+    try { await cf(env, '', { method: 'POST', body: JSON.stringify({ pattern, script: SCRIPT }) }); }
+    catch (err) { skipped.push(word); console.error('route sync create failed', word, err.message); continue; }
+    created.push(word);
   }
   return { created, skipped };
 }

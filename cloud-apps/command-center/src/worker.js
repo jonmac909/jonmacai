@@ -6,7 +6,7 @@ import { reviewProxy } from './videoreview.js';
 import { reviewHook } from './reviewhook.js';
 import { trackRedirect } from './track.js';
 import { skoolRedirect, handleTracker, isBuiltIn } from './skool.js';
-import { syncOnNewVersion, BUILT_IN_SLUGS } from './skoolroutes.js';
+import { syncOnNewVersion, SOCIAL_SLUGS, shortWords } from './skoolroutes.js';
 import { runSequence, SEQ_CRON } from './skoolseq.js';
 import { FILE_PREFIX, serveProofFile, uploadProofFile } from './prooffiles.js';
 import { MONITOR, handleMonitor } from './monitor.js';
@@ -119,14 +119,15 @@ export default {
     if (url.pathname !== PREFIX && !url.pathname.startsWith(`${PREFIX}/`)) {
       // Skool short links at the root, jonmac.ai/<slug> (Jon 2026-11-21): only after every route above, only known slugs.
       const m = /^\/([a-z0-9][a-z0-9-]{0,38}[a-z0-9])$/i.exec(url.pathname);
-      if (isBuiltIn(url.pathname.slice(1).replace(/\/$/, '').toLowerCase())) return skoolRedirect(request, env, ctx); // social bio links and one-word video links, no DB row needed
+      const { words, variants } = await shortWords(request, env); // one-word video links: code seed + D1 skool_words
+      if (isBuiltIn(url.pathname.slice(1).replace(/\/$/, '').toLowerCase(), variants)) return skoolRedirect(request, env, ctx); // social bio links and one-word video links, no DB row needed
       if (m && env.DB) {
         let known = null;
         try { known = await env.DB.prepare('SELECT slug FROM skool_links WHERE slug = ?').bind(m[1].toLowerCase()).first(); } catch { /* table missing: 404 */ }
         if (known) return skoolRedirect(request, env, ctx);
       }
       // The built-in routes are wildcards (jonmac.ai/x* so /x?fbclid=1 reaches us); any other path under them is the main site's, unchanged.
-      if (env.APEX && BUILT_IN_SLUGS.some((s) => url.pathname.toLowerCase().startsWith(`/${s}`))) {
+      if (env.APEX && [...SOCIAL_SLUGS, ...Object.keys(words)].some((s) => url.pathname.toLowerCase().startsWith(`/${s}`))) {
         try { return await env.APEX.fetch(request); } catch (err) { console.error('apex pass-through', err.message); return new Response('Bad gateway', { status: 502 }); }
       }
       return new Response('Not found', { status: 404 });

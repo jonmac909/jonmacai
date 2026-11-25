@@ -8,11 +8,12 @@ import { readSession, timingSafeEqualString } from './auth.js';
 import { checkEmail } from './skoolcheck.js';
 import { handleUnsub, handleResendWebhook, seqOn, setSeqOn, sendTest, addressIsPlaceholder, DEFAULT_BUSINESS } from './skoolseq.js';
 import { leadsData, leadsCsv, leadsPage, emailsPage, nav, BASE_CSS, FILTERS } from './skoolcrm.js';
-import { SLUG_RE, SHORT_LINKS, SHORT_VARIANTS, listRoutes, slugRefusal, ensureSlugRoute } from './skoolroutes.js';
+import { SLUG_RE, SHORT_VARIANTS, listRoutes, slugRefusal, ensureSlugRoute, loadWords, variantsOf, shortWords } from './skoolroutes.js';
+import { wordsApi } from './skoolwords.js';
 
 export const SKOOL = 'https://www.skool.com/ai-ugc';
 export const ESTIMATE_HOURS = 24;
-const YT_RE = /^https:\/\/(www\.|m\.)?(youtube\.com\/(watch\?v=|shorts\/|live\/)|youtu\.be\/)([\w-]{11})/i;
+export const YT_RE = /^https:\/\/(www\.|m\.)?(youtube\.com\/(watch\?v=|shorts\/|live\/)|youtu\.be\/)([\w-]{11})/i;
 const MAX_LEADS_PER_10_MIN = 60; // per link: stops a script from filling the table
 const NO_STORE = { 'Cache-Control': 'no-store', 'X-Robots-Tag': 'noindex, nofollow' };
 const json = (data, status = 200) => new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json', ...NO_STORE } });
@@ -28,26 +29,28 @@ const forward = (to) => new Response(null, { status: 302, headers: { Location: t
 export const SOCIAL = { ig: 'instagram', tt: 'tiktok', x: 'x', fb: 'facebook', li: 'linkedin', youtube: 'youtube' };
 // Old /s/ social links: 301 to the short link, query string kept. /yt is another app, so /s/yt goes to /youtube.
 const OLD_SOCIAL = { ig: 'ig', tt: 'tt', x: 'x', fb: 'fb', li: 'li', yt: 'youtube' };
-const isSocial = (slug) => Object.hasOwn(SOCIAL, slug);
-// One-word video links (src/skoolroutes.js SHORT_LINKS), e.g. jonmac.ai/neon: a video link with no skool_links row.
-export const isShort = (slug) => Object.hasOwn(SHORT_VARIANTS, slug); // every platform variant: neon, neonx, neonli, ...
-export const isBuiltIn = (slug) => isSocial(slug) || isShort(slug);
+export const isSocial = (slug) => Object.hasOwn(SOCIAL, slug);
+// One-word video links (src/skoolroutes.js SHORT_LINKS seed + D1 skool_words), e.g. jonmac.ai/neon: a video link with no skool_links row.
+// variants = shortWords(...).variants for this request (defaults to the seed only).
+export const isShort = (slug, variants = SHORT_VARIANTS) => Object.hasOwn(variants, slug); // every platform variant: neon, neonx, neonli, ...
+export const isBuiltIn = (slug, variants = SHORT_VARIANTS) => isSocial(slug) || isShort(slug, variants);
 
 export async function skoolRedirect(request, env, ctx) {
   const url = new URL(request.url);
   const old = url.pathname.startsWith('/s/');
   const raw = url.pathname.slice(old ? 3 : 1).toLowerCase();
-  const slug = !old && isBuiltIn(raw.replace(/\/$/, '')) ? raw.replace(/\/$/, '') : raw; // /ig/ is /ig, /neon/ is /neon
+  const V = (await shortWords(request, env)).variants; // seed + registered words, read once per request
+  const slug = !old && isBuiltIn(raw.replace(/\/$/, ''), V) ? raw.replace(/\/$/, '') : raw; // /ig/ is /ig, /neon/ is /neon
   if (old && BG.has(slug)) return backdrop(request, env, slug); // the pop-over's screenshot backdrop (a slug has no dot, so no clash)
   if (old && Object.hasOwn(OLD_SOCIAL, slug)) return new Response(null, { status: 301, headers: { Location: `/${OLD_SOCIAL[slug]}${url.search}`, ...NO_STORE } });
-  if (old && isShort(slug)) return new Response(null, { status: 301, headers: { Location: `/${slug}${url.search}`, ...NO_STORE } }); // /s/neon is /neon
+  if (old && isShort(slug, V)) return new Response(null, { status: 301, headers: { Location: `/${slug}${url.search}`, ...NO_STORE } }); // /s/neon is /neon
   const social = !old && isSocial(slug);
-  const short = !old && isShort(slug);
+  const short = !old && isShort(slug, V);
   const to = new URL(SKOOL);
   if (!(social || SLUG_RE.test(slug)) || !['GET', 'HEAD', 'POST'].includes(request.method)) return forward(to);
-  to.searchParams.set('utm_source', social ? SOCIAL[slug] : short ? SHORT_VARIANTS[slug].platform : 'youtube');
+  to.searchParams.set('utm_source', social ? SOCIAL[slug] : short ? V[slug].platform : 'youtube');
   to.searchParams.set('utm_medium', social ? 'social' : 'video');
-  to.searchParams.set('utm_campaign', social ? 'bio' : short ? SHORT_VARIANTS[slug].word : slug);
+  to.searchParams.set('utm_campaign', social ? 'bio' : short ? V[slug].word : slug);
   if (!env.DB) return forward(to);
   let link = null;
   if (social || short) link = { capture: 1 }; // no skool_links row needed: always the lander (a /track video link's default)
@@ -204,8 +207,9 @@ export async function trackerData(db, nowMs = Date.now()) {
     if (!L.some((l) => l.slug === slug)) L.push({ slug, title: `${platform} bio link`, youtube_url: null, created_at: '', capture: 1 });
   }
   // The one-word video links count the same way, one row per platform variant (neon, neonx, ...), under its own slug.
-  for (const [slug, s] of Object.entries(SHORT_VARIANTS)) {
-    if (!L.some((l) => l.slug === slug)) L.push({ slug, title: s.title, youtube_url: SHORT_LINKS[s.word].youtube_url || null, created_at: '', capture: 1 });
+  const words = await loadWords(db); // the seed plus registered words (skool_words)
+  for (const [slug, s] of Object.entries(variantsOf(words))) {
+    if (!L.some((l) => l.slug === slug)) L.push({ slug, title: s.title, youtube_url: words[s.word].youtube_url || null, created_at: '', capture: 1 });
   }
   const known = new Set(L.map((l) => l.slug));
   const C = new Map((clicks.results || []).map((c) => [c.slug, c]));
@@ -253,6 +257,7 @@ async function addLink(request, env, nowMs) {
   if (yt && !YT_RE.test(yt)) return json({ error: 'YouTube URL must be a youtube.com or youtu.be video link' }, 400);
   if (await env.DB.prepare('SELECT 1 FROM skool_links WHERE slug = ?').bind(slug).first()) return json({ error: 'That slug is taken' }, 409);
   // Root links need their own route (src/skoolroutes.js): refuse dashboard paths, other apps' routes and real site pages.
+  if (Object.hasOwn((await shortWords(request, env)).variants, slug)) return json({ error: `jonmac.ai/${slug} is already a built-in short link` }, 409);
   const routes = await listRoutes(env);
   const why = await slugRefusal(env, slug, routes);
   if (why) return json({ error: why }, 409);
@@ -347,6 +352,8 @@ export async function handleTracker(request, env) {
   // Public: the unsubscribe link in every email (the signed token is the proof) and Resend's webhook (Svix-signed).
   if (p === '/track/unsub' && ['GET', 'POST'].includes(request.method)) return handleUnsub(request, env, nowMs);
   if (p === '/track/api/resend' && request.method === 'POST') return handleResendWebhook(request, env, nowMs);
+  // Bots register one-word video links with the LINK_REGISTER_TOKEN bearer token (src/skoolwords.js), no session.
+  if (p === '/track/api/words') return wordsApi(request, env, nowMs);
   const signedIn = await readSession(request, env);
   const html = (body) => new Response(body, { headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'private, no-store', 'X-Robots-Tag': 'noindex, nofollow' } });
   // The pages are chosen by path, whatever the method: signed out always goes to the sign-in, and only GET and HEAD read them.

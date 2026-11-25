@@ -101,6 +101,8 @@
     { "pattern": "jonmac.ai/x*", "zone_name": "jonmac.ai" },
     { "pattern": "jonmac.ai/youtube*", "zone_name": "jonmac.ai" },
     // One-word video links (src/skoolroutes.js SHORT_LINKS): wildcard like the social ones; other paths under the word pass to the main site.
+    // More words are data, not code: POST https://jonmac.ai/track/api/words (src/skoolwords.js) stores them in D1 skool_words and makes their
+    // jonmac.ai/<word>* route by API (re-made after each deploy). Secret LINK_REGISTER_TOKEN = D:\AgentTeam\secrets\link-register.token on GPU1.
     { "pattern": "jonmac.ai/neon*", "zone_name": "jonmac.ai" },
     { "pattern": "jonmac.ai/track", "zone_name": "jonmac.ai" },
     { "pattern": "jonmac.ai/track/*", "zone_name": "jonmac.ai" },
