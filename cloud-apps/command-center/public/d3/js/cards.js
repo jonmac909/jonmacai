@@ -11,7 +11,7 @@ import { headerOnly } from './goals.js';
 const STATUS = { todo: 'To do', doing: 'Doing', waiting_on_jon: 'Waiting on Jon', qc: 'QC', review: 'Review', done: 'Done' };
 const ORDER = ['doing', 'waiting_on_jon', 'qc', 'review', 'todo', 'done'];
 // Owners that read better with a name than a slug; any other owner shows as written.
-const OWNER = { ana: 'Ana', jon: 'Jon', qc: 'QC', 'hgp-scripts': 'HGP Scripts', 'short-form': 'Short-form', 'video-editor': 'Video Editor', 'jon-mac-youtube': 'Jon Mac YouTube', 'home-guide-press': 'Home Guide Press', 'viral-view': 'Viral View', developer: 'Developer', sponsors: 'Sponsors', accounting: 'Accounting', marketing: 'Marketing', spotify: 'Spotify', historient: 'Historient', moneyclaw: 'MoneyClaw' };
+const OWNER = { ana: 'Ana', jon: 'Jon', qc: 'QC', 'hgp-scripts': 'HGP Scripts', 'short-form': 'Short-form', 'video-editor': 'Video Editor', 'jon-mac-youtube': 'Jon Mac YouTube', 'home-guide-press': 'Home Guide Press', 'viral-view': 'Viral View', developer: 'Developer', sponsors: 'Sponsors', accounting: 'Accounting', marketing: 'Marketing', spotify: 'Spotify', historient: 'Historient', moneyclaw: 'MoneyClaw', harper: 'Skool Host', piper: 'Social Posting' };
 export const ownerName = (slug) => OWNER[slug] || slug || 'No owner';
 export const statusName = (s) => STATUS[s] || s || '';
 export const UNDO_MS = 10000;

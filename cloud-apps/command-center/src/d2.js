@@ -16,7 +16,7 @@ const DAY = 86400000;
 const NAMES = {
   jon: 'Jon', ana: 'Ana', sponsors: 'Florence', 'video-editor': 'Olivia', 'viral-view': 'Scarlett', 'jon-mac-youtube': 'Sydney',
   'home-guide-press': 'Elle', 'short-form': 'Samantha', accounting: 'Elizabeth', developer: 'Lucy', qc: 'Jessica', inbox: 'Zendaya',
-  spotify: 'Daisy', moneyclaw: 'Mila', historient: 'Emma', 'yt-strategy': 'Indy', marketing: 'Marketing',
+  spotify: 'Daisy', moneyclaw: 'Mila', historient: 'Emma', 'yt-strategy': 'Indy', marketing: 'Marketing', harper: 'Harper', piper: 'Piper',
 };
 export const nameOf = (slug) => NAMES[slug] || String(slug || '');
 const STAGE = { todo: 'Not started', doing: 'In production', waiting_on_jon: 'Waiting on you', qc: 'In QC', review: 'In Review', done: 'Done' };
