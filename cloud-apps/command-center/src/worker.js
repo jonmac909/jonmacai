@@ -18,6 +18,7 @@ export { GpuMonitor } from './monitor.js';
 const PREFIX = '/dashboard';
 const D2 = '/dashboard-2';
 const D3 = '/dash';
+const JACQ = '/jacq';
 
 async function asset(request, env, assetPath) {
   const assetUrl = new URL(request.url);
@@ -103,6 +104,8 @@ export default {
       if (path === '/' || path === '/index.html') return asset(request, env, (await readSession(request, env)) ? '/d3/index.html' : '/d3/login.html');
       return D2_FILE.test(path) ? asset(request, env, `/d3${path}`) : notFound();
     }
+    // jonmac.ai/jacq (card t_9f5156f3507742d6): the detailed Budget page, same sign-in as /dash; its css and js are /dash's.
+    if (url.pathname === JACQ || url.pathname === `${JACQ}/`) return asset(request, env, (await readSession(request, env)) ? '/d3/jacq.html' : '/d3/login.html');
     // Ana phones Jon: Twilio's keypad answer in, Ana's poll out (src/twilioanswer.js).
     if (url.pathname === TWILIO_ANSWER || url.pathname.startsWith(`${TWILIO_ANSWER}/`)) return handleTwilioAnswer(request, env);
     // Live GPU Monitor (src/monitor.js): signed-in page and data, pusher-only POST.

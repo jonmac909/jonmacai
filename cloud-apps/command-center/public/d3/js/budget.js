@@ -52,11 +52,11 @@ function basisNote(c) {
 
 function txnRows(rows) {
   if (!rows.length) return '<p class="mut">No transactions in this period.</p>';
-  return rows.map((t) => `<div class="bgt"><div><b>${esc(t.merchant)}${t.pending ? ' <i>pending</i>' : ''}</b><span>${esc(t.date)} · ${esc(t.category)}${t.currency && t.currency !== 'CAD' ? ` · ${esc(t.currency)} charge` : ''}</span></div><strong>${money2(t.amount)}</strong></div>`).join('');
+  return rows.map((t) => `<div class="bgt"><div><b>${esc(t.merchant)}${t.pending ? ' <i>pending</i>' : ''}</b><span>${esc(t.date)}${t.account ? ` · ${esc(t.account)}` : ''} · ${esc(t.category)}${t.currency && t.currency !== 'CAD' ? ` · ${esc(t.currency)} charge` : ''}</span></div><strong>${money2(t.amount)}</strong></div>`).join('');
 }
 
 // open: { g, k, view: 'cats' | 'all' | 'line', line }. The panel covers the screen on phones and scrolls on its own.
-function drawer(b, open, travel) {
+export function drawer(b, open, travel) { // also jonmac.ai/jacq (jacq.js)
   const grp = b.groups[open.g];
   const p0 = grp?.periods?.[open.k];
   if (!p0) return '';

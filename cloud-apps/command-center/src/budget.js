@@ -45,7 +45,9 @@ function feedTotal(expenses, group, key) {
 // numbers, Travel switch block (withTravel) and per-category rows its /budget page shows, so #budget needs no MoneyClaw
 // sign-in. Its windows: Yesterday, the 7 days ending yesterday, the 1st to yesterday. Card colour = over budget or not.
 const LABELS = { yesterday: 'Yesterday', week: 'Last 7 days', month: 'This month' };
-const txns = (list) => (Array.isArray(list) ? list : []).map(({ date, merchant, amount, category, line, pending, currency }) => ({ date, merchant, amount, category, line, pending: !!pending, currency }));
+const txns = (list) => (Array.isArray(list) ? list : []).map(({ date, merchant, amount, category, line, pending, currency, account }) => ({ date, merchant, amount, category, line, pending: !!pending, currency, ...(account ? { account } : {}) }));
+// Past months (budgetMonths) store one list, withTravel.txns; the no-Travel list is that list without the Travel line.
+const noTravel = (list) => (Array.isArray(list) ? list : []).filter((t) => t?.line !== 'Travel');
 function fromSimple(simple, summary) {
   const groups = {};
   for (const g of simple.groups || []) {
@@ -56,7 +58,7 @@ function fromSimple(simple, summary) {
       const w = s.withTravel || {};
       const p = {
         label: LABELS[key], from: s.startDate, to: s.endDate, budget: s.budget, spent: s.spent, over: !!s.over, green: !s.over,
-        count: s.count, transactions: txns(s.txns), categories: Array.isArray(s.categories) ? s.categories : [], excludedTravel: s.excludedTravel ?? 0,
+        count: s.count, transactions: txns(Array.isArray(s.txns) ? s.txns : noTravel(w.txns)), categories: Array.isArray(s.categories) ? s.categories : [], excludedTravel: s.excludedTravel ?? 0,
         withTravel: { spent: w.spent, over: !!w.over, green: !w.over, count: w.count, transactions: txns(w.txns), categories: Array.isArray(w.categories) ? w.categories : [] },
       };
       if (key === 'month') {
@@ -75,9 +77,30 @@ function fromSimple(simple, summary) {
   };
 }
 
+// Months the summary holds, newest first: this month (budgetSimple) and the past ones (budgetMonths, card t_9f5156f3507742d6).
+const YM = /^\d{4}-\d{2}$/;
+export function budgetMonths(summary) {
+  const all = [summary?.budgetSimple?.month, ...Object.keys(summary?.budgetMonths || {})].filter((m) => YM.test(m || ''));
+  return [...new Set(all)].sort().reverse();
+}
+const monthName = (ym) => new Date(Date.UTC(Number(ym.slice(0, 4)), Number(ym.slice(5, 7)) - 1, 15)).toLocaleDateString('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' });
+
 // summary: the stored MoneyClaw dashboard summary (parsed JSON). nowMs: the instant to count from.
-// MoneyClaw's budgetSimple block wins when present (one source with its /budget page); otherwise the older row calculation.
-export function budgetView(summary, nowMs = Date.now()) {
+// month: 'YYYY-MM' of a past month (jonmac.ai/jacq's month picker): MoneyClaw's own view of that whole month from
+// summary.budgetMonths, null when the summary does not hold it. No month (or this month): the view below.
+// Every view lists the months it can show (months).
+export function budgetView(summary, nowMs = Date.now(), month = null) {
+  if (month && month !== summary?.budgetSimple?.month) {
+    const past = summary?.budgetMonths?.[month];
+    const v = past && typeof past === 'object' && past.month === month ? fromSimple(past, summary) : null;
+    if (!v) return null;
+    for (const g of Object.values(v.groups)) g.periods.month.label = monthName(month);
+    return { ...v, months: budgetMonths(summary) };
+  }
+  return { ...currentView(summary, nowMs), months: budgetMonths(summary) };
+}
+
+function currentView(summary, nowMs) {
   if (summary?.budgetSimple && typeof summary.budgetSimple === 'object') {
     const v = fromSimple(summary.budgetSimple, summary);
     if (v) return v;
