@@ -129,3 +129,28 @@ test('planted: a test-email lead and sale are hidden on /track and /track/leads;
   assert.deepEqual(d.sales.map((s) => s.name), ['R']);
   assert.equal(d.rows.find((r) => r.slug === 'vid').sales, 1);
 });
+
+test('planted: test links (TEST/QC title, qc- slug) are hidden with their clicks, leads and sales; real videos still show', async () => {
+  const e = env(); const now = Date.now();
+  const link = (slug, title) => e.DB.prepare('INSERT INTO skool_links (slug, title, created_at, capture) VALUES (?, ?, ?, 1)').bind(slug, title, iso(now - 864e5)).run();
+  await link('popover-test', 'TEST pop-over (delete after Jon checks)');
+  await link('qc-check', 'Neon review');
+  await link('astra62-test', 'I Tested GPT-6.2 Astra. It sucks.');
+  await link('testing-x', 'Testing the new Claude');
+  for (const s of ['popover-test', 'qc-check', 'astra62-test']) assert.equal((await visit(e, `/${s}`)).status, 302); // redirects still work
+  await visit(e, '/popover-test', { method: 'POST', email: 'fan1@gmail.com' });
+  await visit(e, '/astra62-test', { method: 'POST', email: 'fan2@gmail.com' });
+  const sale = (id, email) => e.DB.prepare('INSERT INTO skool_sales (id, email, name, at, created_at) VALUES (?, ?, ?, ?, ?)').bind(id, email, id, iso(Date.now()), iso(Date.now())).run();
+  await sale('s1', 'fan1@gmail.com'); // tied to the TEST link: hidden, not counted as "not tied"
+  await sale('s2', 'fan2@gmail.com');
+  const d = await trackerData(e.DB);
+  const slugs = d.rows.map((r) => r.slug);
+  assert.ok(!slugs.includes('popover-test') && !slugs.includes('qc-check'), slugs.join());
+  assert.ok(slugs.includes('astra62-test') && slugs.includes('testing-x'));
+  assert.deepEqual(d.sales.map((s) => s.name), ['s2']);
+  assert.equal(d.unattributed, 0);
+  const a = d.rows.find((r) => r.slug === 'astra62-test');
+  assert.deepEqual([a.clicks.all, a.emails, a.sales], [1, 1, 1]);
+  assert.deepEqual((await leadsData(e.DB)).rows.map((r) => r.email), ['fan2@gmail.com']);
+  assert.equal(await n(e, 'skool_links'), 4); // nothing deleted
+});

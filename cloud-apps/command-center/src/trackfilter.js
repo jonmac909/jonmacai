@@ -1,4 +1,4 @@
-// /track shows real visitors only (Jon, 2026-11-26): team traffic, bots and test sign-ups are not counted.
+﻿// /track shows real visitors only (Jon, 2026-11-26): team traffic, bots and test sign-ups are not counted.
 // New clicks from a team IP or a bot user agent are not stored at all; anything already stored (or stored before a
 // team IP was added here) is hidden when /track reads it. Nothing is ever deleted.
 
@@ -23,6 +23,11 @@ export function isTestEmail(email) {
   return /^test\d*$|^test[+._-]|[+._-]test\d*$|\+test\d*([+._-]|$)/.test(local) || /(^|\.)test(\.|$)/.test(domain) || /^example\.(com|org|net)$/.test(domain)
     || TEAM_DOMAINS.some((d) => domain === d || domain.endsWith(`.${d}`));
 }
+
+// Test links (Jon, 2026-11-26): a title starting with the word "TEST" (uppercase) or "QC", or a slug starting "qc-".
+// Hidden on /track with their clicks, leads and sales; the redirect still works and nothing is deleted.
+// Real videos pass: "I Tested GPT-6.2 Astra" (slug astra62-test), "Testing ...", "Test drive ...".
+export const isTestLink = (l) => /^\s*(TEST|QC)\b/.test(String(l?.title || '')) || /^qc-/i.test(String(l?.slug || ''));
 
 // Clicks with no IP (stored before 2026-11-26) can still be told apart by where they came from: Jon's YouTube Studio
 // and the dashboard itself are the team.
