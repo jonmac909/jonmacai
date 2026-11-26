@@ -105,7 +105,7 @@ function boot(root) {
   document.addEventListener('change', (e) => {
     if (e.target?.id !== 'jqMonth') return;
     ui.month = e.target.value === (data?.budget?.months || data?.months || [])[0] ? '' : e.target.value;
-    history.replaceState(null, '', ui.month ? `?month=${ui.month}` : location.pathname);
+    history.replaceState(null, '', ui.month ? `/jacq/?month=${ui.month}` : '/jacq'); // the zone route jonmac.ai/jacq does not match /jacq?..., /jacq/* does
     load();
   });
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && ui.bgOpen) { ui.bgOpen = null; draw(); } });
