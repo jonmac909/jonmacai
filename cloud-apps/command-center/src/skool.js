@@ -37,6 +37,15 @@ export const isSocial = (slug) => Object.hasOwn(SOCIAL, slug);
 // variants = shortWords(...).variants for this request (defaults to the seed only).
 export const isShort = (slug, variants = SHORT_VARIANTS) => Object.hasOwn(variants, slug); // every platform variant: neon, neonx, neonli, ...
 export const isBuiltIn = (slug, variants = SHORT_VARIANTS) => isSocial(slug) || isShort(slug, variants);
+// /track groups links by platform (Jon 2026-11-26), in this order; anything else goes under Other.
+export const PLATFORMS = [['youtube', 'YouTube'], ['instagram', 'Instagram'], ['tiktok', 'TikTok'], ['x', 'X'], ['linkedin', 'LinkedIn'], ['facebook', 'Facebook']];
+// The platform a /track row belongs to, the same one its utm_source names: a bio slug's platform, a one-word variant's platform
+// (row.platform, set by trackerData, else the variants map), and every skool_links row is a YouTube video link. Else 'other'.
+export function platformOf(row, variants = SHORT_VARIANTS) {
+  const p = row?.platform || (isSocial(row?.slug) ? SOCIAL[row.slug] : isShort(row?.slug, variants) ? variants[row.slug].platform : null);
+  if (p) return PLATFORMS.some(([k]) => k === p) ? p : 'other';
+  return row?.created_at || YT_RE.test(row?.youtube_url || '') ? 'youtube' : 'other';
+}
 
 export async function skoolRedirect(request, env, ctx) {
   const url = new URL(request.url);
@@ -213,12 +222,12 @@ export async function trackerData(db, nowMs = Date.now()) {
   const L = all.filter((l) => !testSlugs.has(l.slug));
   // The six social bio links count even without a skool_links row; last, so a video link's answer match wins first.
   for (const [slug, platform] of Object.entries(SOCIAL)) {
-    if (!L.some((l) => l.slug === slug)) L.push({ slug, title: `${platform} bio link`, youtube_url: null, created_at: '', capture: 1 });
+    if (!L.some((l) => l.slug === slug)) L.push({ slug, title: `${platform} bio link`, youtube_url: null, created_at: '', capture: 1, platform });
   }
   // The one-word video links count the same way, one row per platform variant (neon, neonx, ...), under its own slug.
   const words = await loadWords(db); // the seed plus registered words (skool_words)
   for (const [slug, s] of Object.entries(variantsOf(words))) {
-    if (!L.some((l) => l.slug === slug)) L.push({ slug, title: s.title, youtube_url: words[s.word].youtube_url || null, created_at: '', capture: 1 });
+    if (!L.some((l) => l.slug === slug)) L.push({ slug, title: s.title, youtube_url: words[s.word].youtube_url || null, created_at: '', capture: 1, platform: s.platform });
   }
   const known = new Set(L.map((l) => l.slug)); // test-link leads are skipped: a real buyer's sale falls to a real link or 'not tied'
   const C = new Map((clicks.results || []).map((c) => [c.slug, c]));
@@ -309,11 +318,17 @@ const pct = (x) => (x == null ? '–' : `${(x * 100).toFixed(1)}%`);
 const HOW = { email: 'email match (exact)', answer: 'their answer (exact)', estimate: 'estimate: last click within 24 h', none: 'unknown' };
 
 export function trackerPage(data, origin) {
-  const rows = data.rows.map((r) => `<tr><td>${r.youtube_url ? `<a href="${esc(r.youtube_url)}" target="_blank" rel="noopener">${esc(r.title)}</a>` : esc(r.title)}</td>
+  const row = (r) => `<tr><td>${r.youtube_url ? `<a href="${esc(r.youtube_url)}" target="_blank" rel="noopener">${esc(r.title)}</a>` : esc(r.title)}</td>
 <td>${esc((r.created_at || '').slice(0, 10)) || '–'}</td><td>${esc(r.slug)}</td><td><button class="copy" data-url="${esc(`${origin}/${r.slug}`)}">${esc(`${origin.replace(/^https?:\/\//, '')}/${r.slug}`)}</button></td>
 <td class="n">${r.clicks.d7}</td><td class="n">${r.clicks.d30}</td><td class="n">${r.clicks.all}</td><td class="n">${r.emails}</td>
 <td class="n" data-sort="${r.sales + r.estimated}">${r.sales}${r.estimated ? ` <span class="est" title="estimated from the last click">+${r.estimated} est.</span>` : ''}</td><td class="n">${pct(r.conversion)}</td>
-<td><button class="cap" data-slug="${esc(r.slug)}" data-on="${r.capture ? 1 : 0}" aria-pressed="${r.capture}">${r.capture ? 'On' : 'Off'}</button></td></tr>`).join('');
+<td><button class="cap" data-slug="${esc(r.slug)}" data-on="${r.capture ? 1 : 0}" aria-pressed="${r.capture}">${r.capture ? 'On' : 'Off'}</button></td></tr>`;
+  // One sortable table per platform (sorting stays inside the group; each remembers its own sort), empty groups skipped.
+  const head = '<thead><tr><th>Video</th><th>Added</th><th>Slug</th><th>Short link</th><th class="n">Clicks 7d</th><th class="n">30d</th><th class="n">All</th><th class="n">Leads</th><th class="n">Sales</th><th class="n">Conversion</th><th>Email step</th></tr></thead>';
+  const table = (id, body) => `<div class="wrap"><table class="sortable" id="${id}" data-col="1" data-dir="-1">${head}<tbody>${body}</tbody></table></div>`;
+  const groups = [...PLATFORMS, ['other', 'Other']].map(([k, name]) => [k, name, data.rows.filter((r) => platformOf(r) === k)]).filter((g) => g[2].length);
+  const links = groups.length ? groups.map(([k, name, rs]) => `<h2 class="plat" id="p-${k}">${name} <span class="cnt">(${rs.length})</span></h2>${table(`links-${k}`, rs.map(row).join(''))}`).join('')
+    : table('links', '<tr><td colspan="11">No links yet. Add one below.</td></tr>');
   const sales = data.sales.slice(0, 50).map((s) => `<tr><td>${esc(s.at.slice(0, 16).replace('T', ' '))} UTC</td><td>${esc(s.name || '')}</td>
 <td>${esc(s.slug || '–')}</td><td>${esc(HOW[s.how])}</td><td>${esc(s.answer || '')}</td></tr>`).join('');
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
@@ -321,8 +336,7 @@ export function trackerPage(data, origin) {
 <h1>Skool tracker</h1>
 <div class="row"><button class="cap" id="reset" type="button">Reset stats</button><span id="since">${data.since ? `Since ${esc(data.since.slice(0, 16).replace('T', ' '))} UTC. <a href="#" id="undo">Undo reset</a>` : 'Showing all stats since the start.'}</span></div>
 <p>Every short link forwards to skool.com/ai-ugc. Sales come from Zapier. Exact = the buyer's email was captured on the link, or they named the video in their answer; "est." means neither, so the sale goes to the last link clicked in the 24 hours before it.</p>
-<div class="wrap"><table class="sortable" id="links" data-col="1" data-dir="-1"><thead><tr><th>Video</th><th>Added</th><th>Slug</th><th>Short link</th><th class="n">Clicks 7d</th><th class="n">30d</th><th class="n">All</th><th class="n">Leads</th><th class="n">Sales</th><th class="n">Conversion</th><th>Email step</th></tr></thead>
-<tbody>${rows || '<tr><td colspan="11">No links yet. Add one below.</td></tr>'}</tbody></table></div>
+${links}
 <p>Email step: when On, the short link first asks for an email in a pop-over, then forwards to Skool. On for every new link.</p>
 <p>Sales not tied to any video: ${data.unattributed}</p>
 <div class="panel"><strong>Email sequence</strong> <button class="cap" id="seq" data-on="${data.seq?.on ? 1 : 0}" aria-pressed="${!!data.seq?.on}">${data.seq?.on ? 'On' : 'Off'}</button>
