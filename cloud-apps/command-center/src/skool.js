@@ -10,6 +10,7 @@ import { handleUnsub, handleResendWebhook, seqOn, setSeqOn, sendTest, addressIsP
 import { leadsData, leadsCsv, leadsPage, emailsPage, nav, BASE_CSS, FILTERS } from './skoolcrm.js';
 import { SLUG_RE, SHORT_VARIANTS, listRoutes, slugRefusal, ensureSlugRoute, loadWords, variantsOf, shortWords } from './skoolroutes.js';
 import { wordsApi } from './skoolwords.js';
+import { SORT_CSS, SORT_JS } from './tablesort.js';
 
 // Every Skool landing page sends people to the about page, not the email opt-in (Jon 2026-11-25): a GET counts the click and forwards.
 export const SKOOL = 'https://www.skool.com/ai-ugc/about';
@@ -302,19 +303,19 @@ const HOW = { email: 'email match (exact)', answer: 'their answer (exact)', esti
 
 export function trackerPage(data, origin) {
   const rows = data.rows.map((r) => `<tr><td>${r.youtube_url ? `<a href="${esc(r.youtube_url)}" target="_blank" rel="noopener">${esc(r.title)}</a>` : esc(r.title)}</td>
-<td>${esc(r.slug)}</td><td><button class="copy" data-url="${esc(`${origin}/${r.slug}`)}">${esc(`${origin.replace(/^https?:\/\//, '')}/${r.slug}`)}</button></td>
+<td>${esc((r.created_at || '').slice(0, 10)) || '–'}</td><td>${esc(r.slug)}</td><td><button class="copy" data-url="${esc(`${origin}/${r.slug}`)}">${esc(`${origin.replace(/^https?:\/\//, '')}/${r.slug}`)}</button></td>
 <td class="n">${r.clicks.d7}</td><td class="n">${r.clicks.d30}</td><td class="n">${r.clicks.all}</td><td class="n">${r.emails}</td>
-<td class="n">${r.sales}${r.estimated ? ` <span class="est" title="estimated from the last click">+${r.estimated} est.</span>` : ''}</td><td class="n">${pct(r.conversion)}</td>
+<td class="n" data-sort="${r.sales + r.estimated}">${r.sales}${r.estimated ? ` <span class="est" title="estimated from the last click">+${r.estimated} est.</span>` : ''}</td><td class="n">${pct(r.conversion)}</td>
 <td><button class="cap" data-slug="${esc(r.slug)}" data-on="${r.capture ? 1 : 0}" aria-pressed="${r.capture}">${r.capture ? 'On' : 'Off'}</button></td></tr>`).join('');
   const sales = data.sales.slice(0, 50).map((s) => `<tr><td>${esc(s.at.slice(0, 16).replace('T', ' '))} UTC</td><td>${esc(s.name || '')}</td>
 <td>${esc(s.slug || '–')}</td><td>${esc(HOW[s.how])}</td><td>${esc(s.answer || '')}</td></tr>`).join('');
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="robots" content="noindex,nofollow"><title>Skool tracker</title><style>${BASE_CSS}</style></head><body>${nav('videos')}
+<meta name="robots" content="noindex,nofollow"><title>Skool tracker</title><style>${BASE_CSS}${SORT_CSS}</style></head><body>${nav('videos')}
 <h1>Skool tracker</h1>
 <div class="row"><button class="cap" id="reset" type="button">Reset stats</button><span id="since">${data.since ? `Since ${esc(data.since.slice(0, 16).replace('T', ' '))} UTC. <a href="#" id="undo">Undo reset</a>` : 'Showing all stats since the start.'}</span></div>
 <p>Every short link forwards to skool.com/ai-ugc. Sales come from Zapier. Exact = the buyer's email was captured on the link, or they named the video in their answer; "est." means neither, so the sale goes to the last link clicked in the 24 hours before it.</p>
-<div class="wrap"><table><thead><tr><th>Video</th><th>Slug</th><th>Short link</th><th class="n">Clicks 7d</th><th class="n">30d</th><th class="n">All</th><th class="n">Leads</th><th class="n">Sales</th><th class="n">Conversion</th><th>Email step</th></tr></thead>
-<tbody>${rows || '<tr><td colspan="10">No links yet. Add one below.</td></tr>'}</tbody></table></div>
+<div class="wrap"><table class="sortable" id="links" data-col="1" data-dir="-1"><thead><tr><th>Video</th><th>Added</th><th>Slug</th><th>Short link</th><th class="n">Clicks 7d</th><th class="n">30d</th><th class="n">All</th><th class="n">Leads</th><th class="n">Sales</th><th class="n">Conversion</th><th>Email step</th></tr></thead>
+<tbody>${rows || '<tr><td colspan="11">No links yet. Add one below.</td></tr>'}</tbody></table></div>
 <p>Email step: when On, the short link first asks for an email in a pop-over, then forwards to Skool. On for every new link.</p>
 <p>Sales not tied to any video: ${data.unattributed}</p>
 <div class="panel"><strong>Email sequence</strong> <button class="cap" id="seq" data-on="${data.seq?.on ? 1 : 0}" aria-pressed="${!!data.seq?.on}">${data.seq?.on ? 'On' : 'Off'}</button>
@@ -322,9 +323,10 @@ export function trackerPage(data, origin) {
 <h2>Add a link</h2><form id="add"><input name="slug" placeholder="slug, e.g. seedance-ugc" required pattern="[a-z0-9][a-z0-9-]{0,38}[a-z0-9]">
 <input name="title" placeholder="Video title" required><input name="youtube_url" placeholder="YouTube URL (optional)" type="url">
 <button class="go" type="submit">Add link</button><div id="msg"></div></form>
-<h2>Latest sales</h2><div class="wrap"><table><thead><tr><th>When</th><th>Member</th><th>Video</th><th>How we know</th><th>Their answer</th></tr></thead>
+<h2>Latest sales</h2><div class="wrap"><table class="sortable" id="sales" data-col="0" data-dir="-1"><thead><tr><th>When</th><th>Member</th><th>Video</th><th>How we know</th><th>Their answer</th></tr></thead>
 <tbody>${sales || '<tr><td colspan="5">No sales yet.</td></tr>'}</tbody></table></div>
 <script>
+${SORT_JS}
 document.querySelectorAll('.copy').forEach((b)=>b.onclick=()=>navigator.clipboard.writeText(b.dataset.url).then(()=>{const t=b.textContent;b.textContent='Copied';setTimeout(()=>b.textContent=t,1200)}));
 document.querySelectorAll('.cap').forEach((b)=>b.onclick=async()=>{const on=b.dataset.on!=='1';
 if(on&&!confirm('Turn the email step ON for '+b.dataset.slug+'? Visitors will be asked for an email before they reach Skool.'))return;
