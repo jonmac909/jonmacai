@@ -11,6 +11,7 @@ import { runSequence, SEQ_CRON } from './skoolseq.js';
 import { FILE_PREFIX, serveProofFile, uploadProofFile } from './prooffiles.js';
 import { MONITOR, handleMonitor } from './monitor.js';
 import { handleTwilioAnswer, ROUTE as TWILIO_ANSWER } from './twilioanswer.js';
+import { SAMPLES_PATH, handleSamples } from './samples.js';
 
 export { CallRelay } from './call.js';
 export { GpuMonitor } from './monitor.js';
@@ -75,6 +76,8 @@ export default {
     // Skool short links and the /track page (src/skool.js).
     if (url.pathname.startsWith('/s/')) return skoolRedirect(request, env, ctx);
     if (url.pathname === '/track' || url.pathname.startsWith('/track/')) return handleTracker(request, env);
+    // Public style samples page and its videos, jonmac.ai/samples (src/samples.js).
+    if (url.pathname === SAMPLES_PATH || url.pathname.startsWith(`${SAMPLES_PATH}/`)) return handleSamples(request, env);
     // Dashboard 2 (docs/dashboard-2.md): its own pages under public/d2; data comes from /dashboard/api/d2.
     if (url.pathname === D2) {
       url.pathname = `${D2}/`;
