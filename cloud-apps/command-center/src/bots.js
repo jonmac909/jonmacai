@@ -11,7 +11,7 @@ import { trackVideos } from './track.js';
 import { MONTH_HABITS, WEEK_HABITS, monthKey, weekStart } from './periods.js';
 import { upsertHabit } from './db.js';
 import { eosData } from './eos.js';
-import { budgetView } from './budget.js';
+import { budgetView, budgetMonths } from './budget.js';
 import { pullMoneyClaw } from './cron.js';
 
 // todo/doing → qc (proof) → review (QC passed it) → done (Jon approved it). Only Jon sets done, except the
@@ -2201,7 +2201,7 @@ async function route(request, db, who, rest, env, ctx) {
     const month = q.get('month'); // jonmac.ai/jacq month picker: a past month, YYYY-MM (card t_9f5156f3507742d6)
     if (month && !/^\d{4}-\d{2}$/.test(month)) throw new Bad(400, 'month must be YYYY-MM');
     const budget = budgetView(data, Date.now(), month || null);
-    if (!budget) return json({ ok: false, error: `No budget for ${month} yet` }, 404);
+    if (!budget) return json({ ok: false, error: `No budget for ${month} yet`, months: budgetMonths(data) }, 404); // months: the picker can go back
     return json({ ok: true, collectedAt: row?.collected_at || null, budget });
   }
   if (kind === 'budget' && rawId === 'refresh' && !verb && method === 'POST') { // pull MoneyClaw now, after a bank import (card t_bc95ba79d31048c8)

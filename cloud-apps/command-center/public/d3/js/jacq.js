@@ -52,15 +52,23 @@ function group(b, g, travel) {
 <div class="jqrows">${rows || '<p class="mut">No categories.</p>'}</div></section>`;
 }
 
+// "Data through": the latest posted date, but never past the month shown (a past month ends on its last day).
+function through(b) {
+  const end = b.groups?.personal?.periods?.month?.to;
+  const last = b.latestPostedDate;
+  return last && end && last > end ? end : last || end;
+}
+
 // data: the API body ({ ok, budget }), null while loading, or { error }. ui: { month, bgOpen, bgTravel }.
 export function renderJacq(data, ui = {}) {
   const b = data?.budget;
-  const months = b?.months?.length ? b.months : ui.month ? [ui.month] : [];
+  // Every month the API can show (also on a 404, so the picker can go back to this month), plus the one asked for.
+  const months = [...new Set([...(b?.months || data?.months || []), ...(ui.month ? [ui.month] : [])])].sort().reverse();
   const cur = b?.month || ui.month || months[0] || '';
   const pick = months.length
     ? `<select class="jqm" id="jqMonth" aria-label="Month">${months.map((m) => `<option value="${esc(m)}"${m === cur ? ' selected' : ''}>${esc(monthName(m))}</option>`).join('')}</select>`
     : '';
-  const sub = b ? `CAD · data through ${short(b.latestPostedDate || b.groups?.personal?.periods?.month?.to)} · tap a category for its transactions` : 'Personal and business, every category';
+  const sub = b ? `CAD · data through ${short(through(b))} · tap a category for its transactions` : 'Personal and business, every category';
   const head = `<header class="hd jqhd"><div><h1>Budget</h1><p class="mut">${esc(sub)}</p></div>${pick}</header>`;
   if (!data) return `${head}<section class="card"><p class="mut">Loading</p></section>`;
   if (data.error || !b) return `${head}<section class="card"><p class="mut">${esc(data.error || 'Budget could not be read.')}</p></section>`;
@@ -89,14 +97,14 @@ function boot(root) {
       const res = await fetch(`/dashboard/api/v1/budget${ui.month ? `?month=${encodeURIComponent(ui.month)}` : ''}`, { credentials: 'same-origin', headers: { Accept: 'application/json' } });
       if (res.status === 401) { location.reload(); return; }
       const body = await res.json().catch(() => ({}));
-      data = body.ok ? body : { error: body.error || 'Budget could not be read.' };
+      data = body.ok ? body : { error: body.error || 'Budget could not be read.', months: body.months };
     } catch (err) { data = { error: err.message }; }
     draw();
   }
   document.addEventListener('click', (e) => { if (jacqClick(e, ui)) draw(); });
   document.addEventListener('change', (e) => {
     if (e.target?.id !== 'jqMonth') return;
-    ui.month = e.target.value === (data?.budget?.months || [])[0] ? '' : e.target.value;
+    ui.month = e.target.value === (data?.budget?.months || data?.months || [])[0] ? '' : e.target.value;
     history.replaceState(null, '', ui.month ? `?month=${ui.month}` : location.pathname);
     load();
   });

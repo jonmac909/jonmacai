@@ -46,6 +46,8 @@ function feedTotal(expenses, group, key) {
 // sign-in. Its windows: Yesterday, the 7 days ending yesterday, the 1st to yesterday. Card colour = over budget or not.
 const LABELS = { yesterday: 'Yesterday', week: 'Last 7 days', month: 'This month' };
 const txns = (list) => (Array.isArray(list) ? list : []).map(({ date, merchant, amount, category, line, pending, currency, account }) => ({ date, merchant, amount, category, line, pending: !!pending, currency, ...(account ? { account } : {}) }));
+// Past months (budgetMonths) store one list, withTravel.txns; the no-Travel list is that list without the Travel line.
+const noTravel = (list) => (Array.isArray(list) ? list : []).filter((t) => t?.line !== 'Travel');
 function fromSimple(simple, summary) {
   const groups = {};
   for (const g of simple.groups || []) {
@@ -56,7 +58,7 @@ function fromSimple(simple, summary) {
       const w = s.withTravel || {};
       const p = {
         label: LABELS[key], from: s.startDate, to: s.endDate, budget: s.budget, spent: s.spent, over: !!s.over, green: !s.over,
-        count: s.count, transactions: txns(s.txns), categories: Array.isArray(s.categories) ? s.categories : [], excludedTravel: s.excludedTravel ?? 0,
+        count: s.count, transactions: txns(Array.isArray(s.txns) ? s.txns : noTravel(w.txns)), categories: Array.isArray(s.categories) ? s.categories : [], excludedTravel: s.excludedTravel ?? 0,
         withTravel: { spent: w.spent, over: !!w.over, green: !w.over, count: w.count, transactions: txns(w.txns), categories: Array.isArray(w.categories) ? w.categories : [] },
       };
       if (key === 'month') {

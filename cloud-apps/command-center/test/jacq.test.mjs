@@ -48,8 +48,11 @@ const NOV = month('2026-11', '2026-11-25', [
 ]);
 const OCT = month('2026-10', '2026-10-31', [
   { key: 'personal', budget: 7500, txns: [tx('Mortgage payment', 3415.61, 'Mortgage', '2026-10-25')], categories: [cat('Mortgage', 3415.61, 3416, 'fixed', 'fixed', 1)] },
-  { key: 'business', budget: 3000, txns: [tx('OCTOBER SOFTWARE', 1500, 'Software', '2026-10-31')], categories: [cat('Software', 1500, 1154, 'prorated', 'fixed', 1)] },
+  { key: 'business', budget: 3000, txns: [tx('OCTOBER SOFTWARE', 1500, 'Software', '2026-10-31')], categories: [cat('Software', 1500, 1154, 'prorated', 'fixed', 1)], travel: [tx('AIR CANADA', 900, 'Travel', '2026-10-15')] },
 ]);
+// MoneyClaw stores a past month's list once (withTravel.txns); the no-Travel list is derived (row size, review fix 1).
+OCT.latestPostedDate = '2026-11-25'; // the latest posted date overall, past the month
+for (const g of OCT.groups) delete g.periods.month.txns;
 const SUMMARY = { asOf: '2026-11-26', budgetSimple: NOV, budgetMonths: { '2026-10': OCT } };
 
 test('/jacq: dashboard sign-in page when signed out, the Budget page when signed in; nothing else under /jacq', async () => {
@@ -101,7 +104,9 @@ test('API: GET /budget?month=YYYY-MM answers that month, 404 when MoneyClaw has 
   const cur = await call('/budget');
   assert.equal(cur.body.budget.month, '2026-11');
   assert.deepEqual(cur.body.budget.months, ['2026-11', '2026-10']);
-  assert.equal((await call('/budget?month=2026-09')).status, 404);
+  const miss = await call('/budget?month=2026-09');
+  assert.equal(miss.status, 404);
+  assert.deepEqual(miss.body.months, ['2026-11', '2026-10']); // the picker can go back
   assert.equal((await call('/budget?month=oct')).status, 400);
 });
 
@@ -124,7 +129,31 @@ test('page: month totals and % as the brief prints them, every category with bud
   assert.match(html, /Travel not counted/);
   assert.match(renderJacq({ ok: true, budget: b }, { bgTravel: true }), /Travel counted[\s\S]*data-line="Travel"/);
   assert.match(renderJacq(null, {}), /Loading/);
-  assert.match(renderJacq({ error: 'No budget for 2026-09 yet' }, { month: '2026-09' }), /No budget for 2026-09 yet/);
+  const miss = renderJacq({ error: 'No budget for 2026-09 yet', months: ['2026-11', '2026-10'] }, { month: '2026-09' });
+  assert.match(miss, /No budget for 2026-09 yet/);
+  assert.match(miss, /<option value="2026-11">November 2026<\/option><option value="2026-10">October 2026<\/option><option value="2026-09" selected>/);
+  assert.match(html, /data through Nov 25/);
+  const past = renderJacq({ ok: true, budget: budgetView(SUMMARY, NOW, '2026-10') }, {});
+  assert.match(past, /data through Oct 31/); // month end, not the latest date overall (Nov 25)
+  assert.doesNotMatch(past, /data through Nov/);
+});
+
+test('past month: the no-Travel list is the stored list without Travel', () => {
+  const om = budgetView(SUMMARY, NOW, '2026-10').groups.business.periods.month;
+  assert.ok(om.transactions.length > 0);
+  assert.ok(om.transactions.every((t) => t.line !== 'Travel'));
+  assert.equal(om.withTravel.transactions.length, om.transactions.length + 1);
+  assert.equal(sum(om.transactions), om.spent);
+});
+
+test('API: GET /budget?month answers 401 when signed out (no auth, bad cookie)', async () => {
+  const db = sqliteD1();
+  await upsertSnapshot(db, 'moneyclaw', JSON.stringify(SUMMARY), '2026-11-26T10:00:00.000Z', '2026-11-26T10:00:00.000Z');
+  const env = { DB: db, SESSION_SECRET: SECRET };
+  for (const headers of [{}, { Cookie: `${COOKIE}=forged.value` }]) {
+    const r = await handleApi(new Request('https://jonmac.ai/dashboard/api/v1/budget?month=2026-10', { headers }), env);
+    assert.equal(r.status, 401, JSON.stringify(headers));
+  }
 });
 
 test('tap a category: its transactions for the month (date, merchant, amount, account), sum = the category spent', () => {
