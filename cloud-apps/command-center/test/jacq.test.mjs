@@ -177,3 +177,10 @@ test('tap a category: its transactions for the month (date, merchant, amount, ac
   assert.equal(jacqClick({ target: { closest: (sel) => (sel === '[data-jqall]' ? { dataset: { jqall: 'business' } } : null) } }, ui), true);
   assert.deepEqual(ui.bgOpen, { g: 'business', k: 'month', view: 'all', line: null });
 });
+
+test('month picker writes /jacq/?month= (the route jonmac.ai/jacq misses /jacq?month=, a reload went to the 404 site)', () => {
+  const js = readFileSync(new URL('../public/d3/js/jacq.js', import.meta.url), 'utf8');
+  const urls = [...js.matchAll(/replaceState\([^;]*/g)].map((m) => m[0]);
+  assert.ok(urls.length > 0);
+  for (const u of urls) { assert.doesNotMatch(u, /`\?month=/); assert.match(u, /\/jacq\/\?month=/); }
+});
