@@ -11,7 +11,7 @@ import { leadsData, leadsCsv, leadsPage, emailsPage, nav, BASE_CSS, FILTERS } fr
 import { SLUG_RE, SHORT_VARIANTS, listRoutes, slugRefusal, ensureSlugRoute, loadWords, variantsOf, shortWords } from './skoolroutes.js';
 import { wordsApi } from './skoolwords.js';
 import { SORT_CSS, SORT_JS } from './tablesort.js';
-import { isTeamOrBot, isTestEmail, hiddenLead, clickFilter } from './trackfilter.js';
+import { isTeamOrBot, isTestEmail, hiddenLead, clickFilter, isTestLink } from './trackfilter.js';
 
 // Every Skool landing page sends people to the about page, not the email opt-in (Jon 2026-11-25): a GET counts the click and forwards.
 export const SKOOL = 'https://www.skool.com/ai-ugc/about';
@@ -208,7 +208,9 @@ export async function trackerData(db, nowMs = Date.now()) {
     db.prepare('SELECT email, answer FROM skool_answers').all(),
     db.prepare('SELECT slug, email, at, ip, ua FROM skool_leads ORDER BY at DESC LIMIT 50000').all(),
   ]);
-  const L = links.results || [];
+  const all = links.results || [];
+  const testSlugs = new Set(all.filter(isTestLink).map((l) => l.slug)); // test links: hidden with their clicks, leads and sales
+  const L = all.filter((l) => !testSlugs.has(l.slug));
   // The six social bio links count even without a skool_links row; last, so a video link's answer match wins first.
   for (const [slug, platform] of Object.entries(SOCIAL)) {
     if (!L.some((l) => l.slug === slug)) L.push({ slug, title: `${platform} bio link`, youtube_url: null, created_at: '', capture: 1 });
@@ -218,7 +220,7 @@ export async function trackerData(db, nowMs = Date.now()) {
   for (const [slug, s] of Object.entries(variantsOf(words))) {
     if (!L.some((l) => l.slug === slug)) L.push({ slug, title: s.title, youtube_url: words[s.word].youtube_url || null, created_at: '', capture: 1 });
   }
-  const known = new Set(L.map((l) => l.slug));
+  const known = new Set(L.map((l) => l.slug)); // test-link leads are skipped: a real buyer's sale falls to a real link or 'not tied'
   const C = new Map((clicks.results || []).map((c) => [c.slug, c]));
   const A = new Map((answers.results || []).map((x) => [x.email, x.answer]));
   const byEmail = new Map(); // email -> its leads, newest first
@@ -231,11 +233,11 @@ export async function trackerData(db, nowMs = Date.now()) {
   }
   // The clicks any estimate could use, read once (newest first): from 24 h before the oldest sale to the newest sale.
   const S = (sales.results || []).filter((s) => !isTestEmail(s.email));
-  const win = S.length ? (await db.prepare(`SELECT slug, at FROM skool_clicks WHERE at >= ? AND at <= ? AND ${F.clause} ORDER BY at DESC LIMIT 50000`)
-    .bind(iso(Date.parse(S[S.length - 1].at) - ESTIMATE_HOURS * 3600e3), S[0].at, ...F.params).all()).results || [] : [];
+  const win = (S.length ? (await db.prepare(`SELECT slug, at FROM skool_clicks WHERE at >= ? AND at <= ? AND ${F.clause} ORDER BY at DESC LIMIT 50000`)
+    .bind(iso(Date.parse(S[S.length - 1].at) - ESTIMATE_HOURS * 3600e3), S[0].at, ...F.params).all()).results || [] : []).filter((c) => !testSlugs.has(c.slug)); // a test-link click never claims a real sale
   const list = S.map((s) => {
     const answer = s.email ? A.get(s.email) ?? null : null;
-    const lead = s.email ? (byEmail.get(s.email) || []).find((x) => x.at <= s.at) : null; // newest email captured before the sale
+    const lead = s.email ? (byEmail.get(s.email) || []).find((x) => x.at <= s.at && !testSlugs.has(x.slug)) : null; // newest email captured before the sale
     let slug = lead ? lead.slug : answer ? matchAnswer(answer, L) : null;
     let how = lead ? 'email' : slug ? 'answer' : 'none';
     if (!slug) {
@@ -244,7 +246,7 @@ export async function trackerData(db, nowMs = Date.now()) {
       if (last) { slug = last.slug; how = 'estimate'; }
     }
     return { at: s.at, name: s.name, slug, how, answer };
-  });
+  }).filter((x) => !testSlugs.has(x.slug));
   const rows = L.map((l) => {
     const c = C.get(l.slug) || {};
     const mine = list.filter((x) => x.slug === l.slug);
