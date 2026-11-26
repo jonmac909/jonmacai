@@ -3,6 +3,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node --test test/*.test.mjs"
+    "test": "node --test test/*.test.mjs",
+    "word-routes": "node scripts/word-routes.mjs --write",
+    "predeploy": "node scripts/word-routes.mjs --check",
+    "deploy": "powershell -NoProfile -File scripts/deploy.ps1"
   }
 }

@@ -105,7 +105,12 @@
     // One-word video links (src/skoolroutes.js SHORT_LINKS): wildcard like the social ones; other paths under the word pass to the main site.
     // More words are data, not code: POST https://jonmac.ai/track/api/words (src/skoolwords.js) stores them in D1 skool_words and makes their
     // jonmac.ai/<word>* route by API (re-made after each deploy). Secret LINK_REGISTER_TOKEN = D:\AgentTeam\secrets\link-register.token on GPU1.
+    // Registered words are also checked in below (scripts/word-routes.mjs --write, run by deploy.ps1) so a deploy never drops them.
     { "pattern": "jonmac.ai/neon*", "zone_name": "jonmac.ai" },
+    { "pattern": "jonmac.ai/levels*", "zone_name": "jonmac.ai" },
+    { "pattern": "jonmac.ai/lucyqa*", "zone_name": "jonmac.ai" },
+    { "pattern": "jonmac.ai/reanimate*", "zone_name": "jonmac.ai" },
+    { "pattern": "jonmac.ai/skills*", "zone_name": "jonmac.ai" },
     { "pattern": "jonmac.ai/track", "zone_name": "jonmac.ai" },
     { "pattern": "jonmac.ai/track/*", "zone_name": "jonmac.ai" },
     // Live GPU Monitor (src/monitor.js).
