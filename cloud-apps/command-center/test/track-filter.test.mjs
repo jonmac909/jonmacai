@@ -43,7 +43,7 @@ test('IP list: exact IPv4, IPv4 CIDR, IPv6 prefix; outsiders and junk do not mat
   assert.ok(!isTeamIp('2001:569:f05c:7901::1'));
   assert.ok(TEAM_IPS.length >= 2);
   // planted: a broken entry ('1.2.3.4/', bad or out-of-range bits) matches nothing, never a /0 that hides everyone.
-  for (const bad of ['1.2.3.4/', '1.2.3.4/x', '1.2.3.4/33', '1.2.3.4/-1', '1.2.3.4/ 8', '2001:db8::/', '2001:db8::/129'])
+  for (const bad of ['1.2.3.4/', '1.2.3.4/x', '1.2.3.4/33', '1.2.3.4/-1', '1.2.3.4/ 8', '2001:db8::/', '2001:db8::/129', '1.2.3.4/8/9', '2001:db8::/64/1'])
     assert.ok(!ipInList('8.8.8.8', [bad]) && !ipInList('1.2.3.4', [bad]) && !ipInList('2001:db8::1', [bad]), bad);
 });
 
@@ -51,7 +51,8 @@ test('bot user agents: headless browsers, scripts, crawlers and preview fetchers
   for (const ua of ['Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/131.0.0.0 Safari/537.36',
     'python-requests/2.32', 'curl/8.4.0', 'Wget/1.21', 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)',
     'facebookexternalhit/1.1', 'Twitterbot/1.0', 'Slackbot-LinkExpanding 1.0', 'WhatsApp/2.23.20', 'Playwright/1.48', 'node-fetch/1.0', 'Discordbot/2.0',
-    'Mozilla/5.0 (compatible; bingbot/2.0; +http://www.bing.com/bingbot.htm)', 'Mozilla/5.0 (compatible; bot)'])
+    'Mozilla/5.0 (compatible; bingbot/2.0; +http://www.bing.com/bingbot.htm)', 'Mozilla/5.0 (compatible; bot)',
+    'AdsBot-Google (+http://www.google.com/adsbot.html)', 'TelegramBot (like TwitterBot)'])
     assert.ok(isBotUA(ua), ua);
   for (const ua of [CHROME, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
     'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 Instagram 350.0.0.0',
@@ -63,12 +64,13 @@ test('bot user agents: headless browsers, scripts, crawlers and preview fetchers
 });
 
 test('test emails: "test" sign-ups, example and team domains; real addresses pass', () => {
-  for (const m of ['test@gmail.com', 'test123@yahoo.com', 'jon+test@gmail.com', 'a@example.com', 'x@test.io', 'jon@jonmac.co', 'ana@thejonmac.com', 'bot@jonmac.ai',
+  for (const m of ['test@gmail.com', 'test123@yahoo.com', 'jon+test@gmail.com', 'jon+test2@gmail.com', 'a@example.com', 'x@test.io', 'jon@jonmac.co', 'ana@thejonmac.com', 'bot@jonmac.ai',
     'test.jon@gmail.com', 'jon.test@gmail.com', 'jon_test2@gmail.com', 'a@mail.test', 'x@sub.jonmac.ai'])
     assert.ok(isTestEmail(m), m);
   for (const m of ['latest@gmail.com', 'contest.winner@gmail.com', 'fanofguitars@gmail.com', 'ann@jonmac.com.au.example.org.real.ca', '', null,
     // planted: real people whose address only contains the letters "test".
-    'testa.maria@gmail.com', 'testimonials4u@gmail.com', 'jon.testerman@gmail.com', 'bob@contestcanada.ca', 'x@attest.io', 'x@testing.com'])
+    'testa.maria@gmail.com', 'testimonials4u@gmail.com', 'jon.testerman@gmail.com', 'bob@contestcanada.ca', 'x@attest.io', 'x@testing.com',
+    'jon+testimonials@gmail.com', 'a+testing@gmail.com'])
     assert.ok(!isTestEmail(m), String(m));
 });
 

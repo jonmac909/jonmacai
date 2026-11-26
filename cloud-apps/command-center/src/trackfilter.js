@@ -9,7 +9,7 @@ export const TEAM_IPS = [
 ];
 
 // Headless browsers, scripts, crawlers and link-preview fetchers. web_look.py runs headless Chromium ("HeadlessChrome").
-export const BOT_UA_RE = /headless|playwright|puppeteer|selenium|phantomjs|lighthouse|python|requests|aiohttp|httpx|curl|wget|node-fetch|undici|axios|okhttp|go-http|java\/|libwww|\bbot\b|bot\/|crawl|spider|slurp|preview|facebookexternalhit|embedly|whatsapp|slack|vkshare|quora link/i;
+export const BOT_UA_RE = /headless|playwright|puppeteer|selenium|phantomjs|lighthouse|python|requests|aiohttp|httpx|curl|wget|node-fetch|undici|axios|okhttp|go-http|java\/|libwww|\bbot\b|bot\/|adsbot|telegrambot|crawl|spider|slurp|preview|facebookexternalhit|embedly|whatsapp|slack|vkshare|quora link/i;
 export const isBotUA = (ua) => BOT_UA_RE.test(String(ua || '')); // every script and headless browser above names itself
 
 // Test sign-ups: "test" as a whole word in the local part (test, test123, test.x, jon+test, x.test) or the domain
@@ -20,7 +20,7 @@ export function isTestEmail(email) {
   const at = e.lastIndexOf('@');
   if (at < 1) return false;
   const local = e.slice(0, at), domain = e.slice(at + 1);
-  return /^test\d*$|^test[+._-]|[+._-]test\d*$|\+test/.test(local) || /(^|\.)test(\.|$)/.test(domain) || /^example\.(com|org|net)$/.test(domain)
+  return /^test\d*$|^test[+._-]|[+._-]test\d*$|\+test\d*([+._-]|$)/.test(local) || /(^|\.)test(\.|$)/.test(domain) || /^example\.(com|org|net)$/.test(domain)
     || TEAM_DOMAINS.some((d) => domain === d || domain.endsWith(`.${d}`));
 }
 
@@ -51,7 +51,9 @@ function parseIp(s) {
 }
 
 function parseRange(r) {
-  const [addr, bits] = String(r).split('/');
+  const parts = String(r).split('/');
+  if (parts.length > 2) return null; // '1.2.3.4/8/9' matches nothing, never read as /8
+  const [addr, bits] = parts;
   const ip = parseIp(addr);
   if (!ip) return null;
   const max = ip.v === 4 ? 32 : 128;
