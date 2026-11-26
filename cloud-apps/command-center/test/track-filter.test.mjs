@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import worker from '../src/worker.js';
 import { trackerData } from '../src/skool.js';
 import { leadsData } from '../src/skoolcrm.js';
-import { ipInList, isTeamIp, isBotUA, isTestEmail, TEAM_IPS } from '../src/trackfilter.js';
+import { ipInList, isTeamIp, isBotUA, isTestEmail, TEAM_IPS, isTestLink } from '../src/trackfilter.js';
 import { sqliteD1 } from './sqlited1.mjs';
 import './dnsstub.mjs';
 
@@ -153,4 +153,21 @@ test('planted: test links (TEST/QC title, qc- slug) are hidden with their clicks
   assert.deepEqual([a.clicks.all, a.emails, a.sales], [1, 1, 1]);
   assert.deepEqual((await leadsData(e.DB)).rows.map((r) => r.email), ['fan2@gmail.com']);
   assert.equal(await n(e, 'skool_links'), 4); // nothing deleted
+});
+
+test('planted: QC title hidden, lowercase Test drive shown, a sale guessed from clicks never lands on a test link', async () => {
+  const e = env(); const now = Date.now();
+  const link = (slug, title) => e.DB.prepare('INSERT INTO skool_links (slug, title, created_at, capture) VALUES (?, ?, ?, 1)').bind(slug, title, iso(now - 864e5)).run();
+  await link('neonqc', 'QC Neon pass');
+  await link('drive', 'Test drive the new Claude');
+  await link('vid', 'Real video');
+  assert.equal(isTestLink({ title: 'TESTAMENT of AI', slug: 'x' }), false);
+  await visit(e, '/vid');
+  await new Promise((r) => setTimeout(r, 5));
+  await visit(e, '/neonqc'); // newest click before the sale is on the QC link
+  await e.DB.prepare('INSERT INTO skool_sales (id, email, name, at, created_at) VALUES (?, ?, ?, ?, ?)').bind('s9', null, 'NoLead', iso(Date.now() + 1000), iso(Date.now())).run();
+  const d = await trackerData(e.DB);
+  const slugs = d.rows.map((r) => r.slug);
+  assert.ok(!slugs.includes('neonqc') && slugs.includes('drive'), slugs.join());
+  assert.deepEqual(d.sales.map((s) => [s.name, s.slug]), [['NoLead', 'vid']]);
 });

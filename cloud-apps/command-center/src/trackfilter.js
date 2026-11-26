@@ -1,4 +1,4 @@
-﻿// /track shows real visitors only (Jon, 2026-11-26): team traffic, bots and test sign-ups are not counted.
+// /track shows real visitors only (Jon, 2026-11-26): team traffic, bots and test sign-ups are not counted.
 // New clicks from a team IP or a bot user agent are not stored at all; anything already stored (or stored before a
 // team IP was added here) is hidden when /track reads it. Nothing is ever deleted.
 

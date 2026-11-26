@@ -233,8 +233,8 @@ export async function trackerData(db, nowMs = Date.now()) {
   }
   // The clicks any estimate could use, read once (newest first): from 24 h before the oldest sale to the newest sale.
   const S = (sales.results || []).filter((s) => !isTestEmail(s.email));
-  const win = S.length ? (await db.prepare(`SELECT slug, at FROM skool_clicks WHERE at >= ? AND at <= ? AND ${F.clause} ORDER BY at DESC LIMIT 50000`)
-    .bind(iso(Date.parse(S[S.length - 1].at) - ESTIMATE_HOURS * 3600e3), S[0].at, ...F.params).all()).results || [] : [];
+  const win = (S.length ? (await db.prepare(`SELECT slug, at FROM skool_clicks WHERE at >= ? AND at <= ? AND ${F.clause} ORDER BY at DESC LIMIT 50000`)
+    .bind(iso(Date.parse(S[S.length - 1].at) - ESTIMATE_HOURS * 3600e3), S[0].at, ...F.params).all()).results || [] : []).filter((c) => !testSlugs.has(c.slug)); // a test-link click never claims a real sale
   const list = S.map((s) => {
     const answer = s.email ? A.get(s.email) ?? null : null;
     const lead = s.email ? (byEmail.get(s.email) || []).find((x) => x.at <= s.at) : null; // newest email captured before the sale
