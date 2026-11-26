@@ -11,6 +11,7 @@ import { leadsData, leadsCsv, leadsPage, emailsPage, nav, BASE_CSS, FILTERS } fr
 import { SLUG_RE, SHORT_VARIANTS, listRoutes, slugRefusal, ensureSlugRoute, loadWords, variantsOf, shortWords } from './skoolroutes.js';
 import { wordsApi } from './skoolwords.js';
 import { SORT_CSS, SORT_JS } from './tablesort.js';
+import { isTeamOrBot, isTestEmail, hiddenLead, clickFilter } from './trackfilter.js';
 
 // Every Skool landing page sends people to the about page, not the email opt-in (Jon 2026-11-25): a GET counts the click and forwards.
 export const SKOOL = 'https://www.skool.com/ai-ugc/about';
@@ -62,6 +63,8 @@ export async function skoolRedirect(request, env, ctx) {
   }
   if (!link) return forward(to); // unknown slug: forward, count nothing
   const capture = link.capture === 1;
+  const ip = (request.headers.get('CF-Connecting-IP') || '').slice(0, 64) || null;
+  const ua = (request.headers.get('User-Agent') || '').slice(0, 300);
   if (request.method === 'POST') {
     if (!capture) return forward(to);
     const b = await body(request);
@@ -78,19 +81,20 @@ export async function skoolRedirect(request, env, ctx) {
       const recent = await env.DB.prepare('SELECT COUNT(*) AS n FROM skool_leads WHERE slug = ? AND at >= ?').bind(slug, iso(now - 600e3)).first();
       if ((recent?.n || 0) < MAX_LEADS_PER_10_MIN) {
         // at = the first capture time (a later visit must not move it past an earlier sale); last_at and the check follow the newest visit.
-        await env.DB.prepare(`INSERT INTO skool_leads (slug, email, at, email_check, last_at) VALUES (?, ?, ?, ?, ?)
+        // ip/ua: /track hides a team or bot sign-up (src/trackfilter.js); it is still saved so the team can test the emails.
+        await env.DB.prepare(`INSERT INTO skool_leads (slug, email, at, email_check, last_at, ip, ua) VALUES (?, ?, ?, ?, ?, ?, ?)
           ON CONFLICT(slug, email) DO UPDATE SET last_at = excluded.last_at, email_check = excluded.email_check`)
-          .bind(slug, res.email, iso(now), res.check, iso(now)).run();
+          .bind(slug, res.email, iso(now), res.check, iso(now), ip, ua).run();
       }
     } catch { console.error('skool lead save failed', slug); }
     return forward(to);
   }
-  if (request.method === 'GET' && !url.searchParams.has('qc')) {
+  if (request.method === 'GET' && !url.searchParams.has('qc') && !isTeamOrBot(ip, ua)) { // team IPs and bots are not counted (Jon 2026-11-26)
     let ref = null;
     try { const r = new URL(request.headers.get('Referer') || ''); ref = (r.host + r.pathname).slice(0, 200); } catch { /* none */ }
     const country = typeof request.cf?.country === 'string' ? request.cf.country.slice(0, 2) : null;
-    ctx.waitUntil(env.DB.prepare('INSERT INTO skool_clicks (slug, at, referrer, country) VALUES (?, ?, ?, ?)')
-      .bind(slug, iso(Date.now()), ref, country).run().catch((err) => console.error('skool click', err)));
+    ctx.waitUntil(env.DB.prepare('INSERT INTO skool_clicks (slug, at, referrer, country, ip, ua) VALUES (?, ?, ?, ?, ?, ?)')
+      .bind(slug, iso(Date.now()), ref, country, ip, ua).run().catch((err) => console.error('skool click', err)));
   }
   return forward(to); // no email step on GET any more (Jon 2026-11-25); a POST from an already-open form still stores the email
 }
@@ -196,12 +200,13 @@ export async function statsResetAt(db) {
 export async function trackerData(db, nowMs = Date.now()) {
   const d7 = iso(nowMs - 7 * 864e5), d30 = iso(nowMs - 30 * 864e5);
   const since = await statsResetAt(db), from = since || ''; // ISO strings sort as text; '' is before everything
+  const F = await clickFilter(db); // team, bot and test rows are hidden here, never deleted (src/trackfilter.js)
   const [links, clicks, sales, answers, leads] = await Promise.all([
     db.prepare('SELECT slug, title, youtube_url, created_at, capture FROM skool_links ORDER BY created_at DESC').all(),
-    db.prepare(`SELECT slug, COUNT(*) AS total, SUM(at >= ?) AS d7, SUM(at >= ?) AS d30 FROM skool_clicks WHERE at >= ? GROUP BY slug`).bind(d7, d30, from).all(),
+    db.prepare(`SELECT slug, COUNT(*) AS total, SUM(at >= ?) AS d7, SUM(at >= ?) AS d30 FROM skool_clicks WHERE at >= ? AND ${F.clause} GROUP BY slug`).bind(d7, d30, from, ...F.params).all(),
     db.prepare('SELECT id, email, name, at FROM skool_sales WHERE at >= ? ORDER BY at DESC LIMIT 2000').bind(from).all(),
     db.prepare('SELECT email, answer FROM skool_answers').all(),
-    db.prepare('SELECT slug, email, at FROM skool_leads ORDER BY at DESC LIMIT 50000').all(),
+    db.prepare('SELECT slug, email, at, ip, ua FROM skool_leads ORDER BY at DESC LIMIT 50000').all(),
   ]);
   const L = links.results || [];
   // The six social bio links count even without a skool_links row; last, so a video link's answer match wins first.
@@ -219,15 +224,15 @@ export async function trackerData(db, nowMs = Date.now()) {
   const byEmail = new Map(); // email -> its leads, newest first
   const captured = new Map(); // slug -> emails captured
   for (const x of leads.results || []) {
-    if (!known.has(x.slug)) continue;
+    if (!known.has(x.slug) || hiddenLead(x)) continue;
     if (x.at >= from) captured.set(x.slug, (captured.get(x.slug) || 0) + 1); // every lead still matches its sale; only the count is cut
     if (!byEmail.has(x.email)) byEmail.set(x.email, []);
     byEmail.get(x.email).push(x);
   }
   // The clicks any estimate could use, read once (newest first): from 24 h before the oldest sale to the newest sale.
-  const S = sales.results || [];
-  const win = S.length ? (await db.prepare('SELECT slug, at FROM skool_clicks WHERE at >= ? AND at <= ? ORDER BY at DESC LIMIT 50000')
-    .bind(iso(Date.parse(S[S.length - 1].at) - ESTIMATE_HOURS * 3600e3), S[0].at).all()).results || [] : [];
+  const S = (sales.results || []).filter((s) => !isTestEmail(s.email));
+  const win = S.length ? (await db.prepare(`SELECT slug, at FROM skool_clicks WHERE at >= ? AND at <= ? AND ${F.clause} ORDER BY at DESC LIMIT 50000`)
+    .bind(iso(Date.parse(S[S.length - 1].at) - ESTIMATE_HOURS * 3600e3), S[0].at, ...F.params).all()).results || [] : [];
   const list = S.map((s) => {
     const answer = s.email ? A.get(s.email) ?? null : null;
     const lead = s.email ? (byEmail.get(s.email) || []).find((x) => x.at <= s.at) : null; // newest email captured before the sale

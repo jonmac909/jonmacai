@@ -85,11 +85,11 @@ test('a captured email beats the answer and the estimate; page columns and count
   await addLink(e, 'gated', 'Gated video');
   await addLink(e, 'other', 'Other video');
   await toggle(e, 'other', false);
-  await go(e, '/s/gated', { method: 'POST', body: { email: 'buyer@example.com' } });
+  await go(e, '/s/gated', { method: 'POST', body: { email: 'buyer@gmail.com' } });
   await go(e, '/s/other'); // latest click is on "other", so an estimate would pick it
-  await go(e, '/track/api/answer', { method: 'POST', headers: H, body: { email: 'buyer@example.com', answer: 'Other video' } }); // answer disagrees: email wins
-  await sale(e, { email: 'Buyer@Example.com', first_name: 'Exact', transaction_id: 't-exact' });
-  await sale(e, { email: 'stranger@example.com', first_name: 'Guess', transaction_id: 't-est' });
+  await go(e, '/track/api/answer', { method: 'POST', headers: H, body: { email: 'buyer@gmail.com', answer: 'Other video' } }); // answer disagrees: email wins
+  await sale(e, { email: 'Buyer@gmail.com', first_name: 'Exact', transaction_id: 't-exact' });
+  await sale(e, { email: 'stranger@gmail.com', first_name: 'Guess', transaction_id: 't-est' });
   const d = await trackerData(e.DB);
   const by = Object.fromEntries(d.rows.map((r) => [r.slug, r]));
   const exact = d.sales.find((s) => s.name === 'Exact'), guess = d.sales.find((s) => s.name === 'Guess');

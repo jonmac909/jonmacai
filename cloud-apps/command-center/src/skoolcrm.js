@@ -1,4 +1,5 @@
 // /track Leads (one row per email), CSV export, and the email preview page. Signed-in only (routed from skool.js).
+import { hiddenLead } from './trackfilter.js'; // team, bot and test sign-ups are hidden (Jon 2026-11-26)
 import { EMAILS, SEQUENCE_DAYS, renderEmail, PRICE_LINE } from './skoolmail.js';
 import { TEST_TO, DEFAULT_BUSINESS, ADDRESS_PLACEHOLDER } from './skoolseq.js';
 
@@ -30,7 +31,7 @@ export const FILTERS = [['all', 'All'], ['bought', 'Bought'], ['notbought', 'Not
 
 export async function leadsData(db, { q = '', f = 'all' } = {}) {
   const [leads, links, sales, sends, stops] = await Promise.all([
-    db.prepare('SELECT slug, email, at, last_at, email_check FROM skool_leads ORDER BY at LIMIT 50000').all(),
+    db.prepare('SELECT slug, email, at, last_at, email_check, ip, ua FROM skool_leads ORDER BY at LIMIT 50000').all(),
     db.prepare('SELECT slug, title FROM skool_links').all(),
     db.prepare("SELECT email, at, amount FROM skool_sales WHERE email IS NOT NULL AND email != '' ORDER BY at").all(),
     db.prepare('SELECT email, day, status, sent_at, opened_at, error FROM skool_seq_sends').all(),
@@ -41,7 +42,7 @@ export async function leadsData(db, { q = '', f = 'all' } = {}) {
   const D = new Map(); for (const s of sends.results || []) { if (!D.has(s.email)) D.set(s.email, []); D.get(s.email).push(s); }
   const X = new Map((stops.results || []).map((s) => [s.email, s]));
   const byEmail = new Map();
-  for (const l of leads.results || []) { if (!byEmail.has(l.email)) byEmail.set(l.email, []); byEmail.get(l.email).push(l); }
+  for (const l of leads.results || []) { if (hiddenLead(l)) continue; if (!byEmail.has(l.email)) byEmail.set(l.email, []); byEmail.get(l.email).push(l); }
   let rows = [...byEmail].map(([email, ls]) => {
     const first = ls[0]; // oldest first
     const newest = [...ls].sort((a, b) => (b.last_at || b.at).localeCompare(a.last_at || a.at))[0];
