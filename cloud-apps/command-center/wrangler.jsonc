@@ -74,6 +74,8 @@
     // Dashboard 3 (docs/dashboard-3.md).
     { "pattern": "jonmac.ai/dash", "zone_name": "jonmac.ai" },
     { "pattern": "jonmac.ai/dash/*", "zone_name": "jonmac.ai" },
+    { "pattern": "jonmac.ai/jacq", "zone_name": "jonmac.ai" },
+    { "pattern": "jonmac.ai/jacq/*", "zone_name": "jonmac.ai" },
     // Private script review pages from R2 private/scripts/, signed in only (src/worker.js).
     { "pattern": "jonmac.ai/scripts", "zone_name": "jonmac.ai" },
     { "pattern": "jonmac.ai/scripts/*", "zone_name": "jonmac.ai" },
@@ -172,6 +174,32 @@
     // Per-card preview for the EOS page (card t_75395eabd6774bdc): same bindings as env.preview.
     "preview-eos": {
       "name": "jonmac-cc-preview-eos",
+      "workers_dev": true,
+      "preview_urls": false,
+      "routes": [],
+      "triggers": { "crons": [] },
+      "vars": { "PREVIEW": "1" },
+      "version_metadata": { "binding": "CF_VERSION_METADATA" },
+      "durable_objects": {
+        "bindings": [
+          { "name": "CALL_RELAY", "class_name": "CallRelay" },
+          { "name": "GPU_MONITOR", "class_name": "GpuMonitor" }
+        ]
+      },
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "command_center_preview",
+          "database_id": "cf929245-7de2-4fc6-85bf-e3f02c187e6a"
+        }
+      ],
+      "r2_buckets": [
+        { "binding": "UPLOADS", "bucket_name": "command-center-uploads-preview" }
+      ]
+    },
+    // Per-card preview for the /jacq Budget page (card t_9f5156f3507742d6): same bindings as env.preview.
+    "preview-jacq": {
+      "name": "jonmac-cc-preview-jacq",
       "workers_dev": true,
       "preview_urls": false,
       "routes": [],

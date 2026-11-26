@@ -2198,7 +2198,11 @@ async function route(request, db, who, rest, env, ctx) {
     const row = await db.prepare("SELECT data, collected_at FROM snapshots WHERE source = 'moneyclaw'").first();
     let data = null;
     try { data = row ? JSON.parse(row.data) : null; } catch { data = null; }
-    return json({ ok: true, collectedAt: row?.collected_at || null, budget: budgetView(data, Date.now()) });
+    const month = q.get('month'); // jonmac.ai/jacq month picker: a past month, YYYY-MM (card t_9f5156f3507742d6)
+    if (month && !/^\d{4}-\d{2}$/.test(month)) throw new Bad(400, 'month must be YYYY-MM');
+    const budget = budgetView(data, Date.now(), month || null);
+    if (!budget) return json({ ok: false, error: `No budget for ${month} yet` }, 404);
+    return json({ ok: true, collectedAt: row?.collected_at || null, budget });
   }
   if (kind === 'budget' && rawId === 'refresh' && !verb && method === 'POST') { // pull MoneyClaw now, after a bank import (card t_bc95ba79d31048c8)
     if (!who.jon) needBot(who);

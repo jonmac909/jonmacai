@@ -36,7 +36,7 @@ document.getElementById('f').addEventListener('submit', async (e) => {
   const body = res ? await res.json().catch(() => ({})) : {};
   if (res && res.ok) {
     try { sessionStorage.removeItem('d3-signin'); } catch {}
-    if (location.pathname === '/dash/') location.reload(); else location.href = '/dash/';
+    if (/^\/(dash\/|jacq\/?)$/.test(location.pathname)) location.reload(); else location.href = '/dash/'; // /jacq signs in to itself
     return;
   }
   err.textContent = body.error || 'Wrong password. Try again.';

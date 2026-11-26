@@ -199,7 +199,7 @@ test('page: 2 rows x 3 cards, Travel switch both ways, categories then transacti
 test('API: GET /dashboard/api/v1/budget reads the stored MoneyClaw summary', async () => {
   const bots = readFileSync(new URL('../src/bots.js', import.meta.url), 'utf8');
   assert.match(bots, /kind === 'budget' && !rawId && method === 'GET'/);
-  assert.match(bots, /budget: budgetView\(data, Date\.now\(\)\)/);
+  assert.match(bots, /budgetView\(data, Date\.now\(\), month \|\| null\)/); // month: jonmac.ai/jacq's picker (t_9f5156f3507742d6)
 });
 
 test('category panel: centered modal on desktop, bottom sheet on phones (t_f6d63d7298324b9c)', () => {
