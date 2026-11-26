@@ -9,17 +9,18 @@ export const TEAM_IPS = [
 ];
 
 // Headless browsers, scripts, crawlers and link-preview fetchers. web_look.py runs headless Chromium ("HeadlessChrome").
-export const BOT_UA_RE = /headless|playwright|puppeteer|selenium|phantomjs|lighthouse|python|requests|aiohttp|httpx|curl|wget|node-fetch|undici|axios|okhttp|go-http|java\/|libwww|bot\b|bot\/|crawl|spider|slurp|preview|facebookexternalhit|embedly|whatsapp|slack|vkshare|quora link/i;
+export const BOT_UA_RE = /headless|playwright|puppeteer|selenium|phantomjs|lighthouse|python|requests|aiohttp|httpx|curl|wget|node-fetch|undici|axios|okhttp|go-http|java\/|libwww|\bbot\b|bot\/|crawl|spider|slurp|preview|facebookexternalhit|embedly|whatsapp|slack|vkshare|quora link/i;
 export const isBotUA = (ua) => BOT_UA_RE.test(String(ua || '')); // every script and headless browser above names itself
 
-// Test sign-ups: a local part starting with "test" (or "+test", ".test"), "test" in the domain, example domains, team domains.
+// Test sign-ups: "test" as a whole word in the local part (test, test123, test.x, jon+test, x.test) or the domain
+// (test.io, mail.test), example domains, team domains. testimonials4u@, jon.testerman@, @contestcanada.ca are real.
 const TEAM_DOMAINS = ['thejonmac.com', 'jonmac.ai', 'jonmac.co'];
 export function isTestEmail(email) {
   const e = String(email || '').toLowerCase().trim();
   const at = e.lastIndexOf('@');
   if (at < 1) return false;
   const local = e.slice(0, at), domain = e.slice(at + 1);
-  return /^test|[+._-]test/.test(local) || domain.includes('test') || /^example\.(com|org|net)$/.test(domain)
+  return /^test\d*$|^test[+._-]|[+._-]test\d*$|\+test/.test(local) || /(^|\.)test(\.|$)/.test(domain) || /^example\.(com|org|net)$/.test(domain)
     || TEAM_DOMAINS.some((d) => domain === d || domain.endsWith(`.${d}`));
 }
 
@@ -54,7 +55,7 @@ function parseRange(r) {
   const ip = parseIp(addr);
   if (!ip) return null;
   const max = ip.v === 4 ? 32 : 128;
-  const len = bits === undefined ? max : Number(bits);
+  const len = bits === undefined ? max : /^\d+$/.test(bits) ? +bits : NaN; // '1.2.3.4/' or '/x' matches nothing, never /0
   if (!Number.isInteger(len) || len < 0 || len > max) return null;
   const shift = BigInt(max - len);
   return { v: ip.v, shift, base: ip.n >> shift };
