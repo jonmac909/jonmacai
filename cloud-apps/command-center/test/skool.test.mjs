@@ -27,7 +27,7 @@ test('a short link counts the click and forwards to Skool with UTM tags, never ?
   const r = await go(e, '/s/seedance-ugc', { headers: { Referer: 'https://www.youtube.com/watch?v=jiwzKmYi4NU' } });
   assert.equal(r.status, 302);
   const to = new URL(r.headers.get('Location'));
-  assert.equal(to.origin + to.pathname, 'https://www.skool.com/ai-ugc');
+  assert.equal(to.origin + to.pathname, 'https://www.skool.com/ai-ugc/about');
   assert.equal(to.searchParams.get('utm_campaign'), 'seedance-ugc');
   assert.equal(to.searchParams.has('ref'), false);
   const row = await e.DB.prepare('SELECT * FROM skool_clicks').first();

@@ -29,12 +29,12 @@ test('email step is on for every new link; switched off, the link forwards strai
   const e = env();
   await addLink(e, 'plain-link', 'Plain');
   assert.equal((await e.DB.prepare('SELECT capture FROM skool_links').first()).capture, 1);
-  assert.equal((await go(e, '/s/plain-link')).status, 200); // new link shows the pop-over
+  assert.equal((await go(e, '/s/plain-link')).status, 302); // no pop-over on GET any more (Jon 2026-11-25): straight to the Skool about page
   assert.equal((await toggle(e, 'plain-link', false)).status, 200);
   assert.equal((await e.DB.prepare('SELECT capture FROM skool_links').first()).capture, 0);
   const r = await go(e, '/s/plain-link');
   assert.equal(r.status, 302);
-  assert.match(r.headers.get('Location'), /^https:\/\/www\.skool\.com\/ai-ugc\?utm_source=youtube/);
+  assert.match(r.headers.get('Location'), /^https:\/\/www\.skool\.com\/ai-ugc\/about\?utm_source=youtube/);
   assert.equal((await go(e, '/s/plain-link', { method: 'POST', body: { email: 'a@b.co' } })).status, 302); // POST to an off link forwards, stores nothing
   assert.deepEqual(await leads(e), []);
 });
@@ -43,19 +43,21 @@ test('email step on: form shows and counts the click; POST stores the email and 
   const e = env();
   await addLink(e, 'gated', 'Gated');
   assert.equal((await toggle(e, 'gated', true)).status, 200);
-  const g = await go(e, '/s/gated');
-  assert.equal(g.status, 200);
-  const html = await g.text();
+  const g = await go(e, '/s/gated'); // GET goes straight to the about page (Jon 2026-11-25); the click still counts
+  assert.equal(g.status, 302);
+  assert.equal(new URL(g.headers.get('Location')).pathname, '/ai-ugc/about');
+  assert.equal((await e.DB.prepare('SELECT COUNT(*) AS n FROM skool_clicks').first()).n, 1);
+  const bad = await go(e, '/s/gated', { method: 'POST', body: { email: 'not-an-email' } }); // a form that was already open still works
+  assert.equal(bad.status, 400);
+  const html = await bad.text();
   assert.match(html, /Enter your email to get access/);
   assert.doesNotMatch(html, /stays on jonmac\.ai/); // Jon removed the privacy line
   assert.match(html, /<form method="post" action="\/gated">/);
-  assert.equal((await e.DB.prepare('SELECT COUNT(*) AS n FROM skool_clicks').first()).n, 1);
-  assert.equal((await go(e, '/s/gated', { method: 'POST', body: { email: 'not-an-email' } })).status, 400);
   assert.deepEqual(await leads(e), []);
   const ok = await go(e, '/s/gated', { method: 'POST', body: { email: ' Buyer@Example.COM ' } });
   assert.equal(ok.status, 302);
   const to = new URL(ok.headers.get('Location'));
-  assert.equal(to.origin + to.pathname, 'https://www.skool.com/ai-ugc');
+  assert.equal(to.origin + to.pathname, 'https://www.skool.com/ai-ugc/about');
   assert.equal(to.searchParams.get('utm_campaign'), 'gated');
   assert.equal(to.searchParams.has('email'), false); // the email never travels to Skool
   assert.deepEqual(await leads(e), [{ slug: 'gated', email: 'buyer@example.com' }]);

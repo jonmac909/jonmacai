@@ -105,8 +105,8 @@ test("a registered word's six slugs serve the lander, count under their own slug
   const want = { astra: 'youtube', astrax: 'x', astrali: 'linkedin', astrafb: 'facebook', astraig: 'instagram', astratt: 'tiktok' };
   for (const [slug, source] of Object.entries(want)) {
     const page = await go(e, `/${slug}`, { auth: null });
-    assert.equal(page.status, 200, slug);
-    assert.match(await page.text(), new RegExp(`action="/${slug}"`));
+    assert.equal(page.status, 302, slug); // straight to the Skool about page (Jon 2026-11-25)
+    assert.equal(new URL(page.headers.get('Location')).searchParams.get('utm_source'), source, slug);
     assert.equal(await clicks(e, slug), 1, slug);
     const r = await go(e, `/${slug}`, { auth: null, method: 'POST', form: { email: `w-${slug}@gmail.com` } });
     assert.equal(r.status, 302);
@@ -123,7 +123,7 @@ test("a registered word's six slugs serve the lander, count under their own slug
   assert.equal(d.rows.find((r) => r.slug === 'astrax').title, 'Astra Seedance - X');
   assert.equal(d.rows.find((r) => r.slug === 'astrax').clicks.all, 1);
   // Neon is unchanged alongside it.
-  assert.equal((await go(e, '/neon', { auth: null })).status, 200);
+  assert.equal((await go(e, '/neon', { auth: null })).status, 302);
   assert.equal(await clicks(e, 'neon'), 1);
   assert.equal((await go(e, '/s/neon', { auth: null })).headers.get('Location'), '/neon');
 });
@@ -145,7 +145,7 @@ test('live: register makes the jonmac.ai/<word>* route, and a sync after a deplo
 test('an empty or missing skool_words table leaves neon working', async () => {
   const e = env();
   e.DB.sqlite.exec('DROP TABLE skool_words');
-  assert.equal((await go(e, '/neonx', { auth: null })).status, 200);
+  assert.equal((await go(e, '/neonx', { auth: null })).status, 302);
   assert.equal(await clicks(e, 'neonx'), 1);
   // The first register makes the table again.
   assert.equal((await reg(e, { word: 'astra', title: 'A' })).status, 201);

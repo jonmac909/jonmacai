@@ -36,23 +36,22 @@ test('each platform link (/neon, /neonx, ...) shows the lander, counts under its
   assert.deepEqual(SLUGS.filter((s) => SHORT_VARIANTS[s].word === 'neon'), ['neon', 'neonx', 'neonli', 'neonfb', 'neonig', 'neontt']);
   for (const w of SLUGS) {
     const v = SHORT_VARIANTS[w];
-    const page = await go(e, `/${w}`);
-    assert.equal(page.status, 200, w);
-    const html = await page.text();
-    assert.match(html, /Enter your email to get access/);
-    assert.match(html, new RegExp(`action="/${w}"`));
-    assert.doesNotMatch(html, /\$\s?\d|\/mo(nth)?\b/i, `${w}: no price`);
+    const page = await go(e, `/${w}`); // no email step on GET (Jon 2026-11-25): straight to the Skool about page with the tags
+    assert.equal(page.status, 302, w);
+    const pg = new URL(page.headers.get('Location'));
+    assert.equal(pg.origin + pg.pathname, 'https://www.skool.com/ai-ugc/about', w);
+    assert.deepEqual(Object.fromEntries(pg.searchParams), { utm_source: v.platform, utm_medium: 'video', utm_campaign: v.word });
     assert.equal(await clicks(e, w), 1, `${w}: one click under the word`);
     const r = await go(e, `/${w}`, { method: 'POST', form: { email: `short-${w}@gmail.com` } });
     assert.equal(r.status, 302);
     const to = new URL(r.headers.get('Location'));
-    assert.equal(to.origin + to.pathname, 'https://www.skool.com/ai-ugc');
+    assert.equal(to.origin + to.pathname, 'https://www.skool.com/ai-ugc/about');
     assert.deepEqual(Object.fromEntries(to.searchParams), { utm_source: v.platform, utm_medium: 'video', utm_campaign: v.word });
     const lead = await e.DB.prepare('SELECT slug FROM skool_leads WHERE email = ?').bind(`short-${w}@gmail.com`).first();
     assert.equal(lead?.slug, w);
     // Trailing slash and a query string are the same link; ?qc=1 is not counted.
-    assert.equal((await go(e, `/${w}/?utm_x=1`)).status, 200);
-    assert.equal((await go(e, `/${w}?qc=1`)).status, 200);
+    assert.equal((await go(e, `/${w}/?utm_x=1`)).status, 302);
+    assert.equal((await go(e, `/${w}?qc=1`)).status, 302);
     assert.equal(await clicks(e, w), 2);
   }
   const src = Object.fromEntries(SLUGS.map((s) => [s, SHORT_VARIANTS[s].platform]));
@@ -97,7 +96,7 @@ test('/s/neon 301s to /neon; other /s/<slug> video links behave as before', asyn
   // A registered /s/ link with the email step still shows the lander and counts under its slug.
   await e.DB.prepare("INSERT INTO skool_links (slug, title, created_at, capture) VALUES ('gemini-4-neon', 'G', '2026-11-24T00:00:00Z', 1)").run();
   const k = await go(e, '/s/gemini-4-neon');
-  assert.equal(k.status, 200);
+  assert.equal(k.status, 302); // straight to the Skool about page (Jon 2026-11-25)
   assert.equal(await clicks(e, 'gemini-4-neon'), 1);
   assert.equal(await clicks(e, 'neon'), 0);
 });

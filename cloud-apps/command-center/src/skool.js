@@ -11,7 +11,8 @@ import { leadsData, leadsCsv, leadsPage, emailsPage, nav, BASE_CSS, FILTERS } fr
 import { SLUG_RE, SHORT_VARIANTS, listRoutes, slugRefusal, ensureSlugRoute, loadWords, variantsOf, shortWords } from './skoolroutes.js';
 import { wordsApi } from './skoolwords.js';
 
-export const SKOOL = 'https://www.skool.com/ai-ugc';
+// Every Skool landing page sends people to the about page, not the email opt-in (Jon 2026-11-25): a GET counts the click and forwards.
+export const SKOOL = 'https://www.skool.com/ai-ugc/about';
 export const ESTIMATE_HOURS = 24;
 export const YT_RE = /^https:\/\/(www\.|m\.)?(youtube\.com\/(watch\?v=|shorts\/|live\/)|youtu\.be\/)([\w-]{11})/i;
 const MAX_LEADS_PER_10_MIN = 60; // per link: stops a script from filling the table
@@ -90,7 +91,7 @@ export async function skoolRedirect(request, env, ctx) {
     ctx.waitUntil(env.DB.prepare('INSERT INTO skool_clicks (slug, at, referrer, country) VALUES (?, ?, ?, ?)')
       .bind(slug, iso(Date.now()), ref, country).run().catch((err) => console.error('skool click', err)));
   }
-  return capture ? capturePage(slug, '', 200) : forward(to);
+  return forward(to); // no email step on GET any more (Jon 2026-11-25); a POST from an already-open form still stores the email
 }
 
 // The email step looks like the Skool about page with the email box as a pop-over. www.skool.com sends

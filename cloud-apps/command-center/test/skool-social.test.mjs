@@ -22,16 +22,15 @@ async function go(e, path, { method = 'GET', form } = {}) {
 test('six short links show the lander, record their own platform and forward with its utm tags', async () => {
   const e = { DB: sqliteD1() };
   for (const [short, source] of Object.entries(SIX)) {
-    const page = await go(e, `/${short}`);
-    assert.equal(page.status, 200, short);
-    const html = await page.text();
-    assert.match(html, /<title>AI Video Lab on Skool<\/title>/, short);
-    assert.match(html, new RegExp(`action="/${short}"`), short);
-    assert.doesNotMatch(html, /\$\s?\d|\/mo(nth)?\b/i, `${short}: no price (the Skool screenshots under it have the prices taken out)`);
+    const page = await go(e, `/${short}`); // no email step on GET (Jon 2026-11-25): straight to the Skool about page with the tags
+    assert.equal(page.status, 302, short);
+    const pg = new URL(page.headers.get('Location'));
+    assert.equal(pg.origin + pg.pathname, 'https://www.skool.com/ai-ugc/about', short);
+    assert.deepEqual(Object.fromEntries(pg.searchParams), { utm_source: source, utm_medium: 'social', utm_campaign: 'bio' }, short);
     const r = await go(e, `/${short}`, { method: 'POST', form: { email: `lander-test-${short}@gmail.com` } });
     assert.equal(r.status, 302, short);
     const to = new URL(r.headers.get('Location'));
-    assert.equal(to.origin + to.pathname, 'https://www.skool.com/ai-ugc');
+    assert.equal(to.origin + to.pathname, 'https://www.skool.com/ai-ugc/about');
     assert.deepEqual(Object.fromEntries(to.searchParams), { utm_source: source, utm_medium: 'social', utm_campaign: 'bio' }, short);
     const lead = await e.DB.prepare('SELECT slug FROM skool_leads WHERE email = ?').bind(`lander-test-${short}@gmail.com`).first();
     assert.equal(lead?.slug, short, `${short}: lead stored under its own link`);
@@ -88,13 +87,13 @@ test('query strings: routes are wildcards so /fb?fbclid=1 reaches the worker; la
   const e = { DB: sqliteD1() };
   for (const p of ['/fb?fbclid=1', '/ig?utm_source=foo']) {
     const r = await go(e, p);
-    assert.equal(r.status, 200, p);
-    assert.match(await r.text(), /<title>AI Video Lab on Skool<\/title>/, p);
+    assert.equal(r.status, 302, p);
+    assert.equal(new URL(r.headers.get('Location')).pathname, '/ai-ugc/about', p);
   }
   const r = await go(e, '/s/x?fbclid=1');
   assert.equal(r.status, 301);
   assert.equal(r.headers.get('Location'), '/x?fbclid=1');
-  assert.equal((await go(e, '/x?fbclid=1')).status, 200);
+  assert.equal((await go(e, '/x?fbclid=1')).status, 302);
 });
 
 test('other paths under the six prefixes pass through to the main site unchanged', async () => {
@@ -122,8 +121,8 @@ test('welcome email for a bio link does not name a video', async () => {
 
 test('review: /ig/ is the lander, a failing main site gives 502, footer names a link that works', async () => {
   const r = await go({ DB: sqliteD1() }, '/ig/?fbclid=1');
-  assert.equal(r.status, 200);
-  assert.match(await r.text(), /action="\/ig"/);
+  assert.equal(r.status, 302);
+  assert.equal(new URL(r.headers.get('Location')).searchParams.get('utm_source'), 'instagram');
   const APEX = { fetch: async () => { throw new Error('down'); } };
   assert.equal((await go({ DB: sqliteD1(), APEX }, '/library')).status, 502);
   const { renderEmail } = await import('../src/skoolmail.js');
