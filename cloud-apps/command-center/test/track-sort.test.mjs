@@ -1,7 +1,10 @@
 // /track click-to-sort (card t_b5f61b3767414d44): numbers as numbers, dates as dates, blanks last, direction flips.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { cellKey, compareCells, sortRows, SORT_JS } from '../src/tablesort.js';
+import { SORT_LIB, SORT_JS } from '../src/tablesort.js';
+// The same string the browser runs, evaluated here (never Function.prototype.toString: see src/tablesort.js).
+const { cellKey, compareCells, sortRows } = new Function(`${SORT_LIB}
+return { cellKey, compareCells, sortRows };`)();
 import { trackerPage } from '../src/skool.js';
 
 // Each case: [column values, dir, expected order]. A plain string sort gets every one wrong.
@@ -49,7 +52,8 @@ test('/track page: both tables sortable, Added date column, sales sort by total,
   assert.match(html, /data-sort="3"/);
   assert.match(html, /data-col="1" data-dir="-1"/); // default: newest added first
   assert.ok(html.includes(SORT_JS));
-  assert.doesNotThrow(() => new Function(SORT_JS.replace(/\(function wireSort[\s\S]*$/, '')));
+  assert.doesNotThrow(() => new Function(SORT_JS));
+  assert.ok(!SORT_JS.includes('__name'));
 });
 
 test('browser script: click sorts, click again flips, arrow shows, choice kept for the next load', () => {
@@ -74,4 +78,16 @@ test('browser script: click sorts, click again flips, arrow shows, choice kept f
   assert.equal(t.ths[0].dataset.arrow, '');
   const t2 = mkTable(); run(t2); // reload keeps the sort
   assert.equal(t2.order(), 'dabc');
+});
+
+test('bad saved sort in localStorage falls back to the table default', () => {
+  for (const bad of ['[1,"asc"]', '[1,0]', '[9,1]', '[1.5,1]', '"x"', '{', '[1,1,1]']) {
+    const rows = [['a', '2'], ['b', '1'], ['c', '3']].map((r) => ({ id: r[0], cells: r.map((t) => ({ textContent: t, dataset: {} })) }));
+    const ths = ['Video', 'N'].map(() => ({ dataset: {}, classList: { contains: () => false }, setAttribute() {} }));
+    const body = { get rows() { return rows.slice(); }, appendChild(r) { rows.splice(rows.indexOf(r), 1); rows.push(r); } };
+    const tbl = { id: 'links', dataset: { col: '0', dir: '-1' }, tHead: { rows: [{ cells: ths }] }, tBodies: [body] };
+    new Function('document', 'localStorage', SORT_JS)({ querySelectorAll: () => [tbl] }, { getItem: () => bad, setItem() {} });
+    assert.equal(rows.map((r) => r.id).join(''), 'cba', `saved ${bad}`);
+    assert.equal(ths[0].dataset.arrow, ' ▼');
+  }
 });
