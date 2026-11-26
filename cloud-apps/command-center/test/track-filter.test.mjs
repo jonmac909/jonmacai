@@ -141,14 +141,14 @@ test('planted: test links (TEST/QC title, qc- slug) are hidden with their clicks
   await visit(e, '/popover-test', { method: 'POST', email: 'fan1@gmail.com' });
   await visit(e, '/astra62-test', { method: 'POST', email: 'fan2@gmail.com' });
   const sale = (id, email) => e.DB.prepare('INSERT INTO skool_sales (id, email, name, at, created_at) VALUES (?, ?, ?, ?, ?)').bind(id, email, id, iso(Date.now()), iso(Date.now())).run();
-  await sale('s1', 'fan1@gmail.com'); // tied to the TEST link: hidden, not counted as "not tied"
+  await sale('s1', 'fan1@gmail.com'); // only lead was on the TEST link: the real sale still shows, never dropped
   await sale('s2', 'fan2@gmail.com');
   const d = await trackerData(e.DB);
   const slugs = d.rows.map((r) => r.slug);
   assert.ok(!slugs.includes('popover-test') && !slugs.includes('qc-check'), slugs.join());
   assert.ok(slugs.includes('astra62-test') && slugs.includes('testing-x'));
-  assert.deepEqual(d.sales.map((s) => s.name), ['s2']);
-  assert.equal(d.unattributed, 0);
+  assert.deepEqual(d.sales.map((s) => s.name).sort(), ['s1', 's2']);
+  assert.ok(d.sales.every((s) => !['popover-test', 'qc-check'].includes(s.slug)));
   const a = d.rows.find((r) => r.slug === 'astra62-test');
   assert.deepEqual([a.clicks.all, a.emails, a.sales], [1, 1, 1]);
   assert.deepEqual((await leadsData(e.DB)).rows.map((r) => r.email), ['fan2@gmail.com']);

@@ -220,14 +220,14 @@ export async function trackerData(db, nowMs = Date.now()) {
   for (const [slug, s] of Object.entries(variantsOf(words))) {
     if (!L.some((l) => l.slug === slug)) L.push({ slug, title: s.title, youtube_url: words[s.word].youtube_url || null, created_at: '', capture: 1 });
   }
-  const known = new Set([...L.map((l) => l.slug), ...testSlugs]); // test-link leads still claim their sale, which is then hidden
+  const known = new Set(L.map((l) => l.slug)); // test-link leads are skipped: a real buyer's sale falls to a real link or 'not tied'
   const C = new Map((clicks.results || []).map((c) => [c.slug, c]));
   const A = new Map((answers.results || []).map((x) => [x.email, x.answer]));
   const byEmail = new Map(); // email -> its leads, newest first
   const captured = new Map(); // slug -> emails captured
   for (const x of leads.results || []) {
     if (!known.has(x.slug) || hiddenLead(x)) continue;
-    if (x.at >= from && !testSlugs.has(x.slug)) captured.set(x.slug, (captured.get(x.slug) || 0) + 1); // every lead still matches its sale; only the count is cut
+    if (x.at >= from) captured.set(x.slug, (captured.get(x.slug) || 0) + 1); // every lead still matches its sale; only the count is cut
     if (!byEmail.has(x.email)) byEmail.set(x.email, []);
     byEmail.get(x.email).push(x);
   }
@@ -237,7 +237,7 @@ export async function trackerData(db, nowMs = Date.now()) {
     .bind(iso(Date.parse(S[S.length - 1].at) - ESTIMATE_HOURS * 3600e3), S[0].at, ...F.params).all()).results || [] : []).filter((c) => !testSlugs.has(c.slug)); // a test-link click never claims a real sale
   const list = S.map((s) => {
     const answer = s.email ? A.get(s.email) ?? null : null;
-    const lead = s.email ? (byEmail.get(s.email) || []).find((x) => x.at <= s.at) : null; // newest email captured before the sale
+    const lead = s.email ? (byEmail.get(s.email) || []).find((x) => x.at <= s.at && !testSlugs.has(x.slug)) : null; // newest email captured before the sale
     let slug = lead ? lead.slug : answer ? matchAnswer(answer, L) : null;
     let how = lead ? 'email' : slug ? 'answer' : 'none';
     if (!slug) {
