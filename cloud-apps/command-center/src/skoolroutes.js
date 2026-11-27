@@ -56,7 +56,7 @@ export async function shortWords(request, env) {
 export const wordPattern = (word) => `${HOST}/${word}*`; // a word's wildcard route, like jonmac.ai/neon*
 export const SHORT_SLUGS = Object.keys(SHORT_VARIANTS);
 export const BUILT_IN_SLUGS = [...SOCIAL_SLUGS, ...SHORT_SLUGS]; // wildcard routes in wrangler.jsonc, never a slug route
-export const RESERVED = new Set(['dashboard', 'dashboard-2', 'dash', 'jacq', 'scripts', 'v', 's', 'track', 'monitor', 'twilio', 'api', 'www', 'skool', ...BUILT_IN_SLUGS]);
+export const RESERVED = new Set(['dashboard', 'dashboard-2', 'dash', 'jacq', 'scripts', 'v', 's', 'track', 'monitor', 'twilio', 'api', 'www', 'skool', 'reviewer-vault', ...BUILT_IN_SLUGS]);
 // Other workers' routes on the zone (GET /zones/{zone}/workers/routes, 2026-11-21). Used when the live list can't be read,
 // and always alongside it, so a slug is never let through just because the API was down.
 export const OTHER_ROUTES = [

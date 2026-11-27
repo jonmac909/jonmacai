@@ -19,6 +19,8 @@ const PREFIX = '/dashboard';
 const D2 = '/dashboard-2';
 const D3 = '/dash';
 const JACQ = '/jacq';
+const REVIEWER_VAULT = '/reviewer-vault';
+const REVIEWER_VAULT_FILE = /^\/files\/(gemini-4-neon-5-jobs-kit\.zip|token-saver-multimodel-setup\.zip|smb-retainer-pricing-calculator\.html)$/;
 
 async function asset(request, env, assetPath) {
   const assetUrl = new URL(request.url);
@@ -76,6 +78,16 @@ export default {
     // Skool short links and the /track page (src/skool.js).
     if (url.pathname.startsWith('/s/')) return skoolRedirect(request, env, ctx);
     if (url.pathname === '/skool' || url.pathname === '/skool/') return skoolHome(request); // jonmac.ai/skool -> AI Income Lab
+    // Unlisted Reviewer Bonus Vault (Jon 2026-11-27): static page + 3 allowlisted downloads, X-Robots-Tag noindex.
+    if (url.pathname === REVIEWER_VAULT || url.pathname.startsWith(`${REVIEWER_VAULT}/`)) {
+      if (request.method !== 'GET' && request.method !== 'HEAD') {
+        return new Response('Method not allowed', { status: 405, headers: { Allow: 'GET, HEAD', 'X-Robots-Tag': 'noindex, nofollow' } });
+      }
+      const sub = assetTarget(url.pathname.slice(REVIEWER_VAULT.length) || '/');
+      if (sub === '/' || sub === '/index.html') return asset(request, env, `${REVIEWER_VAULT}/index.html`);
+      if (REVIEWER_VAULT_FILE.test(sub)) return asset(request, env, `${REVIEWER_VAULT}${sub}`);
+      return new Response('Not found', { status: 404, headers: { 'X-Robots-Tag': 'noindex, nofollow' } });
+    }
     if (url.pathname === '/track' || url.pathname.startsWith('/track/')) return handleTracker(request, env);
     // Dashboard 2 (docs/dashboard-2.md): its own pages under public/d2; data comes from /dashboard/api/d2.
     if (url.pathname === D2) {
@@ -131,7 +143,7 @@ export default {
         if (known) return skoolRedirect(request, env, ctx);
       }
       // The built-in routes are wildcards (jonmac.ai/x* so /x?fbclid=1 reaches us); any other path under them is the main site's, unchanged.
-      if (env.APEX && [...SOCIAL_SLUGS, 'skool', ...Object.keys(words)].some((s) => url.pathname.toLowerCase().startsWith(`/${s}`))) {
+      if (env.APEX && [...SOCIAL_SLUGS, 'skool', 'reviewer-vault', ...Object.keys(words)].some((s) => url.pathname.toLowerCase().startsWith(`/${s}`))) {
         try { return await env.APEX.fetch(request); } catch (err) { console.error('apex pass-through', err.message); return new Response('Bad gateway', { status: 502 }); }
       }
       return new Response('Not found', { status: 404 });
@@ -146,7 +158,7 @@ export default {
     if (url.pathname.startsWith(`${PREFIX}/api/`)) return handleApi(request, env, ctx);
 
     let assetPath = url.pathname.slice(PREFIX.length) || '/';
-    if (/^\/(d[23]|monitor)(\/|$)/i.test(assetTarget(assetPath))) return notFound(); // Dashboard 2's and 3's files only behind /dashboard-2 and /dash, the monitor's behind /monitor
+    if (/^\/(d[23]|monitor|reviewer-vault)(\/|$)/i.test(assetTarget(assetPath))) return notFound(); // Dashboard 2's and 3's files only behind /dashboard-2 and /dash, the monitor's behind /monitor
     if (assetPath === '/') assetPath = '/index.html';
     if (assetPath === '/call') assetPath = '/call.html';
     if (assetPath === '/privacy') assetPath = '/privacy.html'; // public: Google's consent screen links here
