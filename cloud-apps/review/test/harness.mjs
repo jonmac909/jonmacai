@@ -48,7 +48,7 @@ export async function startRuntime({ listen = false, https = true, bindings = SE
     serviceBindings: {
       ASSETS: async (request) => {
         const name = new URL(request.url).pathname.slice(1);
-        if (!/^(app\.(js|css)|group\.js|geist\.woff2)$/.test(name)) return new MFResponse("missing", { status: 404 });
+        if (!/^(app\.(js|css)|group\.js|compare(-core)?\.js|geist\.woff2)$/.test(name)) return new MFResponse("missing", { status: 404 });
         return new MFResponse(readFileSync(new URL(`public/${name}`, root)), { headers: { "Content-Type": TYPES[name.split(".").pop()] } });
       },
       ...(dashboard ? { DASHBOARD: dashboard } : {}),

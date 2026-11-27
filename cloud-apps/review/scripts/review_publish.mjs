@@ -8,6 +8,8 @@
 //     [--compare first60_side_by_side.mp4] [--chapters versions.json] [--sync versions.json]
 //     [--notes "what changed"] [--replaces mina-1-v8] [--task t_0123456789abcdef] [--dry-run]
 //     [--source-text lesson.html]   the original of a text-only lesson, shown left of ours (no source video)
+//     [--changes v2/versions/v9.json]   what this version changed ({reason, changes: [{from, to, what}]}), the strip on
+//                                       the compare page (/review/<slug>/compare) and the "why" in fix briefs
 //
 // --task <dashboard task id>: the video's card, so Jon's Approve and Submit changes land on it (else matched by title).
 // After Jon approves a version, publishing a new one is refused (409) until he asks for changes, except
@@ -266,6 +268,7 @@ async function main() {
       title: args.title, status: args.status, notes: args.notes, fix: args.fix, chapters, sync, task_id: args.task,
       video_key: videoKey, video_sha256: video.sha256, source_key: sourceKey, compare_key: compareKey, duration: video.duration,
       video_w: video.width, video_h: video.height, source_w: source?.width, source_h: source?.height,
+      changes: args.changes ? JSON.parse(readFileSync(args.changes, "utf8")) : undefined, // vN.json, checked by the Worker
       source_text: args["source-text"] ? readFileSync(args["source-text"], "utf8") : undefined, // the original of a text-only lesson (HTML, sanitized by the Worker)
     },
   });

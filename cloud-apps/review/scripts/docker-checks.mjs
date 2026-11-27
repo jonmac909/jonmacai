@@ -3,6 +3,7 @@ import { spawnSync } from 'node:child_process';
 const checks = [
   ['npm', ['test']],
   ['node', ['test/browser.mjs', '--out', '/tmp/proof']],
+  ['node', ['test/compare-browser.mjs']],
   ['wrangler', ['deploy', '--dry-run', '--config', 'wrangler.toml', '--outdir', '.wrangler/build']],
 ];
 for (const [command, args] of checks) {

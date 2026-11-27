@@ -153,3 +153,22 @@ button.approve { border-color: var(--green); color: var(--green); }
 .group .group-transport { margin: 0 0 .5rem; }
 .group .group-note { width: 100%; box-sizing: border-box; margin: .5rem 0; }
 
+
+/* Version compare (/review/<slug>/compare) */
+.version-nav .compare-link { margin-left: auto; font-weight: 600; }
+.compare .pane { margin: 0; min-width: 0; }
+.compare .pane figcaption { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px; margin-bottom: 6px; }
+.compare .pane select { width: auto; max-width: 100%; }
+.compare #scrub { flex: 1 1 200px; min-width: 140px; accent-color: var(--accent); }
+.compare .scrub-time { font-variant-numeric: tabular-nums; color: var(--muted); }
+.strips { margin-top: 12px; display: grid; gap: 10px; }
+.strip-label { margin: 0 0 4px; font-size: 13px; color: var(--muted); overflow-wrap: anywhere; }
+.strip { position: relative; height: 22px; background: var(--panel); border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+.strip .span { position: absolute; top: 0; bottom: 0; min-height: 0; padding: 0; border: 0; border-radius: 0; background: var(--amber); opacity: .7; cursor: pointer; }
+.strip .span:hover, .strip .span.on { opacity: 1; }
+.strip-head { position: absolute; top: 0; bottom: 0; width: 2px; margin-left: -1px; background: var(--accent); pointer-events: none; }
+.compare-lists { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.clist { list-style: none; margin: 8px 0; padding: 0; }
+.compare .comment { grid-template-columns: auto 1fr auto; }
+.brief { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 13px; background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 8px; }
+@media (max-width: 760px) { .compare-lists { grid-template-columns: 1fr; } .version-nav .compare-link { margin-left: 0; } }

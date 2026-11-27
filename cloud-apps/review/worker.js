@@ -4,7 +4,8 @@
 // jonmac.ai/dashboard/review serves these same pages under the dashboard sign-in (see caller()).
 // DASHBOARD (service binding to the dashboard Worker, same REVIEW_API_TOKEN) posts Jon's Approve and Submit changes to the
 // video's card and reads which versions QC passed (cloud-apps/command-center/src/reviewhook.js).
-import { INK, openVideos, renderGate, renderGroup, renderIndex, renderVideo, sanitizeSourceHtml, stem } from "./pages.js";
+import { INK, openVideos, renderCompare, renderGate, renderGroup, renderIndex, renderVideo, sanitizeSourceHtml, stem } from "./pages.js";
+import { buildFixBrief, normalizeChanges } from "./public/compare-core.js";
 
 export const STATUSES = ["needs_review", "changes_requested", "approved"];
 const SECRETS = ["REVIEW_SHARE_KEY", "REVIEW_PASSCODE", "REVIEW_SESSION_SECRET", "REVIEW_API_TOKEN"];
@@ -30,6 +31,30 @@ const TASK_ID = /^t_[0-9a-f]{16}$/;
 const enc = new TextEncoder();
 
 export const validSlug = (slug) => typeof slug === "string" && SLUG.test(slug) && !RESERVED.has(slug);
+
+// A version's changed spans and reason (<project>/v2/versions/vN.json, sent with --changes on publish or later via /meta),
+// kept in R2 next to its media, so no schema change is needed. Read by the compare page and put into fix briefs.
+const changesKey = (slug) => `review/${slug}/changes.json`;
+async function readChanges(env, slug) {
+  try {
+    const obj = await env.MEDIA.get(changesKey(slug));
+    return obj ? normalizeChanges(await obj.text()) : null;
+  } catch (error) {
+    console.error("changes read", error?.stack || error);
+    return null;
+  }
+}
+// body.changes: vN.json's object (or a bare span list) sets them, null takes them off. Answers an error message or null.
+async function saveChanges(env, slug, raw) {
+  if (raw === null) { await env.MEDIA.delete(changesKey(slug)); return null; }
+  const changes = normalizeChanges(raw);
+  if (!changes) return "changes must be vN.json: {reason, changes: [{from, to, what}]} or a list of spans";
+  await env.MEDIA.put(changesKey(slug), JSON.stringify(changes), { httpMetadata: { contentType: "application/json" } });
+  return null;
+}
+// The brief a Submit changes carries to the card and the router: its comments, with the version's changed spans.
+const submissionBrief = (video, comments, changes) =>
+  buildFixBrief({ title: video.title, version: video.version, comments, changes, onlyOpen: false });
 
 export function byteRange(value, size) {
   if (!value) return null;
@@ -357,6 +382,7 @@ async function tellCard(env, submission, video, backfill = false) {
           // An approve of a version QC has not passed (a recut counts): the card says it still needs QC.
           ...(submission.kind === "approve" ? { qc_passed: Boolean((await visibleSlugs(env, [video]))?.has(video.slug)) } : {}),
           comments: sent.map((c) => ({ t: c.t, text: c.text, transcript: c.transcript, voice: Boolean(c.audio_key), drawing: Boolean(c.drawing) })),
+          ...(submission.kind === "changes" && sent.length ? { brief: submissionBrief(video, sent.map((c) => ({ ...c, voice: Boolean(c.audio_key) })), await readChanges(env, video.slug)) } : {}),
         }),
       }));
       const out = await res.json().catch(() => ({}));
@@ -407,7 +433,7 @@ async function streamMedia(request, env, key, type) {
   return new Response(object.body, { status: range ? 206 : 200, headers });
 }
 
-const safeNext = (value) => /^\/review(\/(g\/)?[a-z0-9-]{1,80})?$/.test(value || "") ? value : "/review";
+const safeNext = (value) => /^\/review(\/(g\/)?[a-z0-9-]{1,80}|\/[a-z0-9-]{1,80}\/compare)?$/.test(value || "") ? value : "/review";
 const redirect = (location, headers = {}) =>
   new Response(null, { status: 303, headers: { Location: location, "Cache-Control": "no-store", ...headers } });
 
@@ -456,13 +482,14 @@ async function pages(request, env, url) {
   }
 
   const group = /^\/review\/g\/([^/]+)$/.exec(path);
-  const slug = path === "/review" || group ? null : path.slice("/review/".length);
+  const compare = /^\/review\/([^/]+)\/compare$/.exec(path);
+  const slug = path === "/review" || group ? null : compare ? compare[1] : path.slice("/review/".length);
   if (!who.reviewer) {
     // The dashboard sign-in opens these same pages with no passcode, so QC bots never meet the passcode box, where
     // OpenBot can freeze them on a person-waiting card. Presence is enough: the dashboard Worker checks the session,
     // and it strips this cookie when it calls us, so this cannot loop.
-    // The dashboard proxy serves single pages only, so a group page always goes to the passcode page.
-    if (!group && cookies(request)[DASHBOARD_COOKIE]) return redirect(`/dashboard${safeNext(path)}`);
+    // The dashboard proxy serves single pages only, so a group or compare page always goes to the passcode page.
+    if (!group && !compare && cookies(request)[DASHBOARD_COOKIE]) return redirect(`/dashboard${safeNext(path)}`);
     return loginRedirect(path, url.searchParams.get("k"));
   }
   if (slug !== null && !validSlug(slug)) return notFound();
@@ -487,10 +514,31 @@ async function pages(request, env, url) {
   const visible = await visibleSlugs(env, [...versions, ...(inGroup?.rows || [])]);
   const seen = (s) => Boolean(s && visible?.has(s));
   const submissions = (await slugSubmissions(env, slug, 10)).results.map((s) => publicSubmission(seen(s.result_slug) ? s : { ...s, result_slug: null }, who.prefix));
+  if (compare) return comparePage(env, row, versions.filter((v) => v.slug === slug || seen(v.slug)), channel?.name || row.channel, url, who.prefix);
   const page = { ...publicVideo(row, who.prefix), source_text: row.source_text || null };
   if (!seen(slug) && page.status === "needs_review") page.status = "qc_only";
   return html(renderVideo(page, versions.filter((v) => v.slug === slug || seen(v.slug)), channel?.name || row.channel, submissions,
     who.prefix, { qcOnly: !seen(slug), qcUnknown: visible === null, nav: inGroup && groupNav(inGroup, slug) }));
+}
+
+// /review/<slug>/compare?a=<slug>&b=<slug>: two versions of the video side by side (the ones Jon may see, as on the video
+// page), each with its changed spans (readChanges) and comments; b defaults to this version, a to the one before it.
+async function comparePage(env, row, versions, channelName, url, prefix) {
+  const rows = (await env.DB.prepare("SELECT * FROM videos WHERE slug IN (SELECT value FROM json_each(?))")
+    .bind(JSON.stringify(versions.map((v) => v.slug))).all()).results;
+  const bySlug = new Map(rows.map((r) => [r.slug, r]));
+  const list = await Promise.all(versions.map(async (v) => {
+    const r = bySlug.get(v.slug);
+    const pub = publicVideo(r, prefix);
+    return { slug: pub.slug, version: pub.version, title: pub.title, duration: pub.duration, video_url: pub.video_url,
+      video_w: pub.video_w, video_h: pub.video_h, created_at: pub.created_at, changes: await readChanges(env, v.slug) };
+  }));
+  list.sort((x, y) => String(x.created_at).localeCompare(String(y.created_at))); // oldest first: v1, v2, ...
+  const has = (s) => list.some((v) => v.slug === s);
+  const b = has(url.searchParams.get("b")) ? url.searchParams.get("b") : row.slug;
+  const at = list.findIndex((v) => v.slug === b);
+  const a = has(url.searchParams.get("a")) ? url.searchParams.get("a") : (list[at - 1] || list[at + 1] || list[at]).slug;
+  return html(renderCompare({ title: row.title, slug: row.slug, versions: list, a, b }, channelName, prefix));
 }
 
 // Back / Next on a single page whose video is in a review group (Jon, 2026-11-16). A group slot means a video, not one
@@ -711,6 +759,9 @@ async function api(request, env, url) {
     return json({ slug, status: body.status });
   }
 
+  // GET /api/review/<slug>/changes: the version's changed spans and reason ({changes: null} when none were published).
+  if (resource === "changes" && id === undefined && method === "GET") return json({ slug, changes: await readChanges(env, slug) });
+
   if (resource !== "comments") return fail(404, "not_found");
 
   if (id === undefined && method === "GET") {
@@ -857,10 +908,14 @@ async function routerApi(request, env, url, [id, action, extra]) {
       ? (await env.DB.prepare("SELECT * FROM comments WHERE id IN (SELECT value FROM json_each(?))").bind(JSON.stringify(ids)).all()).results
       : [];
     const byId = new Map(found.map((c) => [c.id, c]));
+    const changes = new Map(await Promise.all([...new Set(rows.filter((r) => r.kind === "changes").map((r) => r.slug))]
+      .map(async (s) => [s, await readChanges(env, s)])));
     return json({
       submissions: rows.map((r) => {
         const submission = publicSubmission(r, url.origin);
+        const sent = submission.comment_ids.map((cid) => byId.get(cid)).filter(Boolean);
         return {
+          ...(r.kind === "changes" && sent.length ? { brief: submissionBrief(r, sent.map((c) => ({ ...c, voice: Boolean(c.audio_key) })), changes.get(r.slug)) } : {}),
           ...submission, title: r.title, channel: r.channel, version: r.version, video_status: r.status,
           page_url: `${url.origin}/review/${r.slug}`,
           comments: submission.comment_ids.map((cid) => byId.get(cid)).filter(Boolean)
@@ -922,7 +977,7 @@ async function deleteVideo(env, row) {
     env.DB.prepare("DELETE FROM videos WHERE slug = ?").bind(row.slug),
     env.DB.prepare("DELETE FROM channels WHERE slug = ?1 AND sort >= 100 AND NOT EXISTS (SELECT 1 FROM videos WHERE channel = ?1)").bind(row.channel),
   ]);
-  const keys = [row.video_key, row.source_key, row.compare_key, ...voices.map((v) => v.audio_key)].filter(Boolean);
+  const keys = [row.video_key, row.source_key, row.compare_key, changesKey(row.slug), ...voices.map((v) => v.audio_key)].filter(Boolean);
   if (keys.length) await env.MEDIA.delete(keys);
   return json({ deleted: row.slug });
 }
@@ -1024,9 +1079,14 @@ async function publishApi(request, env, url, slug, resource, uploadId, action) {
       if (body[k] !== null && pixels(body[k]) === null) return fail(400, `${k} must be a whole number of pixels or null`);
       sets.push(`${k} = ?`); binds.push(body[k]);
     }
-    if (!sets.length) return fail(400, "send source_text, title, notes, video_w, video_h, source_w or source_h");
-    const saved = await env.DB.prepare(`UPDATE videos SET ${sets.join(", ")}, updated_at = ? WHERE slug = ?`).bind(...binds, now(), slug).run();
+    if ("changes" in body && body.changes !== null && !normalizeChanges(body.changes)) return fail(400, "changes must be vN.json: {reason, changes: [{from, to, what}]} or a list of spans");
+    if (!sets.length && !("changes" in body)) return fail(400, "send source_text, title, notes, changes, video_w, video_h, source_w or source_h");
+    const saved = await env.DB.prepare(`UPDATE videos SET ${[...sets, "updated_at = ?"].join(", ")} WHERE slug = ?`).bind(...binds, now(), slug).run();
     if (!saved.meta.changes) return fail(404, "video_not_found");
+    if ("changes" in body) {
+      const bad = await saveChanges(env, slug, body.changes);
+      if (bad) return fail(400, bad);
+    }
     return json({ video: await gatedVideo(env, await getVideo(env, slug), url.origin) });
   }
 
@@ -1061,6 +1121,7 @@ async function publishApi(request, env, url, slug, resource, uploadId, action) {
     const chapters = Array.isArray(body.chapters)
       ? JSON.stringify(body.chapters.filter((c) => Array.isArray(c) && Number.isFinite(Number(c[0]))).slice(0, 100).map((c) => [Number(c[0]), text(String(c[1] ?? ""), 120)]))
       : null;
+    if ("changes" in body && body.changes !== null && !normalizeChanges(body.changes)) return fail(400, "changes must be vN.json: {reason, changes: [{from, to, what}]} or a list of spans");
     const syncOk = (s) => Array.isArray(s) && s.length === 4 && s.every((n) => typeof n === "number" && Number.isFinite(n) && n >= 0);
     const syncMap = Array.isArray(body.sync) && body.sync.length && body.sync.length <= 5000 && body.sync.every(syncOk)
       ? JSON.stringify(body.sync.map((s) => s.map((n) => Math.round(n * 1000) / 1000))) : null;
@@ -1090,6 +1151,7 @@ async function publishApi(request, env, url, slug, resource, uploadId, action) {
       // The QC gate: this file is QC-only until QC passes its dashboard proof (a recut of a passed version is held again).
       env.DB.prepare("INSERT OR IGNORE INTO qc_holds (slug, video_key, created_at) VALUES (?, ?, ?)").bind(slug, body.video_key, stamp),
     ]);
+    if ("changes" in body) await saveChanges(env, slug, body.changes);
     const kept = new Set([body.video_key, sourceKey, body.compare_key]);
     const stale = [previous?.video_key, previous?.source_key, previous?.compare_key].filter((k) => k && !kept.has(k));
     if (stale.length) await env.MEDIA.delete(stale);
@@ -1105,7 +1167,7 @@ async function publishApi(request, env, url, slug, resource, uploadId, action) {
 
 async function asset(request, env, url) {
   const name = url.pathname.slice("/review/_/".length);
-  if (!["app.js", "group.js", "app.css", "geist.woff2"].includes(name)) return notFound();
+  if (!["app.js", "group.js", "compare.js", "compare-core.js", "app.css", "geist.woff2"].includes(name)) return notFound();
   const response = await env.ASSETS.fetch(new Request(new URL(`/${name}`, url), { method: request.method }));
   const headers = new Headers(response.headers);
   headers.set("Cache-Control", "no-cache");

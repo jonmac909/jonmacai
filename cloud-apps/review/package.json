@@ -3,8 +3,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node --test test/worker.test.mjs test/runtime.test.mjs test/approvals.test.mjs test/group.test.mjs test/backnext.test.mjs test/origtext.test.mjs test/groupsource.test.mjs test/longslug.test.mjs test/gate.test.mjs",
+    "test": "node --test test/worker.test.mjs test/runtime.test.mjs test/approvals.test.mjs test/group.test.mjs test/backnext.test.mjs test/origtext.test.mjs test/groupsource.test.mjs test/longslug.test.mjs test/gate.test.mjs test/compare.test.mjs",
     "test:browser": "node test/browser.mjs",
+    "test:compare-browser": "node test/compare-browser.mjs",
     "proof": "node test/browser.mjs --live",
     "publish": "node scripts/review_publish.mjs"
   },

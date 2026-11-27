@@ -65,7 +65,7 @@ export const arOf = (w, h) => {
 const frameStyle = (w, h) => ` style="--ar:${arOf(w, h)}"${Number(w) > 0 && Number(h) > 0 ? ' data-known="1"' : ""}`;
 
 // `prefix` is "" on jonmac.ai/review and "/dashboard" when the dashboard serves the same pages.
-const layout = (title, body, { script = false, prefix = "" } = {}) => `<!doctype html>
+const layout = (title, body, { script = false, prefix = "", module = false } = {}) => `<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -75,7 +75,7 @@ const layout = (title, body, { script = false, prefix = "" } = {}) => `<!doctype
 <title>${escapeHtml(title)}</title>
 <link rel="icon" href="data:,">
 <link rel="stylesheet" href="${prefix}/review/_/app.css">
-${script ? `<script src="${prefix}/review/_/${script === true ? "app.js" : script}" defer></script>\n` : ""}</head>
+${script ? `<script src="${prefix}/review/_/${script === true ? "app.js" : script}"${module ? ' type="module"' : " defer"}></script>\n` : ""}</head>
 <body>
 ${body}
 </body>
@@ -233,7 +233,8 @@ export function renderVideo(video, versions, channelName, submissions = [], pref
   const versionLinks = versions.length > 1 ? `<nav class="version-nav" aria-label="Versions">${versions.map((v) =>
     v.slug === video.slug
       ? `<span class="current">${escapeHtml(v.version)}</span>`
-      : `<a href="${prefix}/review/${escapeHtml(v.slug)}">${escapeHtml(v.version)}</a>`).join("")}</nav>` : "";
+      : `<a href="${prefix}/review/${escapeHtml(v.slug)}">${escapeHtml(v.version)}</a>`).join("")}${prefix ? ""
+      : `<a class="compare-link" href="/review/${escapeHtml(video.slug)}/compare">Compare versions</a>`}</nav>` : "";
   const sourceText = video.source_url || !video.source_text ? "" : sanitizeSourceHtml(video.source_text);
   const statusButtons = Object.entries(STATUS_LABEL).map(([value, label]) =>
     `<button type="button" class="status-btn" data-status="${value}" aria-pressed="${video.status === value}">${label}</button>`).join("");
@@ -317,4 +318,64 @@ export function renderVideo(video, versions, channelName, submissions = [], pref
   </section>
   <script type="application/json" id="review-data">${data}</script>
 </main>`, { script: true, prefix });
+}
+
+// Version compare (/review/<slug>/compare, public/compare.js): two version pickers, the two players side by side (stacked on
+// a phone) driven by one play / seek control, a strip of each version's changed spans under them (only when its vN.json was
+// published), timed comments on either player and "Send as fix brief", which is the page's own Submit changes for that version.
+// page: {title, slug, versions: [{slug, version, video_url, duration, video_w, video_h, changes}], a, b}
+export function renderCompare(page, channelName, prefix = "") {
+  const data = JSON.stringify({ ...page, base: `${prefix}/review`, api: `${prefix}/api/review` }).replace(/</g, "\u003c");
+  const options = (pick) => page.versions.map((v) =>
+    `<option value="${escapeHtml(v.slug)}"${v.slug === pick ? " selected" : ""}>${escapeHtml(v.version)}</option>`).join("");
+  const side = (key, pick) => {
+    const v = page.versions.find((x) => x.slug === pick) || page.versions[0];
+    return `<figure class="pane" data-side="${key}"><figcaption><label>${key.toUpperCase()} <select id="pick-${key}" aria-label="Version ${key.toUpperCase()}">${options(pick)}</select></label>
+      <span class="muted" id="audio-${key}">${key === "b" ? "sound on" : "muted"}</span></figcaption>
+      <div class="frame"${frameStyle(v?.video_w, v?.video_h)}><video id="player-${key}" controls playsinline webkit-playsinline preload="metadata"${key === "a" ? " muted" : ""}
+        src="${escapeHtml(v?.video_url || "")}#t=0.001" aria-label="Version ${key.toUpperCase()}"></video></div></figure>`;
+  };
+  const list = (key) => `<section class="send" data-side="${key}" aria-label="Comments on ${key.toUpperCase()}"><h2 id="list-${key}-title">${key.toUpperCase()}</h2>
+      <ol class="clist" id="list-${key}"></ol>
+      <button type="button" class="primary" id="brief-${key}">Send as fix brief</button>
+      <pre class="brief" id="brief-preview-${key}" hidden></pre>
+      <p class="muted" id="brief-status-${key}" role="status"></p></section>`;
+  return layout(`${channelName} · ${page.title} · compare versions`, `<main class="watch compare">
+  <p class="crumbs"><a href="${prefix}/review">All videos</a> / ${escapeHtml(channelName)} / <a href="${prefix}/review/${escapeHtml(page.slug)}">${escapeHtml(page.title)}</a></p>
+  <header class="top"><h1>${escapeHtml(page.title)} <span class="muted">compare versions</span></h1></header>
+  <div class="duo" id="duo">
+    ${side("a", page.a)}
+    ${side("b", page.b)}
+  </div>
+  <div class="transport" id="transport">
+    <button type="button" class="primary" id="play-both">Play both</button>
+    <button type="button" id="pause-both">Pause both</button>
+    <input type="range" id="scrub" min="0" max="1" step="0.1" value="0" aria-label="Seek both">
+    <span class="scrub-time" id="scrub-time">0:00</span>
+    <span class="audio-switch" role="radiogroup" aria-label="Sound from">Sound:
+      <label><input type="radio" name="audio" value="a"> A</label>
+      <label><input type="radio" name="audio" value="b" checked> B</label></span>
+  </div>
+  <section class="strips" id="strips" aria-label="Changed parts" hidden></section>
+  <section class="composer" aria-label="Add a timed comment">
+    <form id="comment-form" novalidate>
+      <div class="who" id="who"><label for="author">Your name</label>
+        <input id="author" name="author" maxlength="60" autocomplete="name" placeholder="Shown next to your comments"></div>
+      <p class="who-known" id="who-known" hidden>Commenting as <b id="who-name"></b> · <button type="button" class="link" id="who-change">change</button></p>
+      <div class="stamp-row"><span>Comment on</span>
+        <span class="audio-switch" role="radiogroup" aria-label="Comment on">
+          <label><input type="radio" name="on" value="a"> <span id="on-a">A</span></label>
+          <label><input type="radio" name="on" value="b" checked> <span id="on-b">B</span></label></span>
+        <span>at</span> <button type="button" class="stamp" id="stamp" title="Jump both players to this time">0:00</button>
+        <button type="button" class="link" id="stamp-now">use current time</button></div>
+      <textarea id="note" name="text" rows="3" maxlength="4000" placeholder="Pause, then type what should change at this moment"></textarea>
+      <div class="actions"><button type="submit" class="primary" id="submit">Add comment</button><span class="muted" id="form-status" role="status"></span></div>
+    </form>
+  </section>
+  <div class="compare-lists">
+    ${list("a")}
+    ${list("b")}
+  </div>
+  <script type="application/json" id="compare-data">${data}</script>
+</main>`, { script: "compare.js", prefix, module: true });
 }
