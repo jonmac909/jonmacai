@@ -111,7 +111,7 @@ test('a good email passes through Cloudflare DNS-over-HTTPS, is stored with chec
   const e = await linkOn();
   const r = await post(e, { email: ' Buyer@Example-Domain.com ' });
   assert.equal(r.status, 302);
-  assert.match(r.headers.get('Location'), /^https:\/\/www\.skool\.com\/ai-ugc\/about\?utm_source=youtube/);
+  assert.match(r.headers.get('Location'), /^https:\/\/www\.skool\.com\/jonmac\/about\?utm_source=youtube/);
   assert.deepEqual(await leads(e), [{ slug: 'chk', email: 'buyer@example-domain.com', email_check: 'valid' }]);
   assert.deepEqual(calls, ['example-domain.com/MX']);
   const row = await e.DB.prepare('SELECT at, last_at FROM skool_leads').first();

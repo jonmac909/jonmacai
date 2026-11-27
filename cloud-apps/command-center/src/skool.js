@@ -14,7 +14,7 @@ import { SORT_CSS, SORT_JS } from './tablesort.js';
 import { isTeamOrBot, isTestEmail, hiddenLead, clickFilter, isTestLink } from './trackfilter.js';
 
 // Every Skool landing page sends people to the about page, not the email opt-in (Jon 2026-11-25): a GET counts the click and forwards.
-export const SKOOL = 'https://www.skool.com/ai-ugc/about';
+export const SKOOL = 'https://www.skool.com/jonmac/about';
 export const ESTIMATE_HOURS = 24;
 export const YT_RE = /^https:\/\/(www\.|m\.)?(youtube\.com\/(watch\?v=|shorts\/|live\/)|youtu\.be\/)([\w-]{11})/i;
 const MAX_LEADS_PER_10_MIN = 60; // per link: stops a script from filling the table
@@ -45,6 +45,17 @@ export function platformOf(row, variants = SHORT_VARIANTS) {
   const p = row?.platform || (isSocial(row?.slug) ? SOCIAL[row.slug] : isShort(row?.slug, variants) ? variants[row.slug].platform : null);
   if (p) return PLATFORMS.some(([k]) => k === p) ? p : 'other';
   return row?.created_at || YT_RE.test(row?.youtube_url || '') ? 'youtube' : 'other';
+}
+
+// GET jonmac.ai/skool (Jon 2026-11-27, AI Income Lab): the plain "join my Skool" link. Same UTM pattern as the other forwards;
+// UTM tags already on the link ride along, so a caller can tag it. Never ?ref= (Skool's affiliate tag).
+export function skoolHome(request) {
+  const url = new URL(request.url);
+  const to = new URL(SKOOL);
+  to.searchParams.set('utm_source', url.searchParams.get('utm_source') || 'jonmacai');
+  to.searchParams.set('utm_medium', url.searchParams.get('utm_medium') || 'website');
+  to.searchParams.set('utm_campaign', url.searchParams.get('utm_campaign') || 'skool');
+  return forward(to);
 }
 
 export async function skoolRedirect(request, env, ctx) {
@@ -110,7 +121,7 @@ export async function skoolRedirect(request, env, ctx) {
 
 // The email step looks like the Skool about page with the email box as a pop-over. www.skool.com sends
 // X-Frame-Options: SAMEORIGIN (checked 2026-11-16), so it cannot be framed: the backdrop is a screenshot of
-// skool.com/ai-ugc/about (public/skool/about-*.jpg, refreshed by hand with web_look.py --shot), blurred and dimmed.
+// skool.com/jonmac/about (public/skool/about-*.jpg, refreshed by hand with web_look.py --shot), blurred and dimmed.
 const BG = new Set(['about-desktop.jpg', 'about-mobile.jpg']);
 async function backdrop(request, env, name) {
   if (!env.ASSETS || request.method === 'POST' || !BG.has(name)) return new Response('Not found', { status: 404 });
@@ -123,7 +134,7 @@ async function backdrop(request, env, name) {
 
 function capturePage(slug, error, status, { typed = '', suggestion = '' } = {}) {
   const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="robots" content="noindex,nofollow"><meta name="referrer" content="no-referrer"><title>AI Video Lab on Skool</title><style>
+<meta name="robots" content="noindex,nofollow"><meta name="referrer" content="no-referrer"><title>AI Income Lab on Skool</title><style>
 html,body{height:100%;margin:0}body{font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:#1f1f1f;background:#f5f5f5;overflow:hidden}
 .bg{position:fixed;inset:-12px;background:#f5f5f5 url(/s/about-desktop.jpg) center top/cover no-repeat;filter:blur(5px)}
 @media (max-width:640px){.bg{background-image:url(/s/about-mobile.jpg)}}
@@ -335,7 +346,7 @@ export function trackerPage(data, origin) {
 <meta name="robots" content="noindex,nofollow"><title>Skool tracker</title><style>${BASE_CSS}${SORT_CSS}</style></head><body>${nav('videos')}
 <h1>Skool tracker</h1>
 <div class="row"><button class="cap" id="reset" type="button">Reset stats</button><span id="since">${data.since ? `Since ${esc(data.since.slice(0, 16).replace('T', ' '))} UTC. <a href="#" id="undo">Undo reset</a>` : 'Showing all stats since the start.'}</span></div>
-<p>Every short link forwards to skool.com/ai-ugc. Sales come from Zapier. Exact = the buyer's email was captured on the link, or they named the video in their answer; "est." means neither, so the sale goes to the last link clicked in the 24 hours before it.</p>
+<p>Every short link forwards to skool.com/jonmac. Sales come from Zapier. Exact = the buyer's email was captured on the link, or they named the video in their answer; "est." means neither, so the sale goes to the last link clicked in the 24 hours before it.</p>
 ${links}
 <p>Email step: when On, the short link first asks for an email in a pop-over, then forwards to Skool. On for every new link.</p>
 <p>Sales not tied to any video: ${data.unattributed}</p>

@@ -34,7 +34,7 @@ test('email step is on for every new link; switched off, the link forwards strai
   assert.equal((await e.DB.prepare('SELECT capture FROM skool_links').first()).capture, 0);
   const r = await go(e, '/s/plain-link');
   assert.equal(r.status, 302);
-  assert.match(r.headers.get('Location'), /^https:\/\/www\.skool\.com\/ai-ugc\/about\?utm_source=youtube/);
+  assert.match(r.headers.get('Location'), /^https:\/\/www\.skool\.com\/jonmac\/about\?utm_source=youtube/);
   assert.equal((await go(e, '/s/plain-link', { method: 'POST', body: { email: 'a@b.co' } })).status, 302); // POST to an off link forwards, stores nothing
   assert.deepEqual(await leads(e), []);
 });
@@ -45,7 +45,7 @@ test('email step on: form shows and counts the click; POST stores the email and 
   assert.equal((await toggle(e, 'gated', true)).status, 200);
   const g = await go(e, '/s/gated'); // GET goes straight to the about page (Jon 2026-11-25); the click still counts
   assert.equal(g.status, 302);
-  assert.equal(new URL(g.headers.get('Location')).pathname, '/ai-ugc/about');
+  assert.equal(new URL(g.headers.get('Location')).pathname, '/jonmac/about');
   assert.equal((await e.DB.prepare('SELECT COUNT(*) AS n FROM skool_clicks').first()).n, 1);
   const bad = await go(e, '/s/gated', { method: 'POST', body: { email: 'not-an-email' } }); // a form that was already open still works
   assert.equal(bad.status, 400);
@@ -57,7 +57,7 @@ test('email step on: form shows and counts the click; POST stores the email and 
   const ok = await go(e, '/s/gated', { method: 'POST', body: { email: ' Buyer@Example.COM ' } });
   assert.equal(ok.status, 302);
   const to = new URL(ok.headers.get('Location'));
-  assert.equal(to.origin + to.pathname, 'https://www.skool.com/ai-ugc/about');
+  assert.equal(to.origin + to.pathname, 'https://www.skool.com/jonmac/about');
   assert.equal(to.searchParams.get('utm_campaign'), 'gated');
   assert.equal(to.searchParams.has('email'), false); // the email never travels to Skool
   assert.deepEqual(await leads(e), [{ slug: 'gated', email: 'buyer@example.com' }]);

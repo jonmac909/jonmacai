@@ -85,6 +85,9 @@
     // Skool email sequence (src/skoolseq.js, off until Jon switches it on): secrets RESEND_API_KEY and RESEND_WEBHOOK_SECRET (Resend webhook to https://jonmac.ai/track/api/resend);
     // optional vars SKOOL_FROM, SKOOL_REPLY_TO, SKOOL_BUSINESS and SKOOL_ADDRESS (the real mailing address: real sends stay paused while it is unset).
     { "pattern": "jonmac.ai/s/*", "zone_name": "jonmac.ai" },
+    // jonmac.ai/skool -> https://www.skool.com/jonmac/about (AI Income Lab, src/skool.js skoolHome). Exact paths, no wildcard.
+    { "pattern": "jonmac.ai/skool", "zone_name": "jonmac.ai" },
+    { "pattern": "jonmac.ai/skool/", "zone_name": "jonmac.ai" },
     // Skool tracker links at the root (Jon 2026-11-21): one route per slug, the apex site owns every other path
     { "pattern": "jonmac.ai/ai-agents-hacking", "zone_name": "jonmac.ai" },
     { "pattern": "jonmac.ai/astra-seedance", "zone_name": "jonmac.ai" },
@@ -203,7 +206,7 @@
         { "binding": "UPLOADS", "bucket_name": "command-center-uploads-preview" }
       ]
     },
-    // Per-card preview for Skool landers -> skool.com/ai-ugc/about (Jon 2026-11-25): same bindings as env.preview.
+    // Per-card preview for Skool landers -> skool.com/jonmac/about (Jon 2026-11-25): same bindings as env.preview.
     "preview-skool-about": {
       "name": "jonmac-cc-preview-skool-about",
       "workers_dev": true,

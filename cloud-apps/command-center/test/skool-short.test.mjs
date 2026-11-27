@@ -39,13 +39,13 @@ test('each platform link (/neon, /neonx, ...) shows the lander, counts under its
     const page = await go(e, `/${w}`); // no email step on GET (Jon 2026-11-25): straight to the Skool about page with the tags
     assert.equal(page.status, 302, w);
     const pg = new URL(page.headers.get('Location'));
-    assert.equal(pg.origin + pg.pathname, 'https://www.skool.com/ai-ugc/about', w);
+    assert.equal(pg.origin + pg.pathname, 'https://www.skool.com/jonmac/about', w);
     assert.deepEqual(Object.fromEntries(pg.searchParams), { utm_source: v.platform, utm_medium: 'video', utm_campaign: v.word });
     assert.equal(await clicks(e, w), 1, `${w}: one click under the word`);
     const r = await go(e, `/${w}`, { method: 'POST', form: { email: `short-${w}@gmail.com` } });
     assert.equal(r.status, 302);
     const to = new URL(r.headers.get('Location'));
-    assert.equal(to.origin + to.pathname, 'https://www.skool.com/ai-ugc/about');
+    assert.equal(to.origin + to.pathname, 'https://www.skool.com/jonmac/about');
     assert.deepEqual(Object.fromEntries(to.searchParams), { utm_source: v.platform, utm_medium: 'video', utm_campaign: v.word });
     const lead = await e.DB.prepare('SELECT slug FROM skool_leads WHERE email = ?').bind(`short-${w}@gmail.com`).first();
     assert.equal(lead?.slug, w);

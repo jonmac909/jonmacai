@@ -5,7 +5,7 @@ import { handleCall } from './call.js';
 import { reviewProxy } from './videoreview.js';
 import { reviewHook } from './reviewhook.js';
 import { trackRedirect } from './track.js';
-import { skoolRedirect, handleTracker, isBuiltIn } from './skool.js';
+import { skoolRedirect, skoolHome, handleTracker, isBuiltIn } from './skool.js';
 import { syncOnNewVersion, SOCIAL_SLUGS, shortWords } from './skoolroutes.js';
 import { runSequence, SEQ_CRON } from './skoolseq.js';
 import { FILE_PREFIX, serveProofFile, uploadProofFile } from './prooffiles.js';
@@ -75,6 +75,7 @@ export default {
     if (url.pathname.startsWith('/v/')) return trackRedirect(request, env, ctx);
     // Skool short links and the /track page (src/skool.js).
     if (url.pathname.startsWith('/s/')) return skoolRedirect(request, env, ctx);
+    if (url.pathname === '/skool' || url.pathname === '/skool/') return skoolHome(request); // jonmac.ai/skool -> AI Income Lab
     if (url.pathname === '/track' || url.pathname.startsWith('/track/')) return handleTracker(request, env);
     // Dashboard 2 (docs/dashboard-2.md): its own pages under public/d2; data comes from /dashboard/api/d2.
     if (url.pathname === D2) {

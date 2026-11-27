@@ -50,7 +50,7 @@ test('email step on: pop-over over the blurred Skool page (prices taken out of t
   assert.equal((await go(e, '/track/api/capture', { method: 'POST', jon: true, body: { slug: 'pop', capture: true } })).status, 200);
   const g = await go(e, '/s/pop'); // GET goes straight to the about page now (Jon 2026-11-25); the pop-over only answers a POST
   assert.equal(g.status, 302);
-  assert.equal(new URL(g.headers.get('Location')).pathname, '/ai-ugc/about');
+  assert.equal(new URL(g.headers.get('Location')).pathname, '/jonmac/about');
   const html = await (await go(e, '/s/pop', { method: 'POST', body: { email: 'x' } })).text();
   assert.match(html, /role="dialog" aria-modal="true"/);
   assert.match(html, /Enter your email to get access/);
@@ -70,7 +70,7 @@ test('email step on: pop-over over the blurred Skool page (prices taken out of t
   // a good email still stores lower case and forwards with UTM
   const ok = await go(e, '/s/pop', { method: 'POST', body: { email: 'Pop@Example.com' } });
   assert.equal(ok.status, 302);
-  assert.match(ok.headers.get('Location'), /^https:\/\/www\.skool\.com\/ai-ugc\/about\?utm_source=youtube&utm_medium=video&utm_campaign=pop$/);
+  assert.match(ok.headers.get('Location'), /^https:\/\/www\.skool\.com\/jonmac\/about\?utm_source=youtube&utm_medium=video&utm_campaign=pop$/);
   assert.deepEqual((await e.DB.prepare('SELECT email FROM skool_leads').all()).results, [{ email: 'pop@example.com' }]);
 });
 

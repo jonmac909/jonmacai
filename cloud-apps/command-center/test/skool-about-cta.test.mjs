@@ -1,4 +1,4 @@
-// Every Skool landing page sends people to https://www.skool.com/ai-ugc/about, not the email opt-in (Jon 2026-11-25).
+// Every Skool landing page sends people to https://www.skool.com/jonmac/about, not the email opt-in (Jon 2026-11-25).
 // Planted check: walks every kind of Skool lander (social bio links, one-word video links on every platform, /track video
 // links with the email step on and off, old /s/ links) and fails if a GET shows the opt-in or forwards anywhere else.
 import test from 'node:test';
@@ -9,7 +9,7 @@ import { SHORT_SLUGS } from '../src/skoolroutes.js';
 import { sqliteD1 } from './sqlited1.mjs';
 import './dnsstub.mjs';
 
-const ABOUT = 'https://www.skool.com/ai-ugc/about';
+const ABOUT = 'https://www.skool.com/jonmac/about';
 async function get(e, path, w = worker) {
   const waits = [];
   const r = await w.fetch(new Request(`https://jonmac.ai${path}`, { redirect: 'manual' }), e, { waitUntil: (p) => waits.push(p) });
@@ -40,11 +40,11 @@ test('every Skool landing page forwards to the Skool about page, never the email
 test('planted fault: the check fails a lander that shows the opt-in or forwards to the group root', async () => {
   const fake = (res) => ({ fetch: async () => res() });
   const optIn = fake(() => new Response('<form method="post"><input type="email" name="email"></form>', { status: 200 }));
-  const root = fake(() => new Response(null, { status: 302, headers: { Location: 'https://www.skool.com/ai-ugc?utm_source=x&utm_campaign=y' } }));
+  const root = fake(() => new Response(null, { status: 302, headers: { Location: 'https://www.skool.com/jonmac?utm_source=x&utm_campaign=y' } }));
   const noTags = fake(() => new Response(null, { status: 302, headers: { Location: ABOUT } }));
   const good = fake(() => new Response(null, { status: 302, headers: { Location: `${ABOUT}?utm_source=x&utm_campaign=y` } }));
   await assert.rejects(landsOnAbout({}, '/ig', optIn), /email opt-in/);
-  await assert.rejects(landsOnAbout({}, '/ig', root), /forwards to https:\/\/www\.skool\.com\/ai-ugc\?/);
+  await assert.rejects(landsOnAbout({}, '/ig', root), /forwards to https:\/\/www\.skool\.com\/jonmac\?/);
   await assert.rejects(landsOnAbout({}, '/ig', noTags), /tracking tags kept/);
   await landsOnAbout({}, '/ig', good);
 });

@@ -297,7 +297,7 @@ test('copy rules: every email has a P.S., one Skool link tagged with its day, an
     const links = r.text.match(/https?:\/\/\S+/g).filter((u) => !u.includes('jonmac.ai/track/unsub'));
     assert.equal(links.length, 1, 'one Skool link');
     const u = new URL(links[0]);
-    assert.equal(u.origin + u.pathname, 'https://www.skool.com/ai-ugc');
+    assert.equal(u.origin + u.pathname, 'https://www.skool.com/jonmac');
     assert.equal(u.searchParams.get('utm_campaign'), `vid-one-email-d${d}`);
     const copy = JSON.stringify(m);
     assert.doesNotMatch(copy, /[—–]/); // no dashes

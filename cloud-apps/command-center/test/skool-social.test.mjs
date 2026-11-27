@@ -25,12 +25,12 @@ test('six short links show the lander, record their own platform and forward wit
     const page = await go(e, `/${short}`); // no email step on GET (Jon 2026-11-25): straight to the Skool about page with the tags
     assert.equal(page.status, 302, short);
     const pg = new URL(page.headers.get('Location'));
-    assert.equal(pg.origin + pg.pathname, 'https://www.skool.com/ai-ugc/about', short);
+    assert.equal(pg.origin + pg.pathname, 'https://www.skool.com/jonmac/about', short);
     assert.deepEqual(Object.fromEntries(pg.searchParams), { utm_source: source, utm_medium: 'social', utm_campaign: 'bio' }, short);
     const r = await go(e, `/${short}`, { method: 'POST', form: { email: `lander-test-${short}@gmail.com` } });
     assert.equal(r.status, 302, short);
     const to = new URL(r.headers.get('Location'));
-    assert.equal(to.origin + to.pathname, 'https://www.skool.com/ai-ugc/about');
+    assert.equal(to.origin + to.pathname, 'https://www.skool.com/jonmac/about');
     assert.deepEqual(Object.fromEntries(to.searchParams), { utm_source: source, utm_medium: 'social', utm_campaign: 'bio' }, short);
     const lead = await e.DB.prepare('SELECT slug FROM skool_leads WHERE email = ?').bind(`lander-test-${short}@gmail.com`).first();
     assert.equal(lead?.slug, short, `${short}: lead stored under its own link`);
@@ -88,7 +88,7 @@ test('query strings: routes are wildcards so /fb?fbclid=1 reaches the worker; la
   for (const p of ['/fb?fbclid=1', '/ig?utm_source=foo']) {
     const r = await go(e, p);
     assert.equal(r.status, 302, p);
-    assert.equal(new URL(r.headers.get('Location')).pathname, '/ai-ugc/about', p);
+    assert.equal(new URL(r.headers.get('Location')).pathname, '/jonmac/about', p);
   }
   const r = await go(e, '/s/x?fbclid=1');
   assert.equal(r.status, 301);

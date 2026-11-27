@@ -120,7 +120,7 @@ export function emailsPage({ on, keySet, addressSet, business, sample, origin, t
 <details><summary>Plain text version</summary><pre>${esc(m.text)}</pre></details>`;
   }).join('\n');
   return shell('Skool email sequence', 'emails', `<h1>Email sequence</h1>
-<p>Seven emails for the AI Video Lab, sent by Resend. Day 0 goes out right after the email is entered, then one a day, 24 hours after the last. It stops for a lead when they buy, unsubscribe, bounce or complain. Below is exactly how each one looks (example video: "${esc(sample.title)}").</p>
+<p>Seven emails for the AI Income Lab, sent by Resend. Day 0 goes out right after the email is entered, then one a day, 24 hours after the last. It stops for a lead when they buy, unsubscribe, bounce or complain. Below is exactly how each one looks (example video: "${esc(sample.title)}").</p>
 <div class="panel"><div class="row"><strong>Sequence</strong> <button class="cap" id="seq" data-on="${on ? 1 : 0}" aria-pressed="${on}">${on ? 'On' : 'Off'}</button>
 <button class="go" id="test"${keySet ? '' : ' disabled'}>Send me a test</button><span id="msg"></span></div>
 <p>${on ? 'ON: real leads get the emails as they come due.' : 'OFF: nothing is sent to anyone.'} The test sends all seven to ${esc(testTo)} only, with [TEST] in the subject.</p>
