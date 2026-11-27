@@ -107,6 +107,7 @@
     // jonmac.ai/<word>* route by API (re-made after each deploy). Secret LINK_REGISTER_TOKEN = D:\AgentTeam\secrets\link-register.token on GPU1.
     // Registered words are also checked in below (scripts/word-routes.mjs --write, run by deploy.ps1) so a deploy never drops them.
     { "pattern": "jonmac.ai/neon*", "zone_name": "jonmac.ai" },
+    { "pattern": "jonmac.ai/motion*", "zone_name": "jonmac.ai" },
     { "pattern": "jonmac.ai/levels*", "zone_name": "jonmac.ai" },
     { "pattern": "jonmac.ai/lucyqa*", "zone_name": "jonmac.ai" },
     { "pattern": "jonmac.ai/reanimate*", "zone_name": "jonmac.ai" },
