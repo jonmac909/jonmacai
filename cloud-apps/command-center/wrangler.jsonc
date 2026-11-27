@@ -85,9 +85,9 @@
     // Skool email sequence (src/skoolseq.js, off until Jon switches it on): secrets RESEND_API_KEY and RESEND_WEBHOOK_SECRET (Resend webhook to https://jonmac.ai/track/api/resend);
     // optional vars SKOOL_FROM, SKOOL_REPLY_TO, SKOOL_BUSINESS and SKOOL_ADDRESS (the real mailing address: real sends stay paused while it is unset).
     { "pattern": "jonmac.ai/s/*", "zone_name": "jonmac.ai" },
-    // jonmac.ai/skool -> https://www.skool.com/jonmac/about (AI Income Lab, src/skool.js skoolHome). Exact paths, no wildcard.
-    { "pattern": "jonmac.ai/skool", "zone_name": "jonmac.ai" },
-    { "pattern": "jonmac.ai/skool/", "zone_name": "jonmac.ai" },
+    // jonmac.ai/skool -> https://www.skool.com/jonmac/about (AI Income Lab, src/skool.js skoolHome). Wildcard so /skool?utm_source=x reaches us
+    // (an exact route skips the worker when there is a query string); any other path under it passes to the main site unchanged.
+    { "pattern": "jonmac.ai/skool*", "zone_name": "jonmac.ai" },
     // Skool tracker links at the root (Jon 2026-11-21): one route per slug, the apex site owns every other path
     { "pattern": "jonmac.ai/ai-agents-hacking", "zone_name": "jonmac.ai" },
     { "pattern": "jonmac.ai/astra-seedance", "zone_name": "jonmac.ai" },
@@ -110,6 +110,7 @@
     // jonmac.ai/<word>* route by API (re-made after each deploy). Secret LINK_REGISTER_TOKEN = D:\AgentTeam\secrets\link-register.token on GPU1.
     // Registered words are also checked in below (scripts/word-routes.mjs --write, run by deploy.ps1) so a deploy never drops them.
     { "pattern": "jonmac.ai/neon*", "zone_name": "jonmac.ai" },
+    { "pattern": "jonmac.ai/apps*", "zone_name": "jonmac.ai" },
     { "pattern": "jonmac.ai/motion*", "zone_name": "jonmac.ai" },
     { "pattern": "jonmac.ai/levels*", "zone_name": "jonmac.ai" },
     { "pattern": "jonmac.ai/lucyqa*", "zone_name": "jonmac.ai" },

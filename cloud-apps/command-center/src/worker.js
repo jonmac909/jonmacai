@@ -131,7 +131,7 @@ export default {
         if (known) return skoolRedirect(request, env, ctx);
       }
       // The built-in routes are wildcards (jonmac.ai/x* so /x?fbclid=1 reaches us); any other path under them is the main site's, unchanged.
-      if (env.APEX && [...SOCIAL_SLUGS, ...Object.keys(words)].some((s) => url.pathname.toLowerCase().startsWith(`/${s}`))) {
+      if (env.APEX && [...SOCIAL_SLUGS, 'skool', ...Object.keys(words)].some((s) => url.pathname.toLowerCase().startsWith(`/${s}`))) {
         try { return await env.APEX.fetch(request); } catch (err) { console.error('apex pass-through', err.message); return new Response('Bad gateway', { status: 502 }); }
       }
       return new Response('Not found', { status: 404 });

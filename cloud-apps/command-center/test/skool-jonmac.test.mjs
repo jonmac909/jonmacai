@@ -47,7 +47,21 @@ test('jonmac.ai/skool forwards to the AI Income Lab (not a 404), with UTM tags',
   assert.equal(tagged.searchParams.get('utm_source'), 'youtube');
   assert.ok(RESERVED.has('skool'), 'skool is reserved, never a short-link slug');
   const routes = readFileSync(new URL('../wrangler.jsonc', import.meta.url), 'utf8');
-  assert.match(routes, /"pattern": "jonmac\.ai\/skool"/, 'wrangler routes /skool to this worker');
+  assert.match(routes, /"pattern": "jonmac\.ai\/skool\*"/, 'wrangler routes /skool* to this worker (an exact route misses /skool?utm_source=x)');
+});
+
+test('jonmac.ai/skool with tracking tags forwards; /skoolxyz passes to the main site unchanged', async () => {
+  const to = await onNewGroup({ DB: sqliteD1() }, '/skool?utm_source=x');
+  assert.equal(to.searchParams.get('utm_source'), 'x');
+  assert.equal((await onNewGroup({}, '/skool/?utm_source=x')).searchParams.get('utm_source'), 'x');
+  const seen = [];
+  const APEX = { fetch: async (req) => { seen.push(new URL(req.url).pathname + new URL(req.url).search); return new Response('site', { status: 200 }); } };
+  for (const p of ['/skoolxyz', '/skool/about-x.jpg?v=1']) {
+    const r = await get({ DB: sqliteD1(), APEX }, p);
+    assert.equal(r.status, 200, `${p}: passes through`);
+    assert.equal(await r.text(), 'site');
+  }
+  assert.deepEqual(seen, ['/skoolxyz', '/skool/about-x.jpg?v=1']);
 });
 
 test('bio, one-word and /s/ links land on the new group', async () => {
