@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<meta name="robots" content="noindex, nofollow"/>
+<title>AI Income Lab — $1.5K–$4K Small-Business Retainer Pricing Calculator</title>
+<style>
+  :root { --bg:#070B14; --card:#0F172A; --bdr:#1E293B; --txt:#F8FAFC; --mut:#94A3B8; --cyan:#38BDF8; --grn:#22C55E; --purp:#8B5CF6; }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { background:var(--bg); color:var(--txt); font-family:Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; padding:28px 18px 60px; line-height:1.45; }
+  .wrap { max-width:960px; margin:0 auto; }
+  .eyebrow { display:inline-block; font-size:12px; font-weight:800; letter-spacing:.09em; color:#7DD3FC; background:rgba(56,189,248,.14); border:1px solid rgba(56,189,248,.35); padding:6px 12px; border-radius:999px; text-transform:uppercase; }
+  h1 { font-size:clamp(28px,4.5vw,42px); font-weight:900; letter-spacing:-.025em; margin:14px 0 8px; }
+  .grad { background:linear-gradient(90deg,#8B5CF6,#38BDF8,#22C55E); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
+  .sub { color:var(--mut); font-size:16px; margin-bottom:26px; }
+  .grid { display:grid; grid-template-columns:1.1fr .9fr; gap:20px; }
+  @media (max-width:780px){ .grid { grid-template-columns:1fr; } }
+  .card { background:var(--card); border:1px solid var(--bdr); border-radius:20px; padding:24px; }
+  .card h2 { font-size:18px; font-weight:800; margin-bottom:18px; }
+  .ctrl { margin-bottom:18px; }
+  .ctrl-top { display:flex; justify-content:space-between; font-size:14px; font-weight:700; margin-bottom:8px; }
+  .val { color:var(--cyan); }
+  input[type=range] { width:100%; accent-color:var(--cyan); cursor:pointer; }
+  .chk { display:flex; align-items:center; justify-content:space-between; background:rgba(255,255,255,.035); border:1px solid var(--bdr); border-radius:12px; padding:12px 14px; margin-bottom:10px; cursor:pointer; }
+  .chk input { width:18px; height:18px; accent-color:var(--grn); margin-right:10px; }
+  .chk-l { display:flex; align-items:center; font-size:14px; font-weight:700; }
+  .chk-p { font-size:13px; font-weight:800; color:#86EFAC; }
+  .presets { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:18px; }
+  .pbtn { background:rgba(255,255,255,.06); color:#E2E8F0; border:1px solid var(--bdr); border-radius:10px; padding:8px 12px; font-size:13px; font-weight:700; cursor:pointer; }
+  .pbtn:hover { border-color:var(--cyan); color:#fff; }
+  .big-box { background:linear-gradient(135deg,rgba(56,189,248,.14),rgba(34,197,94,.12)); border:1px solid rgba(56,189,248,.35); border-radius:16px; padding:20px; text-align:center; margin-bottom:16px; }
+  .big-lbl { font-size:12px; font-weight:800; letter-spacing:.08em; color:#BAE6FD; text-transform:uppercase; }
+  .big-num { font-size:48px; font-weight:900; letter-spacing:-.03em; margin:4px 0; }
+  .big-tier { font-size:14px; font-weight:700; color:#86EFAC; }
+  .kpis { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:16px; }
+  .kpi { background:rgba(255,255,255,.04); border:1px solid var(--bdr); border-radius:14px; padding:14px; }
+  .kpi-l { font-size:12px; color:var(--mut); font-weight:600; }
+  .kpi-v { font-size:22px; font-weight:900; margin-top:4px; }
+  .pitch { background:#0B1222; border:1px solid var(--bdr); border-radius:14px; padding:16px; font-size:13.5px; color:#CBD5E1; }
+  .pitch strong { color:#fff; }
+  .copy-btn { width:100%; margin-top:12px; padding:12px; border:none; border-radius:12px; background:linear-gradient(90deg,#38BDF8,#22C55E); color:#04111D; font-size:14px; font-weight:900; cursor:pointer; }
+  .foot { text-align:center; margin-top:26px; font-size:13px; color:var(--mut); }
+  .foot a { color:var(--cyan); text-decoration:none; font-weight:700; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <span class="eyebrow">AI Income Lab · Reviewer Vault Tool</span>
+  <h1>Small-Business <span class="grad">AI Retainer Pricing Calculator</span></h1>
+  <p class="sub">Price clean voice-only AI video packs + OpenReply Auto-DM funnels accurately — and show clients instant ROI math on every pitch call.</p>
+  <div class="grid">
+    <div class="card">
+      <h2>1. Configure Your Client Offer</h2>
+      <div class="presets">
+        <button class="pbtn" onclick="preset(12,false,false,4,35)">Starter ($1.5K)</button>
+        <button class="pbtn" onclick="preset(16,true,false,5,55)">Growth ($2.5K)</button>
+        <button class="pbtn" onclick="preset(20,true,true,6,85)">Full Operator ($4K)</button>
+      </div>
+      <div class="ctrl">
+        <div class="ctrl-top"><span>Monthly Voice-Only Client Videos</span><span class="val" id="v_vid">16 videos/mo</span></div>
+        <input type="range" id="vid" min="4" max="30" step="2" value="16" oninput="calc()"/>
+      </div>
+      <div class="ctrl">
+        <div class="ctrl-top"><span>Price Per Finished Video</span><span class="val" id="v_ppv">$100/video</span></div>
+        <input type="range" id="ppv" min="75" max="200" step="5" value="100" oninput="calc()"/>
+      </div>
+      <label class="chk"><span class="chk-l"><input type="checkbox" id="autodm" checked onchange="calc()"/>OpenReply IG Auto-DM Lead Funnel ($0 ManyChat)</span><span class="chk-p">+$900/mo</span></label>
+      <label class="chk"><span class="chk-l"><input type="checkbox" id="ops" onchange="calc()"/>AI Follow-Up, Proposals &amp; Reporting Agent</span><span class="chk-p">+$1,100/mo</span></label>
+      <div class="ctrl" style="margin-top:16px;">
+        <div class="ctrl-top"><span>Your Monthly Fulfillment Time</span><span class="val" id="v_hrs">5 hrs/mo</span></div>
+        <input type="range" id="hrs" min="2" max="15" step="0.5" value="5" oninput="calc()"/>
+      </div>
+      <div class="ctrl">
+        <div class="ctrl-top"><span>Your Monthly AI Token &amp; Tool Cost (Multi-Model Stack)</span><span class="val" id="v_api">$55/mo</span></div>
+        <input type="range" id="api" min="15" max="250" step="5" value="55" oninput="calc()"/>
+      </div>
+      <div class="ctrl">
+        <div class="ctrl-top"><span>Active Retainer Clients</span><span class="val" id="v_cli">3 clients</span></div>
+        <input type="range" id="cli" min="1" max="10" step="1" value="3" oninput="calc()"/>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>2. Your Retainer Economics</h2>
+      <div class="big-box">
+        <div class="big-lbl">Recommended Monthly Retainer</div>
+        <div class="big-num" id="o_ret">$2,500</div>
+        <div class="big-tier" id="o_tier">Growth Tier · Ideal Sweet Spot</div>
+      </div>
+      <div class="kpis">
+        <div class="kpi"><div class="kpi-l">Net Profit / Client</div><div class="kpi-v" id="o_prof" style="color:#4ADE80;">$2,445</div></div>
+        <div class="kpi"><div class="kpi-l">Gross Margin</div><div class="kpi-v" id="o_mgn">97.8%</div></div>
+        <div class="kpi"><div class="kpi-l">Effective Hourly Rate</div><div class="kpi-v" id="o_hr" style="color:#38BDF8;">$489/hr</div></div>
+        <div class="kpi"><div class="kpi-l">Total Monthly Profit (<span id="o_cc">3</span> Clients)</div><div class="kpi-v" id="o_tot" style="color:#C084FC;">$7,335/mo</div></div>
+      </div>
+      <div class="pitch" id="o_pitch"></div>
+      <button class="copy-btn" onclick="copyPitch()">Copy 1-Sentence Client Pitch</button>
+    </div>
+  </div>
+  <div class="foot">Built for members of <a href="https://www.skool.com/jonmac" target="_blank">AI Income Lab (skool.com/jonmac)</a></div>
+</div>
+<script>
+const $ = id => document.getElementById(id);
+function preset(v, dm, ops, h, a){ $('vid').value=v; $('ppv').value=(v===12?125:100); $('autodm').checked=dm; $('ops').checked=ops; $('hrs').value=h; $('api').value=a; calc(); }
+function calc(){
+  const v=+$('vid').value, ppv=+$('ppv').value, dm=$('autodm').checked?900:0, ops=$('ops').checked?1100:0;
+  const hrs=+$('hrs').value, api=+$('api').value, cli=+$('cli').value;
+  $('v_vid').textContent = v + ' videos/mo';
+  $('v_ppv').textContent = '$' + ppv + '/video';
+  $('v_hrs').textContent = hrs + ' hrs/mo';
+  $('v_api').textContent = '$' + api + '/mo';
+  $('v_cli').textContent = cli + (cli===1?' client':' clients');
+  const ret = v*ppv + dm + ops;
+  const prof = Math.max(0, ret - api);
+  const mgn = ret>0 ? (prof/ret*100) : 0;
+  const hr = hrs>0 ? Math.round(prof/hrs) : 0;
+  $('o_ret').textContent = '$' + ret.toLocaleString();
+  $('o_tier').textContent = ret < 2000 ? 'Starter Video Pack · Fast Foot-in-the-Door' : (ret < 3400 ? 'Growth Tier · Best Close Rate + Margin' : 'Full AI Operator Retainer · High-Ticket Scale');
+  $('o_prof').textContent = '$' + prof.toLocaleString();
+  $('o_mgn').textContent = mgn.toFixed(1) + '%';
+  $('o_hr').textContent = '$' + hr.toLocaleString() + '/hr';
+  $('o_cc').textContent = cli;
+  $('o_tot').textContent = '$' + (prof*cli).toLocaleString() + '/mo';
+  const extras = [dm?'automated Instagram comment-to-DM lead capture ($0 ManyChat fees)':'', ops?'automated AI lead follow-up & reporting':''].filter(Boolean).join(' + ');
+  $('o_pitch').innerHTML = `<strong>Ready-to-Use Pitch Line:</strong> "For <strong>$${ret.toLocaleString()}/month</strong>, we deliver <strong>${v} clean, voice-only client videos</strong> every month${extras?' plus <strong>'+extras+'</strong>':''} — no long contracts, and I'll send you a free 20-minute sample video built for your business first."`;
+}
+function copyPitch(){
+  navigator.clipboard.writeText($('o_pitch').innerText.replace('Ready-to-Use Pitch Line: ',''));
+  const b = document.querySelector('.copy-btn'); b.textContent='Copied!'; setTimeout(()=>b.textContent='Copy 1-Sentence Client Pitch',1600);
+}
+calc();
+</script>
+</body>
+</html>
